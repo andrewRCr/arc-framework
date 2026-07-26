@@ -9,7 +9,7 @@
   capability is declared only where it is proven, and the evidence a failed review leaves behind survives the run
   that produced it.
 
-- **State:** maturing — 2026-07-25 grooming session, second pass. Pre-PRD.
+- **State:** maturing — 2026-07-26 grooming session, third pass. Pre-PRD.
 - **Class:** `Heavy` (derivation and scale both fire; compose rather than invent).
 
 ---
@@ -69,10 +69,28 @@ reachable — a producing verb, a field in the typed record, a statement carried
 That distinction decides the size of every concern below: where the rule already exists, the work is plumbing, not
 design, and proposals that add governing machinery are answering a question that was already answered.
 
+### The third pattern — procedural surfaces that misdescribe themselves
+
+The last concern arrived from different evidence and does not reduce to either pattern above, which is worth
+stating plainly rather than filing it under a root it does not share. Its evidence is a live integration report
+rather than the PR #354 diagnosis, and its defect is neither an unbacked claim nor an unreachable rule: **the
+integration boundary's own procedural surfaces describe themselves inaccurately.** The interlock renders what it
+verified instead of what the approver decides; the lifecycle verb names its phase's content instead of the
+scheduling act it performs; the state transition fires two steps before the state's documented meaning begins. In
+each case the surface is truthful about the system and misleading about itself.
+
+This pattern is also the reason the work unit now spans two subjects. The first two patterns are both properties of
+the **review protocol's content**; this one is a property of the **integration workflow's procedural shape**, and
+nothing in a fix to one reaches the other. That asymmetry is recorded as the decomposition signal in § Unknowns
+rather than resolved here.
+
 ## Scope
 
-Eight concerns, in rough dependency order. The first four are the hosted-protocol core; the last four are adjacent
-surfaces that arrived through their own captures and are confirmed in scope.
+Nine concerns, in rough dependency order. The first four are the hosted-protocol core; the next four are adjacent
+surfaces that arrived through their own captures and are confirmed in scope. The ninth arrived last, from a live
+integration report, and stands apart: it is the only one reaching the integration workflow's own procedural
+shape — its interlock surface, its lifecycle verb, and its state transition — rather than the review protocol's
+content.
 
 ### 1. Selection authority (the core)
 
@@ -265,6 +283,14 @@ Two supporting observations, both recorded so they are not re-derived:
   falls through as externally managed at best. The problem is not that these exist; it is that they are invisible
   to the reaper that already exists. Stamping review checkouts with their owning work unit and cycle would let
   that machinery own them.
+- **Dirty review scratch is indistinguishable from unsaved work, so cleanup escalates to the human.** Observed at
+  a sibling work unit's integration: four chunk checkouts survived the merge, and the closing report surfaced them
+  to the developer with a note that removal would require force-discarding staged and untracked content. That was
+  the right call on the evidence available — but the content was entirely review projection of the work that had
+  just merged, so nothing was at risk and the developer had no decision to make. Neither the sweep nor the agent
+  can tell reproducible scratch from a real worktree's unsaved work, so real-worktree caution applies to both. The
+  clone isolation above dissolves this rather than needing a rule: a throwaway clone's contents are reproducible by
+  construction, so its removal is unconditional and never becomes a question the developer has to answer.
 
 This WU settles the pattern and applies it to the frontline ephemeral checkout it already touches. Applying the
 same pattern to chunk projections belongs to `chunk-scope-binding`, which owns that machinery.
@@ -473,7 +499,8 @@ whether the frontline lane needs the same field on its own attempt path. Neither
 
 ### 8. Stop discipline and spend opt-in
 
-Two halves of one question: what the integration stretch does without asking, and who decided that it may.
+Three parts of one question: what the integration stretch does without asking, who decided that it may, and which
+stops are load-bearing enough that streamlining must not reach them.
 
 **The choreography already matches its design intent; the rule that says so is unreachable.** The shipped
 right-sizing spec states the target plainly — human stops track authority rather than every judgment, final
@@ -508,11 +535,238 @@ new concept, and a project can ask for offers at `Novel` only. Disabled is the s
 source lists — **ARC ships with no automatic spend and each project opts in**. Discoverability is a documentation
 concern and does not outweigh consistency with the lanes.
 
+**Which stops survive streamlining — the signal's location decides, not the stage's name.** The two asymmetries
+above both argue for removing stops, and applied uniformly that argument reaches every `adversarial-review`
+fire-point, including the three planning stages. It must not, and the reason is derivable rather than a carve-out:
+
+> **A stop is required wherever the completion signal is not fully observable in the artifact.**
+
+- **Verification and integration triggers are artifact-observable.** The task list's phases are complete and the
+  verification phase is the literal next item; the review lanes fire at a determined position in the integration
+  cascade. Everything establishing "is it time" is on disk, so an agent reading the artifact holds exactly what the
+  developer holds. The stop adds no information, which is what makes it ceremony — and what makes autofire correct
+  once a project has opted in. Declining costs little in any case: the adversarial pass **augments** the self-verify
+  and never replaces it, so the floor beneath an autofired pass is the full criteria validation that runs either
+  way. The planning stages have no such floor.
+- **Planning-stage boundaries are not.** Whether a draft is done depends on intent the developer has not yet
+  uttered, which no artifact carries and no readiness read can reach — `assess-draft-readiness` reads the artifact,
+  not the person. Here the stop **is** the input channel rather than a permission turn, so it holds even when a
+  project has opted in and the `Class` threshold is met.
+
+This revises the verification asymmetry's remedy without withdrawing the finding: the stop to remove is the one
+whose trigger is observable, not merely the one that fires at every `Class`.
+
+**Live evidence from this WU's own grooming.** Concern 9 existed only in the developer's head at the moment the
+draft otherwise read as complete. Every artifact-based readiness signal would have returned ready, an autofired
+planning pass would have run against a draft about to grow by roughly a third, and its findings would have been
+obsolete on arrival.
+
+**Shape — a convergence check, not an authorization form.** What is approved is that _the stage is complete_; the
+pass firing is a consequence of that agreement rather than a second decision. So the surface is one conversational
+question — this stage looks done, is there anything to raise before it is attacked — and never an enumeration of
+pass counts, rubrics, and evaluator conditions. That enumerating shape is precisely concern 9's Defect B arriving
+at a different fire-point, and adopting it here would trade one over-rendered interlock for three.
+
 **Boundary with `judgment-authority-model`.** That work unit owns the authority model: which rules yield to
 demonstrated judgment, who may override, and how an override is disclosed. This concern is narrower and is exactly
 this work unit's stated purpose — whether the shipped workflow carries the discipline its own spec defined. Fixing
 the carriage does not settle the authority question, and settling the authority question would not have carried
 the rule.
+
+### 9. Integration-boundary procedural accuracy
+
+**One root, three surfaces: the integration boundary's procedural surfaces misdescribe what they do.** The
+interlock renders everything it verified rather than what the approver decides; the lifecycle verb names a phase's
+content rather than the scheduling act it performs; and the state transition fires two steps before the state's own
+documented meaning begins. Each was found independently, and they are one concern because the fixes interlock —
+the verb rename is a precondition for naming the interlock's new verbs, and the fire-point correction is what makes
+the rename true.
+
+This is also the only concern reaching the integration workflow's procedural shape rather than the review
+protocol's content, which is the decomposition signal recorded in § Unknowns.
+
+#### 9a. The interlock surface
+
+**The observed instance.** A sibling work unit's final integration interlock rendered a nine-part wall: approved
+head, complete candidate-tail diff, lifecycle state, base-drift reading, pull-request status and requirements,
+merge method, review convergence history, a proposed `## Review` record, and a closing paragraph informing the
+approver that any head movement invalidates the approval being requested. **None of it was the agent improvising.**
+The `integration-interlock` callout prescribes that surface list verbatim, the surrounding step adds "surface this
+exact diff, not excerpts alone," and the `Coverage` line came from the pull-request template. The agent complied
+exactly.
+
+Three defects are conflated there, and they want different fixes — which is why they resolve together rather than
+as three captures.
+
+**Defect A — determinism encoded as prose.** The final integration step runs roughly 125 lines of sequencing:
+read drift, validate the returned object's typed fields, refresh, compare the object identifier, merge, rerun
+gates, recompose, push, re-run checks, resolve lifecycle state, compose the change-request handle, invoke
+readiness, fire the pre-merge seam, retain the head identifier, compose the diff, compose the review record, stop,
+apply dispositions, recompose, compare against the approved head, re-read status, invoke unlock, follow its typed
+action, re-read checks, replace the summary, read drift once more, merge. Every branch is machine-decidable over
+typed output from verbs this project owns. `strategy-procedure-evolution` Principle 1 names this exact
+anti-pattern — code wearing prose, unexecutable and uncheckable where it sits — and illustrates it with a
+_one-line_ condition. This is that anti-pattern at 125-line scale, in the workflow carrying the corpus's highest
+imperative density.
+
+The clearest tell is self-validation: the step instructs the agent to confirm that the drift verb returned a
+well-formed object with the required typed fields. We wrote that verb. If it can emit a malformed envelope that is
+a defect in the verb, and asking the agent to re-check its own tool's contract violates both Principle 1 and
+Principle 4 in a single paragraph.
+
+**This is not the load-cost disease, and the distinction decides the remedy.** Nothing here is carried-and-skipped:
+the workflow loads only when integrating, and every line applies when it does. The cost is execution fidelity under
+a stochastic interpreter, paid only by the sessions that run it — and it _worsens_ with accretion, because prose
+constraints do not compose. Each added imperative dilutes the attention available to the others, so a 125-line
+prose program is less reliable than a five-line verb call. The accretion defeated the goal it was added for. The
+remedy is therefore relocation, not relaxation: loosening the constraints would trade a fidelity problem for a
+correctness one.
+
+**Defect B — the interlock renders everything it verified.** Nine things must be _established_; the approver's
+decision turns on perhaps three — what is merging, where review landed, and anything not clean. There is no notion
+anywhere in the step of _checked and clean therefore silent_. The precedent already exists in this project:
+session initialization states "only mention gaps in orientation if they exist" and carries an explicit
+never-include list covering clean freshness and passed environment checks. The integration interlock holds the
+exact inverse posture, and nothing records that as a decision.
+
+**Defect C — the approval-invalidation narration, and the `Coverage` leak.** The exact-head pin is sound and stays:
+it is a compare-and-swap guarding a real failure mode, an agent helpfully pushing a fix in the window between
+approval and merge. What is wrong is telling the approver that their approval is conditional. The pin constrains
+the _agent_, not the human, and any change in that window would have come from the human anyway. Keep the
+mechanism, delete the explanation, and let the invalidation path speak only when it actually fires.
+
+The `Coverage` field is the same defect in the public surface. It is prescribed in three places — the integration
+step, the pull-request template's optional-sections guidance, and the errand workflow — and it renders as prose
+like "targeted verification carried prior complete coverage across the archive-only candidate tail." That is four
+load-bearing internal terms addressed to a reader with no model for any of them, which
+`DEV-RULES.ARC § Commit and PR surface language` already prohibits: pull-request prose reads as the operation
+performed, legible without ARC-specific knowledge. `Local` and `Hosted PR` and `Triage` survive that test — they
+tell a reader who reviewed and what happened to findings. `Coverage` is audit metadata whose only interested reader
+already approved it. **Resolved: cut it from the pull-request record at all three loci and route the audit content
+to Completion Notes**, which are internal and already exist.
+
+**Resolved — the deliverable is two verbs around one human stop.** The cut falls where the human does:
+
+- **`arc integrate checkpoint <name> --json`** absorbs the pre-stop sequence — the authoritative drift read and its
+  validation, the reconcile decision, lifecycle and cadence resolution, and the readiness envelope. It returns one
+  typed verdict: `ready` carrying the approved head, candidate-tail diff reference, requirement and status
+  summary, merge method, and the composed review record; `reconcile` carrying the drift verdict; or `blocked`
+  carrying a typed reason.
+- **`arc integrate merge <name> --approved-head <sha> --json`** absorbs the post-approval sequence — head
+  recomposition and comparison against the approved value, status re-read, unlock dispatch and clearance await,
+  check re-read, review-summary replacement, the final drift read, and the pinned merge. It fails closed on any
+  mismatch and returns `merged`, `invalidated` with a typed reason, or `blocked`.
+
+The approval binds to the head identifier as a token the second verb validates. That is what makes Defect C
+structural rather than instructional: the invalidation rule stops being a paragraph the agent must remember and
+narrate, and becomes a precondition the verb enforces. The agent no longer explains the pin because it no longer
+carries it.
+
+**What stays prose is the judgment**, and naming it is half the deliverable: review applicability, disposition
+decisions, whether an early reconcile is worth the pass, and the recommendation accompanying the interlock. Those
+are judgment leaves with no machine-decidable form. The invariants that survive as prose are the bias-guarding
+ones — clearance never carries, advisory receipts are not merge authority, the interlock is the sole merge
+authority — though they are currently restated six or seven times across the phase, which is itself a
+prose-substrate tell that the author did not trust the substrate. Once the verbs enforce the sequence, one
+statement each is enough.
+
+**Surface discipline lands as precomposed text, not as an instruction.** Per `strategy-procedure-evolution`
+Principle 6, the checkpoint envelope carries the interlock's rendered surface already composed and already
+exception-filtered — clean signals collapsed to a line, unclean ones expanded. This is deliberately not a prose
+rule telling the agent to be brief: a template in markdown is untestable, and the same template in code is a unit
+test away. It also makes Defect B mechanically enforced rather than re-litigated at each site.
+
+#### 9b. The lifecycle verb names the wrong axis
+
+**`arc integrate` reads as the merge because it is named for its phase's content rather than for the act it
+performs.** Its own help string already disclaims the reading — "marks phase entry, not the merge" — which is a
+name requiring a disclaimer.
+
+The lifecycle `State` is the **scheduling axis**, a contract `project-state-integrity` states explicitly and
+`wu-lifecycle-state-model` owns. Read that way, the transition family has one invariant: **each verb names a
+scheduling act.** `activate` schedules into implementation, `park` and `resume` deschedule and reschedule,
+`materialize` schedules onto this machine, `abandon` and `archive` are terminal scheduling acts. `integrate` alone
+names what happens _during_ the phase its act schedules into. It is the only member on the wrong axis, which is
+why it is the only member whose name misleads.
+
+**Resolved: rename to `arc submit`.** It names the scheduling act, matches the family's form, and carries no merge
+reading. The objection that it does not itself open the pull request dissolves on the same axis argument that
+diagnoses the defect: `activate` does not implement anything either. Both name the act of scheduling work into a
+phase; the phase's work then happens. The rename also frees `integrate` as a namespace, which is what makes 9a's
+`arc integrate checkpoint` and `arc integrate merge` honest rather than nested beneath a command that disclaims
+being the merge — a benefit, not the justification.
+
+**The state keeps its name.** `**State:** Integrating` is unchanged. Renaming it would re-key an existing meaning,
+which the axis contract prohibits, and the wide sweep buys little once the command stops competing for the word.
+The result is a three-way split where one word currently does three jobs: `arc submit` is the transition,
+`Integrating` is the phase, and `integrate-work-unit` plus the `arc integrate` namespace are the phase's procedure.
+
+#### 9c. The transition fires before the state it claims to cover
+
+**The workflow contradicts itself, and its own prose is the witness.** Step 1 states that "the `Integrating` state
+covers PR open through review-response" — and fires the transition at Step 1. The pull request opens at **Step 3**,
+with the local self-review preflight between them. A work unit is therefore `Integrating` through a window in which
+nothing is public and no reviewer outside the author's machine can see it.
+
+Verification is not the misplaced part, which is worth recording so it is not re-derived: the task list's
+verification phase runs Tier 3 gates, success criteria, and the adversarial pass entirely under `**State:**
+Active`, and only then does `arc finalize verify` write the handoff pointer. The transition already sits after
+verification. What it sits before is publication.
+
+**Resolved: move the fire point to the pull-request-open boundary**, so the state begins when its documented
+meaning begins. This mints no state and re-keys nothing, and it is what makes `arc submit` accurate rather than
+approximately right — at Step 3 the work genuinely goes from private to public, which is precisely what submitting
+means.
+
+**Forward-compatible with `wu-lifecycle-state-model` by construction.** Shrinking `Integrating` to the public phase
+carves out exactly the private-but-implementation-complete window a `Candidate` state would later occupy, so the
+two compose rather than collide. `submit` also keeps its meaning under that model, because it names the public
+transition either way. The private-side transition — `propose`, entering verification and local review — is
+deliberately **not** proposed here: it requires a state to transition into, and that state is not ours to mint.
+
+#### The control — `verify-work-unit` is clean, and that is evidence
+
+The sibling workflow in the same lifecycle phase shows none of this. It is short, runs three steps with no
+branching over typed output, calls one verb, and its imperatives are bias-guarding rather than procedural —
+"criterion text is immutable; never rewrite a criterion to match what was built." There is no prose program in it
+because it has no deterministic sequencing to encode.
+
+That makes it a natural control, and it narrows the diagnosis: the defect tracks the presence of machine-decidable
+branching, not a workflow's importance, ceremony, or lifecycle position. A remedy aimed at "lifecycle workflows are
+over-specified" would be aimed at the wrong property. Its two real issues are already owned elsewhere — the
+`Next Action` string-prefix coupling routed to `wu-lifecycle-state-model`, and the unconditional adversarial stop
+at every `Class`, which is concern 8's second asymmetry. **Not in scope, deliberately.**
+
+#### Boundaries
+
+**Boundary with `composable-workflows` — integration-only, by an explicit rule.** That work unit's adoption ladder
+partitions the corpus, and its scope estimate records a graduation trigger reading "before any at-scale touch of
+the inline-gated lifecycle workflows" — which is precisely this workflow. The rule that keeps this concern clear
+of it: **remove determinism, do not restructure the remainder.** Extraction shrinks the surface that work unit
+later converts and therefore helps it; reshaping — signature-led contracts, fragment extraction, spine budgets —
+would pre-empt its deliverable. The operative test at specification time is whether a proposed change would look
+different depending on whether that work unit's authoring pattern had landed. If yes, it is theirs.
+
+Nothing here invents a mechanism that work unit owns. Its fragment model already names the taxonomy cell this
+lands in — a fixed public method implemented at the code tier, with the lifecycle relocation mutators and the thin
+post-merge teardown as its recorded instances. This adds a second instance on the workflow where the payoff is
+largest, and returns evidence rather than claiming territory.
+
+**Boundary with `judgment-authority-model`.** Its discriminator sorts _prohibitions_ by what they guard against.
+This concern is about _prescriptions_ — sequencing, not permission — so the discriminator does not reach it. The
+evidence is in that work unit's own corpus sweep, which audited this workflow and rated it least affected because
+its twenty-plus prohibitions are all bias-guarding and survive unchanged. That reading is correct and it is
+exactly why the sweep could not see this: the defect is not any single prohibition but the 125 lines between them.
+Defect C's framing half is genuinely that work unit's face (c) — authority located, capability or standing
+miscommunicated — and this concern's fix for it is the narrow enactment, not the model.
+
+**Boundary with `wu-lifecycle-state-model` — it owns the vocabulary; this owns one command name.** That work unit
+owns the `State` values and carries `project-state-integrity`'s contract to mint none and re-key none. Everything
+here respects it: 9b renames a CLI command, not a state, and 9c moves when an existing transition fires, not what
+it means. The `Candidate` state and the `propose` transition are that work unit's, and a capture routed at this
+grooming records why — verification-passed is an attested artifact-axis signal projected only into a free-text
+meta field, which is its own core reform's shape at the other end of the lifecycle. **No `Depends On` edge**: this
+concern is correct under today's model and stays correct under theirs.
 
 ## Alternatives
 
@@ -560,6 +814,44 @@ the rule.
   mechanism first would elaborately measure a cost that mostly evaporates once the spawn default and the
   composability gap are fixed. The proportionate response is concern 5's derivability half, concern 7's
   convergence definition, and a bounded spawn context — none of which is new machinery.
+- **Relax the integration step's constraints rather than relocate them** (concern 9) — the intuitive reading of an
+  over-specified procedure. **Rejected**: the sequencing is deterministic, so loosening it trades a fidelity
+  problem for a correctness one. The constraints are not wrong; they are in the wrong substrate.
+- **Trim the interlock's rendered surface in prose** (concern 9) — instruct the agent to summarize when everything
+  is clean. Rejected as the same defect one level up: a rendering rule written in markdown is untestable and
+  re-litigated at every site, where the precomposed-envelope form is a unit test away and enforces itself.
+- **Generalize concern 9 to every workflow interlock.** Rejected — `composable-workflows` owns the corpus-wide
+  authoring pattern and records a graduation trigger covering exactly this class of workflow. Fixing one site in a
+  way that generalizes locally would mint the competing convention its adoption ladder exists to prevent. The
+  integration workflow is taken as a single dogfooded instance instead, under the remove-determinism boundary.
+- **Wait for `composable-workflows` before touching the integration workflow at all** (concern 9). Rejected — it is
+  `planned` inside a cohort, staged large, and carries six unintegrated buffer items, so waiting defers the fix
+  indefinitely. Extraction is also the one change that is safe ahead of it: it shrinks what that work unit later
+  converts rather than pre-empting the shape of the conversion.
+- **Keep `Coverage` in the pull-request record but reword it for a general reader** (concern 9). Rejected — the
+  wording is not what fails. The field reports on the review process rather than on the change, so no phrasing
+  makes it relevant to the audience the surface addresses; the internal reader it does serve is served by
+  Completion Notes.
+- **Rename the lifecycle command to a compound — `enter-integration` / `begin-integrating`** (concern 9b).
+  Rejected — no sibling transition verb is compound, and putting the phase noun back into the command re-couples
+  the act to the phase, which is the defect. A compound is the right shape only when no domain verb fits the act;
+  here one does. `activate` is not `enter-active`.
+- **Noun-ify the command to `arc integration`** (concern 9b). Rejected — it fixes the misread but breaks the
+  family's verb form, and standing alone it does not say what it does to the state. It also fails to free the word,
+  so the new merge verbs would still nest beneath a phase-entry command.
+- **Fold verification and integration under one generic name such as `finalization`** (concern 9b). Rejected on
+  two independent grounds: `arc finalize` already exists as a planning-ceremony verb — including `arc finalize
+  verify`, the command that closes verification — and collapsing two phases under one name would re-key existing
+  `State` meanings, which the axis contract prohibits.
+- **Rename `**State:** Integrating` alongside the command** (concern 9b). Rejected — it re-keys an existing
+  meaning against the axis contract, spans every meta file plus the resolver, session type, and cadence checks, and
+  buys little once the command stops competing for the word.
+- **Also mint the private-side `propose` transition and a `Candidate` state** (concern 9c). Rejected as
+  out-of-owner rather than wrong — the framing is sound and was routed to `wu-lifecycle-state-model`, which owns
+  the vocabulary and is fenced by the same contract that permits the command rename.
+- **Extend concern 9 to `verify-work-unit`** as the other integration-phase workflow. Rejected on inspection: it
+  has no deterministic sequencing to relocate, its imperatives are bias-guarding, and its two real issues are
+  already owned by `wu-lifecycle-state-model` and concern 8. It is retained as the diagnostic control instead.
 
 ## Unknowns and Assumptions
 
@@ -575,10 +867,29 @@ the rule.
 - **Open — chunked latency at partition scale.** `review-chunking` measured a materially higher per-invocation
   latency for the CodeRabbit carrier on single chunks, but never across a full partition. That measurement belongs
   to `chunk-scope-binding` as part of its restoration condition, not here.
-- **Sizing — materially reduced, still worth watching.** Concern 2 shed the partition-transport work to its
-  rightful owner and became a capability removal, which takes the largest and least-bounded item out of the WU.
-  Concerns 5 and 6 keep their independent-ship escape hatches. Re-run the cohort-fit read once concerns 1 and 3 are
-  specified, which is now the point where decomposition becomes decidable.
+- **Sizing — reduced by concern 2, then materially widened by concern 9.** Concern 2 shed the partition-transport
+  work to its rightful owner and became a capability removal, taking the largest unbounded item out of the WU.
+  Concern 9 puts comparable weight back and changes the WU's character: it is the only concern reaching the
+  integration workflow's procedural shape rather than the review protocol's content, and the only one whose
+  deliverable is two new lifecycle verbs. **This is now the decomposition signal**, and it is cleaner than the one
+  the cohort-fit read was waiting on — concerns 1 through 8 share a subject and concern 9 does not. Run the read
+  once concerns 1 and 3 are specified, expecting it to fire.
+- **Open — how much of the integration step survives extraction** (concern 9). The judgment leaves are named, and
+  the bias-guarding invariants are known to survive, but the residual line count is not established until the verb
+  boundaries are specified. It decides whether the concern also earns a prose-economy pass over what remains or
+  leaves that to the corpus-wide sweep. Not a direction question.
+- **Open — where the pre-merge seam sits relative to the merge verb** (concern 9). The seam currently fires inside
+  the sequence the verb would absorb, and an extension is a project-authored surface the verb cannot execute
+  blindly. The likely shape is that the checkpoint verb returns before the seam and the merge verb resumes after
+  it, leaving the fire-point in the workflow where the agent can honor its declared contract. To be settled against
+  the extension contract, not assumed.
+- **Open — the rename's deprecation posture** (concern 9b). Whether `arc integrate` survives as an alias for a
+  window or the rename lands clean. Self-hosting makes this project the only caller, but the command ships in the
+  published package, so the question is an adopter-compatibility one rather than an internal one.
+- **Assumption — the review record's remaining fields are worth keeping.** Cutting `Coverage` is settled; `Local`,
+  `Hosted PR`, and `Triage` are retained on the reading that a reader wants to know who reviewed and what became of
+  the findings. That has not been tested against anyone outside this project, and the whole section is optional
+  today, so the retention is a judgment rather than a validated requirement.
 - **Resolved — `ci-defer-heavy` placement.** Settled to a repository-local review-event workflow and routed out of
   this WU as an errand (below).
 
@@ -617,6 +928,31 @@ the rule.
   carrier question. Its advisory packet is SHA-bound and is not review coverage for anything.
 - **`unit-scoped-review`** — relocates the approval gate to the WU boundary, which changes what the
   author-response cycle above is collapsing. Coordinate framing; do not pre-empt.
+- **`composable-workflows` — adjacent owner, bounded by an explicit rule rather than an edge.** It owns the
+  corpus-wide authoring pattern and the load-cost mechanism; concern 9 owns one integration-specific enactment of
+  `strategy-procedure-evolution` Principle 1. The boundary is stated in the concern and reduces to
+  remove-determinism-do-not-restructure. No `Depends On` edge in either direction: this concern does not need its
+  pattern, and it does not need this concern's verbs.
+    - **A framing note was routed to it via `USER-INBOX` at capture time rather than folded here.** Its problem
+      statement frames the procedural-prose disease solely as always-read cost, which would rate this instance
+      healthy — nothing is carried-and-skipped, and the cost is fidelity paid by firing sessions. Its structural
+      budget open question inherits the same blind spot by being framed in line and token terms. Routed rather
+      than written into its draft, per the standing rule against editing a sibling's planning artifacts.
+    - **Its taxonomy already covers the remedy**, so this is dogfood rather than invention: a fixed public method
+      implemented at the code tier is a cell it named, with the lifecycle relocation mutators and thin post-merge
+      teardown as recorded instances. Concern 9 supplies a second instance and returns the evidence.
+- **`wu-lifecycle-state-model` — owns the vocabulary concern 9 operates under, with no edge in either direction.**
+  It holds the `State` values and `project-state-integrity`'s contract to mint none and re-key none; concern 9
+  renames a command and moves an existing transition's fire point, respecting both. Two things were routed to it at
+  this grooming rather than designed here: the `Candidate` state with its `propose` transition, and the finding
+  that motivates them — verification-passed is an attested artifact-axis signal recorded only as a string prefix in
+  the meta's free-text `Next Action`, which the session-init probe then pattern-matches. That is its own core
+  reform's shape at the far end of the lifecycle, so the reform lands one projection primitive with two instances
+  rather than solving readiness and rediscovering the shape later.
+    - **The composition is checked, not assumed.** Moving the transition to the publication boundary carves out
+      precisely the private-but-implementation-complete window a `Candidate` state would occupy, and `submit` names
+      the public transition under either model. Concern 9 is therefore correct today and stays correct after that
+      reform lands.
 
 ### Carried input — `ci-defer-heavy` automation (settled; routed to an errand)
 
@@ -683,17 +1019,30 @@ Three edges to handle in the errand:
 
 ## Scope Estimate
 
-Medium-to-large (several days). Reduced from the prior estimate: concern 2 collapsed from an experiment-gated open
-design to a capability removal plus a handoff note, and concern 4's shape is now settled rather than deferred
-behind that experiment. What remains spans configuration, policy contracts, adapter execution, CLI surface, and
-method prose — wide, but no longer carrying an unrun measurement on its critical path.
+Large, revised upward. The prior medium-to-large read held for concerns 1 through 8: concern 2
+collapsed from an experiment-gated open design to a capability removal plus a handoff note, and concern 4's shape
+settled rather than staying deferred behind that experiment. Concern 9 changes the total — two new lifecycle verbs
+absorbing the integration workflow's final phase, the prose extraction that follows, and a three-locus cut to the
+pull-request record. It is the only concern whose deliverable is new CLI surface rather than a correction to
+existing surface.
+
+Concern 9's own weight grew again once the verb rename and the fire-point correction joined it: the rename touches
+the CLI surface, the workflows and skills that invoke it, and the published package's compatibility posture.
+
+Across all nine the work spans configuration, policy contracts, adapter execution, CLI surface, lifecycle verbs,
+workflow prose, and method prose. Nothing carries an unrun measurement on its critical path. The size is now a
+decomposition question rather than a risk — see the sizing entry above.
 
 ## Continuity
 
-- **State:** maturing, at the formalization-readiness boundary. Every core concern is now settled to the decision
-  level, and the two fundamentals that once gated the WU — the carrier question and the selection-authority
-  shape — are both answered. What remains open is detail and policy defaults rather than direction.
-- **Resolved:** the problem framing and its single root (authority claims outrunning evidence); the six-concern
+- **State:** maturing, at the formalization-readiness boundary. Every concern is settled to the decision level, and
+  the two fundamentals that once gated the WU — the carrier question and the selection-authority shape — are both
+  answered. What remains open is detail and policy defaults rather than direction. Concern 9 arrived after that
+  boundary was first reached and does not reopen it, but it does change the WU's character: eight concerns correct
+  the review protocol's content, and the ninth corrects the integration workflow's procedural shape. The framing
+  now names three patterns rather than one root, which is the honest description of what the scope became.
+- **Resolved:** the problem framing and its three patterns — authority claims outrunning evidence, correct rules
+  unreachable at the decision point, and procedural surfaces that misdescribe themselves; the nine-concern
   scope; concern 1's corrected diagnosis (the typed fallback rule is already enforced; the driver was never
   consulted), the non-enforceability of driver-only selection, the operator override modelled on the existing
   ceiling override, the provenance separation that prevents laundering, and its three sub-decisions — no pass
@@ -709,9 +1058,17 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   signal, convergence measured on what a pass surfaced, severity provenance anchored to triage rather than the
   provider label, one shared definition across both loops, the recommend-but-never-proceed boundary for judgment
   at the cap, and the `blocker` → `critical` rename sequenced first; concern 8's finding that the stop discipline
-  is correct but archived, the two autonomy asymmetries, and the `Class`-threshold spend gate defaulting to
-  disabled; the second pattern named in the problem framing — correct rules unreachable at the decision point;
-  the review-budget ledger rejected with its
+  is correct but archived, the two autonomy asymmetries, the `Class`-threshold spend gate defaulting to
+  disabled, and the observable-signal rule that decides which stops survive streamlining — verification and
+  integration autofire once opted in, planning-stage passes always converge with the developer first;
+  concern 9's single root across three surfaces, its three-defect decomposition of the interlock, the
+  two-verb deliverable with the approved head as the binding token, the judgment leaves named as what stays prose,
+  the precomposed-envelope form for surface discipline, the `Coverage` cut at three loci, the
+  remove-determinism-do-not-restructure boundary that keeps it clear of `composable-workflows`, the scheduling-axis
+  diagnosis of the misnamed lifecycle verb and its rename to `arc submit` with the state left unchanged, the
+  fire-point correction to the publication boundary with its forward-compat check against a later `Candidate`
+  state, and `verify-work-unit` established as the diagnostic control that narrows the defect to machine-decidable
+  branching; the review-budget ledger rejected with its
   reasoning; coordination-not-dependency with `judgment-authority-model`;
   the two-front handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
   `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism and its routing out to
@@ -720,12 +1077,16 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   needs the same attempt field; whether existing test
   coverage already proves the enforced fallback rule, or a test is owed; the single
   trimmed-guidance timeout observation; whether the parity check lands as a unit test or a pre-commit contract
-  check; the retention default's concrete value once real diagnostics volume is observed.
-- **Next:** run the formalization-readiness assessment. Every concern is settled to the decision level and the last
-  sizing question is answered — concern 7 stays whole, at one additive field and one branch. Two cautions for the
-  session that takes it up: concerns 7 and 8 landed **after** this pass's consolidation, so re-read the whole draft
-  for coherence before treating it as a single input; and `Class` was resolved when the scope was six
-  provider-protocol concerns, so re-run `classify-work-unit` now that it also spans a typed-schema rename,
-  convergence semantics, and workflow autonomy discipline.
+  check; the retention default's concrete value once real diagnostics volume is observed; concern 9's residual
+  prose volume after extraction, where the pre-merge seam sits relative to the merge verb, and the rename's
+  deprecation posture for the published package.
+- **Next:** run the formalization-readiness assessment, then the decomposition read the sizing entry now expects to
+  fire. Every concern is settled to the decision level. Three cautions for the session that takes it up: concerns 7,
+  8, and 9 all landed **after** this pass's consolidation, so re-read the whole draft for coherence before treating
+  it as a single input; `Class` was resolved when the scope was six provider-protocol concerns, so re-run
+  `classify-work-unit` now that it also spans a typed-schema rename, convergence semantics, workflow autonomy
+  discipline, and two new lifecycle verbs; and run `assess-cohort-fit` in the same pass rather than deferring it —
+  concern 9 does not share a subject with concerns 1 through 8, which is the cut the earlier reads were waiting for
+  the design to make real.
 
 ---
