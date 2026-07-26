@@ -16,7 +16,7 @@ settled: the audience test, the summoning test, the loud-versus-quiet cut test, 
 
 **Units.** `nb` is nonblank lines within the section — what a disposition actually moves. The earlier ~315 figure
 counted raw lines and the two are **not** comparable: `DEV-RULES.ARC` is 570 raw / 418 nb and `DEV-RULES.PROJECT`
-is 341 raw / 261 nb, so the ~322 nb register is ~46% and ~50% of each file's substantive content rather than
+is 341 raw / 261 nb, so the 318 nb register is ~45% and ~50% of each file's substantive content rather than
 "about a third," with a correspondingly larger raw footprint.
 
 **Measured against base as of the 2026-07-26 reconcile.** A sibling errand edited § Method and extension loading
@@ -135,9 +135,9 @@ within this work unit's reach).
 
 | File                | Committable now | Mechanism-gated | Blocked | Total nb |
 | ------------------- | --------------- | --------------- | ------- | -------- |
-| `DEV-RULES.ARC`     | ~147            | ~27             | ~17     | ~191     |
+| `DEV-RULES.ARC`     | ~147            | ~31             | ~17     | 187      |
 | `DEV-RULES.PROJECT` | ~96             | ~35             | 0       | ~131     |
-| **Both**            | **~243**        | **~62**         | **~17** | **~322** |
+| **Both**            | **~243**        | **~66**         | **~17** | **318**  |
 
 These totals are **upper bounds pending the P1 re-audit** — the corrections below move lines out of the
 committable tier and back into the always-loaded set, and the re-audit may move more.
@@ -192,8 +192,9 @@ committable tier and back into the always-loaded set, and the re-audit may move 
   judgment about prose the reader no longer needs, made by the same interested party the backstop clause names as
   structurally suspect. The draft now places the maintainer's read as a gate at spec discovery rather than leaving
   it an unowned caveat.
-- **Every section line range reconciles** against the actual heading offsets in both files, and both `Δnb` columns
-  sum to the stated per-file totals. The arithmetic was checked independently in pass one; what was wrong was the
-  disposition logic, not the measurement.
+- **Every section line range reconciles** against the actual heading offsets in both files. The `Δnb` columns sum
+  to 187 (ARC) and 131 (PROJECT) — 318 together. An earlier ~191 / ~322 pair predated the § Quality gate failure
+  row's reclassification from a 4-nb cut to a ~0 rephrasing and was not re-derived; pass two caught it. The
+  measurement has held up under both passes; what failed was the disposition logic.
 
 ---
