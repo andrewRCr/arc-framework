@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Base reconcile — `origin/main` merged, 35 conflicts settled, full gates green
+- **Last Completed:** D1 reconstructed and committed at `fa3c10f0e` on the temporary carve branch; full gates green
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Re-create D1 from tip state onto a fresh branch off the reconciled base, applying the seam list in
-  `notes-session-locus-model.md` § The carve, proved; then stack `errand-transient-lifecycle` and `claimed-sweep-verbs`
+- **Next Action:** Resume the canonical D1 handover in `notes-session-locus-model.md`: port this handoff meta commit
+  onto `fa3c10f0e`, then archive the origin and replace the canonical checkout/ref after explicit impact confirmation
 
 - **PR URL:** [none]
 - **Completed:** [none]
