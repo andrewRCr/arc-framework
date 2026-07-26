@@ -439,6 +439,48 @@ describe("validateDecomposeCommitGate", () => {
     })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
   });
 
+  it("admits a legacy receipt relocation whose exact bytes survive at the canonical namespace", () => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    const preserved = bytes(canonicalize(abandon));
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? preserved : null,
+      readHeadBytes: (path) => path === legacyPath ? preserved : null,
+    })).toEqual([]);
+  });
+
+  it.each([
+    ["absent canonically", null],
+    ["canonically divergent", bytes("different record")],
+  ])("rejects a legacy receipt deletion %s", (_label, canonicalBytes) => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? canonicalBytes : null,
+      readHeadBytes: (path) => path === legacyPath ? bytes(canonicalize(abandon)) : null,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
+  it("rejects a legacy deletion outside retirement-receipts even when bytes exist canonically", () => {
+    const legacyPath = ".arc/.internal/other-state/record.json";
+    const preserved = bytes("record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: () => preserved,
+      readHeadBytes: () => preserved,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
   it("rejects root-level .arc/.internal inherited unchanged from a merge parent", () => {
     const path = ".arc/.internal/retirement-receipts/record.json";
     const inherited = bytes("legacy record");
