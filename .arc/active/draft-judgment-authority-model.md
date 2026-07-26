@@ -166,9 +166,9 @@ rule and the fact that discharges it, surface it where the developer is already 
 completion report, never a log — leave it reversible in one turn, and proceed. Raise it once: a
 reaffirmation is a decision, not an invitation to re-raise. The obligation is disclosure, not obstruction.
 
-**Whose call.** A default declares whose it is to override: `owner` (the work's owner), `maintainer`, or
-`policy` (nobody at runtime). Undeclared defaults are `owner`. Where one person holds every role this
-collapses to full latitude with no special case; where roles are distributed, the same declaration is
+**Whose call.** Authority to discharge a default resolves from the actor's role and the surface the rule
+governs — both already known to the session. No rule declares its own authority. Where one person holds
+every role this is full latitude with no special case; where roles are distributed, the same resolution is
 enforcement.
 ```
 
@@ -180,9 +180,22 @@ judge of whether the commit check applies to it. The backstop's first limb gener
 carries the `run-errand` fix directly, separating a withheld **authorization** (the owner's approval) from a
 withheld **capability** (performing the merge) — the distinction the standing test read straight off.
 
-**Still open:** `Whose call` as written is prose the agent parses, which `procedure-evolution` P2 forbids.
-Either the declaration becomes a typed field, or the section drops per-rule declaration and resolves authority
-from `Owner` / `arc.role` alone.
+**Why no per-rule authority vocabulary** (settled 2026-07-26, against `procedure-evolution` P2). The seed
+proposed each rule declaring `owner` / `maintainer` / `policy`. Probed against ~10 candidate defaults — task
+granularity, quality-gate failure, test-first, placement proposal, line length, commit format, package-sync,
+sub-agent execution relaxation, doc boundaries — role × governed-surface returned the right authority every
+time, with no counterexample. Two findings retired the vocabulary outright:
+
+- **`policy` is redundant.** A default nobody may override at runtime _is_ an invariant. Three values collapse
+  to the existing binary.
+- **The backstop absorbs the case that would have justified `maintainer`.** The obvious counterexample is the
+  quality-gate zero-tolerance rule, which a WU owner should not be able to wave — but it protects the integrity
+  of a check, so backstop limb one makes it invariant and it never reaches the authority question.
+
+So the declaration is enumeration this WU's own thesis says to drop, and dropping it satisfies P2 (no markup
+for the agent to branch on) while keeping the solo-collapses-cleanly property. Limit: ~10 of ~33 imperatives,
+classified by judgment — the full probe belongs in the retrofit pass, and a counterexample found later argues
+for one narrow marker, not for reinstating the vocabulary.
 
 Plus an **ADR** that anchors `adr-016`, `adr-020`, and `adr-029` under one model — generalizing, not superseding.
 
@@ -244,6 +257,49 @@ The WU's own discriminator sorts this, which is a strong argument for its shape:
 
 Never-cut does not mean never-rephrase: correcting a rule's scope is not weakening it.
 
+### Who is the reader — the audience test
+
+A fourth criterion, distinct from constraint-versus-explanation. `DEV-RULES.ARC` is read by the agent every
+session, so **content addressed to the human is misplaced there regardless of how load-bearing it is**. The
+distinction is subtler than it looks: "the agent must not initiate handoff" is agent-facing even though its
+subject is the human's role. What fails is content whose _reader_ is the human — decision support, taxonomies
+for a human judgment call, procedure the human runs.
+
+Demoted human-facing content goes to `strategies/`. **Not `docs/`** — that surface is stale and deliberately
+frozen pending a full rewrite once the backlog settles; routing there would widen it.
+
+### What can leave — the summoning test
+
+Content may leave the always-loaded set only when something will **summon it at the moment of need**. Three
+mechanisms exist, and there is no fourth:
+
+1. **Fire-site declaration** — an `arc.methods`-style frontmatter declaration; the workflow declares it, the CLI
+   resolves it.
+2. **Firing-condition index entry** — the `STRATEGY-INDEX` "Consult when:" shape: always-loaded, small,
+   directive.
+3. **Emitted remedy** — the failing gate, hook, or CLI output names its own fix.
+
+If none applies, the content cannot demote: it stays, or it is cut. Specifically **no new command-reference doc
+surface** — `knowledge-evolution` P7 prohibits it directly, and the awareness instinct it answers is served by
+mechanism 3.
+
+The test has teeth, and it re-sorts the register into three states rather than the destination-availability
+split it supersedes:
+
+- **Land** — a summoning mechanism already fires. Class-tag routing → a method (mechanism 1);
+  design-before-implementation rationale → `strategy-work-planning`, whose index trigger already reads
+  "authoring specs, resolving planning depth" (mechanism 2).
+- **Gated on mechanism** — the quality-gate command listing is already duplicated in `QUICK-REFERENCE`, which
+  itself divides labor correctly ("**which** of them a given change has to run is `DEV-RULES.PROJECT`"). But no
+  hook names a fix command on failure today, so mechanism 3 does not yet fire. Building that emission is what
+  licenses the demotion.
+- **Needs a trigger amendment first** — `strategy-session-operations`' index entry reads "adding new guidance
+  content, deciding loading tier, configuring session state, working on session workflows": all _authoring_
+  conditions, none firing for "mid-session, under context pressure." Demoting § Context quality there would lose
+  it silently. Amending trigger surfaces to carry situation conditions is therefore **part of the compression
+  work**, not a prerequisite outside it — and `knowledge-evolution` P2 already wants it, since a passive summary
+  is the weakest-firing style.
+
 ### Constraints only — the always-loaded target
 
 `knowledge-evolution` P1 settles the half of progressive disclosure that matters here: constraints never go
@@ -252,8 +308,19 @@ is not "fewer rules, found later" — it is **the always-loaded set shrinks to c
 explanatory, procedural, or exemplary demotes.** The likely result is a substantially shorter `DEV-RULES.ARC`
 that is _more_ rule-dense.
 
-That is also the larger win: the enumerated cuts below are smaller than the compression available in the
-explanatory prose wrapped around rules that stay.
+**Measured, 2026-07-26** — a coarse section-level classification rather than a judgment call about how big the
+pass "feels":
+
+| File               | Lines | Demotable / cuttable | Share |
+| ------------------ | ----- | -------------------- | ----- |
+| `DEV-RULES.ARC`    | 569   | ~196                 | ~34%  |
+| `DEV-RULES.PROJECT`| 341   | ~119                 | ~35%  |
+
+About a third of both files, ~315 lines. That settles fold-versus-defer without further argument: this is not a
+rider on the enumerated register but a **co-equal deliverable**. Largest single items: § When to Load Additional
+Guidance (43 lines, a pure pointer index that `knowledge-evolution` P4 says should be _derived_), the
+quality-gate command listing (~40), § Context quality (~28), and § Task interlock's leaf-binding (~14, which the
+placement doctrine already relocates).
 
 ### Constraint stays, procedure moves
 
@@ -295,8 +362,20 @@ Cuts, ranked:
 3. § Quality gate failure — steps 1–3 describe baseline competence. Only "never proceed until resolved or the
    user approves" is a constraint.
 4. § Verify before assuming — same shape. The "Never generate or assume" list beneath it stays intact.
-5. § Context quality ¶2–4 (compaction, handoff boundaries, quality signals) — guidance that already
-   cross-references `strategy-session-operations`. Its first line is a constraint and stays.
+5. § Context quality — worked in full as the audience test's first case, ~28 lines to ~3:
+    - **Keep** the opening line ("never degrade work quality or change approach due to context pressure") —
+      agent-facing, bias-guarding, quiet-failing. One line, unqualified.
+    - **Demote** the boundary taxonomy and the three-step handoff procedure to `strategy-session-operations`,
+      gated on that entry's trigger amendment above.
+    - **Cut** the "quality signals" bullet outright. It asks the agent to notice "output becoming less precise,
+      early-session guidance being missed, re-deriving decisions already established" — self-assessment of
+      one's own degradation, which is the forgeable-self-report shape this WU names as unreliable in
+      § Unknowns. An agent reliable enough to detect its own drift would not be drifting. Do not ship a rule
+      that depends on a capability this draft argues elsewhere does not exist.
+    - **Do not replace it with a behavioral rule.** The handoff nudge fires on a signal the agent estimates
+      badly (its own utilization) while the harness knows it mechanically; if the nudge is wanted it belongs to
+      mechanism 3, not agent introspection. Leaving it unmandated still permits reporting an obvious structural
+      boundary — that is state, not a guess.
 
 Rephrasings:
 
@@ -381,10 +460,12 @@ Two narrower target classes remain:
   operator-reaffirmation-is-decisive norm as a first-class rule. Nothing says what governs when the two
   disagree. Bounded composition work, not a literature review — and it replaces the seed's "is ARC stricter than
   the norm" framing, which § Face (c) resolved.
-- **The compression register is bounded; the larger win is not.** § Rule-surface compression names five cuts and
-  four rephrasings so the pass cannot sprawl — but it also records that more compression sits in the explanatory
-  prose wrapped around rules that stay, which the register does _not_ enumerate. Either that pass is scoped
-  explicitly or it is consciously deferred; leaving it implied is how a bounded register becomes an open audit.
+- **The compression surface is measured but not itemized.** ~315 lines are demotable or cuttable across the two
+  files, and the register names five cuts, four rephrasings, and § Context quality's full disposition — well
+  short of the measured surface. The remainder needs a line-level enumeration pass before the deliverable is
+  committed to, so the register stays a list rather than becoming a principle anyone can widen.
+  § When to Load Additional Guidance is already known to be blocked (no summoning mechanism until
+  `knowledge-architecture` ships a derived-access-path surface); the rest is unclassified.
 - Whether the three faces are one deliverable or want decomposing — see § Scope. The cohort-fit read is
   deliberately still not made; the shape has firmed but the cuts are not yet certain.
 
@@ -443,13 +524,16 @@ confirm or reject it once the core's shape is settled.
   `Class` ratcheted `Novel` → `Heavy` on the compose-not-invent read. **2026-07-26:** the discriminator's wording
   settled as satisfaction-test-primary plus a two-limb backstop, probed against the corpus; the cutting doctrine
   settled as loud-versus-quiet with constraints-only as the always-loaded target; the placement doctrine settled
-  as constraint-stays / procedure-moves, with gate-versus-granularity as its worked case.
+  as constraint-stays / procedure-moves, with gate-versus-granularity as its worked case. Per-rule authority
+  vocabulary dropped after a no-counterexample probe, closing the constitutional core's last open question; the
+  audience test and the three-mechanism summoning test added, with the compression surface measured at ~315
+  lines and re-sorted into land / gated / needs-trigger-amendment.
 - **Open:** the forgeability question and the `procedure-evolution` P1 tension, which jointly gate face (a) and
-  its shape; whether `Whose call` survives as prose or becomes a typed field under P2; the scope of the
-  unenumerated explanatory-prose compression; the `execution-delegation-doctrine` boundary; the cross-harness
-  precedence posture; whether the cut in § Scope is real.
-- **Next:** resolve `Whose call` against P2 — the last open question in the constitutional core — then draft the
-  `DEV-RULES.ARC` § Rule Authority section in place and run the bounded register against it. Face (a) waits on
-  the forgeability resolution and should not gate the core.
+  its shape; the line-level enumeration of the measured compression surface; the
+  `execution-delegation-doctrine` boundary; the cross-harness precedence posture; whether the cut in § Scope is
+  real.
+- **Next:** the constitutional core is settled and draftable — write `DEV-RULES.ARC` § Rule Authority in place.
+  In parallel, run the line-level enumeration pass so the compression deliverable is a list, not a principle.
+  Face (a) waits on the forgeability resolution and should not gate either.
 
 ---
