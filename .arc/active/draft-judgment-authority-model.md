@@ -50,6 +50,19 @@ Symptom: an independent review returned findings containing a one-character typo
 ARC this is invalidated, we must re-review." Absurd, and the agent knew it — the flaw was ARC's, for not letting
 safe agent judgment win.
 
+**Second symptom, same shape, on a rule whose text is right there.** An agent ran a focused test command with a
+repository-relative path where the workspace expects a package-relative one. Vitest found no tests, nothing ran,
+no code changed — and the agent stopped, reported, and asked whether to retry with the corrected filter. Asked why,
+it identified the cause itself: it had applied § Quality gate failure's "ask for guidance" step to a mistyped
+filter. No gate had produced a result, so there was nothing to have judgment about. The rule enumerates a procedure
+for a failing gate without distinguishing a gate that **failed** from one that **never ran**, and the enumeration
+was followed past the point where it made sense. Its remedy is a register rephrasing, not a new rule.
+
+Worth recording alongside it: this failure mode is **not uniform across harnesses** — the observed instances
+cluster where instruction-following is more literal. A rule whose correct application depends on the reader
+supplying the derivation will be applied inconsistently, which is an argument for stating the derivation in the
+text of high-traffic rules rather than trusting each reading to reconstruct it.
+
 ARC does draw the distinction, in at least three recorded places, so the defect is not that it is missing:
 
 - `adr-016` declares task-interlock and integration-interlock **invariant, not configurable**, while commit- and
@@ -127,6 +140,11 @@ Six enactments of one ungeneralized model, each paid for separately:
 
 `knowledge-evolution` Principle 6 ("extract on fan-in, not aesthetics") is what authorizes the extraction: the
 fan-in is demonstrated, repeatedly, not anticipated.
+
+The fan-in is also still accumulating. Three of the instances recorded here — the `run-errand` merge capability,
+the typo-invalidated review, and § Quality gate failure's mistyped filter — arrived **unprompted, during this work
+unit's own grooming**, in sessions doing unrelated work. A defect that keeps producing fresh instances while being
+designed against is not a historical observation.
 
 ## The model
 
@@ -423,8 +441,9 @@ Cuts, ranked:
    project-specificity, nothing actionable. The TypeScript standards beneath it are specific and stay.
 2. `DEV-RULES.ARC` § Task granularity — the numeric thresholds (>3 files, >50 lines). Proxies standing in for "is
    this one coherent increment"; they cause more bad decompositions than they prevent. Keep the principle.
-3. § Quality gate failure — steps 1–3 describe baseline competence. Only "never proceed until resolved or the user
-   approves" is a constraint.
+3. § Quality gate failure — **moved to Rephrasings below.** An earlier reading wrote steps 1–3 off as baseline
+   competence; the second live instance in § Face (b) shows they are a conflation of two different failures plus a
+   default in the wrong mood, which is a rewrite rather than a cut.
 4. § Verify before assuming — same shape, with one carve-out: the "stop and ask" step is a constraint and stays,
    as does the "Never generate or assume" list beneath it. Only the search-first and ask-clarifying steps go.
 5. § Context quality — worked in full as the audience test's first case:
@@ -452,6 +471,22 @@ Cuts, ranked:
 
 Rephrasings:
 
+- § Quality gate failure — the worked case for a rule the model rewrites rather than trims, and the one register
+  item with a demonstrated misapplication behind it. Three failures hide under one heading, and the rule's four
+  steps address only the middle one:
+    - **A gate that never ran is not a gate failure.** A mistyped filter, wrong path, wrong working directory, or
+      missing dependency produces no result and teaches nothing about the code. Correct the invocation and re-run;
+      there is nothing here to report or decide. Stating this is the fix for the recorded instance.
+    - **A red gate whose cause is this increment, with the fix inside its scope**, is finished by fixing it.
+      Resolving it _is_ completing the work, and the increment's own approval gate is where the developer sees it.
+      This is the default: name the fact — the failure is mine and the fix is in scope — and proceed.
+    - **A red gate whose resolution is a scope decision** — pre-existing, another surface, or a fix that widens the
+      change — is the developer's call, and § Anti-rider already says a distinct concern does not ride along. The
+      stop belongs here and only here.
+  What survives as invariant is narrower than the current step 4 and stronger: **a red gate never becomes a green
+  report, and is never bypassed.** That is backstop limb one — the check examines the agent's own output, so the
+  agent does not get to rule on whether it applies. "Do not advance to the next task" needs no separate statement;
+  the review-increment invariant already owns the boundary.
 - § Review-Increment Invariant ¶2 — five exempted operations packed into one sentence; slow to parse, and pure
   enumeration where the discriminator would derive. Restructure as a list at minimum.
 - § Discovered Work Routing — "always propose placement to the user before acting" contradicts the inline-fix
@@ -540,6 +575,10 @@ Two narrower target classes remain:
 - **Authority located, capability withheld** — the `run-errand` reviewed-lane shape. Cheap prose corrections.
 - **Hand-written reconciliations** — `process-task-loop`'s agent-proposed-batch clause. These are the sites that
   already paid for the missing model in bespoke prose; each is a candidate for derivation once the model lands.
+- **Enumerated procedure read as a mandatory stop** — § Quality gate failure is the recorded instance, and the
+  class is the most likely to recur, since an enumeration invites completion. The tell is a step whose purpose is
+  already served by the situation the agent is in. Search for it wherever a rule lists steps ending in a question
+  to the developer; the fix is to state which failure the steps address, not to add a permission.
 
 ## Success signal
 
@@ -670,6 +709,11 @@ restage machinery, and it is where `procedure-evolution` P6's precomposed-text q
   **dischargeability** qualifier, since a rule guarding an ignorance the agent can never discharge behaves as an
   invariant — the satisfaction test's fall-through already reached that verdict, which is further evidence for
   satisfaction-primary, and the retrofit's naive-sweep hazard is now named.
+  A third live instance then arrived from an unrelated session — § Quality gate failure's four steps applied to a
+  mistyped test filter, stopping over a gate that never ran — and it reclassified register cut 3 from a cut to a
+  rephrasing that separates three failures and narrows the invariant to "a red gate never becomes a green report."
+  The observation that this misreading is harness-dependent is recorded with it, as an argument for stating a
+  high-traffic rule's derivation in its own text.
 - **Open:** the register's constraint-or-not re-audit, which gates formalization; the
   `execution-delegation-doctrine` vocabulary coupling.
 - **Next:** adversarial pass two of two, attacking the repaired draft — the P1 re-audit and the core's newly
