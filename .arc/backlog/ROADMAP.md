@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `f38db45c7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7bfd4551d`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,11 +13,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit               | Priority | Owner  | Depends on | Cohort |
-| ------------- | ----------------------- | -------- | ------ | ---------- | ------ |
-| `Planning`    | decomposition-doctrine  | P1       | andrew | —          | —      |
-| `Integrating` | decomposition-hardening | P1       | andrew | —          | —      |
-| `Active`      | session-locus-model     | P1       | andrew | —          | —      |
+| State      | Work unit                 | Priority | Owner  | Depends on | Cohort |
+| ---------- | ------------------------- | -------- | ------ | ---------- | ------ |
+| `Planning` | decomposition-doctrine    | P1       | andrew | —          | —      |
+| `Planning` | judgment-authority-model  | P1       | andrew | —          | —      |
+| `Planning` | review-protocol-alignment | P1       | andrew | —          | —      |
+| `Active`   | session-locus-model       | P1       | andrew | —          | —      |
 
 ## Ready
 
@@ -26,9 +27,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | interlock-release-refinement     | P1       | andrew | —          | approval-flow-refinement   |
 | chunked-delivery                 | P1       | andrew | —          | —                          |
 | delivery-intent-integrity        | P1       | andrew | —          | —                          |
-| judgment-authority-model         | P1       | andrew | —          | —                          |
 | recovery-hardening               | P1       | andrew | —          | —                          |
-| review-protocol-alignment        | P1       | andrew | —          | —                          |
 | roadmap-tooling                  | P1       | andrew | —          | —                          |
 | stub-mint-to-launch              | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model         | P1       | andrew | —          | —                          |
