@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "method-fire-site-loading",
+  "origin": "description",
+  "intent": "Load frontmatter-declared methods at their fire-site rather than eagerly at workflow load",
+  "branch": "fix/method-fire-site-loading",
+  "createdAt": "2026-07-26T20:03:18.443Z",
+  "returnBranch": "main"
+}
