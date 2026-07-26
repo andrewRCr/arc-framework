@@ -2,8 +2,6 @@
 purpose: Restore ARC operating context after harness compaction from the latest compaction seed.
 audience: agent
 arc:
-  methods:
-    - session-state
   extensions:
     - post-context-load
 ---
@@ -86,10 +84,9 @@ harness instruction files during recovery.
 **The manifest is the complete recovery read** — reading past it spends the post-compaction budget on context
 the resumed step does not need. Two classes sit outside it:
 
-- **Frontmatter-declared methods and extensions.** Do not load a recovered lifecycle workflow's `arc.methods` /
-  `arc.extensions` declarations here; each loads at its fire-site when the resumed step reaches it.
-  Scope-limited override of DEV-RULES.ARC § Method and extension loading, for the recovery load only —
-  recovery resumes mid-workflow, so most declarations belong to steps already behind the resume point.
+- **Frontmatter-declared methods and extensions.** These load at their fire-point per DEV-RULES.ARC § Method and
+  extension loading, so most never load here at all: recovery resumes mid-workflow, and their fire-points sit
+  behind the resume point.
 - **Design artifacts.** `spec-*`, `notes-*`, and the task list beyond the manifest's `partial-strategic` slice
   are not manifest members. Load them at their step trigger.
 
