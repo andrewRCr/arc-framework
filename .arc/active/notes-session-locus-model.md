@@ -9,6 +9,7 @@
 - [Right-sizing audit (2026-07-22)](#right-sizing-audit-2026-07-22)
 - [Chunked-review finding triage (2026-07-24)](#chunked-review-finding-triage-2026-07-24)
 - [Decomposition into a delivery stack (2026-07-25)](#decomposition-into-a-delivery-stack-2026-07-25)
+- [Proportionate delivery cut (2026-07-26)](#proportionate-delivery-cut-2026-07-26)
 
 ## Codebase pointers
 
@@ -584,7 +585,164 @@ interleaved ones. **This carve takes neither.** It re-creates each deliverable f
 branch off the base — forward-only on a pushed branch, no history rewriting, no orphaned SHA-keyed notes. That is a
 third shape the strategy does not enumerate, chosen deliberately: it accepts losing the origin's 195-commit
 narrative in exchange for avoiding surgery the strategy itself calls a smell. The mitigation stands — port each
-deliverable as a meaningful commit sequence, and retain the origin branch unmerged as the development record.
+deliverable as a meaningful commit sequence, and retain the origin history unmerged as the development record.
 
 Worth recording for the routing lesson above: the strategy already says to _"decompose at the planning maturity
 gate before the code exists, so the cut stays clean."_ The doctrine existed; nothing fired it.
+
+### Carve execution runbook (2026-07-26)
+
+The carve has two separate authorities. **Git ancestry** comes from each deliverable's predecessor after it
+integrates. **Implemented content** comes by owned path from the frozen origin tip. Do not confuse "cut from" with
+"copy from":
+
+| Deliverable                     | Ancestry base              | Content donor                      | Lifecycle entry                            |
+| ------------------------------- | -------------------------- | ---------------------------------- | ------------------------------------------ |
+| D1 `session-locus-model`        | `main` at `c6443e34a`      | origin tip `f774446c0`             | manual scratch, then existing-WU handover  |
+| D2 `errand-transient-lifecycle` | `main` after D1 integrates | archived origin tip, D2 paths only | `npx arc start errand-transient-lifecycle` |
+| D3 `claimed-sweep-verbs`        | `main` after D2 integrates | archived origin tip, D3 paths only | `npx arc start claimed-sweep-verbs`        |
+
+The D1 implementation donor is immutable at `f774446c0`; control-plane documentation recorded after that freeze
+does not widen the donor. Preserve that commit before canonical handover under the annotated tag
+`archive/session-locus-model-origin-f774446c0`. A tag, rather than another live branch, keeps all 195 commits and
+their SHA-keyed notes reachable without presenting ARC with two branch heads carrying the same active WU.
+
+#### D1 construction
+
+1. Create sibling worktree `arc-framework.session-locus-model-d1-carve` on temporary branch
+   `feat/session-locus-model-d1-carve`, cut at `c6443e34a`.
+2. Because `arc start` does not own this checkout, run the configured post-create provisioning script and copy the
+   configured harness directories from the primary. Leave the checkout without a worktree marker or locus role;
+   it is a bounded construction surface for the existing WU, not a second WU.
+3. Re-create D1 from `f774446c0` by owned path, using § The carve, proved as the seam authority. Keep the current
+   `feat/session-locus-model` checkout frozen as the readable donor.
+4. Port the two planned child specs/metas and the re-pointed `locus-generation-binding` dependency with D1 so the
+   normal D2 entry exists on `main` after D1 integrates. Deliberately rewrite the packaged and self-hosted command
+   documentation; the test suite does not prove command-surface truth.
+5. Build a meaningful D1 commit sequence and run the complete gates. Do not run ordinary session initialization
+   in the unmanaged scratch checkout and do not push it as a second active WU branch.
+
+#### Canonical D1 handover
+
+Run only after the scratch tree is clean, reviewed as a carve increment, and green:
+
+1. Verify `f774446c0`, push the annotated archival tag, and confirm it resolves remotely.
+2. Remove the scratch worktree while retaining its temporary branch.
+3. Switch the existing `arc-framework.session-locus-model` checkout onto the reconstructed branch. Reusing the
+   checkout preserves its path-bound work-unit role, gitignored marker, harness state, and session workspace.
+4. Retire the old canonical branch ref, rename the reconstructed branch to `feat/session-locus-model`, and replace
+   the remote canonical branch only after the archive tag is confirmed. Do not keep a second ordinary branch whose
+   tip still carries `meta-session-locus-model.md`.
+5. Re-run `npx arc locus --json` and `npx arc status --session-init --json`. Require exactly one managed
+   `session-locus-model` row at the existing checkout, one active lifecycle subject, matching branch/meta, clean
+   reconciliation, and fresh SESSION-NOTES before continuing.
+
+The handover is the destructive boundary. Stop before it and present the exact ref/worktree impact and rollback
+route; no prior approval to reconstruct D1 implies approval to replace the canonical branch.
+
+#### D2 and D3
+
+Do not pre-cut them. After D1 integrates, its child stubs exist on `main`, so ordinary
+`npx arc start errand-transient-lifecycle` can create the planning branch, worktree marker, locus role,
+SESSION-NOTES, and committed start ceremony. Complete its inherited-delivery task list and activation, then port
+only D2 paths from the archived origin tip. Repeat for D3 only after D2 integrates.
+
+This serialization makes `main` after each merge the next member's real predecessor head. Cutting D2 or D3 now
+would require manual artifact relocation and role/provenance mutation while their dependencies remain unlanded —
+the lifecycle collision this runbook exists to avoid.
+
+## Proportionate delivery cut (2026-07-26)
+
+The three-deliverable carve was drawn on **ownership** boundaries — which work unit does this code belong to — and
+it succeeded on those terms. It did not reduce the review surface, because the absorbed scope was never where the
+volume was.
+
+### The measurement that was never taken
+
+Every figure the carve recorded measured **the cut**: 38 files, +96 / −6,152, gates green. None measured **the
+residue**. `git diff <base>..<carve-head>` was not run until now. It returns **43,747 insertions across 343
+files** — 87% of the origin's insertions and 91% of its files. Removing everything that did not belong to this
+work unit could only ever have removed ~12%, and that was knowable before any work started.
+
+Two contributing errors sit underneath it. § The stack recorded the base deliverable at "~10–12k source"; the
+carve proof later moved `close`, `promote`, `abandon`, and `partial-settle` back into it and corrected the other
+two members downward, but never restated that figure. Actual base-deliverable source is **18,560**. And the goal
+was verbally restated along the way — "the split buys review proportionality, not a fast first merge" — into a
+form that carried no number and therefore could not fail.
+
+**The rule this earns: a carve is proved by what remains, not by what it removes.** Measure the residue against
+the constraint before accepting the cut.
+
+### Line accounting
+
+| Bucket                                     |      lines |
+| ------------------------------------------ | ---------: |
+| New modules (72 files)                     | 14,396 src |
+| Added lines in modified files (wiring)     |  4,164 src |
+| Tests attributable to a single new module  |      9,252 |
+| Integration and e2e tests spanning modules |     10,087 |
+| Documentation under `.arc/`                |      5,335 |
+
+### The graph admits a finer cut
+
+Import-graph trace over the carve head, following multi-line imports, barrels, dynamic imports, and test doubles:
+**267 edges among the 72 new modules and zero cycles**, resolving to a 13-level DAG. The measured coupling agrees
+— removing three whole subsystems cost 96 inserted lines.
+
+Thirteen concern-coherent slices, in dependency order, sized as new-module source plus import-attributed tests.
+Only one ordering violation appeared across all 267 edges (the reader importing reconciliation), corrected by
+placing reconciliation ahead of the reader.
+
+| Slice                                     |   src | tests |
+| ----------------------------------------- | ----: | ----: |
+| S1 locus record substrate                 |   821 | 1,387 |
+| S2 process and platform probe             |   910 |   848 |
+| S3 lock and mutation protocol             | 1,060 | 1,491 |
+| S4 transient identity core                | 2,330 | 1,920 |
+| S5 reconciliation                         |   412 |   438 |
+| S6 evidence and roster reader             | 1,545 | 1,555 |
+| S7 allocation and provisioning            | 1,525 | 1,251 |
+| S8 errand open and link                   |   321 |    92 |
+| S9 errand close, promote, abandon, settle | 2,132 | 2,709 |
+| S10 work-unit lifecycle integration       | 1,042 | 1,341 |
+| S11 recovery                              |   385 | 1,277 |
+| S12 session wiring and locus surface      | 1,695 | 1,361 |
+
+Distributing the wiring, cross-cutting tests, and documentation puts every slice between roughly 1.2k and 5.5k,
+plus S13 for documented-surface reconciliation. Slice sizes are verified for the source and single-module test
+columns and **estimated** for the distributed remainder.
+
+### Reachability found three unwired modules, not a scope problem
+
+Forward walk from all 142 CLI entry points reaches 672 of 687 source files. Exactly **three new modules are
+unreachable, totalling 290 lines** — which independently confirms the right-sizing audit's verdict that there is
+no scope fat here.
+
+`reconcile-driver.ts` is the substantive one. Its `LocusReconcileDriverIO` interface has no implementor outside
+its own test, `breakDeadLock` has no implementation anywhere, `arc locus attach` implements the two adopt actions
+through its own composition, and `session-init.md` explicitly defers the remaining actions "until its owning CLI
+verb is selected." So it is neither a defect nor accidental residue — it is a capability built ahead of its verb,
+and the documentation promises nothing it fails to deliver. It leaves the stack; the capability routes to
+`locus-generation-binding`, whose carried defect set already names the adjacent generation and lock concerns.
+
+`locus/registry.ts` and its sole importer `session-envelope/registry.ts` form a dead chain. `locus/errors.ts` has
+no importer and no published barrel, but `7.E.e.i` deliberately rewrote it, so whether it is live surface is
+settled with the schema work in `7.P.a.ii` rather than assumed here.
+
+### Test attribution resolves into three tiers
+
+Of 145 changed test files, 84 attribute to one or more new modules by import. The remaining 61 (3,151 lines) are:
+four large e2e suites that spawn the binary across many commands (1,506 lines, genuinely cross-cutting), two
+contract suites that must be edited at every stop (274 lines), and a long tail of 55 files averaging under 30
+lines that ride with whichever slice changes their subject. Only the first two tiers need deliberate placement.
+
+### Delivery shape
+
+Stacked pull requests under one work unit, not thirteen work units. Serialized work units would multiply the
+lifecycle ceremony by thirteen for no review benefit; stacking keeps one work unit and one integration boundary
+while giving each slice its own review target. The known friction is that the lifecycle's integration ceremony
+assumes one merge per work unit — that gap is `chunked-delivery`'s, and running this stack by hand generates its
+requirements from a real delivery rather than a speculative design.
+
+The origin branch stays unmerged as the development record, and the archive tag keeps all 195 commits and their
+SHA-keyed notes reachable.

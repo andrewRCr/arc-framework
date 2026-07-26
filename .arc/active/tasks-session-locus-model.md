@@ -1576,7 +1576,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
         - `.ii`'s identity retention was the bound on this case; with the checkout now compensated, that arm
           covers the residue it was written for rather than this one.
 
-### `[ ]` **7.E.e Close the typed boundaries and make receipts describe the operation**
+### `[~]` **7.E.e Close the typed boundaries and make receipts describe the operation**
 
 - _Findings:_ L1-F1, L1-F2, L1-F3, L3-F3, L4-F6, E5-F3, X1-F1, X1-F2, X1-F3, A-F3, E2-F3, S1-F3
 
@@ -1617,55 +1617,31 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           caller inside the declared vocabulary. The pre-existing incomplete-success case keeps proving the runtime
           backstop through an explicit cast past the typed input.
 
-    - `[ ]` **7.E.e.ii Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
-        - The open-success refinement requires only `activeLocusPath` and `sessionHomePath`, so an applied or
-          idempotent open receipt validates with `allocation`, `recordId`, and `leaseId` still null — the exact
-          coordinates a caller needs to continue safely. Require all five together on the three open operations.
-        - `LocusTimestampSchema` is `z.iso.datetime({ offset: true })`, which accepts non-`Z` offsets against a
-          persisted-record contract that specifies canonical UTC. Require `Z` form, or normalize before persistence.
-        - Cover one negative case per missing coordinate and the offset boundary on both arms.
+    - `[~]` **7.E.e.ii Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
+        - Re-homed to `7.P.a.i`. The correction is unchanged; it lands in the slice that owns the schema.
 
-    - `[ ]` **7.E.e.iii Normalize evidence error text at the reader boundary** — L3-F3
-        - `readLocusEnvelope` passes an acquisition error's message straight into a schema requiring non-empty text
-          of at most 4,096 characters, so an empty or oversized message turns the read-only error path into a
-          `ZodError` throw. Normalize at the boundary rather than widening the schema.
-        - Cover the empty and oversized messages, asserting an envelope rather than a throw.
+    - `[~]` **7.E.e.iii Normalize evidence error text at the reader boundary** — L3-F3
+        - Re-homed to `7.P.f.i`.
 
-    - `[ ]` **7.E.e.iv Deliver one typed result on every JSON path** — X1-F2, E5-F3
-        - `handleLocusResolve` and `handleLocusMutation` prepare identity, configuration, and user surfaces before
-          their catch, and their null-returning prerequisites emit nothing at all, so a setup failure reaches
-          automation as ordinary stderr from the CLI catch instead of the promised single typed result. The Errand
-          handlers carry the same exposure at their `resolveUserSurfaceResolver` calls.
-        - Bring every fallible preflight inside the result boundary for the named handlers, so JSON mode always
-          writes one envelope to stdout and exits non-zero. Re-locate each site first: the Errand open path already
-          routes configuration, identity, the Git stdin boundary, and inbox adoption through typed emitters.
-        - Cover a configuration or user-surface failure in JSON mode on both surfaces, asserting one stdout line.
+    - `[~]` **7.E.e.iv Deliver one typed result on every JSON path** — X1-F2, E5-F3
+        - Re-homed to `7.P.l.i`.
 
-    - `[ ]` **7.E.e.v Render row diagnostics and terminate human locus output** — X1-F1, X1-F3
-        - `formatRow` drops each row's own `diagnostics`, so a human operator never sees the dead or unknown leases,
-          malformed records, cross-identity evidence, missing markers, and unresolved subjects that JSON consumers
-          receive. Render them within their row's block.
-        - `formatErrandOpenResult`'s human branches return text with no trailing newline; the Errand path hides this
-          behind an interactive logger, but `handlers/locus.ts` writes the raw text, leaving the next prompt on the
-          same line. Terminate the raw stream boundary with exactly one newline.
-        - Cover a row diagnostic in human output, and a human success and refusal on the raw locus stream.
+    - `[~]` **7.E.e.v Render row diagnostics and terminate human locus output** — X1-F1, X1-F3
+        - Re-homed to `7.P.l.ii`.
 
-    - `[ ]` **7.E.e.vi Compose outcomes from every provisioning stage** — A-F3, E2-F3
-        - `errand/open.ts` derives its public outcome from `claimKind` alone, so a reused or recovered identity
-          reports idempotent even when provisioning went on to create a checkout, marker, record, and lease. The
-          same shape holds for the housekeep and plan open paths. Report applied whenever any authoritative stage
-          changed state, which needs an aggregate disposition on the provisioning receipt rather than a per-stage
-          guess at the call site.
-        - Cover an existing identity with a missing local locus, and the successful interrupted-open recovery.
+    - `[~]` **7.E.e.vi Compose outcomes from every provisioning stage** — A-F3, E2-F3
+        - Re-homed to `7.P.h.i` for the Errand open path. The housekeep and plan open paths leave this work unit
+          with the claimed-sweep deliverable.
 
-    - `[ ]` **7.E.e.vii Require the locus-hint audit on ready recovery reports** — S1-F3
-        - `RecoverAuditReportSchema` requires a seed and a recovery envelope for `ready` but permits a null
-          `locusHint` even when the seed summary carries one, so a producer can report ready without proving seed
-          generation was compared against fresh locus authority. Require the comparison on `ready` and cross-check
-          its value against the seed's own hint.
-        - Cover a ready report with a hint-bearing seed and a null comparison, asserting the schema rejects it.
+    - `[~]` **7.E.e.vii Require the locus-hint audit on ready recovery reports** — S1-F3
+        - Re-homed to `7.P.k.i`.
 
-### `[ ]` **7.E.f Bind the session anchor to a durable process**
+- _Outcome:_ `.i` landed the closed mutation error vocabulary. The remaining six corrections were redistributed to
+  Phase `7.P` rather than completed here: each names a stable locus that one delivery slice owns, and a slice that
+  ships a defect its own review would find defeats the point of splitting the delivery. No correction was dropped,
+  and `7.E.e.vi` is the one that splits across work units.
+
+### `[~]` **7.E.f Bind the session anchor to a durable process**
 
 - _Findings:_ L3-F1, L3-F2, L3-F4
 
@@ -1673,7 +1649,10 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   script, or command position, so a lease binds to the durable session rather than a short-lived `bash -lc` wrapper
   or an unrelated Node/npm/npx ancestor; subject projection reuses the reader's bounded scheduler.
 
-### `[ ]` **7.E.g Repair the named paths that do not work**
+- _Outcome:_ Re-homed whole to `7.P.b.i`. All three findings share one stable locus — the process and platform
+  inspection slice — so the task moves without decomposition.
+
+### `[~]` **7.E.g Repair the named paths that do not work**
 
 - _Findings:_ W2-F1, E1-F1, E5-F2, S1-F1, P1-F3, P1-F4, E5-F1, B-F1, M1-F2, D-F1
 
@@ -1684,7 +1663,14 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   rather than basenames, the inbox source digest survives identity publication and lost-response replay, the quick
   reference matches the shipped Errand signature, and a fresh installation receives both entry skills.
 
-### `[ ]` **7.E.h Reconcile the claims and restore the lost coverage**
+- _Outcome:_ Decomposed across Phase `7.P` by stable locus — the decomposition this task always owed, now against
+  targets small enough to hold at once. `E1-F1` → `7.P.a.iii`; `W2-F1` → `7.P.j.i`; `E5-F1` and `B-F1` →
+  `7.P.h.ii`; `E5-F2` → `7.P.i.i`; `S1-F1` → `7.P.k.ii`; `M1-F2` and the `arc-errand` half of `D-F1` →
+  `7.P.m.ii`. `P1-F3`, `P1-F4`, and the `arc-housekeep` half of `D-F1` leave this work unit with the claimed-sweep
+  deliverable. Placement is derived from this Goal rather than from the finding records; each slice re-verifies its
+  own members against `notes-session-locus-model.md` § Chunked-review finding triage before implementing.
+
+### `[~]` **7.E.h Reconcile the claims and restore the lost coverage**
 
 - _Findings:_ R1-F1, R1-F2, R1-F3, R1-F4, M1-F1, E4-V1, E5-V1
 
@@ -1703,6 +1689,13 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   foreign-occupancy refusal `7.E.c.v.2` added. Fidelity is the constraint: the stub must emit the exact
   `gh pr list --json baseRefName,headRefName,headRefOid` shape the runtime parses. `leave --state
   awaiting-merge` reads the same host boundary and gains coverage from the same stub.
+
+- _Outcome:_ Decomposed across Phase `7.P` by stable locus. The recorded-claim members — `R1-F1` through `R1-F4`
+  and `M1-F1` — are all documentation and workflow claims, so they land together in `7.P.m.i`, the slice that
+  reconciles the shipped surface with what it promises. `E4-V1` and the non-materialize half of `E5-V1` are
+  Errand-verb coverage → `7.P.i.ii`; the materialize half leaves with the transient-lifecycle deliverable. The
+  `gh`-stub note above stays attached to `7.P.i.ii`, which is where the v3 close path lands. Same re-verification
+  condition as `7.E.g`.
 
 ### `[x]` **7.E.i Split the grooming and housekeeping tails from their Node wiring**
 
@@ -2015,7 +2008,12 @@ identity on the anchor nor a per-platform record store is therefore in scope.
 
 _Purpose:_ Establish that the delivery-stack carve recorded in `notes-session-locus-model.md` § Decomposition into
 a delivery stack is viable, and at what cost, before executing it. The carve itself is **not** a task here — it is
-this phase's exit condition, and it dissolves this task list into three.
+this phase's exit condition.
+
+_Superseded in part:_ this phase sized a three-deliverable carve. Measuring the result rather than the cut showed
+the base deliverable still stood at 43,747 lines, so the transient-lifecycle and claimed-sweep deliverables still
+leave this work unit, but what remains is delivered by the thirteen slices of Phase `7.P` rather than as one
+change set. The measurements below stand; the delivery shape they informed does not.
 
 _Design decisions:_ ARC runs no ceremony for this. `decompose-work-unit.md` stops on an `Active` origin whose
 committed code spans several would-be members and routes to the full-split escape hatch in
@@ -2073,6 +2071,203 @@ complete; what remains before the carve is below.
   surviving `errand` group alone — exactly the carve's failure mode. Bare words are command segments, since
   operands and options are bracketed, so an invocation resolves only against its full path.
 
+## **Phase 7.P:** Proportionate Delivery
+
+_Purpose:_ Deliver this work unit as a stack of independently reviewable pull requests rather than one 43,747-line
+change set. Each task below is one pull request, in dependency order.
+
+_Design decisions:_ The cut follows the module import graph, which carries no cycles across the 72 new modules and
+resolves into thirteen concern-coherent slices. Corrections land **in the slice that owns their stable locus**
+rather than in a preceding remediation phase — a slice that ships a defect its own review would find defeats the
+point of splitting the delivery. Slices stack: each branch targets its predecessor, and the host retargets to the
+base as each merges. Measurements, the seam inventory, and the ordering proof live in
+`notes-session-locus-model.md` § Proportionate delivery cut.
+
+_Per-slice procedure_ — stated once, followed by every task below: port the slice's owned paths from the archived
+origin tip, apply its inherited corrections, reconcile the command-surface and methodology contract tests against
+the surface actually shipped at that stop, run Tier 2 gates, then open the pull request against its predecessor.
+
+_Inherited placement:_ subtasks carrying a finding ID were re-homed from `7.E.e`, `7.E.f`, `7.E.g`, or `7.E.h`.
+Placement for the `7.E.g` and `7.E.h` members derives from those parents' recorded Goals, not from the finding
+records — each slice re-verifies its own members against `notes-session-locus-model.md` § Chunked-review finding
+triage before implementing.
+
+### `[ ]` **7.P.a S1 — Locus record substrate**
+
+- _Goal:_ The record schema, store, and identity derivation stand alone on the base: a record round-trips through
+  its schema, derives a stable identifier from a flavor-normalized checkout spelling, and persists under
+  generation-safe read, mint, and replace.
+
+    - `[ ]` **7.P.a.i Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
+        - The open-success refinement requires only `activeLocusPath` and `sessionHomePath`, so an applied or
+          idempotent open receipt validates with `allocation`, `recordId`, and `leaseId` still null — the exact
+          coordinates a caller needs to continue safely. Require all five together on the three open operations.
+        - `LocusTimestampSchema` is `z.iso.datetime({ offset: true })`, which accepts non-`Z` offsets against a
+          persisted-record contract that specifies canonical UTC. Require `Z` form, or normalize before persistence.
+        - Cover one negative case per missing coordinate and the offset boundary on both arms.
+
+    - `[ ]` **7.P.a.ii Settle whether the locus error surface is live**
+        - No source file imports `locus/errors.ts` and the package publishes no barrel, yet `7.E.e.i` deliberately
+          rewrote it to infer `LocusErrorCode` from the mutation schema. Decide it with the schema work in hand:
+          give the thrown-error surface a consumer, or drop the module with its test.
+        - `locus/registry.ts` and its sole importer `session-envelope/registry.ts` form a dead chain reachable from
+          no entry point. Drop both unless the kernel composition is wanted by a named consumer.
+
+    - `[ ]` **7.P.a.iii Keep previously accepted legacy records readable** — E1-F1
+        - Re-verify against the finding record before implementing.
+
+### `[ ]` **7.P.b S2 — Process and platform inspection**
+
+- _Goal:_ Liveness inspection is platform-correct and unknown-safe, and the session anchor it feeds binds to a
+  process that outlives the invocation.
+
+    - `[ ]` **7.P.b.i Bind the session anchor to a durable process** — L3-F1, L3-F2, L3-F4
+        - Anchor selection classifies proven wrappers before interactivity and requires ARC at the executable,
+          script, or command position, so a lease binds to the durable session rather than a short-lived `bash -lc`
+          wrapper or an unrelated Node/npm/npx ancestor; subject projection reuses the reader's bounded scheduler.
+
+### `[ ]` **7.P.c S3 — Lock and mutation protocol**
+
+- _Goal:_ Record mutation is serialized by an owned lock, refuses on generation mismatch, and reclaims only
+  proven-dead locks. No inherited corrections.
+
+### `[ ]` **7.P.d S4 — Transient identity core**
+
+- _Goal:_ The v3 transient identity state machine — claims, transitions, transactional writes, and change-request
+  lifecycle — stands on the record substrate. No inherited corrections.
+
+### `[ ]` **7.P.e S5 — Reconciliation**
+
+- _Goal:_ The reader derives what local state needs reconciling and surfaces it as typed guidance.
+
+    - `[ ]` **7.P.e.i Drop the unwired reconcile driver**
+        - `applyLocusReconciliationAction` has no production caller and its `LocusReconcileDriverIO` interface has
+          no implementor outside its own test; `breakDeadLock` has no implementation at all. `arc locus attach`
+          implements the two adopt actions independently, and `session-init.md` defers the remaining actions until
+          an owning verb is selected — so nothing documented breaks by removing it. Drop the module and its test.
+
+### `[ ]` **7.P.f S6 — Evidence and roster reader**
+
+- _Goal:_ One deterministic, read-only, network-free roster read projects every checkout into a schema-validated
+  envelope with its own diagnostics.
+
+    - `[ ]` **7.P.f.i Normalize evidence error text at the reader boundary** — L3-F3
+        - `readLocusEnvelope` passes an acquisition error's message straight into a schema requiring non-empty text
+          of at most 4,096 characters, so an empty or oversized message turns the read-only error path into a
+          `ZodError` throw. Normalize at the boundary rather than widening the schema.
+        - Cover the empty and oversized messages, asserting an envelope rather than a throw.
+
+### `[ ]` **7.P.g S7 — Allocation and provisioning**
+
+- _Goal:_ Allocation refuses live or unknown occupancy and duplicate or malformed topology, and provisioning
+  establishes checkout, marker, record, and lease as one recoverable sequence. No inherited corrections.
+
+### `[ ]` **7.P.h S8 — Errand open and link**
+
+- _Goal:_ Opening or linking an Errand allocates under full protection, writes its identity transactionally, and
+  reports what it actually changed.
+
+    - `[ ]` **7.P.h.i Compose outcomes from every provisioning stage** — A-F3, E2-F3
+        - `errand/open.ts` derives its public outcome from `claimKind` alone, so a reused or recovered identity
+          reports idempotent even when provisioning went on to create a checkout, marker, record, and lease. Report
+          applied whenever any authoritative stage changed state, which needs an aggregate disposition on the
+          provisioning receipt rather than a per-stage guess at the call site.
+        - Cover an existing identity with a missing local locus, and the successful interrupted-open recovery.
+
+    - `[ ]` **7.P.h.ii Survive identity publication and lost-response replay in the inbox digest** — E5-F1, B-F1
+        - Re-verify against the finding records before implementing.
+
+### `[ ]` **7.P.i S9 — Errand close, promote, abandon, settle**
+
+- _Goal:_ Every Errand terminal proves an exact merged change request against the local head, reaps refs, drops the
+  originating capture, and retires the identity with its lease.
+
+    - `[ ]` **7.P.i.i Reach the retained close path for remote-only legacy Errands** — E5-F2
+        - Re-verify against the finding record before implementing.
+
+    - `[ ]` **7.P.i.ii Restore real-runtime coverage for promotion and the v3 close path** — E4-V1, E5-V1
+        - Derivation-floor promotion regains real-runtime integration coverage, and the current-open, ROADMAP, and
+          adoption cases exercise real v3 Errands rather than seeded legacy records. The materialize half of
+          `E5-V1` leaves with the transient-lifecycle deliverable.
+        - The v3 ordinary close path has no real-CLI coverage: every `arc errand close` case seeds a legacy record
+          or asserts a `--force` refusal, because finalizing a merged v3 tail needs live `gh pr list` host truth and
+          the harness has no `gh` stub. Decompose a scripted `gh` on `PATH` — the idiom the anchor harness already
+          uses for a fake executable, keeping git, refs, and inbox files real — and cover the merged happy path plus
+          the foreign-occupancy refusal `7.E.c.v.2` added. Fidelity is the constraint: the stub must emit the exact
+          `gh pr list --json baseRefName,headRefName,headRefOid` shape the runtime parses.
+
+### `[ ]` **7.P.j S10 — Work-unit lifecycle integration**
+
+- _Goal:_ Work-unit rename, teardown, and occupancy release hold the locus lock across revalidation, physical
+  removal, and expected-generation role pop.
+
+    - `[ ]` **7.P.j.i Establish the locus on in-place resume after the deferred checkout lands** — W2-F1
+        - Re-verify against the finding record before implementing.
+
+### `[ ]` **7.P.k S11 — Recovery**
+
+- _Goal:_ Recovery keys on authority over the lease, and a ready report proves its seed was compared against fresh
+  locus authority.
+
+    - `[ ]` **7.P.k.i Require the locus-hint audit on ready recovery reports** — S1-F3
+        - `RecoverAuditReportSchema` requires a seed and a recovery envelope for `ready` but permits a null
+          `locusHint` even when the seed summary carries one, so a producer can report ready without proving seed
+          generation was compared against fresh locus authority. Require the comparison on `ready` and cross-check
+          its value against the seed's own hint.
+        - Cover a ready report with a hint-bearing seed and a null comparison, asserting the schema rejects it.
+
+    - `[ ]` **7.P.k.ii Make legacy recovery work in an ordinary multi-work-unit repository** — S1-F1
+        - Re-verify against the finding record before implementing.
+
+### `[ ]` **7.P.l S12 — Session wiring and the locus command surface**
+
+- _Goal:_ Session init, handoff, and compaction consume one shared locus projection, and both the JSON and human
+  locus surfaces deliver exactly what they promise.
+
+    - `[ ]` **7.P.l.i Deliver one typed result on every JSON path** — X1-F2, E5-F3
+        - `handleLocusResolve` and `handleLocusMutation` prepare identity, configuration, and user surfaces before
+          their catch, and their null-returning prerequisites emit nothing at all, so a setup failure reaches
+          automation as ordinary stderr from the CLI catch instead of the promised single typed result. The Errand
+          handlers carry the same exposure at their `resolveUserSurfaceResolver` calls.
+        - Bring every fallible preflight inside the result boundary for the named handlers, so JSON mode always
+          writes one envelope to stdout and exits non-zero. Re-locate each site first: the Errand open path already
+          routes configuration, identity, the Git stdin boundary, and inbox adoption through typed emitters.
+        - Cover a configuration or user-surface failure in JSON mode on both surfaces, asserting one stdout line.
+
+    - `[ ]` **7.P.l.ii Render row diagnostics and terminate human locus output** — X1-F1, X1-F3
+        - `formatRow` drops each row's own `diagnostics`, so a human operator never sees the dead or unknown leases,
+          malformed records, cross-identity evidence, missing markers, and unresolved subjects that JSON consumers
+          receive. Render them within their row's block.
+        - `formatErrandOpenResult`'s human branches return text with no trailing newline; the Errand path hides this
+          behind an interactive logger, but `handlers/locus.ts` writes the raw text, leaving the next prompt on the
+          same line. Terminate the raw stream boundary with exactly one newline.
+        - Cover a row diagnostic in human output, and a human success and refusal on the raw locus stream.
+
+### `[ ]` **7.P.m S13 — Documented surface reconciliation**
+
+- _Goal:_ The shipped reference material, workflows, and skills describe the command surface and behaviour this
+  stack actually delivers, with the recorded design claims matching the implementation.
+
+- _Rationale:_ This is the one delivery cost no gate measured. The carve proof went fully green while shipped
+  documentation still promised commands the carved CLI no longer had, because the contract test asserts only that
+  the reference material _contains_ those strings. Making it a terminal, explicit slice turns a known blind spot
+  into a reviewable deliverable instead of drift smeared across twelve pull requests.
+
+    - `[ ]` **7.P.m.i Reconcile the recorded claims with the implementation** — R1-F1, R1-F2, R1-F3, R1-F4, M1-F1
+        - Advisory entry cannot mint immediate residue, leaseless work-unit selection is specified, changed-head
+          re-entry has one rule across decisions and criteria, lease scope reads verb-scoped throughout, and the
+          packaged workflows fail closed after composite-probe failure instead of falling back to branch and meta
+          inference.
+
+    - `[ ]` **7.P.m.ii Match the shipped Errand signature and entry-skill installation** — M1-F2, D-F1
+        - The quick reference matches the shipped Errand signature, and a fresh installation receives the
+          `arc-errand` entry skill. The `arc-housekeep` half of `D-F1` leaves with the claimed-sweep deliverable.
+
+    - `[ ]` **7.P.m.iii Rewrite the session-init signal-leaf spine for the delivered surface**
+        - The spine must route housekeeping and grooming the pre-model way while retaining locus dispatch, since
+          both leave this work unit with the claimed-sweep deliverable. Recorded as an open cost in
+          `notes-session-locus-model.md` § Open costs.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -2119,4 +2314,7 @@ complete; what remains before the carve is below.
 - `[ ]` Package/source parity and all required tests, lint, type checks, builds, and platform CI pass.
 - `[ ]` Every in-scope chunked-review finding is verified against source and corrected, and each carved finding is
   recorded in `notes-session-locus-model.md` with the risk its deferral accepts.
+- `[ ]` The work unit reaches the base as a stack of independently reviewable pull requests, each one a coherent
+  capability that carries its own tests, passes the full gates on its own, and ships no defect its own review
+  would find.
 - `[ ]` Ready for integration.
