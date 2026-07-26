@@ -12,13 +12,14 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** Draft reached formalization-readiness and decomposed — two orthogonal concerns extracted as
-  `review-checkout-lifecycle` and `integration-boundary-accuracy`; seven remain on one subject
+- **Current Workflow:** `draft-design`
+- **Last Completed:** Coherence re-read and adversarial pass one; three of five reopened decisions settled, concern 8
+  added with `review-adapter-extensibility` stubbed out of it
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Draft is not formalization-ready — two reopened design decisions must settle before create-spec
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Settle concern 4 (schema-emitting flag versus the shipped kernel schema bundle) and concern 6
+  (whether it stays whole given the cross-lane triage ordering), then re-run `assess-draft-readiness`
 
 - **PR URL:** [none]
 - **Completed:** [none]
