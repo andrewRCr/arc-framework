@@ -7,8 +7,9 @@
   exercised — so codification stops metastasizing into the half of the work `PROJECT-PRD` § Operational friction
   down, judgment friction up explicitly reserves for human and agent judgment.
 
-- **State:** maturing — the model's scope is known and the remaining work on faces (b) and (c) is detail-design.
-  Face (a) still carries a fundamental open, which is itself the decomposition signal (see § Scope).
+- **State:** maturing — faces (b) and (c) are settled as design and the compression surface is itemized, so what
+  remains on them is decision rather than derivation. Face (a) still carries a fundamental open, which is itself
+  the decomposition signal (see § Scope).
 - **Class:** `Heavy` — ratcheted down from `Novel` on 2026-07-25. Derivation still runs high (a real design must
   be authored), but the read is _compose_, not _invent_: six existing enactments to generalize (see § The
   pattern). Scale and constitutional blast radius hold it at `Heavy`. The `**Class:**` meta write lands at the
@@ -311,16 +312,41 @@ that is _more_ rule-dense.
 **Measured, 2026-07-26** — a coarse section-level classification rather than a judgment call about how big the
 pass "feels":
 
-| File               | Lines | Demotable / cuttable | Share |
-| ------------------ | ----- | -------------------- | ----- |
-| `DEV-RULES.ARC`    | 569   | ~196                 | ~34%  |
-| `DEV-RULES.PROJECT`| 341   | ~119                 | ~35%  |
+| File                | Lines | Demotable / cuttable | Share |
+| ------------------- | ----- | -------------------- | ----- |
+| `DEV-RULES.ARC`     | 569   | ~196                 | ~34%  |
+| `DEV-RULES.PROJECT` | 341   | ~119                 | ~35%  |
 
 About a third of both files, ~315 lines. That settles fold-versus-defer without further argument: this is not a
-rider on the enumerated register but a **co-equal deliverable**. Largest single items: § When to Load Additional
-Guidance (43 lines, a pure pointer index that `knowledge-evolution` P4 says should be _derived_), the
-quality-gate command listing (~40), § Context quality (~28), and § Task interlock's leaf-binding (~14, which the
-placement doctrine already relocates).
+rider on the enumerated register but a **co-equal deliverable**.
+
+### Itemized, 2026-07-26 — the surface has three commitment tiers
+
+The line-level enumeration ran section by section over both files; the full disposition table lives in
+`notes-judgment-authority-model.md`. The measured surface survived itemization (~322 nonblank lines against
+~315 raw), but the useful result is that it is **not one number**:
+
+| Tier                | Both files | What it is                                                              |
+| ------------------- | ---------- | ----------------------------------------------------------------------- |
+| **Committable now** | ~243       | Every disposition whose destination already summons it, plus every cut. |
+| **Mechanism-gated** | ~62        | Real demotions behind emission work or a trigger amendment.             |
+| **Blocked**         | ~17        | § When to Load Additional Guidance — out of this WU's reach.            |
+
+**Only the committable tier defines the deliverable.** The gated tier is a dependency list, not scope, and it
+decomposes cleanly: ~35 lines wait on mechanism-3 emission for the quality-gate commands, ~27 on two trigger
+amendments. Four findings from the pass carry design weight:
+
+- **Mechanism 3 is precedented.** Pre-commit CHECK 17 already emits its own remedy verbatim, so building
+  emission for the quality-gate commands extends an existing shape rather than inventing one — verified at
+  source, where the markdown and TypeScript gates name no fix command on failure. The ROADMAP-regen bullet's
+  mechanism therefore already fires, and it demotes now.
+- **Trigger amendments are bounded at two** — `strategy-session-operations` (a mid-session situation condition)
+  and `strategy-configurability-architecture` (consuming an override at load time, not authoring config). Every
+  other destination's index entry already fires as written, which is evidence for the summoning test's
+  practicality rather than for widening it.
+- **§ When to Load Additional Guidance is 24 lines, not 43** — the earlier figure swept in the file's trailing
+  link block. It stays blocked, so the largest committable item is § Commit control's mechanics (~43).
+- **§ Sub-agent scope is the one section this WU must not touch** (see § Composition / Coordination).
 
 ### Constraint stays, procedure moves
 
@@ -376,6 +402,10 @@ Cuts, ranked:
       badly (its own utilization) while the harness knows it mechanically; if the nudge is wanted it belongs to
       mechanism 3, not agent introspection. Leaving it unmandated still permits reporting an obvious structural
       boundary — that is state, not a guess.
+6. Both files' **tables of contents** — 22 lines combined, and the cheapest item here. Each file is loaded whole
+   at session-init, and `§` reference resolution never consults them, so the content is navigation for a human
+   scanner in a surface whose reader is the agent. Structural rather than a judgment about what the reader still
+   needs, so it sits outside the caveat below.
 
 Rephrasings:
 
@@ -393,7 +423,13 @@ Rephrasings:
 
 **Author's-interest caveat.** Cuts 2–5 are judgments about what current agents no longer need, made by an
 interested party — the backstop clause calls exactly that structurally suspect. Treat them as candidates for the
-maintainer's read, not findings.
+maintainer's read, not findings. The enumeration extends the caveat's reach: roughly ten further
+compress-in-place verdicts in `notes-judgment-authority-model.md` are the same shape of judgment and inherit the
+same disposition.
+
+The register above stays the **named** set; the enumeration's full per-section disposition lives in the notes
+companion. That division is what keeps the surface bounded — a line-level table cannot widen into an audit
+mandate the way a share-of-file percentage can.
 
 ## Forward-compat
 
@@ -460,12 +496,10 @@ Two narrower target classes remain:
   operator-reaffirmation-is-decisive norm as a first-class rule. Nothing says what governs when the two
   disagree. Bounded composition work, not a literature review — and it replaces the seed's "is ARC stricter than
   the norm" framing, which § Face (c) resolved.
-- **The compression surface is measured but not itemized.** ~315 lines are demotable or cuttable across the two
-  files, and the register names five cuts, four rephrasings, and § Context quality's full disposition — well
-  short of the measured surface. The remainder needs a line-level enumeration pass before the deliverable is
-  committed to, so the register stays a list rather than becoming a principle anyone can widen.
-  § When to Load Additional Guidance is already known to be blocked (no summoning mechanism until
-  `knowledge-architecture` ships a derived-access-path surface); the rest is unclassified.
+- **Mechanism-3 emission is a prerequisite, not a question.** ~35 lines of the compression surface — the
+  quality-gate command listing — demote only once a failing gate names its own fix command. The shape is
+  precedented (see § Rule-surface compression → Itemized), so this is scoping, not an unknown: either the
+  emission work is in this deliverable or the listing stays. Decide at create-spec.
 - Whether the three faces are one deliverable or want decomposing — see § Scope. The cohort-fit read is
   deliberately still not made; the shape has firmed but the cuts are not yet certain.
 
@@ -485,12 +519,15 @@ Two narrower target classes remain:
   than conform to it. Record **no `Depends On` edge in either direction**; mirror `execution-delegation-doctrine`'s
   position as a standalone upstream consumed by the cohort. Route the composition note via `USER-INBOX` at
   planning close rather than editing a sibling's draft.
-- **`execution-delegation-doctrine` — genuine model overlap.** It owns a § Sub-agent scope rewrite characterized
-  as **prohibition → conditions**, which is this WU's discriminator applied to one rule, plus a "two-half
-  invariant (no judgment without a gate; no gate without a decision)". Either this WU is upstream of it too, or
-  they are siblings wanting a cohort. Not a scheduling risk — it is not imminent and may be downgraded to
-  provisional — but the boundary must be drawn before either authors § Sub-agent scope, or the narrower version
-  gets invented locally.
+- **`execution-delegation-doctrine` — genuine model overlap, and the enumeration draws the surface boundary.**
+  It owns a § Sub-agent scope rewrite characterized as **prohibition → conditions**, which is this WU's
+  discriminator applied to one rule, plus a "two-half invariant (no judgment without a gate; no gate without a
+  decision)". The compression enumeration settles the _surface_ half of the boundary cleanly: § Sub-agent scope
+  (18 lines) is the only section of either rules file this WU must not touch — that WU owns one section, this one
+  owns the model and every other section, and the compression register is scoped accordingly. What remains is a
+  **vocabulary** coupling, not a territorial one: whether its rewrite expresses this model's discriminator or
+  restates it locally. Draw that before either authors the section; upstream-versus-siblings does not need
+  settling to proceed, since neither is imminent.
 - **`review-protocol-alignment` — downstream consumer, no hard edge.** Four of its judgment-layer concerns are
   informed by this model: the coarse post-fix review-applicability rule, the missing proposal-time
   `Post-fix review:` field, the two-stop author-response cycle, and the determinism-versus-judgment posture. That
@@ -507,7 +544,9 @@ Code is touched only if face (a) survives in a form that changes the lane classi
 
 The § Rule-surface compression register widens this deliberately, and the widening is **depth on the same two
 files, not fan-out** — the net direction is fewer lines than it started with, in a surface loaded every session.
-Judge it on coherence of the result rather than on passes spent.
+Judge it on coherence of the result rather than on passes spent. Itemized, that widening is ~243 committable
+lines across the two files, plus the destination edits each demotion lands and two trigger amendments; the ~62
+mechanism-gated lines are a scoping decision rather than committed work.
 
 **Likely cut.** Faces (b) and (c) are one constitutional deliverable with no code and no blocking unknown. Face
 (a) is a downstream application of that model, gated on the forgeability question and the `procedure-evolution`
@@ -527,15 +566,20 @@ confirm or reject it once the core's shape is settled.
   as constraint-stays / procedure-moves, with gate-versus-granularity as its worked case. Per-rule authority
   vocabulary dropped after a no-counterexample probe, closing the constitutional core's last open question; the
   audience test and the three-mechanism summoning test added, with the compression surface measured at ~315
-  lines and re-sorted into land / gated / needs-trigger-amendment.
+  lines and re-sorted into land / gated / needs-trigger-amendment. **Line-level enumeration run 2026-07-26**
+  (`notes-judgment-authority-model.md`): the compression deliverable is ~243 committable lines with ~62
+  mechanism-gated and ~17 blocked, mechanism 3 confirmed precedented in the hook layer, trigger amendments
+  bounded at two, and the `execution-delegation-doctrine` surface boundary drawn at § Sub-agent scope.
 - **Open:** the forgeability question and the `procedure-evolution` P1 tension, which jointly gate face (a) and
-  its shape; the line-level enumeration of the measured compression surface; the
-  `execution-delegation-doctrine` boundary; the cross-harness precedence posture; whether the cut in § Scope is
-  real.
-- **Next:** the constitutional core is settled **as design** and needs no further shaping — its section text is
-  captured verbatim in § Proposed shape. The remaining drafting move is the line-level enumeration pass over the
-  measured compression surface: it closes the last scoping unknown and decides what the deliverable actually
-  contains. Reassess formalization-readiness after it. Authoring the real `DEV-RULES.ARC` section is downstream
-  of create-spec, not a drafting-stage move. Face (a) waits on the forgeability resolution and gates neither.
+  its shape; whether mechanism-3 emission joins the deliverable or the gated lines stay; the
+  `execution-delegation-doctrine` vocabulary coupling; the cross-harness precedence posture; whether the cut in
+  § Scope is real.
+- **Next:** no shaping work remains on the constitutional core (its section text is captured verbatim in
+  § Proposed shape) or on the compression surface (now itemized). The remaining moves are decisions, not
+  derivation: confirm or reject the § Scope cut, and settle whether mechanism-3 emission is in scope. Both are
+  cheap enough to take at the readiness boundary, so the draft is a candidate for **formalization-ready** —
+  assess it, and on a clean read consolidate the accreted 2026-07-26 layers before crossing into create-spec.
+  Authoring the real `DEV-RULES.ARC` section is downstream of create-spec, not a drafting-stage move. Face (a)
+  waits on the forgeability resolution and gates neither.
 
 ---
