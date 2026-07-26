@@ -13,12 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft captured formalization-ready — the last two reopened decisions settled against source
-  (request-schema registration behind the emitting flag; convergence severity with a uniform lane order)
+- **Last Completed:** `spec-review-protocol-alignment.md` authored at `detailed` · RFC and adversarially reviewed to
+  the `Heavy` cap — both passes' findings verified against source and folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec Gate 1 — surface the saved spec for review; Gate 2 (draft retirement, `Class` persist,
+  stage advance) follows separately
 
 - **PR URL:** [none]
 - **Completed:** [none]
