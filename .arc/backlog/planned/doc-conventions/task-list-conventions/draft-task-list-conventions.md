@@ -186,6 +186,32 @@
 - _Proposed:_ soften the strategy text so loose spacing is acceptable (or the explicit default), aligning the
   written convention with actual preference and practice.
 
+### `[ ]` **Let a task list express a sequencing override the cursor can read**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ the deterministic task cursor selects the next open executable checkbox in file order, so a task
+  deliberately sequenced ahead of earlier-numbered siblings is invisible to it. In `session-locus-model`, `7.E.i`
+  was appended after `7.E.h` but had to run first; the cursor pointed at `7.E.e` while the meta's `Next Task` said
+  `7.E.i`, and the divergence had to be re-explained in SESSION-NOTES at every handoff until the out-of-order task
+  closed. The meta stays authoritative and nothing broke — the gap is that the helper cannot express the intent
+  the list already records in prose (`_Sequencing:_`).
+
+- _Approach:_ sharpen the buffer's existing linear-runnability concern rather than opening a second one. Two
+  candidate resolutions, and they conflict: (a) forbid the shape — finalization requires open executable
+  checkboxes to be linearly runnable, so an out-of-order task must be _placed_ where it runs, which makes this
+  case a generation defect; or (b) admit a parsed sequencing marker the cursor honors, which mints new
+  agent-interpreted markup and needs the procedure-substrate forward-compat check. (a) needs no new grammar and is
+  likely right; (b) is what an already-generated list needs mid-flight. Settle which, and whether session-init
+  should surface a cursor/`Next Task` disagreement at all rather than leaving it to prose.
+
+- _Files:_ `strategy-task-list-formatting.md`, the shared `task-list/cursor` projection, `generate-tasks.md`
+  finalization, `session-init.md` item 9 anchor-source rules.
+
+- _Captured during:_ `session-locus-model` Task 7.E.i handoff, 2026-07-25.
+
+- WU_Target: task-list-conventions
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

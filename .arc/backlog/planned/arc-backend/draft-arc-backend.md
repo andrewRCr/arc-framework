@@ -50,6 +50,36 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 - _Evidence:_ `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, and
   `typed-branch-prefixes`; corresponding `scan-result.json#class-*` anchors.
 
+### `[ ]` **Machine-local state has no home in the tracked-vs-materialized model**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Candidates:_ `local-mode` or `arc-backend` — the tension sits at the materialization-layer boundary the two
+  co-design, and which one owns it depends on whether the answer is a store property or a rendering property.
+  Listed rather than chosen; triage at drain.
+
+- _Observation:_ `strategy-storage-evolution.md` classes `.arc/user/**` operational state — inboxes, notes,
+  `WORKING-MEMORY`, `SESSION-NOTES` — as **materialized**, rendered from a separate private git repo under the
+  Local tier. Session locus records live at `.arc/user/{identity}/.internal/loci/` and are operational state by
+  that classification, but their design requires the opposite: machine-local, gitignored, excluded from user-notes
+  serialization, and never copied or synchronized between machines. Under a synchronizing substrate that would be
+  actively wrong, not merely redundant — one machine's leases and process anchors are meaningless on another, and
+  would read as live foreign occupancy and block allocation there.
+
+- _Diagnosis to preserve:_ this is the first artifact class that is operational state **and** must not materialize
+  from the shared store. Record-scoped locks and temp state have the same property and are equally unrecorded. The
+  two-class table (machinery tracked / state materialized) has no third position for "local-only", so nothing in
+  the model currently forbids syncing them.
+
+- _Approach:_ Principle 9 asks whether a new axis could be a property of an existing one, and here it likely can —
+  the materialization layer needs a local-only overlay path set regardless, so this is plausibly a rendering
+  property rather than a fourth storage class or a per-artifact flag. Confirm against Principle 8 before adding any
+  new class. Whatever shape wins, the invariant to preserve is that machine-scoped state never round-trips through
+  a store shared across machines.
+
+- _Captured during:_ `session-locus-model` Phase 7.G design settlement, 2026-07-25 — surfaced by the
+  storage-evolution self-check on a storage-touching design decision.
+
 ---
 
 ## The Composed Picture

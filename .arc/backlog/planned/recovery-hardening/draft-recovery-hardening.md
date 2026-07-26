@@ -72,6 +72,57 @@
 - _FP boundary:_ Phase 9 should refresh/preflight the worktree-local seed before its adversarial verifier; a
   repeated false stop becomes an FP Phase 7 blocker rather than a deferred surprise.
 
+### `[ ]` **Calibrate recovery-audit stop sensitivity — it gates the forcing function, not just ergonomics**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ field report (2026-07-23, heavy Codex auto-compact use): roughly **one compaction in ten** stops
+  on a condition the agent itself identifies as expected and benign — it says so, then dutifully stops. `#192`
+  addressed one instance (`dirty-path-drift` suppressed when fully explained by committed progress); the residual
+  rate says the job is unfinished. The likely concentration is `task-cursor-mismatch`, which this WU's buffer item
+  4 already covers for monotonic advance and which `session-recover.md` § 2 hard-codes as "an unconditional stop."
+
+- _Approach:_ the structural gap is that `RecoveryAuditStopKind` is a flat 14-kind enum
+  (`git-status-failed`, `head-lineage-mismatch`, `head-unresolved`, `identity-missing`, `load-set-{unresolved,drift}`,
+  `seed-{invalid,missing,unreadable}`, `dirty-path-drift`, `task-cursor-{missing,unresolved,malformed,mismatch}`,
+  `planning-workflow-uncertain`) where any non-empty list means `stop`. No severity, no expected tier, no
+  proceed-with-awareness — so there is nowhere to put "real, expected, non-blocking," which is exactly what the
+  agent articulates before stopping. Cheap first step: record **which reason fires** on the next several stops,
+  turning "roughly 1 in 10" into a targetable distribution before designing the tier.
+
+- _Why it is this WU's, and why it sequences early:_ today a false stop is an overridable nuisance. Under this
+  WU's forcing function — a PreToolUse hook blocking until a `recovery-complete` token exists — the same rate
+  becomes a **one-in-ten hard block on a benign resume**. The draft already anticipates this ("what makes a hard
+  gate _tolerable_ — without it the gate would fire on benign post-handoff drift"); the field data says the
+  tolerance precondition is not yet met. Calibration is a gate on the spine shipping, not an adjacent nicety.
+
+- _Captured during:_ `recovery-load-scoping` grooming (2026-07-23), while settling the load-set drift comparator
+  from source. That WU adds no new drift axis and stays out of calibration.
+
+### `[ ]` **Make compaction recovery survive authorized locus changes and worktree teardown**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ A post-compaction recovery boundary arrived after the originating work unit had merged and its
+  worktree had become a teardown husk. Three authorities disagreed: the pending marker path named the old
+  `review-gate-right-sizing` husk, the recovery seed expected an still earlier
+  `fix/document-coupling-audit-command` branch and dirty path, and the live session was the
+  `chore/activate-arc-clearance` Errand in the primary worktree. The audit correctly stopped on branch and dirty
+  path drift, but after an explicit decision to trust the live locus, the mandated clear command still derived
+  its hook root from the current checkout and rejected the old marker path as invalid. Clearing succeeded only
+  by invoking the helper from the marker-owning husk.
+
+- _Approach:_ Define recovery authority when a session legitimately moves loci or its originating worktree is
+  torn down. Provide a sanctioned rebind or acknowledgement path after an explicit live-locus decision, and make
+  marker clearing validate repository/worktree identity without requiring execution from an obsolete husk.
+  Exercise the three-way seed/marker/live-locus mismatch across merge, teardown, and Errand continuation while
+  preserving fail-closed behavior for unexplained drift.
+
+- _Files:_ compaction seed and Codex recovery-marker ownership, `session-recover.md`, marker-clear validation, and
+  transition-focused recovery tests.
+
+- _Captured during:_ post-merge `arc-cleared` activation after `review-gate-right-sizing` teardown (2026-07-25).
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent
