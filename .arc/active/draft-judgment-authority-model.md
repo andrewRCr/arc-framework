@@ -7,8 +7,9 @@
   exercised — so codification stops metastasizing into the half of the work `PROJECT-PRD` § Operational friction
   down, judgment friction up explicitly reserves for human and agent judgment.
 
-- **State:** maturing — the design is settled, the scope is enumerated and decided, and the draft has been
-  consolidated. Formalization-readiness is assessable now.
+- **State:** maturing — the constitutional core is settled and has survived an adversarial pass; the compression
+  half owes the register a constraint-or-not re-audit (§ Open questions), which the spec inherits as a required
+  pass.
 - **Class:** `Heavy` — derivation runs high (a real design must be authored), but the read is _compose_, not
   _invent_: six existing enactments to generalize (see § The pattern). Scale and constitutional blast radius hold
   it there.
@@ -67,6 +68,25 @@ The discriminator that derives what was previously enumerated: does the rule exi
 **wrong** (ignorance-guarding → _default_; yields when the agent demonstrably does know, because the rule's
 purpose is already served) or because the agent might be **biased** (bias-guarding → _invariant_; never yields,
 because the agent's certainty is the thing being checked)? Judgment can fix wrongness; it cannot fix bias.
+
+**The ignorance-guard arm carries a dischargeability qualifier**, without which the split misclassifies a third
+shape: a rule guarding an ignorance the agent can **never** discharge, because the missing fact lives in another
+mind and has not been uttered. It is ignorance-guarding by construction, yet it behaves as an invariant —
+"demonstrably knows" is unreachable in principle, not merely unmet today. So the arm asks whether the ignorance is
+**dischargeable by the agent** (a default) or **structurally undischargeable** (an invariant).
+
+The worked instance is `review-protocol-alignment` concern 8: the `adversarial-review` fire points at the three
+planning stages must obtain the developer's agreement before firing even under opt-in at threshold, while the
+verification and integration fire points may autofire once opted in. The rule it derives — **a stop is required
+wherever the completion signal is not fully observable in the artifact** — is exactly this shape. Verification's
+trigger is on disk, so the agent holds what the developer holds; whether a draft is _done_ depends on intent not
+yet spoken, which no artifact carries and no readiness read can reach. That grooming session produced its own
+proof: a ninth concern existed only in the developer's head while every artifact-based readiness signal read
+ready.
+
+This case also bounds the disclosure obligation. "Disclosure, not obstruction" presumes something to disclose;
+where the ignorance is undischargeable there is nothing to state, and the remedy is to **obtain the missing
+input** — ask — rather than to proceed with a note.
 
 ### Face (c) — the rules carry no runtime override, and nothing resolves whose call it is
 
@@ -132,8 +152,10 @@ Rules here are **defaults** unless marked **invariant**.
 **Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern
 does not arise here.
 
-- You can name one → the rule is a **default**. Discharge it as below.
+- You can name one, and it is yours to establish → the rule is a **default**. Discharge it as below.
 - No fact you could produce would settle it — what is in doubt is you, not the facts → **invariant**.
+- The fact that would settle it is not yours to establish — it lives with someone else and has not been
+  said → **invariant**. Ask for it; do not infer it.
 - You can name nothing → **invariant**. Naming nothing settles nothing.
 
 **Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or
@@ -141,15 +163,20 @@ when it withholds an *authorization* rather than a *judgment* — a decision res
 it commits them. Competence never transfers an authorization; it does not follow that the capability is
 withheld too.
 
+A rule **protects the integrity of a check** when the agent's own work is what the check examines —
+quality gates, verification, review, and the commit and merge gates that admit work. The test is
+structural, not topical: an agent is never the judge of whether the check on its own output applies.
+
 **Discharging a default.** Silent divergence is an escape hatch; stated divergence is judgment. Name the
 rule and the fact that discharges it, surface it where the developer is already reading — the gate or the
 completion report, never a log — leave it reversible in one turn, and proceed. Raise it once: a
 reaffirmation is a decision, not an invitation to re-raise. The obligation is disclosure, not obstruction.
 
-**Whose call.** Authority to discharge a default resolves from the actor's role and the surface the rule
-governs — both already known to the session. No rule declares its own authority. Where one person holds
-every role this is full latitude with no special case; where roles are distributed, the same resolution is
-enforcement.
+**Whose call.** Authority to discharge a default resolves from two inputs the session already holds — the
+actor's role and the surface the rule governs. No rule declares its own authority. The owner of the
+governed surface may discharge a default over it; a default governing a surface with no single owner, or
+governing the project's own standards, is the maintainer's. Where one person holds every role this is full
+latitude with no special case; where roles are distributed, the same resolution is enforcement.
 ```
 
 **Why the backstop is load-bearing.** No single test classifies the corpus. Probed against four rules, the
@@ -196,6 +223,12 @@ Do not annotate 26 methods and 36 workflows. Rules are `default` unless marked `
 classifies the unmarked. The initial marker footprint is small — the two invariant interlocks, `adr-020`'s floor,
 and the genuinely bias-guarding nevers (`--no-verify`, integration approval, amending pushed commits). Precedent
 supports concentrating the vocabulary: `[configurable]` lives in exactly one file today.
+
+**The undischargeable-ignorance shape is the retrofit's known hazard.** Rules of that shape carry no marker today
+and read as ignorance-guards, so a sweep that applies only the wrong-versus-biased split would classify them
+`default` — wrong, and wrong in the permissive direction. The dischargeability question above is what the sweep
+must actually ask; where the answer is not obvious from the rule's text, that is a marker's job rather than a
+judgment left to each reading.
 
 ## Rule-surface compression
 
@@ -267,9 +300,18 @@ surface** — `knowledge-evolution` P7 prohibits it directly, and the awareness 
 mechanism 3.
 
 Where a destination's summoner does not fire yet, building it is **part of the compression work, not a
-prerequisite outside it** — that holds for a missing emission and for a trigger surface whose conditions are all
-_authoring_ conditions when the content needs a _situation_ condition. `knowledge-evolution` P2 already wants the
-latter, since a passive summary is the weakest-firing style.
+prerequisite outside it** — that holds for a missing index entry and for a trigger surface whose conditions are
+all _authoring_ conditions when the content needs a _situation_ condition. `knowledge-evolution` P2 already wants
+the latter, since a passive summary is the weakest-firing style.
+
+Two constraints bound how a destination may be chosen. **`knowledge-evolution` P3** — anchor triggers to
+operations, not workflows — disqualifies a destination whose trigger fires only inside the workflow that hosts the
+operation: the ad-hoc invocation is exactly what such a trigger misses, and it is usually the case the rule exists
+for. **A trigger must not fire on a signal the agent estimates badly.** A "consult when mid-session under context
+pressure" condition asks the agent to notice its own degradation, which register cut 5 rejects as unreliable in
+the same breath; a trigger built on it summons the content exactly as often as that estimate is right. Where both
+constraints bite, the content stays always-loaded — the summoning test is a permission to demote, never an
+obligation.
 
 ### Constraints only — the always-loaded target
 
@@ -282,12 +324,18 @@ _more_ rule-dense.
 ### The surface, measured and itemized
 
 A section-level enumeration ran over both files — mechanical per-heading line counts, then a disposition per
-section under the four tests above. The full table lives in `notes-judgment-authority-model.md`; the coarse
-measure (~196 lines in `DEV-RULES.ARC` of 569, ~119 in `DEV-RULES.PROJECT` of 341, ~315 together — about a third
-of each) survived itemization at ~322 nonblank lines. That settles fold-versus-defer without further argument:
-compression is not a rider on the register but a **co-equal deliverable**.
+section under the tests above. The full table lives in `notes-judgment-authority-model.md`.
 
-The useful result is that the surface is **not one number**:
+**Unit of record: nonblank lines.** An earlier coarse pass measured raw lines (~196 of 569 in `DEV-RULES.ARC`,
+~119 of 341 in `DEV-RULES.PROJECT`) and read as "about a third of each." The itemization counts nonblank lines,
+which is what a disposition actually moves, and the two are not comparable: against 417 and 261 nonblank lines the
+register is **~46% of `DEV-RULES.ARC` and ~50% of `DEV-RULES.PROJECT`** — roughly half of each file's substantive
+content, not a third, and its raw footprint is correspondingly larger than the earlier 315. The direction of the
+correction matters more than the figure: compression is not a rider on the register but a **co-equal
+deliverable**, and at half of each file the fold-versus-defer question deserves the spec's explicit attention
+rather than a settled-by-measurement answer.
+
+The second result is that the surface is **not one number**:
 
 | Tier                | Both files | What it is                                                                 |
 | ------------------- | ---------- | -------------------------------------------------------------------------- |
@@ -295,25 +343,48 @@ The useful result is that the surface is **not one number**:
 | **Mechanism-gated** | ~62        | Real demotions behind emission work (~35) or two trigger amendments (~27). |
 | **Blocked**         | ~17        | § When to Load Additional Guidance — out of this work unit's reach.        |
 
-**Both gated components are in scope**, so the deliverable is the committable and gated tiers together — ~305
-lines. The emission work is what carries it: building it licenses the largest single demotion, and the shape is
-precedented rather than invented. Four findings from the enumeration carry design weight:
+**The gated tier is in scope**, so the deliverable is the committable and gated tiers together. Both figures are
+provisional pending the P1 re-audit below, which moves lines back into the always-loaded set rather than out of it.
+Findings from the enumeration that carry design weight:
 
-- **Mechanism 3 is precedented.** Pre-commit CHECK 17 already emits its own remedy verbatim, so building emission
-  for the quality-gate commands extends an existing shape — verified at source, where the markdown and TypeScript
-  gates name no fix command on failure. The ROADMAP-regen bullet's mechanism therefore already fires, and it
-  demotes without waiting.
-- **Trigger amendments are bounded at two** — `strategy-session-operations` (a mid-session situation condition)
-  and `strategy-configurability-architecture` (consuming an override at load time, not authoring config). Every
-  other destination's index entry already fires as written, which is evidence for the summoning test's
-  practicality rather than for widening it.
+- **The register misclassified its own largest rows, in the permissive direction.** Three dispositions in
+  § Commit control (~21 nonblank lines) routed to a "routing method" that does not exist — no method in
+  `system/methods/` covers release or class-tag routing, and `strategy-interlock-release-wrappers` exists but
+  carries no `STRATEGY-INDEX` entry, so neither mechanism fires for it. The demotion is real but its destination
+  must be **created**: one index entry for that strategy, which is the same bounded shape as the two trigger
+  amendments. The class-authorization preconditions inside that block are not prose and do not demote at all.
+- **The quality-gate command listing was gated on the wrong mechanism.** `quality-gate-commands` already exists and
+  is declared in `process-task-loop`'s frontmatter, so mechanism 1 fires today — but its body is a **passthrough**
+  reading "commands specified in `DEV-RULES.PROJECT` § Quality Gates," so emptying that section breaks the
+  declared fire site. The demotion is a one-line retarget of the method's passthrough, not emission work. And only
+  the _commands_ may go: `QUICK-REFERENCE` does not carry the index-versus-worktree false-green trap, the
+  re-stage-after-fix rule, `lint:md`'s fails-closed behavior, or "run both before declaring types green" — all
+  quiet-failing constraints by this document's own cut test.
+- **Emitted remedy therefore carries only the ROADMAP row.** Pre-commit CHECK 17 already emits its own remedy
+  verbatim (the markdown and TypeScript gates emit none), so that row demotes without waiting — but the ~4 nonblank
+  lines it covers do not justify taking gate-emission work into this deliverable. It leaves scope; see § Scope.
 - **§ When to Load Additional Guidance is 24 lines, not 43** — an earlier count swept in the file's trailing link
-  block. It stays blocked, so the largest committable item is § Commit control's mechanics (~43).
+  block. It stays blocked.
 - **§ Sub-agent scope is the one section this work unit must not touch** (see § Composition / Coordination).
 
-The quality-gate command listing is the worked case for a gated demotion: it is already duplicated in
-`QUICK-REFERENCE`, which divides labor correctly ("**which** of them a given change has to run is
-`DEV-RULES.PROJECT`"), so only the missing emission stands between it and demotion.
+### The P1 re-audit
+
+The enumeration applied the audience and summoning tests but did not consistently apply `knowledge-evolution` P1,
+and several dispositions demote **constraints** — which P1 forbids outright and which success signal 3 promises not
+to do. The identified cases stay always-loaded:
+
+- The four quality-gate constraints above.
+- § Session Management's boundary procedure, whose second step is a **mandatory stop** ("stop and ask"). P1 names
+  index-only placement as disqualifying for exactly this.
+- § Discovered Work Routing's express-lane permission ("never must… lack of time is never a reason to lose a
+  thought"). Its candidate destinations fire when the agent _uses_ the inbox — not on the path the permission
+  governs. This is the merge-authority inversion below, in a second place.
+- § Verify before assuming's "stop and ask" step, which register cut 4 would remove with the numbered steps.
+- The class-authorization preconditions in § Commit control.
+
+**The lesson is procedural, not per-row:** a disposition needs a constraint-or-not determination _before_ a
+destination is chosen, because the summoning test cannot license what P1 forbids. The spec's own pass carries that
+column explicitly.
 
 ### Constraint stays, procedure moves
 
@@ -354,12 +425,17 @@ Cuts, ranked:
    this one coherent increment"; they cause more bad decompositions than they prevent. Keep the principle.
 3. § Quality gate failure — steps 1–3 describe baseline competence. Only "never proceed until resolved or the user
    approves" is a constraint.
-4. § Verify before assuming — same shape. The "Never generate or assume" list beneath it stays intact.
-5. § Context quality — worked in full as the audience test's first case, ~28 lines to ~3:
+4. § Verify before assuming — same shape, with one carve-out: the "stop and ask" step is a constraint and stays,
+   as does the "Never generate or assume" list beneath it. Only the search-first and ask-clarifying steps go.
+5. § Context quality — worked in full as the audience test's first case:
     - **Keep** the opening line ("never degrade work quality or change approach due to context pressure") —
       agent-facing, bias-guarding, quiet-failing. One line, unqualified.
-    - **Demote** the boundary taxonomy and the three-step handoff procedure to `strategy-session-operations`,
-      behind that entry's trigger amendment.
+    - **Keep** the boundary procedure. Its second step is a mandatory stop, and the only trigger that would
+      summon it from a strategy fires on the agent's estimate of its own context pressure — the signal the next
+      bullet rejects as unreliable. Demoting it would lose a stop behind a trigger that cannot fire honestly.
+    - **Demote** the boundary taxonomy — the four categories of what counts as a natural boundary — to
+      `strategy-session-operations`, behind that entry's trigger amendment. Decision support for a human
+      judgment call, and nothing about it stops anything.
     - **Cut** the "quality signals" bullet outright. It asks the agent to notice "output becoming less precise,
       early-session guidance being missed, re-deriving decisions already established" — self-assessment of one's
       own degradation, which is the forgeable-self-report shape named in § Open questions. An agent reliable
@@ -381,16 +457,20 @@ Rephrasings:
 - § Discovered Work Routing — "always propose placement to the user before acting" contradicts the inline-fix
   permission two lines above it. Under the model, a same-concern cleanup in a file already under edit is a
   discharged default, and proposing it is the ceremony this work unit exists to remove.
-- § Commit control, merge authority — oddly seated under commit control, and enumerates what does not count as
-  authorization (task approval, review completion, passing checks, general "proceed" language). Under the
-  discriminator that enumeration is derivable, since a bias-guard yields to no inference. One line survives; the
-  procedure moves to `integrate-work-unit`.
+- § Commit control, merge authority — oddly seated under commit control; reseat it. **The enumeration of what does
+  not count as authorization stays** (task approval, review completion, passing checks, general "proceed"
+  language). The tempting reading is that the discriminator derives it, since a bias-guard yields to no inference —
+  but classifying the rule `invariant` establishes only that an authorization is _required_. It does not tell the
+  agent that a general "proceed" is not that authorization, which is the specific inference path the enumeration
+  forecloses. Cutting it loses required behavior, and the cut test forbids cutting a bias-guard at any capability.
+  The _procedure_ still moves to `integrate-work-unit`.
 - `DEV-RULES.PROJECT` § Selecting what to run is the **exemplar** — named purpose, derivation rule, explicit
   fail-safe ("the deciding is not worth more than the checks cost"). Cite it as the target shape; change nothing.
 
 **Author's-interest caveat.** Cuts 2–5, and roughly ten further compress-in-place verdicts recorded in the notes
 companion, are judgments about what current agents no longer need, made by an interested party — the backstop
-clause calls exactly that structurally suspect. Treat them as candidates for the maintainer's read, not findings.
+clause calls exactly that structurally suspect. They are candidates for the maintainer's read, not findings, and
+§ Open questions places that read as a gate at spec discovery rather than leaving it as an unowned caveat.
 
 The register above stays the **named** set; the enumeration's full per-section disposition stays in the notes
 companion. That division is what keeps the surface bounded — a line-level table cannot widen into an audit mandate
@@ -404,6 +484,12 @@ Both project check-docs fire on this work unit. Tensions surfaced during authori
 
 - **P1 (constraints never go on-demand)** — validates placing the model in always-loaded `DEV-RULES.ARC` rather
   than a strategy. Confirms placement.
+- **P3 (anchor triggers to operations, not workflows)** — bites on roughly a fifth of the register. Five
+  destinations are workflows (`process-task-loop`, `session-handoff`, `run-errand`, `drain-inbox`,
+  `integrate-work-unit`), and P3's stated failure mode is that a workflow-anchored trigger silently misses ad-hoc
+  invocation. That is this document's own merge-authority worked case, generalized: `run-errand` is a workflow, and
+  "never hand-rolled on your current WU branch" exists precisely for the agent who is _not_ running it. Each such
+  destination needs an operation-anchored trigger, or the content stays. Folded into the summoning test above.
 - **P6 (extract on fan-in)** — authorizes the extraction; see § The pattern.
 - **P10 (don't grow the always-loaded set casually)** — the live tension. `DEV-RULES.ARC` is always-loaded and
   already large. The justification to make explicitly, not assume: this is a **meta-rule that makes the other 33
@@ -418,8 +504,21 @@ Both project check-docs fire on this work unit. Tensions surfaced during authori
 - **P1 (if the CLI can compute it, the CLI computes it)** — no live tension here: it applies to lane relief, which
   ships as `planning-lane-relief`. This work unit's compression edits move _toward_ P1, building the
   emitted-remedy mechanism rather than asking the agent to remember a command.
-- **P7 (controlled vocabulary)** — `invariant` and `default` are load-bearing terms; each earns a
-  briefs-vocabulary definition before use.
+- **P5 (evals gate the prose layer)** — the tension this work unit cannot discharge itself. P5 holds that judgment
+  prose cannot be statically verified, so behavioral regression tests are its only correctness instrument, and this
+  is the largest judgment-layer rewrite the corpus has attempted. All three success signals are inspection-based,
+  which P5 says is not the instrument. **Recorded as an accepted deviation, not an oversight:** P5 names
+  `workflow-eval-harness` as its owner and that harness does not exist, so no eval coverage is available to gate
+  this. The consequence to state plainly is that the discriminator's real failure mode — being misread in practice
+  rather than being wrong on paper — is undetected until that harness lands, and this section is the natural first
+  eval subject when it does.
+- **P6 (emitted text is precomposed CLI-side)** — bears on the one remedy this work unit still demotes behind
+  emission. The `ROADMAP` precedent (CHECK 17) is a shell `echo` in a hook, which is the pattern P6 argues against;
+  a new emission belongs in the CLI's precomposed-text layer rather than a second hook-side template. Bounded, and
+  it reinforces the decision to leave gate-emission work out of this deliverable.
+- **P7 (controlled vocabulary)** — `invariant`, `default`, and `dischargeable` (of an ignorance-guard) are
+  load-bearing terms; each earns a briefs-vocabulary definition before use. "Protects the integrity of a check" is
+  bounded inline in the section text rather than minted as a term.
 
 ## Corpus sweep
 
@@ -451,15 +550,29 @@ criteria, and the second is load-bearing — the only one that can fail by the m
    review, the `run-errand` merge capability read as withheld — resolves from § Rule Authority with no new
    per-case rule written. If a case still needs its own clause, the discriminator does not derive what it claims
    to.
-2. **Safety.** The bias-guard corpus is untouched by the retrofit: `integrate-work-unit`'s 20+ imperatives and
-   `verify-work-unit`'s immutable-criterion rule survive unchanged. A model that licenses rewriting them is too
-   permissive, and this is the check that catches it.
-3. **Compression.** Both rules files end net shorter, every demoted line lands at a destination whose summoning
-   mechanism already fires, and **no constraint leaves the always-loaded set** (`knowledge-evolution` P1).
+2. **Safety.** No bias-guard is cut or weakened **in the surfaces the retrofit actually edits** — `DEV-RULES.ARC`'s
+   own imperative corpus and `DEV-RULES.PROJECT`, not only the untouched workflows. Scoping this check to
+   `integrate-work-unit` and `verify-work-unit` would make it unfalsifiable, since § Corpus sweep already
+   establishes those survive; the real test is the file the model is installed in, where the merge-authority
+   enumeration is the worked case of a bias-guard the register nearly cut. Their survival still belongs in the
+   check as the regression floor.
+3. **Compression.** Both rules files end net shorter; every demoted line lands at a destination whose summoner
+   fires, is operation-anchored rather than workflow-anchored (P3), and does not depend on the agent estimating
+   its own state; and **no constraint leaves the always-loaded set** (P1). Each demoted line carries a recorded
+   constraint-or-not determination, so a violation is visible rather than inferred.
 
 ## Open questions
 
-None gates formalization; each is an implementation-time or coordination question.
+One gates formalization — the register's P1 re-audit — and it is named first below because the spec inherits it as
+a required pass rather than a settled input. The rest are implementation-time or coordination questions.
+
+- **The register needs its constraint-or-not column before the deliverable is sized** (`needs-design`, owner: this
+  work unit's spec discovery). The re-audit above identified five demotions that P1 forbids, found by attacking
+  the register rather than by applying the tests in order, so the remainder is not yet trustworthy. Two things
+  resolve together: every row gets an explicit constraint determination, and the **author's-interest items** —
+  register cuts 2–5 plus roughly ten compress-in-place verdicts — get the maintainer's read that the caveat calls
+  for. That read is a real gate at spec discovery, not a disposition recorded here; a cut to an always-loaded
+  constitutional file is a design decision, not a variable name.
 
 - **The forgeable self-report shape, named once.** An agent writing "human approved" into a record it also authors
   proves nothing, and in a chat harness there is no trace of the approval that is not agent-mediated. This work
@@ -468,10 +581,10 @@ None gates formalization; each is an implementation-time or coordination questio
   concern 6 rejected two candidate shapes for the `adversarial-review` `withstood` field on exactly this ground,
   and register cut 5 rejects the quality-signals bullet on it too. Both asked an untrusted party to attest its own
   rigor. Naming it once is this model's job; solving it for a machine-read classifier is not.
-- **Which gate failures should name a fix command.** Emission is in scope and the pattern exists, but the set is
+- **Which gate failures should name a fix command** — routed out to `quality-gate-hooks` (see § Scope). The set is
   unenumerated: the markdown gate wants `lint:md:fix` and `format:tables`, the TypeScript gate has no single
-  remedy, and a gate whose fix is "read the output" should emit nothing rather than noise. Resolve it in the
-  spec's own enumeration pass, the way the compression surface was resolved here.
+  remedy, and a gate whose fix is "read the output" should emit nothing rather than noise. Recorded here only
+  because mechanism 3's viability rests on it.
 - **The `execution-delegation-doctrine` vocabulary coupling** — see § Composition / Coordination. The surface
   boundary is drawn; the open half is whether that work unit's § Sub-agent scope rewrite expresses this
   discriminator or restates it locally.
@@ -514,10 +627,16 @@ precedence paragraph, a bounded marker retrofit, and a narrow prose sweep. Faces
 constitutional deliverable; face (a) ships as `planning-lane-relief`.
 
 Compression widens this deliberately, and the widening is **depth on the same two files, not fan-out** — the net
-direction is fewer lines than it started with, in a surface loaded every session. It is ~305 lines across the two
-files, plus the destination edits each demotion lands, two trigger amendments, and the emitted-remedy work that
-licenses the largest demotion. That last item is the one code surface in scope: hook and gate scripts, not
-`change-facts.ts`.
+direction is fewer lines than it started with, in a surface loaded every session. Sized in nonblank lines, it is
+the register minus whatever the P1 re-audit returns to the always-loaded set, plus the destination edits each
+demotion lands, two trigger amendments, one `STRATEGY-INDEX` entry for
+`strategy-interlock-release-wrappers`, and a one-line retarget of `quality-gate-commands`' passthrough. The spec
+re-derives the figure with a constraint column; it is not settled here.
+
+**No code surface is in scope.** Gate-emission work leaves the deliverable: its justification was that it licensed
+the quality-gate demotion, and that demotion turns out to need a method retarget instead. What remains — which gate
+failures should name a fix command — routes to `quality-gate-hooks`, which already owns index-safe auto-fix and
+restage machinery, and it is where `procedure-evolution` P6's precomposed-text question belongs too.
 
 ## Continuity
 
@@ -537,10 +656,24 @@ licenses the largest demotion. That last item is the one code surface in scope: 
   closed it out: face (a) decomposed to `planning-lane-relief` (promoted to `planned`, `Class: Heavy`),
   emitted-remedy work and both trigger amendments taken into scope (~305 lines), cross-harness precedence placed
   in the ADR, and a three-part success signal adopted. The draft was then consolidated — superseded sketch
-  removed, two measurement passes merged, dated-layer narration moved here.
-- **Open:** the `execution-delegation-doctrine` vocabulary coupling. Not a blocker; the surface boundary is drawn.
-- **Next:** the advisory adversarial pass at the readiness boundary (deferred by choice, not declined), then
-  formalization-readiness and the crossing into create-spec. Authoring the real `DEV-RULES.ARC` section is
-  downstream of create-spec, not a drafting-stage move.
+  removed, two measurement passes merged, dated-layer narration moved here. **Adversarial pass one** then ran the
+  readiness, proportionality, and design-audit rubrics from fresh context and returned ten confirmed findings, all
+  in the compression half and at the core's definitional edges. Dispositions applied: the "routing method"
+  destination corrected to an index entry for an existing strategy; the quality-gate demotion re-read as a method
+  passthrough retarget, with its four constraints kept always-loaded; gate-emission work removed from scope; a P1
+  re-audit opened over the whole register after five constraint demotions were found; P3, P5, and P6 engaged
+  (P5 recorded as an accepted deviation pending `workflow-eval-harness`); the surface restated in nonblank units
+  at ~46% / ~50%; success signal 2 rescoped to the surfaces the retrofit edits and the merge-authority
+  enumeration's cut retracted as a bias-guard; "whose call" given its resolution and "integrity of a check"
+  bounded; the author's-interest items placed as a gate at spec discovery. Separately, the held `USER-INBOX`
+  entry for this work unit was absorbed and cleared: the discriminator's ignorance-guard arm now carries a
+  **dischargeability** qualifier, since a rule guarding an ignorance the agent can never discharge behaves as an
+  invariant — the satisfaction test's fall-through already reached that verdict, which is further evidence for
+  satisfaction-primary, and the retrofit's naive-sweep hazard is now named.
+- **Open:** the register's constraint-or-not re-audit, which gates formalization; the
+  `execution-delegation-doctrine` vocabulary coupling.
+- **Next:** adversarial pass two of two, attacking the repaired draft — the P1 re-audit and the core's newly
+  bounded terms are the surfaces to re-attack. Then formalization-readiness. Authoring the real `DEV-RULES.ARC`
+  section is downstream of create-spec, not a drafting-stage move.
 
 ---

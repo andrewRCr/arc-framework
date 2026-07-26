@@ -14,8 +14,17 @@ section so the register stays a bounded list rather than a percentage anyone can
 the heading structure rather than estimated), then a per-section disposition under the four tests the draft
 settled: the audience test, the summoning test, the loud-versus-quiet cut test, and constraints-only placement.
 
-**Units.** `nb` is nonblank lines within the section. The draft's ~315 figure is raw lines; the two measures
-agree at the totals, and `nb` is used here because it is what a disposition actually moves.
+**Units.** `nb` is nonblank lines within the section — what a disposition actually moves. The earlier ~315 figure
+counted raw lines and the two are **not** comparable: `DEV-RULES.ARC` is 569 raw / 417 nb and `DEV-RULES.PROJECT`
+is 341 raw / 261 nb, so the ~322 nb register is ~46% and ~50% of each file's substantive content rather than
+"about a third," with a correspondingly larger raw footprint.
+
+**Superseded by adversarial pass one.** The disposition table below was built by applying the audience and
+summoning tests, and a fresh-context pass then found that it did not consistently apply `knowledge-evolution` P1
+(constraints never demote) or P3 (operation-anchored triggers), and that two destinations do not exist as
+labelled. The corrected dispositions are recorded per row below; the **table as a whole is not yet trustworthy**
+and the draft carries a required re-audit (`draft-judgment-authority-model.md` § Open questions). Treat every
+`Δnb` as an upper bound.
 
 **Dispositions.** `keep` (unchanged) · `compress` (rephrase in place, stays always-loaded) · `demote → dest`
 (leaves the always-loaded set) · `cut` (removed, nothing summons it) · `out of scope` (another work unit owns
@@ -25,7 +34,7 @@ the section).
 (the demotion is real but needs a mechanism or trigger amendment first) · `blocked` (no mechanism available
 within this work unit's reach).
 
-### `DEV-RULES.ARC` — 570 raw lines
+### `DEV-RULES.ARC` — 569 raw / 417 nonblank lines
 
 | Section                                    | Lines   | nb | Disposition                                                                                                            | Destination / mechanism                                                                                                                 | Δnb |
 | ------------------------------------------ | ------- | -- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --- |
@@ -84,7 +93,7 @@ within this work unit's reach).
 | Contributor commit release                    | 160-162 | 3  | demote                                                               | `AGENT-BRIEF.CONTRIBUTOR` — fires (role-conditional load)                 | 3   |
 | Complex-commits pointer                       | 164-165 | 2  | cut — duplicated in § When to Load Additional Guidance               | —                                                                         | 2   |
 
-### `DEV-RULES.PROJECT` — 342 raw lines
+### `DEV-RULES.PROJECT` — 341 raw / 261 nonblank lines
 
 | Section                           | Lines   | nb | Disposition                                                                                                                                                | Destination / mechanism                                                                                                     | Δnb |
 | --------------------------------- | ------- | -- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --- |
@@ -118,36 +127,61 @@ within this work unit's reach).
 | `DEV-RULES.PROJECT` | ~96             | ~35             | 0       | ~131     |
 | **Both**            | **~243**        | **~62**         | **~17** | **~322** |
 
-The measured surface survives itemization — ~322 nonblank lines against the draft's ~315 raw — but it is not one
-number. Only the committable tier defines the deliverable; the gated tier is a dependency list and the blocked
-tier is out of reach.
+These totals are **upper bounds pending the P1 re-audit** — the corrections below move lines out of the
+committable tier and back into the always-loaded set, and the re-audit may move more.
 
-### What the enumeration changed
+### Corrections from adversarial pass one
 
-1. **Mechanism 3 is precedented, not speculative.** Pre-commit CHECK 17 already emits its own remedy verbatim
-   ("Re-render with: `arc status --project --staged > …`"), so building emission for the quality-gate commands
-   extends an existing shape rather than inventing one. Verified at source: the husky chain runs
-   `lint:md:staged` and the TypeScript quality script, and neither names a fix command
-   (`lint:md:fix`, `format:tables`) on failure. One consequence lands immediately — the ROADMAP-regen bullet's
-   mechanism already fires, so it demotes now rather than waiting.
-2. **A measurement correction.** § When to Load Additional Guidance is 24 raw lines / 17 nb, not the 43
-   previously recorded — that figure swept in the file's 20-line trailing link block. It stays blocked, so the
-   largest _committable_ item is § Commit control's mechanics (~43 nb), then § Context quality (~22, mostly
-   gated), then § Architecture Decision Records (~16) and § Package-Project Sync (~14).
-3. **Trigger amendments are bounded at two.** `strategy-session-operations` (a mid-session situation condition,
-   already known) and `strategy-configurability-architecture` (consuming an override at load time, as opposed to
-   authoring config). Every other destination's index entry already fires as written —
+1. **Two destinations do not exist as labelled** (was: "the routing method — fires"). No method in
+   `system/methods/` covers release or class-tag routing; `strategy-interlock-release-wrappers.md` exists but
+   carries no `STRATEGY-INDEX` entry, so mechanism 2 does not fire for it either. Corrected disposition for the
+   § Commit control rows Concept (4 nb), Release-wrapper invocation (6 nb), and Workflow class-tag routing
+   (11 nb): demote to that strategy, **gated on adding its index entry**. The class-authorization preconditions
+   at `DEV-RULES.ARC` 108-111 are preconditions, not prose — they stay always-loaded.
+2. **The quality-gate listing was gated on the wrong mechanism** (was: "gated on mechanism 3", 35 nb).
+   `quality-gate-commands` exists and is declared in `process-task-loop`'s frontmatter, firing at three sites, so
+   mechanism 1 already works — but its `.default` is a **passthrough** to "`DEV-RULES.PROJECT` § Quality Gates",
+   so emptying that section breaks the fire site. Corrected: demote the _commands_ behind a one-line retarget of
+   the passthrough, and **keep four constraints** that `QUICK-REFERENCE` does not carry — the
+   index-versus-worktree false-green trap, re-stage-after-fix, `lint:md`'s fails-closed behavior, and "run both
+   before declaring types green."
+3. **Five demotions violate P1** (constraints never demote) and are withdrawn: the four quality-gate constraints
+   above; § Context quality's boundary procedure, whose second step is a mandatory stop; § Discovered Work
+   Routing's express-lane permission, whose destinations fire only when the agent already uses the inbox;
+   § Verify before assuming's "stop and ask" step; and the class-authorization preconditions. **Procedural
+   lesson:** the constraint-or-not determination must precede destination selection, since the summoning test
+   cannot license what P1 forbids.
+4. **P3 was never applied** (anchor triggers to operations, not workflows). Five destinations in the table are
+   workflows — `process-task-loop`, `session-handoff`, `run-errand`, `drain-inbox`, `integrate-work-unit`,
+   roughly a fifth of the committable tier. Each needs an operation-anchored trigger or the content stays.
+5. **Mechanism 3 is precedented but now carries only one row.** Pre-commit CHECK 17 emits its own remedy verbatim
+   ("Re-render with: `arc status --project --staged > …`"), and the husky chain's markdown and TypeScript gates
+   emit none — verified at source. So the ROADMAP-regen row (4 nb) demotes today, but 4 nb does not justify
+   gate-emission work, which has left the deliverable.
+6. **A measurement correction.** § When to Load Additional Guidance is 24 raw lines / 17 nb, not the 43
+   previously recorded — that figure swept in the file's 20-line trailing link block. It stays blocked.
+7. **Trigger amendments needed, beyond the two already named.** `strategy-session-operations` and
+   `strategy-configurability-architecture` remain, plus the `strategy-interlock-release-wrappers` index entry from
+   correction 1, plus whatever P3 requires. Six destinations do fire as written —
    `strategy-work-planning`, `strategy-workflow-authoring`, `strategy-work-organization`,
-   `strategy-adr-methodology`, `strategy-package-project-sync`, `strategy-team-coordination`.
-4. **Both tables of contents are pure cut** — 22 nb combined, the cheapest item in the register and previously
-   unnamed. Zero risk: each file loads whole, and `§` reference resolution never consults them.
-5. **One section is off-limits.** § Sub-agent scope (14 nb) is the only part of either file this work unit must
-   not touch; `execution-delegation-doctrine` owns its rewrite. That draws the boundary concretely — that work
-   unit owns one section, this one owns the model and every other section — leaving only a vocabulary coupling to
-   settle rather than a surface one.
-6. **The author's-interest caveat now reaches further.** The committable tier includes roughly ten
-   compress-in-place verdicts, each a judgment about prose the reader no longer needs, made by the same
-   interested party the backstop clause names as structurally suspect. Same disposition as register cuts 2-5:
-   candidates for the maintainer's read, not findings.
+   `strategy-adr-methodology`, `strategy-package-project-sync`, `strategy-team-coordination` — and
+   `strategy-session-operations`' amendment must not be a "mid-session under context pressure" condition, which
+   asks the agent to estimate its own degradation.
+
+### What the enumeration established, and pass one did not disturb
+
+- **Both tables of contents are pure cut** — 22 nb combined, the cheapest item in the register and previously
+  unnamed. Zero risk: each file loads whole, and `§` reference resolution never consults them.
+- **One section is off-limits.** § Sub-agent scope (14 nb) is the only part of either file this work unit must not
+  touch; `execution-delegation-doctrine` owns its rewrite. That draws the boundary concretely — that work unit
+  owns one section, this one owns the model and every other section — leaving only a vocabulary coupling to settle
+  rather than a surface one.
+- **The author's-interest caveat reaches roughly ten compress-in-place verdicts** beyond register cuts 2-5, each a
+  judgment about prose the reader no longer needs, made by the same interested party the backstop clause names as
+  structurally suspect. The draft now places the maintainer's read as a gate at spec discovery rather than leaving
+  it an unowned caveat.
+- **Every section line range reconciles** against the actual heading offsets in both files, and both `Δnb` columns
+  sum to the stated per-file totals. The arithmetic was checked independently in pass one; what was wrong was the
+  disposition logic, not the measurement.
 
 ---
