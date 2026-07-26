@@ -90,7 +90,7 @@ substrate, not four verb-local bugs.
 - **Not a merge-guard sub-criterion.** Area 1's `integrate`-time fail-closed reconcile lands at the integrate
   workflow's existing integration-interlock, not in `review-gate-right-sizing`'s readiness check (a deliberately
   closed request union that reads only the integrating WU's own products).
-- **Not the `pr-decomposition` review-surface axis.** Concern-splitting (this WU's cut-map) and review-surface
+- **Not the `review-chunking` review-surface axis.** Concern-splitting (this WU's cut-map) and review-surface
   carving are orthogonal; the cut-map and chunk vocabularies stay distinct.
 - **Not adopter-facing or `completed/` reference rewriting.** `completed/` is inert history; adopter-facing
   `system/` and `reference/` must not carry WU slugs at all. Both are out of the reconcile scope by construction.
