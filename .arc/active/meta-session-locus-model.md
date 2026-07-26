@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 7.S — Decomposition readiness (7.S.a, 7.S.b, 7.S.c)
+- **Last Completed:** Delivery-stack planning carve — routing re-settled, three specs authored
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Execute the delivery-stack carve — re-settle `notes-session-locus-model.md` § Remediation
-  routing's D2 line, author the three specs, then re-create each deliverable from tip state per § The carve, proved
+- **Next Action:** Merge `origin/main` in — 35 conflicted files (11 source, 12 test/fixture, 10 workflow, plus
+  the rendered `ROADMAP`); resolve, run gates, land as its own commit before cutting any deliverable branch
 
 - **PR URL:** [none]
 - **Completed:** [none]
