@@ -351,35 +351,50 @@ Three deliverables, each its own work unit, in dependency order:
 The three sizes above are the corrected ones — the carve proof below measured them, and moved `abandon` and
 `partial-settle` from D2 to D1 for reasons the code settles.
 
-### Remediation routing
+### Remediation routing — re-settled 2026-07-25
 
-Remaining open work distributes across the stack rather than landing on one head:
+Remaining open work distributes across the stack rather than landing on one head. Each finding below is placed by
+its stable locus against the corrected deliverable boundaries; the earlier pass predated them and misplaced six.
 
-- **D1** — `7.E.e.ii`, `.iii`, `.iv`, `.v`, `.vii`; `7.E.f`; the `R1-F1`–`R1-F4` claims of `7.E.h`; `7.G.a`; and
-  the `7.E.g` members covering in-place resume, legacy record readability, legacy multi-WU recovery, and install.
-- **D2** — the six carved findings; `7.E.h`'s `E4-V1` / `E5-V1` coverage restoration; `7.E.g`'s remote-only legacy
-  close path and quick-reference signature.
-- **D3** — `7.E.e.vi`'s housekeep and plan open paths; `7.E.g`'s partial-housekeep base binding, groom exact-path
-  authorization, and inbox source digest.
+- **D1** — `7.E.e.ii`, `.iii`, `.iv`, `.v`, `.vii`; `7.E.f`; `7.G.a`; `7.E.h`'s `R1-F1`–`R1-F4` claims, `M1-F1`,
+  `E4-V1`, and the status / ROADMAP / adoption half of `E5-V1`; and the `7.E.g` members covering in-place resume
+  (`W2-F1`), legacy record readability (`E1-F1`), remote-only legacy close (`E5-F2`), legacy multi-WU recovery
+  (`S1-F1`), the inbox source digest and lost-response replay (`E5-F1`, `B-F1`), the quick-reference Errand
+  signature (`M1-F2`), and the `arc-errand` half of install (`D-F1`).
+- **D2** — the materialize half of `E5-V1`: materialize success and failed-open rollback coverage. That is all of
+  it.
+- **D3** — `7.E.e.vi`'s housekeep and plan open paths; `7.E.g`'s partial-housekeep base binding (`P1-F3`), groom
+  exact-path authorization (`P1-F4`), and the `arc-housekeep` half of install (`D-F1`).
 
 `7.E.g` and `7.E.h` are the two undecomposed parents, and they are precisely the ones that span deliverables — the
 split forces the decomposition that was owed either way, now against three targets small enough to hold at once.
-D1 carries most of the remaining remediation; D2 and D3 come out comparatively light. The split buys review
-proportionality, not a fast first merge.
+The split buys review proportionality, not a fast first merge.
 
-**The D2 line above needs re-settling before the carve.** It predates the boundary correction, and both of its
-premises moved. The six carved findings are one design question — the systematic generation-capability contract —
-and that contract spans every generation-taking verb, of which `open`, `close`, `abandon`, `partial-settle`, and
-`promote` are now D1's; D2 itself is down to `leave` and `materialize`. Routing a cross-cutting contract to the
-smallest deliverable in the stack is probably wrong, but the alternative (D1 authors it, D2 and D3 inherit it) is
-a real design call, not a clerical fix. Settle it when the specs are authored, not by editing this list.
+**The carved findings leave the stack entirely — they were never the stack's to place.**
+`locus-generation-binding` already carries them as a `backlog/planned` unit with its own draft and dependency
+edge, minted at the carve itself. Routing them to a deliverable double-books work that has a home, which is the
+absorption pattern this decomposition exists to correct. Its carried defect set names `locus/command-runtime`,
+`locus/mutation`, `locus/provisioning*`, `errand/open`, `errand/promote-runtime`, and `git/worktree-marker`, and
+its sixth item — the failure-injection substrate — names the groom and housekeep drivers. Not one names `leave*`
+or `materialize-branch`, which is the whole of D2. Re-point that unit's `Depends On` from `session-locus-model` to
+the stack's last member: five items need D1's code and the substrate item needs D3's drivers, so scoping it to D1
+alone would re-carve a carve.
+
+**D1 absorbed most of what the earlier pass gave D2 and D3.** The boundary correction moved `close`, `promote`,
+`abandon`, and `partial-settle` into D1 while the routing still read them as transient-lifecycle or sweep scope:
+`E4-V1` is promote coverage, `E5-F2` is close dispatch, `M1-F2` is `errand open --type`, and the inbox-digest
+clause is `open` / `link` / `promote`. `D-F1` splits one skill per side, and `M1-F1` had been routed nowhere at
+all. D2's remaining share is a single coverage task, which is consistent with its measured ~870 source lines.
 
 ### Lifecycle calls
 
 - **Three work units, not one shipping three PRs.** Nothing in the current model supports stacked delivery
-  (`chunked-delivery` owns that, unstarted), and the 1:1 WU/PR assumption would break. D1 and D2 each carry genuine
-  open design — `7.G.a` for D1, the generation-capability contract already recorded as spec-worthy for D2. D3 is
-  delivery-only and takes a thin spec.
+  (`chunked-delivery` owns that, unstarted), and the 1:1 WU/PR assumption would break.
+- **Slugs:** D1 keeps `session-locus-model`; D2 is `errand-transient-lifecycle`; D3 is `claimed-sweep-verbs`.
+- **All three are delivery-only, and each takes a spec sized to what it inherits.** The two open-design claims
+  recorded here have both closed: `7.G.a` settled and shipped in Phase `7.G`, and the generation-capability
+  contract belongs to `locus-generation-binding` rather than to any deliverable. So no spec in the stack authors
+  new design — each partitions a design already realized in code and records what it inherited.
 - **The spec splits with the code.** Expect re-authoring rather than a section cut: D7 and D8 both span
   deliverables. Each spec records that it decomposed from this WU and inherited its implementation.
 - **Task lists renumber cleanly** for remaining work; `tasks-session-locus-model.md` archives intact with this WU's
@@ -532,6 +547,16 @@ passes unedited against a CLI that dropped them. Nothing in 733 test files catch
 contradicts its own documentation. Two consequences: the doc rewrite (`session-init.md`'s signal-leaf spine,
 `QUICK-REFERENCE`, and the `arc-housekeep` / `arc-plan` / `arc-session` skills) is the one carve cost this proof
 did **not** measure, and it is the one part no gate will catch — it needs a deliberate pass, not a green run.
+
+### ROADMAP re-render is deferred to after the base reconcile (2026-07-25)
+
+Authoring the two carved stubs into `backlog/planned/` and re-pointing `locus-generation-binding`'s `Depends On`
+are both manual-discipline render-field changes, so they owe a `ROADMAP` re-render. It is **deliberately not
+done here.** This branch sits 192 commits behind `main`, and the probe already classifies `ROADMAP.md` as
+regenerable rather than substantive overlap. A render from this branch's stale meta set would neither match
+mainline nor survive the reconcile — it would be discarded and redone. Re-render once, after the base merge,
+against the reconciled meta set; the skipped manual trigger is bounded and the next ceremony-wired regen sweeps
+it back into agreement either way.
 
 ### Execution state and sequencing (2026-07-25)
 

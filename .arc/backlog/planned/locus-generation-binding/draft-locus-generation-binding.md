@@ -27,9 +27,12 @@
 
 - **Readiness:** `rough` — the defect set is exact and source-verified, but no contract has been authored. The
   open forks below are genuine design questions.
-- **Blocked until `session-locus-model` integrates.** Every locus in the carved set is code that unit
-  introduces; there is nothing to edit until it reaches mainline. This is a sequencing fact, not a soft
-  preference.
+- **Blocked until the `session-locus-model` delivery stack integrates.** Every locus in the carved set is code
+  that work introduces; there is nothing to edit until it reaches mainline. This is a sequencing fact, not a soft
+  preference. The origin decomposed on 2026-07-25 into `session-locus-model` → `errand-transient-lifecycle` →
+  `claimed-sweep-verbs`, and the dependency is on the last of them: five carried items name base-deliverable
+  modules, while the failure-injection substrate names the groom and housekeep drivers that ship last. Scoping
+  this unit to the base alone would split the substrate item and re-carve a carve.
 
 ## The carried defect set
 

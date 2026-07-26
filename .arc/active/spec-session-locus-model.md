@@ -10,6 +10,11 @@
 - **Implementation dependency:** `cli-schema-kernel` and `cli-session-envelope` have landed; this WU consumes the
   kernel's canonical Zod schema/registry vocabulary and the validated session-init envelope contract directly.
 
+- **Decomposed 2026-07-25.** This work unit is the base of a three-deliverable stack. Two scopes it had absorbed
+  carved out into their own units, each retaining the implementation built here:
+  `errand-transient-lifecycle` (`arc errand leave`, `arc errand materialize`) and `claimed-sweep-verbs` (the
+  grooming and housekeeping claim drivers). See § Decomposition boundary for what that leaves reachable.
+
 ---
 
 ## Introduction / Context
@@ -47,7 +52,8 @@ keeps identity, lifecycle, and machine occupancy in their existing authority dom
 - Prevent cleanup of any checkout with a conclusively live session lease while preserving all existing teardown
   guards.
 - Give humans and tools one lean, read-only, network-free roster over sessions, roles, and checkouts.
-- Make Errand, grooming, housekeeping, spawn, and materialize fire sites consume the same locus allocation model.
+- Make Errand, spawn, and work-unit fire sites consume the same locus allocation model, and supply the shared
+  allocator the carved grooming, housekeeping, leave, and materialize verbs consume unchanged.
 - Preserve cross-platform and harness-agnostic behavior, degrading uncertainty to an explicit prompt tier.
 
 ## Non-Goals
@@ -67,6 +73,34 @@ keeps identity, lifecycle, and machine occupancy in their existing authority dom
 - Adding a storage mode, per-artifact tracking flag, harness-specific configuration axis, or resident service.
 - Cross-machine arbitration of simultaneous transient claims. Identity claims are first-writer-wins with explicit
   conflict surfacing; concurrent duplicate opens sit outside ARC's operator scale.
+- The verbs that let an Errand's identity outlive its local checkout (`arc errand leave`,
+  `arc errand materialize`) — carved to `errand-transient-lifecycle`.
+- The grooming and housekeeping claim drivers (`arc plan open|close|abandon`,
+  `arc housekeep open|close|abandon|mark-execute`) and their consuming workflow arms — carved to
+  `claimed-sweep-verbs`.
+- One exact generation capability carried through every locus mutation and revalidated under lock. The three
+  abandon drivers bind the caller's selected generation, but a contract obliging every mutator, and the
+  failure-injection substrate proving it, belong to `locus-generation-binding`.
+
+## Decomposition boundary
+
+The stack cuts where the code's dependency direction cuts: grooming, housekeeping, leave, and materialize all
+depend on the locus core and the v3 identity substrate, and none of that substrate depends back on them. This
+deliverable therefore keeps every shared authority — the record store, allocator, reader, identity transaction,
+recovery, cleanup, and rename composition — and the base Errand verbs (`open`, `link`, `close`, `promote`,
+`check`, `abandon`, `partial-settle`) that exercise them.
+
+**The consequence is deliberate and stated rather than hidden: this deliverable ships state vocabulary that no
+verb of its own produces.** The `paused` and `awaiting-merge` Errand states, the `groom` and `housekeep` role and
+identity kinds, and the `plan-open` / `housekeep-open` mutation operations are all part of the schema, the state
+transform, the reader projection, and the recovery and in-flight-identity handling here, because a reader that
+cannot classify a claim it may encounter is not a reader. Their producing drivers land in the two carved units.
+Until those merge, an ordinary Errand is `open` or nothing, and no grooming or housekeeping claim exists to
+classify.
+
+Pulling those producers back to make the vocabulary reachable was the alternative considered and rejected: it
+reassembles the absorbed scope this decomposition exists to separate, and it would place a design that was never
+independently scoped or reviewed inside a deliverable whose own review is already the largest in the stack.
 
 ## Proposed Design
 
@@ -267,14 +301,15 @@ Role creation and removal bind to the operations that establish or end a checkou
 | WU handoff                              | Release only the matching lease; retain the durable role.                                       |
 | WU teardown                             | Linearize final lease validation and role pop with linked removal or in-place base restoration. |
 | Errand open / resume                    | Mint `errand` role in the allocated checkout; link the entering WU parent when warm.            |
-| Errand leave                            | Full mode returns/tears down the local locus and pops its role while retaining identity.        |
 | Errand complete                         | Full mode retires identity after merge; partial mode pops occupancy after the base commit.      |
+| Errand abandon                          | Retire the exact claim, return or tear down the locus, and pop the expected role generation.    |
 | Errand promote                          | Replace the exact transient generation with a WU role/marker and make it the session home.      |
-| Grooming open                           | Mint `groom` role and matching groom-kind identity record; link warm parent when present.       |
-| Grooming close                          | Pop local role; retain full awaiting-merge identity or retire the completed partial claim.      |
-| Housekeep entry                         | Full mode mints one routing-sweep role/identity; partial mode mints one sweep occupancy.        |
-| Housekeep close                         | Pop the sweep role; retain the full-mode routing PR identity tail.                              |
-| Errand materialize                      | Write ARC ownership marker and `errand` role in the materialized worktree.                      |
+
+Four further bindings are specified by this model but driven by the carved deliverables, and are listed so the
+role vocabulary is complete rather than because a verb here performs them: **Errand leave** and **Errand
+materialize** (`errand-transient-lifecycle`), and **Grooming open/close** and **Housekeep entry/close**
+(`claimed-sweep-verbs`). Each mints or pops its role through the same store, allocator, and expected-generation
+discipline as the rows above; none introduces a new role action shape.
 
 A WU role follows physical checkout ownership, not branch or lifecycle presentation. Activation, deactivation,
 integration, reopening, and archival leave the same role generation untouched while the checkout remains. Spawn,
@@ -322,23 +357,18 @@ explicitly.
 
 Transient roles are session-bounded; transient identity may outlive one local occupancy. A full-protection Errand
 may become `paused` only after its exact WIP head is committed and pushed, or `awaiting-merge` after its exact change
-request is recorded. `arc errand leave` persists that identity state, returns the primary to base or tears down the
-spawned checkout, then pops the role. Later resume allocates afresh. Pause is operational re-entry for the same
+request is recorded. The departure verb that persists either state, returns the primary to base or tears down the
+spawned checkout, and pops the role is `errand-transient-lifecycle`'s; the state vocabulary, its transform arms,
+and the resume path that consumes them are specified and shipped here. Pause is operational re-entry for the same
 atomic concern, with no task list, session notes, or planned cross-session decomposition; a concern that needs a
 durable plan promotes to a WU instead. A remaining unleased transient role is therefore still genuine
 crash/walk-away residue rather than a normal pause/review wait.
 
-Housekeeping never parents an Errand frame. Under full protection, one confirmed pure-routing sweep opens one
-`housekeep/errand` role and one v3 Errand identity; every routing write in that sweep shares its branch and PR. The
-workflow classifies the PR by the strictest lane touched at close. A large sweep may use multiple ordered in-session
-review increments and commits on that PR, but never splits into per-lane or per-chunk routing PRs. Under partial
-protection, one `housekeep/housekeep` role covers the same sweep's direct-base commits. Once the complete routing
-sweep is preserved, its full-mode change request is recorded, and the routing role closes, the drain hands
-execute-now work to `run-errand`. The routing PR tail remains as one identity-only v3 Errand. Each execute-now Errand
-is a sibling transient frame whose parent is the original WU session home, or null for a between-WUs session. The
-inbox and Errand identity preserve pending work; `run-errand`'s next-offer replaces “return to the still-open drain
-frame.”
-Maximum persisted depth remains two.
+**No transient role ever parents another.** A sweep that wants to hand work to an Errand must pop its own role
+first, so the successor is a sibling transient frame whose parent is the original WU session home, or null for a
+between-WUs session. This is what bounds the graph: maximum persisted depth remains two, and every consumer —
+reader, recovery, compaction — may rely on seeing one child or none. The sweep drivers that honor this rule ship
+with `claimed-sweep-verbs`; the constraint is the model's.
 
 State-touching transient commands refresh `heartbeatAt` only when their resolved durable process anchor matches
 the record lease; explicit `arc locus attach` timestamps the lease it creates or reuses. Directed commands refresh
@@ -857,16 +887,14 @@ A shared allocator backs the existing operation verbs instead of adding workflow
 - `arc errand link <slug>` remains the late inbox-adoption edge, but mutates only an exact ordinary v3 claim through
   the complete-basis transaction. It never rewrites legacy identity, changes an existing different origin, or
   treats a missing/incomplete inbox read as a linkable capture;
-- new `arc errand leave <slug> --state paused|awaiting-merge` validates the pushed WIP head or exact change request,
-  then closes the full-mode local locus without retiring Errand identity; `arc errand close <slug>` remains
-  completion and may run later from base context;
-- new `arc plan open <anchor-stub> [--include <stub>...]` / `arc plan close <anchor-stub>` verbs own one fixed
-  single- or multi-member grooming-branch lifecycle;
-- new `arc errand abandon <slug>` retires an ordinary Errand's identity-only open, paused, or awaiting-merge claim,
-  while `arc plan abandon <anchor-stub>` retires an open or awaiting-merge groom claim. Both require explicit
-  selection and the same clean/provenance/ref-preservation checks as residue abandonment. Awaiting-merge
-  abandonment additionally requires exact host truth that the stored change request is closed-unmerged; merged
-  routes to finalization, while open or unverifiable refuses;
+- `arc errand close <slug>` remains completion and may run later from base context. The departure verb that closes
+  a local locus without retiring identity (`arc errand leave`) is `errand-transient-lifecycle`'s;
+- new `arc errand abandon <slug>` retires an ordinary Errand's identity-only open, paused, or awaiting-merge
+  claim. It requires explicit selection and the same clean/provenance/ref-preservation checks as residue
+  abandonment. Awaiting-merge abandonment additionally requires exact host truth that the stored change request is
+  closed-unmerged; merged routes to finalization, while open or unverifiable refuses. Abandon is close's
+  counterpart and the sole driver behind `arc locus resolve --action abandon`, so it stays here rather than
+  travelling with the departure verbs;
 - `arc errand promote <slug>` remains the explicit wrapper-floor crossing and becomes a locus-aware subject driver.
   It requires the exact live ordinary v3 claim, committed branch head, role, lease, and checkout generation. It
   renames the branch and mints the WU meta recoverably, converts a spawned transient marker plus the target role to
@@ -875,20 +903,12 @@ A shared allocator backs the existing operation verbs instead of adding workflow
   remains idle. Errand identity retires last, and an originating inbox capture remains until the workflow commits
   the WU meta. The standalone `arc errand retire` command disappears because retirement has no independently safe
   v3 transition;
-- new `arc housekeep open <slug>` / `arc housekeep close <slug>` / `arc housekeep abandon <slug>` verbs own
-  session-bounded routing occupancy, while `arc housekeep mark-execute <titles...>` atomically marks one confirmed
-  execute-now batch. In full mode `<slug>` identifies the complete confirmed pure-routing sweep and its one v3
-  Errand identity with `purpose: "housekeep-routing"`; every routed entry shares that identity's branch and PR,
-  whose review lane the workflow classifies at close from the writes the sweep actually landed. Partial mode uses
-  the same sweep slug for one direct-base occupancy. The sweep role closes before any execute-now Errand begins.
-  Abandonment requires explicit selection and the same preservation checks as Errand abandonment; an awaiting-merge
-  routing identity additionally requires exact host truth that its change request closed unmerged;
-- new full-protection `arc errand materialize <slug>` replaces session-init's raw `git worktree add` path; partial
-  Errands have no remote branch to materialize. Materialization accepts only an identity-only paused claim at
-  `savedHead`, or an awaiting-merge claim at `changeRequest.headSha` whose recorded change request is verified
-  still open — no stricter host-review state is required. It refuses
-  `open` identities, branch-derived legacy candidates, changed/missing remote heads, and incomplete snapshots;
 - `arc start`, `arc materialize`, and worktree lifecycle mutators mint WU roles beside ownership markers.
+
+The grooming and housekeeping claim verbs, and full-protection `arc errand materialize`, allocate through this
+same allocator but ship with `claimed-sweep-verbs` and `errand-transient-lifecycle` respectively. Session-init's
+raw `git worktree add` materialization path is retired by the latter; until then it remains the only way to bring
+a remote-only Errand onto a machine.
 
 Linked-worktree implementation has explicit layers. `createLinkedWorktree()` is the target-agnostic Git creation
 primitive: it resolves configured placement, performs one `git worktree add`, and returns a proof-bearing creation
@@ -906,8 +926,9 @@ unchanged state created by that invocation; otherwise the command preserves evid
 pending-marker, or marker/record mismatch for reconciliation.
 
 `resume` is a reader/action verdict, not another public command: selecting it dispatches to the subject's open
-driver (`arc errand open`, `arc housekeep open <recorded-key>` for `housekeep-routing`, or `arc plan open` with the
-recorded groom anchor/member set), which validates the identity state before allocating a fresh locus.
+driver, which validates the identity state before allocating a fresh locus. `arc errand open` is that driver
+here; the recorded-key housekeeping and groom-anchor drivers arrive with `claimed-sweep-verbs`, and the verdict
+already names them so the dispatch does not change when they land.
 The fresh role links the entering process's current WU when warm or records a null parent when cold; the portable
 identity tail never persists a machine-local checkout path. Resume reuses the retained branch only at the exact
 `savedHead` or `changeRequest.headSha`, and allocation failure restores the unchanged identity tail rather than
@@ -944,17 +965,17 @@ Every local leave/close is ordered to preserve recoverability:
 If work completes but locus pop fails, local work remains valid and the record is surfaced as recoverable residue.
 The close never rewrites correct work merely because cleanup failed.
 
-Full-mode Errand completion is independent of local-locus close. A reviewed or auto-merge Errand normally calls
-`arc errand leave --state awaiting-merge` after its PR reaches the waiting state. An explicitly interrupted Errand
-may use `--state paused` only after committing and pushing the WIP head; needing a durable cross-session plan instead
-fires promotion. The later merge finalizer calls `arc errand close` to prove completion, retire the identity, clean
-refs, and remove its inbox capture. Paused resume, or awaiting-merge resume once the recorded change request is
-verified still open, allocates a new local locus and returns identity state to `open`.
+Full-mode Errand completion is independent of local-locus close. The merge finalizer calls `arc errand close` to
+prove completion, retire the identity, clean refs, and remove its inbox capture. Resume of a `paused` claim, or of
+an `awaiting-merge` claim once its recorded change request is verified still open, allocates a new local locus and
+returns identity state to `open` — the resume half of that round trip is reachable here, while the departure that
+produces either state is `errand-transient-lifecycle`'s.
 
-Promotion is neither leave nor resume. The workflow decides that a wrapper floor has been crossed, then the command
-performs one generation-checked frame replacement. It cannot infer “promotion-worthy” work, and `leave` does not
-attempt that judgment. The promoted checkout becomes the WU root for the continuing session; any former warm parent
-becomes an idle WU after exact lease release rather than a persisted WU-to-WU parent edge.
+Promotion is neither departure nor resume. The workflow decides that a wrapper floor has been crossed, then the
+command performs one generation-checked frame replacement. It cannot infer “promotion-worthy” work, and no
+departure verb attempts that judgment either. The promoted checkout becomes the WU root for the continuing
+session; any former warm parent becomes an idle WU after exact lease release rather than a persisted WU-to-WU
+parent edge.
 
 Promotion performs no remote I/O while local locks are held. After a final reader and clean/exact-HEAD proof, it
 acquires the target and optional parent record locks in deterministic record-ID order, revalidates both generations,
@@ -963,15 +984,6 @@ parent lease release. It releases both locks before CAS-retiring the exact Erran
 local frame replacement rolls back only unchanged state created by that invocation; a failure after replacement
 preserves the WU meta/role plus old exact identity as explicit reconciliation evidence. Re-running the same promotion
 recognizes the exact old/new branch, meta, marker, role, parent lease, and claim states and completes idempotently.
-
-Full-mode housekeep close applies the same identity-tail rules to the complete routing sweep before popping its
-role. Partial housekeep must finish the sweep's direct-base routing commits before its role pops. In both modes,
-every routing occupancy is gone before execute-now Errands begin.
-
-The first full-mode housekeep close after shipping records `awaiting-merge`, returns or tears down the local locus,
-and leaves the identity tail. Reinvoking close from base context after exact host truth reports merged finalizes the
-tail, cleans refs, and permits the next drain. Until then, session-init offers wait/finalize/resume/abandon without
-recreating housekeeping occupancy unless requested work requires resume.
 
 Partial mode deliberately stays near-zero: no Errand identity ref, branch, PR, spawned checkout, materialize path,
 or cross-session pause. Its machine-local `partial-errand` role supplies occupancy and compaction orientation only.
@@ -984,36 +996,14 @@ state-changing Errand verb refuses them with deterministic migration guidance, a
 v3 rather than upgrading or rewriting a legacy record in place. The existing `close --force` escape hatch is
 accepted only by that legacy close arm; explicit v3 abandonment never bypasses host, provenance, or ref proof.
 
-### D8. Groom-and-ship identity and Errand sweep continuity
+### D8. Identity records and the complete-basis transaction
 
-Grooming becomes session-bounded `groom-and-ship`, not a parked multi-session branch:
-
-- `arc plan open <anchor-stub> [--include <stub>...]` resolves one explicit, non-empty co-design set while scanning
-  planned, provisional, and active lifecycle state. Every member must resolve uniquely to a branchless planned or
-  provisional stub; any active/started subject, duplicate across state directories, nested alias, or repeated member
-  refuses, and planned does not silently win over provisional. The anchor is always a member; `members` is the
-  unique raw-UTF-8-sorted member set. The set is immutable for the claim generation—enlarging it requires closing
-  or abandoning and reopening with the complete set;
-- open atomically claims the complete set in the Errand records ref before editing and mints one machine-local
-  role/lease. After the required base refresh, the claim records the exact configured-base `HEAD` observed before
-  the claim/branch transition as immutable `openedBaseHead`. Full protection creates the conventional
-  `chore/groom-<anchor-stub>` at that exact OID; partial protection keeps the same identity-backed claim and
-  revalidates the unchanged base `HEAD` under the primary lock before editing/committing directly. A lost
-  revalidation rolls back only the unchanged claim;
-- the grooming session edits only planning artifacts belonging to the claimed members, cohort coordination records
-  those members already name, and mechanically required derived project views. Full protection opens one doc-only
-  PR. Full close refreshes the configured base outside locus locks, then validates the branch diff from its live
-  merge-base after proving ancestry from `openedBaseHead`; partial close validates the exact
-  `openedBaseHead..HEAD` range and refuses a non-descendant or unrelated intervening commit. This is pre-WU
-  co-design only: a started WU's branch remains isolated and cross-WU changes use normal coordination routing;
-- full-mode close records the exact awaiting-merge change request, returns/tears down the local locus, and pops
-  machine occupancy while retaining identity through the ship-to-merge window. Partial-mode close retires the
-  claim after the direct base commit and required push discipline completes;
-- a later open with the same anchor and exact member set detects the live identity record and offers resume/wait
-  instead of cutting a second pass from a base that lacks the previous drafts. Any non-identical set overlapping a
-  live groom claim returns `identity-conflict` and names the exact conflicting members in precomposed guidance;
-- after the recorded change request is proven merged, the next state-touching reconcile retires the groom identity
-  record, allowing the same stable branch name to serve a new pass.
+This section owns the identity substrate every transient subject writes through: the versioned record shapes, the
+claim generation, the ref transaction, and the change-request port. The grooming and housekeeping **claim
+protocols** that drive it — member-set resolution and disjointness, `openedBaseHead` capture, sweep serialization,
+and execute-bound marking — ship with `claimed-sweep-verbs`. The record variants below are specified here in full
+regardless, because the reader, recovery, and residue classifiers must understand a claim they may encounter
+without owning the verb that wrote it.
 
 The identity ref remains backward-compatible. Existing v1/v2 entries parse as close-only Errands. New writes use a
 v3 tagged union. Every v3 record carries an immutable, randomly minted `claimId` with at least 128 bits of entropy;
@@ -1037,18 +1027,12 @@ and must byte-match the embedded slug.
 
 The identity tree is one global key namespace per ARC identity. `groom-<anchorStub>` is reserved for
 `kind: "groom"`; creation treats an occupied key of an incompatible kind as a conflict rather than a resumable
-record. It also scans every live groom record's canonical member set: disjoint sets may proceed, the same anchor and
-exact set may produce the state-appropriate resume/wait/finalize verdict, and any other overlap refuses rather than
-letting two branches co-design the same WU concurrently. Housekeep sweep slugs may intentionally repeat across
-non-overlapping drains, but each reuse is a fresh `claimId` generation and cannot begin while any live
-`housekeep-routing` identity exists, even under a different slug.
+record. The per-kind admission rules layered over that namespace — groom member-set disjointness and the global
+single-live-sweep gate for `housekeep-routing` — are the claim protocols carried by `claimed-sweep-verbs`.
 
-Housekeep open takes the sweep slug alone; the confirmation gate's dispositions (`dismiss`, `existing-stub`,
-`owner-adoption`, `new-stub`, `defer`, `retain`, `execute-now`) stay a session-held decision set, not a persisted
-plan artifact. No canonical plan file, per-entry source digest, or plan-digest generation exists: the durable
-record of an interrupted sweep is what it already wrote — routed entries on the sweep branch and visible
-execute-bound markings in the inbox — and a resumed or later drain re-confirms whatever remains unrouted against
-the live inbox before continuing.
+No persisted plan artifact exists at any layer: no canonical plan file, per-entry source digest, or plan-digest
+generation. The durable record of an interrupted sweep is what it already wrote, and this substrate stores nothing
+that would let a resumed drain replay a stored plan instead of re-confirming against live state.
 
 Every v3 identity mutation is a complete-read, expected-state ref transaction over tip-pinned local and remote
 snapshots. With a configured remote it fetches the exact identity ref into a caller-unique temporary ref; a proven
@@ -1062,14 +1046,11 @@ CAS. Ordinary Errand transitions require the immutable `claimId` and exact previ
 resume/leave/close cannot blind-upsert over another session. No identity-ref remote I/O runs while a locus lock is
 held, and no read or transport failure is interpreted as absence.
 
-Groom open applies that transaction as a create-if-absent, no-overlap claim rather than the existing upsert: the
-deterministic `groom-<anchorStub>` key must be absent and its canonical member set must be disjoint from every live
-groom on the complete basis. An existing same-anchor exact-set claim returns the state-appropriate resume/wait
-verdict; an overlapping non-identical claim returns `identity-conflict` with the conflicts named in
-`recommendedPromptText`. No winner-arbitration or retry-adoption machinery exists — concurrent duplicate opens sit
-outside ARC's operator scale, so a raced CAS simply refuses and re-reads.
-If subsequent locus allocation fails, open CAS-retires only the unchanged record carrying its own `claimId`; a
-failed rollback surfaces the claim for explicit resume/abandon rather than hiding it.
+The transaction supports create-if-absent claim shapes as well as the ordinary upsert, so a driver may require its
+key absent and its admission predicate satisfied on the complete basis. No winner-arbitration or retry-adoption
+machinery exists — concurrent duplicate opens sit outside ARC's operator scale, so a raced CAS simply refuses and
+re-reads. If subsequent locus allocation fails, open CAS-retires only the unchanged record carrying its own
+`claimId`; a failed rollback surfaces the claim for explicit resume/abandon rather than hiding it.
 
 Tail retirement and awaiting-merge re-entry use a narrow developer-authenticated change-request lifecycle port, not
 a review-provider result. The port validates the configured repository/base against the stored `repositoryRef`,
@@ -1082,48 +1063,18 @@ nothing.
 Branch absence and base containment are never merge proof, so merge, squash, and rebase strategies share one rule.
 An incomplete or malformed identity-ref read likewise blocks open/retirement; unreadable state is never absence.
 
-Groom records make sanctioned branches first-class in-flight entries. Residue detectors classify from records,
-not `chore/groom-*` branch shape, and stop emitting cleanup warnings for live grooming.
+Identity records make sanctioned branches first-class in-flight entries. Residue detectors classify from records,
+not from `chore/` branch shape, so a live claim of any kind stops drawing cleanup warnings. This holds for groom
+and housekeeping claims the moment their drivers land, without a second classifier: the record kinds are already
+in the schema the detectors read.
 
-A full-mode housekeep open first finalizes any exact host-proven merged routing tail, then scans the complete
-identity tree and CAS-creates one sweep identity only when no live `housekeep-routing` identity exists. This is a
-global per-identity gate, not a same-slug check: choosing another sweep slug cannot admit a parallel drain. All
-confirmed routing entries use that one identity, branch, and PR; the workflow classifies its lane once, at close,
-from the writes the sweep landed. Large sweeps may contain multiple ordered review increments and commits without
-minting another identity. Until the exact routing change request merges or is explicitly abandoned, its identity
-tail blocks a second drain but not the already-confirmed execute-now sibling Errands.
-
-Repeated sweep names such as `inbox-drain` are intentionally reusable only across generations. Exact merged-tail
-finalization or explicit closed-unmerged abandonment first cleans the recorded local branch and deletes the remote
-head under a lease bound to the recorded `headSha`; a missing branch is never itself completion proof, and a moved
-head refuses cleanup. The driver refreshes base before minting the next `claimId` and cutting the same branch name.
-Partial protection carries no synchronized identity ref, so its one-at-a-time guarantee is deliberately
-machine-local primary occupancy; it does not claim cross-machine serialization. This keeps multi-lane routing
-recoverable without storing an Errand queue or treating the harness summary as authority.
-
-After confirmation, housekeeping updates all execute-now captures in one identity-notes-lock critical section. It
-writes the visible managed field ``- _Disposition:_ `execute-bound` `` through one atomic same-file replacement, so
-partial marking cannot create a smaller accidental queue. These entries are triaged and do not re-enter ordinary
-housekeep routing, while the existing session-init inbox-state slot reports them separately from its routable
-count. Inbox removal at completion uses the same notes lock so a sibling worktree cannot overwrite concurrent
-marking or another completion. Execute-bound captures are a plain durable queue: any session may offer the next one
-in file order, and the selected Errand open revalidates the entry before execution.
-
-Housekeep open establishes the routing occupancy before marking begins. Full mode owns the exact routing claim and
-allocates/provisions its local locus; partial mode acquires the free primary under its record lock and mints the
-housekeep role/lease. The separate `mark-execute` verb then takes the notes lock, revalidates the complete selected
-title set, and writes all markings through one atomic replacement. Locus-record and notes locks are never nested. A
-marking failure leaves the occupancy and inbox evidence visible for explicit retry or abandonment; a later session
-re-confirms the remaining unrouted entries against the live inbox rather than replaying a stored plan.
-
-Housekeeping closes its sweep role before the first execute-now item. `run-errand` completion/leave then receives
-one precomputed next-offer: the next well-formed execute-bound capture in file order. Explicit housekeep
-abandonment preserves still-pending execute-bound markings as the durable recovery trail for a later session;
-Errand abandonment clears only its own marking without deleting the capture. A malformed or unreadable marking
-surfaces reconciliation for that entry instead of being silently skipped. When execute-bound captures remain, the
-result offers the next sibling Errand in the same session, parented directly to the original WU when warm.
-Execute-now captures remain visible in the inbox until their own Errand completion; no separate Errand queue
-artifact or nested execution model is introduced.
+Inbox writes taken by any subject share one notes-lock discipline. The visible managed field
+``- _Disposition:_ `execute-bound` `` and inbox removal at completion both go through that lock, so a sibling
+worktree cannot overwrite concurrent marking or another completion, and locus-record and notes locks are never
+nested. The session-init inbox-state slot reports well-formed execute-bound entries separately from its routable
+count and surfaces malformed markings as typed diagnostics. Execute-bound captures are a plain durable queue: any
+session may offer the next one in file order, and the selected Errand open revalidates the entry before execution.
+The sweep that writes those markings is `claimed-sweep-verbs`'; the queue they form is read here.
 
 ### D9. Recovery and compaction
 
@@ -1199,12 +1150,10 @@ abandonment rather than classified as missing occupancy. A partial Errand has no
 machine-local role and session-local slug recover `run-errand` during compaction; partial handoff remains forbidden
 until completion, promotion, or abandonment.
 
-The housekeep-to-Errand boundary is also deterministic. During routing, exactly one sweep role exists; compaction
-resumes that role and its single identity. Before the first execute-now Errand opens, the housekeep role has popped
-and the parent WU frame is active again, while any routing review tail is identity-only. Recovery therefore sees one
-ordinary child or none—never a third frame. At the close/open boundary, the inbox retains not-yet-open captures so
-the next sibling offer can be rederived after compaction; a resumed Errand derives the next offer after it leaves or
-completes.
+Maximum recoverable depth is two frames in every case, so recovery sees one ordinary child or none — never a third.
+That invariant is what lets the sweep drivers in `claimed-sweep-verbs` close their routing role before the first
+execute-now Errand opens rather than parenting one transient to another; recovery here needs no sweep-specific arm
+to honor it.
 
 During rollout, recovery may encounter an already-open pre-model v2 Errand with `returnBranch` and no child locus
 record. It may use the shipped restore behavior to close that Errand once; no new operation recreates the shape,
@@ -1267,18 +1216,12 @@ Workflow changes use precomputed CLI verdicts and operation verbs:
   unshipped groom, or incomplete partial transient until completion/abandonment, then hands off the restored WU or
   record-free between-WUs frame. It releases the restored WU lease when one exists; a cold transient close/pop
   leaves a free primary with no record or lease to release;
-- `run-errand` gains protection-mode-specific open, leave, resume, and completion arms and consumes the next-offer;
-- work-organization and `run-errand` retain the single-concern/single-session planning boundary while clarifying
-  that full-mode WIP+push re-entry and the asynchronous review tail preserve identity without creating a WU plan,
-  meta, task list, or session notes;
-- work-organization replaces “one PR per lane” and large-sweep PR chunking with one PR per confirmed pure-routing
-  sweep. Any reviewed-lane or foreign-owner write makes the whole routing PR reviewed; size may introduce multiple
-  ordered review increments and commits on that PR, not more routing PRs;
-- `drain-inbox` opens that one routing sweep after confirmation, closes it before handing execution to sibling
-  Errand frames, and keeps every execute-now concern on its own subsequent Errand PR;
-- `draft-design`'s grooming arm becomes exact-set open → groom → ship → close, supporting one explicit fixed
-  co-design set of branchless backlog WUs without weakening started-WU isolation;
-- materialize arms invoke ARC verbs rather than narrating raw worktree mechanics;
+- `run-errand` gains protection-mode-specific open, resume, and completion arms and consumes the next-offer when
+  one is present. Its departure arm arrives with `errand-transient-lifecycle`, and the sweep that produces
+  next-offers with `claimed-sweep-verbs`;
+- work-organization and `run-errand` retain the single-concern/single-session planning boundary, clarifying that
+  operational re-entry preserves identity without creating a WU plan, meta, task list, or session notes;
+- work-unit spawn and materialize arms invoke ARC verbs rather than narrating raw worktree mechanics;
 - recovery consumes the locus graph and validated seed references;
 - cleanup surfaces render only actionable CLI-precomposed unknown-occupancy and residue text;
 - user-facing narration names the model only where a diagnostic or recovery surface requires it, and then always
@@ -1336,19 +1279,6 @@ Synchronizing them would produce misleading cross-machine state and mix two auth
 
 Rejected. No warm WU-entry path exists and transient work cannot nest. A stack would add invalid states and
 recovery complexity without a reachable third frame.
-
-### Keep housekeeping open while execute-now Errands run
-
-Rejected. Routing is complete before execution starts, so preserving a housekeep parent would create a false third
-frame. Closing routing occupancy first and opening sibling Errands preserves the confirmed sweep through inbox and
-identity state without nesting loci.
-
-### Preserve per-lane or chunked routing PRs
-
-Rejected. Review lane remains a blast-radius classification, not a packaging boundary: any reviewed-lane write can
-classify the complete routing PR without weakening its gate. Splitting one confirmed routing concern into several
-identities and PRs adds recovery and cross-machine coordination states that the actual sweep does not need. Large
-sweeps remain reviewable through ordered increments and commits on the same branch and PR.
 
 ### Warn before displacing a WU worktree
 
@@ -1488,13 +1418,13 @@ process to release it — rather than a bare reconciliation stop.
 - Reconciliation tests cover WU/groom/Errand backfill, recordless free primary, stale-record reap, malformed and
   unknown-liveness refusal, failed-primary-resolution refusal, and read-only query non-mutation.
 - Integration tests use temporary repositories with linked worktrees to cover primary allocation, occupied-primary
-  spawn, partial-mode primary-only refusal, cross-directory heartbeat, close ordering, async Errand leave/resume,
-  three-way identity reconciliation, ambiguous-push retry, one-sweep housekeep claims, repeated sweep-name branch
-  reuse, disjoint/overlapping groom-set conflicts, materialization provenance, and
-  attach racing physical removal.
-- E2E tests cover a warm WU → Errand → WU round trip, compaction/recovery mid-Errand, single- and multi-WU grooming
-  passes, multi-lane one-PR housekeep → sibling Errand continuation (including compaction mid-sweep and at the
-  close/open boundary), reviewed/auto-merge Errand tails, and close-only migration of a pre-model v2 Errand.
+  spawn, partial-mode primary-only refusal, cross-directory heartbeat, close ordering, three-way identity
+  reconciliation, ambiguous-push retry, derivation-floor promotion through its real runtime, and attach racing
+  physical removal.
+- E2E tests cover a warm WU → Errand → WU round trip, compaction/recovery mid-Errand, real v3 Errands for the
+  current-open, ROADMAP, and inbox-adoption cases, the merged close path and its foreign-occupancy refusal, and
+  close-only migration of a pre-model v2 Errand. Coverage for the carved verbs travels with them; nothing here
+  asserts a path this deliverable does not ship.
 - Platform CI runs the inspector contract on every supported OS. Package/source workflow parity and Markdown lint
   remain mandatory.
 
@@ -1508,10 +1438,10 @@ process to release it — rather than a bare reconciliation stop.
 - Session-init adopts existing ARC-marked linked WU worktrees from their metas, exact markerless in-place WUs only
   from a mutually matching physical-primary branch and active meta, and existing transient worktrees from
   Errand/groom records. The free primary intentionally remains recordless.
-- Existing v1/v2 Errand records remain readable by close, but open, link, leave, resume, promote, retire, and abandon
-  refuse them and no new open uses in-place displacement; retiring that close-only read path once in-flight legacy
-  Errands drain is routed as a planning-close follow-up capture, so the rollout-compat shim does not linger
-  unscheduled.
+- Existing v1/v2 Errand records remain readable by close, but open, link, resume, promote, retire, and abandon
+  refuse them and no new open uses in-place displacement; the carved departure verbs refuse them on the same rule.
+  Retiring that close-only read path once in-flight legacy Errands drain is routed as a planning-close follow-up
+  capture, so the rollout-compat shim does not linger unscheduled.
 - Unknown schema versions and legacy markerless worktrees remain manual; no compatibility parser silently widens
   cleanup authority.
 - The record and identity field narrowing (no dispatch, lane, or plan-digest fields) lands pre-release: no adopter
@@ -1561,10 +1491,11 @@ process to release it — rather than a bare reconciliation stop.
 
 ## Success Criteria
 
-1. A warm Errand or grooming pass raised from a live WU never switches the WU worktree's branch. Full mode allocates
-   the free primary or a spawned transient worktree; partial mode uses only the free primary or refuses. Spawn
-   remains the normal full-protection WU placement, while explicit `--here` makes the physical primary WU-owned and
-   unavailable to transient allocation until guarded teardown restores record-free base.
+1. A warm Errand raised from a live WU never switches the WU worktree's branch. Full mode allocates the free
+   primary or a spawned transient worktree; partial mode uses only the free primary or refuses. Spawn remains the
+   normal full-protection WU placement, while explicit `--here` makes the physical primary WU-owned and
+   unavailable to transient allocation until guarded teardown restores record-free base. The same allocator serves
+   the carved transient verbs unchanged.
 2. With compaction landing mid-Errand, recovery consumes the shared locus-state projection, checks any atomic
    optional seed `locus` hint, resumes the transient frame, and then restores the WU's freshly derived workflow,
    load set, and task cursor without reading a harness summary.
@@ -1578,54 +1509,47 @@ process to release it — rather than a bare reconciliation stop.
    locks.
 5. Primary occupancy is decided from the locus reader plus live Git guards; a live/unknown occupation never shares
    the checkout or silently queues another transient session, and partial mode never spawns a second base checkout.
-6. Existing ARC-marked WU and transient worktrees and the exact markerless in-place WU case adopt safely, live
-   grooming is neither classified as residue nor offered as an orphan branch deletion, and
+6. Existing ARC-marked WU and transient worktrees and the exact markerless in-place WU case adopt safely, and
    stale/malformed/unverified-markerless cases fail closed with deterministic guidance.
-7. Grooming may claim one explicit fixed set of related backlog WUs under one anchor, identity, branch, role, and
-   review tail. Disjoint sets may proceed; a same-anchor exact-set reopen resumes, and any other overlap refuses
-   with the conflicting members named. Writes remain bounded to the claimed
-   pre-WU planning concern, while reuse of `chore/groom-<anchorStub>` waits for exact change-request, claim, and
-   recorded branch-generation retirement.
-8. Full-mode Errand materialization accepts only an exact paused v3 identity head, or an awaiting-merge head whose
-   recorded change request is verified still open,
-   writes ARC ownership provenance and a role record, and leaves session-init with no raw materialization path that
-   can create a markerless ARC-owned worktree.
-9. Cleanup suppresses every live lease, prompts on unknown occupancy, and holds the target locus lock across its
+7. Residue and orphan-branch classification reads identity records rather than branch shape, for every record kind
+   in the schema including those whose drivers ship later, and an incomplete identity read suppresses branch
+   cleanup offers.
+8. Cleanup suppresses every live lease, prompts on unknown occupancy, and holds the target locus lock across its
    final expected-generation recheck, local physical removal, and role pop, so attach cannot race deletion.
-10. Full-mode housekeeping globally serializes the complete confirmed pure-routing sweep under one identity,
-    branch, and PR, safely reuses repeated sweep names only after exact tail and branch-generation retirement, and
-    has the workflow classify the routing PR's lane at close from the writes the sweep landed (reviewed wins over
-    auto-merge). It closes its sole routing locus before execute-now work, then opens each concern on its own sibling
-    Errand PR whose completion/leave offers the next visible execute-bound capture in file order without creating a
-    third frame. An interrupted or abandoned sweep leaves already-marked entries visible as the next session's resume
-    trail; abandoning a sibling Errand clears only its own mark. Partial protection promises only machine-local
-    primary serialization.
-11. A full-mode Errand may leave its local locus in remote-preserved `paused` or exact `awaiting-merge` identity
-    state, resume in a newly allocated locus, and finalize later without turning operational re-entry into a durable
-    plan or classifying any unleased transient role as normal waiting.
-12. A partial-mode Errand remains a direct base commit with machine-local occupancy only—no shared Errand identity,
+9. An identity-only `paused` or `awaiting-merge` claim renders as such, is offered for resume, wait, finalize, and
+   abandon, resumes through the subject's open driver into a newly allocated locus returning state to `open`, and
+   finalizes through `arc errand close` — without turning operational re-entry into a durable plan or classifying
+   any unleased transient role as normal waiting.
+10. A partial-mode Errand remains a direct base commit with machine-local occupancy only—no shared Errand identity,
     branch, PR, spawned checkout, materialization, or cross-session pause.
-13. Linux, macOS/BSD, and Windows process inspectors satisfy the same PID-plus-start-token liveness contract, with
+11. Linux, macOS/BSD, and Windows process inspectors satisfy the same PID-plus-start-token liveness contract, with
     unsupported or unverifiable environments deterministically returning `unknown`.
-14. Implementation builds on the landed `cli-schema-kernel` and `cli-session-envelope`; package-source and
+12. Implementation builds on the landed `cli-schema-kernel` and `cli-session-envelope`; package-source and
     self-hosted workflow/rule copies stay synchronized, locus schemas register through a kernel-composed registry
     without a parallel contract layer, and all Tier 1–3 quality gates pass.
-15. `arc errand promote` converts one exact live v3 Errand checkout into the sole active WU session home, leaves any
+13. `arc errand promote` converts one exact live v3 Errand checkout into the sole active WU session home, leaves any
     former warm parent as an idle WU, preserves its originating capture until the WU meta commit, and exposes no
-    independent v3 identity-retirement command.
-16. Ordinary WU session entry proceeds leaseless on the durable role, warm entry never hard-refuses on harness
+    independent v3 identity-retirement command. Derivation-floor promotion carries real-runtime integration
+    coverage, and lost-response replay preserves the originating capture handle.
+14. Ordinary WU session entry proceeds leaseless on the durable role, warm entry never hard-refuses on harness
     identity, and routine session narration renders no locus lines for expected state — unmanaged sibling
     worktrees, an unleased durable role, and clean reconciliation stay silent, with the model named only as
     "session locus" where diagnostics require it.
-17. Renaming a work unit rekeys its locus record on both binding axes — subject key for every shape, checkout-path
+15. Renaming a work unit rekeys its locus record on both binding axes — subject key for every shape, checkout-path
     record ID for a spawned move — under deterministic-order record locks, so the renamed subject resolves without
     leaving a stale record, an unmanaged checkout, or an unresolved subject. The rekey clears a conclusively dead
     lease, rebases an entering-anchor lease onto the new path, refuses foreign-live and unknown liveness, and
     re-runs idempotently.
-18. Every residue state reaches an in-model exit: a dead lease resolves automatically, a self-held or unverifiable
+16. Every residue state reaches an in-model exit: a dead lease resolves automatically, a self-held or unverifiable
     lease resolves through operator confirmation scoped to an unresolved subject or explicit abandon, and a foreign
     live lease stops. No recovery state requires hand-editing the record store, and each stop reason is classified
     into exactly one of the hard, authority, and advisory tiers.
+17. A fresh installation receives the `arc-errand` entry skill, asserted through fresh-init installation plus
+    command and workflow reference checks.
+18. Every reference surface this deliverable ships — `QUICK-REFERENCE`, `session-init`'s signal-leaf spine, and the
+    `arc-errand` / `arc-session` skills — describes only commands the shipped CLI provides, with no advertised
+    option the exact-head command does not declare. This is verified by deliberate inspection: no test asserts a
+    documented command against the live command surface, so a green suite is not evidence here.
 
 ## Open Questions
 
