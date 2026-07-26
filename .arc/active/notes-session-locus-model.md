@@ -10,6 +10,7 @@
 - [Chunked-review finding triage (2026-07-24)](#chunked-review-finding-triage-2026-07-24)
 - [Decomposition into a delivery stack (2026-07-25)](#decomposition-into-a-delivery-stack-2026-07-25)
 - [Proportionate delivery cut (2026-07-26)](#proportionate-delivery-cut-2026-07-26)
+- [Delivery topology and sequence (2026-07-26)](#delivery-topology-and-sequence-2026-07-26)
 
 ## Codebase pointers
 
@@ -746,3 +747,89 @@ requirements from a real delivery rather than a speculative design.
 
 The origin branch stays unmerged as the development record, and the archive tag keeps all 195 commits and their
 SHA-keyed notes reachable.
+
+## Delivery topology and sequence (2026-07-26)
+
+The runbook that preceded this one replaced the canonical branch with the carve head. That is superseded: the work
+delivers as thirteen stacked pull requests, so there is no single successor branch to install and no destructive
+handover. This section is the operative record — the earlier carve-execution runbook stands only as history.
+
+### What each ref is, and what becomes of it
+
+| Ref                                            | Role                          | Fate                                          |
+| ---------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| `feat/session-locus-model`                     | 195-commit development record | Retained, pushed, never merged or checked out |
+| `archive/session-locus-model-origin-f774446c0` | Frozen origin tip             | Pushed; deepest content fallback              |
+| `archive/session-locus-model-donor-fa3c10f0e`  | Proven-green carve head       | Pushed; **content donor for every slice**     |
+| `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Removable once the stack is built             |
+| `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Switches onto each slice branch in turn       |
+
+The donor is the carve head rather than the origin tip: the transient-lifecycle and claimed-sweep de-wiring and the
+seam fixes are already applied and proven there, and every slice is a subset of it. Planning artifacts come from
+the branch tip instead — the carve head predates the delivery restructure.
+
+### Slice branches
+
+Branches are named for the capability they deliver, not their position. A reviewer reads the branch name before
+anything else, and a positional name communicates nothing about the change.
+
+| Slice | Branch                              | Task    |
+| ----- | ----------------------------------- | ------- |
+| S1    | `feat/locus-record-substrate`       | `7.P.a` |
+| S2    | `feat/locus-process-inspection`     | `7.P.b` |
+| S3    | `feat/locus-mutation-protocol`      | `7.P.c` |
+| S4    | `feat/transient-identity-core`      | `7.P.d` |
+| S5    | `feat/locus-reconciliation`         | `7.P.e` |
+| S6    | `feat/locus-roster-reader`          | `7.P.f` |
+| S7    | `feat/locus-allocation`             | `7.P.g` |
+| S8    | `feat/errand-open-link`             | `7.P.h` |
+| S9    | `feat/errand-terminals`             | `7.P.i` |
+| S10   | `feat/work-unit-locus-integration`  | `7.P.j` |
+| S11   | `feat/locus-recovery`               | `7.P.k` |
+| S12   | `feat/session-locus-wiring`         | `7.P.l` |
+| S13   | `feat/locus-surface-reconciliation` | `7.P.m` |
+
+### The planning artifacts travel with every slice
+
+Not a preference — session initialization resolves the active work unit from `meta-session-locus-model.md` **in the
+working tree**, and the checkout sits on whichever slice branch is under construction. So `meta-*`, `tasks-*`, and
+`notes-*` exist on every slice branch, each slice inheriting its predecessor's state.
+
+The consequence is deliberate: once the first slice merges, the base carries an `Active` meta for a work unit that
+is not finished, and each later merge updates it. Progress becomes visible on the base rather than invisible until
+a single terminal merge. Archival moves the artifacts out after the last slice.
+
+**The meta's `Branch` field tracks the slice under construction**, updated at each cut. A slice boundary is the
+ceremony boundary that authorizes the write. The alternative — leaving it pinned to the origin branch — produces a
+shadowed-meta advisory on every commit for the duration, and a standing warning teaches the reader to ignore a
+surface that may later mean something real.
+
+### Sequence
+
+1. Push the archive and donor tags. **Done** — both verified on the remote.
+2. Let the in-flight errand batch drain, then fetch the base fresh.
+3. Cut S1 from the fresh base: planning artifacts from the branch tip, code from the donor tag. **Re-run the full
+   gates against that base** — the carve proof was green against `c6443e34a`, which the base has since passed.
+4. Switch the work-unit checkout onto the S1 branch, preserving its path-bound role and session workspace.
+5. Build the stack bottom-up, one slice per pull request, each targeting its predecessor.
+6. The two child stubs and the re-pointed `locus-generation-binding` dependency land in **S13** — they are needed on
+   the base only before the transient-lifecycle deliverable starts, which is after the whole stack merges. Early
+   slices stay pure code.
+7. Remove the scratch worktree. The donor tag preserves its content.
+
+### Base drift during the stack
+
+Waiting for a quiet base is not a strategy — the stack outlives any quiet window. Absorb drift instead, and absorb
+it **by merging, never by rebasing**: rewriting a pushed branch orphans the SHA-keyed notes and forces a
+force-push. Merge the base into the bottom of the stack and let it flow down.
+
+Landing other work while nothing is cut is therefore free, and expensive once thirteen branches exist. Four
+surfaces collide if touched concurrently:
+
+- `backlog/planned/errand-transient-lifecycle/**` and `backlog/planned/claimed-sweep-verbs/**` — the child stubs.
+- `backlog/planned/locus-generation-binding/**` — its dependency edge was re-pointed, and it inherits the cut
+  reconcile-apply capability.
+- `session-init.md` — S13 rewrites the signal-leaf spine.
+- Build and tooling configuration — it reaches every quality check, so a change there re-gates every slice.
+
+`ROADMAP` re-render stays deferred until the base settles; both sides regenerate it, so let it converge once.
