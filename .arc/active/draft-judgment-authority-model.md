@@ -7,9 +7,9 @@
   exercised — so codification stops metastasizing into the half of the work `PROJECT-PRD` § Operational friction
   down, judgment friction up explicitly reserves for human and agent judgment.
 
-- **State:** maturing — faces (b) and (c) are settled as design and the compression surface is itemized, so what
-  remains on them is decision rather than derivation. Face (a) still carries a fundamental open, which is itself
-  the decomposition signal (see § Scope).
+- **State:** maturing — the design is settled and the scope is enumerated and decided; what remains is the
+  coherence consolidation this draft's own doctrine asks for before formalization. Face (a) was decomposed out to
+  `planning-lane-relief` (see § Scope Estimate).
 - **Class:** `Heavy` — ratcheted down from `Novel` on 2026-07-25. Derivation still runs high (a real design must
   be authored), but the read is _compose_, not _invent_: six existing enactments to generalize (see § The
   pattern). Scale and constitutional blast radius hold it at `Heavy`. The `**Class:**` meta write lands at the
@@ -40,12 +40,11 @@ already had one is ceremony.
 The principled statement of the lane's purpose is **catch what the per-increment invariant structurally cannot
 see** — aggregate and cross-increment effects. Where nothing escapes the increment view, the lane has no work.
 
-The seed proposed composing path-class × increment-count × gate-history. That composition is now in doubt on
-forward-compat grounds — see § Proposed shape, face (a).
-
-**Live instance from the minting session, worth keeping:** a five-line provider-config change (`.coderabbit.yaml`
-`auto_review` gating) classified `reviewed` on path alone. Correct by the current rule, disproportionate by any
-reading of the lane's purpose.
+**This face's remedy ships separately** — decomposed out to `planning-lane-relief` on 2026-07-26, once the core's
+shape settled and the asymmetry became clear: it is the only face that reaches code, and the only one gated on an
+unresolved unknown. It stays here as _diagnosis_, because it is the third independent instance of the propagation
+gap and therefore evidence for the model; its remedy design, the forgeability unknown, and the
+`procedure-evolution` P1 tension live in that work unit's draft.
 
 ### Face (b) — the invariant/default distinction is enumerated, not derived
 
@@ -199,6 +198,12 @@ classified by judgment — the full probe belongs in the retrofit pass, and a co
 for one narrow marker, not for reinstating the vocabulary.
 
 Plus an **ADR** that anchors `adr-016`, `adr-020`, and `adr-029` under one model — generalizing, not superseding.
+It also carries the **cross-harness precedence** paragraph (settled in scope 2026-07-26): ARC's rules sit on top
+of harnesses with their own authority models, ARC claims harness-agnosticism (`PROJECT-PRD`; `adr-005`,
+`adr-006`), and at least one host harness states the operator-reaffirmation-is-decisive norm as a first-class
+rule. What governs when the two disagree is a property of the authority model, so it is stated once in the ADR
+rather than left for a local answer later — and stated there rather than in `DEV-RULES.ARC`, since the case arises
+rarely and the always-loaded set is what this work unit is shrinking.
 
 ### Retrofit posture: derivation-first, marker-as-exception
 
@@ -206,14 +211,6 @@ Do not annotate 26 methods and 36 workflows. Rules are `default` unless marked `
 classifies the unmarked. The initial marker footprint is small — the two invariant interlocks, `adr-020`'s floor,
 and the genuinely bias-guarding nevers (`--no-verify`, integration approval, amending pushed commits). Precedent
 supports concentrating the vocabulary: `[configurable]` lives in exactly one file today.
-
-### Face (a) — likely not the composition the seed proposed
-
-`procedure-evolution` Principle 1 ("if the CLI can compute it, the CLI computes it") disfavors pushing lane
-relief back into agent judgment, and the forgeability unknown (below) disfavors feeding an agent-authored gate
-record into a machine-read classifier. Candidate resolution satisfying both: **keep path-class deterministic in
-the CLI, and model relief as a typed, human-authorized input** — a human-sourced authorization has nothing to
-forge, and the classifier stays code. To be settled, not assumed.
 
 ## Rule-surface compression
 
@@ -332,9 +329,12 @@ The line-level enumeration ran section by section over both files; the full disp
 | **Mechanism-gated** | ~62        | Real demotions behind emission work or a trigger amendment.             |
 | **Blocked**         | ~17        | § When to Load Additional Guidance — out of this WU's reach.            |
 
-**Only the committable tier defines the deliverable.** The gated tier is a dependency list, not scope, and it
-decomposes cleanly: ~35 lines wait on mechanism-3 emission for the quality-gate commands, ~27 on two trigger
-amendments. Four findings from the pass carry design weight:
+The gated tier decomposes into ~35 lines waiting on mechanism-3 emission for the quality-gate commands and ~27 on
+two trigger amendments. **Both are in scope** (settled 2026-07-26), so the deliverable is the committable and
+gated tiers together — ~305 lines. The emission work is what carries it: building it licenses the largest single
+demotion, and the shape is precedented rather than invented. The trigger amendments come in on the logic the
+summoning test already established — amending a trigger surface is part of the compression work, not a
+prerequisite outside it. Four findings from the pass carry design weight:
 
 - **Mechanism 3 is precedented.** Pre-commit CHECK 17 already emits its own remedy verbatim, so building
   emission for the quality-gate commands extends an existing shape rather than inventing one — verified at
@@ -451,7 +451,9 @@ Both project check-docs fire on this WU. Tensions surfaced during authoring per 
   the agent parses and branches on. Reinforces derivation-first for the discriminator, and pushes the
   **override-authority declaration toward a typed contract surface** rather than markdown annotation: structure
   is typed or it isn't structure.
-- **P1 (if the CLI can compute it, the CLI computes it)** — the face (a) tension above.
+- **P1 (if the CLI can compute it, the CLI computes it)** — no longer a live tension here: it applies to lane
+  relief, which now ships as `planning-lane-relief`. This work unit's own compression edits move _toward_ P1 by
+  building the emitted-remedy mechanism rather than asking the agent to remember a command.
 - **P7 (controlled vocabulary)** — `invariant`, `default`, and `override authority` are load-bearing terms; each
   earns a briefs-vocabulary definition before use.
 
@@ -478,30 +480,21 @@ Two narrower target classes remain:
 
 ## Unknowns and Assumptions
 
-- **The gating unknown — gate history is only evidence if the agent cannot forge it.** An agent writing "human
-  approved" into a record it also authors proves nothing, and in a chat harness there is no trace of the approval
-  that is not agent-mediated. **Face (a) does not ship without an answer here.**
-    - **Recorded precedent to engage, not re-derive:** `adr-029` faced the analogous question in the review
-      domain and **dissolved rather than solved** it — explicitly rejecting an evidence ledger, eligibility
-      oracle, and fix-carry proof model in favor of disclosure plus exact-head invalidation plus the final human
-      interlock. It does not transfer automatically: review applicability is agent-judged with a human
-      downstream, whereas the lane classifier is machine-read with no human present when it fires. That
-      asymmetry is the thing to settle.
-- **Same root as a sibling concern.** `review-protocol-alignment` concern 6 rejected two candidate shapes for the
-  `adversarial-review` `withstood` field on precisely this ground — both asked an untrusted evaluator to attest
-  its own rigor. The forgeable-self-report problem is therefore not unique to gate history; it is a recurring
-  shape this WU should name once, generally, rather than solve twice.
-- **Cross-harness authority precedence.** ARC's rules sit on top of harnesses with their own authority models,
-  and ARC claims harness-agnosticism (`PROJECT-PRD`; `adr-005`, `adr-006`). At least one host harness states the
-  operator-reaffirmation-is-decisive norm as a first-class rule. Nothing says what governs when the two
-  disagree. Bounded composition work, not a literature review — and it replaces the seed's "is ARC stricter than
-  the norm" framing, which § Face (c) resolved.
-- **Mechanism-3 emission is a prerequisite, not a question.** ~35 lines of the compression surface — the
-  quality-gate command listing — demote only once a failing gate names its own fix command. The shape is
-  precedented (see § Rule-surface compression → Itemized), so this is scoping, not an unknown: either the
-  emission work is in this deliverable or the listing stays. Decide at create-spec.
-- Whether the three faces are one deliverable or want decomposing — see § Scope. The cohort-fit read is
-  deliberately still not made; the shape has firmed but the cuts are not yet certain.
+- **The forgeable self-report shape, named once.** An agent writing "human approved" into a record it also authors
+  proves nothing, and in a chat harness there is no trace of the approval that is not agent-mediated. This work
+  unit does not depend on solving it — the gate-history application left with `planning-lane-relief` — but it
+  should **name the shape generally**, because the corpus keeps rediscovering it: `review-protocol-alignment`
+  concern 6 rejected two candidate shapes for the `adversarial-review` `withstood` field on exactly this ground,
+  and register cut 5 rejects the quality-signals bullet on it too. Both asked an untrusted party to attest its own
+  rigor. Naming it once is this model's job; solving it for a machine-read classifier is not.
+- **Which gate failures should name a fix command.** Emission is in scope, and the pattern exists (pre-commit
+  CHECK 17), but the set is unenumerated: the markdown gate wants `lint:md:fix` and `format:tables`, the
+  TypeScript gate has no single remedy, and a gate whose fix is "read the output" should emit nothing rather than
+  noise. An implementation detail, not open design — resolve it in the spec's own enumeration pass, the same way
+  the compression surface was resolved here.
+- **The `execution-delegation-doctrine` vocabulary coupling** — see § Composition / Coordination. Not a blocker:
+  the surface boundary is drawn, and the open half is whether that work unit's § Sub-agent scope rewrite expresses
+  this discriminator or restates it locally.
 
 ## Composition / Coordination
 
@@ -515,8 +508,8 @@ Two narrower target classes remain:
   has no settled model to constrain anything with. Its own content is visibly a consumer: an advisory eligibility
   predicate the human overrides freely, a deviation ledger that is the disclosure obligation at WU scope, and a
   break-out matrix that collects existing mandatory stops rather than deriving them. The one genuine coupling —
-  what "gate history" means under a WU-scoped gate — is face (a)-only, and this WU should **specify** it rather
-  than conform to it. Record **no `Depends On` edge in either direction**; mirror `execution-delegation-doctrine`'s
+  what "gate history" means under a WU-scoped gate — left with `planning-lane-relief`, which should **specify** it
+  rather than conform to it. Record **no `Depends On` edge in either direction**; mirror `execution-delegation-doctrine`'s
   position as a standalone upstream consumed by the cohort. Route the composition note via `USER-INBOX` at
   planning close rather than editing a sibling's draft.
 - **`execution-delegation-doctrine` — genuine model overlap, and the enumeration draws the surface boundary.**
@@ -536,22 +529,36 @@ Two narrower target classes remain:
 - **Prior owners are all shipped** and cannot absorb this: `review-gate-right-sizing`, `review-architecture`, and
   `review-surface-binding` (resolved by slug, 2026-07-25). Hence its own stub.
 
+## Success signal
+
+Three checks, each falsifiable by inspection when the work is done. They are the seed of the spec's success
+criteria, and the second is the load-bearing one — the only one that can fail by the model being too permissive.
+
+1. **Derivation.** Each of the six prior enactments, and both recorded live failures — the typo-invalidated
+   review, the `run-errand` merge capability read as withheld — resolves from § Rule Authority with no new
+   per-case rule written. If a case still needs its own clause, the discriminator does not derive what it claims to.
+2. **Safety.** The bias-guard corpus is untouched by the retrofit: `integrate-work-unit`'s 20+ imperatives and
+   `verify-work-unit`'s immutable-criterion rule survive unchanged. A model that licenses rewriting them is too
+   permissive, and this is the check that catches it.
+3. **Compression.** Both rules files end net shorter, every demoted line lands at a destination whose summoning
+   mechanism already fires, and **no constraint leaves the always-loaded set** (`knowledge-evolution` P1).
+
 ## Scope Estimate
 
-Constitutional but **prose-dominant**, and smaller than the seed's "large (week+)" read once the invention
-premise dropped: a new `DEV-RULES.ARC` section, one ADR, a bounded marker retrofit, and a narrow prose sweep.
-Code is touched only if face (a) survives in a form that changes the lane classifier.
+Constitutional and **prose-dominant**, and smaller than the seed's "large (week+)" read once the invention premise
+dropped: a new `DEV-RULES.ARC` section, one ADR carrying the cross-harness precedence paragraph, a bounded marker
+retrofit, and a narrow prose sweep.
+
+**Decomposed 2026-07-26.** Face (a) ships as `planning-lane-relief` — the only face reaching code and the only one
+gated on an unresolved unknown, which is the asymmetry that made the cut. What remains is faces (b) and (c) as one
+constitutional deliverable, plus compression.
 
 The § Rule-surface compression register widens this deliberately, and the widening is **depth on the same two
 files, not fan-out** — the net direction is fewer lines than it started with, in a surface loaded every session.
-Judge it on coherence of the result rather than on passes spent. Itemized, that widening is ~243 committable
-lines across the two files, plus the destination edits each demotion lands and two trigger amendments; the ~62
-mechanism-gated lines are a scoping decision rather than committed work.
-
-**Likely cut.** Faces (b) and (c) are one constitutional deliverable with no code and no blocking unknown. Face
-(a) is a downstream application of that model, gated on the forgeability question and the `procedure-evolution`
-P1 tension, and it is the only face that reaches `change-facts.ts`. That asymmetry is the decomposition signal;
-confirm or reject it once the core's shape is settled.
+Itemized, it is ~305 lines across the two files (the committable and mechanism-gated tiers together), plus the
+destination edits each demotion lands, two trigger amendments, and the emitted-remedy work that licenses the
+largest demotion. That last item is the one code surface still in scope after the decomposition: hook and gate
+scripts, not `change-facts.ts`.
 
 ## Continuity
 
@@ -569,17 +576,15 @@ confirm or reject it once the core's shape is settled.
   lines and re-sorted into land / gated / needs-trigger-amendment. **Line-level enumeration run 2026-07-26**
   (`notes-judgment-authority-model.md`): the compression deliverable is ~243 committable lines with ~62
   mechanism-gated and ~17 blocked, mechanism 3 confirmed precedented in the hook layer, trigger amendments
-  bounded at two, and the `execution-delegation-doctrine` surface boundary drawn at § Sub-agent scope.
-- **Open:** the forgeability question and the `procedure-evolution` P1 tension, which jointly gate face (a) and
-  its shape; whether mechanism-3 emission joins the deliverable or the gated lines stay; the
-  `execution-delegation-doctrine` vocabulary coupling; the cross-harness precedence posture; whether the cut in
-  § Scope is real.
-- **Next:** no shaping work remains on the constitutional core (its section text is captured verbatim in
-  § Proposed shape) or on the compression surface (now itemized). The remaining moves are decisions, not
-  derivation: confirm or reject the § Scope cut, and settle whether mechanism-3 emission is in scope. Both are
-  cheap enough to take at the readiness boundary, so the draft is a candidate for **formalization-ready** —
-  assess it, and on a clean read consolidate the accreted 2026-07-26 layers before crossing into create-spec.
-  Authoring the real `DEV-RULES.ARC` section is downstream of create-spec, not a drafting-stage move. Face (a)
-  waits on the forgeability resolution and gates neither.
+  bounded at two, and the `execution-delegation-doctrine` surface boundary drawn at § Sub-agent scope. The four
+  readiness decisions then settled: face (a) decomposed out to `planning-lane-relief`, emitted-remedy work and the
+  two trigger amendments taken into scope (~305 lines), cross-harness precedence placed in the ADR, and a
+  three-part success signal adopted.
+- **Open:** the `execution-delegation-doctrine` vocabulary coupling — whether its § Sub-agent scope rewrite
+  expresses this discriminator or restates it locally. Not a blocker; the surface boundary is drawn.
+- **Next:** consolidate. The design is settled and the scope is enumerated, but the draft has accreted several
+  2026-07-26 layers over its 2026-07-25 body, so it wants the coherence rewrite before it crosses into create-spec
+  — one coherent input, every settled decision and surviving detail preserved. Authoring the real
+  `DEV-RULES.ARC` section is downstream of create-spec, not a drafting-stage move.
 
 ---
