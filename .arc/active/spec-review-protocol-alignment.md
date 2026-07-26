@@ -98,7 +98,7 @@ proposals that add governing machinery answer a question that was already answer
 
 Eight design units. `D6` sequences first (widest mechanical sweep), `D8` before `D2` (so the capability table is edited
 once, in its new home), `D7`'s evaluator domain after `D8` (it queries the relocated declarations), and `D4` last (see
-§ Migration and rollout). All source paths are under `packages/arc-framework/`.
+§ Sequencing and rollout). All source paths are under `packages/arc-framework/`.
 
 **Every methodology, workflow, and config edit below is a two-copy edit.** This repository carries ARC content twice —
 the package source at `packages/arc-framework/arc/**` and the project instance at `.arc/**` — and a Framework file
@@ -177,8 +177,8 @@ deselecting sources is invisible to every downstream reader of the envelope — 
 **D1.4 — Validation and rejection.** `resolveInvalidOverrideReason` gains a selection sibling. The `invalid-override`
 payload gains `override: "ceiling" | "selection"` so the diagnostic code composes correctly (the current template is
 `ceiling-override-${reason}`), and the reason field becomes a union of the existing `InvalidOverrideReasonSchema` and a
-new `InvalidSelectionOverrideReasonSchema`: `target-mismatch`, `lane-mismatch`, `unknown-source`, `ineligible-source`,
-`source-already-attempted`. No new resolution state is added.
+new `InvalidSelectionOverrideReasonSchema`: `target-mismatch`, `lane-mismatch`, `unknown-source`,
+`ineligible-source`. No new resolution state is added.
 
 **Ordering against parse.** The selection override is consumed at parse time — `superRefine` runs inside
 `ReviewPolicyRequestSchema.parse` — while its validity is decided after parse, where the ceiling override is also
@@ -196,6 +196,11 @@ resulting attempt's outcome does — matching every existing selection-time stat
 the whole fallback chain, not one call:** the override must ride every call in that pass, since dropping it mid-chain
 re-validates an effective-order history against the configured order and turns a legal attempt list into a parse error.
 The workflow states this obligation at the callsite.
+
+An already-attempted source remaining in that repeated override is valid: the override declares the pass's stable
+effective order, not the next candidate. The ordered-unique attempt-history refinement and the resolver's
+already-attempted exclusion still prevent a second execution. Override validation therefore checks membership,
+eligibility, target, and lane, while attempt history decides which eligible member may run next.
 
 ### D2 — Capability re-cut: remove `chunked` from `coderabbit-cli`
 
@@ -224,10 +229,12 @@ reports as skipped with a typed scope-ineligibility diagnostic, which is an accu
 reality. The capability was never delivered — that unbacked advertisement is the defect this unit removes — so
 nothing real is lost by ceasing to claim it.
 
-**Trigger precision.** The new `skipped` branch requires that every configured source be ineligible **and** that at
-least one diagnostic be `source-scope-ineligible`. A frontline lane configured `[coderabbit-cli, codex-pr]` at chunked
-scope produces one `source-scope-ineligible` and one `source-lane-ineligible`; that mix skips. An all-`unknown-source`
-lane does not — an unregistered source is a configuration error, not a scope decline.
+**Trigger precision.** The new `skipped` branch requires that every configured source be ineligible, that at least one
+diagnostic be `source-scope-ineligible`, **and that none be `unknown-source`**. A frontline lane configured
+`[coderabbit-cli, codex-pr]` at chunked scope produces one `source-scope-ineligible` and one
+`source-lane-ineligible`; that mix skips. A scope-ineligible source mixed with an unknown source does not skip, nor
+does an all-`unknown-source` lane — an unregistered source is a configuration error, not a scope decline, and the
+presence of one must never be masked by an otherwise accurate skip.
 
 **D2.3 — Restoration condition.** This is a capability removal, not a judgment that the carrier is unfit.
 `chunk-scope-binding` restores it on demonstrating three things: projection construction and transport through the
@@ -356,7 +363,7 @@ today, and stating the rule rather than patching each is what keeps a third from
 - **The routed obligation projection** — `arc review resolve`. Its request carries obligation, reasons, rubric
   identity, retrigger, and count, and the only producer is internal runtime code reached through a different verb.
   The project's own CLI-surface test hand-authors the block with a fabricated digest; if the test cannot route it, no
-  caller can. `ReviewPolicyCommandRequestSchema` accepts `routingFacts` as an **alternative** to `standardReview`.
+  caller can. `ReviewPolicyCommandRequestSchema` replaces `standardReview` with `routingFacts`.
 
   **The accepted shape is `LocalReviewRoutingInput`, not `ReviewRoutingFacts`** — and the distinction is the whole
   point of this unit. `ReviewRoutingFactsSchema` carries eight fields, three of which no caller can produce:
@@ -368,18 +375,26 @@ today, and stating the rule rather than patching each is what keeps a third from
   activation — a runtime read of disk — which is the fabrication path this unit exists to close, reappearing one field
   deeper.
 
-  **Reach, enumerated rather than asserted.** The resolve handler acquires an evaluator identity and runs
-  `composeAssurance` before the reducer, mirroring `local-prepare-composition.ts`. That is more than wiring two
-  existing calls together, and it is this unit's largest remaining sizing risk — flagged here so task generation
-  grounds it rather than inheriting the estimate. Supplying both inputs is a validation error; supplying neither is a
-  validation error. Every resolve envelope echoes the projection actually used, so routing is exposed as output as
-  well as consumed as input.
+  **Evaluator identity is not an assurance input.** Work context, `Class`, method activity, and rubric binding are
+  properties of the current repository state; selecting an evaluator is a later execution concern. The resolve
+  handler therefore does **not** acquire or fabricate an evaluator identity. Extract the live-context assurance
+  composition currently nested behind `LocalPrepareDependencies.composeAssurance(authority)` into an
+  evaluator-independent seam over the active meta, installed method files, and rubric binding. Local prepare keeps
+  its separate authority resolution and calls the shared seam for routing context; resolve calls the same seam
+  directly before the reducer.
+
+  **Reach, enumerated rather than asserted.** This reaches the live-context read, method-file and rubric-binding
+  ports, the local-prepare composition adapter and tests, and the resolve handler and tests. It is more than wiring
+  two existing calls together, and it is this unit's largest remaining sizing risk — flagged here so task generation
+  grounds it rather than inheriting the estimate. `routingFacts` is required; the command derives the projection and
+  every resolve envelope echoes the projection actually used, so routing is exposed as output as well as consumed as
+  input.
 - **The v2 review target's `targetId`** — `arc review chunking resolve`, `arc review frontline run`. It is a
   canonical digest over the target's own fields, computed by the exported `createReviewTarget`
   (`src/scripts/review-gate/core/gate-contract-v2.ts`), which internal callers reach and no verb exposes. Every
   other field on that target is a caller-held git fact. These verbs accept the caller-held fields and compute
-  `targetId` themselves through that same function, rejecting a supplied `targetId` that disagrees with the computed
-  one.
+  `targetId` themselves through that same function. Their strict request shapes no longer accept caller-supplied
+  `targetId`.
 
 A fabricated identity or verdict is indistinguishable in the record from a produced one — the same provenance
 collapse `D1` designs against, arriving through the CLI surface. Deriving from caller-held facts is chosen over an
@@ -468,6 +483,17 @@ discrimination, and the verification method is a post-sweep grep asserting the e
 The review resolution state spelled `blocked` is a distinct token and is untouched. **Sequence this first**, because
 `D6.3` edits the same schema.
 
+**Version treatment is a pre-public-release baseline rewrite.** This project has no public release, external users, or
+retained production records to migrate. The rename therefore changes the active strict-current contract in place:
+registered versions, wire `schemaVersion` fields, semantics versions, and canonical-digest domains do not advance; no
+`blocker` compatibility alias or migration reader is added. Existing development-only review records containing the
+old token are disposable and are cleared or regenerated.
+
+The sweep still follows the complete acceptance graph rather than the four most obvious durable records. It covers
+every registered root that reaches `ReviewSeveritySchema`, the hosted-await finding schema's independent severity
+enum, fixtures, generated schema artifacts, adapters, and methodology prose. Tests prove `critical` is accepted,
+severity-position `blocker` is rejected, and the non-severity senses enumerated above remain unchanged.
+
 **D6.2 — Separate the exit gate from convergence.** `adversarial-review.md` § Exit gate currently collapses two rules
 into one sentence, and because disposition empties the backlog, fixing everything converges immediately — so the change
 most likely to introduce a defect, a fix to a material finding, is the one a fresh pass never examines. State them
@@ -506,49 +532,103 @@ refinement forcing rejection of anything source does not support. Both are alrea
 driver cannot see it**: `ReviewAttemptSchema` records a source and an outcome with no severity, so continue-or-stop is
 decided against "findings happened."
 
-`ReviewAttemptSchema` gains an optional `confirmedSeverity: ReviewSeverity`. Additive and optional, so an attempt that
-omits it keeps today's behavior. Its value is the **maximum severity across the confirmed subset** of the approved
-disposition set — the items with `sourceVerification: "verified"` whose disposition is not `reject`.
+The external command does **not** accept a caller-computed severity scalar. That value is duplicated,
+control-bearing derived state: a stale, mistyped, or provider-sourced value is schema-valid but can falsely converge
+after a material finding or buy an unnecessary pass after a minor one. The caller is not treated as hostile; the
+boundary simply refuses to make it restate a fact already present in a stronger typed record.
+
+`ReviewAttemptSchema` instead gains conditionally required, ordered-unique `reviewOperationIds`. A findings-bearing
+attempt echoes a non-empty list of the exact operation ids returned by the producing review verbs; other outcomes omit
+the field. The command boundary loads those operations' durable `ApprovedDispositionRecordSchema` records through
+`ApprovedDispositionRecordStore`. The caller names observed operations but neither supplies their approved records nor
+restates any derived severity.
+
+The approved set inside that record is necessary but not sufficient on its own. It binds target, policy, rubric, and
+approval, but not the review result it dispositions; a same-target set from another pass or an incomplete subset could
+otherwise drive false convergence. Reuse the existing record layer rather than minting a parallel proof:
+
+- Local and frontline records retain `respond-command.ts`'s exact comparison against their durable receipt or outcome
+  before append.
+- `ApprovedDispositionSourceSchema` gains a hosted variant. The hosted await path derives a canonical
+  `hostedResultId` over the exact request handle and complete normalized finding result; hosted triage compares the
+  approved set one-for-one with that result before appending an approved disposition record whose `operationId` is the
+  result id and whose source carries the hosted result binding.
+- Every lane therefore hands the driver the same source-bound record type. No new approval vocabulary or detached
+  finding-summary record is introduced.
+
+When present, the command boundary derives the current v2 target id from repository state rather than asking the caller
+for a digest, loads every named disposition record plus its producing durable receipt, outcome, or hosted-result
+binding, and requires:
+
+- every operation id to resolve to exactly one durable approved disposition record;
+- every record's `operationId` and source reference to resolve back to that same producing result;
+- every producing result to be a findings result for the attempt's source and current exact target;
+- the producing boundary's exact-source comparison to cover every finding in that result; and
+- the records combined for one logical pass to agree on policy and rubric identity.
+
+For a referenced attempt, `outcome: "findings"` is therefore checked against durable result state rather than trusted
+as an independent caller assertion. A disposition record cannot be detached from its own producing result or attached
+to an attempt whose declared source, target, or outcome disagrees with that result.
+
+It then derives:
+
+```text
+confirmedFindingCount
+maxConfirmedSeverity: ReviewSeverity | null
+```
+
+The policy reducer receives that normalized summary internally; neither field is accepted from external JSON. The
+confirmed subset is the items with `sourceVerification: "verified"` whose disposition is not `reject`, and the maximum
+is computed only across that subset.
 
 The qualifier is not pedantry. `DispositionReportItemSchema` carries a mandatory `severity` on **every** item
 regardless of verification outcome, and its refinement forces `disposition: "reject"` when source does not support a
 finding without zeroing that severity. A maximum over the whole set would therefore report `major` for a pass whose
-findings were all refuted at triage, forcing a response cycle for a pass that confirmed nothing — the exact inversion
-of `D6.2`'s rule and of this unit's stated saving.
+findings were all refuted at triage, forcing another pass for a pass that confirmed nothing — the exact inversion of
+`D6.2`'s rule and of this unit's stated saving.
 
-**All-refuted is an explicit case, not a default.** When the confirmed subset is empty the attempt carries
-`confirmedSeverity: "minor"`, which resolves `pass-complete`. Omitting the field is reserved for a caller that has not
-adopted the field at all, where preserving today's behavior is correct; an adopting caller that refuted everything must
-say so positively, because silence and "nothing survived triage" would otherwise be indistinguishable and would land on
-opposite outcomes.
+**All-refuted is an explicit case, not a default.** Referencing a source-bound record whose non-empty approved set has
+an empty confirmed subset derives `confirmedFindingCount: 0` and `maxConfirmedSeverity: null`, which resolves
+`pass-complete`. The non-empty operation binding distinguishes a pass where triage positively established that nothing
+survived from an invalid unbound findings assertion, without overloading `minor` to mean "none."
 
-For a chunked scope the maximum spans the whole series and is carried on the terminal attempt (the one with
-`chunkSeriesComplete: true`), since the series is one logical pass. **Intermediate chunk attempts omit the field**, and
-that omission is not the unadopted-caller case above: an attempt with `chunkSeriesComplete` absent or `false` resolves
-`chunk-pending` and never reaches the findings arm, so the field has nothing to decide there. The two rules are
-disjoint by the attempt's own series flag rather than by caller intent, and the schema says so — `confirmedSeverity` is
-meaningful only on an attempt that closes a pass. The field is lane-agnostic — under `D6.4` every lane populates it on
-the attempt that closes.
+For a chunked scope the summary spans the whole series, since the series is one logical pass. The terminal resolve call
+— the one whose last attempt has `chunkSeriesComplete: true` — carries the review operation ids for every chunk in the
+series. **Intermediate chunk calls carry the current chunk's operation id, not the accumulated series**, because they
+resolve `chunk-pending` and never make a convergence decision; the current binding still proves the findings assertion
+and feeds the response rule in `D6.4`. The distinction is mechanical from the attempt's series flag rather than caller
+intent. The derived summary is lane-agnostic — under `D6.4` every lane references its durable approved records when a
+findings-bearing pass closes.
 
-`resolveReviewPolicy`'s findings arm consults it: when `lastAttempt.outcome === "findings"` and
-`confirmedSeverity === "minor"`, resolve `pass-complete` / `none` instead of `findings` / `respond`. Today any finding
-forces a response cycle; afterwards a minors-only pass converges. That is the intended effect, confined to one arm of
-one function.
+`resolveReviewPolicy`'s findings arm consults the derived summary: when `lastAttempt.outcome === "findings"` and
+`maxConfirmedSeverity` is `null` or `minor`, resolve `pass-complete` / `none` instead of `findings` / `respond`. Today
+any finding forces another pass; afterwards an all-refuted or minors-only pass converges. A confirmed `major` or
+`critical` finding withholds convergence and buys the bounded verification pass.
 
-Keying convergence off the provider's label would put control flow under an unaudited external opinion; keying it off
-nothing at all is what happens today.
+Keying convergence off the provider's label would put control flow under an unaudited external opinion; accepting a
+detached caller scalar would discard the exact-target and approval bindings the disposition records already provide;
+keying it off nothing at all is what happens today.
 
-**D6.4 — Uniform lane order: triage, then the driver call, then response.** The lanes currently order triage and the
-driver call oppositely. In `integrate-work-unit.md`, the hosted findings arm settles _before_ feeding a `findings`
-attempt to the driver, while the Step 3 lane dispatch (`findings / respond`) feeds the attempt first and is dispatched
-into triage by the driver's own state. As currently ordered the new field delivers nothing on either lane: where the
-confirmed severity exists (hosted), the response cycle has already run by the time the driver sees the attempt; where
-the saving would land (frontline and local), the field is necessarily absent. The behavior and the data sit on opposite
-lanes.
+**D6.4 — Uniform lane order: triage and source-bind, then the driver call, then response.** The lanes currently order
+triage and the driver call oppositely. In `integrate-work-unit.md`, the hosted findings arm settles _before_ feeding a
+`findings` attempt to the driver, while the Step 3 lane dispatch (`findings / respond`) feeds the attempt first and is
+dispatched into triage by the driver's own state. As currently ordered the new disposition input delivers nothing on
+either lane: where approved dispositions exist (hosted), the response cycle has already run by the time the driver sees
+the attempt; where the saving would land (frontline and local), triage has not yet produced the source-bound record.
+The behavior and the data sit on opposite lanes.
 
 The seam that fixes it already exists: `review-triage` and `review-response` are separate methods with a stated
-handoff — triage verifies each finding against source, classifies severity, and obtains approval _before any mutation_;
-response consumes that approved set and performs it. A driver call is not a mutation, so it seats cleanly between them.
+handoff. Triage verifies each finding against source, classifies severity, and obtains approval _before any
+finding-driven mutation_. Its terminal binding step validates the complete approved set against the durable or hosted
+result and appends the approved disposition record from `D6.3`; this is evidence persistence, not performance of the
+disposition. The driver consumes that record, then response performs the approved set.
+
+For local and frontline lanes, refactor the exact-source validation and record append currently nested in
+`respond-command.ts` into that pre-driver binding step while retaining its existing schemas and store. Record
+preparation may project the response far enough to derive any `fixAuthorization`; the authorization is stored on the
+prepared record, while the workflow holds the projected next action and performs it only after the driver result. The
+hosted lane adds the equivalent record preparation between triage and thread settlement. No lane fabricates a record
+from the approved set alone.
 
 The reorder edits `integrate-work-unit.md`'s Step 3 lane dispatch and its Step 4 hosted findings arm, and settles two
 things the reorder itself creates. The hosted lane moves too: settlement is response, so it follows the driver call
@@ -560,9 +640,9 @@ trigger. The producing verb becomes the trigger instead: a non-empty finding set
 run -`, `arc review local attest -`, or `arc review reduce -` enters triage directly. The workflow dispatch states
 this, because nothing else would.
 
-**What `respond` means afterwards.** `nextAction: "respond"` currently means "triage then respond." After the reorder
-triage has already run, so it means response-only. That is a semantic narrowing of a typed envelope state rather than a
-prose change, and the dispatch line says so explicitly.
+**What `respond` means afterwards.** `nextAction: "respond"` currently means "triage then respond." After the reorder,
+triage and source binding have already run, so it means response-only. That is a semantic narrowing of a typed envelope
+state rather than a prose change, and the dispatch line says so explicitly.
 
 **What happens to approved dispositions on every arm reachable after triage.** Moving triage ahead of the driver means
 an approved disposition set can be outstanding when _any_ driver state returns, so the rule is stated over the arms
@@ -584,9 +664,9 @@ has already made:
 
 Convergence, suspension, and ceiling exhaustion all end the _review_ loop; none of them discards approved work.
 
-Every driver call then carries a confirmed severity, one convergence semantic is mechanically enforced rather than
-agentically honored on two lanes out of three, and the minors-only arm delivers its saving everywhere instead of
-nowhere.
+Every findings-bearing pass-closing driver call then derives its confirmed-finding summary from the approved records,
+one convergence semantic is mechanically enforced rather than agentically honored on two lanes out of three, and the
+all-refuted and minors-only arms deliver their saving everywhere instead of nowhere.
 
 ### D7 — Stop discipline and spend opt-in
 
@@ -636,12 +716,31 @@ un-splitting.
 explicitly because a reader meeting a disabled default could otherwise infer the practice earns little: adopting these
 passes moved issue-catching from _during or after code review_ to _before implementation_.
 
-**D7.3 — The evaluator domain is derived, not documented.** Valid values are the registered sources whose dispatch
-action is the subagent carrier (`local-prepare`) — a query over the capability declarations `D8` relocates. Naming a
+**Configuration is inert until a declared fire-point.** A non-`none` evaluator key is not ambient permission to spawn
+and does not authorize the evaluator outside its activity. Each invocation is explicit through the conjunction of:
+
+1. the executing workflow reaching its declared adversarial-review fire-point;
+2. that activity's config key naming a registered evaluator; and
+3. the dispatch binding the exact artifacts, rubric, orientation, pass cap, and prior findings, with a read-only
+   no-edit contract.
+
+That conjunction is the per-invocation activation carrier: the config selects the activity posture, while the current
+workflow fire-point authorizes this run now. It needs no second conversational permission turn, and it creates no
+standing "subagents allowed" state. The invocation and evaluator are surfaced with the resulting pass so an automatic
+launch remains legible. This is a read-only derivation activity under DEV-RULES.ARC § Sub-agent scope; it does not
+relax execution delegation.
+
+**D7.3 — The evaluator domain is derived from an explicit audit capability.** `nextAction: "local-prepare"` proves
+only that a source implements the local code-review operation; that operation derives a Git target and standard-review
+requirement and does not establish arbitrary document-and-rubric audit support. The registration capability therefore
+gains `auditActivities: ("planning" | "verification")[]`. `delegated-agent` declares both activities; providers that
+only review diffs declare neither.
+
+Each audit config key derives its valid evaluator domain by selecting registrations that name its activity. Naming a
 hosted provider is then a validation error with a typed diagnostic rather than a runtime surprise, and the domain stays
-correct as adapters change. The constraint is structural because the limitation is: at draft-design time there is no
-diff and no pull request, only a document, so only a carrier that accepts arbitrary files plus a rubric can serve.
-`delegated-agent` names the **carrier**, not the gate lane.
+correct as adapters change without treating an unrelated dispatch tag as proof. The constraint remains structural: at
+draft-design time there is no diff and no pull request, only a document, so only a carrier explicitly declaring that
+audit contract can serve. `delegated-agent` names the **carrier**, not the gate lane.
 
 **D7.4 — Which stops survive streamlining.** The verification fire-point stops at every `Class` — the adversarial
 fire-point scales its _posture_ by `Class` but the offer awaits a call regardless, so at `Light` it is a permission turn
@@ -652,9 +751,10 @@ three planning stages, which is wrong. The rule that decides:
 
 - **The verification trigger is artifact-observable.** The task list's phases are complete and the verification phase is
   the literal next item. An agent reading the artifact holds exactly what the developer holds, so the stop adds no
-  information — which is what makes autofire correct once a project has opted in. Declining costs little either way: the
-  adversarial pass **augments** the self-verify and never replaces it, so the floor beneath an autofired pass is the
-  full criteria validation that runs regardless.
+  information. Reaching this declared fire-point with a configured evaluator is therefore the explicit invocation;
+  no additional authorization turn is required. Declining costs little either way: the adversarial pass **augments**
+  the self-verify and never replaces it, so the floor beneath an automatically fired pass is the full criteria
+  validation that runs regardless.
 - **Planning-stage boundaries are not.** Whether a draft is done depends on intent the developer has not yet uttered,
   which no artifact carries and no readiness read can reach. Here the stop **is** the input channel, so it holds even
   when a project has opted in. Live evidence from this work unit's own grooming: the concern that became
@@ -663,14 +763,16 @@ three planning stages, which is wrong. The rule that decides:
 - **Integration is out of scope** for the rule, now that the spend gate sits on the activity: it has no standalone offer
   fire-point, reaching the mechanism only as the carrier behind the lanes, whose spend the source lists already gate.
 
-**D7.5 — The planning-stage surface is a convergence check, not an authorization form.** What is approved is that _the
-stage is complete_; the pass firing is a consequence of that agreement rather than a second decision. So the surface is
-one conversational question — this stage looks done, is there anything to raise before it is attacked — never an
-enumeration of pass counts, rubrics, and evaluator conditions.
+**D7.5 — The planning-stage surface is a convergence check, not a spawn authorization form.** What is approved is that
+_the stage is complete_; that agreement supplies the intent the artifact cannot show. Once supplied, the now-current
+fire-point plus the configured evaluator explicitly activates the individual pass — not as standing consent and not as
+a second decision. So the surface is one conversational question — this stage looks done, is there anything to raise
+before it is attacked — never an enumeration of pass counts, rubrics, and evaluator conditions.
 
-**What each knob owns after the change:** the `*_sources` and `*_audit` keys decide whether an activity runs and which
-evaluator serves it; `Class` keeps only recommendation posture and pass cap, no longer doubling as an on/off switch; and
-the stage-completion stop is untouched, being an input channel rather than a spend decision.
+**What each surface owns after the change:** the `*_sources` and `*_audit` keys select whether an activity is enabled
+and which evaluator serves it; the current declared workflow fire-point activates each individual invocation; `Class`
+keeps only recommendation posture and pass cap, no longer doubling as an on/off switch; and the stage-completion stop
+is untouched, being an input channel rather than a spend decision.
 
 ### D8 — Relocate provider capabilities onto their adapters
 
@@ -678,19 +780,24 @@ The source id schema is an open slug pattern, and the policy machinery is genuin
 pull-request dependence, and dispatch action are abstract axes, the source lists are ordered configuration, and the
 diagnostics name no provider. The hosted execution layer is already adapter-array-driven, and each adapter already
 carries a self-description constant beside its implementation (`CODERABBIT_HOSTED_REGISTRATION`,
-`CODEX_HOSTED_REGISTRATION`). **What is closed is the wrong thing, and it is closed in three places:**
+`CODEX_HOSTED_REGISTRATION`). **What is closed is the wrong thing, and it is closed by four independent
+authorities:**
 `REVIEW_SOURCE_CAPABILITIES` is a module-private constant in `review-policy-driver.ts` carrying four hardcoded entries,
-unexported, with no registration
-surface — and the config layer restates the same third-party facts twice more (`D8.3`). Those are the places where a
-fact about someone else's product lives in core rather than beside the adapter that implements it.
+unexported, with no registration surface; the config schema and compatibility validator each restate provider domains;
+and `hosted/request.ts` closes `HostedProviderIdSchema` over `coderabbit-pr | codex-pr`. Those are the places where a
+fact about someone else's product becomes a second authority rather than a reference to the adapter that implements
+it.
 
 **The boundary that decides what is a leak.** `delegated-agent` is ARC's own subagent carrier, so its lanes and scopes
 are ARC's business and belong in core. `coderabbit-cli`, `coderabbit-pr`, and `codex-pr` are third-party providers;
 their capabilities are observations about external products and belong with their adapters. Both kinds currently sit in
 the same closed constant.
 
-**D8.1 — Relocate.** Move `lanes`, `scopes`, `requiresPullRequest`, and `nextAction` onto each adapter's existing
-registration constant; `delegated-agent`'s declaration stays in core beside the local carrier.
+**D8.1 — Relocate and declare once.** Each source's canonical id plus `lanes`, `scopes`, `requiresPullRequest`,
+`nextAction`, and `auditActivities` live in exactly one owning registration: the third-party sources on their existing
+adapter registrations, and `delegated-agent` in one core registration beside the local carrier. Other code may carry
+an id as a configuration value, lookup key, diagnostic, or test fixture; none may independently declare the provider
+domain or assign capabilities to it.
 
 **Three shapes, not one.** The two hosted registrations (`CODERABBIT_HOSTED_REGISTRATION`,
 `CODEX_HOSTED_REGISTRATION`) share `{ id, commands, identities }`. The third — `coderabbit-cli`, the one source `D2.1`
@@ -713,24 +820,36 @@ The request schema therefore becomes a factory over the capability set. This is 
 override ordering; the factory takes the capability set, and the parse-time fallback `D1.4` specifies is unaffected by
 it.
 
-**D8.3 — Derive the config layer's source domains too.** `REVIEW_SOURCE_CAPABILITIES` is not the single place a
-third-party fact lives in core — it is one of three. `src/lib/config/schema.ts` hardcodes the standard source ids as a
-literal alternation and derives the frontline domain as its _negation_; `src/commands/config/validate.ts` hardcodes the
-same list twice more for its compatibility diagnostics. Relocating only the driver's copy would leave a project able to
-correct a provider fact beside its adapter and still be rejected by config validation reading the old literal — and
-would land `D7.3`'s _derived_ evaluator domain beside two hardcoded siblings.
+**D8.3 — Derive every consumer domain too.** `REVIEW_SOURCE_CAPABILITIES` is not the single place a third-party fact
+lives in core. `src/lib/config/schema.ts` hardcodes the standard source ids as a literal alternation and derives the
+frontline domain as its _negation_; `src/commands/config/validate.ts` hardcodes the same list twice more for its
+compatibility diagnostics; and `src/scripts/review-gate/hosted/request.ts` declares
+`HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"])`, which closes every hosted request and result shape
+over a second provider list. `src/scripts/review-gate/hosted/fallback.ts` then uses that schema as its provider-membership
+test, so making the schema lexical without replacing the check would dispatch a well-formed but unregistered id instead
+of returning `invalid-source-list`. Relocating only the driver's copy would leave config or hosted validation reading
+an old literal after the owning registration changed — and would land `D7.3`'s derived evaluator domains beside
+hardcoded siblings.
 
 The layers split the fix, because `src/lib/` never imports from `src/scripts/review-gate/` and cannot without
 inverting the dependency direction:
 
 - **`lib/config/schema.ts` accepts any well-formed registry id.** The provider alternation and the negation trick go.
   Pure subtraction, and no provider name remains in `lib`.
+- **`hosted/request.ts` validates identifier shape, not provider membership.** Replace the static enum with the same
+  lexical source-id contract used by the registry. The hosted command boundary validates caller-supplied providers
+  against the injected hosted-adapter registrations before dispatch; emitted handles and attempted-provider lists
+  originate from those registrations. A static JSON Schema can therefore describe the wire shape without becoming a
+  second provider registry.
+- **`hosted/fallback.ts` receives the same injected hosted-registration set.** Its resolver validates configured
+  provider membership before calling `attempt`, preserves duplicate detection, and continues to return
+  `invalid-source-list` with the exact unknown ids. Lexical validity alone never authorizes dispatch.
 - **`commands/config/validate.ts` derives lane compatibility from the composed capability set.** Commands may depend on
   the review domain — `src/handlers/review.ts` already does — so the compatibility diagnostics are computed rather than
   restated, and config-time typo-catching is preserved.
 
-After this, no provider id appears anywhere outside an adapter's own declaration, which is what the goal actually
-claims.
+After this, each provider id has one production declaration and every finite domain or capability decision derives
+from the composed registrations. Literal references remain legal where they are values rather than authorities.
 
 **D8.4 — Five forward-compatibility measures**, each of which must pass one test:
 
@@ -751,9 +870,9 @@ adapter satisfies — pull-request-comment provider, local CLI carrier, or ARC's
 derived from the resolve envelope's own type rather than duplicated, so core cannot drift a fourth without changing the
 envelope contract. A supplied adapter implements one of the three interfaces and inherits its action.
 
-**A second consumer.** `D7.3`'s evaluator domain draws from these same declarations, which makes "a hosted provider
-cannot audit a design document" a validation result rather than a comment. Neither design unit needs machinery the other
-does not already land.
+**A second consumer.** `D7.3`'s evaluator domains draw from the registrations' explicit `auditActivities`, which makes
+"a hosted provider cannot audit a design document" a validation result rather than an inference from dispatch.
+Neither design unit needs machinery the other does not already land.
 
 ## Alternatives & Rationale
 
@@ -811,9 +930,13 @@ does not already land.
   the label, so the trigger is unreliable. **Deleting the field**: discards real coverage signal to fix a wording gap.
 - **A second driver call after triage** (`D6.4`). Rejected — it works only if the caller knows not to advance its own
   pass count between the two calls, an ordering rule the driver cannot enforce, added to fix an ordering problem.
-- **Shipping the confirmed-severity field hosted-lane-only** (`D6.4`). The smallest change, and rejected because it
-  reproduces this work unit's own thesis: a correct convergence rule reachable at one decision point and not at the
-  other two.
+- **Shipping a caller-computed confirmed-severity scalar on the hosted lane only** (`D6.4`). The smallest change, and
+  rejected twice over: the detached scalar discards the approved set's bindings, and it reproduces this work unit's
+  own thesis — a correct convergence rule reachable at one decision point and not at the other two.
+- **Feed bare approved disposition sets to the driver** (`D6.3`). Rejected — approval and current-target validation
+  do not establish which review result the set covers or that every result finding is present. Reuse the existing
+  source-bound approved disposition record so an earlier same-target set or an omitted chunk cannot produce false
+  convergence.
 - **A `Class`-threshold key on `adversarial-review`** (`D7.2`). Rejected — it contradicts the method's identity contract
   (the caller owns launch policy), gates unrelated activities through one knob, and constrains a mechanism built to be
   reused.
@@ -833,23 +956,27 @@ does not already land.
 ## Cross-cutting Considerations
 
 **Trust boundaries.** `D1`'s provenance separation is the design's central safety property: the override never touches
-`attempts`, so no operator input can manufacture an observed outcome. `D8` moves third-party facts out of core but adds
-no code-loading surface — adapters remain first-party, and the trust boundary around supplying one is
+`attempts`, so no operator input can manufacture an observed outcome. `D6.3` likewise derives its control-bearing
+summary from source-bound approved disposition records whose producing boundary compared the complete result
+one-for-one, instead of accepting either a detached scalar or an unbound approved set. `D8` moves third-party facts out
+of core but adds no code-loading surface — adapters remain first-party, and the trust boundary around supplying one is
 `review-adapter-extensibility`'s explicitly. `D4.4` narrows a trust boundary by removing a fabricable input rather than
 widening one.
 
-**Compatibility.** Four contract changes carry compatibility obligations:
+**Contract evolution.** The pre-public-release posture applies uniformly:
 
-- `D6.1`'s severity rename changes a registered schema's enum. `review-severity` is registered at version 2 with
-  `migrationPosture: "strict-current"`, and every durable record embedding it (`normalized-review-finding`,
-  `finding-settlement`, `disposition-report-item`, `disposition-set`) is likewise strict-current. Decide the version
-  treatment as one call across the affected records rather than per-record.
-- `D6.3`'s `confirmedSeverity` is additive and optional, so an attempt that omits it keeps today's behavior.
-- `D4.4` accepts both `standardReview` and `routingFacts`, exactly one of which must be present — existing callers keep
-  working unchanged. Its `targetId` half is likewise non-breaking: a supplied digest that matches the computed one is
-  accepted, so only a caller that was already sending a wrong `targetId` sees a new rejection.
-- `D4.5`'s rename touches a type name rather than a wire shape. No serialized request or record changes, so it is a
-  compile-time-only migration confined to this repository.
+- `D6.1` changes every registered root, wire record, command envelope, digest preimage, fixture, generated schema, and
+  methodology occurrence in the severity acceptance graph together, while existing version and domain identifiers
+  remain the current baseline. There is no compatibility alias or migration path; development-only old records are
+  cleared or regenerated.
+- `D6.3` requires `reviewOperationIds` on findings attempts and resolves the referenced records from the existing
+  durable store; the caller supplies neither record bodies nor derived severity. The derived count and maximum are
+  internal normalized state, not new caller-controlled wire fields. The existing approved disposition source union
+  gains the hosted-result variant in place.
+- `D4.4` replaces `standardReview` with required `routingFacts` and removes caller-supplied `targetId` from the two
+  target-taking request shapes. All repository-owned callers and fixtures move in the same change; no transitional
+  reader or dual-input contract remains.
+- `D4.5`'s rename touches a type name rather than a wire shape and changes repository references in place.
 - `D2.1`'s capability narrowing means a project configuring `coderabbit-cli` with chunked frontline scope now skips
   rather than runs. That is the intended effect and is legible through the typed `source-scope-ineligible` diagnostic.
   No project loses a working capability, because the chunked path never reached the provider.
@@ -858,21 +985,30 @@ widening one.
 exercises the safe-fallback rule (rate-limited attempts, `safe-fallback-exhausted`), so no characterization test is owed
 before `D1` starts; the effective-order change needs its own cases, including the motivating one — configured order
 `coderabbit-pr, codex-pr, delegated-agent`, `codex-pr` promoted, then falling through to `coderabbit-pr`, which must
-validate under the effective order and would have failed under the configured one. `D4.3`'s completeness test is the
-anchor that keeps the registration set honest as verbs are added. `D3.2`'s parity check runs in the `lint:arc:*` family
-and is required in CI alongside the rest of that family.
+validate under the effective order and would have failed under the configured one. A second-call case repeats that
+same override with the first source already in attempt history and proves it remains valid without reselecting the
+source. `D6.1` needs acceptance and rejection cases for `critical` and severity-position `blocker`, plus a generated
+schema and non-severity-occurrence preservation check. `D6.3` needs command-boundary cases for an all-refuted record,
+minors only, material findings, stale target/policy/rubric bindings, a missing or duplicate operation id, wrong source
+or operation, an incomplete result binding, and a chunked terminal pass whose maximum spans multiple approved records.
+Hosted coverage proves its result digest and exact finding comparison reject an unrelated or incomplete set; reducer
+tests receive only the derived summary. `D7.3` proves audit config domains follow `auditActivities`, not `nextAction`.
+`D8.3` preserves the fallback resolver's `unknown-pr` → `invalid-source-list` case after hosted ids become lexical.
+`D4.3`'s completeness test is the anchor that keeps the registration set honest as verbs are added. `D3.2`'s parity
+check runs in the `lint:arc:*` family and is required in CI alongside the rest of that family.
 
 **Performance.** One narrow observation is worth taking after `D3.1` lands: whether a trimmed-guidance whole-target
 hosted review still times out at the ~10.8k-line scale that failed on PR #354. A single observation, not an experiment,
 and on no design unit's critical path.
 
-**Migration and rollout.** `D6.1` sequences first so no later diff carries the rename. `D8` precedes `D2` so the
-capability table is edited once, in its relocated home, and `D7.3` follows `D8` because it queries those declarations.
-`D2.1` and `D2.2` land together — the removal without the skip arm turns a chunked frontline request into a halt.
-`D4.1`, `D4.2`, and `D4.4` ship together, and **`D4` sequences last**: it is the unit most exposed if the review gate's
-request contracts are later reduced, nothing else depends on it, so ordering it last costs nothing and preserves the
-option. `D4.5` may follow separately. `D3` and `D5` are independent and may land at any point, and `D5` retains an
-independent-ship escape hatch as an errand if the provider-protocol work runs long.
+**Sequencing and rollout.** `D6.1` rewrites the unpublished baseline and clears or regenerates development-only old
+records. It sequences first so no later diff carries the rename. `D8` precedes `D2` so the capability table is edited
+once, in its relocated home, and `D7.3` follows `D8` because it queries those declarations. `D2.1` and `D2.2` land
+together — the removal without the skip arm turns a chunked frontline request into a halt. `D4.1`, `D4.2`, and `D4.4`
+ship together, and **`D4` sequences last**: it is the unit most exposed if the review gate's request contracts are later
+reduced, nothing else depends on it, so ordering it last costs nothing and preserves the option. `D4.5` may follow
+separately. `D3` and `D5` are independent and may land at any point, and `D5` retains an independent-ship escape hatch
+as an errand if the provider-protocol work runs long.
 
 **Coordination.** `integrate-work-unit.md` is edited in three places by this work unit — `D6.4`'s reorder at the lane
 dispatch and the hosted findings arm, and `D7.1`'s statement at the review-applicability step — while
@@ -886,54 +1022,55 @@ including the frontline-obligation question.
 
 1. An operator expresses a one-run source preference through `arc review resolve` and it is honored, including the
    promote-then-fall-through case that the configured-order invariant would have rejected; no override path can add an
-   entry to the observed attempt history, and deselecting every source yields a typed stop that names the operator as
-   the cause rather than reporting provider unavailability.
+   entry to the observed attempt history, repeating the pass-level override after a fallback remains valid without
+   reselecting an attempted source, and deselecting every source yields a typed stop that names the operator as the
+   cause rather than reporting provider unavailability.
 2. `coderabbit-cli` no longer advertises `chunked`, and a chunked frontline request — which consequently has no
    eligible source — resolves `skipped` carrying a `source-scope-ineligible` diagnostic rather than halting
-   integration. Whole-target frontline review through `coderabbit-cli` still runs, and the restoration condition plus
-   the frontline-obligation question are recorded for `chunk-scope-binding`.
+   integration. A mixed diagnostic set containing `unknown-source` never takes that skip. Whole-target frontline
+   review through `coderabbit-cli` still runs, and the restoration condition plus the frontline-obligation question
+   are recorded for `chunk-scope-binding`.
 3. Both static guidance blocks carry the same four items and no `Rubric:` line; `lint:arc:review-guidance` fails when
    they diverge or when the typed coverage, clean-rule, or evaluator-boundary fields stop matching, and states in its
    own output that item 4 alone is unbacked.
 4. `arc review <verb> --schema` prints a registered JSON Schema for each of the fourteen request-file verbs, and a verb
    added without a registered schema at its derived id fails the build. No review request requires a field its caller
    cannot produce: `arc review resolve` accepts the five judgment facts and derives, echoes, and never _requires_ a
-   hand-authored obligation projection, and the target-taking verbs compute `targetId` from caller-held fields rather
-   than demanding the digest. No workflow or test composes a projection or a `targetId` by hand. (`standardReview`
-   remains an accepted alternative input for existing callers — see § Open Questions; the criterion is that nothing
-   is forced to fabricate, not that the older input is gone.) The two `ReviewTargetSchema` definitions no longer share
-   a name.
+   hand-authored obligation projection without acquiring an evaluator identity, and the target-taking verbs compute
+   `targetId` from caller-held fields rather than demanding the digest. No workflow or test composes a projection or a
+   `targetId` by hand. The old `standardReview` and caller-supplied `targetId` inputs are not retained as compatibility
+   paths. The two `ReviewTargetSchema` definitions no longer share a name.
 5. `adversarial-review.md` states what reporting a `withstood` entry means and what it does not license, bounds the
    field to decision-relevant coverage, and states the primary-side risk gradient by claim type.
 6. `critical` names the review severity across the review-gate source and the methodology corpus, with the meta
    impediment field, `GateBlocker` / `GateVerdict.blockers`, the work-unit impediment sense in workflow prose, and the
-   `blocked` resolution state provably untouched; the
-   exit gate and convergence are stated as two rules; and a pass whose triage-confirmed findings top out at `minor`
-   resolves `pass-complete` on every lane, with each lane's driver call sited between triage and response.
+   `blocked` resolution state provably untouched. The unpublished strict-current baseline changes in place without
+   compatibility aliases or version advancement. The exit gate and convergence are stated as two rules; and a pass
+   whose triage-confirmed findings top out at `minor` resolves `pass-complete` on every lane, with each lane's driver
+   call sited between triage and response. The findings-bearing pass-closing attempt references exact source-bound
+   review operation ids, and the command derives confirmed count and maximum severity from the validated,
+   current-target records — including `null` for an all-refuted pass — while accepting no caller-computed severity
+   scalar or unbound disposition set.
 7. A project that has not set `review.planning_audit` / `review.verification_audit` is never offered a planning or
-   verification pass; naming a hosted provider for either key is a typed validation error; the verification fire-point
-   autofires once opted in while the planning fire-points still converge with the developer first; and
-   `integrate-work-unit.md` states the stop discipline the shipped spec defined.
+   verification pass; valid evaluator domains derive from the registrations' explicit audit activities, and naming a
+   provider that declares no matching activity is a typed validation error. The verification fire-point fires without
+   another permission turn when its configured evaluator and declared workflow fire-point coincide, while the planning
+   fire-points still converge with the developer first. Configuration alone authorizes no spawn, every dispatch is
+   bounded and read-only, and `integrate-work-unit.md` states the stop discipline the shipped spec defined.
 8. Each third-party provider's lanes, scopes, pull-request dependence, and dispatch action live beside its adapter, and
-   **no provider id appears anywhere outside an adapter declaration** — the config schema accepts any registry id, and
-   config validation derives lane compatibility from the composed set rather than restating it. The driver _and its
-   request schema_ resolve against an injected capability set assembled at a named seam; the registration contract
-   validates through the shipped schema bundle; and an unregistered source still fails safe as `unknown-source`.
+   every source id has exactly one production declaration in its owning registration. Every finite provider domain and
+   capability decision derives from the composed registrations: the config and hosted-request schemas accept a
+   well-formed registry id, and their command boundaries validate membership and lane compatibility from the injected
+   sets rather than restating provider lists. Hosted fallback validates membership against that same set before
+   dispatch and preserves its typed unknown-provider result. The driver _and its request schema_ resolve against an
+   injected capability set assembled at a named seam; the registration contract validates through the shipped schema
+   bundle; and an unregistered source still fails safe as `unknown-source`.
 
 ## Open Questions
 
-No design question is open — every decision the draft reopened is settled above, including the two the draft carried
-into this stage (the obligation projection's producing surface, resolved to `arc review resolve` accepting routing
-facts; and the registered request shapes' identity convention, resolved to command-path-derived ids, which the one
-already-registered shape turns out to follow, so nothing needs renaming).
-
-Two implementation details resolve during the work:
-
-- **`D6.1`'s registered-schema version treatment.** Whether the severity rename advances the registered version of the
-  affected strict-current records, or lands as a same-version enum change, is one call to make across all of them at
-  once; either is a valid outcome and neither changes the design.
-- **`D4.4`'s dual-input transition.** Whether `standardReview` is retained indefinitely as an accepted alternative or
-  deprecated once the workflow stops composing it is a sequencing choice, not a contract question — exactly one of the
-  two inputs is required either way.
+No design or migration question is open — every decision the draft reopened is settled above, including the two the
+draft carried into this stage (the obligation projection's producing surface, resolved to `arc review resolve`
+accepting routing facts; and the registered request shapes' identity convention, resolved to command-path-derived ids,
+which the one already-registered shape turns out to follow, so nothing needs renaming).
 
 ---

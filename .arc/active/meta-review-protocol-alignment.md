@@ -8,18 +8,18 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-protocol-alignment.md`
+- **Design:** `spec-review-protocol-alignment.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** `spec-review-protocol-alignment.md` authored at `detailed` · RFC and adversarially reviewed to
-  the `Heavy` cap — both passes' findings verified against source and folded
+- **Current Workflow:** `generate-tasks`
+- **Last Completed:** `spec-review-protocol-alignment.md` finalized at `detailed` · RFC after three adversarial passes
+  (the third explicitly authorized beyond the `Heavy` cap); all findings were verified and folded, followed by a clean
+  post-settle coherence review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec Gate 1 — surface the saved spec for review; Gate 2 (draft retirement, `Class` persist,
-  stage advance) follows separately
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
