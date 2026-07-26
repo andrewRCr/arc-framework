@@ -124,26 +124,22 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 
 ### Self-Hosting Review Gate
 
-The review controller is not operational merge authority. Integration uses the established manual integration path
-and the live CI requirement; no host-side review context, local receipt, advisory outcome, or controller verdict is
-treated as permission to merge.
+Self-hosting integration runs one configured review loop through the shipped `arc review` command tree. Frontline
+sources run independently through `frontline resolve` and `frontline run`. The standard-review stream resolves one
+ordered source per pass: `delegated-agent` uses the local prepare/attest/resume boundary, while `coderabbit-pr` and
+`codex-pr` use the hosted request/await/settle boundary. Chunking and source resolution return typed actions, so the
+workflow dispatches mechanics without reconstructing provider state or asking which source to try next.
 
-The shipped `arc review` command tree is part of the tsup bundle and published CLI. Its strict JSON-in / JSON-out
-operations compose one advisory review protocol:
+The CLI owns deterministic mechanics: immutable target and guidance bindings, ordered safe fallback, bounded
+awaiting, result normalization, and thread settlement. The operating agent owns bounded judgment about finding
+disposition, later-head applicability, and whether targeted verification, focused supplementation, or a complete
+pass fits a changed target. Confident in-scope choices proceed and are disclosed; mutations, durable commitments,
+material uncertainty, exceptional cost, and final integration remain human-authorized.
 
-- **Frontline review** — `frontline resolve` selects an ordered configured source without invoking it, and
-  `frontline run` executes an authorized source against an immutable exact-head checkout before persisting its
-  normalized outcome.
-- **Delegated local review** — `local prepare` derives and materializes an immutable change set, `local attest`
-  validates the evaluator result against that source, and `local resume` reconstructs the next action from durable
-  operation state.
-- **Disposition and reduction** — for attested local findings, `respond` first derives a canonical source-bound
-  proposal from author-owned decisions, then persists that exact proposal after approval; `reduce` projects the
-  current advisory result without turning it into merge authority.
-
-The same source tree still contains repository-only hosted-controller launchers and GitHub/provider adapters invoked
-by self-hosting scripts and Actions rather than the public command tree. That machinery remains separate from the
-shipped advisory CLI contract and confers no authority on its records or projections.
+The final exact candidate head may invoke `arc review unlock` only from the combined disposition and integration
+interlock. The required `arc-cleared` commit status is a thin lifecycle lock: pushes re-lock a reviewed PR, and an
+exact-head unlock releases only the still-current, lifecycle-ready candidate. It does not prove provider evidence or
+grant autonomous merge authority. No GitHub App or resident review controller exists.
 
 ## 3. Infrastructure
 
@@ -176,11 +172,11 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. The current live authority remains the thin CI `merge-ok` compatibility job; no App-owned
-  review context is required or claimed live-proven yet. `main` protection enforces that legacy context,
-  `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled—planning/backlog grooming PRs
-  auto-merge, while code and constitutional PRs merge deliberately (solo repo: no formal Code Owner review). See
-  `strategy-work-organization.md` § Auto-Merge Lane and `.github/review-gate.md` for the owned promotion sequence.
+  documentation lint. Reviewed PRs are born with `arc-cleared` locked, every push re-locks the head, and only the
+  pinned default-branch unlock workflow may clear an exact lifecycle-ready candidate. Commit status is a deliberate
+  lock, not evidence proof or autonomous merge authority. `.github/CODEOWNERS` marks the reviewed lane, and native
+  auto-merge is enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge
+  deliberately (solo repo: no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

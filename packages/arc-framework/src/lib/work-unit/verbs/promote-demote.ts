@@ -150,11 +150,11 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
   const fromDir = posix.dirname(entry.path);
   const recordedClass = parseMetaRecord(
     await executor.indexFs.readFile(join(executor.cwd, entry.path)),
-  ).Class ?? "[TBD]";
-  const classIsUnresolved = recordedClass === "[TBD]";
+  ).workClass ?? "TBD";
+  const classIsUnresolved = recordedClass === "TBD";
   const cls = classIsUnresolved ? params.class : recordedClass;
   if (
-    recordedClass !== "[TBD]"
+    recordedClass !== "TBD"
     && params.class !== undefined
     && params.class !== recordedClass
   ) {
@@ -168,7 +168,7 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
     verb: "promote",
     slug: name,
     inputs: {
-      class: cls ?? "[TBD]",
+      class: cls ?? "TBD",
       toDir,
       ...(classIsUnresolved && typeof cls === "string" ? { persistClass: cls } : {}),
     },

@@ -18,7 +18,8 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 type ResponseFn = (
   args: string[],
@@ -131,6 +132,29 @@ describe("runIdentityScopedWorktreeRoster", () => {
 });
 
 describe("runWorktreeRoster", () => {
+  it("propagates malformed successful porcelain as a domain validation error", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+    });
+
+    await expect(runWorktreeRoster({ exec, fs: buildFs({}) })).rejects.toMatchObject({
+      code: "git.worktree-porcelain.invalid",
+    });
+  });
+
+  it("preserves Git process failure identity separately from domain validation", async () => {
+    const processError = new GitProcessError({
+      kind: "nonzero-exit",
+      command: "git",
+      args: ["worktree", "list", "--porcelain"],
+      exitCode: 1,
+      stderr: "fatal",
+    });
+    const { exec } = buildExec({ [WORKTREE_LIST]: () => { throw processError; } });
+
+    await expect(runWorktreeRoster({ exec, fs: buildFs({}) })).rejects.toBe(processError);
+  });
+
   it("returns empty entries when only the main worktree exists with no meta file", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
@@ -536,6 +560,14 @@ describe("resolvePrimaryWorktreePath", () => {
 
     expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
   });
+
+  it("degrades malformed successful output to null", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n" },
+    });
+
+    expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
+  });
 });
 
 describe("resolveWorktreePathsByBranchResult", () => {
@@ -569,6 +601,16 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
     expect(result.ok).toBe(false);
     expect([...result.paths.entries()]).toEqual([]);
+  });
+
+  it("degrades malformed successful output to an unsuccessful empty map", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+    });
+
+    const result = await resolveWorktreePathsByBranchResult(exec);
+    expect(result.ok).toBe(false);
+    expect([...result.paths]).toEqual([]);
   });
 });
 
@@ -621,6 +663,17 @@ describe("scanRegisteredWorktrees", () => {
       message: "worktree listing omitted HEAD for /home/dev/repo.husk",
     });
   });
+
+  it("surfaces malformed successful output as an explicit topology failure", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+    });
+
+    const result = await scanRegisteredWorktrees(exec);
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) throw new Error("expected topology failure");
+    expect(result.message).toContain("stanzas.0.path");
+  });
 });
 
 describe("runWorktreeRoster — shared-reader field recovery", () => {
@@ -632,7 +685,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md": renderMetaFile("x", {
+      "/home/dev/repo/.arc/active/meta-x.md": renderMetaProjectionFile("x", {
         State: "Active",
         Owner: "alice",
         Branch: "feat/x",
@@ -659,12 +712,12 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md": renderMetaFile("a", {
+      "/home/dev/repo/.arc/active/meta-a.md": renderMetaProjectionFile("a", {
         State: "Active",
         Owner: "alice",
         Branch: "feat/a",
       }),
-      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaProjectionFile("b", {
         State: "Active",
         Owner: "bob",
         Branch: "feat/b",
@@ -691,7 +744,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
     const fs = buildFs({
       "/home/dev/repo/.arc/active/meta-a.md":
         "# Metadata: a\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
-      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaProjectionFile("b", {
         State: "Active",
         Owner: "bob",
         Branch: "feat/b",

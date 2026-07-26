@@ -7,11 +7,12 @@
  */
 
 import { execFile } from "node:child_process";
-import { access, mkdir, rm } from "node:fs/promises";
+import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,6 +112,11 @@ describe("user save/load", () => {
     expect(save.exitCode).toBe(0);
     const saveOutput = save.stdout + save.stderr;
     expect(saveOutput).toContain("Save");
+    const syncStatePath = join(userDir, ".internal", ".sync-state.json");
+    expect(LocalSyncStateSchema.parse(JSON.parse(await readFile(syncStatePath, "utf8")))).toMatchObject({
+      version: 4,
+      sourceOperation: "save",
+    });
 
     // Delete user directory
     await rm(userDir, { recursive: true, force: true });
@@ -121,6 +127,10 @@ describe("user save/load", () => {
     expect(load.exitCode).toBe(0);
     const loadOutput = load.stdout + load.stderr;
     expect(loadOutput).toContain("Load");
+    expect(LocalSyncStateSchema.parse(JSON.parse(await readFile(syncStatePath, "utf8")))).toMatchObject({
+      version: 4,
+      sourceOperation: "load",
+    });
 
     // Files restored
     expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);

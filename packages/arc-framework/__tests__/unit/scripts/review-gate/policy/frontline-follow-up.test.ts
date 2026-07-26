@@ -8,6 +8,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
+  FrontlineFollowUpAdviceSchema,
   projectFrontlineFollowUpAdvice,
   resolveFrontlineFollowUp,
 } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
@@ -41,7 +42,8 @@ const source = {
 
 function outcome(
   severity: "blocker" | "major" | "minor" = "major",
-  maxPasses: 1 | 2 = 2,
+  maxPasses = 2,
+  pass = 1,
 ) {
   return {
     schemaVersion: 1 as const,
@@ -49,7 +51,7 @@ function outcome(
     outcome: "findings" as const,
     source,
     target: oldTarget,
-    pass: 1 as const,
+    pass,
     maxPasses,
     findings: [{ ...finding, severity }],
     reason: null,
@@ -90,6 +92,15 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
 }
 
 describe("frontline follow-up policy", () => {
+  it("rejects advice whose next pass exceeds its bound ceiling", () => {
+    expect(FrontlineFollowUpAdviceSchema.safeParse({
+      action: "follow-up-after-fix",
+      pass: 3,
+      maxPasses: 2,
+      nextCommand: "frontline-resolve",
+    }).success).toBe(false);
+  });
+
   it("projects a non-durable fresh-head instruction before the approved fix exists", () => {
     expect(projectFrontlineFollowUpAdvice({
       outcome: outcome("major"),
@@ -108,6 +119,18 @@ describe("frontline follow-up policy", () => {
       ...approved(severity),
       changedTarget,
     })).toEqual({ action: "follow-up", pass: 2, target: changedTarget });
+  });
+
+  it("increments within a configured ceiling beyond two passes", () => {
+    expect(projectFrontlineFollowUpAdvice({
+      outcome: outcome("major", 3, 2),
+      ...approved("major"),
+    })).toEqual({
+      action: "follow-up-after-fix",
+      pass: 3,
+      maxPasses: 3,
+      nextCommand: "frontline-resolve",
+    });
   });
 
   it("does not spend a follow-up on minor-only or deferred findings", () => {

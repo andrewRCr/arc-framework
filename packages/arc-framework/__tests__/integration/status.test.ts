@@ -207,6 +207,34 @@ function makeProbes(fixture: Fixture): StatusProbes {
   };
 }
 
+const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async ({ slug }) => ({
+  status: "clean",
+  slug,
+  dependency: {
+    before: [],
+    after: [],
+    replacements: [],
+    drops: [],
+    discharged: [],
+    live: [],
+    conflicts: [],
+  },
+  trackedReferences: { edits: [] },
+  advisories: [],
+  recommendedAction: "skip",
+  recommendedCommand: null,
+  recommendedPromptText: "",
+});
+
+const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] = async () => ({
+  status: "clean",
+  authority: { status: "ready", ref: "main", transitions: [] },
+  plan: { status: "clean", edits: [], advisories: [] },
+  recommendedAction: "skip",
+  recommendedCommand: null,
+  recommendedPromptText: "",
+});
+
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     locusState: async () => locusState(),
@@ -231,9 +259,11 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
+    userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
-    sweep: async () => ({ worktrees: [], warnings: [] }),
+    sweep: async () => ({ worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -306,9 +336,11 @@ function makeResolvedReleaseModeSessionInitProbes(
       }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
+    userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
-    sweep: async () => ({ worktrees: [], warnings: [] }),
+    sweep: async () => ({ worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -557,9 +589,11 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      currentWuReconcile: cleanCurrentWuReconcile,
+      userReferenceReconcile: cleanUserReferenceReconcile,
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
-      sweep: async () => ({ worktrees: [], warnings: [] }),
+      sweep: async () => ({ worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
       orphanBranchSweep: async () => ({ orphans: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
@@ -747,9 +781,11 @@ function makeRealWorktreeProbes(
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
+    userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
-    sweep: async () => ({ worktrees: [], warnings: [] }),
+    sweep: async () => ({ worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),

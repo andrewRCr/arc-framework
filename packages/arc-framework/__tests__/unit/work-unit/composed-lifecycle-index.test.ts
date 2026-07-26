@@ -142,6 +142,12 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(composed.worktreePathBySlug).toEqual(new Map());
     expect(composed.liveRefs).toEqual({});
     expect(composed.reachable).toBe(false);
+    expect(composed.readQuality).toBe("tree-only");
+    expect(composed.recordsBySlug.get("active")).toMatchObject({
+      selected: { slug: "active", location: "active" },
+      currentTree: { slug: "active", location: "active" },
+      writablePath: ".arc/active/meta-active.md",
+    });
   });
 
   it("overlays a sibling activation from local refs without reading the network", async () => {
@@ -172,6 +178,11 @@ describe("resolveComposedLifecycleIndex", () => {
       path: `${branch}:.arc/active/meta-${slug}.md`,
     });
     expect(result.worktreePathBySlug.get(slug)).toBe(root);
+    expect(result.recordsBySlug.get(slug)).toMatchObject({
+      selected: { slug, state: "Active" },
+      currentTree: { slug, state: "Planning" },
+    });
+    expect(result.recordsBySlug.get(slug)).not.toHaveProperty("writablePath");
     expect(result.qualityFacts).toEqual({ warnings: [], resultMarks: [], bySlug: new Map() });
     expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["ls-remote"]), expect.anything());
   });
@@ -194,8 +205,14 @@ describe("resolveComposedLifecycleIndex", () => {
     });
 
     expect(result.reachable).toBe(true);
+    expect(result.readQuality).toBe("reachable");
     expect(result.liveRefs).toEqual({ [`origin/${branch}`]: sha });
     expect(result.index.get(slug)?.phase).toBe("Active");
+    expect(result.recordsBySlug.get(slug)).toMatchObject({
+      selected: { slug },
+      currentTree: null,
+    });
+    expect(result.recordsBySlug.get(slug)).not.toHaveProperty("writablePath");
   });
 
   it("expands a live-only candidate at its membership SHA only when requested", async () => {
@@ -307,11 +324,38 @@ describe("resolveComposedLifecycleIndex", () => {
 
     expect(result.index.get(slug)?.phase).toBe("Planning");
     expect(result.reachable).toBe(false);
+    expect(result.readQuality).toBe("degraded");
     expect(result.qualityFacts).toEqual({
       warnings: [],
       resultMarks: [],
       bySlug: new Map(),
       unreachable: true,
+    });
+  });
+
+  it("grants current-tree write authority only when the selected semantic payload agrees exactly", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "agreeing-live";
+    const branch = `feat/${slug}`;
+    await writeMeta(
+      join(root, ".arc", "active", `meta-${slug}.md`),
+      oracleMeta(slug, branch),
+    );
+    const exec = makeInFlightExec({
+      worktrees: [{ path: join(root, "..", slug), branch }],
+      metas: { [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch) },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: true, baseBranch: "main" },
+    });
+
+    expect(result.recordsBySlug.get(slug)).toMatchObject({
+      writablePath: `.arc/active/meta-${slug}.md`,
+      selected: { slug, location: "active", state: "Active" },
+      currentTree: { slug, location: "active", state: "Active" },
     });
   });
 

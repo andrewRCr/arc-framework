@@ -80,8 +80,8 @@ describe("retirement record namespace", () => {
   it("rejects a symlinked namespace parent before writing", async () => {
     const fs: RetirementRecordFs = {
       lstat: vi.fn().mockImplementation(async (path: string) => ({
-        isDirectory: () => path !== "/repo/.arc/.internal",
-        isSymbolicLink: () => path === "/repo/.arc/.internal",
+        isDirectory: () => path !== "/repo/.arc/system/.internal",
+        isSymbolicLink: () => path === "/repo/.arc/system/.internal",
       })),
       mkdir: vi.fn().mockResolvedValue(undefined),
       writeFile: vi.fn().mockResolvedValue(undefined),

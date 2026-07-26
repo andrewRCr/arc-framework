@@ -95,8 +95,8 @@ _Consumes:_ kernel layout tokens and the landed coupling-audit inventory.
 
 ### `cli-validation-surfaces`
 
-_Exposes:_ schemas for the audit log, meta records, config, sync-state, cut maps, worktree porcelain, branch-gone
-evidence, cold-start inputs, cross-WU note payloads, and the remaining named priority validation targets.
+_Exposes:_ schemas for the audit log, semantic meta records, authorable config, sync-state, cut maps, worktree
+porcelain, cold-start inputs, cross-WU note payloads, and the remaining named priority validation targets.
 
 _Consumes:_ kernel primitives and registry; the landed meta shape from `work-organization-reform`.
 

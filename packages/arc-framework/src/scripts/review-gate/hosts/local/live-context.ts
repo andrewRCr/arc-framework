@@ -4,7 +4,12 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import { readActiveMetaCandidates, parseMetaRecord, type MetaRecord } from "../../../../lib/active/meta-reader.js";
+import {
+  readActiveMetaCandidates,
+  parseMetaRecord,
+  toMetaRecord,
+  type MetaRecord,
+} from "../../../../lib/active/meta-reader.js";
 import { readErrandSlugByBranch } from "../../../../lib/errand/record.js";
 import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
@@ -29,14 +34,15 @@ export async function readLocalReviewLiveContext(input: {
   if (matching.length === 1) {
     const candidate = matching[0];
     if (candidate === undefined) throw new Error("active work unit disappeared");
-    const meta = parseMetaRecord(await readFile(join(input.cwd, candidate.path), "utf8"));
+    const meta = toMetaRecord(parseMetaRecord(await readFile(join(input.cwd, candidate.path), "utf8")));
+    if (meta === null) throw new Error("active work-unit metadata is incomplete");
     const identity = candidate.filename.replace(/^meta-/u, "").replace(/\.md$/u, "");
     return {
       context: {
         activeIdentity,
         workUnit: {
           identity,
-          owner: meta.Owner ?? "",
+          owner: meta.owner,
         },
         errand: null,
       },

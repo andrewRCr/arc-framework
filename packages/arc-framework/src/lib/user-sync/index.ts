@@ -22,6 +22,13 @@ export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
 
 export {
+  CrossWuEntryParseSchema,
+  CrossWuEntrySchema,
+  type CrossWuEntry,
+  type EntryParse,
+} from "./schema.js";
+
+export {
   inboxEntrySourceDigest,
   listExecuteBoundInboxEntries,
   inspectInboxEntry,
@@ -172,9 +179,18 @@ export {
   readLocalSyncState,
   recordErrandPartialPushMarker,
   recordPartialPushMarker,
+  LocalSyncStateSchema,
+  normalizeLocalSyncState,
+  PartialPushMarkerSchema,
+  PersistedLocalSyncStateSchema,
+  PriorFileListSchema,
+  RemoteMarkerProvenanceSchema,
   writeLocalSyncState,
   type LocalSyncState,
   type PartialPushMarker,
+  type PersistedLocalSyncState,
+  type PriorFileList,
+  type RemoteMarkerProvenance,
 } from "./sync-state.js";
 
 export {
@@ -227,4 +243,4 @@ export {
   type IsProcessAliveFn,
 } from "./notes-lock.js";
 
-export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
+export type { CrossWuShape } from "./types.js";

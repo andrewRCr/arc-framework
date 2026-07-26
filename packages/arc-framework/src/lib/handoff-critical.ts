@@ -35,6 +35,8 @@ export function isHandoffCritical(cmd: HandoffCommand): boolean {
   if (parentName === "arc" && name === "sync") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
   if (parentName === "release" && (name === "commit" || name === "push")) return true;
+  if (parentName === "review" && name === "unlock") return true;
+  if (parentName === "hosted" && (name === "request" || name === "settle")) return true;
   if (parentName === "arc" && name === "status") {
     // The seed write must emit even against stale dist — a recovery snapshot,
     // revalidated on read, beats no snapshot. Warn, don't refuse.

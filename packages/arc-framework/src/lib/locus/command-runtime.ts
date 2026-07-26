@@ -281,9 +281,9 @@ async function deriveWorkUnitSubject(
       }
     }));
   }))).flat().filter((candidate) => candidate !== null
-    && candidate.record.Owner === options.identity
-    && candidate.record.Branch === checkout.branch
-    && ["Planning", "Active", "Integrating"].includes(candidate.record.State ?? "")
+    && candidate.record.owner === options.identity
+    && candidate.record.branch === checkout.branch
+    && ["Planning", "Active", "Integrating"].includes(candidate.record.state ?? "")
     && (markerSubject === null || candidate.name === markerSubject));
   const candidate = candidates.length === 1 ? candidates[0] : undefined;
   return candidate?.name ?? null;

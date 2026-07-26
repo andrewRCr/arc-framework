@@ -269,7 +269,10 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "commit.context_pattern": "",
       "merge.strategy": "merge",
       "platform.type": "github",
-      "review.frontline_sources": "[]",
+    "review.frontline_sources": "[]",
+    "review.standard_sources": "[]",
+    "review.frontline_max_passes": "2",
+    "review.standard_max_passes": "2",
       "pm.mode": "none",
       "team.mode": "false",
       "session.remote_sync": "enabled",
@@ -512,6 +515,34 @@ function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
   };
 }
 
+const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async ({ slug }) => ({
+  status: "clean",
+  slug,
+  dependency: {
+    before: [],
+    after: [],
+    replacements: [],
+    drops: [],
+    discharged: [],
+    live: [],
+    conflicts: [],
+  },
+  trackedReferences: { edits: [] },
+  advisories: [],
+  recommendedAction: "skip",
+  recommendedCommand: null,
+  recommendedPromptText: "",
+});
+
+const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceReconcile"]> = async () => ({
+  status: "clean",
+  authority: { status: "ready", ref: "main", transitions: [] },
+  plan: { status: "clean", edits: [], advisories: [] },
+  recommendedAction: "skip",
+  recommendedCommand: null,
+  recommendedPromptText: "",
+});
+
 function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
   return {
     locusState: vi.fn(async () => locusState()),
@@ -528,10 +559,17 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
+    currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
+    userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
-    sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
+    sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({
+      worktrees: [],
+      renameMoves: [],
+      retirements: [],
+      warnings: [],
+    })),
     orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({ orphans: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
@@ -2052,6 +2090,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "baseBranchSync",
       "baseDistance",
       "config",
+      "currentWuReconcile",
       "dirty",
       "domainRules",
       "errandState",
@@ -2070,8 +2109,60 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "retiredSubdirs",
       "sweep",
       "user",
+      "userReferenceReconcile",
       "worktree",
     ]);
+  });
+});
+
+describe("runSessionInitStatus — current work-unit reconcile", () => {
+  it("surfaces the precomputed pending result for the single active work unit", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-dependent.md",
+          sessionType: "execution",
+        })),
+      currentWuReconcile: vi.fn(async ({ slug }) => ({
+        ...await cleanCurrentWuReconcile({ slug, metaPath: ".arc/active/meta-dependent.md" }),
+        status: "pending" as const,
+        dependency: {
+          before: ["retired"],
+          after: ["successor"],
+          replacements: [],
+          drops: [],
+          discharged: [],
+          live: [],
+          conflicts: [],
+        },
+        recommendedAction: "surface" as const,
+        recommendedCommand: ["arc", "wu", "reconcile", slug, "--apply", "--json"],
+        recommendedPromptText: "Apply the pending tracked reconcile.",
+      })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.currentWuReconcile).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: "pending",
+        slug: "dependent",
+        recommendedAction: "surface",
+        recommendedPromptText: "Apply the pending tracked reconcile.",
+      }),
+    });
+  });
+
+  it("omits the slot when there is no single active work unit", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.currentWuReconcile).toBeUndefined();
   });
 });
 
@@ -2423,6 +2514,8 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
         branch: "feat/shipped",
         decision: { action: "removable" },
       }],
+      renameMoves: [],
+      retirements: [],
       warnings: [],
     };
     const probes = sessionInitProbes({

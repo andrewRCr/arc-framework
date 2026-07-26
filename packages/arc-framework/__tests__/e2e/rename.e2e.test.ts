@@ -25,7 +25,14 @@ interface RenameFixture {
 }
 
 const COHORT = "rename-group";
-const COMPANION_PREFIXES = ["draft", "spec", "tasks", "notes"] as const;
+const COMPANIONS = [
+  { prefix: "draft", title: "Draft" },
+  { prefix: "spec", title: "Spec (`detailed` · `RFC`)" },
+  { prefix: "tasks", title: "Task List" },
+  { prefix: "notes", title: "Notes" },
+  { prefix: "research", title: "Research" },
+  { prefix: "analysis", title: "Analysis" },
+] as const;
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -61,12 +68,17 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
     .replace("- **Cohort:** [none]", `- **Cohort:** ${COHORT}`)
     .replace("- **Design:** [none]", `- **Design:** spec-${slug}.md`)
     .replace("- **Task List:** [none]", `- **Task List:** tasks-${slug}.md`);
-  expect(parseMetaRecord(meta).Cohort).toBe(COHORT);
+  expect(parseMetaRecord(meta).cohort).toBe(COHORT);
   expect(meta).toContain(`- **Design:** spec-${slug}.md`);
   expect(meta).toContain(`- **Task List:** tasks-${slug}.md`);
   await writeFile(metaPath, meta, "utf8");
-  for (const prefix of COMPANION_PREFIXES) {
-    await writeFile(join(repo, artifactDir, `${prefix}-${slug}.md`), `# ${prefix}: ${slug}\n`, "utf8");
+  for (const companion of COMPANIONS) {
+    const resume = companion.prefix === "draft" ? `\n> Resume with \`--plan ${slug}\`.\n` : "";
+    await writeFile(
+      join(repo, artifactDir, `${companion.prefix}-${slug}.md`),
+      `# ${companion.title}: ${slug}\n${resume}`,
+      "utf8",
+    );
   }
   const cohortDir = join(repo, ".arc", "backlog", "planned", COHORT);
   await mkdir(cohortDir, { recursive: true });
@@ -111,7 +123,7 @@ async function expectTrackedSweep(
   newSlug: string,
   options: { baseStubRemains?: boolean } = {},
 ): Promise<void> {
-  for (const prefix of ["meta", ...COMPANION_PREFIXES]) {
+  for (const prefix of ["meta", ...COMPANIONS.map((companion) => companion.prefix)]) {
     expect(await exists(join(repo, oldArtifactDir, `${prefix}-${oldSlug}.md`))).toBe(false);
     expect(await exists(join(repo, newArtifactDir, `${prefix}-${newSlug}.md`))).toBe(true);
   }
@@ -119,6 +131,11 @@ async function expectTrackedSweep(
   expect(meta).toContain(`# Metadata: ${newSlug}`);
   expect(meta).toContain(`spec-${newSlug}.md`);
   expect(meta).toContain(`tasks-${newSlug}.md`);
+  for (const companion of COMPANIONS) {
+    const content = await readFile(join(repo, newArtifactDir, `${companion.prefix}-${newSlug}.md`), "utf8");
+    expect(content).toContain(`# ${companion.title}: ${newSlug}`);
+    if (companion.prefix === "draft") expect(content).toContain(`\`--plan ${newSlug}\``);
+  }
   const observer = await readFile(
     join(repo, ".arc", "backlog", "planned", "rename-observer", "meta-rename-observer.md"),
     "utf8",
@@ -241,7 +258,7 @@ describe("arc rename", () => {
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
     const receiptPaths = (await git(fixture.repo, [
       "ls-tree", "-r", "--name-only", "chore/rename-old-name-to-new-name", "--",
-      ".arc/.internal/retirement-receipts",
+      ".arc/system/.internal/retirement-receipts",
     ])).split("\n").filter(Boolean);
     expect(receiptPaths).toHaveLength(1);
     const receipt = JSON.parse(await git(fixture.repo, [
@@ -282,7 +299,29 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
   }, 30_000);
 
-  it("self-renames a spawned worktree, marker, notes workspace, and remote branch", async () => {
+  it("renames from reachable tree truth when the composed oracle cannot reach origin", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    const stubbed = await runArcNoTty([
+      "stub", "old-name", "--commitment", "planned", "--priority", "P2", "--class", "Light",
+      "--cohort", COHORT,
+    ], fixture.repo);
+    expect(stubbed.exitCode).toBe(0);
+    const oldArtifactDir = join(".arc", "backlog", "planned", COHORT, "old-name");
+    const newArtifactDir = join(".arc", "backlog", "planned", COHORT, "new-name");
+    await seedTrackedSweep(fixture.repo, oldArtifactDir, "old-name");
+    await git(fixture.repo, ["add", "."]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): add offline rename source"]);
+    await git(fixture.repo, ["remote", "set-url", "origin", join(fixture.repo, "missing-origin.git")]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
+    await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
+  }, 30_000);
+
+  it("self-renames every identity leg while deferring the live worktree directory move", async () => {
     const fixture = await createFixture();
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
@@ -300,29 +339,84 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("spawned");
+    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.stdout).toContain("Follow-up:");
+    expect(renamed.stdout).toContain("`git worktree move");
+    expect(renamed.stdout).toContain(oldWorktree);
     expect(renamed.stdout).toContain(newWorktree);
-    expect(renamed.stdout).toContain("process relocated");
-    expect(await exists(oldWorktree)).toBe(false);
-    expect(await exists(newWorktree)).toBe(true);
-    const marker = JSON.parse(await readFile(
-      join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
+    expect(renamed.stdout).not.toContain("process relocated");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    const pendingMarker = JSON.parse(await readFile(
+      join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
       "utf8",
-    )) as { wuName: string; createdFor: { name: string } };
-    expect(marker.wuName).toBe("new-name");
-    expect(marker.createdFor.name).toBe("new-name");
-    expect(await git(newWorktree, ["branch", "--show-current"])).toBe("plan/new-name");
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/new-name"])).not.toBe("");
+    )) as {
+      wuName: string;
+      createdFor: { name: string };
+      renameMovePending: { oldSlug: string; newSlug: string; branch: string; head: string; from: string; to: string };
+    };
+    expect(pendingMarker.wuName).toBe("new-name");
+    expect(pendingMarker.createdFor.name).toBe("new-name");
+    expect(pendingMarker.renameMovePending).toEqual({
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "plan/new-name",
+      head: await git(oldWorktree, ["rev-parse", "HEAD"]),
+      from: oldWorktree,
+      to: newWorktree,
+    });
+    expect(await git(oldWorktree, ["branch", "--show-current"])).toBe("plan/new-name");
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/new-name"])).not.toBe("");
     await expectTrackedSweep(
-      newWorktree,
+      oldWorktree,
       join(".arc", "active"),
       join(".arc", "active"),
       "old-name",
       "new-name",
       { baseStubRemains: true },
     );
-    expect(await hasUserWorkspace(newWorktree, "old-name")).toBe(false);
-    expect(await hasUserWorkspace(newWorktree, "new-name")).toBe(true);
+    expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
+    expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
+
+    await execFileAsync("git", ["worktree", "move", oldWorktree, newWorktree], { cwd: fixture.repo });
+    const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    const movedMarker = JSON.parse(await readFile(
+      join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
+      "utf8",
+    )) as { renameMovePending?: unknown };
+    expect(movedMarker.renameMovePending).toBeUndefined();
+  }, 30_000);
+
+  it("does not project a deferred move action from a foreign worktree marker", async () => {
+    const fixture = await createFixture();
+    const oldWorktree = `${fixture.repo}.old-name`;
+    const newWorktree = `${fixture.repo}.new-name`;
+    cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
+    const started = await runArcNoTty([
+      "start", "old-name", "--new", "--from", "internal",
+    ], fixture.repo, { timeout: 20_000 });
+    expect(started.exitCode).toBe(0);
+    const markerPath = join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json");
+    const marker = JSON.parse(await readFile(markerPath, "utf8")) as {
+      wuName: string;
+      createdFor: { kind: string; name: string };
+    };
+    marker.wuName = "foreign-owner";
+    marker.createdFor = { kind: "work-unit", name: "foreign-owner" };
+    await writeFile(markerPath, JSON.stringify(marker), "utf8");
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.stdout).not.toContain("`git worktree move");
+    expect(renamed.stdout).toContain("no move action projected");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };
+    expect(foreignMarker.renameMovePending).toBeUndefined();
   }, 30_000);
 
   it("resumes after a stale remote lease without repeating completed identity legs", async () => {
@@ -356,8 +450,8 @@ describe("arc rename", () => {
 
     const resumed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
     expect(resumed.exitCode, resumed.stdout + resumed.stderr).toBe(0);
-    expect(await exists(oldWorktree)).toBe(false);
-    expect(await exists(newWorktree)).toBe(true);
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
   }, 45_000);
 });

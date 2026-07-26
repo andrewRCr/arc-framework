@@ -20,7 +20,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { renderRoadmapFromIndex } from "../../src/lib/status/roadmap-regeneration-assert.js";
@@ -89,7 +89,7 @@ describe("executor staging — relocate + content rewrite leaves the meta fully 
     // specific cells (the fixture carries other `[none]` values, so a substring
     // check on the Branch value would pass without the cell having changed).
     const { stdout: staged } = await execFileAsync("git", ["show", `:${completedRel}`], { cwd: repo });
-    const stagedRecord = parseMetaRecord(staged);
+    const stagedRecord = parseMetaProjectionRecord(staged);
     expect(stagedRecord.State).toBe("Shipped");
     expect(stagedRecord.Branch).toBe("[none]");
   });

@@ -2,10 +2,13 @@ import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { parseCouplingManifest } from "../../src/lib/coupling-audit/contracts.js";
+import { collectCorpus } from "../../src/lib/coupling-audit/corpus.js";
 import type { CouplingIdiom, CouplingManifest } from "../../src/lib/coupling-audit/types.js";
 import {
   createCouplingAuditScriptContext,
@@ -79,6 +82,25 @@ async function initializeRepository(): Promise<string> {
 }
 
 describe("coupling audit repository command", () => {
+  it("keeps the checked-in exact corpus inventory runnable against tracked files", async () => {
+    const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+    const context = createCouplingAuditScriptContext(repositoryRoot);
+    const checkedInManifest = parseCouplingManifest(
+      JSON.parse(
+        await readFile(
+          join(repositoryRoot, "packages/arc-framework/audits/coupling-blast-radius/manifest.json"),
+          "utf8",
+        ),
+      ),
+    );
+    const files = await collectCorpus(checkedInManifest.corpus, {
+      git: context.git,
+      readFile: (path) => context.readBytes(join(repositoryRoot, path)),
+    });
+
+    expect(files.length).toBeGreaterThan(0);
+  });
+
   it("discovers tracked hidden files and writes identical results", async () => {
     const root = await initializeRepository();
     const context = createCouplingAuditScriptContext(root);

@@ -293,7 +293,7 @@ async function resolveFrontlineSource(
 function projectApprovedResponse(source: ResolvedResponseSource, dispositions: ApprovedDispositionSet) {
   const response: Omit<
     ReviewResponseInput,
-    "currentTarget" | "findings" | "channel" | "conversations"
+    "currentTarget" | "findings"
   > = {
     routing: {
       schemaVersion: 1,
@@ -316,8 +316,6 @@ function projectApprovedResponse(source: ResolvedResponseSource, dispositions: A
         ...response,
         currentTarget: source.target,
         findings: source.findings,
-        channel: "local",
-        conversations: [],
       })
     : projectFrontlineResponse({
         ...response,

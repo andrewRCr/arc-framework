@@ -38,6 +38,10 @@ export function createRecoverStatusProbes(
   const io = createUserIOContext();
   const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
   const extensionsP = runExtensionsSessionInitStatus({ cwd });
+  // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
+  // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
+  // not an unhandled rejection that kills the process before any slot is composed.
+  extensionsP.catch(() => undefined);
   return {
     locusState: async (identity) => {
       const resolved = await resolvedSettingsP;

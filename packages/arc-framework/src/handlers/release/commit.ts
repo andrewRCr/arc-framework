@@ -50,6 +50,7 @@ import type {
   AuthorizationDecision,
   RefusalCode,
 } from "../../lib/release/types.js";
+import { AuditEntrySchema } from "../../lib/release/schema.js";
 import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 
 /** Subprocess result shape returned by the wrapped-git invocation. */
@@ -462,7 +463,7 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     commitInterlock: opts.deps.settings.resolved.commitInterlock,
     pushInterlock: opts.deps.settings.resolved.pushInterlock,
   };
-  return {
+  return AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "release-commit",
@@ -472,5 +473,5 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     decision: opts.decision,
     refusalCode: opts.refusalCode,
     outcome: opts.outcome,
-  };
+  });
 }

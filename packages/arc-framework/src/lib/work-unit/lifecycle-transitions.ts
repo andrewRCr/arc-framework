@@ -92,8 +92,6 @@ export type GuardId =
  *
  * - `reconcile-roadmap` / `reconcile-status-user` — regen the project-readiness
  *   and per-developer status views; fire on every location move.
- * - `discharge-dep-edges` — at `activate`, discharge satisfied `Depends On`
- *   edges (the write half; the resolver supplies the per-edge readiness facts).
  * - `user-workspace` — open / close the user-workspace satellite (`arc user
  *   open` / `close`) across the entry / exit edges.
  * - `withdraw-pr` — at `reopen`, close or draft the open PR (a `gh` op).
@@ -105,7 +103,6 @@ export type GuardId =
 export type SideEffectId =
   | "reconcile-roadmap"
   | "reconcile-status-user"
-  | "discharge-dep-edges"
   | "user-workspace"
   | "withdraw-pr";
 
@@ -375,7 +372,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     inverse: "deactivate",
     guards: [],
     encodingUpdates: { reconcileBranch: "rename", setPhase: true, clearCurrentWorkflowField: true },
-    sideEffects: withRender("discharge-dep-edges", "user-workspace"),
+    sideEffects: withRender("user-workspace"),
     softFields: { nextTask: "input", nextAction: "input", lastCompleted: "leave", blockers: "leave" },
   },
   {
@@ -653,9 +650,9 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // an in-verb leg. Firing teardown here tripped the `worktree-clean` guard on the
     // verb's own staged removal and, in-place, targeted the un-removable primary
     // worktree — so these edges declare neither the teardown legs nor that guard
-    // (mirroring `park@Planning` / `decompose@planning`). PARKED still deletes its
-    // branch in-verb (no worktree to self-teardown); the backlog stubs remove only
-    // artifacts.
+    // (mirroring `park@Planning` / `decompose@planning`). PARKED likewise
+    // preserves its branch until the pointer removal and retirement receipt land;
+    // the backlog stubs remove only artifacts.
     verb: "abandon",
     from: PLANNING,
     to: null,
@@ -681,7 +678,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
-    encodingUpdates: { artifacts: "remove", reconcileBranch: "delete" },
+    encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

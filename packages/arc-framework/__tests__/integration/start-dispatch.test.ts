@@ -18,7 +18,7 @@ import { promisify } from "node:util";
 
 import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
 import { handleStart } from "../../src/handlers/start.js";
-import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
@@ -169,7 +169,7 @@ describe("arc start dispatch — against real worktrees", () => {
       attachSession: false,
     })).resolves.toMatchObject({ recordId: locusIdentity.recordId, roleCreated: false });
     expect(await pathExists(wt)).toBe(true);
-    const record = parseMetaRecord(await readFile(join(wt, ".arc", "active", "meta-alpha.md"), "utf8"));
+    const record = parseMetaProjectionRecord(await readFile(join(wt, ".arc", "active", "meta-alpha.md"), "utf8"));
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/alpha");
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
@@ -354,7 +354,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(observedExitCode).toBeUndefined();
     expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
-    const record = parseMetaRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
+    const record = parseMetaProjectionRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
     expect(record.Class).toBe("Light");
     expect(output.match(/Branch `feat\/stale-launcher`[^\n]+cleanup may be required\./gu)).toHaveLength(1);
   });

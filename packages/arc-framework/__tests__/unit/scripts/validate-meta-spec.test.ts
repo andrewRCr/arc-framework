@@ -15,7 +15,7 @@ import {
   validateCohort,
   validateFiles,
 } from "../../../src/scripts/validate-meta-spec.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 const META_PATH_FIXTURE = ".arc/active/technical/meta-foo.md";
 
@@ -403,7 +403,7 @@ describe("validateFiles — Design multi-value (one or two refs)", () => {
 describe("validateLifecycleFields — core-block table form", () => {
   it("validates State recovered from the hoisted table (Design bullet unchanged)", () => {
     const files = {
-      [META_PATH_FIXTURE]: renderMetaFile("foo", { State: "Active", Design: "spec-foo.md" }),
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", { State: "Active", Design: "spec-foo.md" }),
     };
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(true);
@@ -412,7 +412,7 @@ describe("validateLifecycleFields — core-block table form", () => {
 
   it("fails an invalid State carried in the table", () => {
     const files = {
-      [META_PATH_FIXTURE]: renderMetaFile("foo", { State: "Waiting", Design: "[none]" }),
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", { State: "Waiting", Design: "[none]" }),
     };
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(false);
@@ -436,7 +436,7 @@ describe("validateCohort — two-segment path cap", () => {
 
   it("passes single-segment, two-segment, and [none] cohorts", () => {
     for (const value of ["core", "core/sub", "[none]"]) {
-      const content = renderMetaFile("foo", {
+      const content = renderMetaProjectionFile("foo", {
         State: "Active",
         Design: "[none]",
         Cohort: value,
@@ -446,7 +446,7 @@ describe("validateCohort — two-segment path cap", () => {
   });
 
   it("flags a three-segment cohort path", () => {
-    const content = renderMetaFile("foo", {
+    const content = renderMetaProjectionFile("foo", {
       State: "Active",
       Design: "[none]",
       Cohort: "core/sub/leaf",
@@ -458,7 +458,7 @@ describe("validateCohort — two-segment path cap", () => {
 
   it("surfaces a capped cohort through the validateFiles gate", () => {
     const files = {
-      [META_PATH_FIXTURE]: renderMetaFile("foo", {
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
         State: "Active",
         Design: "[none]",
         Cohort: "a/b/c",

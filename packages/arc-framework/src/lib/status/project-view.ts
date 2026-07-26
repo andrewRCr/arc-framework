@@ -14,7 +14,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
@@ -129,6 +129,8 @@ export interface ProjectReadinessViewInput {
 /** Shared tree + oracle record composition before render-specific warning projection. */
 export interface ProjectReadinessCompositionResult {
   records: ProjectReadinessRecord[];
+  /** Resolved records contributed by the current tracked tree before oracle composition. */
+  treeRecords: ProjectReadinessRecord[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
   indeterminate: boolean;
@@ -139,6 +141,8 @@ export interface ProjectReadinessCompositionResult {
 /** Checked-out branch whose staged tree record supersedes its own at-ref candidate. */
 export interface ProjectReadinessProspectiveInput {
   currentBranch: string;
+  /** Exact retiring oracle identity suppressed after its staged replacement/removal is complete. */
+  superseded?: { slug: string; branch: string };
 }
 
 /** In-flight oracle inputs for project-readiness renders. */
@@ -337,17 +341,17 @@ async function readProjectMeta(
     return null;
   }
 
-  const state = validateState(record.State);
+  const state = validateState(record.state);
   if (state === "unknown") return null;
 
   return {
     slug: slugOf(path),
     location,
     state,
-    ...(record.Owner !== null && record.Owner !== "[none]" ? { owner: record.Owner } : {}),
-    priority: validatePriority(record.Priority),
-    dependsOn: parseIdentifierList(record["Depends On"]),
-    ...(record.Cohort !== null && record.Cohort !== "[none]" ? { cohort: record.Cohort } : {}),
+    ...(record.owner !== null ? { owner: record.owner } : {}),
+    priority: validatePriority(record.priority),
+    dependsOn: record.dependsOn,
+    ...(record.cohort !== null ? { cohort: record.cohort } : {}),
     source: sourceFor(location, path),
   };
 }
@@ -521,8 +525,16 @@ async function resolveOracleCandidates(
     ? result.entries
     : result.entries.filter((entry) =>
         entry.kind !== "work-unit"
-        || entry.branch !== prospective.currentBranch
-        || !prospective.stagedSlugs.has(entry.name));
+        || !(
+          (
+            entry.branch === prospective.currentBranch
+            && prospective.stagedSlugs.has(entry.name)
+          )
+          || (
+            entry.branch === prospective.superseded?.branch
+            && entry.name === prospective.superseded.slug
+          )
+        ));
   const candidates = entries
     .map(inFlightEntryToCandidate)
     .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
@@ -532,11 +544,18 @@ async function resolveOracleCandidates(
   for (const warning of result.warnings) {
     const warningSlug = warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch);
     if (
-      warning.code === "branch-residue"
-      && prospective !== undefined
-      && warning.branch === prospective.currentBranch
-      && warningSlug !== null
-      && prospective.stagedSlugs.has(warningSlug)
+      (
+        warning.code === "branch-residue"
+        && prospective !== undefined
+        && warning.branch === prospective.currentBranch
+        && warningSlug !== null
+        && prospective.stagedSlugs.has(warningSlug)
+      )
+      || (
+        prospective?.superseded !== undefined
+        && warning.branch === prospective.superseded.branch
+        && warningSlug === prospective.superseded.slug
+      )
     ) {
       continue;
     }
@@ -595,6 +614,7 @@ export async function resolveProjectReadinessComposition(
   );
   return {
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
+    treeRecords: mergeProjectReadinessRecords(treeRecords),
     derivationWarnings: localRefs.derivationWarnings,
     sourceWarnings: localRefs.sourceWarnings,
     indeterminate: localRefs.indeterminate,

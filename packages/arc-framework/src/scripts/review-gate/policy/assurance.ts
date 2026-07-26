@@ -99,7 +99,7 @@ function resolveRubricOverlay(
 }
 
 function resolveAssurance(
-  meta: Pick<MetaRecord, "Class" | "Review Rubric">,
+  meta: Pick<MetaRecord, "workClass" | "reviewRubric">,
   activityPort: ReviewMethodActivityPort,
   rubricPort: ReviewRubricBindingPort,
 ): {
@@ -107,8 +107,8 @@ function resolveAssurance(
   readonly augmentation?: StandardReviewProjectAugmentation;
   readonly diagnostics: readonly string[];
 } {
-  const workClass = WorkClassSchema.parse(meta.Class);
-  const rubric = resolveRubricOverlay(parseReviewRubric(meta["Review Rubric"]), rubricPort);
+  const workClass = WorkClassSchema.parse(meta.workClass);
+  const rubric = resolveRubricOverlay(parseReviewRubric(meta.reviewRubric), rubricPort);
   return {
     assurance: WorkUnitReviewAssuranceSchema.parse({
       activity: resolveReviewMethodActivity(activityPort).activity,
@@ -122,7 +122,7 @@ function resolveAssurance(
 
 /** Resolve WU review inputs without binding production method discovery. */
 export function resolveWorkUnitReviewAssurance(
-  meta: Pick<MetaRecord, "Class" | "Review Rubric">,
+  meta: Pick<MetaRecord, "workClass" | "reviewRubric">,
   activityPort: ReviewMethodActivityPort,
   rubricPort: ReviewRubricBindingPort,
 ): WorkUnitReviewAssurance {
@@ -131,7 +131,7 @@ export function resolveWorkUnitReviewAssurance(
 
 /** Compose work-unit assurance from the registered review method files. */
 export function composeWorkUnitReviewAssurance(
-  meta: Pick<MetaRecord, "Class" | "Review Rubric">,
+  meta: Pick<MetaRecord, "workClass" | "reviewRubric">,
   methodFiles: ReviewMethodFilePort,
   rubricPort: ReviewRubricBindingPort,
 ): ComposedWorkUnitReviewAssurance {

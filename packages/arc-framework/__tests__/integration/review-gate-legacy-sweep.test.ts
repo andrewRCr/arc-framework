@@ -3,13 +3,18 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { PRISTINE_FILENAME } from "../../src/lib/constants.js";
+
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 
 async function filesBelow(relativeRoot: string): Promise<string[]> {
   const root = resolve(repositoryRoot, relativeRoot);
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
   return entries
-    .filter((entry) => entry.isFile())
+    // The pristine store is an ignored per-install artifact holding whatever vocabulary
+    // was current when ARC was installed here, so sweeping it asserts on the machine
+    // rather than on the guidance this repository ships.
+    .filter((entry) => entry.isFile() && entry.name !== PRISTINE_FILENAME)
     .map((entry) => resolve(entry.parentPath, entry.name))
     .filter((path) => /\.(?:json|md|mjs|sh|toml|ts|yaml|yml)$/u.test(path));
 }

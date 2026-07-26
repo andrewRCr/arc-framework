@@ -5,19 +5,25 @@ import { z } from "zod";
 import type { ApprovedDispositionSet } from "../core/disposition-records.js";
 import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
 
 export type FrontlineFollowUpDecision =
-  | { action: "follow-up"; pass: 2; target: ReviewTarget }
+  | { action: "follow-up"; pass: ReviewPass; target: ReviewTarget }
   | { action: "stop"; reason: string };
 
-export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
-  z.strictObject({
+const FollowUpAfterFixAdviceSchema = z.strictObject({
     action: z.literal("follow-up-after-fix"),
-    pass: z.literal(2),
-    maxPasses: z.literal(2),
+    pass: ReviewPassSchema,
+    maxPasses: ReviewPassSchema,
     nextCommand: z.literal("frontline-resolve"),
-  }),
+  }).refine((advice) => advice.pass <= advice.maxPasses, {
+    message: "frontline follow-up pass cannot exceed maxPasses",
+    path: ["pass"],
+  });
+
+export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
+  FollowUpAfterFixAdviceSchema,
   z.strictObject({
     action: z.literal("stop"),
     reason: z.string().trim().min(1),
@@ -60,8 +66,8 @@ export function projectFrontlineFollowUpAdvice(input: {
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
   return {
     action: "follow-up-after-fix",
-    pass: 2,
-    maxPasses: 2,
+    pass: outcome.pass + 1,
+    maxPasses: outcome.maxPasses,
     nextCommand: "frontline-resolve",
   };
 }
@@ -85,5 +91,5 @@ export function resolveFrontlineFollowUp(input: {
   if (changedTarget.targetId === outcome.target.targetId) {
     return { action: "stop", reason: "target-unchanged" };
   }
-  return { action: "follow-up", pass: 2, target: changedTarget };
+  return { action: "follow-up", pass: advice.pass, target: changedTarget };
 }

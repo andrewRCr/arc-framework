@@ -124,6 +124,39 @@ branch, execute the exact in-place continuation emitted by `arc resume`. The art
 branch, and the physical primary remains the WU-owned occupied checkout. Spawn needs no continuation — its worktree
 re-attached in Step 3.
 
+### 5) Reconcile from the re-attached work-unit branch
+
+Enter the dependent's own checkout after the tracked-branch pointer removal has landed:
+
+- **Spawn** — change to the fresh worktree reported by `arc resume`.
+- **`--here`** — remain in the current checkout after the deferred `git checkout {branch}` above.
+
+Run the bounded current-WU reconcile from that checkout:
+
+```bash
+arc wu reconcile {name} --apply --json
+```
+
+- `clean` — continue without a write, stage, or commit.
+- `pending` — stop and surface every advisory reference. Inspect the referenced content; either edit it in this
+  dependent-owned review increment and rerun until `clean` / `applied`, or obtain explicit user direction to retain
+  the advisory as intentional before continuing. Never classify this schema-valid result as malformed.
+- `applied` — commit only the staged dependent-owned paths on the preserved WU branch:
+
+  > [!CAUTION]
+  > `commit-interlock` release — commit as `workflowCommit`.
+
+  ```text
+  chore(arc): reconcile {name} after resume
+
+  - Apply reachable retirement dispositions from the dependent's own branch
+
+  Context: meta-{name}.md (maintenance)
+  ```
+
+- `conflict` — stop the resume workflow on the re-attached branch and surface the typed reason. The base-side
+  pointer removal is already committed; do not rewrite or pretend to roll back that separate ceremony commit.
+
 ---
 
 ## Next step

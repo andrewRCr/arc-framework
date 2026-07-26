@@ -16,23 +16,26 @@ import { tmpdir } from "node:os";
 import {
   parseIdentifierList,
   parseMetaFile,
+  parseMetaProjectionRecord,
   parseMetaRecord,
   normalizeMetaCoreTable,
   parseReviewRubric,
   readActiveMetaCandidates,
   renderMetaFile,
+  renderMetaProjectionFile,
   setMetaBulletFields,
   setMetaBranch,
   setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
+  toMetaRecord,
   setMetaState,
   setMetaTitle,
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
-  type MetaFieldOverrides,
+  type MetaProjectionOverrides,
 } from "../../../src/lib/active/meta-reader.js";
 
 interface Fixture {
@@ -89,12 +92,173 @@ describe("parseIdentifierList — shared comma-list parse", () => {
   });
 });
 
+describe("parseMetaRecord — semantic adapter", () => {
+  it("maps projection sentinels and identifier lists to semantic fields", () => {
+    const record = parseMetaRecord(renderMetaProjectionFile("foo", {
+      State: "Active",
+      Owner: "andrew",
+      Branch: "[none]",
+      Class: "[TBD]",
+      Priority: "[TBD]",
+      Cohort: "[none]",
+      "Depends On": "kernel, layout",
+      Origin: "[internal]",
+      Design: "spec-a.md, spec-b.md",
+      "Next Action": "—",
+    }));
+
+    expect(record).toMatchObject({
+      state: "Active",
+      owner: "andrew",
+      branch: null,
+      workClass: "TBD",
+      priority: "TBD",
+      cohort: null,
+      dependsOn: ["kernel", "layout"],
+      origin: "internal",
+      design: ["spec-a.md", "spec-b.md"],
+      nextAction: null,
+    });
+  });
+
+  it("normalizes unresolved sentinels in tolerant nullable fields", () => {
+    const record = parseMetaRecord(renderMetaProjectionFile("foo", {
+      State: "Active",
+      Owner: "andrew",
+      Origin: "[TBD]",
+      Blockers: "[TBD]",
+      "Next Action": "[TBD]",
+    }));
+
+    expect(record).toMatchObject({
+      origin: "TBD",
+      blockers: "TBD",
+      nextAction: "TBD",
+    });
+  });
+
+  it("retains invalid closed tokens and legacy multiline narrative evidence", () => {
+    const record = parseMetaRecord([
+      "# Metadata: legacy",
+      "",
+      "- **State:** Unexpected-State",
+      "- **Owner:** andrew",
+      "- **Branch:** feat/legacy",
+      "- **Class:** Unclassified",
+      "- **Priority:** Urgent",
+      "- **Next Task:** Task 2.2.a — Preserve",
+      "  legacy multiline recovery",
+      "- **Next Action:** Continue `carefully`",
+      "  with the adapter cutover",
+      "",
+      "---",
+      "",
+    ].join("\n"));
+
+    expect(record.state).toBe("Unexpected-State");
+    expect(record.workClass).toBe("Unclassified");
+    expect(record.priority).toBe("Urgent");
+    expect(record.branch).toBe("feat/legacy");
+    expect(record.nextTask).toBe("Task 2.2.a — Preserve\nlegacy multiline recovery");
+    expect(record.nextAction).toBe("Continue `carefully`\nwith the adapter cutover");
+  });
+});
+
+describe("renderMetaFile — semantic record", () => {
+  it("renders semantic null, list, TBD, and internal values canonically", () => {
+    const markdown = renderMetaFile("foo", {
+      state: "Active",
+      owner: "andrew",
+      branch: null,
+      workClass: "TBD",
+      priority: "TBD",
+      cohort: null,
+      dependsOn: ["kernel", "layout"],
+      origin: "internal",
+      design: [],
+      nextAction: null,
+    });
+
+    expect(markdown).toMatch(/\| `Active`\s+\| `andrew`\s+\| \[none\]/);
+    expect(markdown).toContain("| [TBD]");
+    expect(markdown).toContain("- **Depends On:** `kernel`, `layout`");
+    expect(markdown).toContain("- **Origin:** [internal]");
+    expect(markdown).toContain("- **Design:** [none]");
+    expect(markdown).toContain("- **Next Action:** —");
+  });
+
+  it("rejects missing required semantic render values", () => {
+    expect(() => renderMetaFile("foo", {})).toThrow();
+  });
+
+  it("converts only fully valid parsed adapter records", () => {
+    const valid = parseMetaRecord(renderMetaFile("foo", {
+      state: "Active",
+      owner: "andrew",
+    }));
+    const invalid = { ...valid, state: "Unexpected-State" };
+
+    expect(toMetaRecord(valid)).toEqual(valid);
+    expect(toMetaRecord(invalid)).toBeNull();
+  });
+
+  it("round-trips every semantic field and preserves the established full-layout bytes", () => {
+    const overrides = {
+      state: "Integrating" as const,
+      owner: "andrew",
+      branch: "feat/foo",
+      workClass: "Novel" as const,
+      priority: "P1" as const,
+      cohort: "substrate",
+      dependsOn: ["kernel", "layout"],
+      origin: "https://example.com/issue/1",
+      design: ["spec-a.md", "spec-b.md"],
+      taskList: "tasks-foo.md",
+      reviewRubric: null,
+      currentWorkflow: "integrate-work-unit",
+      lastCompleted: "Task 7.1",
+      nextTask: "Task 7.2",
+      blockers: "none recorded",
+      nextAction: "Run the review gate",
+      prUrl: "https://example.com/pr/1",
+      completed: "2026-07-21",
+    };
+
+    const markdown = renderMetaFile("foo", overrides);
+    expect(parseMetaRecord(markdown)).toEqual(overrides);
+    expect(markdown).toBe(renderMetaProjectionFile("foo", {
+      State: "Integrating",
+      Owner: "andrew",
+      Branch: "feat/foo",
+      Class: "Novel",
+      Priority: "P1",
+      Cohort: "substrate",
+      "Depends On": "kernel, layout",
+      Origin: "https://example.com/issue/1",
+      Design: "spec-a.md, spec-b.md",
+      "Task List": "tasks-foo.md",
+      "Current Workflow": "integrate-work-unit",
+      "Last Completed": "Task 7.1",
+      "Next Task": "Task 7.2",
+      Blockers: "none recorded",
+      "Next Action": "Run the review gate",
+      "PR URL": "https://example.com/pr/1",
+      Completed: "2026-07-21",
+    }));
+  });
+
+  it("rejects invalid assembled durable records before rendering", () => {
+    expect(() => renderMetaFile("foo", { state: "Paused", owner: "andrew" } as never)).toThrow();
+    expect(() => renderMetaFile("foo", { state: "Active", owner: "[none]" } as never)).toThrow();
+  });
+});
+
 describe("validateMetaFieldBlockShape", () => {
   it("passes a rendered meta without changing content", () => {
-    const content = renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" });
+    const content = renderMetaProjectionFile("foo", { State: "Planning", Design: "draft-foo.md" });
 
     expect(validateMetaFieldBlockShape(content, ".arc/backlog/planned/foo/meta-foo.md")).toEqual([]);
-    expect(content).toBe(renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" }));
+    expect(content).toBe(renderMetaProjectionFile("foo", { State: "Planning", Design: "draft-foo.md" }));
   });
 
   it("flags a pre-field-block meta with no closing rule", () => {
@@ -120,7 +284,7 @@ describe("validateMetaFieldBlockShape", () => {
 
 describe("identifier-list fields — per-element backtick render", () => {
   it("renders a two-value Depends On as two discrete backticked tokens", () => {
-    const md = renderMetaFile("foo", { "Depends On": "alpha, beta" });
+    const md = renderMetaProjectionFile("foo", { "Depends On": "alpha, beta" });
     expect(md).toContain("- **Depends On:** `alpha`, `beta`");
     expect(md).not.toContain("`alpha, beta`"); // never the compound whole-value span
   });
@@ -135,7 +299,7 @@ describe("identifier-list fields — per-element backtick render", () => {
       "sixth-parallelism-foundation",
       "seventh-parallelism-foundation",
     ];
-    const md = renderMetaFile("foo", { "Depends On": dependencies.join(", ") });
+    const md = renderMetaProjectionFile("foo", { "Depends On": dependencies.join(", ") });
     const lines = md.split("\n");
     const start = lines.findIndex((line) => line.startsWith("- **Depends On:**"));
     const dependsOnLines: string[] = [];
@@ -146,26 +310,26 @@ describe("identifier-list fields — per-element backtick render", () => {
 
     expect(dependsOnLines.length).toBeGreaterThan(1);
     expect(dependsOnLines.every((line) => line.length <= 120)).toBe(true);
-    expect(parseMetaRecord(md)["Depends On"]).toBe(dependencies.join(", "));
+    expect(parseMetaProjectionRecord(md)["Depends On"]).toBe(dependencies.join(", "));
   });
 
   it("renders a two-value Design as two discrete backticked tokens", () => {
-    const md = renderMetaFile("foo", { Design: "spec-a.md, spec-b.md" });
+    const md = renderMetaProjectionFile("foo", { Design: "spec-a.md, spec-b.md" });
     expect(md).toContain("- **Design:** `spec-a.md`, `spec-b.md`");
   });
 
   it("renders a single-value list field identically to a scalar identifier", () => {
-    expect(renderMetaFile("foo", { "Depends On": "alpha" })).toContain("- **Depends On:** `alpha`");
-    expect(renderMetaFile("foo", { Design: "spec-a.md" })).toContain("- **Design:** `spec-a.md`");
+    expect(renderMetaProjectionFile("foo", { "Depends On": "alpha" })).toContain("- **Depends On:** `alpha`");
+    expect(renderMetaProjectionFile("foo", { Design: "spec-a.md" })).toContain("- **Design:** `spec-a.md`");
   });
 
   it("keeps the [none] sentinel bare (no backticks)", () => {
-    expect(renderMetaFile("foo", SPAWN_OVERRIDES)).toContain("- **Depends On:** [none]");
+    expect(renderMetaProjectionFile("foo", SPAWN_OVERRIDES)).toContain("- **Depends On:** [none]");
   });
 
   it("round-trips a two-value list through render and parse to the comma-joined value", () => {
-    const record = parseMetaRecord(
-      renderMetaFile("foo", { "Depends On": "alpha, beta", Design: "spec-a.md, spec-b.md" }),
+    const record = parseMetaProjectionRecord(
+      renderMetaProjectionFile("foo", { "Depends On": "alpha, beta", Design: "spec-a.md, spec-b.md" }),
     );
     expect(record["Depends On"]).toBe("alpha, beta");
     expect(record.Design).toBe("spec-a.md, spec-b.md");
@@ -516,7 +680,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
   });
 });
 
-const SPAWN_OVERRIDES: MetaFieldOverrides = {
+const SPAWN_OVERRIDES: MetaProjectionOverrides = {
   State: "Planning",
   Owner: "andrew",
   Branch: "plan/foo",
@@ -537,9 +701,9 @@ function tableCells(row: string): string[] {
     .map((cell) => cell.trim());
 }
 
-describe("renderMetaFile — core-block table", () => {
+describe("renderMetaProjectionFile — core-block table", () => {
   it("renders the core block as a markdown table with the five fields in order", () => {
-    const rows = coreTableRows(renderMetaFile("foo", SPAWN_OVERRIDES));
+    const rows = coreTableRows(renderMetaProjectionFile("foo", SPAWN_OVERRIDES));
     expect(rows).toHaveLength(3); // header, separator, value
     expect(tableCells(rows[0]!)).toEqual([
       "**State**",
@@ -553,22 +717,22 @@ describe("renderMetaFile — core-block table", () => {
   });
 
   it("pre-aligns the table so the pipes line up across all three rows", () => {
-    const rows = coreTableRows(renderMetaFile("foo", SPAWN_OVERRIDES));
+    const rows = coreTableRows(renderMetaProjectionFile("foo", SPAWN_OVERRIDES));
     expect(rows[1]!.length).toBe(rows[0]!.length);
     expect(rows[2]!.length).toBe(rows[0]!.length);
   });
 
   it("places the core fields in the table and never as bullets", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     for (const field of ["State", "Owner", "Branch", "Class", "Priority"]) {
       expect(md).not.toContain(`- **${field}:**`);
     }
   });
 });
 
-describe("renderMetaFile — value-format convention", () => {
+describe("renderMetaProjectionFile — value-format convention", () => {
   it("renders enum tokens Capitalized + backticked", () => {
-    const md = renderMetaFile("foo", { State: "active", Class: "heavy", Priority: "P1" });
+    const md = renderMetaProjectionFile("foo", { State: "active", Class: "heavy", Priority: "P1" });
     expect(md).toContain("`Active`");
     expect(md).toContain("`Heavy`");
     expect(md).toContain("`P1`");
@@ -576,7 +740,7 @@ describe("renderMetaFile — value-format convention", () => {
   });
 
   it("renders identifier values backticked as-is", () => {
-    const md = renderMetaFile("foo", {
+    const md = renderMetaProjectionFile("foo", {
       Owner: "andrew",
       Branch: "feat/x",
       Cohort: "core/sub",
@@ -589,7 +753,7 @@ describe("renderMetaFile — value-format convention", () => {
   });
 
   it("renders bracket sentinels bracketed and unbackticked", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES); // Class, Cohort, Origin all default to sentinels
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // Class, Cohort, Origin all default to sentinels
     expect(md).toContain("[TBD]");
     expect(md).not.toContain("`[TBD]`");
     expect(md).toContain("- **Origin:** [internal]");
@@ -597,7 +761,7 @@ describe("renderMetaFile — value-format convention", () => {
   });
 
   it("renders narrative fields as plain prose", () => {
-    const md = renderMetaFile("foo", {
+    const md = renderMetaProjectionFile("foo", {
       "Next Action": "Begin planning — draft the spec",
       "Next Task": "Task 1.2 — next up (line ~20)",
     });
@@ -606,9 +770,9 @@ describe("renderMetaFile — value-format convention", () => {
   });
 });
 
-describe("renderMetaFile — bullet groups", () => {
+describe("renderMetaProjectionFile — bullet groups", () => {
   it("renders the non-core fields as ordered, blank-line-separated bullet groups", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     // contiguous within a group...
     expect(md).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
     // ...blank line between groups, in order
@@ -621,9 +785,9 @@ describe("renderMetaFile — bullet groups", () => {
   });
 });
 
-describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Completed`)", () => {
+describe("renderMetaProjectionFile / parseMetaProjectionRecord — finalize fields (`PR URL` / `Completed`)", () => {
   it("emits the finalize group at its defaults, after Next Action and before the trailing rule", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     // A trailing bullet group of its own — blank-line separated from the directive group.
     expect(md).toContain(
       "- **Next Action:** Begin planning — draft the spec\n\n- **PR URL:** [none]\n- **Completed:** [none]",
@@ -635,7 +799,7 @@ describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Comp
   });
 
   it("formats a real PR URL as a clickable autolink and the date bare", () => {
-    const md = renderMetaFile("foo", {
+    const md = renderMetaProjectionFile("foo", {
       ...SPAWN_OVERRIDES,
       "PR URL": "https://github.com/x/y/pull/1",
       Completed: "2026-06-18",
@@ -646,8 +810,8 @@ describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Comp
   });
 
   it("round-trips both finalize fields through render and parse", () => {
-    const record = parseMetaRecord(
-      renderMetaFile("foo", {
+    const record = parseMetaProjectionRecord(
+      renderMetaProjectionFile("foo", {
         ...SPAWN_OVERRIDES,
         "PR URL": "https://github.com/x/y/pull/1",
         Completed: "2026-06-18",
@@ -658,7 +822,7 @@ describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Comp
   });
 
   it("recovers the defaults as the `[none]` sentinel", () => {
-    const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    const record = parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES));
     expect(record["PR URL"]).toBe("[none]");
     expect(record.Completed).toBe("[none]");
   });
@@ -666,18 +830,18 @@ describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Comp
 
 describe("`url` value class — clickable locators (`Origin` / `PR URL`)", () => {
   it("renders an http(s) URL as a clickable autolink, not a code span", () => {
-    const md = renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" });
+    const md = renderMetaProjectionFile("foo", { Origin: "https://tracker.example/issue/42" });
     expect(md).toContain("- **Origin:** <https://tracker.example/issue/42>");
     expect(md).not.toContain("`https://tracker.example/issue/42`");
   });
 
   it("falls back to a backticked identifier for a non-URL reference", () => {
-    const md = renderMetaFile("foo", { Origin: "tracker-123" });
+    const md = renderMetaProjectionFile("foo", { Origin: "tracker-123" });
     expect(md).toContain("- **Origin:** `tracker-123`");
   });
 
   it("renders the `[internal]` / `[none]` sentinels bare — no autolink, no backticks", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES); // Origin / PR URL at sentinel defaults
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // Origin / PR URL at sentinel defaults
     expect(md).toContain("- **Origin:** [internal]");
     expect(md).toContain("- **PR URL:** [none]");
     expect(md).not.toContain("<[internal]>");
@@ -685,16 +849,16 @@ describe("`url` value class — clickable locators (`Origin` / `PR URL`)", () =>
   });
 
   it("round-trips both the autolink and the backtick fallback through the parser", () => {
-    const urlRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" }));
+    const urlRecord = parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Origin: "https://tracker.example/issue/42" }));
     expect(urlRecord.Origin).toBe("https://tracker.example/issue/42"); // angle brackets stripped
-    const refRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "tracker-123" }));
+    const refRecord = parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Origin: "tracker-123" }));
     expect(refRecord.Origin).toBe("tracker-123"); // backticks stripped
   });
 });
 
 describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
   it("updates the finalize fields in place when the meta already carries the group", () => {
-    const before = renderMetaFile("foo", SPAWN_OVERRIDES); // already has PR URL / Completed at [none]
+    const before = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // already has PR URL / Completed at [none]
     const after = setMetaFinalizeFields(before, {
       prUrl: "https://github.com/x/y/pull/9",
       completed: "2026-06-18",
@@ -703,7 +867,7 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
     expect(after).toContain("- **Completed:** 2026-06-18");
     // No duplicate group — updated, not appended.
     expect(after.match(/- \*\*PR URL:\*\*/g)).toHaveLength(1);
-    const record = parseMetaRecord(after);
+    const record = parseMetaProjectionRecord(after);
     expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
     expect(record.Completed).toBe("2026-06-18");
   });
@@ -736,13 +900,13 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
     );
     // The archive-phase H2 below the rule is untouched.
     expect(after).toContain("## Completion Notes\n\nShipped.");
-    const record = parseMetaRecord(after);
+    const record = parseMetaProjectionRecord(after);
     expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
     expect(record.Completed).toBe("2026-06-18");
   });
 
   it("writes the `[none]` placeholder bare (the absent-PR-URL backfill path)", () => {
-    const after = setMetaFinalizeFields(renderMetaFile("foo", SPAWN_OVERRIDES), {
+    const after = setMetaFinalizeFields(renderMetaProjectionFile("foo", SPAWN_OVERRIDES), {
       prUrl: "[none]",
       completed: "2026-06-18",
     });
@@ -755,7 +919,7 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
     // A hand-edited meta where `Completed` was deleted but `PR URL` survived. The
     // in-place rewrite would throw on the missing bullet; the write reconciles the
     // absent bullet back in first, then updates both.
-    const full = renderMetaFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
+    const full = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
     const partial = full
       .split("\n")
       .filter((line) => !/^\s*- \*\*Completed:\*\*/.test(line))
@@ -767,7 +931,7 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
       completed: "2026-06-18",
     });
 
-    const record = parseMetaRecord(after);
+    const record = parseMetaProjectionRecord(after);
     expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
     expect(record.Completed).toBe("2026-06-18");
     // Exactly one of each bullet — reconciled, not duplicated.
@@ -829,7 +993,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
     expect(content).toContain("- **Current Workflow:** `draft-design`\n- **Last Completed:** [none]");
 
     // Round-trips: the backfilled pointer reads back bare.
-    expect(parseMetaRecord(content)["Current Workflow"]).toBe("draft-design");
+    expect(parseMetaProjectionRecord(content)["Current Workflow"]).toBe("draft-design");
   });
 
   it("preserves present fields and the core table byte-stable across the reconcile", () => {
@@ -842,7 +1006,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
   });
 
   it("is a no-op on a complete meta — input returned unchanged, nothing backfilled", () => {
-    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const complete = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     const { content, backfilled } = reconcileMetaFields(complete, { "Current Workflow": "draft-design" });
     expect(content).toBe(complete);
     expect(backfilled).toEqual([]);
@@ -850,7 +1014,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
 
   it("reports the backfilled count — one absent field backfills as one", () => {
     // Strip just the `Current Workflow` bullet from an otherwise-complete meta.
-    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const complete = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     const missingOne = complete
       .split("\n")
       .filter((line) => !/^- \*\*Current Workflow:\*\*/.test(line))
@@ -860,26 +1024,26 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
   });
 });
 
-describe("renderMetaFile — projection shape", () => {
+describe("renderMetaProjectionFile — projection shape", () => {
   it("opens with the `# Metadata: {wu-name}` H1", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     expect(md.startsWith("# Metadata: foo\n")).toBe(true);
   });
 
   it("closes the field block with a trailing `---` and a single newline", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     expect(md.endsWith("\n---\n")).toBe(true);
     expect(md.endsWith("\n\n")).toBe(false);
   });
 
   it("emits no instructional comments or archive sections in the Planning phase", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const md = renderMetaProjectionFile("foo", SPAWN_OVERRIDES);
     expect(md).not.toContain("<!--");
     expect(md).not.toContain("##");
   });
 });
 
-describe("parseMetaRecord — core-block table", () => {
+describe("parseMetaProjectionRecord — core-block table", () => {
   it("recovers core fields from the table, stripping backticks and preserving brackets", () => {
     const content = [
       "# Metadata: foo",
@@ -891,7 +1055,7 @@ describe("parseMetaRecord — core-block table", () => {
       "- **Cohort:** `core/sub`",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
     expect(record.Owner).toBe("andrew");
     expect(record.Branch).toBe("feat/bar");
@@ -909,7 +1073,7 @@ describe("parseMetaRecord — core-block table", () => {
       "| `Active`  | `andrew`  | `feat/bar` | `Heavy`   | `P1`         |",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
     expect(record.Owner).toBe("andrew");
     expect(record.Class).toBe("Heavy");
@@ -925,7 +1089,7 @@ describe("parseMetaRecord — core-block table", () => {
       "| `P2`     | `[TBD]` | `feat/bar` | `andrew` | `Active` |",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
     expect(record.Priority).toBe("P2");
     expect(record.Class).toBe("[TBD]"); // bracket sentinel preserved verbatim
@@ -943,7 +1107,7 @@ describe("parseMetaRecord — core-block table", () => {
       "- **Cohort:** core/sub",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
     expect(record.Branch).toBe("feat/bar");
     expect(record.Priority).toBe("P1");
@@ -951,7 +1115,7 @@ describe("parseMetaRecord — core-block table", () => {
   });
 });
 
-describe("parseMetaRecord — malformed table fails loud", () => {
+describe("parseMetaProjectionRecord — malformed table fails loud", () => {
   it("throws when the value row has a different column count than the header", () => {
     const content = [
       "# Metadata: foo",
@@ -961,12 +1125,12 @@ describe("parseMetaRecord — malformed table fails loud", () => {
       "| `Active` | `andrew` |",
       "",
     ].join("\n");
-    expect(() => parseMetaRecord(content)).toThrow(/column-count mismatch/);
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/column-count mismatch/);
   });
 
   it("throws when a separator row has no adjacent header and value row", () => {
     const content = ["# Metadata: foo", "", "| --- | --- | --- |", ""].join("\n");
-    expect(() => parseMetaRecord(content)).toThrow(/Malformed meta core-block table/);
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/Malformed meta core-block table/);
   });
 
   it("ignores table-shaped narrative content below managed fields", () => {
@@ -981,7 +1145,7 @@ describe("parseMetaRecord — malformed table fails loud", () => {
       "",
     ].join("\n");
 
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
 
     expect(record.State).toBe("Active");
     expect(record["Next Action"]).toContain("| Option | Result |");
@@ -1009,9 +1173,9 @@ describe("parseMetaFile — reads the core-block table (session-init path)", () 
   });
 });
 
-describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
+describe("renderMetaProjectionFile ↔ parseMetaProjectionRecord — round-trip", () => {
   it("recovers every rendered field value through the meta parser", () => {
-    const overrides: MetaFieldOverrides = {
+    const overrides: MetaProjectionOverrides = {
       State: "Planning",
       Owner: "andrew",
       Branch: "plan/foo",
@@ -1031,14 +1195,14 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       "PR URL": "https://github.com/x/y/pull/1",
       Completed: "2026-06-18",
     };
-    const record = parseMetaRecord(renderMetaFile("foo", overrides));
+    const record = parseMetaProjectionRecord(renderMetaProjectionFile("foo", overrides));
     for (const field of META_FIELDS) {
       expect(record[field.name]).toBe(overrides[field.name]);
     }
   });
 
   it("recovers the declared defaults for non-substituted fields", () => {
-    const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    const record = parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES));
     expect(record.Class).toBe("[TBD]");
     expect(record.Priority).toBe("P3");
     expect(record.Origin).toBe("[internal]");
@@ -1056,24 +1220,24 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
 describe("Class field — value-set semantics", () => {
   it("round-trips each resolved Class value through render and parse", () => {
     for (const value of ["Light", "Heavy", "Novel"] as const) {
-      const record = parseMetaRecord(renderMetaFile("foo", { Class: value }));
+      const record = parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Class: value }));
       expect(record.Class).toBe(value);
     }
   });
 
   it("normalizes lower-case Class input to the Capitalized token on render", () => {
     // render Capitalizes the enum and parse strips backticks, so lower-case Class values land Capitalized.
-    expect(parseMetaRecord(renderMetaFile("foo", { Class: "light" })).Class).toBe("Light");
-    expect(parseMetaRecord(renderMetaFile("foo", { Class: "heavy" })).Class).toBe("Heavy");
-    expect(parseMetaRecord(renderMetaFile("foo", { Class: "novel" })).Class).toBe("Novel");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Class: "light" })).Class).toBe("Light");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Class: "heavy" })).Class).toBe("Heavy");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Class: "novel" })).Class).toBe("Novel");
   });
 
   it("preserves the `[TBD]` pre-classification sentinel verbatim through render and parse", () => {
-    expect(parseMetaRecord(renderMetaFile("foo", { Class: "[TBD]" })).Class).toBe("[TBD]");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", { Class: "[TBD]" })).Class).toBe("[TBD]");
   });
 
   it("emits the `[TBD]` default when no Class override is supplied", () => {
-    expect(parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES)).Class).toBe("[TBD]");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES)).Class).toBe("[TBD]");
   });
 
   it("parses an absent Class to null when the core table omits the column", () => {
@@ -1085,7 +1249,7 @@ describe("Class field — value-set semantics", () => {
       "| `Active` | `andrew` | `feat/bar` | `P1`     |",
       "",
     ].join("\n");
-    expect(parseMetaRecord(content).Class).toBeNull();
+    expect(parseMetaProjectionRecord(content).Class).toBeNull();
   });
 
   it("parses an absent Class to null in a legacy flat-bullet meta", () => {
@@ -1096,19 +1260,23 @@ describe("Class field — value-set semantics", () => {
       "- **Owner:** andrew",
       "",
     ].join("\n");
-    expect(parseMetaRecord(content).Class).toBeNull();
+    expect(parseMetaProjectionRecord(content).Class).toBeNull();
   });
 });
 
 describe("Review Rubric field — optional safe identity", () => {
   it("renders semantic absence by default and resolves one safe identity", () => {
-    const absent = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES))["Review Rubric"];
+    const absent = parseMetaRecord(renderMetaFile("foo", {
+      state: "Planning",
+      owner: "andrew",
+    })).reviewRubric;
     const resolved = parseMetaRecord(renderMetaFile("foo", {
-      ...SPAWN_OVERRIDES,
-      "Review Rubric": "implementation-audit",
-    }))["Review Rubric"];
+      state: "Planning",
+      owner: "andrew",
+      reviewRubric: "implementation-audit",
+    })).reviewRubric;
 
-    expect(absent).toBe("[none]");
+    expect(absent).toBeNull();
     expect(parseReviewRubric(absent)).toBeNull();
     expect(parseReviewRubric(resolved)).toBe("implementation-audit");
   });
@@ -1125,8 +1293,9 @@ describe("Review Rubric field — optional safe identity", () => {
 
   it("survives managed planning and execution projections", () => {
     let content = renderMetaFile("foo", {
-      ...SPAWN_OVERRIDES,
-      "Review Rubric": "implementation-audit",
+      state: "Planning",
+      owner: "andrew",
+      reviewRubric: "implementation-audit",
     });
     const transitions = [
       (value: string): string => setMetaState(value, "Active"),
@@ -1140,7 +1309,7 @@ describe("Review Rubric field — optional safe identity", () => {
 
     for (const transition of transitions) {
       content = transition(content);
-      expect(parseReviewRubric(parseMetaRecord(content)["Review Rubric"]))
+      expect(parseReviewRubric(parseMetaRecord(content).reviewRubric))
         .toBe("implementation-audit");
     }
   });
@@ -1149,24 +1318,24 @@ describe("Review Rubric field — optional safe identity", () => {
 describe("Current Workflow field — planning-stage pointer", () => {
   it("round-trips each planning-stage value verbatim through render and parse", () => {
     for (const value of ["draft-design", "create-spec", "generate-tasks"] as const) {
-      const record = parseMetaRecord(renderMetaFile("foo", { "Current Workflow": value }));
+      const record = parseMetaProjectionRecord(renderMetaProjectionFile("foo", { "Current Workflow": value }));
       expect(record["Current Workflow"]).toBe(value);
     }
   });
 
   it("preserves the `[none]` out-of-planning sentinel verbatim through render and parse", () => {
     expect(
-      parseMetaRecord(renderMetaFile("foo", { "Current Workflow": "[none]" }))["Current Workflow"],
+      parseMetaProjectionRecord(renderMetaProjectionFile("foo", { "Current Workflow": "[none]" }))["Current Workflow"],
     ).toBe("[none]");
   });
 
   it("emits the `[none]` default when no Current Workflow override is supplied", () => {
-    expect(parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES))["Current Workflow"]).toBe("[none]");
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES))["Current Workflow"]).toBe("[none]");
   });
 
   it("parses an absent Current Workflow to null in a legacy flat-bullet meta", () => {
     const content = ["# Metadata: foo", "", "- **State:** Active", "- **Owner:** andrew", ""].join("\n");
-    expect(parseMetaRecord(content)["Current Workflow"]).toBeNull();
+    expect(parseMetaProjectionRecord(content)["Current Workflow"]).toBeNull();
   });
 
   it("updates Current Workflow in place via setMetaBulletFields, preserving narrative sections", () => {
@@ -1192,8 +1361,8 @@ describe("Current Workflow field — planning-stage pointer", () => {
     ].join("\n");
 
     const written = setMetaBulletFields(META, { "Current Workflow": "create-spec" });
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
 
     expect(after["Current Workflow"]).toBe("create-spec");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
@@ -1206,7 +1375,7 @@ describe("Current Workflow field — planning-stage pointer", () => {
   });
 });
 
-describe("parseMetaRecord — narrative fidelity", () => {
+describe("parseMetaProjectionRecord — narrative fidelity", () => {
   it("preserves narrative code spans verbatim while token fields strip", () => {
     const content = [
       "# Metadata: foo",
@@ -1216,7 +1385,7 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "- **Next Action:** Run `create-spec.md`, then `generate-tasks.md`",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.Branch).toBe("feat/x"); // identifier → bare
     expect(record.Design).toBe("spec-foo.md"); // identifier → bare
     expect(record["Next Action"]).toBe("Run `create-spec.md`, then `generate-tasks.md`"); // narrative → verbatim
@@ -1230,7 +1399,7 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "  then re-derive the worked example and confirm the boundary tests.",
       "",
     ].join("\n");
-    expect(parseMetaRecord(content)["Next Action"]).toBe(
+    expect(parseMetaProjectionRecord(content)["Next Action"]).toBe(
       "Author the spec via `create-spec` — a detailed PRD,\n" +
         "then re-derive the worked example and confirm the boundary tests.",
     );
@@ -1245,7 +1414,7 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "- **Next Task:** [none]",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record["Last Completed"]).toBe(
       "Stub created from a routed capture (2026-06-01) from a\nprior inbox sweep.",
     );
@@ -1262,7 +1431,7 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "- **Next Action:** proceed once unblocked",
       "",
     ].join("\n");
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     expect(record.Blockers).toBe(
       "waiting on review of the upstream change\nand a downstream rebase.",
     );
@@ -1278,15 +1447,15 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "---",
       "",
     ].join("\n");
-    expect(parseMetaRecord(content)["Next Action"]).toBe(
+    expect(parseMetaProjectionRecord(content)["Next Action"]).toBe(
       "finish the migration\nand regen the readiness view.",
     );
   });
 });
 
-describe("renderMetaFile — multi-line narrative", () => {
+describe("renderMetaProjectionFile — multi-line narrative", () => {
   it("indents continuation lines two spaces under the bullet", () => {
-    const md = renderMetaFile("foo", {
+    const md = renderMetaProjectionFile("foo", {
       "Next Action": "Author the spec via `create-spec`,\nthen re-derive the example.",
     });
     expect(md).toContain(
@@ -1296,7 +1465,7 @@ describe("renderMetaFile — multi-line narrative", () => {
 
   it("round-trips backticks and line breaks through render → parse", () => {
     const value = "Run `create-spec.md` — a detailed PRD,\nthen `generate-tasks.md` and verify.";
-    expect(parseMetaRecord(renderMetaFile("foo", { "Next Action": value }))["Next Action"]).toBe(
+    expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", { "Next Action": value }))["Next Action"]).toBe(
       value,
     );
   });
@@ -1323,8 +1492,8 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
   it("rewrites a single field's value, leaving every other field byte-stable on parse", () => {
     const written = setMetaBulletFields(META, { "Next Task": "[none]" });
 
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
     expect(after["Next Task"]).toBe("[none]");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
       if (field === "Next Task") continue;
@@ -1339,7 +1508,7 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
       "Next Action": "Begin Phase 4.",
     });
 
-    const after = parseMetaRecord(written);
+    const after = parseMetaProjectionRecord(written);
     expect(after["Last Completed"]).toBe("Phase 3 — the executor.");
     expect(after.Blockers).toBe("[none]");
     expect(after["Next Action"]).toBe("Begin Phase 4.");
@@ -1352,14 +1521,14 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     const written = setMetaBulletFields(META, { "Next Action": value });
 
     expect(written).toContain("- **Next Action:** First line of the note,\n  then a wrapped continuation.");
-    expect(parseMetaRecord(written)["Next Action"]).toBe(value);
+    expect(parseMetaProjectionRecord(written)["Next Action"]).toBe(value);
   });
 
   it("collapses a prior multi-line value down to a single line", () => {
     const multi = setMetaBulletFields(META, { "Next Action": "Line A,\nthen line B,\nthen line C." });
     const collapsed = setMetaBulletFields(multi, { "Next Action": "Just one line now." });
 
-    expect(parseMetaRecord(collapsed)["Next Action"]).toBe("Just one line now.");
+    expect(parseMetaProjectionRecord(collapsed)["Next Action"]).toBe("Just one line now.");
     // The old continuation lines are gone — the document below is intact.
     expect(collapsed).toContain("\n---\n");
     expect(collapsed).not.toContain("then line B");
@@ -1468,11 +1637,11 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
 
     expect(results["meta-widths.md"]).toEqual([]);
     expect(parseMetaRecord(after)).toMatchObject({
-      State: "活動",
-      Owner: "é",
-      Branch: "feat/👩‍💻",
-      Class: "✈️",
-      Priority: "1⃣",
+      state: "活動",
+      owner: "é",
+      branch: "feat/👩‍💻",
+      workClass: "✈️",
+      priority: "1⃣",
     });
   });
 });
@@ -1498,8 +1667,8 @@ describe("setMetaBranch — in-place core-table Branch rewrite", () => {
   it("rewrites the Branch cell, leaving every other core + bullet field byte-stable on parse", () => {
     const written = setMetaBranch(META, "plan/demo-wu");
 
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
     expect(after.Branch).toBe("plan/demo-wu");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
       if (field === "Branch") continue;
@@ -1514,7 +1683,7 @@ describe("setMetaBranch — in-place core-table Branch rewrite", () => {
 
   it("writes the `[none]` sentinel (branchless WU)", () => {
     const written = setMetaBranch(META, "[none]");
-    expect(parseMetaRecord(written).Branch).toBe("[none]");
+    expect(parseMetaProjectionRecord(written).Branch).toBe("[none]");
   });
 
   it("throws when the meta carries no core-block table", () => {
@@ -1540,8 +1709,8 @@ describe("setMetaClass — in-place core-table Class rewrite", () => {
   it("rewrites the Class cell, leaving every other core + bullet field byte-stable on parse", () => {
     const written = setMetaClass(META, "Heavy");
 
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
     expect(after.Class).toBe("Heavy");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
       if (field === "Class") continue;
@@ -1592,20 +1761,20 @@ describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", 
 
   it("writes Current Workflow to the given target stage, backticked per the identifier render", () => {
     const written = setMetaCurrentWorkflow(META, "create-spec");
-    expect(parseMetaRecord(written)["Current Workflow"]).toBe("create-spec");
+    expect(parseMetaProjectionRecord(written)["Current Workflow"]).toBe("create-spec");
     expect(written).toContain("- **Current Workflow:** `create-spec`");
   });
 
   it("writes the `[none]` sentinel bare when clearing", () => {
     const written = setMetaCurrentWorkflow(META, "[none]");
-    expect(parseMetaRecord(written)["Current Workflow"]).toBe("[none]");
+    expect(parseMetaProjectionRecord(written)["Current Workflow"]).toBe("[none]");
     expect(written).toContain("- **Current Workflow:** [none]");
   });
 
   it("leaves every other field and the prose below byte-stable", () => {
     const written = setMetaCurrentWorkflow(META, "generate-tasks");
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
     expect(after["Current Workflow"]).toBe("generate-tasks");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
       if (field === "Current Workflow") continue;
@@ -1642,26 +1811,26 @@ describe("setMetaDesign — in-place Design bullet rewrite", () => {
 
   it("writes a single design filename, backticked per the identifier-list render", () => {
     const written = setMetaDesign(META, "spec-demo-wu.md");
-    expect(parseMetaRecord(written)["Design"]).toBe("spec-demo-wu.md");
+    expect(parseMetaProjectionRecord(written)["Design"]).toBe("spec-demo-wu.md");
     expect(written).toContain("- **Design:** `spec-demo-wu.md`");
   });
 
   it("writes a layered list with each element individually backticked", () => {
     const written = setMetaDesign(META, "spec-demo-wu.md, spec-shared-foundation.md");
-    expect(parseMetaRecord(written)["Design"]).toBe("spec-demo-wu.md, spec-shared-foundation.md");
+    expect(parseMetaProjectionRecord(written)["Design"]).toBe("spec-demo-wu.md, spec-shared-foundation.md");
     expect(written).toContain("- **Design:** `spec-demo-wu.md`, `spec-shared-foundation.md`");
   });
 
   it("writes the `[none]` sentinel bare", () => {
     const written = setMetaDesign(META, "[none]");
-    expect(parseMetaRecord(written)["Design"]).toBe("[none]");
+    expect(parseMetaProjectionRecord(written)["Design"]).toBe("[none]");
     expect(written).toContain("- **Design:** [none]");
   });
 
   it("leaves every other field and the prose below byte-stable", () => {
     const written = setMetaDesign(META, "spec-demo-wu.md");
-    const after = parseMetaRecord(written);
-    const before = parseMetaRecord(META);
+    const after = parseMetaProjectionRecord(written);
+    const before = parseMetaProjectionRecord(META);
     expect(after["Design"]).toBe("spec-demo-wu.md");
     for (const field of Object.keys(before) as (keyof typeof before)[]) {
       if (field === "Design") continue;

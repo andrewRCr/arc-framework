@@ -1,6 +1,6 @@
 ---
 name: assess-cohort-fit
-description: Upper-bound WU-vs-cohort boundary test — decompose a concern into a cohort, or keep it one work unit
+description: Upper-bound WU boundary test — decompose a concern into multiple work units, or keep it one
 override-active: false
 ---
 
@@ -15,7 +15,7 @@ override-active: false
 >   signal `resolve-planning-depth`'s re-entry valve already routes upstream to these design stages.
 >
 > - **Contract:** Given a work unit whose design is maturing, return either **"stays one WU"** or a **cut-map** —
->   the members (with slugs), their internal dependency edges, and deliverable boundaries — by testing
+>   the placement, members (with slugs), internal dependency edges, and deliverable boundaries — by testing
 >   design/subsystem orthogonality (not raw size) against the two guard rails and the design-maturity gate.
 >   `decompose-work-unit` consumes the cut-map to execute the transform; this method _decides_, it never
 >   restructures. The full model and reasoning live in [strategy-work-organization][work-org] § Cohorts; this
@@ -83,10 +83,11 @@ method consumes ([strategy-work-organization][work-org] § WU sizing standard) �
 The mental model is **cohort ≈ epic, WU ≈ story** — this method fills the codified
 concern → WU-count mapping.
 
-### When it fires affirmative — a cohort of self-contained WUs
+### When it fires affirmative — self-contained WUs
 
-When a concern exceeds one WU it becomes a **cohort of self-contained, single-owner WUs** — each its own
-`meta-* + spec-* + tasks-*` and one branch — not one large WU sliced into smaller pieces.
+When a concern exceeds one WU it becomes multiple self-contained, single-owner WUs — each its own
+`meta-* + spec-* + tasks-*` and one branch — not one large WU sliced into smaller pieces. The placement decision
+determines whether those WUs share a cohort node or remain flat siblings.
 
 **Plan-grouping ≠ delivery-grouping.** One concern **plans** as a single coherent draft but **delivers** as a
 stack of WUs along natural deliverable/phase boundaries. At decomposition the one draft becomes **N
@@ -104,9 +105,15 @@ aren't self-describing); inter-member order, when it exists, lives in `Depends O
 
 The method produces either **"stays one WU"** or the **cut-map**:
 
+- **`parentPosition`** — `standalone`, `in-cohort`, `at-cap`, or `cohortless`;
+- **`cohort`** — required for `standalone` / `in-cohort`, omitted for `at-cap` / `cohortless`;
 - **members** — each with its legible slug;
 - **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
 - **deliverable boundaries** — what each member independently ships.
+
+`cohortless` means flat planned siblings whose relationships live only in their dependency graph. Select it only
+when every conserved source has a destination-owned home. Ownerless shared coordination requires a cohort-backed
+placement and a `cohort-coordination` destination.
 
 **Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
 cover the non-symmetric transform shapes — a data-shape the cut-map carries, while _when_ to use them stays this

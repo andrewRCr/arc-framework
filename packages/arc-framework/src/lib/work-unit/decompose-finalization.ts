@@ -4,14 +4,20 @@ import { canonicalDigest, canonicalize, type CanonicalDigest } from "../canonica
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { patchDigest, type ArtifactSetEntry, type PatchOperation } from "../canonical/content-digest.js";
 import { scanDecomposeContent, resolveDecomposeContentLocator } from "./decompose-content.js";
-import { newMemberDependencies } from "./decompose-cut-map.js";
+import { newMemberDependencies, type DecomposeAllocationMap } from "./decompose-cut-map.js";
 import { parseDecomposePreparationRecord } from "./decompose-preparation.js";
 import { decomposeInventoryDigests, type DecomposeInventories } from "./decompose-inventory.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
+import {
+  deriveDecomposeSuccessorCandidates,
+  projectPendingRetirementLifecycle,
+  type RetirementLifecycleResult,
+} from "./retirement-lifecycle-result.js";
 import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
 import type {
   DecomposePreparationLocator,
   DecomposePreparationRecord,
+  InventoryRead,
   RetirementReceipt,
   TeardownAuthorizationRefusal,
 } from "./retirement-authority.js";
@@ -27,6 +33,8 @@ export interface DecomposeFinalizationProjection {
   stagedPaths: readonly string[];
   transitionPatch: readonly PatchOperation[];
   targets: readonly DecomposeFinalTarget[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
+  transformedIncomingDependents: readonly string[];
 }
 
 export interface DecomposeFinalizationContext {
@@ -47,7 +55,12 @@ export interface DecomposeFinalizationContext {
 }
 
 export type DecomposeFinalizationResult =
-  | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
+  | {
+      status: "recorded";
+      receipt: RetirementReceipt;
+      authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
+    }
   | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string };
 
 function equal(left: unknown, right: unknown): boolean {
@@ -60,6 +73,16 @@ function sorted(values: readonly string[]): string[] {
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
   return equal(sorted(left), sorted(right));
+}
+
+function inventoryQualityDoesNotRegress(
+  record: DecomposePreparationRecord,
+  current: Exclude<InventoryRead, "not-applicable">,
+): boolean {
+  if (record.schemaVersion === 1) return true;
+  if (record.inventoryRead === "reachable") return current === "reachable";
+  if (record.inventoryRead === "degraded") return current === "degraded" || current === "reachable";
+  return current === "tree-only" || current === "reachable";
 }
 
 async function sourceTargetsResolve(
@@ -81,9 +104,13 @@ async function sourceTargetsResolve(
 async function dependencyResultsMatch(
   ctx: DecomposeFinalizationContext,
   record: DecomposePreparationRecord,
+  transformedIncomingDependents: ReadonlySet<string>,
 ): Promise<boolean> {
-  const incoming = new Map(record.allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]));
+  const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
+    record.allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
+  );
   for (const inventory of record.incomingEdgeInventory) {
+    if (!transformedIncomingDependents.has(inventory.dependent)) continue;
     const disposition = incoming.get(inventory.dependent);
     if (disposition === undefined) return false;
     const replacements = disposition.kind === "replace" ? disposition.replacementTargets : [];
@@ -130,37 +157,49 @@ export async function finalizeDecomposeRetirement(
     if (stored === null) return { status: "refused", reason: "evidence-missing" };
     const record = parseDecomposePreparationRecord(stored, locator.receiptId);
     if (record === null || !equal(record.locator, locator)) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "prepared locator changed" };
     }
     const projection = await ctx.readProjection(record);
+    if (!inventoryQualityDoesNotRegress(record, projection.inventoryRead)) {
+      return { status: "refused", reason: "authority-conflict" };
+    }
     const digests = decomposeInventoryDigests(projection.inventories);
+    const transformedIncomingDependents = sorted(projection.transformedIncomingDependents);
+    const incomingDependents = new Set(record.incomingEdgeInventory.map((edge) => edge.dependent));
     if (
       projection.sourceArtifactDigest !== record.sourceArtifactDigest
       || digests.sourceInventoryDigest !== record.sourceInventoryDigest
       || digests.incomingEdgeInventoryDigest !== record.incomingEdgeInventoryDigest
       || digests.outgoingEdgeInventoryDigest !== record.outgoingEdgeInventoryDigest
       || canonicalDigest(record.allocation) !== record.cutMapDigest
+      || !equal(projection.transformedIncomingDependents, transformedIncomingDependents)
+      || new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
+      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))
+      || (record.schemaVersion === 2
+        && !equal(transformedIncomingDependents, record.transformedIncomingDependents))
     ) return { status: "refused", reason: "authority-conflict" };
-    if (!await sourceTargetsResolve(ctx, record) || !await dependencyResultsMatch(ctx, record)) {
+    if (!await sourceTargetsResolve(ctx, record)
+      || !await dependencyResultsMatch(ctx, record, new Set(transformedIncomingDependents))) {
       return { status: "refused", reason: "conservation-unproven" };
     }
 
     const recordPath = resolveRetirementRecordRelativePath(locator.receiptId);
     if (!projection.stagedPaths.includes(recordPath)) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "prepared record is not staged" };
     }
     const nonRecordStaged = projection.stagedPaths.filter((path) => path !== recordPath);
     if (nonRecordStaged.some((path) => !record.allowedPaths.includes(path))) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "a staged path is outside preparation" };
     }
     const patchPaths = projection.transitionPatch.map((operation) => operation.path);
-    if (!sameSet(nonRecordStaged, patchPaths)) return { status: "refused", reason: "evidence-mismatch" };
+    if (!sameSet(nonRecordStaged, patchPaths)) {
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "staged patch paths do not match" };
+    }
 
     const targets = projection.targets
       .map((target) => ({ path: target.path, artifactDigest: artifactGroupDigest(target.entries) }))
       .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
-    const receipt: RetirementReceipt = {
-      schemaVersion: 1,
+    const receiptBase = {
       receiptId: locator.receiptId,
       subject: locator.scope.subject,
       transition: "decompose",
@@ -182,12 +221,35 @@ export async function finalizeDecomposeRetirement(
         outgoingEdgeInventoryDigest: record.outgoingEdgeInventoryDigest,
         targets,
       },
-    };
+    } as const;
+    const receipt: RetirementReceipt = record.schemaVersion === 1
+      ? { ...receiptBase, schemaVersion: 1 }
+      : {
+          ...receiptBase,
+          schemaVersion: 2,
+          inventoryRead: record.inventoryRead,
+          result: {
+            ...receiptBase.result,
+            sourceInventory: record.sourceInventory,
+            incomingEdgeInventory: record.incomingEdgeInventory,
+            outgoingEdgeInventory: record.outgoingEdgeInventory,
+            transformedIncomingDependents,
+          },
+        };
     await ctx.replaceAndStageRecord(locator.receiptId, stored, canonicalize(receipt), projection.stagedPaths);
+    const authorityVersion = canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt });
     return {
       status: "recorded",
       receipt,
-      authorityVersion: canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt }),
+      authorityVersion,
+      lifecycle: projectPendingRetirementLifecycle({
+        slug: record.allocation.origin.slug,
+        branch: record.allocation.origin.location === "active" ? receipt.source.branch : null,
+        transition: "decompose",
+        receiptId: receipt.receiptId,
+        authorityVersion,
+        successorCandidates: deriveDecomposeSuccessorCandidates(record.allocation),
+      }),
     };
   } catch (error) {
     return {

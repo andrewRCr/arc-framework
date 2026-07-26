@@ -236,6 +236,7 @@ export type ReconcileWorkUnitWorktreeResult =
 /** Result of deriving a worktree move from live branch registration. */
 export type RenameWorktreeMoveResolution =
   | { status: "move"; from: string; to: string }
+  | { status: "deferred-self-move"; from: string; to: string }
   | { status: "already-moved"; worktreePath: string; sourceWorktreePath: string }
   | { status: "unmatched"; worktreePath: string }
   | { status: "in-place" };
@@ -251,7 +252,7 @@ export type RenameWorktreeMoveResolution =
  */
 export async function resolveRenameWorktreeMove(
   exec: GitExec,
-  params: { branch: string; oldSlug: string; newSlug: string },
+  params: { branch: string; oldSlug: string; newSlug: string; currentLocus: string },
 ): Promise<RenameWorktreeMoveResolution> {
   const registry = await resolveWorktreePathsByBranchResult(exec);
   if (!registry.ok) throw new Error("could not read the registered worktree paths");
@@ -280,11 +281,10 @@ export async function resolveRenameWorktreeMove(
   }
   if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
   const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;
-  return {
-    status: "move",
-    from,
-    to: join(dirname(from), renamedLeaf),
-  };
+  const to = join(dirname(from), renamedLeaf);
+  return await localPathContains(from, params.currentLocus)
+    ? { status: "deferred-self-move", from, to }
+    : { status: "move", from, to };
 }
 
 /**

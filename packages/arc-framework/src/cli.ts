@@ -100,7 +100,9 @@ import {
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserReconcileReferences,
   type UserInboxRemoveOptions,
+  type UserReconcileReferencesOptions,
   type UserPushOptions,
   type UserFetchOptions,
   type UserCompactHandlerOptions,
@@ -109,7 +111,11 @@ import {
   type UserPullOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
-import { handleConfigStatus, type ConfigStatusCliOptions } from "./handlers/config.js";
+import {
+  handleConfigStatus,
+  handleConfigValidate,
+  type ConfigStatusCliOptions,
+} from "./handlers/config.js";
 import {
   handleActiveStatus,
   handleActiveRoster,
@@ -134,15 +140,24 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewReadiness,
+  handleReviewResolve,
+  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
+  handleReviewHostedAwait,
+  handleReviewHostedRequest,
+  handleReviewHostedSettle,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewPlanningLane,
   handleReviewReduce,
   handleReviewRespond,
+  type ReviewPlanningLaneOptions,
 } from "./handlers/review.js";
+import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -251,6 +266,20 @@ program
   ));
 
 // --- Work units ---
+
+const wu = program
+  .command("wu")
+  .description("Current work-unit operations");
+
+wu
+  .command("reconcile [slug]")
+  .description("Plan or apply version-checked repairs owned by the current work unit")
+  .option("--apply", "Apply and stage the exact reported path set")
+  .option("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string | undefined, opts: WuReconcileOptions) => handleWuReconcile(slug, opts, context),
+  ));
 
 program
   .command("start [name]")
@@ -388,6 +417,7 @@ program
   .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
   .action(withInteractionContext(
     {},
     (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
@@ -423,12 +453,12 @@ program
 
 program
   .command("teardown [name]")
-  .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
+    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
     {},
@@ -789,6 +819,16 @@ userCmd
   ));
 
 userCmd
+  .command("reconcile-references")
+  .description("Inspect or apply protection-aware managed user-reference repairs")
+  .option("--apply", "Apply exact managed USER-INBOX repairs under the notes lock")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts, context),
+  ));
+
+userCmd
   .command("sync")
   .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
@@ -829,6 +869,12 @@ configCmd
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
     (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
   ));
+
+configCmd
+  .command("validate")
+  .description("Validate arc-config.yml settings")
+  .option("--file <path>", "Validate an explicitly selected configuration file")
+  .action(handleConfigValidate);
 
 // --- Active ---
 
@@ -1164,6 +1210,34 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
+reviewCmd
+  .command("readiness")
+  .description("Validate exact-head lifecycle readiness as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReadiness(input));
+
+reviewCmd
+  .command("planning-lane <base> <head>")
+  .description("Classify an exact Git change for planning clearance")
+  .option("--repository <path>", "Repository containing both exact commits")
+  .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
+    handleReviewPlanningLane(base, head, opts));
+
+reviewCmd
+  .command("unlock")
+  .description("Preflight and dispatch exact-head ARC clearance as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewUnlock(input));
+
+reviewCmd
+  .command("resolve")
+  .description("Resolve the next configured review-policy action as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewResolve(input));
+
 const frontlineCmd = reviewCmd
   .command("frontline")
   .description("Frontline pre-publication review operations");
@@ -1184,6 +1258,31 @@ frontlineCmd
     { machineReadable: true },
     (context, input: string) => handleReviewFrontlineRun(input, {}, context),
   ));
+
+const hostedCmd = reviewCmd
+  .command("hosted")
+  .description("Hosted pull-request review operations");
+
+hostedCmd
+  .command("request")
+  .description("Request one hosted pull-request review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedRequest(input));
+
+hostedCmd
+  .command("await")
+  .description("Await one requested hosted pull-request review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedAwait(input));
+
+hostedCmd
+  .command("settle")
+  .description("Reply to and resolve one hosted review finding as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedSettle(input));
 
 reviewCmd
   .command("chunking")

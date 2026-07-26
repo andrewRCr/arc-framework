@@ -339,6 +339,8 @@ describe("deep advisory routing views", () => {
           decision: { action: "outside", reason: "missing-stamp" },
         },
       ],
+      renameMoves: [],
+      retirements: [],
       warnings: [],
       retained: true,
     };
@@ -448,6 +450,8 @@ describe("deep advisory routing views", () => {
             evidence: { deep: { retained: true } },
           },
         ],
+        renameMoves: [],
+        retirements: [],
         evidence: { deep: { retained: true } },
       },
     ],

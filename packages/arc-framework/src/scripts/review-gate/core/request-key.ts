@@ -2,7 +2,7 @@
 
 import { hashContent } from "../../../lib/manifest/hash.js";
 import type { ReviewReceipt, ReviewRequest } from "./execution.js";
-import { canonicalizePlainJson } from "./identity.js";
+import { canonicalizeReviewGateV1 } from "./legacy-canonical-v1.js";
 
 /** Receipt fields supplied before derived identities are added. */
 export type ReceiptCreationInput = Omit<
@@ -39,7 +39,7 @@ export function computeRequestKey(request: ReviewRequest): string {
 }
 
 function computeIdempotencyKey(input: ReceiptCreationInput): string {
-  return hashContent(canonicalizePlainJson({
+  return hashContent(canonicalizeReviewGateV1({
     requestKey: computeRequestKey(input.request),
     action: input.action,
     ...(["required", "waived"].includes(input.action) ? { eventId: input.eventId } : {}),
@@ -53,7 +53,7 @@ function computeIdempotencyKey(input: ReceiptCreationInput): string {
 }
 
 function computeReceiptHash(receipt: Omit<ReviewReceipt, "receiptHash">): string {
-  return hashContent(canonicalizePlainJson(receipt));
+  return hashContent(canonicalizeReviewGateV1(receipt));
 }
 
 /** Create a receipt with replay-stable idempotency and predecessor-bound hash. */

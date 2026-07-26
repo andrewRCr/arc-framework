@@ -4,7 +4,10 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
-import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
+import {
+  RETIREMENT_RECORD_NAMESPACE,
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
   parseStagedPathChanges,
   validateDecomposeCommitGate,
@@ -386,7 +389,7 @@ describe("validateDecomposeCommitGate", () => {
     const abandon = abandonReceipt("origin");
     const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
     const spoofedPath = canonicalPath.replace(
-      ".arc/.internal/retirement-receipts/",
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
       "xarc/yinternal/retirement-receipts/",
     );
     expect(validateDecomposeCommitGate({
@@ -425,6 +428,47 @@ describe("validateDecomposeCommitGate", () => {
       ),
     ).toContainEqual(expect.stringMatching(/amended|already exists/i));
     expect(validate([{ status: "A", path: recordPath }])).toContainEqual(expect.stringMatching(/patch.*mismatch/i));
+  });
+
+  it.each(["A", "M", "D"] as const)("rejects %s changes beneath root-level .arc/.internal", (status) => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    expect(validateDecomposeCommitGate({
+      changes: [{ status, path }],
+      readIndexBytes: () => status === "D" ? null : bytes("record"),
+      readHeadBytes: () => status === "A" ? null : bytes("record"),
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
+  });
+
+  it("admits a legacy receipt deletion whose exact bytes land in the canonical namespace", () => {
+    const legacy = ".arc/.internal/retirement-receipts/sha256-legacy.json";
+    const canonical = ".arc/system/.internal/retirement-receipts/sha256-legacy.json";
+    const preserved = bytes("legacy receipt");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacy }, { status: "A", path: canonical }],
+      readIndexBytes: (path) => path === canonical ? preserved : null,
+      readHeadBytes: (path) => path === legacy ? preserved : null,
+    })).toEqual([]);
+  });
+
+  it("still rejects a legacy receipt deletion that preserves nothing canonically", () => {
+    const legacy = ".arc/.internal/retirement-receipts/sha256-legacy.json";
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacy }],
+      readIndexBytes: () => null,
+      readHeadBytes: (path) => path === legacy ? bytes("legacy receipt") : null,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacy}`]);
+  });
+
+  it("rejects root-level .arc/.internal inherited unchanged from a merge parent", () => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    const inherited = bytes("legacy record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path }],
+      mergeInProgress: true,
+      readIndexBytes: () => inherited,
+      readHeadBytes: () => null,
+      readParentBytes: () => [null, inherited],
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
   });
 });
 

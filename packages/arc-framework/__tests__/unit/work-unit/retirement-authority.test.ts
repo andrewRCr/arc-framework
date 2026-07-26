@@ -25,7 +25,9 @@ const refusalDescriptions = {
   "authority-conflict": "retirement authority changed during the operation",
 } as const satisfies Record<TeardownAuthorizationRefusal, string>;
 
-function receipt(overrides: Partial<RetirementReceipt> = {}): RetirementReceipt {
+function receipt(
+  overrides: Partial<Omit<Extract<RetirementReceipt, { schemaVersion: 1 }>, "schemaVersion">> = {},
+): RetirementReceipt {
   return {
     schemaVersion: 1,
     receiptId: digest("receipt"),

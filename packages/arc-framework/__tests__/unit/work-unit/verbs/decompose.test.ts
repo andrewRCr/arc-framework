@@ -13,7 +13,8 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaProjectionOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -23,12 +24,18 @@ import {
   type ScaffoldCohortMembersParams,
 } from "../../../../src/lib/work-unit/verbs/decompose.js";
 import type { DecomposeParams, NewMemberEntry } from "../../../../src/lib/work-unit/decompose-cut-map.js";
+import type { DecomposeMemberPlacement } from "../../../../src/lib/work-unit/decompose-placement.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
 import type { PreparedDecomposeRetirement } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type {
+  DirEntry,
+  LifecycleIndexEntry,
+  LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 
 const CWD = "/repo";
@@ -70,10 +77,18 @@ function member(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntr
 }
 
 const ORIGIN_CONTEXT: ScaffoldCohortMembersParams["originContext"] = {
-  origin: "[internal]",
+  origin: "internal",
   owner: "andrew",
   priority: "P1",
 };
+
+function plannedPlacement(cohort: string | null): DecomposeMemberPlacement {
+  return {
+    kind: "backlog",
+    commitment: "planned",
+    cohort: cohort === null ? [] : cohort.split("/").map((segment) => SlugSchema.parse(segment)),
+  };
+}
 
 /** Pull the captured write for a member's meta / draft by repo-relative tail. */
 function writeFor(writes: Harness["writes"], tail: string): { path: string; content: string } {
@@ -87,7 +102,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes, mkdirs } = buildHarness();
 
     const result = await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta"), member("gamma")],
       internalEdges: [],
@@ -111,7 +126,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: { origin: "https://example.test/issue/7", owner: "andrew", priority: "P1" },
       members: [member("alpha", { workClass: "Heavy" }), member("beta", { workClass: "Light" })],
       internalEdges: [],
@@ -135,7 +150,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta")],
       internalEdges: [],
@@ -149,7 +164,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta"), member("gamma")],
       outgoingEdges: [
@@ -172,7 +187,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta")],
       outgoingEdges: [
@@ -200,7 +215,7 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
       const { ctx, writes, mkdirs } = buildHarness();
 
       const result = await scaffoldCohortMembers(ctx, {
-        cohort,
+        placement: plannedPlacement(cohort),
         originContext: ORIGIN_CONTEXT,
         members: [member("alpha"), member("beta")],
         internalEdges: [],
@@ -214,11 +229,45 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
     });
   }
 
+  it("places cohortless members flat with no cohort projection", async () => {
+    const { ctx, writes, mkdirs } = buildHarness();
+
+    const result = await scaffoldCohortMembers(ctx, {
+      placement: plannedPlacement(null),
+      originContext: ORIGIN_CONTEXT,
+      members: [member("roadmap-renderer"), member("roadmap-status")],
+      internalEdges: [{ from: "roadmap-status", to: "roadmap-renderer" }],
+    });
+
+    expect(mkdirs).toContain("/repo/.arc/backlog/planned/roadmap-renderer");
+    expect(mkdirs).toContain("/repo/.arc/backlog/planned/roadmap-status");
+    expect(result[0]).toEqual({
+      slug: "roadmap-renderer",
+      metaPath: ".arc/backlog/planned/roadmap-renderer/meta-roadmap-renderer.md",
+      draftPath: ".arc/backlog/planned/roadmap-renderer/draft-roadmap-renderer.md",
+    });
+    const rendererMeta = writeFor(writes, "/roadmap-renderer/meta-roadmap-renderer.md").content;
+    const statusMeta = writeFor(writes, "/roadmap-status/meta-roadmap-status.md").content;
+    expect(rendererMeta).toContain("**Cohort:** [none]");
+    expect(statusMeta).toContain("**Depends On:** `roadmap-renderer`");
+    expect(writeFor(writes, "/roadmap-renderer/draft-roadmap-renderer.md").content).not.toContain("**Cohort:**");
+    expect(writes.some((write) => write.path.includes("/cohort-"))).toBe(false);
+  });
+
   it("rejects unvalidated member and cohort operands before writing", async () => {
     for (const params of [
-      { cohort: "Not-A-Slug", members: [member("alpha")] },
-      { cohort: "neo", members: [member("../alpha")] },
-      { cohort: "neo", members: [member("alpha"), member("../beta")] },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["Not-A-Slug"] },
+        members: [member("alpha")],
+      },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["neo"] },
+        members: [member("../alpha")],
+      },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["neo"] },
+        members: [member("alpha"), member("../beta")],
+      },
     ]) {
       const { ctx, writes, mkdirs } = buildHarness();
 
@@ -226,7 +275,7 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
         ...params,
         originContext: ORIGIN_CONTEXT,
         internalEdges: [],
-      })).rejects.toThrow();
+      } as unknown as ScaffoldCohortMembersParams)).rejects.toThrow();
       expect(writes).toEqual([]);
       expect(mkdirs).toEqual([]);
     }
@@ -251,9 +300,9 @@ interface MetaSpec {
   origin?: string;
 }
 
-/** Render a fixture meta via the production projection, so `parseMetaRecord` round-trips it. */
+/** Render a fixture meta via the production projection, so `parseMetaProjectionRecord` round-trips it. */
 function metaContent(spec: MetaSpec): string {
-  const o: MetaFieldOverrides = {
+  const o: MetaProjectionOverrides = {
     State: spec.state,
     Owner: "andrew",
     Branch: spec.branch ?? "[none]",
@@ -263,7 +312,7 @@ function metaContent(spec: MetaSpec): string {
   if (spec.cohort !== undefined) o.Cohort = spec.cohort;
   if (spec.dependsOn !== undefined && spec.dependsOn.length > 0) o["Depends On"] = spec.dependsOn.join(", ");
   if (spec.origin !== undefined) o.Origin = spec.origin;
-  return renderMetaFile(spec.slug, o);
+  return renderMetaProjectionFile(spec.slug, o);
 }
 
 /** Build an injectable lifecycle-index fs over a fixed set of metas (mirrors the abandon harness). */
@@ -467,7 +516,7 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
     expect(h.removed).toContain(`${CWD}/.arc/active/meta-mono.md`);
-    // Teardown is out-of-band (post-merge `arc teardown --force`): the verb fires no
+    // Teardown is deferred (post-landing `arc teardown`): the verb fires no
     // in-verb branch / worktree legs and instead returns the locators for the workflow.
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
@@ -537,6 +586,21 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
     expect(result.result.teardown).toBeNull();
+    expect(result.result.lifecycle).toEqual({
+      subject: { slug: "mono", branch: "feat/mono" },
+      transition: "decompose",
+      authority: { kind: "not-applicable", reason: "extraction" },
+      cleanup: {
+        branch: { status: "not-applicable" },
+        worktree: { status: "not-applicable" },
+        userWorkspace: { status: "not-applicable" },
+      },
+      successorReadiness: {
+        candidates: ["alpha"],
+        actionable: false,
+        remedy: null,
+      },
+    });
   });
 });
 
@@ -564,6 +628,153 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(rewrite!.content).toContain("`other`");
     expect(rewrite!.content).not.toMatch(/\*\*Depends On:\*\*[^\n]*`mono`/);
     expect(h.staged).toContain(".arc/active/meta-dependent.md");
+  });
+
+  it("rewrites only the shared-visible member of a mixed dependent inventory", async () => {
+    const h = buildRunHarness(
+      [
+        { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+        { slug: "shared", tier: "active", subdir: "", state: "Active", dependsOn: ["mono"] },
+        { slug: "private", tier: "active", subdir: "", state: "Active", dependsOn: ["mono"] },
+      ],
+      { [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"] },
+    );
+    const selected = (slug: string, dependsOn: string[]) => ({
+      slug,
+      location: "active" as const,
+      state: slug === "mono" ? "Planning" as const : "Active" as const,
+      priority: "P1" as const,
+      dependsOn,
+      source: {
+        kind: "active-meta" as const,
+        location: "active" as const,
+        path: `.arc/active/meta-${slug}.md`,
+      },
+      sources: [],
+    });
+    h.ctx.composed = {
+      index: new Map<string, LifecycleIndexEntry>([
+        ["mono", {
+          slug: "mono",
+          phase: "Planning",
+          location: "active",
+          cohort: null,
+          dependsOn: [],
+          path: ".arc/active/meta-mono.md",
+        }],
+        ...["private", "shared"].map((slug) => [slug, {
+          slug,
+          phase: "Active",
+          location: "active",
+          cohort: null,
+          dependsOn: ["mono"] as string[],
+          path: `.arc/active/meta-${slug}.md`,
+        }] as const),
+      ]),
+      recordsBySlug: new Map([
+        ["mono", {
+          selected: selected("mono", []),
+          currentTree: selected("mono", []),
+          writablePath: ".arc/active/meta-mono.md",
+        }],
+        ["shared", {
+          selected: selected("shared", ["mono"]),
+          currentTree: selected("shared", ["mono"]),
+          writablePath: ".arc/active/meta-shared.md",
+        }],
+        ["private", {
+          selected: { ...selected("private", ["mono"]), priority: "P2" as const },
+          currentTree: selected("private", ["mono"]),
+        }],
+      ]),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    } satisfies ComposedLifecycleIndexResult;
+
+    const result = await runDecompose(h.ctx, {
+      cut: symmetricCut({
+        incomingEdges: ["private", "shared"].map((dependent) => ({
+          dependent,
+          disposition: { kind: "replace" as const, replacementTargets: ["alpha"] },
+        })),
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: "decomposed",
+      result: { repointed: [{ dependent: "shared", to: ["alpha"] }] },
+    });
+    expect(h.writes.some((write) => write.path.endsWith("meta-shared.md"))).toBe(true);
+    expect(h.writes.some((write) => write.path.endsWith("meta-private.md"))).toBe(false);
+    expect(h.staged).toContain(".arc/active/meta-shared.md");
+    expect(h.staged).not.toContain(".arc/active/meta-private.md");
+  });
+
+  it("never mutates a live incoming edge owned by an integrating dependent", async () => {
+    const h = buildRunHarness(
+      [
+        { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+        { slug: "dependent", tier: "active", subdir: "", state: "Integrating", dependsOn: ["mono"] },
+      ],
+      { [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"] },
+    );
+    const selected = (slug: string, state: "Planning" | "Integrating", dependsOn: string[]) => ({
+      slug,
+      location: "active" as const,
+      state,
+      priority: "P1" as const,
+      dependsOn,
+      source: { kind: "active-meta" as const, location: "active" as const },
+      sources: [],
+    });
+    h.ctx.composed = {
+      index: new Map([
+        ["mono", {
+          slug: "mono",
+          phase: "Planning",
+          location: "active",
+          cohort: null,
+          dependsOn: [],
+          path: ".arc/active/meta-mono.md",
+        }],
+        ["dependent", {
+          slug: "dependent",
+          phase: "Integrating",
+          location: "active",
+          cohort: null,
+          dependsOn: ["mono"],
+          path: ".arc/active/meta-dependent.md",
+        }],
+      ]),
+      recordsBySlug: new Map([
+        ["mono", {
+          selected: selected("mono", "Planning", []),
+          currentTree: selected("mono", "Planning", []),
+          writablePath: ".arc/active/meta-mono.md",
+        }],
+        ["dependent", {
+          selected: selected("dependent", "Integrating", ["mono"]),
+          currentTree: selected("dependent", "Integrating", ["mono"]),
+          writablePath: ".arc/active/meta-dependent.md",
+        }],
+      ]),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    } satisfies ComposedLifecycleIndexResult;
+
+    const result = await runDecompose(h.ctx, { cut: symmetricCut() });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.repointed).toEqual([]);
+    expect(h.writes.some((write) => write.path.endsWith("meta-dependent.md"))).toBe(false);
+    expect(h.staged).not.toContain(".arc/active/meta-dependent.md");
   });
 
   it("applies each declared incoming disposition instead of pointing every dependent at every member", async () => {
@@ -677,7 +888,7 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       origin: { slug: "monolith", phase: "Planning", location: "active" },
       shape: "symmetric",
       parentPosition: "standalone",
-      cohort: "lifecycle-machine",
+      cohort: "monolith",
       entries: [
         newMember("resolver", { workClass: "Heavy" }),
         newMember("transition-core", { workClass: "Heavy" }),
@@ -709,14 +920,14 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       closeout: { Class: "Light", "Depends On": "transition-core" },
     };
     for (const [slug, expected] of Object.entries(golden)) {
-      const record = parseMetaRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
+      const record = parseMetaProjectionRecord(writeFor(h.writes, `/monolith/${slug}/meta-${slug}.md`).content);
       expect(record).toMatchObject({
         State: "Planning",
         Owner: "andrew",
         Branch: "[none]",
         Class: expected.Class,
         Priority: "P1",
-        Cohort: "lifecycle-machine",
+        Cohort: "monolith",
         Origin: "[internal]",
         Design: `draft-${slug}.md`,
         "Depends On": expected["Depends On"],
@@ -732,9 +943,9 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       { dependent: "downstream", to: ["resolver", "transition-core", "closeout"] },
     ]);
     expect(result.result.members.map((m) => m.metaPath)).toEqual([
-      ".arc/backlog/planned/lifecycle-machine/resolver/meta-resolver.md",
-      ".arc/backlog/planned/lifecycle-machine/transition-core/meta-transition-core.md",
-      ".arc/backlog/planned/lifecycle-machine/closeout/meta-closeout.md",
+      ".arc/backlog/planned/monolith/resolver/meta-resolver.md",
+      ".arc/backlog/planned/monolith/transition-core/meta-transition-core.md",
+      ".arc/backlog/planned/monolith/closeout/meta-closeout.md",
     ]);
     expect(result.result.origin).toBe("retired");
   });

@@ -15,6 +15,7 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import * as p from "@clack/prompts";
 import { z } from "zod";
@@ -82,6 +83,7 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
+import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -136,8 +138,17 @@ import {
   assertSessionRecoverProbeResult,
 } from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
+import {
+  projectUserReferenceSessionResult,
+  resolveUserReferenceAuthority,
+} from "../lib/user-reference-reconcile.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import {
+  enumerateGitRetirementRecords,
+  queryGitRetirementDisposition,
+} from "../lib/work-unit/git-retirement-record-enumeration.js";
+import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -509,6 +520,10 @@ export async function handleStatus(
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const extensionsP = runExtensionsSessionInitStatus({ cwd });
+    // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
+    // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
+    // not an unhandled rejection that kills the process before any slot is composed.
+    extensionsP.catch(() => undefined);
     let locusStatePromise: Promise<LocusStateV1> | undefined;
     const getLocusState = (id: string): Promise<LocusStateV1> => {
       locusStatePromise ??= (async () => {
@@ -691,6 +706,57 @@ export async function handleStatus(
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+      currentWuReconcile: async ({ slug, metaPath }) =>
+        runCurrentWuReconcileSessionProbe(
+          {
+            index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
+            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
+            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            listArtifactPaths: (slug, ownedMetaPath) =>
+              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
+            readFile: (path) => io.readFile(resolve(cwd, path)),
+          },
+          { slug, metaPath },
+        ),
+      userReferenceReconcile: async ({ slug }) => {
+        if (identity === null) throw new Error("User-reference probe requires an identity.");
+        const resolved = await resolvedSettingsP;
+        const surfaces = await userSurfacesFor(identity);
+        const authority = await resolveUserReferenceAuthority({
+          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
+          baseBranch: resolved.settings["branch.base"],
+          refreshRemoteBase: async () => {
+            try {
+              await exec("git", ["fetch", "origin", resolved.settings["branch.base"]]);
+              await exec("git", [
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                `origin/${resolved.settings["branch.base"]}`,
+              ]);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
+        });
+        const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
+        return projectUserReferenceSessionResult(authority, {
+          userInbox: {
+            path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
+            content: await readUserInbox(identity),
+          },
+          workingMemory: {
+            path: surfaces.workingMemoryDisplayPath,
+            content: await io.readFile(surfaces.workingMemoryPath).catch(() => ""),
+          },
+          sessionNotes: {
+            path: sessionNotesPath,
+            content: await io.readFile(sessionNotesPath).catch(() => ""),
+          },
+        });
+      },
       roster: async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";

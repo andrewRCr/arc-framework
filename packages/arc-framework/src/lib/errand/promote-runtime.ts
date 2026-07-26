@@ -4,7 +4,8 @@ import { isDeepStrictEqual } from "node:util";
 import { access, lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
+import { MetaPrioritySchema, MetaWorkClassSchema } from "../active/meta-schema.js";
 import { atomicWriteFile } from "../fs.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
@@ -539,21 +540,21 @@ function promotionMetaPath(name: string): string {
 function metaOverrides(
   options: Pick<PromoteOrdinaryErrandRuntimeOptions, "owner" | "priority" | "class" | "floor">,
   branch: string,
-): MetaFieldOverrides {
-  const overrides: MetaFieldOverrides = {
-    Owner: options.owner,
-    Branch: branch,
-    "Last Completed": "Errand promoted to work unit",
+): MetaRenderOverrides {
+  const overrides: MetaRenderOverrides = {
+    owner: options.owner,
+    branch,
+    lastCompleted: "Errand promoted to work unit",
   };
-  if (options.priority !== undefined) overrides.Priority = options.priority;
-  if (options.class !== undefined) overrides.Class = options.class;
+  if (options.priority !== undefined) overrides.priority = MetaPrioritySchema.parse(options.priority);
+  if (options.class !== undefined) overrides.workClass = MetaWorkClassSchema.parse(options.class);
   if (options.floor === "derivation") {
-    overrides.State = "Planning";
-    overrides["Current Workflow"] = "draft-design";
-    overrides["Next Action"] = "Resolve the design before further implementation.";
+    overrides.state = "Planning";
+    overrides.currentWorkflow = "draft-design";
+    overrides.nextAction = "Resolve the design before further implementation.";
   } else {
-    overrides.State = "Active";
-    overrides["Next Action"] = "Backfill a brief spec and task list, then continue implementation.";
+    overrides.state = "Active";
+    overrides.nextAction = "Backfill a brief spec and task list, then continue implementation.";
   }
   return overrides;
 }

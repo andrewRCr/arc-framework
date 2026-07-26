@@ -458,6 +458,58 @@ describe("runStaleWorktreeSweep", () => {
     ]);
   });
 
+  it("projects a validated deferred rename move from branched topology", async () => {
+    const head = "0123456789abcdef0123456789abcdef01234567";
+    const marker: WorktreeMarkerReadResult = {
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        wuName: "new-name",
+        createdFor: { kind: "work-unit", name: "new-name" },
+        spawningIdentity: "andrew",
+        createdAt: "2026-07-23T00:00:00.000Z",
+        renameMovePending: {
+          oldSlug: "old-name",
+          newSlug: "new-name",
+          branch: "feat/new-name",
+          head,
+          from: "/wt/project.old-name",
+          to: "/wt/project.new-name",
+        },
+      },
+    };
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/project.old-name" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => marker,
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{
+          path: "/wt/project.old-name",
+          head,
+          branch: "feat/new-name",
+          detached: false,
+          primary: false,
+        }],
+      }),
+    });
+
+    expect(result.renameMoves).toEqual([{
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "feat/new-name",
+      head,
+      from: "/wt/project.old-name",
+      to: "/wt/project.new-name",
+      remedy: {
+        argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
+        text: "Move the registered worktree from \"/wt/project.old-name\" to \"/wt/project.new-name\".",
+      },
+    }]);
+  });
+
   it("blocks a dirty stamped husk", async () => {
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] },

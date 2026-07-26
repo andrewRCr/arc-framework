@@ -21,7 +21,8 @@
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import type { WorkUnitLocusDriver } from "../work-unit/work-unit-locus.js";
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
+import { MetaRecordSchema } from "../active/meta-schema.js";
 import {
   PLANNING_WORKFLOWS,
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
@@ -44,9 +45,6 @@ const PLANNING_LIFE_PHASE: WorktreeLifePhase = { branchPrefix: "plan/", initialS
 
 /** The planning sub-stage a fresh planning WU enters at — the first authoring stage. */
 const PLANNING_ENTRY_STAGE = PLANNING_WORKFLOWS[0];
-
-/** The `[none]` sentinel for `Current Workflow` outside a planning state. */
-const NO_CURRENT_WORKFLOW = "[none]";
 
 /**
  * Meta `Next Action` seed when the caller supplies none — the stage-boundary
@@ -139,19 +137,19 @@ export async function scaffoldIntoWorktree(
   await ensureDir(activeDir, ctx.io.mkdir);
 
   const state = params.initialState ?? PLANNING_LIFE_PHASE.initialState;
-  const overrides: MetaFieldOverrides = {
-    State: state,
-    Owner: params.spawningIdentity,
-    Branch: params.branch,
+  const overrides: MetaRenderOverrides = {
+    state: MetaRecordSchema.shape.state.parse(state),
+    owner: params.spawningIdentity,
+    branch: params.branch,
     // The executor owns `Current Workflow`: a planning scaffold enters at the
     // first authoring stage; a non-planning scaffold carries the `[none]`
     // sentinel, keeping the field consistent with State by construction.
-    "Current Workflow": state === PLANNING_LIFE_PHASE.initialState ? PLANNING_ENTRY_STAGE : NO_CURRENT_WORKFLOW,
-    "Next Action": params.nextAction ?? DEFAULT_NEXT_ACTION,
+    currentWorkflow: state === PLANNING_LIFE_PHASE.initialState ? PLANNING_ENTRY_STAGE : null,
+    nextAction: params.nextAction ?? DEFAULT_NEXT_ACTION,
   };
-  if (params.lastCompleted !== undefined) overrides["Last Completed"] = params.lastCompleted;
-  if (params.origin !== undefined) overrides.Origin = params.origin;
-  if (params.design !== undefined) overrides.Design = params.design;
+  if (params.lastCompleted !== undefined) overrides.lastCompleted = params.lastCompleted;
+  if (params.origin !== undefined) overrides.origin = params.origin;
+  if (params.design !== undefined) overrides.design = [params.design];
 
   await ctx.io.writeFile(
     metaPath,

@@ -9,7 +9,7 @@ import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
 
 type FrontlineResponseFields = Omit<
   ReviewResponseInput,
-  "currentTarget" | "findings" | "channel" | "conversations"
+  "currentTarget" | "findings"
 >;
 
 /**
@@ -31,7 +31,5 @@ export function projectFrontlineResponse(
     ...response,
     currentTarget: outcome.target,
     findings: outcome.findings,
-    channel: "local",
-    conversations: [],
   });
 }

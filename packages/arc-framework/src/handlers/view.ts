@@ -16,7 +16,7 @@ import {
   type ActiveSessionInitInternalResult,
 } from "../commands/active.js";
 import { runView } from "../commands/view.js";
-import { parseMetaFile } from "../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { gitConfigGet, resolveIdentity } from "../lib/git/index.js";
 import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
@@ -268,7 +268,7 @@ export async function resolveExplicitViewTarget(input: {
           commitment: entry.location === "planned" ? "planned" : "provisional",
           cohort,
         };
-    const meta = parseMetaFile(await input.readFile(join(input.cwd, entry.path)));
+    const meta = parseMetaRecord(await input.readFile(join(input.cwd, entry.path)));
     return {
       status: "resolved",
       slug: slug.data,

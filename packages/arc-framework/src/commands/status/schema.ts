@@ -32,6 +32,74 @@ const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "va
 /** Thin routing view of a working-tree dirty-state result. */
 export const DirtyStateValueViewSchema = z.object({ state: z.enum(["clean", "dirty"]) }).loose();
 
+/** Routing view of the read-only current-WU reconcile session fact. */
+export const CurrentWuReconcileSessionValueViewSchema = z
+  .object({
+    status: z.enum(["clean", "pending", "conflict"]),
+    slug: NON_EMPTY_TEXT,
+    dependency: z.object({ conflicts: z.array(z.unknown()) }).loose(),
+    trackedReferences: z.object({
+      edits: z.array(z.object({
+        path: NON_EMPTY_TEXT,
+        replacements: z.array(z.object({
+          subject: NON_EMPTY_TEXT,
+          targetSlug: NON_EMPTY_TEXT,
+        })),
+      })),
+      conflicts: z.array(z.object({
+        subject: z.string(),
+        reason: z.enum([
+          "ambiguous-history",
+          "rename-cycle",
+          "version-conflict",
+          "namespace-corrupt",
+        ]),
+      })).optional(),
+    }).loose(),
+    advisories: z.array(z.object({
+      path: NON_EMPTY_TEXT,
+      line: z.number().int().positive(),
+      context: z.string(),
+      referenceKind: z.enum(["narrative", "dangling-artifact"]),
+      subject: NON_EMPTY_TEXT,
+      suggestedDisposition: z.enum(["review-rename", "remove-or-retarget"]),
+    })),
+    reason: z.string().optional(),
+    recommendedAction: z.enum(["skip", "surface"]),
+    recommendedCommand: z.array(z.string()).nullable(),
+    recommendedPromptText: z.string(),
+  })
+  .loose()
+  .superRefine((value, context) => {
+    const clean = value.status === "clean";
+    if (value.recommendedAction !== (clean ? "skip" : "surface")) {
+      context.addIssue({ code: "custom", path: ["recommendedAction"], message: "must match reconcile status" });
+    }
+    if ((value.recommendedPromptText === "") !== clean) {
+      context.addIssue({ code: "custom", path: ["recommendedPromptText"], message: "must match reconcile status" });
+    }
+    if ((value.recommendedCommand === null) !== clean) {
+      context.addIssue({ code: "custom", path: ["recommendedCommand"], message: "must match reconcile status" });
+    }
+  });
+
+/** Routing view of the read-only identity-global user-reference reconcile fact. */
+export const UserReferenceReconcileSessionValueViewSchema = z.object({
+  status: z.enum(["clean", "pending", "advisory", "unavailable", "conflict"]),
+  authority: z.object({
+    status: z.enum(["ready", "unavailable", "conflict"]),
+    ref: NON_EMPTY_TEXT,
+  }).loose(),
+  plan: z.object({
+    status: z.enum(["clean", "pending", "advisory"]),
+    edits: z.array(z.unknown()),
+    advisories: z.array(z.unknown()),
+  }).nullable(),
+  recommendedAction: z.enum(["skip", "apply", "surface"]),
+  recommendedCommand: z.array(z.string()).nullable(),
+  recommendedPromptText: z.string(),
+}).loose();
+
 /** Thin routing view of a worktree synchronization result. */
 export const WorktreeSyncValueViewSchema = z
   .object({
@@ -129,10 +197,86 @@ const StaleWorktreeReportViewSchema = z.discriminatedUnion("kind", [
     decision: z.object({ action: z.literal("blocked"), reason: z.literal("transient-provenance") }).loose(),
   }).loose(),
 ]);
+const RetirementCleanupProjectionViewSchema = z
+  .object({ status: z.enum(["not-applicable", "pending", "completed", "blocked"]) })
+  .loose();
+const SuccessorReadinessViewSchema = z
+  .object({
+    candidates: z.array(z.string()),
+    actionable: z.boolean(),
+    remedy: z
+      .object({
+        argv: z.tuple([z.literal("arc"), z.literal("start"), z.string()]),
+        text: z.string(),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+const LandedRetirementResidueViewSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("actionable"),
+      lifecycle: z
+        .object({
+          subject: z.object({ slug: z.string(), branch: z.string().nullable() }).strict(),
+          transition: z.enum(["decompose", "abandon"]),
+          cleanup: z
+            .object({
+              branch: RetirementCleanupProjectionViewSchema,
+              worktree: RetirementCleanupProjectionViewSchema,
+              userWorkspace: RetirementCleanupProjectionViewSchema,
+            })
+            .strict(),
+          successorReadiness: SuccessorReadinessViewSchema,
+        })
+        .loose(),
+      teardown: z
+        .object({
+          argv: z.tuple([z.literal("arc"), z.literal("teardown"), z.string()]),
+          text: z.string(),
+        })
+        .strict(),
+    })
+    .loose(),
+  z
+    .object({
+      status: z.literal("blocked"),
+      subject: z.object({ slug: z.string(), branch: z.string() }).strict(),
+      reason: z.string(),
+    })
+    .loose(),
+]);
+const RenameMoveResidueViewSchema = z
+  .object({
+    oldSlug: z.string(),
+    newSlug: z.string(),
+    branch: z.string(),
+    head: z.string(),
+    from: z.string(),
+    to: z.string(),
+    remedy: z
+      .object({
+        argv: z.tuple([
+          z.literal("git"),
+          z.literal("worktree"),
+          z.literal("move"),
+          z.string(),
+          z.string(),
+        ]),
+        text: z.string(),
+      })
+      .strict(),
+  })
+  .strict();
 
 /** Thin routing view of the stale-worktree cleanup advisory. */
 export const StaleWorktreeSweepValueViewSchema = z
-  .object({ worktrees: z.array(StaleWorktreeReportViewSchema) })
+  .object({
+    worktrees: z.array(StaleWorktreeReportViewSchema),
+    renameMoves: z.array(RenameMoveResidueViewSchema),
+    retirements: z.array(LandedRetirementResidueViewSchema),
+  })
   .loose();
 
 const WorkUnitReportViewSchema = z
@@ -345,6 +489,8 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   active: probe(ActiveSessionInitValueViewSchema),
   domainRules: probe(DomainRulesSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
+  userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
   roster: probe(WorktreeRosterValueViewSchema).optional(),
   recovery: probe(CascadeResolutionSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
@@ -440,6 +586,13 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
   }
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
+  requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
+  requireExactPresence(
+    value,
+    context,
+    "userReferenceReconcile",
+    identityKnown && active?.resolution === "single",
+  );
   requireExactPresence(value, context, "workUnitState", rosterSuccessful);
   requireExactPresence(
     value,
@@ -538,7 +691,7 @@ export const SessionRecoverProbeResultSchema = SessionRecoverProbeResultRuntimeS
 >;
 
 type DeclaredInput<Value> = Value extends readonly (infer Item)[]
-  ? DeclaredInput<Item>[]
+  ? readonly DeclaredInput<Item>[]
   : Value extends object
     ? { [Key in keyof Value as string extends Key ? never : Key]: DeclaredInput<Value[Key]> }
     : Value;

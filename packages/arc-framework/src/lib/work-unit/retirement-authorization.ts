@@ -28,7 +28,7 @@ export interface RetirementReceiptCandidate {
 export interface RetirementAuthorizationContext {
   readLocalProjection(request: TeardownAuthorizationRequest): Promise<{
     oid: string;
-    ownedByRetiringWorktree: boolean;
+    worktreeProjectionSafe: boolean;
   }>;
   readRemoteRef(remote: string, branch: string): Promise<string | null>;
   readShippedEvidence(request: TeardownAuthorizationRequest): Promise<
@@ -74,7 +74,7 @@ export async function authorizeRetirement(
       ctx.readLocalProjection(request),
       ctx.readRemoteRef(request.remote, request.branch),
     ]);
-    if (local.oid !== request.head || !local.ownedByRetiringWorktree) {
+    if (local.oid !== request.head || !local.worktreeProjectionSafe) {
       return { status: "refused", reason: "projection-mismatch" };
     }
     if (remoteOid !== null && remoteOid !== request.head) {

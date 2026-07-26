@@ -18,7 +18,7 @@ import {
   resolveWorktreePathsByBranch,
   scanRegisteredWorktrees,
 } from "../lib/git/worktree-roster.js";
-import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
+import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
@@ -54,12 +54,17 @@ import {
   validateRenameRequest,
 } from "../lib/work-unit/rename-preflight.js";
 import {
+  findIntegratingDependentAdvisories,
+  transformDependentMutationExclusions,
+} from "../lib/work-unit/transform-coordination.js";
+import {
   runRename,
   type RenamePlan,
   type RenameSubjectShape,
   type RunRenameContext,
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
+import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
@@ -68,6 +73,7 @@ export interface RenameCommandContext {
   baseBranch: string;
   io: UserIOContext;
   retirement: RenameRetirementContext;
+  onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
 }
 
 /** Execute one explicit old-to-new work-unit rename. */
@@ -81,16 +87,19 @@ export async function runRenameCommand(
   const exec = command.io.exec;
   const ctx: RunRenameContext = {
     retirement: command.retirement,
+    onPrepared: async (plan) => {
+      await command.onPreparedAdvisories?.(plan.coordinationAdvisories);
+    },
     preflight: async (request) => {
       const names = validateRenameRequest(request.sourceSlug, request.targetSlug);
-      const fetched = await boundedGitInvocation(
+      // Best-effort refresh of remote work-unit truth: a reachable origin sharpens the collision
+      // check below, and an unreachable one falls back to the composed oracle's own degraded-reach
+      // handling rather than blocking a rename that tree truth can already settle.
+      await boundedGitInvocation(
         exec,
         ["fetch", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*"],
         DEFAULT_NETWORK_TIMEOUT_MS,
       );
-      if (fetched.outcome !== "ok") {
-        throw new Error("cannot refresh remote work-unit truth before rename");
-      }
       const currentBranch = await getCurrentBranch(exec);
       const composed = await resolveComposedLifecycleIndex({
         cwd: command.cwd,
@@ -108,31 +117,44 @@ export async function runRenameCommand(
         resolvedSlug: subject.resolvedSlug,
         targetSlug: names.newSlug,
       });
+      const writablePath = composed.recordsBySlug.get(subject.resolvedSlug)?.writablePath;
+      if (writablePath === undefined) {
+        throw new Error(`cannot rename ${subject.resolvedSlug} without current-checkout write authority`);
+      }
+      const writableSubject = { ...subject, entry: { ...subject.entry, path: writablePath } };
 
-      const metaPath = resolve(command.cwd, subject.entry.path);
+      const metaPath = resolve(command.cwd, writableSubject.entry.path);
       const meta = parseMetaRecord(await readFile(metaPath, "utf8"));
-      const branch = normalizedBranch(meta.Branch);
-      const shape = await resolveSubjectShape(command, subject.entry, branch, subject.resolvedSlug, composed);
+      const branch = normalizedBranch(meta.branch);
+      const shape = await resolveSubjectShape(
+        command,
+        writableSubject.entry,
+        branch,
+        writableSubject.resolvedSlug,
+        composed,
+      );
       const dirty = (await exec("git", ["status", "--porcelain"], { cwd: command.cwd })).stdout.trim() !== "";
       assertRenameSubjectPreconditions({
         subject: { kind: "work-unit", name: subject.resolvedSlug } satisfies WorktreeSubject,
-        entry: subject.entry,
+        entry: writableSubject.entry,
         dirty,
-        prUrl: meta["PR URL"] ?? undefined,
+        prUrl: meta.prUrl ?? undefined,
       });
 
       const branches = branchPair(branch, names.oldSlug, names.newSlug, subject.resuming, shape);
       const oldRemoteOid = branches.oldBranch === null
         ? null
         : await readRemoteBranchOid(exec, "origin", branches.oldBranch);
-      const dirs = renameDirectories(subject.entry, names.oldSlug, names.newSlug, subject.resuming);
-      if (!subject.resuming) {
-        const cohortDocRelativePath = await cohortDocumentPath(command.cwd, subject.entry, lifecycleFs);
+      const dirs = renameDirectories(writableSubject.entry, names.oldSlug, names.newSlug, writableSubject.resuming);
+      const coordination = findIntegratingDependentAdvisories(composed, names.oldSlug);
+      if (!writableSubject.resuming) {
+        const cohortDocRelativePath = await cohortDocumentPath(command.cwd, writableSubject.entry, lifecycleFs);
         referencePlan = await planRenameReferences({
           arcRoot: ".arc",
           sourceSlug: names.oldSlug,
           targetSlug: names.newSlug,
           ...(cohortDocRelativePath === null ? {} : { cohortDocRelativePath }),
+          excludedPaths: transformDependentMutationExclusions(composed, names.oldSlug, command.cwd),
         }, referenceFs);
       }
       const additionalPaths = referencePlan?.changedPaths.filter(
@@ -153,6 +175,8 @@ export async function runRenameCommand(
         additionalPaths,
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
+        inventoryRead: composed.readQuality,
+        coordinationAdvisories: coordination.map((advisory) => advisory.text),
       };
     },
     mutateTracked: async (plan) => {
@@ -177,8 +201,38 @@ export async function runRenameCommand(
         rewriteRenamedMeta(await readFile(absoluteMeta, "utf8"), plan.sourceSlug, plan.targetSlug),
         "utf8",
       );
-      await regenerateRoadmap(command, lifecycleFs);
     },
+    regenerateReadiness: async (plan) => await reconcileRoadmap(
+      {
+        composeView: async () => {
+          const currentBranch = await getCurrentBranch(command.io.exec);
+          const { result } = await renderRoadmapFromIndexViewResult({
+            cwd: command.cwd,
+            exec: command.io.exec,
+            baseBranch: command.baseBranch,
+            currentBranch,
+            ...(plan.oldBranch === null
+              ? {}
+              : { superseded: { slug: plan.sourceSlug, branch: plan.oldBranch } }),
+          });
+          return {
+            content: result.markdown,
+            advisories: result.warnings.map((warning) => warning.rendered),
+          };
+        },
+        mkdir: command.io.mkdir,
+        writeFile: command.io.writeFile,
+        stageFile: async (path) => {
+          await command.io.exec("git", ["add", path], { cwd: command.cwd });
+        },
+      },
+      {
+        cwd: command.cwd,
+        slug: plan.sourceSlug,
+        from: null,
+        to: null,
+      },
+    ),
     commitTracked: async (plan) => {
       await exec("git", [
         "commit",
@@ -234,6 +288,7 @@ export async function runRenameCommand(
         branch: plan.newBranch,
         oldSlug: plan.sourceSlug,
         newSlug: plan.targetSlug,
+        currentLocus: command.cwd,
       });
     },
     rekeyLocus: async (plan, move) => {
@@ -267,6 +322,28 @@ export async function runRenameCommand(
       });
       return { locus, ...(worktree === undefined ? {} : { worktree }) };
     },
+    reconcileWorktreeMoveMarker: async (plan, move) => {
+      const markerPath = move.status === "deferred-self-move" ? move.from : move.worktreePath;
+      let renameMovePending = null;
+      if (move.status === "deferred-self-move") {
+        const renamedBranch = plan.newBranch;
+        if (renamedBranch === null) {
+          throw new Error("deferred spawned rename is missing its renamed branch");
+        }
+        renameMovePending = {
+          oldSlug: plan.sourceSlug,
+          newSlug: plan.targetSlug,
+          branch: renamedBranch,
+          head: (await exec("git", ["rev-parse", "--verify", `${renamedBranch}^{commit}`])).stdout.trim(),
+          from: move.from,
+          to: move.to,
+        };
+      }
+      return (await renameWorktreeOwnershipMarker(markerPath, {
+        oldWuName: plan.sourceSlug,
+        newWuName: plan.targetSlug,
+      }, { renameMovePending })).status;
+    },
   };
   return runRename(ctx, params);
 }
@@ -292,7 +369,13 @@ export async function resolveRekeyCheckout(
         // from there; supplying the destination as both coordinates reads the wrong key and settles
         // absent, leaving the live checkout unmanaged and the old role behind.
         ? move.sourceWorktreePath
-        : move.worktreePath;
+        // A deferred self-move has not relocated anything yet, and its marker carries the pending
+        // relocation for a later replay to finish. Rekeying the subject now would leave that replay
+        // reading a record whose subject no longer matches the rename source, so the record stays
+        // untouched until the move lands and re-enters through `already-moved`.
+        : move.status === "deferred-self-move"
+          ? null
+          : move.worktreePath;
   if (from === null) return null;
   const to = move.status === "move"
     ? move.to
@@ -404,20 +487,6 @@ function isSourceArtifactPath(path: string, sourceDir: string, sourceSlug: strin
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
-async function regenerateRoadmap(command: RenameCommandContext, fs: LifecycleIndexFs): Promise<void> {
-  const currentBranch = await getCurrentBranch(command.io.exec);
-  const view = await renderTrackedProjectReadinessViewResult({
-    cwd: command.cwd,
-    exec: command.io.exec,
-    fs,
-    baseBranch: command.baseBranch,
-    currentBranch,
-  });
-  const path = resolve(command.cwd, ".arc/backlog/ROADMAP.md");
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, view.markdown.endsWith("\n") ? view.markdown : `${view.markdown}\n`, "utf8");
 }
 
 function renameCommitSubject(sourceSlug: string, targetSlug: string): string {

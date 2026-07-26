@@ -1,4 +1,4 @@
-/** Deterministic state planning for one bounded review-response cycle. */
+/** Deterministic state planning for one bounded local review-response cycle. */
 
 import { validateDispositionState } from "./dispositions.js";
 import { createFixAuthorization } from "./fix-authorization.js";
@@ -10,42 +10,6 @@ import {
   type ReviewResponsePlan,
   type ReviewResponseState,
 } from "./response-plan-schema.js";
-
-function projectChannelActions(
-  input: ReviewResponseInput,
-  state: ReviewResponseState,
-): ReviewResponsePlan["channelActions"] {
-  if (state !== "ready-to-close" || input.channel !== "hosted") return [];
-  const actions: ReviewResponsePlan["channelActions"] = [];
-  for (const capability of input.conversations) {
-    const known = input.findings.some((finding) => finding.findingId === capability.findingId);
-    if (!known) continue;
-    if (capability.kind === "controller-finding") {
-      if (!capability.canReply && !capability.canResolve) continue;
-      actions.push({
-        kind: capability.kind,
-        findingId: capability.findingId,
-        receiptHandle: capability.receiptHandle,
-        replyHandle: capability.replyHandle,
-        threadStateHandle: capability.threadStateHandle,
-        reply: capability.canReply,
-        resolve: capability.canResolve,
-        requiredClosure: "controller-source-confirmed",
-      });
-    } else {
-      actions.push({
-        kind: capability.kind,
-        findingId: capability.findingId,
-        providerReplyHandle: capability.providerReplyHandle,
-        threadStateHandle: capability.threadStateHandle,
-        decisiveReviewHandle: capability.decisiveReviewHandle,
-        reply: capability.canReply,
-        requiredClosure: "provider-native-decisive",
-      });
-    }
-  }
-  return actions;
-}
 
 function plan(
   input: ReviewResponseInput,
@@ -70,11 +34,7 @@ function plan(
       : null,
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
-    localTerminalRecord: state === "ready-to-close" && input.channel === "local"
-      ? "local-disposition-report"
-      : null,
     allowedCapabilities: options.allowedCapabilities,
-    channelActions: projectChannelActions(input, state),
     nextAction: options.nextAction,
   });
 }
@@ -96,7 +56,7 @@ function findingsMatch(input: ReviewResponseInput): boolean {
   });
 }
 
-/** Project exactly one response state without provider commands or controller-private inputs. */
+/** Project exactly one response state without provider commands or host-private inputs. */
 export function projectReviewResponse(inputValue: unknown): ReviewResponsePlan {
   const input = ReviewResponseInputSchema.parse(inputValue);
   if (input.dispositionState === null) {
@@ -135,10 +95,10 @@ export function projectReviewResponse(inputValue: unknown): ReviewResponsePlan {
     return input.capabilities.close
       ? plan(input, "ready-to-close", {
           allowedCapabilities: ["close"],
-          nextAction: "Return the approved non-fix dispositions to the channel adapter for closure.",
+          nextAction: "Return the approved non-fix dispositions to the caller for closure.",
           blocking: false,
         })
-      : blocked(input, "The channel closure capability required by the approved dispositions is unavailable.");
+      : blocked(input, "The caller closure capability required by the approved dispositions is unavailable.");
   }
 
   if (input.candidateTarget === null) {

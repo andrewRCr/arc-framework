@@ -21,7 +21,7 @@
 
 import { z } from "zod";
 
-import { listExecuteBoundInboxEntries, parseCrossWuEntries } from "../user-sync/index.js";
+import { listExecuteBoundInboxEntries, parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
@@ -46,6 +46,14 @@ export interface RunInboxStateOptions {
   content: string;
 }
 
+/** Whether one inferred parse outcome is a routable, non-held, non-execute-bound inbox entry. */
+function isRoutableEntry(parse: EntryParse): boolean {
+  return parse.ok
+    && !managedFlagIsTrue(parse.entry.raw, "Hold")
+    && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
+    && !parse.entry.raw.includes("- _Dispatch:_");
+}
+
 /**
  * Derive routing demand and the visible execute-bound queue from `USER-INBOX`.
  *
@@ -53,13 +61,7 @@ export interface RunInboxStateOptions {
  * @returns Routing demand, file-ordered execute-bound titles, and queue diagnostics.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
-  const entries = parseCrossWuEntries(options.content, "user-inbox");
-  const routableCount = entries.filter(
-    (parse) => parse.ok
-      && !managedFlagIsTrue(parse.entry.raw, "Hold")
-      && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
-      && !parse.entry.raw.includes("- _Dispatch:_"),
-  ).length;
+  const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(isRoutableEntry).length;
   // Per-entry diagnostics, never a whole-queue discard: one malformed capture must not hide the
   // queued siblings that read cleanly.
   const listing = listExecuteBoundInboxEntries(options.content);

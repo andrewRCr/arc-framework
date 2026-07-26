@@ -405,15 +405,15 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("torn-down");
   });
 
-  it("refuses an `active/` WU through the compatibility seam when protection is omitted", async () => {
-    const { ctx, calls } = buildCtx([ACTIVE_META]);
+  it("infers receipt-backed cleanup for an unshipped WU without requiring `--force`", async () => {
+    const { ctx } = buildCtx([ACTIVE_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/feat/demo\n",
+    });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/not shipped|completed/i);
-    expect(calls).toEqual([]);
+    expect(result.status).toBe("torn-down");
   });
 
   it("refreshes the remote base before reading full-protection lifecycle authority", async () => {

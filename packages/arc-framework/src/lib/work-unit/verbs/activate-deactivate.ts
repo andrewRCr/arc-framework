@@ -8,9 +8,9 @@
  * - **`activate`** (`Planning → Active`) raises a graduated planning WU to in-flight:
  *   the `plan/<name>` branch rotates to the working branch (caller-supplied — the
  *   `<type>/<name>` choice is judgment, never fabricated), the phase writes `Active`,
- *   and the `Next Task` / `Next Action` orientation is set from caller inputs. It is
- *   the one edge that **discharges satisfied `Depends On` edges** (the dep-edge
- *   lifecycle's write half) via the table's `discharge-dep-edges` side-effect.
+ *   and the `Next Task` / `Next Action` orientation is set from caller inputs. It
+ *   preflights the current-WU reconcile before transition mutation, then applies
+ *   that exact plan in the ceremony's staged write batch.
  * - **`deactivate`** (`Active → Planning`) undoes a *premature* activation: the
  *   working branch rotates back to `plan/<name>`, the phase drops to `Planning`, and
  *   the just-set `Next Task` / `Next Action` clear. Narrow by design — shelving in-progress work is
@@ -20,7 +20,7 @@
  * Each verb stays thin: it reads the current working branch from the meta, composes
  * the branch-rotation operand (and, for `activate`, the soft-field inputs), and
  * dispatches through {@link executeTransition}; the branch rename, the phase write,
- * the soft-field disposition, and `activate`'s dep-edge discharge are all the table's.
+ * the soft-field disposition, and the dependent-owned reconcile stay one ceremony.
  * A source in the wrong phase falls to the table's illegal-edge rejection (each edge
  * has exactly one legal source).
  *
@@ -29,7 +29,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import {
@@ -37,6 +37,10 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
+import type {
+  CurrentWuReconcileHost,
+  CurrentWuReconcileResult,
+} from "../side-effects/discharge-dep-edges.js";
 
 /** The judgment + orientation inputs an `activate` supplies. */
 export interface ActivateParams {
@@ -59,7 +63,13 @@ export interface DeactivateParams {
 /** The outcome of an `activate` attempt — a rejection, or the activated meta path. */
 export type ActivateResult =
   | { status: "rejected"; reason: string }
-  | { status: "activated"; outcome: TransitionOutcome; metaPath: string };
+  | { status: "activated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult }
+  | {
+      status: "reconcile-failed";
+      reason: string;
+      metaPath: string;
+      reconcile: Extract<CurrentWuReconcileResult, { status: "conflict" }>;
+    };
 
 /** The outcome of a `deactivate` attempt — a rejection, or the de-activated meta path. */
 export type DeactivateResult =
@@ -68,15 +78,19 @@ export type DeactivateResult =
 
 /**
  * Run `activate`: rotate the `plan/<name>` branch onto the caller-supplied working
- * branch, raise the phase `Planning → Active`, and set the orientation soft fields —
- * the table additionally discharges satisfied `Depends On` edges. Rejects when the
- * source is not a planning WU on its branch (the table's illegal-edge lookup).
+ * branch, raise the phase `Planning → Active`, and set the orientation soft fields.
+ * The dependent reconcile is validated first and its exact content guard applies
+ * before the transition starts. Rejects when the source is not a planning WU on its
+ * branch (the table's illegal-edge lookup).
  *
- * @param ctx - The executor seams (must register the `discharge-dep-edges` side-effect handler).
+ * @param ctx - The executor and current-WU reconcile seams.
  * @param params - The target WU, the working branch, and the orientation inputs.
  * @returns A rejection (wrong source, or executor failure) or the activated meta path.
  */
-export async function runActivate(ctx: ExecuteTransitionContext, params: ActivateParams): Promise<ActivateResult> {
+export async function runActivate(
+  ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
+  params: ActivateParams,
+): Promise<ActivateResult> {
   const { name, toBranch, nextTask, nextAction } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
@@ -89,16 +103,37 @@ export async function runActivate(ctx: ExecuteTransitionContext, params: Activat
     artifact: "meta",
   });
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
+  if (record.state !== "Planning") {
+    return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
+  }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to activate.` };
+  }
+  const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
+  if (reconcile.status === "conflict") {
+    return {
+      status: "rejected",
+      reason: `Cannot activate \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
+    };
+  }
+  const applied = await ctx.currentWuReconcile.apply(reconcile.prepared);
+  if (applied.status === "conflict") {
+    return {
+      status: "reconcile-failed",
+      reason:
+        `Activation preflight for \`${name}\` became stale before mutation (${applied.reason}). `
+        + `Rerun \`arc activate\` after reconciling the current branch.`,
+      metaPath,
+      reconcile: applied,
+    };
   }
   const outcome = await executeTransition(ctx, {
     verb: "activate",
@@ -110,7 +145,7 @@ export async function runActivate(ctx: ExecuteTransitionContext, params: Activat
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "activated", outcome, metaPath };
+  return { status: "activated", outcome, metaPath, reconcile: applied };
 }
 
 /**
@@ -138,15 +173,15 @@ export async function runDeactivate(
     artifact: "meta",
   });
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
   }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to deactivate.` };
   }
   const outcome = await executeTransition(ctx, {

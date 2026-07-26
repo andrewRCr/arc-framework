@@ -85,9 +85,9 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
     };
   }
-  const sessionType = inferSessionType(record.State, record["Task List"], record["Next Action"], record.Branch);
-  const planningStage = resolvePlanningStage(record["Current Workflow"], sessionType);
-  const taskListPath = resolveTaskListPath(expectedPath, record["Task List"]);
+  const sessionType = inferSessionType(record.state, record.taskList, record.nextAction, record.branch);
+  const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
+  const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
     ? null
     : await resolveTaskListCursorFromFile({
@@ -105,8 +105,8 @@ export async function projectCheckoutSubjectMeta(options: {
   return {
     kind: "resolved",
     metaPath: expectedPath,
-    owner: normalizePointer(record.Owner),
-    branch: normalizePointer(record.Branch),
+    owner: normalizePointer(record.owner),
+    branch: normalizePointer(record.branch),
     sessionType,
     workflow: workflowFor(sessionType),
     stage: planningStage,

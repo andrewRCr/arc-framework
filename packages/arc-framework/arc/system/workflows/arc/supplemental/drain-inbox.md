@@ -188,6 +188,12 @@ sweep generation.
 > `integration-interlock`: Under full protection, stop before arming auto-merge or merging the routing PR. Surface
 > checks and the close-derived lane; await explicit integration approval. Routing confirmation did not approve merge.
 
+After approval, re-read the PR's exact base and head SHAs and run
+`arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
+follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure or malformed output
+stops. Foreign ownership or another confidently recognized review condition may still move a planning result to
+reviewed without another permission stop, but never the reverse.
+
 ### 6. Close routing occupancy
 
 After the routing commits are pushed and any full-mode PR is open, invoke

@@ -348,7 +348,40 @@ export function isPortabilitySurfacePath(path: string): boolean {
 
 /** Whether a path belongs to the formative planning-artifact lane. */
 export function isPlanningArtifactPath(path: string): boolean {
-  return /^\.arc\/(?:active|backlog)\/(?:[^/]+\/)*(?:draft|tasks|meta|notes|cohort)-/u.test(path);
+  const artifactName = "(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-[a-z0-9]+(?:-[a-z0-9]+)*\\.md";
+  const workUnitDirectory = "[a-z0-9]+(?:-[a-z0-9]+)*";
+  return path === ".arc/backlog/ROADMAP.md"
+    || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
+    || new RegExp(
+      `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
+      "u",
+    ).test(path);
+}
+
+function isPlainPlanningContentChange(change: CanonicalChange): boolean {
+  switch (change.status) {
+    case "added":
+      return change.newMode === "100644";
+    case "deleted":
+      return change.oldMode === "100644";
+    case "modified":
+    case "renamed":
+    case "copied":
+      return change.oldMode === "100644" && change.newMode === "100644";
+    case "type-changed":
+      return false;
+  }
+}
+
+/** Reduce canonical exact-ref changes to the planning-clearance lane. */
+export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+  if (changeSet.changeSet === "unknown") return "reviewed";
+  for (const change of changeSet.changes) {
+    if (!isPlainPlanningContentChange(change)) return "reviewed";
+    const endpoints = [change.path, ...(change.previousPath === undefined ? [] : [change.previousPath])];
+    if (!endpoints.every(isPlanningArtifactPath)) return "reviewed";
+  }
+  return "planning";
 }
 
 /** Reduce canonical changes to the CI-weight classification. */
@@ -509,6 +542,16 @@ async function runExecutable(args: string[]): Promise<void> {
     return;
   }
 
+  if (command === "planning-lane") {
+    const [base, head, ...rest] = operands;
+    const changeSet =
+      base === undefined || head === undefined || rest.length !== 0
+        ? UNKNOWN
+        : await resolveChangeSet(exec, base, head);
+    process.stdout.write(`${classifyPlanningLane(changeSet)}\n`);
+    return;
+  }
+
   const pathProjection = {
     "classify-paths": "classify",
     "lane-paths": "lane",
@@ -536,7 +579,12 @@ async function runExecutable(args: string[]): Promise<void> {
 }
 
 const invokedPath = process.argv[1];
-if (invokedPath !== undefined && fileURLToPath(import.meta.url) === resolve(invokedPath)) {
+const modulePath = fileURLToPath(import.meta.url);
+if (
+  invokedPath !== undefined
+  && /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
+  && modulePath === resolve(invokedPath)
+) {
   try {
     await runExecutable(process.argv.slice(2));
   } catch (error) {

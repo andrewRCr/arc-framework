@@ -17,6 +17,10 @@ import { getCurrentBranch } from "../git/exec.js";
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import { resolveArcPath, WorkUnitArtifactKindSchema } from "../layout/index.js";
 import type { DecomposeAllocationEntry, DecomposeAllocationMap } from "./decompose-cut-map.js";
+import {
+  resolveDecomposeMemberPlacement,
+  type DecomposeMemberPlacement,
+} from "./decompose-placement.js";
 import type { DecomposeFinalTarget } from "./decompose-finalization.js";
 import {
   deriveDecomposeInventories,
@@ -28,6 +32,7 @@ import { buildLifecycleIndex, type LifecycleIndex } from "./lifecycle-index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { resolveRetirementRecordPath } from "./retirement-record-store.js";
 import type { RetirementAuthorityScope } from "./retirement-authority.js";
+import type { InventoryRead } from "./retirement-authority.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
@@ -36,6 +41,7 @@ export interface PreparationBinding {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
   allowedPaths: ManagedPath[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
 }
 
 function compareBytes(left: string, right: string): number {
@@ -145,7 +151,11 @@ function cohortDocumentPath(cohort: string): ManagedPath {
   });
 }
 
-function conventionalMemberArtifactPath(slugValue: string, cohortValue: string, artifact: string): ManagedPath | null {
+function conventionalMemberArtifactPath(
+  slugValue: string,
+  placement: DecomposeMemberPlacement,
+  artifact: string,
+): ManagedPath | null {
   const slug = SlugSchema.parse(slugValue);
   const kind = WorkUnitArtifactKindSchema.options.find(
     (candidate) => artifact === `${candidate}-${slug}.md`,
@@ -153,11 +163,7 @@ function conventionalMemberArtifactPath(slugValue: string, cohortValue: string, 
   if (kind === undefined) return null;
   return resolveArcPath({
     kind: "work-unit-artifact",
-    placement: {
-      kind: "backlog",
-      commitment: "planned",
-      cohort: cohortValue.split("/").map((segment) => SlugSchema.parse(segment)),
-    },
+    placement,
     slug,
     artifact: kind,
   });
@@ -170,16 +176,17 @@ function entryDirectory(index: LifecycleIndex, slug: string): string | null {
 
 export function destinationArtifactPath(
   index: LifecycleIndex,
-  allocation: DecomposeAllocationMap,
+  _allocation: DecomposeAllocationMap,
   entry: DecomposeAllocationEntry,
   artifact: string,
-  placementCohort?: string,
+  memberPlacement?: DecomposeMemberPlacement,
 ): ManagedPath | null {
   if (entry.kind === "new-member") {
     const existingDirectory = entryDirectory(index, entry.slug);
     if (existingDirectory !== null) return validateManagedPath(posix.join(existingDirectory, artifact));
-    const cohort = allocation.cohort ?? placementCohort;
-    return cohort === undefined ? null : conventionalMemberArtifactPath(entry.slug, cohort, artifact);
+    return memberPlacement === undefined
+      ? null
+      : conventionalMemberArtifactPath(entry.slug, memberPlacement, artifact);
   }
   if (entry.kind === "existing-home") {
     if (entry.target.kind === "document") {
@@ -199,14 +206,15 @@ function deriveAllowedPaths(
   index: LifecycleIndex,
   allocation: DecomposeAllocationMap,
   sourcePaths: readonly ManagedPath[],
-  placementCohort: string,
+  memberPlacement: DecomposeMemberPlacement,
+  writablePathBySlug?: ReadonlyMap<string, string>,
 ): ManagedPath[] {
   const allowed = new Set<ManagedPath>([...sourcePaths, ROADMAP_PATH]);
   const entries = new Map(allocation.entries.map((entry) => [entry.destinationId, entry]));
   for (const entry of allocation.entries) {
     if (entry.kind === "new-member") {
-      const metaPath = conventionalMemberArtifactPath(entry.slug, placementCohort, `meta-${entry.slug}.md`);
-      const draftPath = conventionalMemberArtifactPath(entry.slug, placementCohort, `draft-${entry.slug}.md`);
+      const metaPath = conventionalMemberArtifactPath(entry.slug, memberPlacement, `meta-${entry.slug}.md`);
+      const draftPath = conventionalMemberArtifactPath(entry.slug, memberPlacement, `draft-${entry.slug}.md`);
       if (metaPath !== null) allowed.add(metaPath);
       if (draftPath !== null) allowed.add(draftPath);
     } else if (entry.kind === "existing-home" && entry.target.kind === "document") {
@@ -224,13 +232,16 @@ function deriveAllowedPaths(
       allocation,
       entry,
       source.disposition.targetLocator.artifact,
-      placementCohort,
+      memberPlacement,
     );
     if (path !== null) allowed.add(path);
   }
   for (const edge of allocation.incomingEdges) {
     const dependent = index.get(edge.dependent);
-    if (dependent !== undefined) allowed.add(validateManagedPath(dependent.path));
+    const writable = writablePathBySlug === undefined
+      ? dependent?.path
+      : writablePathBySlug.get(edge.dependent);
+    if (writable !== undefined) allowed.add(validateManagedPath(writable));
   }
   const existingRecipients = new Set(allocation.entries.flatMap((entry) => (
     entry.kind === "existing-home" && entry.target.kind === "work-unit" ? [entry.target.slug] : []
@@ -250,32 +261,37 @@ export async function bindDecomposePreparation(
   deps: InRepoDecomposeRetirementDeps,
   allocation: DecomposeAllocationMap,
 ): Promise<PreparationBinding> {
-  const index = await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
+  const index = deps.composed?.index
+    ?? await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
   const origin = index.get(allocation.origin.slug);
   if (origin === undefined) throw new Error(`decompose origin \`${allocation.origin.slug}\` is absent`);
+  const originPath = deps.composed === undefined
+    ? origin.path
+    : deps.composed.recordsBySlug.get(allocation.origin.slug)?.writablePath;
+  if (originPath === undefined) {
+    throw new Error(`decompose origin \`${allocation.origin.slug}\` has no current-checkout write authority`);
+  }
   const occupiedMember = allocation.entries.find((entry) => entry.kind === "new-member" && index.has(entry.slug));
   if (occupiedMember?.kind === "new-member") {
     throw new Error(`decompose member \`${occupiedMember.slug}\` already exists`);
   }
-  const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, origin.path)));
+  const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, originPath)));
   const resultBranch = await getCurrentBranch(deps.exec);
   if (resultBranch === null) throw new Error("decompose requires an attached result branch");
-  const sourceBranch = originRecord.Branch === null || originRecord.Branch === "[none]"
-    ? resultBranch
-    : originRecord.Branch;
+  const sourceBranch = originRecord.branch ?? resultBranch;
   const [sourceHead, resultHead] = await Promise.all([
     resolveRef(deps, sourceBranch),
     resolveRef(deps, resultBranch),
   ]);
-  const artifacts = await readSourceArtifacts(deps, sourceHead, posix.dirname(origin.path), allocation.origin.slug);
+  const artifacts = await readSourceArtifacts(deps, sourceHead, posix.dirname(originPath), allocation.origin.slug);
   const inventory = deriveDecomposeInventories({
     originSlug: allocation.origin.slug,
     sourceArtifacts: artifacts,
     lifecycleIndex: index,
   });
   if (inventory.status === "rejected") throw new Error(inventory.reason);
-  const placementCohort = allocation.cohort ?? origin.cohort;
-  if (placementCohort === null) throw new Error("decompose origin has no cohort placement");
+  const memberPlacement = resolveDecomposeMemberPlacement(allocation, allocation.origin.slug, origin.cohort);
+  if (memberPlacement.status === "refused") throw new Error(memberPlacement.reason);
   return {
     scope: {
       subject: { kind: "work-unit", name: allocation.origin.slug },
@@ -289,8 +305,14 @@ export async function bindDecomposePreparation(
       index,
       allocation,
       artifacts.map((artifact) => artifact.path),
-      placementCohort,
+      memberPlacement.placement,
+      deps.composed === undefined
+        ? undefined
+        : new Map([...deps.composed.recordsBySlug].flatMap(([slug, record]) => (
+            record.writablePath === undefined ? [] : [[slug, record.writablePath] as const]
+          ))),
     ),
+    inventoryRead: deps.composed?.readQuality ?? "tree-only",
   };
 }
 

@@ -5,7 +5,6 @@ import { basename, join, posix } from "node:path";
 
 import {
   formatValue,
-  parseIdentifierList,
   parseMetaRecord,
   setMetaBulletFields,
 } from "../active/meta-reader.js";
@@ -24,12 +23,37 @@ const nodeContext: RenameReferenceSweepContext = {
   writeFile: (path, content) => writeFile(path, content, "utf8"),
 };
 
+interface ArtifactSelfTitleRule {
+  prefix: string;
+  labels: readonly string[];
+}
+
+const ARTIFACT_SELF_TITLE_RULES: readonly ArtifactSelfTitleRule[] = [
+  { prefix: "meta", labels: ["Metadata"] },
+  { prefix: "draft", labels: ["Draft"] },
+  {
+    prefix: "spec",
+    labels: [
+      "Spec (`brief`)",
+      "Spec (`outline`)",
+      "Spec (`detailed` · `PRD`)",
+      "Spec (`detailed` · `RFC`)",
+    ],
+  },
+  { prefix: "tasks", labels: ["Task List", "Tasks"] },
+  { prefix: "notes", labels: ["Notes"] },
+  { prefix: "research", labels: ["Research"] },
+  { prefix: "analysis", labels: ["Analysis"] },
+] as const;
+
 /** Parameters for the tier-wide reference sweep. */
 export interface RenameReferenceSweepParams {
   arcRoot: string;
   sourceSlug: string;
   targetSlug: string;
   cohortDocRelativePath?: string;
+  /** Exact current-checkout metas withheld from an in-flight coordination hazard. */
+  excludedPaths?: readonly string[];
 }
 
 /** Paths changed by the bounded reference sweep, relative to the repository root. */
@@ -89,6 +113,7 @@ export async function planRenameReferences(
   params: RenameReferenceSweepParams,
   ctx: RenameReferenceSweepContext = nodeContext,
 ): Promise<RenameReferencePlan> {
+  const excludedPaths = new Set(params.excludedPaths?.map((path) => path.replaceAll("\\", "/")) ?? []);
   const files = (await ctx.listFiles(params.arcRoot))
     .filter(isLifecycleTierFile)
     .sort();
@@ -96,8 +121,15 @@ export async function planRenameReferences(
   const edits: RenameReferenceEdit[] = [];
   for (const relativePath of files) {
     const path = join(params.arcRoot, relativePath);
+    if (excludedPaths.has(path.replaceAll("\\", "/"))) continue;
     const original = await ctx.readFile(path);
-    let rewritten = rewriteBacktickedArtifactReferences(original, params.sourceSlug, params.targetSlug);
+    let rewritten = rewriteArtifactSelfReferences(
+      relativePath,
+      original,
+      params.sourceSlug,
+      params.targetSlug,
+    );
+    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug);
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {
       rewritten = rewriteDependsOn(rewritten, params.sourceSlug, params.targetSlug);
     }
@@ -125,6 +157,33 @@ function isLifecycleTierFile(path: string): boolean {
     || path.startsWith("backlog/provisional/");
 }
 
+function rewriteArtifactSelfReferences(
+  relativePath: string,
+  content: string,
+  sourceSlug: string,
+  targetSlug: string,
+): string {
+  const rule = ARTIFACT_SELF_TITLE_RULES.find(
+    (candidate) => basename(relativePath) === `${candidate.prefix}-${sourceSlug}.md`,
+  );
+  if (rule === undefined) return content;
+
+  const lines = content.split("\n");
+  const firstH1 = lines.findIndex((line) => line.startsWith("# "));
+  if (firstH1 !== -1) {
+    const line = lines[firstH1] ?? "";
+    const carriageReturn = line.endsWith("\r") ? "\r" : "";
+    const title = carriageReturn === "" ? line : line.slice(0, -1);
+    const label = rule.labels.find((candidate) => title === `# ${candidate}: ${sourceSlug}`);
+    if (label !== undefined) lines[firstH1] = `# ${label}: ${targetSlug}${carriageReturn}`;
+  }
+
+  return lines.join("\n").replaceAll(
+    `\`--plan ${sourceSlug}\``,
+    `\`--plan ${targetSlug}\``,
+  );
+}
+
 function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {
   const escaped = sourceSlug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp("`([a-z]+)-" + escaped + "\\.md`", "gu");
@@ -134,8 +193,7 @@ function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string
 
 function rewriteDependsOn(content: string, sourceSlug: string, targetSlug: string): string {
   const record = parseMetaRecord(content);
-  const value = record["Depends On"];
-  const dependencies = parseIdentifierList(value);
+  const dependencies = record.dependsOn;
   if (dependencies.length === 0 || !dependencies.includes(sourceSlug)) return content;
   const rewritten = dependencies.map((dependency) => dependency === sourceSlug ? targetSlug : dependency);
   return setMetaBulletFields(content, {

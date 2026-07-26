@@ -100,7 +100,7 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     const anchor = await currentAnchor();
     await mkdir(join(primary, ".arc/active"), { recursive: true });
     await writeFile(join(primary, ".arc/active/meta-parent.md"), renderMetaFile("parent", {
-      State: "Active", Owner: IDENTITY, Branch: "main",
+      state: "Active", owner: IDENTITY, branch: "main",
     }));
     await exec("git", ["add", ".arc/active/meta-parent.md"]);
     await makeCommit(primary, "parent meta");
@@ -195,6 +195,30 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
 
     expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
+    expect((await exec("git", ["branch", "--show-current"])).stdout).toBe("chore/growing");
+    expect(await readIdentity(exec, execInput)).toMatchObject({ slug: "growing" });
+  });
+
+  it.each([
+    ["priority", { priority: "urgent" }],
+    ["class", { class: "Huge" }],
+  ] as const)("rejects an invalid %s before any rename (no half-applied promotion)", async (_field, override) => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+
+    const result = await promoteOrdinaryErrandAtRuntime({
+      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      ...override,
+    });
+
+    expect(result).toMatchObject({ outcome: "error", operation: "errand-promote" });
     expect((await exec("git", ["branch", "--show-current"])).stdout).toBe("chore/growing");
     expect(await readIdentity(exec, execInput)).toMatchObject({ slug: "growing" });
   });

@@ -8,9 +8,15 @@
  */
 
 import { isAbsolute } from "node:path";
+import {
+  getArcConfigField,
+  HarnessDirectorySchema,
+} from "../config/schema.js";
 
 /** Default registered gitignored harness directories copied from the primary checkout. */
-export const DEFAULT_WORKTREE_HARNESS_DIRS = ".claude,.codex,.gemini,.opencode";
+export const DEFAULT_WORKTREE_HARNESS_DIRS = getArcConfigField(
+  "worktree.harness_dirs",
+).defaultValue;
 
 /**
  * Repo-critical top-level names that must never be registered — copying `.git`
@@ -34,11 +40,11 @@ export function parseRegisteredHarnessDirs(value: string | undefined): string[] 
   for (const rawEntry of value?.split(",") ?? []) {
     const entry = rawEntry.trim().replace(/[\\/]+$/u, "");
     if (entry === "") continue;
-    if (entry === "." || entry === ".." || isAbsolute(entry) || entry.includes("/") || entry.includes("\\")) {
-      throw new Error(`worktree.harness_dirs contains an invalid top-level directory: ${rawEntry.trim()}`);
-    }
     if (RESERVED_HARNESS_DIRS.has(entry.toLowerCase())) {
       throw new Error(`worktree.harness_dirs contains a reserved directory: ${rawEntry.trim()}`);
+    }
+    if (isAbsolute(entry) || !HarnessDirectorySchema.safeParse(entry).success) {
+      throw new Error(`worktree.harness_dirs contains an invalid top-level directory: ${rawEntry.trim()}`);
     }
     if (seen.has(entry)) continue;
     seen.add(entry);

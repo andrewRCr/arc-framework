@@ -17,6 +17,10 @@ import type {
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import type {
+  CurrentWuReconcileHost,
+  PreparedCurrentWuReconcile,
+} from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import {
   runActivate,
   runDeactivate,
@@ -63,7 +67,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 }
 
 interface Harness {
-  ctx: ExecuteTransitionContext;
+  ctx: ExecuteTransitionContext & CurrentWuReconcileHost;
   calls: string[];
   softFields: string[];
   currentWorkflow: string[];
@@ -80,7 +84,6 @@ function buildCtx(metas: MetaSpec[]): Harness {
   for (const id of [
     "reconcile-roadmap",
     "reconcile-status-user",
-    "discharge-dep-edges",
     "user-workspace",
   ] satisfies SideEffectId[]) {
     sideEffects[id] = () => {
@@ -89,7 +92,25 @@ function buildCtx(metas: MetaSpec[]): Harness {
     };
   }
 
-  const ctx: ExecuteTransitionContext = {
+  const prepared: PreparedCurrentWuReconcile = {
+    slug: "foo",
+    plan: {
+      status: "ready",
+      dependency: {
+        before: [],
+        after: [],
+        replacements: [],
+        drops: [],
+        discharged: [],
+        live: [],
+        conflicts: [],
+      },
+      trackedReferences: { edits: [] },
+      advisories: [],
+    },
+    edits: [],
+  };
+  const ctx = {
     cwd: CWD,
     indexFs: buildIndexFs(metas),
     setPhase: async (params) => {
@@ -113,8 +134,18 @@ function buildCtx(metas: MetaSpec[]): Harness {
     writeSoftFields: async (path, updates) => {
       softFields.push(...Object.keys(updates));
     },
+    currentWuReconcile: {
+      prepare: async () => {
+        calls.push("reconcile:prepare");
+        return { status: "clean", prepared };
+      },
+      apply: async () => {
+        calls.push("reconcile:apply");
+        return { status: "clean", prepared };
+      },
+    },
     sideEffects,
-  };
+  } satisfies ExecuteTransitionContext & CurrentWuReconcileHost;
 
   return { ctx, calls, softFields, currentWorkflow };
 }
@@ -152,12 +183,62 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(softFields).toContain("Next Action");
   });
 
-  it("fires the discharge-dep-edges side-effect (the dep-edge write half)", async () => {
+  it("prepares and applies the exact current-WU reconcile around the transition", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
 
     await runActivate(ctx, params);
 
-    expect(calls).toContain("side:discharge-dep-edges");
+    expect(calls.indexOf("reconcile:prepare")).toBeLessThan(calls.indexOf("setPhase:Active"));
+    expect(calls.indexOf("reconcile:apply")).toBeLessThan(calls.indexOf("setPhase:Active"));
+    expect(calls).not.toContain("side:discharge-dep-edges");
+  });
+
+  it("rejects a reconcile conflict before phase or branch mutation", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
+    ctx.currentWuReconcile.prepare = async () => ({
+      status: "conflict",
+      prepared: {
+        slug: "foo",
+        plan: {
+          status: "conflict",
+          dependency: {
+            before: ["retired"],
+            after: ["retired"],
+            replacements: [],
+            drops: [],
+            discharged: [],
+            live: ["retired"],
+            conflicts: [{ edge: "retired", subject: "retired", reason: "ambiguous-evidence" }],
+          },
+          trackedReferences: { edits: [] },
+          advisories: [],
+        },
+        edits: [],
+      },
+      reason: "ambiguous-evidence",
+    });
+
+    const result = await runActivate(ctx, params);
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("setPhase:") || call.startsWith("branch:"))).toBe(false);
+  });
+
+  it("returns explicit stale-preflight recovery without mutating the transition", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
+    const inspected = await ctx.currentWuReconcile.prepare({ slug: "foo", metaPath: ".arc/active/meta-foo.md" });
+    ctx.currentWuReconcile.apply = async () => ({
+      status: "conflict",
+      prepared: inspected.prepared,
+      reason: "stale-content",
+    });
+
+    const result = await runActivate(ctx, params);
+
+    expect(result.status).toBe("reconcile-failed");
+    if (result.status !== "reconcile-failed") return;
+    expect(result.reason).toMatch(/stale|rerun/i);
+    expect(calls.some((call) => call.startsWith("setPhase:") || call.startsWith("branch:"))).toBe(false);
   });
 
   it("clears Current Workflow to [none] as State: Active takes over", async () => {

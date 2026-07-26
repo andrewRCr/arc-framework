@@ -22,6 +22,9 @@ describe("isHandoffCritical", () => {
     expect(isHandoffCritical(cmd("sync", "user"))).toBe(true);
     expect(isHandoffCritical(cmd("commit", "release"))).toBe(true);
     expect(isHandoffCritical(cmd("push", "release"))).toBe(true);
+    expect(isHandoffCritical(cmd("unlock", "review"))).toBe(true);
+    expect(isHandoffCritical(cmd("request", "hosted"))).toBe(true);
+    expect(isHandoffCritical(cmd("settle", "hosted"))).toBe(true);
   });
 
   it("refuses stale dist for the session-init / session-handoff status probes", () => {
@@ -40,5 +43,6 @@ describe("isHandoffCritical", () => {
     expect(isHandoffCritical(cmd("status", "arc"))).toBe(false);
     expect(isHandoffCritical(cmd("log", "arc"))).toBe(false);
     expect(isHandoffCritical(cmd("commit", "arc"))).toBe(false); // not `release commit`
+    expect(isHandoffCritical(cmd("await", "hosted"))).toBe(false);
   });
 });
