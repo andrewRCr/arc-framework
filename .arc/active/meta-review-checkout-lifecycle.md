@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft re-grounded against source and captured; two adversarial passes run
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Resume `draft-design` on the draft's `§ Open decisions` — reap liveness marker,
+  diagnostics persistence locus, collected subset + ring shape, provider log
 
 - **PR URL:** [none]
 - **Completed:** [none]
