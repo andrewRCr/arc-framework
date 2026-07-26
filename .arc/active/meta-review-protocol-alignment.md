@@ -13,12 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Draft grown to eight concerns, each settled to the decision level
+- **Last Completed:** Draft grown to nine concerns and reconciled — the framing now names three patterns
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Assess formalization-readiness — re-read the draft whole for coherence first (concerns 7–8
-  landed after this pass's consolidation), and re-run `classify-work-unit` before trusting the recorded `Class`
+- **Next Action:** Run the readiness sequence in order — `assess-draft-readiness`, then `classify-work-unit`
+  (recorded `Class` predates two new lifecycle verbs and a command rename), then `assess-cohort-fit`, expected to
+  fire on the concerns 1–8 versus concern 9 cut
 
 - **PR URL:** [none]
 - **Completed:** [none]
