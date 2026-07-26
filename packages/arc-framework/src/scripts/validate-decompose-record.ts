@@ -238,11 +238,32 @@ function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPath
   });
 }
 
+/**
+ * Whether one forbidden-namespace change is the legacy-receipt migration rather than a violation.
+ *
+ * Only a deletion qualifies, and only when the identical bytes are present at the canonical
+ * namespace in the same index. That keeps the guard's evidence-destruction bite — a bare removal
+ * still fails — while letting a branch that predates the relocation carry its receipts across.
+ */
+function migratesToCanonicalNamespace(
+  change: StagedPathChange,
+  input: DecomposeCommitGateInput,
+): boolean {
+  if (change.status !== "D") return false;
+  const leaf = change.path.slice(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`.length);
+  if (leaf === "" || !leaf.startsWith("retirement-receipts/")) return false;
+  const preserved = input.readIndexBytes(
+    `${RETIREMENT_RECORD_NAMESPACE}/${leaf.slice("retirement-receipts/".length)}`,
+  );
+  return preserved !== null && bytesEqual(preserved, input.readHeadBytes(change.path));
+}
+
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
   const forbidden = input.changes.find((change) =>
-    change.path === FORBIDDEN_ROOT_INTERNAL_NAMESPACE
-    || change.path.startsWith(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`));
+    (change.path === FORBIDDEN_ROOT_INTERNAL_NAMESPACE
+      || change.path.startsWith(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`))
+    && !migratesToCanonicalNamespace(change, input));
   if (forbidden !== undefined) {
     return [`root-level ARC internal namespace is forbidden: ${forbidden.path}`];
   }
