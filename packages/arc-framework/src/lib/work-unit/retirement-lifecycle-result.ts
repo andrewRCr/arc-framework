@@ -65,7 +65,7 @@ export interface RetirementLifecycleResult {
 /** Inputs for one newly recorded receipt-backed retirement result. */
 export interface PendingRetirementLifecycleParams {
   slug: string;
-  branch: string;
+  branch: string | null;
   transition: "decompose" | "abandon";
   receiptId: string;
   authorityVersion: string;
@@ -81,7 +81,7 @@ export interface PendingRetirementLifecycleParams {
 export function projectPendingRetirementLifecycle(
   params: PendingRetirementLifecycleParams,
 ): RetirementLifecycleResult {
-  const branch = params.branch === "[none]" ? null : params.branch;
+  const branch = params.branch === null || params.branch === "[none]" ? null : params.branch;
   const cleanup: RetirementCleanupProjection = branch === null
     ? { status: "not-applicable" }
     : { status: "pending" };

@@ -106,6 +106,37 @@ function startedMeta(slug: string, cohort = "[none]"): string {
   );
 }
 
+/** A minimal active WU whose preserved branch can be parked from the base checkout. */
+function activeMeta(slug: string): string {
+  return startedMeta(slug)
+    .replace("`Planning`", "`Active`")
+    .replace(`\`plan/${slug}\``, `\`feat/${slug}\``);
+}
+
+/** Produce the real cross-worktree shape consumed by park@Active. */
+async function scaffoldActiveWu(repo: string, slug: string): Promise<{ worktree: string; branch: string }> {
+  const branch = `feat/${slug}`;
+  const dir = join(repo, ".arc", "active");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `meta-${slug}.md`), activeMeta(slug));
+  await writeFile(join(dir, `draft-${slug}.md`), `# Draft: ${slug}\n\n- **Purpose:** active work\n\n---\n`);
+  await commitAll(repo, `scaffold active ${slug}`);
+
+  await git(repo, ["branch", branch]);
+  const worktree = join(dirname(repo), `${basename(repo)}-${slug}-active`);
+  await git(repo, ["worktree", "add", worktree, branch]);
+  await writeFile(
+    join(worktree, ".arc", "active", `draft-${slug}.md`),
+    `# Draft: ${slug}\n\n- **Purpose:** preserved active work\n\n---\n`,
+  );
+  await commitAll(worktree, `advance ${branch}`);
+
+  await rm(join(repo, ".arc", "active", `meta-${slug}.md`));
+  await rm(join(repo, ".arc", "active", `draft-${slug}.md`));
+  await commitAll(repo, `remove active ${slug} projection from base`);
+  return { worktree, branch };
+}
+
 /**
  * Scaffold a started (`Planning`) WU on disk in `active/` plus its real
  * `plan/<slug>` branch carrying an **unmerged** commit (so the merged-safe reap
@@ -541,6 +572,40 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
   // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
+
+  it("parked Active abandon preserves its branch until the base receipt lands, then tears down", async () => {
+    const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
+    worktrees.push(worktree);
+
+    const park = await runArc(["park", "mono", "--reason", "superseded"], repo);
+    expect(park.exitCode, park.stdout + park.stderr).toBe(0);
+    expect(await pathExists(worktree)).toBe(false);
+    expect(await branchExists(repo, branch)).toBe(true);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(true);
+    await commitAll(repo, "park active mono");
+
+    const sessionNotes = join(repo, ".arc", "user", "test-user", "mono", "SESSION-NOTES.md");
+    await mkdir(dirname(sessionNotes), { recursive: true });
+    await writeFile(sessionNotes, "# Session Notes\n");
+
+    const abandon = await runArc(["abandon", "mono", "--yes"], repo);
+    expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
+    expect(await branchExists(repo, branch)).toBe(true);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(false);
+    expect(abandon.stdout + abandon.stderr).toMatch(/`arc teardown mono`/);
+
+    const premature = await runArc(["teardown", "mono"], repo);
+    expect(premature.exitCode).toBe(1);
+    expect(await branchExists(repo, branch)).toBe(true);
+    expect(await pathExists(sessionNotes)).toBe(true);
+
+    await commitAll(repo, "abandon parked mono");
+    const teardown = await runArc(["teardown", "mono"], repo);
+
+    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
+    expect(await branchExists(repo, branch)).toBe(false);
+    expect(await pathExists(sessionNotes)).toBe(false);
+  });
 
   it("arc abandon refuses a started work unit outside its recorded source branch", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");

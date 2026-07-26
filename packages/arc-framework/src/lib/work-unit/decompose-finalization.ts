@@ -244,7 +244,7 @@ export async function finalizeDecomposeRetirement(
       authorityVersion,
       lifecycle: projectPendingRetirementLifecycle({
         slug: record.allocation.origin.slug,
-        branch: receipt.source.branch,
+        branch: record.allocation.origin.location === "active" ? receipt.source.branch : null,
         transition: "decompose",
         receiptId: receipt.receiptId,
         authorityVersion,

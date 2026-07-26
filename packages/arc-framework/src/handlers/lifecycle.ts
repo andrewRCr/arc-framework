@@ -58,6 +58,7 @@ import {
   type ComposedLifecycleIndexResult,
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import { findIntegratingDependentAdvisories } from "../lib/work-unit/transform-coordination.js";
+import type { RetirementLifecycleResult } from "../lib/work-unit/retirement-lifecycle-result.js";
 import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import {
   DISPATCH_MODE,
@@ -658,6 +659,12 @@ export interface DecomposeOptions {
   finalize?: string;
 }
 
+function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
+  return Object.values(lifecycle.cleanup).some(
+    (projection) => projection.status === "pending" || projection.status === "blocked",
+  );
+}
+
 /**
  * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
  * members per a structured cut-map. Deserializes + validates the cut-map file
@@ -703,14 +710,14 @@ export async function handleDecompose(
       refuse(finalized.reason);
       return;
     }
-    p.note(
-      [
-        `Origin:  ${originArg}`,
-        `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
-        `Cleanup: after landing — \`arc teardown ${originArg}\``,
-      ].join("\n"),
-      "Decompose finalized",
-    );
+    const lines = [
+      `Origin:  ${originArg}`,
+      `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
+    ];
+    if (retirementCleanupRequired(finalized.lifecycle)) {
+      lines.push(`Cleanup: after landing — \`arc teardown ${originArg}\``);
+    }
+    p.note(lines.join("\n"), "Decompose finalized");
     p.outro("Done.");
     return;
   }
@@ -1702,10 +1709,10 @@ export async function handleAbandon(
     refuse(result.reason);
     return;
   }
-  const abandonedLines = [
-    `Work unit: ${target}`,
-    `Cleanup:   after landing — \`arc teardown ${target}\``,
-  ];
+  const abandonedLines = [`Work unit: ${target}`];
+  if (retirementCleanupRequired(result.lifecycle)) {
+    abandonedLines.push(`Cleanup:   after landing — \`arc teardown ${target}\``);
+  }
   reportOutcome("Abandoned", abandonedLines, result.outcome);
 }
 

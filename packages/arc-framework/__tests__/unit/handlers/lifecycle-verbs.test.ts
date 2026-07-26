@@ -234,6 +234,26 @@ const {
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
+const pendingRetirementLifecycle = {
+  subject: { slug: "foo", branch: "feat/foo" },
+  transition: "abandon",
+  authority: { kind: "receipt-backed", receiptId: `sha256:${"a".repeat(64)}`, authorityVersion: "version" },
+  cleanup: {
+    branch: { status: "pending" },
+    worktree: { status: "pending" },
+    userWorkspace: { status: "pending" },
+  },
+  successorReadiness: { candidates: [], actionable: false, remedy: null },
+} as const;
+const branchlessRetirementLifecycle = {
+  ...pendingRetirementLifecycle,
+  subject: { slug: "foo", branch: null },
+  cleanup: {
+    branch: { status: "not-applicable" },
+    worktree: { status: "not-applicable" },
+    userWorkspace: { status: "not-applicable" },
+  },
+} as const;
 const cleanReconcile = {
   status: "clean",
   prepared: {
@@ -280,7 +300,11 @@ beforeEach(() => {
   mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
-  mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
+  mockRunAbandon.mockResolvedValue({
+    status: "abandoned",
+    outcome: okOutcome,
+    lifecycle: pendingRetirementLifecycle,
+  });
   mockResolveComposedLifecycleIndex.mockResolvedValue({
     index: new Map(),
     recordsBySlug: new Map(),
@@ -344,6 +368,7 @@ beforeEach(() => {
     status: "recorded",
     receipt: { receiptId: `sha256:${"a".repeat(64)}` },
     authorityVersion: "finalized-version",
+    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
@@ -427,6 +452,21 @@ describe("handleDecompose", () => {
     expect(mockPrepareDecompose).not.toHaveBeenCalled();
     expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("arc teardown mono"), "Decompose finalized");
+  });
+
+  it("does not advertise teardown when finalizing a branchless origin", async () => {
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    mockFinalizeDecompose.mockResolvedValue({
+      status: "recorded",
+      receipt: { receiptId },
+      authorityVersion: "finalized-version",
+      lifecycle: { ...branchlessRetirementLifecycle, transition: "decompose" },
+    });
+
+    await handleDecompose("mono", { finalize: receiptId });
+
+    expect(mockNote).toHaveBeenCalledWith(expect.not.stringContaining("arc teardown"), "Decompose finalized");
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {
@@ -649,6 +689,18 @@ describe("handleAbandon", () => {
     expect(mockNote.mock.calls[0]?.[1]).toContain("impact plan");
     expect(mockRunAbandon).toHaveBeenCalledTimes(1);
     expect(mockRunAbandon.mock.calls[0]?.[1]).toMatchObject({ name: "foo", confirmed: true });
+  });
+
+  it("does not advertise teardown for a branchless abandon", async () => {
+    mockRunAbandon.mockResolvedValue({
+      status: "abandoned",
+      outcome: okOutcome,
+      lifecycle: branchlessRetirementLifecycle,
+    });
+
+    await handleAbandon("foo", { yes: true });
+
+    expect(mockNote).toHaveBeenLastCalledWith(expect.not.stringContaining("arc teardown"), "Abandoned");
   });
 
   it("refuses an illegal source state up front, printing no plan and never dispatching", async () => {

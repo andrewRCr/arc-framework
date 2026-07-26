@@ -17,6 +17,7 @@ import {
   type DecomposeFinalTarget,
   type DecomposeFinalizationProjection,
 } from "./decompose-finalization.js";
+import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
 import { deriveDecomposeInventories } from "./decompose-inventory.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
 import { partitionTransformDependents } from "./transform-coordination.js";
@@ -61,7 +62,12 @@ export type PrepareDecomposeDriverResult =
   | { status: "refused"; reason: string };
 
 export type FinalizeDecomposeDriverResult =
-  | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
+  | {
+      status: "recorded";
+      receipt: RetirementReceipt;
+      authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
+    }
   | { status: "refused"; reason: string };
 
 /** Production two-stage decompose authority surface consumed by the CLI handler. */

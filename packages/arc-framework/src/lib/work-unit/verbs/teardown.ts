@@ -499,21 +499,23 @@ async function teardownBranchProjection(
     const selfTeardown = registered !== undefined
       && registered.path !== primary
       && await isSelfTeardown(registered.path, cwd);
-    if (mode === "abandoned" && registered === undefined) {
-      return {
-        status: "rejected",
-        reason: describeTeardownAuthorizationRefusal("projection-mismatch"),
-        huskRefusal: "authorization-refused",
-      };
-    }
-    const authorizationRequired = registered !== undefined && (mode === "abandoned" || selfTeardown);
+    const authorizationRequired = mode === "abandoned" || (registered !== undefined && selfTeardown);
     let authorizationRequest: TeardownAuthorizationRequest | null = null;
     let authority: Pick<RetirementAuthorityPort, "authorize" | "revalidate"> | null = null;
     if (authorizationRequired) {
+      const authorizationHead = registered?.head
+        ?? await readRefTip(exec, `refs/heads/${branch}`);
+      if (authorizationHead === null) {
+        return {
+          status: "rejected",
+          reason: describeTeardownAuthorizationRefusal("projection-mismatch"),
+          huskRefusal: "authorization-refused",
+        };
+      }
       authorizationRequest = {
         subject,
         branch,
-        head: registered.head,
+        head: authorizationHead,
         remote: remote ?? "origin",
         requestedMode: mode,
       };
@@ -527,7 +529,7 @@ async function teardownBranchProjection(
         };
       }
       directionalAuthorization = authorization;
-      retiringProjectionPath = registered.path;
+      retiringProjectionPath = registered?.path ?? primaryPath ?? cwd;
     }
     if (registered !== undefined && registered.path !== primary && (selfTeardown || mode === "abandoned")) {
       if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {

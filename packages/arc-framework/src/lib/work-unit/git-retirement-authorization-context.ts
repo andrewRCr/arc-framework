@@ -81,7 +81,7 @@ export function createGitRetirementAuthorizationContext(
       const owners = scan.worktrees.filter((worktree) => worktree.branch === request.branch);
       return {
         oid,
-        ownedByRetiringWorktree: owners.length === 1 && owners[0]?.head === request.head,
+        worktreeProjectionSafe: owners.length === 0 || (owners.length === 1 && owners[0]?.head === request.head),
       };
     },
     readRemoteRef: async (remote, branch) => await readRemoteOid(exec, remote, branch),
@@ -198,52 +198,72 @@ async function readReceiptCandidates(
   } catch {
     // A root commit cannot carry a valid direct-transition receipt.
   }
-  const lookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [
+  const baseLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [
     { transition: "decompose", sourceHead: request.head, ref: baseRef },
+    { transition: "abandon", sourceHead: request.head, ref: baseRef },
   ];
+  const directLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [];
   if (directParent !== null) {
-    lookups.push(
+    directLookups.push(
       { transition: "abandon", sourceHead: directParent, ref: request.head },
       { transition: "park-planning", sourceHead: directParent, ref: request.head },
     );
   }
 
-  const candidates: RetirementReceiptCandidate[] = [];
   const enumerations = new Map<string, ReturnType<typeof enumerateGitRetirementRecords>>();
-  for (const lookup of lookups) {
-    for (const schemaVersion of [1, 2] as const) {
-      const id = receiptId({
-        schemaVersion,
-        subject: request.subject,
-        transition: lookup.transition,
-        sourceBranch: request.branch,
-        sourceHead: lookup.sourceHead,
-      });
-      const enumeration = await (
-        enumerations.get(lookup.ref)
-        ?? (() => {
-          const pending = enumerateGitRetirementRecords(exec, lookup.ref);
-          enumerations.set(lookup.ref, pending);
-          return pending;
-        })()
-      );
-      if (enumeration.status !== "valid") {
-        throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
+  const collect = async (
+    lookups: readonly { transition: RetirementTransition; sourceHead: string; ref: string }[],
+  ): Promise<RetirementReceiptCandidate[]> => {
+    const candidates: RetirementReceiptCandidate[] = [];
+    for (const lookup of lookups) {
+      for (const schemaVersion of [1, 2] as const) {
+        const id = receiptId({
+          schemaVersion,
+          subject: request.subject,
+          transition: lookup.transition,
+          sourceBranch: request.branch,
+          sourceHead: lookup.sourceHead,
+        });
+        const enumeration = await (
+          enumerations.get(lookup.ref)
+          ?? (() => {
+            const pending = enumerateGitRetirementRecords(exec, lookup.ref);
+            enumerations.set(lookup.ref, pending);
+            return pending;
+          })()
+        );
+        if (enumeration.status !== "valid") {
+          throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
+        }
+        const record = enumeration.records.find((candidate) => candidate.id === id);
+        const receipt = record?.record.kind === "receipt" ? record.record.value : null;
+        if (receipt === null || receipt.transition !== lookup.transition) continue;
+        const decomposeResultHead = lookup.transition === "decompose"
+          ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
+          : null;
+        if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
+        const unchangedAbandonResultHead = lookup.transition === "abandon"
+            && receipt.retiringProjection.kind === "unchanged"
+          ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
+          : null;
+        if (
+          lookup.transition === "abandon"
+          && receipt.retiringProjection.kind === "unchanged"
+          && unchangedAbandonResultHead === null
+        ) continue;
+        candidates.push({
+          receipt,
+          resultHead: lookup.transition === "abandon"
+            ? unchangedAbandonResultHead ?? request.head
+            : decomposeResultHead ?? baseRef,
+        });
       }
-      const record = enumeration.records.find((candidate) => candidate.id === id);
-      const receipt = record?.record.kind === "receipt" ? record.record.value : null;
-      if (receipt === null || receipt.transition !== lookup.transition) continue;
-      const decomposeResultHead = lookup.transition === "decompose"
-        ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
-        : null;
-      if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
-      candidates.push({
-        receipt,
-        resultHead: lookup.transition === "abandon" ? request.head : decomposeResultHead ?? baseRef,
-      });
     }
-  }
-  return candidates;
+    return candidates;
+  };
+
+  const landedCandidates = await collect(baseLookups);
+  return landedCandidates.length > 0 ? landedCandidates : await collect(directLookups);
 }
 
 async function readEnumeratedReceipt(
@@ -300,7 +320,7 @@ async function validateReceiptResult(
   if (receipt.subject.kind !== "work-unit") return "unsupported-transition";
   switch (receipt.transition) {
     case "abandon":
-      return await validateAbandonResult(exec, receipt, projection.retiringHead, readBlob);
+      return await validateAbandonResult(exec, receipt, projection, readBlob);
     case "park-planning":
       return await validateParkRetirementProof(
         {
@@ -334,17 +354,20 @@ async function validateReceiptResult(
 async function validateAbandonResult(
   exec: GitExec,
   receipt: RetirementReceipt,
-  retiringHead: string,
+  projection: { retiringHead: string; resultHead: string },
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<TeardownAuthorizationRefusal | null> {
-  if (receipt.result.kind !== "discard" || receipt.retiringProjection.kind !== "direct-transition") {
+  if (receipt.result.kind !== "discard") {
     return "evidence-mismatch";
   }
   const name = receipt.subject.kind === "work-unit" ? receipt.subject.name : "";
+  const resultHead = receipt.retiringProjection.kind === "unchanged"
+    ? projection.resultHead
+    : projection.retiringHead;
   const [sourceArtifacts, resultArtifacts, resultIndex] = await Promise.all([
     readAllSubjectArtifacts(exec, receipt.source.head, name, readBlob),
-    readAllSubjectArtifacts(exec, retiringHead, name, readBlob),
-    readLifecycleIndex(exec, retiringHead),
+    readAllSubjectArtifacts(exec, resultHead, name, readBlob),
+    readLifecycleIndex(exec, resultHead),
   ]);
   if (sourceArtifacts.length === 0 || artifactGroupDigest(toArtifactEntries(sourceArtifacts)) !== receipt.source.artifactDigest) {
     return "evidence-mismatch";

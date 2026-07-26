@@ -301,10 +301,13 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
           inventoryRead: parsed.inventoryRead as "not-applicable" | "tree-only" | "reachable" | "degraded",
         };
     const expectedLifecycle = transition === "park-planning" ? "planned" : "nonexistent";
-    const expectedProjection = transition === "decompose" ? "unchanged" : "direct-transition";
+    const projectionMatches = transition === "abandon"
+      || (transition === "decompose"
+        ? receipt.retiringProjection.kind === "unchanged"
+        : receipt.retiringProjection.kind === "direct-transition");
     if (
       validateReceiptMatrix(receipt, expectedLifecycle) !== null
-      || receipt.retiringProjection.kind !== expectedProjection
+      || !projectionMatches
       || (receipt.result.kind === "decompose"
         && (receipt.subject.kind !== "work-unit"
           || receipt.result.allocation.origin.slug !== receipt.subject.name

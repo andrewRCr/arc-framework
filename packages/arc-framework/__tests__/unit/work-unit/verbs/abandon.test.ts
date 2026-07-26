@@ -176,14 +176,20 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   };
 
   const retirement: AbandonContext["retirement"] = {
-    captureSource: async ({ name, expectedBranch }) => {
+    captureSource: async ({ name, expectedBranch, retirementSource }) => {
       calls.push(`retirement:capture:${name}:${removed.length}:${expectedBranch ?? "[none]"}`);
+      if (retirementSource !== undefined) {
+        calls.push(`retirement:unchanged:${retirementSource.branch}:${retirementSource.sourceDir}`);
+      }
       return {
         scope: {
           subject: { kind: "work-unit", name },
           transition: "abandon",
-          source: { branch: "feat/foo", head: "a".repeat(40) },
-          resultProjection: { ref: "feat/foo", head: "a".repeat(40) },
+          source: { branch: retirementSource?.branch ?? "feat/foo", head: "a".repeat(40) },
+          resultProjection: {
+            ref: retirementSource === undefined ? "feat/foo" : "main",
+            head: "a".repeat(40),
+          },
         },
         artifactDigest: sourceArtifactDigest,
         sourceArtifactPaths: TRANSITION_OPERATIONS.map((operation) => operation.path),
@@ -417,22 +423,29 @@ describe("runAbandon — backlog stub (provisional)", () => {
     // Per-WU backlog subdir is removed once emptied.
     expect(rmdirs).toContain("/repo/.arc/backlog/provisional/foo");
     expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
+    expect(result.lifecycle.subject.branch).toBeNull();
+    expect(result.lifecycle.cleanup).toEqual({
+      branch: { status: "not-applicable" },
+      worktree: { status: "not-applicable" },
+      userWorkspace: { status: "not-applicable" },
+    });
   });
 });
 
 describe("runAbandon — parked WU", () => {
-  it("records authority for the preserved branch before deleting it in place", async () => {
+  it("records the preserved branch as an unchanged projection and defers its cleanup", async () => {
     const { ctx, calls } = buildCtx([PARKED]);
 
     const result = await runAbandon(ctx, { name: "foo", confirmed: true });
 
     expect(result.status).toBe("abandoned");
     if (result.status !== "abandoned") return;
-    expect(calls).toContain("retirement:capture:foo:0:feat/foo");
-    expect(calls.indexOf("retirement:record")).toBeLessThan(calls.indexOf("branch:delete:feat/foo"));
-    expect(calls).toContain("branch:delete:feat/foo");
+    expect(calls).toContain("retirement:capture:foo:0:[none]");
+    expect(calls).toContain("retirement:unchanged:feat/foo:.arc/active");
+    expect(calls).not.toContain("branch:delete:feat/foo");
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
-    expect(result.lifecycle.cleanup.branch).toEqual({ status: "completed" });
+    expect(result.receipt.retiringProjection).toEqual({ kind: "unchanged" });
+    expect(result.lifecycle.cleanup.branch).toEqual({ status: "pending" });
     expect(result.lifecycle.cleanup.worktree).toEqual({ status: "not-applicable" });
   });
 });
@@ -455,11 +468,11 @@ describe("planAbandon — the impact plan per from-state", () => {
     expect(plan.lines.some((l) => /Branch:|Worktree:|Teardown:/.test(l))).toBe(false);
   });
 
-  it("a parked WU plans receipt-first preserved-branch deletion", () => {
+  it("a parked WU plans landed receipt-backed cleanup of its preserved branch", () => {
     const plan = planAbandon("parked", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
-    expect(plan.lines.some((l) => /Branch:.*feat\/foo.*retirement authority/.test(l))).toBe(true);
-    expect(plan.lines.some((l) => /Worktree:|Teardown:|--force/.test(l))).toBe(false);
+    expect(plan.lines.some((l) => /Teardown:.*arc teardown foo.*feat\/foo/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Branch:|Worktree:|--force/.test(l))).toBe(false);
   });
 
   it("an illegal source (integrating) yields no plan", () => {

@@ -650,9 +650,9 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // an in-verb leg. Firing teardown here tripped the `worktree-clean` guard on the
     // verb's own staged removal and, in-place, targeted the un-removable primary
     // worktree — so these edges declare neither the teardown legs nor that guard
-    // (mirroring `park@Planning` / `decompose@planning`). PARKED still deletes its
-    // branch in-verb (no worktree to self-teardown); the backlog stubs remove only
-    // artifacts.
+    // (mirroring `park@Planning` / `decompose@planning`). PARKED likewise
+    // preserves its branch until the pointer removal and retirement receipt land;
+    // the backlog stubs remove only artifacts.
     verb: "abandon",
     from: PLANNING,
     to: null,
@@ -678,7 +678,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
-    encodingUpdates: { artifacts: "remove", reconcileBranch: "delete" },
+    encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

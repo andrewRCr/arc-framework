@@ -295,6 +295,42 @@ describe("finalizeDecomposeRetirement", () => {
     });
   });
 
+  it("projects retirement cleanup as inapplicable for a branchless source", async () => {
+    const branchlessAllocation = {
+      ...record.allocation,
+      origin: { ...record.allocation.origin, location: "planned" as const },
+      shape: "backlog-stub-source" as const,
+    };
+    const branchlessCutMapDigest = canonicalDigest(branchlessAllocation);
+    const branchlessLocator: DecomposePreparationLocator = {
+      ...locator,
+      preparationId: preparationId({
+        receiptId: locator.receiptId,
+        baseHead: locator.scope.resultProjection.head,
+        ...inventoryDigests,
+        cutMapDigest: branchlessCutMapDigest,
+      }),
+    };
+    const branchlessRecord: DecomposePreparationRecord = {
+      ...record,
+      locator: branchlessLocator,
+      allocation: branchlessAllocation,
+      cutMapDigest: branchlessCutMapDigest,
+    };
+    const h = context({}, { record: branchlessRecord, projection });
+
+    const result = await finalizeDecomposeRetirement(h.ctx, branchlessLocator, "prepared-version");
+
+    expect(result.status).toBe("recorded");
+    if (result.status !== "recorded") return;
+    expect(result.lifecycle.subject.branch).toBeNull();
+    expect(result.lifecycle.cleanup).toEqual({
+      branch: { status: "not-applicable" },
+      worktree: { status: "not-applicable" },
+      userWorkspace: { status: "not-applicable" },
+    });
+  });
+
   it("binds finalization to the prepare-time transformed-dependent partition", async () => {
     const fixture = v2Fixture("reachable");
     const result = await finalizeDecomposeRetirement(

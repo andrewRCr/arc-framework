@@ -77,8 +77,11 @@ describe("parseRetirementReceipt", () => {
   );
 
   it("accepts canonical receipts for every closed subject and result arm", () => {
+    const parkedAbandon = receiptFor({ kind: "work-unit", name: "sample" });
+    parkedAbandon.retiringProjection = { kind: "unchanged" };
     const receipts = [
       receiptFor({ kind: "work-unit", name: "sample" }),
+      parkedAbandon,
       receiptFor({ kind: "errand", slug: "sample" }),
       receiptFor({ kind: "branch", ref: "plan/sample" }),
       receiptFor({ kind: "work-unit", name: "sample" }, "park-planning", {
