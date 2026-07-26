@@ -15,6 +15,34 @@
 
 ---
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Concurrent review checkouts need a deliberate cap, and only the chunked path has one**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ How many review checkouts may exist at once is a real question, but only on the chunked path.
+  Non-chunked frontline review materializes exactly one checkout and runs sequentially, so it has no concurrency to
+  bound. Chunk projection is where several checkouts coexist — the observed case left four surviving a sibling work
+  unit's integration — so a cap belongs to the machinery that creates them, not to the shared lifecycle.
+
+- _Observation (adjacent finding):_ the checkouts that were observed all sat at one head with scope carried
+  separately, so their count reflected a parallelism choice rather than a requirement. Whatever cap is chosen,
+  the count is a knob, not a constraint the design imposes.
+
+- _Approach:_ decide the cap alongside the registration-isolation pattern that `review-checkout-lifecycle` settles
+  for the frontline path — an isolated per-review checkout changes what a concurrency limit is protecting against,
+  so read that decision before fixing a number.
+
+- _Captured during:_ `review-checkout-lifecycle` drafting, 2026-07-26 — surfaced as an out-of-scope knob while
+  stripping speculative machinery from that draft.
+
+---
+
 ## Grooming status (continuity)
 
 - **Readiness:** `rough` — charter inherited from the deferral; no design has been authored under this slug. The

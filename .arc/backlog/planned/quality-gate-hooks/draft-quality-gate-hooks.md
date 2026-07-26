@@ -194,6 +194,96 @@
 - _Files:_ `.arc/system/.internal/githooks/pre-commit` (+ package mirror), `.arc/system/rules/DEV-RULES.PROJECT.md`,
   possibly `package.json` / `.markdownlint-cli2.jsonc`.
 
+### `[ ]` **Keep local Tier 3 commands in parity with required CI gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ The documented Tier 3 set in `QUICK-REFERENCE.md` and the project quality-gate method omits the
+  ARC-specific lint commands that the required CI workflow runs. The validation-surfaces pre-PR verification
+  therefore reported all local gates green while CI immediately rejected two section-sign references through
+  `lint:arc:section-refs`. This is a recurring false-green class whenever CI adds or renames a required gate without
+  updating the separately enumerated local command set.
+
+- _Approach:_ make the pre-PR/Tier 3 invocation consume one authoritative project gate composition aligned with CI,
+  or mechanically assert parity between the two surfaces. Include the complete `lint:arc:*`/ARC-contract family and
+  preserve the existing distinction between fast task gates and the full pre-PR suite.
+
+- _Files:_ project quality-gate configuration/method, `QUICK-REFERENCE.md`, `verify-work-unit.md`, root scripts, and
+  CI parity tests.
+
+- _Captured during:_ PR #354 CI diagnosis after `cli-validation-surfaces` verification.
+
+### `[ ]` **Flat `active/` layout is unguarded against doc↔code drift**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ nothing asserts that the documented flat `active/` layout matches `meta-reader.ts` (non-recursive
+  readdir) and `worktree-scaffold.ts` (flat write). `decomposition-machinery` routed the hook _out_ — it owns the
+  cohort-consistency invariant, not the `active/`-layout one, and the check needs code-behavior introspection the
+  structural cohort guard does not share. Gap accepted as low-cost: the layout is simple and low-churn, and
+  `doc-cascade-sweep` corrects today's drift — a hook only prevents recurrence.
+
+- _Approach:_ a hook asserting the documented layout against both call sites. No action needed beyond awareness when
+  touching either file.
+
+- _Captured during:_ `WORKING-MEMORY` prune, 2026-07-25 — its own removal trigger already named this WU as owner.
+
+### `[ ]` **The worktree Markdown gate cannot see untracked files, so new artifacts lint green until staged**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `npm run -s lint:md` enumerates paths with bare `git ls-files`
+  (`lib/markdown/selection.ts:181` — `source === "index" ? ["ls-files", "--cached", "-z"] : ["ls-files", "-z"]`,
+  with no `--others`), so it lists **tracked files only**. A newly authored `.md` is therefore invisible to the
+  worktree gate until it is first staged. Observed 2026-07-25 while capturing two grooming drafts: `lint:md`
+  reported `Summary: 0 error(s)` over **602 files** on a tree that held 604, and the commit then failed
+  `lint:md:staged` on **40 MD049 emphasis-style violations** across exactly the two files it had skipped. The file
+  count is the only visible tell, and nothing surfaces it — the run reads as a clean full-corpus pass.
+
+- _Why the existing guard does not cover it:_ `lint-markdown.ts` already refuses a false-green "when staged
+  Markdown-gate paths still differ in the worktree," but that guard keys on **staged** paths. An untracked file is
+  in neither the index nor the tracked worktree set, so no guard fires in either direction. The gap is precisely
+  the state every newly authored artifact occupies, and authoring new Markdown artifacts is the single most common
+  ARC planning operation.
+
+- _Approach:_ decide whether the worktree selection should include untracked, non-ignored Markdown
+  (`git ls-files -z --others --exclude-standard` alongside the tracked set) or whether the gate should instead
+  refuse to report clean while untracked Markdown-gate paths exist. The former closes the hole; the latter is
+  cheaper and fails loud, matching the existing guard's posture. Either way the fix should make the _count_
+  legible, since the discrepancy was recoverable only by noticing 602 against 604. Note `lint:md:file` is unaffected
+  (raw `markdownlint-cli2 --no-globs` takes any path), so the documented per-file Tier 1 command is already safe —
+  it is the full-corpus run that under-reports.
+
+- _Related:_ sibling to **Keep local Tier 3 commands in parity with required CI gates** in this section — same
+  false-green class (a green local gate measuring less than it appears), different mechanism. That entry is about
+  the enumerated command set drifting from CI; this one is about a single command's file selection. Filed
+  separately rather than folded in, because the fix and the validator differ; drain may still choose to settle them
+  together under one authoritative gate composition.
+
+- _Captured during:_ the `review-architecture` grooming session, 2026-07-25 — the drafts for
+  `review-protocol-alignment` and `judgment-authority-model` were the files that lint skipped.
+
+### `[ ]` **Close the add → format → re-stage loop for a newly created Markdown artifact**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ authoring a brand-new tracked Markdown artifact costs three staging steps before any gate can pass.
+  `npm run format:tables` refuses untracked paths (`markdown.untracked`), so the file must be `git add`ed before it
+  can be formatted; the formatter then rewrites the worktree copy, which trips `lint:md`'s fail-closed
+  index/worktree drift check and demands a re-stage. Each guard is individually correct — the tracked-path
+  requirement keeps the formatter off projections and vendored trees, and the drift check exists so a green
+  worktree run cannot hide a dirty index — but composed on a new file they produce a loop with no green state until
+  the third step.
+
+- _Approach:_ the fork worth settling is which guard yields. Either the formatter accepts an untracked path that is
+  inside the repo and not otherwise excluded (the `markdown.untracked` guard narrows to exclusions rather than to
+  tracked-ness), or the drift check learns that a formatter rewrite of an already-staged path is expected and
+  re-stages it. The second is the index-safe auto-fix/restage machinery this WU already retains scope for, which is
+  why it routes here rather than standing alone.
+
+- _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while creating
+  `notes-judgment-authority-model.md` for the compression enumeration.
+
 ---
 
 ## Problem / Motivation

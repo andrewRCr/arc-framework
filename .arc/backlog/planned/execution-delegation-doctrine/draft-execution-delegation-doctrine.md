@@ -128,6 +128,37 @@ members consume.
   delegation log (`.claude/agents/delegation-log.md`, gitignored) from the 2026-07-16 field-experiment errand
   onward.
 
+### `[ ]` **Extend, do not reverse, `adversarial-review`'s shipped § Sub-agent scope wording**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `adversarial-review` has **shipped** its § Sub-agent scope edit, so EDD's rewrite now extends landed
+  wording rather than coordinating with a pending one. Two cautions carry forward: (1) state the sharpened rule
+  (derivation delegable / execution primary-held with an explicit relaxation socket / judgment never) on its own
+  terms — do **not** re-anchor it on the "delegation bypasses the co-development loop" rationale, which is precisely
+  the proxy argument EDD dismantles; (2) keep verification-subagent spawn language semantic ("same capability as the
+  primary," "fresh context") — no model names or spawn mechanics — so a future `arc-peer` profile name retrofits as
+  a one-line edit. AR's implicit spawn-at-parity is already EDD's inherit-by-default fallback; no functional change
+  needed.
+
+- _Captured during:_ `WORKING-MEMORY` prune, 2026-07-25 — demoted from per-session memory once AR shipped, since the
+  surviving content is one instruction for one future grooming session.
+
+### `[ ]` **Delegating for token economy needs verification cheaper than production — read the field note first**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ before delegating to `arc-worker` for **token savings** (as distinct from context conservation),
+  read `.claude/agents/delegation-log.md` § Field note (2026-07-18). Worker token-savings are real only in
+  verification-asymmetric or scale-beyond-context regimes, never for small settled single-context work under
+  full-rigor verify — three such runs in `commit-message-ergonomics` Phases 1–2 were a wash: useful for
+  context-conservation, net-neutral on tokens. Primary lever: **split test-authorship** (primary owns the tests,
+  worker implements to green), which collapses verification to "run my tests + skim." The `arc-worker.md` "Test
+  authorship" clause operationalizes it.
+
+- _Captured during:_ `WORKING-MEMORY` prune, 2026-07-25 — the entry was a pointer to a file that already holds the
+  content, so it paid per-session rent for an indirection.
+
 ---
 
 ## Problem / Motivation

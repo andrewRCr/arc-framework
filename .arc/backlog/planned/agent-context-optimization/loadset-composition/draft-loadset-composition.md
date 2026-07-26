@@ -75,6 +75,75 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
   useful when deciding core-vs-fragment-vs-install-render per `composable-workflows`' binding-time rule. The
   line-number anchors in the source are stale; the seam identities are the payload.
 
+### `[ ]` **A demotion trigger must name the residual question, not the domain**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ where a lean operational surface already covers the common case, pointing at the deeper surface
+  with a domain-scoped trigger fires on the 95% the method already served. Measured instance (2026-07-24):
+  execution sessions load `strategy-quality-gates` (966 words) and `strategy-testing-methodology` (1,230) on top
+  of the `quality-gate-commands` / `testing-standards` / `test-first` methods that answer the operational
+  question — **~2,200 words (~3k tokens) per task loop, recurring every session**. Comparable to the entire yield
+  of `recovery-load-scoping`'s disposition axis, and it fires more often. It is instructed behavior, not agent
+  drift: `process-task-loop` fired a `Tier boundaries` pointer inside the per-task completion step, and
+  `STRATEGY-INDEX` triggered on "writing tests, choosing test tier" — the methods' own territory.
+
+- _Approach:_ the two named instances are corrected by the `strategy-trigger-overfire` errand (PR #342), which
+  rescopes each trigger to the residual question. The **general rule** is this WU's: it owns the demotion rule
+  ("demote only to an explicit trigger, never implicit awareness") and the adherence bands the diagnosis rests
+  on, so the trigger-scoping requirement belongs alongside them rather than as errand-local prose.
+
+- _Why it constrains the sibling:_ this is a counterexample bounding `recovery-load-scoping`'s `aware`-demotion
+  precondition. `STRATEGY-INDEX` would **pass** a trigger-existence check — `DEV-RULES.ARC` § Consult strategy
+  guidance is always loaded and imperatively says to check it — yet demoting it converts a load into a _search_
+  (20–40% band) while leaving the over-firing intact. So existence is CLI-checkable; correct scoping is an
+  authoring judgment no check can make. That WU records the partial precondition and defers the rule here.
+
+- _Captured during:_ `recovery-load-scoping` grooming (2026-07-24), from a field observation during the
+  procedural-substrate forward-compat read.
+
+### `[ ]` **Read `analysis-load-set-scoping` before deciding demotions — one is mutually exclusive with yours**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ A retired planning investigation (`recovery-load-scoping`, 2026-07-24) audited every universal
+  load-set entry for position-conditional demotability and left the evidence in
+  `.arc/reference/supplemental/analysis/analysis-load-set-scoping.md`. Four items bear on LC, the first two
+  materially:
+
+    1. **A hard mutual exclusion.** LC proposes demoting `QUICK-REFERENCE`'s environment residual on redundancy
+       with `AGENT-BRIEF.PROJECT`. The reverse demotion rests on the same redundancy in the other direction, and
+       `DEV-RULES.PROJECT` § Quality Gates carries the gate commands but **not** the repo-root rule or the
+       hybrid-layout note. Both must not land. Whichever is second re-derives its basis against what actually
+       remains loaded, or drops the demotion. Separately: `AGENT-BRIEF.PROJECT`'s "Development Environment:
+       Cross-platform (Windows/WSL/Linux/Mac)" line appears **nowhere else** in the loaded set, and is
+       operational at execution in a CLI that branches on `posix`/`win32`.
+    2. **A coordination note in `draft-loadset-composition.md` is factually wrong** — the claim that
+       "`compaction-recovery`'s load-set projection faithfully mirrors current item-11 policy … so recovery and
+       init stay parity-identical … one policy, two consumers." Three verified differences: init does not consume
+       the manifest programmatically (Step 3 is a hand-written enumeration; `session-recover` loops
+       `loadSet.value.entries`); init already carries its own read policy in prose (its errand-resume arm loads
+       universal context only); and a transient position is CLI-representable in the recover envelope but not
+       the init one. A demotion decided once does **not** apply identically to both.
+    3. **The measured audit result:** four of the five universal entries do not vary by lifecycle position —
+       `AGENT-BRIEF.ARC` (no trigger, 52% constraint), `QUICK-REFERENCE` § Env, the cohort doc (constraint), and
+       `AGENT-BRIEF.PROJECT` (contested per item 1). The fifth, `STRATEGY-INDEX`, is safely demotable but of
+       **unmeasured** value: its trigger reads "Before _implementing_ work in codified domains," and execution is
+       exactly that condition, so the read may relocate rather than disappear. Measuring it needs the
+       judgment-layer adherence instrument `workflow-eval-harness` owns.
+    4. **A two-clause demotion precondition, with a defect stated and unresolved.** Reachability **or**
+       never-needed (redundancy, strong / irrelevance, weak). Irrelevance was drafted as requiring two
+       independent signals, the second being "the entry's trigger condition excludes the position" — which is
+       unproducible for a trigger-less entry, i.e. exactly the orientation content clause (b) exists to serve.
+       Adopting the precondition means settling whether absence-of-trigger satisfies that signal vacuously.
+
+    Also relevant: the unsafe-vs-pointless distinction (a demotion can be safe yet worthless when the trigger
+    over-fires), with commit `63d31c796` as the worked fix — scope the trigger to the **residual** question, not
+    the domain.
+
+- _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
+  this capture is the pointer.
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in
