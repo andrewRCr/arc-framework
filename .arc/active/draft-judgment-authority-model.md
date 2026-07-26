@@ -138,13 +138,51 @@ This is `adr-029`'s already-accepted shape, generalized off the review domain.
 
 ### The constitutional core (faces b + c)
 
-A new `DEV-RULES.ARC` section carrying three things:
+A new `DEV-RULES.ARC` § Rule Authority. Settled 2026-07-26 as a synthesis over three candidate tests — a
+purpose test (what does the rule fear), a satisfaction test (what would discharge it), and a standing test
+(whose call is it). The satisfaction test is primary: it is the only one that forces the disclosure as a
+byproduct, since a default cannot be discharged without naming the fact, and the named fact _is_ the
+disclosure. It also fails safe on silence, which matters most for the rules nobody thought about.
 
-- The **discriminator** (ignorance-guard → default; bias-guard → invariant), authored as a _derivation rule_ so
-  unmarked rules classify, rather than as a fourth enumeration.
-- The **override authority** declaration (`owner` / `maintainer` / `policy`), resolving off the existing
-  `arc.role` and per-WU `Owner` substrate.
-- The **disclosure obligation**, lifted from `adr-029` rather than re-derived.
+```markdown
+## Rule Authority
+
+Rules here are **defaults** unless marked **invariant**.
+
+**Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern
+does not arise here.
+
+- You can name one → the rule is a **default**. Discharge it as below.
+- No fact you could produce would settle it — what is in doubt is you, not the facts → **invariant**.
+- You can name nothing → **invariant**. Naming nothing settles nothing.
+
+**Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or
+when it withholds an *authorization* rather than a *judgment* — a decision reserved to a person because
+it commits them. Competence never transfers an authorization; it does not follow that the capability is
+withheld too.
+
+**Discharging a default.** Silent divergence is an escape hatch; stated divergence is judgment. Name the
+rule and the fact that discharges it, surface it where the developer is already reading — the gate or the
+completion report, never a log — leave it reversible in one turn, and proceed. Raise it once: a
+reaffirmation is a decision, not an invitation to re-raise. The obligation is disclosure, not obstruction.
+
+**Whose call.** A default declares whose it is to override: `owner` (the work's owner), `maintainer`, or
+`policy` (nobody at runtime). Undeclared defaults are `owner`. Where one person holds every role this
+collapses to full latitude with no special case; where roles are distributed, the same declaration is
+enforcement.
+```
+
+**Why the backstop is load-bearing.** No single test classifies the corpus. Probed against four rules, the
+satisfaction and standing tests both wrongly release `--no-verify` — a hook failure on an untouched file is a
+nameable, checkable fact, and skipping the hook reads as a judgment rather than an authorization. Only the
+purpose test catches it, and for the right reason: an agent that wants to commit is structurally the wrong
+judge of whether the commit check applies to it. The backstop's first limb generalizes that. Its second limb
+carries the `run-errand` fix directly, separating a withheld **authorization** (the owner's approval) from a
+withheld **capability** (performing the merge) — the distinction the standing test read straight off.
+
+**Still open:** `Whose call` as written is prose the agent parses, which `procedure-evolution` P2 forbids.
+Either the declaration becomes a typed field, or the section drops per-rule declaration and resolves authority
+from `Owner` / `arc.role` alone.
 
 Plus an **ADR** that anchors `adr-016`, `adr-020`, and `adr-029` under one model — generalizing, not superseding.
 
@@ -162,6 +200,121 @@ relief back into agent judgment, and the forgeability unknown (below) disfavors 
 record into a machine-read classifier. Candidate resolution satisfying both: **keep path-class deterministic in
 the CLI, and model relief as a typed, human-authorized input** — a human-sourced authorization has nothing to
 forge, and the classifier stays code. To be settled, not assumed.
+
+## Rule-surface compression
+
+A deliberate widening taken 2026-07-26: the same document set, worked harder, for a tighter result. Both rules
+files have been appended to across the project's life and never reconsidered, and they load every session.
+Fanning out to more files would be bloat; more passes over these two is not. The register below is **bounded and
+enumerated** so it cannot quietly expand into an open audit mandate.
+
+### What model progress erodes
+
+Model progress erodes **capability rules** and does nothing to **preference or authority rules**.
+
+- A _capability_ rule tells the agent how to be good at something — how to decompose, how to search before
+  assuming, how many files is too many. Each is a bet against the model, and each release settles it further
+  against the author.
+- A _preference or authority_ rule says what the developer wants and who decides. "Merge requires explicit human
+  authorization" is derivable from nothing in the codebase; it is a choice about where the human stands. No
+  amount of capability touches it.
+
+Published guidance points the same way. Anthropic's 2026 context-engineering note removes prescription, worked
+examples ("giving examples actually constrains them"), and duplication, while explicitly preserving "particular
+opinions, knowledge, or best practices that are particular to you, your team, or product" — this corpus's entire
+content class.
+
+One asymmetry that guidance does not address: a **system prompt** ships to every user and every task and cannot
+know the context, so it must be small. These rules are per-project, authored by the person they bind, and
+revisable in a commit. "A universal prompt should be minimal" does not generalize to "a project's rules should be
+minimal" — the system prompt is small because it is ignorant; these exist because they are not.
+
+### The cut test — loud versus quiet failure
+
+"Easy to revert" holds only where a removed rule fails **loudly**. A gate that stops firing is noticed the same
+session; a scope that widens ten percent per session is not noticed for months, and is then misattributed to
+model drift.
+
+The WU's own discriminator sorts this, which is a strong argument for its shape:
+
+- **Ignorance-guards fail loudly** — the agent is wrong and it shows. Model progress is exactly the evidence that
+  discharges them. **Cut aggressively.**
+- **Bias-guards fail quietly** — the agent is confident and nothing looks off. A better model is more confident,
+  not less structurally interested; capability is not the variable they track. **Never cut, at any capability.**
+
+Never-cut does not mean never-rephrase: correcting a rule's scope is not weakening it.
+
+### Constraints only — the always-loaded target
+
+`knowledge-evolution` P1 settles the half of progressive disclosure that matters here: constraints never go
+on-demand, because a reader does not know to look for the rule they are about to violate. So the redistribution
+is not "fewer rules, found later" — it is **the always-loaded set shrinks to constraints only, and everything
+explanatory, procedural, or exemplary demotes.** The likely result is a substantially shorter `DEV-RULES.ARC`
+that is _more_ rule-dense.
+
+That is also the larger win: the enumerated cuts below are smaller than the compression available in the
+explanatory prose wrapped around rules that stay.
+
+### Constraint stays, procedure moves
+
+Several universal rules are really domain concerns that landed in the universal file. The fix is a split, not a
+relocation: **the universal states the obligation; the owning workflow states the site.** Written that way, it
+also resolves the tension with workflows that declare their own interlocks as the only human stops — one says a
+gate must exist, the other says where it fires.
+
+Relocating wholesale would break P1. Merge authority is the worked case: its entire job is to stop a merge when
+the agent is _not_ in an integration workflow — a mid-execution "ship it", an errand PR, the auto-merge lane — so
+loading it only during integration removes it exactly where it works.
+
+### Gate versus granularity
+
+The review-increment invariant bundles two claims that must now separate:
+
+- **A gate exists** — every review increment closes with a structured approval gate before commit.
+  Scope-invariant, true at leaf, phase, or WU width. Stays universal and unqualified.
+- **The increment is one leaf** — a granularity setting, no longer the observed default. Becomes a named
+  **floor**: the fallback when nothing wider is authorized, and the right setting for a tricky change or one
+  the developer wants to stay close to.
+
+§ Review-Increment Invariant is already scope-agnostic and needs no change. The leaf-binding lives in § Task
+Execution → Task interlock and in `AGENT-BRIEF.ARC`'s vocabulary entry ("default boundary: one leaf task"); both
+want `default` → `floor` plus an explicit boundary parameter. That is exactly the parametrization
+`unit-scoped-review` asks for, so the rephrasing is forward-compatible by construction and does not do that WU's
+work. Frequency of use at the finest setting is not evidence about the gate's necessity — under deferred review
+the gate fires at a wider boundary, which is why `unit-scoped-review` must invent a break-out matrix and
+deviation ledger to keep it honest there.
+
+### The bounded register
+
+Cuts, ranked:
+
+1. `DEV-RULES.PROJECT` § Code Quality Principles — "DRY, SOLID, KISS, YAGNI". Four acronyms, no
+   project-specificity, nothing actionable. The TypeScript standards beneath it are specific and stay.
+2. `DEV-RULES.ARC` § Task granularity — the numeric thresholds (>3 files, >50 lines). Proxies standing in for
+   "is this one coherent increment"; they cause more bad decompositions than they prevent. Keep the principle.
+3. § Quality gate failure — steps 1–3 describe baseline competence. Only "never proceed until resolved or the
+   user approves" is a constraint.
+4. § Verify before assuming — same shape. The "Never generate or assume" list beneath it stays intact.
+5. § Context quality ¶2–4 (compaction, handoff boundaries, quality signals) — guidance that already
+   cross-references `strategy-session-operations`. Its first line is a constraint and stays.
+
+Rephrasings:
+
+- § Review-Increment Invariant ¶2 — five exempted operations packed into one sentence; slow to parse, and pure
+  enumeration where the discriminator would derive. Restructure as a list at minimum.
+- § Discovered Work Routing — "always propose placement to the user before acting" contradicts the inline-fix
+  permission two lines above it. Under the model, a same-concern cleanup in a file already under edit is a
+  discharged default, and proposing it is the ceremony this WU exists to remove.
+- § Commit control, merge authority — oddly seated under commit control, and enumerates what does not count as
+  authorization (task approval, review completion, passing checks, general "proceed" language). Under the
+  discriminator that enumeration is derivable, since a bias-guard yields to no inference. One line survives; the
+  procedure moves to `integrate-work-unit`.
+- `DEV-RULES.PROJECT` § Selecting what to run is the **exemplar** — named purpose, derivation rule, explicit
+  fail-safe ("the deciding is not worth more than the checks cost"). Cite it as the target shape; change nothing.
+
+**Author's-interest caveat.** Cuts 2–5 are judgments about what current agents no longer need, made by an
+interested party — the backstop clause calls exactly that structurally suspect. Treat them as candidates for the
+maintainer's read, not findings.
 
 ## Forward-compat
 
@@ -228,6 +381,10 @@ Two narrower target classes remain:
   operator-reaffirmation-is-decisive norm as a first-class rule. Nothing says what governs when the two
   disagree. Bounded composition work, not a literature review — and it replaces the seed's "is ARC stricter than
   the norm" framing, which § Face (c) resolved.
+- **The compression register is bounded; the larger win is not.** § Rule-surface compression names five cuts and
+  four rephrasings so the pass cannot sprawl — but it also records that more compression sits in the explanatory
+  prose wrapped around rules that stay, which the register does _not_ enumerate. Either that pass is scoped
+  explicitly or it is consciously deferred; leaving it implied is how a bounded register becomes an open audit.
 - Whether the three faces are one deliverable or want decomposing — see § Scope. The cohort-fit read is
   deliberately still not made; the shape has firmed but the cuts are not yet certain.
 
@@ -267,6 +424,10 @@ Constitutional but **prose-dominant**, and smaller than the seed's "large (week+
 premise dropped: a new `DEV-RULES.ARC` section, one ADR, a bounded marker retrofit, and a narrow prose sweep.
 Code is touched only if face (a) survives in a form that changes the lane classifier.
 
+The § Rule-surface compression register widens this deliberately, and the widening is **depth on the same two
+files, not fan-out** — the net direction is fewer lines than it started with, in a surface loaded every session.
+Judge it on coherence of the result rather than on passes spent.
+
 **Likely cut.** Faces (b) and (c) are one constitutional deliverable with no code and no blocking unknown. Face
 (a) is a downstream application of that model, gated on the forgeability question and the `procedure-evolution`
 P1 tension, and it is the only face that reaches `change-facts.ts`. That asymmetry is the decomposition signal;
@@ -279,12 +440,16 @@ confirm or reject it once the core's shape is settled.
   in favor of an internal ADR-versus-rules inconsistency; `unit-scoped-review` established as downstream;
   deliverable shape settled to a `DEV-RULES.ARC` section plus an anchoring ADR; retrofit posture settled to
   derivation-first with markers as the exception; both forward-compat check-docs run with tensions recorded;
-  `Class` ratcheted `Novel` → `Heavy` on the compose-not-invent read.
+  `Class` ratcheted `Novel` → `Heavy` on the compose-not-invent read. **2026-07-26:** the discriminator's wording
+  settled as satisfaction-test-primary plus a two-limb backstop, probed against the corpus; the cutting doctrine
+  settled as loud-versus-quiet with constraints-only as the always-loaded target; the placement doctrine settled
+  as constraint-stays / procedure-moves, with gate-versus-granularity as its worked case.
 - **Open:** the forgeability question and the `procedure-evolution` P1 tension, which jointly gate face (a) and
-  its shape; the `execution-delegation-doctrine` boundary; the cross-harness precedence posture; the P10
-  always-loaded budget argument; whether the cut in § Scope is real.
-- **Next:** settle the constitutional core's wording — the discriminator as a derivation rule, and whether the
-  override-authority declaration is a typed contract surface per `procedure-evolution` P2. Face (a) waits on the
-  forgeability resolution and should not gate the core.
+  its shape; whether `Whose call` survives as prose or becomes a typed field under P2; the scope of the
+  unenumerated explanatory-prose compression; the `execution-delegation-doctrine` boundary; the cross-harness
+  precedence posture; whether the cut in § Scope is real.
+- **Next:** resolve `Whose call` against P2 — the last open question in the constitutional core — then draft the
+  `DEV-RULES.ARC` § Rule Authority section in place and run the bounded register against it. Face (a) waits on
+  the forgeability resolution and should not gate the core.
 
 ---
