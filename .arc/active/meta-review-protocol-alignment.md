@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft grown to eight concerns, each settled to the decision level
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Assess formalization-readiness — re-read the draft whole for coherence first (concerns 7–8
+  landed after this pass's consolidation), and re-run `classify-work-unit` before trusting the recorded `Class`
 
 - **PR URL:** [none]
 - **Completed:** [none]
