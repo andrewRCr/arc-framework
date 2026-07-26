@@ -532,8 +532,10 @@ confirm or reject it once the core's shape is settled.
   its shape; the line-level enumeration of the measured compression surface; the
   `execution-delegation-doctrine` boundary; the cross-harness precedence posture; whether the cut in § Scope is
   real.
-- **Next:** the constitutional core is settled and draftable — write `DEV-RULES.ARC` § Rule Authority in place.
-  In parallel, run the line-level enumeration pass so the compression deliverable is a list, not a principle.
-  Face (a) waits on the forgeability resolution and should not gate either.
+- **Next:** the constitutional core is settled **as design** and needs no further shaping — its section text is
+  captured verbatim in § Proposed shape. The remaining drafting move is the line-level enumeration pass over the
+  measured compression surface: it closes the last scoping unknown and decides what the deliverable actually
+  contains. Reassess formalization-readiness after it. Authoring the real `DEV-RULES.ARC` section is downstream
+  of create-spec, not a drafting-stage move. Face (a) waits on the forgeability resolution and gates neither.
 
 ---
