@@ -12,14 +12,13 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
-- **Last Completed:** Draft grown to nine concerns and reconciled — the framing now names three patterns
+- **Current Workflow:** `create-spec`
+- **Last Completed:** Draft reached formalization-readiness and decomposed — two orthogonal concerns extracted as
+  `review-checkout-lifecycle` and `integration-boundary-accuracy`; seven remain on one subject
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the readiness sequence in order — `assess-draft-readiness`, then `classify-work-unit`
-  (recorded `Class` predates two new lifecycle verbs and a command rename), then `assess-cohort-fit`, expected to
-  fire on the concerns 1–8 versus concern 9 cut
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
