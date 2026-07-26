@@ -9,7 +9,7 @@
   capability is declared only where it is proven, and the rules that already govern review are reachable from the
   point where the decision is made.
 
-- **State:** formalization-ready — 2026-07-26 grooming session, third pass, decomposed. Pre-PRD.
+- **State:** not formalization-ready — 2026-07-26, decomposed, then reopened by adversarial pass one. Pre-PRD.
 - **Class:** `Heavy` (derivation and scale both fire; compose rather than invent).
 
 ---
@@ -19,7 +19,7 @@
 `review-gate-right-sizing` removed the resident controller, the GitHub App path, provider qualification, and the
 guidance-evidence admission machinery. What it did not do is reconcile every surface that the removed machinery
 used to own. The residue is not cosmetic: on PR #354 it produced a **misdiagnosis that bypassed configured
-policy**, and the diagnosis run surfaced four further gaps that share one root — _the protocol asserts things about
+policy**, and the diagnosis run surfaced three further gaps that share one root — _the protocol asserts things about
 providers that nothing establishes or checks._
 
 Four distinct failures, from one integration:
@@ -27,13 +27,14 @@ Four distinct failures, from one integration:
 1. **A skip was read as an attempt.** `.coderabbit.yaml` gated automatic review on a label that no longer existed,
    so every PR emitted a successful `review skipped` status. That was misread as a failed CodeRabbit attempt and
    led to a direct `@codex review`, bypassing the configured `coderabbit-pr, codex-pr, delegated-agent` preference.
-   _(The configuration half shipped separately as errand `coderabbit-manual-only`. The protocol half was assumed to
-   be this WU's, but the typed fallback rule turns out to be already enforced — the driver was simply never
-   consulted. See concern 1, where this failure resolves into the missing operator override rather than a missing
-   fallback rule.)_ **The misleading surface itself is not fixed and recurs**: a pull request opened during this
-   WU's own grooming carried a green, passing `CodeRabbit` status reading `Review skipped: automatic reviews are
-   disabled`. Disabling automatic review removed the stale-label cause; a skip still reports success, so the
-   artifact that produced the original misdiagnosis is still on every pull request.
+   _(The configuration half shipped separately as errand `coderabbit-manual-only`, which pinned every automatic
+   path off explicitly; the status now reads `Review skipped: automatic reviews are disabled`, an accurate report
+   of the configured policy rather than a symptom of a broken one. The protocol half was assumed to be this WU's,
+   but the typed fallback rule turns out to be already enforced — the driver was simply never consulted. See
+   concern 1, where this failure resolves into the missing operator override rather than a missing fallback
+   rule.)_ Nothing mechanical reads that status as review evidence: `main`'s required checks are `merge-ok` and
+   `arc-cleared`, so a green skip cannot satisfy branch protection. What remains is entirely reader-side — an
+   attempt belief formed from a surface that was never the authority.
 2. **Capability is advertised without being established.** The policy driver advertises `coderabbit-cli` for
    `chunked` frontline scope, but the frontline run request carries only target, resolution, and timeout, and the
    execution adapter always emits a whole-target `--base-commit` command. No partition, closure chunk, seam scope,
@@ -48,9 +49,9 @@ Four distinct failures, from one integration:
    source override, so a legitimate preference had to be expressed by going around the driver.
 
 Underneath all four is the same shape, and it is worth naming because it is also the WU's design constraint:
-**the protocol's authority claims outrun its evidence.** A configured preference that can be bypassed by a
-misread status is not authoritative; a capability declared in policy but absent from the request contract is not a
-capability; a typed failure outcome with no retained diagnostic is not actionable.
+**the protocol's authority claims outrun its evidence.** A configured preference that can be bypassed by going
+around the driver is not authoritative; a capability declared in policy but absent from the request contract is not
+a capability; a typed failure outcome with no retained diagnostic is not actionable.
 
 ### The second pattern — correct rules, unreachable at the decision point
 
@@ -72,9 +73,11 @@ design, and proposals that add governing machinery are answering a question that
 
 ## Scope
 
-Seven concerns, in rough dependency order. The first three are the hosted-protocol core; the remaining four are
-adjacent surfaces that arrived through their own captures and are confirmed in scope. All seven are properties of
-the review protocol's content — the shared subject that survived the decomposition.
+Eight concerns, in rough dependency order. The first three are the hosted-protocol core; concerns 4 and 5 are
+adjacent surfaces that arrived through their own captures; concerns 6 and 7 surfaced during grooming; concern 8
+was surfaced by concern 2's capability edit, kept here for the half that shares concern 2's substrate and stubbed
+away for the half that does not. All eight are properties of the review protocol's content — the shared subject
+that survived the decomposition.
 
 ### 1. Selection authority (the core)
 
@@ -121,12 +124,39 @@ This is the forgeable-self-report shape `judgment-authority-model` records as it
 in a form that _does_ have a clean answer, because provenance can be separated by construction rather than
 attested. This WU settles the instance; that WU generalizes the shape.
 
+**The attempt-ordering collision, and how promotion survives it.** The driver refines the attempt history to an
+ordered unique subsequence of the configured sources. That invariant holds for free today because selection always
+walks the configured order, and it is load-bearing — it is one of the four sites that make the fallback rule
+enforced rather than merely stated. A promoting override breaks it directly, and does so on the motivating case:
+the configured order is `coderabbit-pr, codex-pr, delegated-agent`, so promoting the fallback `codex-pr` and then
+falling through to `coderabbit-pr` yields an attempt chain that runs backwards through the configured order and
+fails validation mid-pass.
+
+**Resolved — the invariant is validated against the pass's _effective_ order, not the configured one.** The
+override yields an effective source order for its pass; the refinement checks the attempt chain against that. The
+invariant's meaning survives unchanged — the chain walks the preference order forward with no repeats — and only
+the definition of "the preference order" becomes override-aware. It adds no statefulness: the driver is stateless,
+the caller re-sends the whole request on every call, and the attempt chain is per-pass, so the override's one-pass
+lifetime and the chain's lifetime already coincide. The permutation belongs at the resolution layer, where the
+configured sources are in scope — the same layer this concern already establishes as the enforcement locus.
+
+Two consequences worth adopting deliberately rather than inheriting:
+
+- **A promoted source that falls through is not re-eligible later in the same chain.** Subsequence semantics admit
+  no repeats. This is the same discipline the configured order already enforces, applied to the effective one.
+- **Expressing promotion as a skip is not equivalent, and is worse here.** Skipping `coderabbit-pr` to reach
+  `codex-pr` leaves a rate-limited `codex-pr` with nothing to fall back to within the pass — strictly less capable
+  than the status quo the override exists to improve on.
+
 **Settled sub-decisions.**
 
 - **An override never consumes a pass.** Selection does not consume; the resulting attempt's outcome does. This
   matches every existing selection-time resolution state, which reports no consumed pass.
 - **Lifetime is one pass, bound to exact target and lane, and never sticky.** It binds the way the ceiling
-  override binds to its exhausted pass count, so it cannot silently carry across heads or passes.
+  override binds to its exhausted pass count, so it cannot silently carry across heads or passes. **One pass means
+  the whole fallback chain, not one call:** the override must ride every call in that pass, since dropping it
+  mid-chain re-validates an effective-order history against the configured order and turns a legal attempt list
+  into a parse error.
 - **Skip is unfloored** — an operator may deselect every configured source. The result is an unavailable state
   that stops rather than passes, so it cannot manufacture approval; and requiring some provider to run regardless
   would be exactly the disproportionate rule `judgment-authority-model` exists to correct. A stop is a legible
@@ -160,18 +190,35 @@ Three caveats came with that result, and together they decide this concern's sha
 - **The shadows were never completeness authority** — explicitly advisory carrier evidence, adjudicated like any
   other findings. One of the four upheld/rejected shadow findings was rejected outright as wrong.
 
-**Decision — remove `chunked` from `coderabbit-cli`'s advertised capability.** Chunked review runs through a
-Claude or Codex subagent carrier, full stop. In the capability table this is a one-token edit: `coderabbit-cli`
-keeps `whole-target` and loses `chunked`, while `delegated-agent` already carries both. The rationale is not that
-the carrier failed — it demonstrably completed every exact scope — but that it is the only candidate carrier
-requiring a purpose-built projection to be scoped at all, while being slower and blind to untracked files. It is
-the most expensive capability to back and the least valuable once backed.
+**Decision — remove `chunked` from `coderabbit-cli`, and grant `frontline` to `delegated-agent`.** These are one
+decision, not two: the removal alone would leave chunked review with no frontline home at all. The rationale for
+the removal is not that the carrier failed — it demonstrably completed every exact scope — but that it is the only
+candidate carrier requiring a purpose-built projection to be scoped at all, while being slower and blind to
+untracked files. It is the most expensive capability to back and the least valuable once backed. The grant makes
+"chunked review runs through a Claude or Codex subagent carrier" true rather than aspirational.
 
-**Named consequence — chunking becomes standard-lane-only.** `coderabbit-cli` is the sole frontline source, so
-removing its chunked eligibility leaves the frontline lane whole-target-only. This degrades gracefully:
-`source-scope-ineligible` is already a typed policy diagnostic, and the frontline lane already carries a
-`no-source` / `inactive` skip path. It is nonetheless a real narrowing and is recorded here rather than left to be
-discovered at the next chunked frontline request.
+**Why the pairing is forced.** `coderabbit-cli` is the only source in the capability table declaring the frontline
+lane at all — not merely the only one this repository configures. `delegated-agent` carries both scopes but is
+`lanes: ["standard"]`. So removing `chunked` without the grant does not narrow chunked frontline review; it
+removes it, with no configuration that restores it, and a chunked frontline request then resolves `unavailable` /
+`stop` rather than skipping. The lane's existing `skipped` state fires only on an inactive or empty lane, so
+scope-ineligibility never reaches it.
+
+**Enabling work — the local path must become lane-aware.** The grant is not a capability-table token edit.
+`delegated-agent` dispatches to `local-prepare`, which carries no lane and decides whether to run from
+`projectStandardReviewObligation(...)` — the standard obligation — while the frontline lane's semantics live in
+the routing decision's separate `frontlineAction` field. A frontline run routed through the local path today would
+consult the wrong field. Both fields already exist on one decision object, so the work is bounded: thread the lane
+through, consult the matching field, and accept a frontline obligation where requirement and admission
+construction currently assume the standard one. This substrate is shared with concern 8 rather than additive to
+it — any extensible registry admitting a frontline-capable local source needs the same lane-awareness.
+
+**Named consequence — scope-ineligibility should skip, not stop.** Independent of the pairing above, a lane whose
+every configured source is ineligible for the selected _scope_ currently resolves `unavailable` / `stop`, which
+the integration workflow dispatches as a halt. For the obligation-bearing standard lane that is correct. For the
+advisory frontline lane it should route to the lane's existing skip arm carrying the typed
+`source-scope-ineligible` diagnostic — declined and legible, rather than halting integration or pretending a
+review occurred.
 
 **Named restoration condition.** This is a capability removal, not a judgment that the carrier is unfit.
 `chunk-scope-binding` restores it on demonstrating three things: projection construction and transport through the
@@ -180,7 +227,9 @@ request contract, chunked latency acceptable across a full partition, and define
 **Cost accepted — evaluator diversity.** CodeRabbit is a genuinely independent evaluator whose failure modes
 differ from a Claude or Codex subagent's, so narrowing chunked review to the primary's own model family carries a
 mild self-review-adjacent risk. The diversity is retained at whole-target frontline, where it works today; only
-per-chunk diversity is given up.
+per-chunk diversity is given up. Concern 8's registry work is the durable answer — a project that wants an
+independent chunked evaluator should be able to supply one rather than depend on which providers ARC happens to
+ship knowledge of.
 
 **What stays this WU's work, and what does not.** Removing the unbacked advertisement is squarely this WU's thesis
 — authority claims outrunning evidence — and is small. Building the partition transport is **not** this WU's:
@@ -213,31 +262,43 @@ worse than "unvalidated". Established against source during this grooming pass:
   contract, which does not cover the rendered dimension prose — so it is **structurally incapable of detecting the
   drift above, and did not**. A reviewer-facing digest that cannot fail is decoration.
 
-**Decision — trim to the contract floor rather than delete or regenerate.** Cut the rubric dimensions and the
-finding requirements: instructing a specialized code reviewer to check correctness, boundary cases, or to cite a
-stable locus is its product, not information, and at `path: "**/*"` that cost is paid on every file. Cut the
-`Rubric:` / `sha256:` line, which has no live consumer and is now demonstrably not a drift check. Keep only what a
-provider cannot know: exact-scope binding (the complete requested change set, not a sample or only the latest fix;
-bind to the exact requested target), the clean-result floor (unavailable, partial, ambiguous, or failed is never
-clean), and the one non-obvious evaluator-boundary line (do not accept author conclusions). Roughly four lines,
-not thirty-one.
+**Decision — trim to the contract floor rather than delete or regenerate.** The criterion is _keep only what a
+provider cannot know_. Cut the finding requirements and five of the six rubric dimensions: instructing a
+specialized code reviewer to check correctness, boundary cases, or to cite a stable locus is its product, not
+information, and at `path: "**/*"` that cost is paid on every file. Cut the `Rubric:` / `sha256:` line, which has
+no live consumer and is now demonstrably not a drift check. Four things survive:
 
-Of the dimensions being cut, "Repository contract coherence" is the only one that is not generic — repository
-instructions, package boundaries, self-hosting contracts. If any single dimension survives the trim, it is that
-one; it is also, notably, the one with no typed home.
+1. **Exact-scope binding** — the complete requested change set, not a sample or only the latest fix; bind to the
+   exact requested target.
+2. **The clean-result floor** — unavailable, partial, ambiguous, or failed review is never clean.
+3. **The evaluator boundary** — do not accept author conclusions.
+4. **Repository contract coherence** — the one dimension that is not the provider's product. A generic reviewer
+   cannot know this repository carries a two-copy package-source / project-instance sync discipline, a
+   self-hosting `npx arc` invocation rule, or an adopter-facing versus internal-dev audience boundary. It survives
+   by the criterion rather than as an exception to it, and it is rewritten out of dimension register into the same
+   register as the other three — naming the actual contracts, since an abstract pointer to "repository-specific
+   instructions" carries about as little as the dimensions being cut.
 
-At four lines the **parity check resolves without restoring a generator**: a string-equality assertion between the
-two carriers plus the typed coverage and clean-rule fields. This satisfies the "one proportionate check" commitment
-without re-instating the deleted admission machinery.
+**The kept repository line stays untyped, deliberately.** It is the one survivor with no typed home: no method
+declares the `review-augmentation` frontmatter that would route a project dimension into the projection, and
+minting one to maintain a single line would re-instate the generator this trim deletes. `.coderabbit.yaml` and
+`AGENTS.md` are this repository's own configuration rather than shipped artifacts, so repository-specific content
+is exactly what belongs in a repo-local static block and exactly what should not be pressed into a shipped typed
+contract.
+
+At four items the **parity check resolves without restoring a generator**: a string-equality assertion between the
+two carriers plus the typed coverage and clean-rule fields. **Its coverage is partial by construction and must be
+stated as such** — string equality covers all four kept items across the two copies, while the typed fields back
+only items 1 and 2; item 4 has no typed source to check against. A check that reads as total when it is not is the
+defect this concern exists to remove.
 
 Independent support for the trim arrived from `review-chunking`, which routed a field lesson to this exact seam:
 guidance and code-evaluation criteria must be presented as separable, so that guidance is not applied as a spec the
 code must satisfy. Dense generic guidance injected at every path is precisely that failure mode.
 
-**Sequencing — trim first.** The earlier ordering ran concern 2's measurement before this trim, because trimming
-changes the measurement's baseline arm. With the capability question already answered by prior measurement, that
-constraint is discharged: the trim runs first, and what remains to measure is the single narrower question in
-§ Unknowns rather than a three-arm experiment.
+**Sequencing — the trim runs first.** No measurement gates it: the capability question was answered by
+`review-chunking`'s prior measurement, so what remains is the single narrower observation in § Unknowns rather than
+a three-arm experiment.
 
 ### 4. Request-body legibility
 
@@ -266,10 +327,25 @@ run of `run-errand`:
   tell: if the test cannot route it, no caller can.
 
 A schema flag makes a derivability failure **easier to get wrong**, because it documents the shape of a verdict the
-caller then invents. The second half therefore needs a producing verb — routing exposed as output — not better
-documentation of an input. Left unaddressed, the workflow instructs an agent to invoke a verb whose request can
-only be fabricated, and a fabricated routing verdict is indistinguishable in the record from a routed one: the same
-provenance collapse concern 1 designs against, arriving through the CLI surface instead of the attempt history.
+caller then invents. The second half therefore needs routing exposed as output, not better documentation of an
+input. Left unaddressed, the workflow instructs an agent to invoke a verb whose request can only be fabricated, and
+a fabricated routing verdict is indistinguishable in the record from a routed one: the same provenance collapse
+concern 1 designs against, arriving through the CLI surface instead of the attempt history.
+
+**Both halves stay in this WU, and the second is smaller than it reads.** Established against source: the routing
+reducer and the obligation-projection builder both already exist, are exported, and are already reached from
+shipped verbs — `arc review frontline resolve` runs the reducer and emits `routing.facts` and `routing.decision` in
+its envelope, and `arc review local prepare` runs both the reducer and the projection builder internally. The gap
+is narrower than "no producer exists": **no verb emits the obligation projection itself.** The frontline envelope
+carries three of its four semantic fields — obligation, reasons, retrigger — and stops short of the rubric identity
+and count, which is precisely why the CLI-surface test fabricates a digest rather than a whole projection. The
+projection's remaining inputs are routing facts — content kind, review risk, change determinacy, ownership, surface
+authority, assurance, activity — every one of which an agent following the workflow legitimately judges. The
+standard lane is missing an emit step over functions already written and already invoked — the second pattern
+again, plumbing rather than design.
+
+Splitting the halves across work units is the one option to avoid: shipping the flag alone documents the shape of a
+verdict that still has no producer, which makes confident fabrication easier than it is today.
 
 ### 5. The `adversarial-review` `withstood` field — settled shape
 
@@ -338,7 +414,11 @@ must hold, and they disagree productively — a fixed material finding satisfies
 convergence, and an undisposed minor converges while holding the gate open.
 
 Cost tracks risk under this reading rather than being flat: a clean artifact still converges in one pass, while a
-material finding buys exactly one verification pass, bounded by the same cap.
+material finding buys exactly one verification pass, bounded by the same cap. **The cap bounds the effect, and at
+`Light` erases it** — a cap of 1 means the loop exits at the cap after pass one whatever convergence says, so a
+material finding buys nothing there and the stated defect persists unchanged. At every `Class` the last fix inside
+the cap also stays unexamined, which is the final-fold residual the method already names and the post-settle
+coherence re-read already answers.
 
 **Severity provenance — the signal must come from ARC's own classification.** Every hosted finding carries two
 severities. The adapter normalizes the provider's label into the finding record; the primary's verified severity is
@@ -367,11 +447,14 @@ information and structurally barred where it would erode the bound.
 
 **Severity vocabulary — rename `blocker` to `critical`.** `blocker` names an outcome where the scale wants a
 magnitude; `critical > major > minor` reads in one register. It also removes a translation hop from the provider
-label of the same name. Most decisively, `blocker` is overloaded three ways — the severity, the work-unit
-impediment field carried by over a hundred live meta files, and a review resolution state named for stopping.
-After the rename each sense is unambiguous. The sweep is bounded and mechanical across the code and a handful of
-methodology files, with one hazard: the impediment field is a different concept and must never be caught by a
-blind replace. **Sequence it first**, because the provenance work above edits the same schema.
+label of the same name. Most decisively, `blocker` is overloaded — the severity enum, the work-unit impediment
+field carried by over a hundred live meta files, and the gate's own merge-readiness impediments (`GateBlocker`,
+`GateVerdict.blockers`, with codes like draft, merge-conflict, and CI state), which are unrelated to finding
+severity. After the rename each sense is unambiguous. The review resolution state that stops is spelled `blocked`
+and is untouched by a `blocker` sweep. The sweep is bounded and mechanical across the code and a handful of
+methodology files, with two hazards: the meta impediment field and the gate impediment type are both different
+concepts and must never be caught by a blind replace. **Sequence it first**, because the provenance work above
+edits the same schema.
 
 **Sized against the response path — the concern stays whole.** The two parts that looked code-bearing are smaller
 than the framing assumed, because the schema work is already done:
@@ -403,33 +486,90 @@ finding-driven and ceiling stops. But that spec is a completed work unit's archi
 integration never loads it. The discipline exists and is correct; nothing states it where the decision is made.
 This is the second pattern above, in its clearest form.
 
-Two concrete asymmetries follow:
+One concrete asymmetry follows, and a second candidate does not survive source:
 
-- **The lighter vehicle carries more autonomy guidance than the heavier one.** The errand workflow states four
-  times that a confident bounded call proceeds without a permission stop, including at review applicability and
-  supplemental review. The integration workflow states it twice, and its own review-applicability step instructs
-  the agent to make and disclose the judgment without saying it proceeds. Integration is the long autonomous
-  stretch the design intended to protect, and it is the one carrying less of the rule.
+- **There is no autonomy-guidance asymmetry.** The errand workflow states three times that a confident bounded
+  call proceeds without a permission stop; the integration workflow states it twice. Two of the three are
+  near-verbatim parallels — base-drift reconcile, and review applicability, where integration's own step reads "a
+  confident bounded choice proceeds without asking permission and is retained for the final gate." The third
+  licenses an auto-merge-lane upgrade, and integration has no auto-merge lane: every integration is reviewed by
+  construction. So the count difference is a lane that does not exist there, not a missing rule. Recorded because
+  the earlier reading — that integration, the long autonomous stretch, carried less of the discipline — was the
+  motivating evidence for part of this concern, and it does not survive source.
 - **The verification fire-point stops at every `Class`.** The adversarial fire-point scales its _posture_ by
   `Class` — recommend at `Novel`, neutral offer otherwise — but the offer awaits a call regardless. At `Light`,
   that is a permission turn to ask about a pass the posture already declines to recommend.
 
 **Spend is opt-in for code review and ungated for adversarial review.** Both review lanes ship with empty source
 lists, so an adopter incurs no automatic review spend until a source is named; the pass ceilings bind only once a
-lane exists. The adversarial method has **no configuration surface at all**, across five fire points — three
-planning stages, verification, and integration. An adopter who does not want subagent spend can only decline, at
-every fire point, indefinitely. Combined with the asymmetry above, that adopter pays five permission turns and
-receives nothing for them.
+lane exists. The adversarial method has **no configuration surface at all**, across **four** standalone offer
+fire-points — the three planning stages and verification. Integration is not a fifth: it declares the method in
+frontmatter but carries no fire-point callout and no signature block, reaching the mechanism only as the carrier
+behind the frontline and standard lanes, which the empty source lists already gate. An adopter who does not want
+subagent spend can only decline, at every fire point, indefinitely — four permission turns that return nothing.
 
-**Resolved: a `Class`-threshold configuration key, defaulting to disabled.** Gate the fire-points on a minimum
-`Class` rather than a boolean, so the setting reuses the axis the method already scales on instead of minting a
-new concept, and a project can ask for offers at `Novel` only. Disabled is the shipped default, matching the empty
-source lists — **ARC ships with no automatic spend and each project opts in**. Discoverability is a documentation
-concern and does not outweigh consistency with the lanes.
+**Reopened, then re-resolved — the earlier `Class`-threshold key was on the wrong mechanism.** A key gating
+`adversarial-review` contradicts the method's own identity contract, which states that **the caller owns launch
+policy** and that the mechanism never weakens the caller's obligation or replaces its interlock. `adversarial-review`
+is a carrier, not an activity: it runs a supplied rubric from fresh context and is explicitly "not itself a rubric."
+Its own context-provisioning table already lists frontline review and standard review as fire-points alongside the
+planning ones, so the lanes are among its callers. Putting spend policy on the carrier would gate unrelated
+activities through one knob and constrain a mechanism built to be reused.
 
-**Which stops survive streamlining — the signal's location decides, not the stage's name.** The two asymmetries
-above both argue for removing stops, and applied uniformly that argument reaches every `adversarial-review`
-fire-point, including the three planning stages. It must not, and the reason is derivable rather than a carve-out:
+**Resolved: gate the activity, not the mechanism.** Each review activity carries its own evaluator key, the way the
+lanes already carry source lists. `adversarial-review` gets no configuration surface at all.
+
+```yaml
+# Evaluator for planning-stage design audits (draft-design, create-spec, generate-tasks).
+# Subagent carriers only: hosted and CLI providers review diffs and cannot audit a design
+# document. `none` disables the audit; the stage-completion check is unaffected.
+review.planning_audit: none        # none (default) | delegated-agent
+review.verification_audit: none    # same domain
+```
+
+Four review activities, one uniform place to look. The value is singular where the lane keys are plural, so
+"one evaluator, no fallback" reads off the shape rather than a comment — planning audits spawn a fresh subagent per
+pass at the primary's own capability and never fall through to a second source.
+
+**The domain is derived, not documented.** Valid values are the registered sources whose execution contract is the
+subagent carrier — a query over the same adapter capability declarations concern 8 relocates. Naming a hosted
+provider is then a validation error with a typed diagnostic rather than a runtime surprise, and the domain stays
+correct as adapters change. The constraint is structural because the limitation is: at draft-design time there is no
+diff and no pull request, only a document, so only a carrier that accepts arbitrary files plus a rubric can serve.
+`delegated-agent` names the **carrier**, not the gate lane — the gate's local lane and a planning audit both use that
+carrier under different contracts, which is the same mechanism-versus-rubric split the method already draws.
+
+**What each knob owns after the change:** the `*_sources` and `*_audit` keys decide whether an activity runs and
+which evaluator serves it; `Class` keeps only recommendation posture and pass cap, no longer doubling as an on/off
+switch; and the stage-completion stop is untouched, because it is an input channel rather than a spend decision. An
+adopter with `planning_audit: none` is still asked whether the stage is done — they simply are not offered a pass.
+That is what removes the four permission turns that returned nothing, using the mechanism the lanes already use.
+
+**One key per activity family, not per stage.** The adopter decision is a single posture question — spend subagent
+passes attacking planning artifacts, or not — rather than three. If granularity is ever wanted the natural cut is
+_early versus finalization_ (draft-design attacks an unsettled design where findings are cheapest to act on;
+create-spec and generate-tasks attack progressively crystallized artifacts, and create-spec's rubric substantially
+overlaps draft-design's), not per-stage. That arrives additively as a scope qualifier beside the evaluator key,
+since evaluator and scope are orthogonal — so splitting later is cheaper than un-splitting.
+
+**Disabled ships as the default for consent, not because the practice is marginal.** It matches the empty source
+lists — ARC ships with no automatic spend and each project opts in — and discoverability is a documentation concern
+that does not outweigh consistency with the lanes. The field experience is the opposite of marginal: adopting these
+passes changed issue-catching from _during or after code review_ to _before implementation_, which is where a design
+defect is cheapest to fix. Recorded explicitly because a reader meeting a disabled default could otherwise infer the
+practice earns little.
+
+**Aggregate spend is real, and deliberately so.** Pass caps bind per fire-point, not per work unit, so a `Heavy` work
+unit traversing all four fire-points has a ceiling of eight passes with nothing bounding the total. `Light` loops
+often converge in one, but `Heavy` and especially `Novel` routinely reach their caps — that is what the cap values
+were chosen for, not a pathology. This is a cleaner statement of the gap the rejected review-budget ledger was
+reaching for, and it is recorded **against** rebuilding that ledger: the spend buys design defects caught before
+implementation. Anyone revisiting aggregate review cost should start from that return, not from the ceiling alone.
+
+**Which stops survive streamlining — the signal's location decides, not the stage's name.** The surviving
+verification asymmetry argues for removing a stop, and applied uniformly that argument reaches every
+`adversarial-review` fire-point, including the three planning stages. It must not, and the reason is derivable
+rather than a carve-out:
 
 > **A stop is required wherever the completion signal is not fully observable in the artifact.**
 
@@ -439,7 +579,9 @@ fire-point, including the three planning stages. It must not, and the reason is 
   developer holds. The stop adds no information, which is what makes it ceremony — and what makes autofire correct
   once a project has opted in. Declining costs little in any case: the adversarial pass **augments** the self-verify
   and never replaces it, so the floor beneath an autofired pass is the full criteria validation that runs either
-  way. The planning stages have no such floor.
+  way. The planning stages have no such floor. _(The integration half of this arm is pending re-derivation: there
+  is no standalone adversarial fire-point at integration to autofire, so what the rule governs there — the lane
+  carrier, or nothing — depends on the key's scope, which is open. See § Unknowns.)_
 - **Planning-stage boundaries are not.** Whether a draft is done depends on intent the developer has not yet
   uttered, which no artifact carries and no readiness read can reach — `assess-draft-readiness` reads the artifact,
   not the person. Here the stop **is** the input channel rather than a permission turn, so it holds even when a
@@ -465,6 +607,57 @@ demonstrated judgment, who may override, and how an override is disclosed. This 
 this work unit's stated purpose — whether the shipped workflow carries the discipline its own spec defined. Fixing
 the carriage does not settle the authority question, and settling the authority question would not have carried
 the rule.
+
+### 8. Provider capabilities belong with their adapters
+
+**Surfaced by concern 2's capability edit; the same thesis one level up.** The source id schema is an open slug
+pattern accepting any well-formed identifier, and the policy machinery is genuinely provider-neutral: lanes,
+scopes, pull-request dependence, and dispatch action are abstract axes, the source lists are ordered
+configuration, and the diagnostics name no provider. The hosted execution layer is already adapter-array-driven,
+dispatching by adapter id against an injected set, and each adapter already carries a self-description constant
+beside its implementation.
+
+**One thing is closed, and it is the wrong one.** The capability table — lanes, scopes, pull-request dependence,
+dispatch action — is a module-private constant carrying four hardcoded entries, unexported, with no registration
+surface. It is the single place where a fact about someone else's product lives in core rather than beside the
+adapter that implements it. Everything else in the path was already built the way it should be.
+
+**The boundary that decides what is a leak.** `delegated-agent` is ARC's own subagent carrier, so its lanes and
+scopes are ARC's business and belong in core. `coderabbit-cli`, `coderabbit-pr`, and `codex-pr` are third-party
+providers; their capabilities are observations about external products and belong with their adapters. Both kinds
+currently sit in the same closed constant.
+
+**Decision — relocate, and stop there.** Move the four fields onto each adapter's existing registration constant
+and have the driver read a composed capability set. This is a relocation into a pattern that already exists, not a
+new extension surface. Designing how a project _supplies_ an adapter is deliberately not this WU's — it is stubbed
+as `review-adapter-extensibility` (`provisional`), because adapters are necessarily code and the question carries
+a real trust boundary that deserves its own treatment.
+
+**Forward compatibility, on one condition.** The relocation is shaped so the stub's work is additive rather than a
+rewrite: a validated registration contract published through the shipped schema bundle; the driver consuming an
+injected capability set rather than importing a constant; one named composition seam that assembles the run's set;
+the dispatch action's runtime enum exposed alongside its derived type; and `unknown-source` retained as the
+fail-safe for an unregistered source.
+
+> **The test each measure must pass: it would be right even if the stub never ships.**
+
+All five do — schema validation is hygiene, injection improves testability, a named seam is clarity, the runtime
+enum is a missing validator for a contract that is currently only compile-time, and the fail-safe already exists.
+Anything that only makes sense _because_ a loader might arrive belongs to the loader. This test is recorded
+because "forward compatible with a design that does not exist yet" is otherwise an invitation to speculative
+scaffolding.
+
+**A second consumer, which is why the relocation earns its keep twice.** Concern 7's audit-evaluator keys draw their
+valid domain from these same declarations — the registered sources whose execution contract is the subagent carrier.
+That makes "a hosted provider cannot audit a design document" a validation result rather than a comment, and it keeps
+the domain correct as adapters change. Neither concern needs machinery the other does not already land.
+
+**The dispatch action stays closed, and that is the point.** It is not a free-form verb but the tag for which
+execution contract an adapter satisfies — pull-request-comment provider, local CLI carrier, or ARC's own subagent
+carrier. It is already derived from the resolve envelope's own type rather than duplicated, so core cannot drift a
+fourth without changing the envelope contract. A supplied adapter implements one of the three interfaces and
+inherits its action; a fourth would be a framework change, not a project extension. This is what keeps workflows
+from dispatching actions unknown at authoring time, and it is why the stub does not need to reopen it.
 
 ## Alternatives
 
@@ -498,9 +691,11 @@ the rule.
   exact-scope and clean-result contract to a hosted reviewer, which is the half a provider genuinely cannot infer.
 - **Regenerate both static copies from the typed projection** (concern 3). Rejected — that restores the generator
   right-sizing deliberately deleted, to maintain roughly four lines of content.
-- **Split the adjacent surfaces (4–5) into their own work units.** Rejected: both are small once settled, and
-  concern 5's shape resolved to three wording edits rather than a protocol. Each carries an independent-ship escape
-  hatch instead. Distinct from the decomposition that did fire, which cut on subject orthogonality rather than size.
+- **Split the adjacent surfaces (4–5) into their own work units.** Rejected: both are small once settled — concern
+  5's shape resolved to three wording edits rather than a protocol, and concern 4's second half resolved to
+  plumbing over functions that already exist. Concern 5 carries an independent-ship escape hatch; concern 4's two
+  halves must ship together, per that concern. Distinct from the decomposition that did fire, which cut on subject
+  orthogonality rather than size.
 - **Answer disproportionate review spend with a durable multidimensional review-budget ledger** — logical passes,
   evaluator invocations, and token or payload budget, accumulated across a work unit's whole integration lineage
   and inherited by each new head. Proposed from a sibling work unit's integration, where four review waves and
@@ -524,14 +719,55 @@ the rule.
 - **Resolved — the digest-drift assumption.** The published digest was recomputed independently and matches the
   typed contract exactly, so it has not drifted. The finding is that this proves nothing: the digest does not cover
   the rendered guidance prose, and did not detect the six-versus-five dimension drift that is actually present.
+
+### Reopened by adversarial pass one — design, not detail
+
+Five decisions returned to drafting on 2026-07-26. Each has two or more materially different builds, so the draft
+is **not formalization-ready** until they settle. Three have since settled: concern 1's attempt-ordering collision
+(the invariant validates against the pass's effective order), concern 2's frontline consequence (the capability
+removal is paired with a `frontline` grant to `delegated-agent`, and scope-ineligibility routes to the frontline
+lane's skip arm), and concern 7's spend gate (below). **Two remain — concern 4's flag-versus-bundle question and
+concern 6's wholeness.** Concern 8 arrived later and is settled on entry: a relocation plus five
+forward-compatibility measures, with adapter supply stubbed as `review-adapter-extensibility`.
+
+**Concern 7's spend-gate decision reopened and re-resolved during the same session** — the `Class`-threshold key sat
+on `adversarial-review`, contradicting the method's "the caller owns launch policy" contract. It is now an
+activity-level evaluator key per concern 7; the earlier open question of what the `Class` key gated dissolves with
+the key itself.
+
+- **Open — schema-emitting flag versus the shipped schema bundle.** The kernel registry already generates and
+  ships a JSON Schema bundle carrying `standard-review-obligation-projection` and the review envelopes; only one
+  review _request_ schema is registered in it. Registering the missing request shapes and pointing the workflows
+  at the bundle is a materially cheaper alternative the § Alternatives set never weighed, and it re-prices
+  concern 4's accepted "widens the WU" note.
+- **Open — whether concern 6 stays whole.** The two lanes order triage and the driver call oppositely: the hosted
+  lane triages before feeding the driver, so a confirmed severity exists at that call; the local and frontline
+  lanes are triggered _into_ triage by the driver's own findings state, so the field is necessarily absent and the
+  minors-only arm cannot fire. Closing that needs either a second driver call after triage — which re-enters an
+  arm that already consumed a pass — or moving triage ahead of the driver call, a workflow change the recorded
+  "one field and one branch" blast radius excludes.
+
+### Detail — closeable at spec time
+
+- **Open — the confirmed-severity maximum's computation.** Concern 6 carries the confirmed severity on the attempt
+  record the driver already receives. How that maximum is computed across a chunk series, and whether the frontline
+  lane needs the same field on its own attempt path, are execution detail rather than direction.
+- **Open — the producing surface's CLI shape.** Concern 4's derivability half is settled as in-scope plumbing over
+  existing functions; what remains is whether it lands as a new verb or as `arc review resolve` accepting routing
+  facts alongside the projection it takes today.
+- **Open — whether the enforced fallback rule already has test coverage.** Concern 1 established the rule as current
+  behavior at four sites by reading source. Whether existing tests prove it, or a characterization test is owed, was
+  not established.
 - **Open — chunked latency at partition scale.** `review-chunking` measured a materially higher per-invocation
   latency for the CodeRabbit carrier on single chunks, but never across a full partition. That measurement belongs
   to `chunk-scope-binding` as part of its restoration condition, not here.
 - **Sizing — settled by the decomposition.** Concern 2 shed the partition-transport work to its rightful owner and
   became a capability removal, taking the largest unbounded item out of the WU. The two remaining oversize signals
   then left as their own work units: the ephemeral-checkout lifecycle to `review-checkout-lifecycle`, and the
-  integration boundary's procedural shape to `integration-boundary-accuracy`. What remains is seven concerns sharing
-  one subject — the review protocol's content — which is the coherence the cohort-fit read was testing for.
+  integration boundary's procedural shape to `integration-boundary-accuracy`. What remains is eight concerns sharing
+  one subject — the review protocol's content — which is the coherence the cohort-fit read was testing for. Concern 8
+  arrived after that read; it stubbed its own open-ended half away as `review-adapter-extensibility` rather than
+  absorbing it, so the cohort-fit re-read weighs a bounded relocation, not a new extension surface.
 - **Resolved — `ci-defer-heavy` placement.** Settled to a repository-local review-event workflow and shipped as
   errand `ci-defer-heavy-automation` (below).
 
@@ -544,9 +780,10 @@ the rule.
   focused | complete` field; the two-stop author-response cycle where one approval should carry disposition +
   bounded fix + verification + persistence + post-fix plan; and the determinism-versus-judgment posture that ARC
   should make judgment auditable rather than bind it to a predictably disproportionate operation because a broad
-  category matched. **Hold these in a later phase** so concerns 1–4 are not gated on a `Novel` upstream. No
-  `Depends On` edge is recorded.
-    - **Its face (c) reproduced during this WU's own errand.** `run-errand`'s reviewed-lane instructs the agent to
+  category matched. **Hold these in a later phase** so concerns 1–4 — the hosted-protocol core plus the CLI
+  surface — are not gated on a `Novel` upstream. No `Depends On` edge is recorded.
+    - **Its authority-legibility face reproduced during this WU's own errand.** `run-errand`'s reviewed-lane
+      instructs the agent to
       "leave the pull request open for owner review," which reads as withholding the authority to perform a merge
       the developer has just authorized at the integration interlock. That WU already records the developer's
       intent — approval is theirs, the button-press is not withheld — so the line is a live instance of a
@@ -559,6 +796,13 @@ the rule.
   activation machinery that WORKING-MEMORY already records as its scope. It is also the one place in this cluster
   where prose alone is insufficient: a harness whose spawn primitive carries no instructions cannot be constrained
   by a method the spawned process never reads.
+- **`review-adapter-extensibility` — stubbed out of this WU, no edge.** Concern 8 relocates provider capabilities
+  onto their adapters and stops there; how a project _supplies_ an adapter — the loading mechanism, the trust
+  boundary around loading project code into the evidence-producing path, and registration-contract versioning —
+  is that stub's (`provisional`). This WU is complete without it and delivers most of the value alone: after the
+  relocation a project can already correct a provider fact ARC got wrong by editing the adapter beside it. The
+  stub's draft records the substrate this WU leaves it; if concern 8 ships differently, that record is what needs
+  re-reading, not re-deriving.
 - **`chunk-scope-binding` — now load-bearing, still no hard edge.** It owns the partition transport this WU
   declines, and it owns the restoration condition for `coderabbit-cli`'s chunked capability. It is `planned` with
   `Depends On: review-chunking — landed`, so it is unblocked. This WU should leave it a clean handoff on the removed
@@ -569,8 +813,8 @@ the rule.
   different files.
 - **`integration-boundary-accuracy` — extracted sibling, one coordination seam.** It owns the integration boundary's
   procedural surfaces — the interlock extraction, the lifecycle verb rename, and the transition fire point. Concern 7
-  below edits `integrate-work-unit.md` at the review-applicability step while that work unit rewrites the final merge
-  step. Different regions, so neither blocks the other — but if both run concurrently, sequence the edits rather than
+  edits `integrate-work-unit.md` at the review-applicability step while that work unit rewrites the final merge step.
+  Different regions, so neither blocks the other — but if both run concurrently, sequence the edits rather than
   merging them blind.
 - **`review-chunking` — the evidence source, shipped.** Its `analysis-review-chunking.md` carries the three carrier
   shadows, the exact scopes, and the latency and untracked-file caveats. Read it rather than re-deriving the
@@ -649,48 +893,70 @@ removal plus a handoff note, and concern 3's shape settled rather than staying d
 
 The bulk of what remains is the concern 6 severity rename — mechanical but wide, touching the review-gate source and
 a handful of method files — plus the operator override on the policy driver, which is real code following an
-existing shape. Concerns 2, 3, and 5 are small once specified. Across the seven, the work spans configuration, policy
-contracts, adapter execution, CLI surface, method prose, and workflow prose. Nothing carries an unrun measurement on
-its critical path.
+existing shape. Concerns 3 and 5 are small once specified; concern 2 is no longer among them — its capability pairing
+carries the local path's lane-awareness work. Concern 8 is a bounded relocation into an existing pattern, with the
+open-ended half stubbed away. Across the eight, the work spans configuration, policy contracts, adapter execution,
+CLI surface, method prose, and workflow prose. Nothing carries an unrun measurement on its critical path.
 
 ## Continuity
 
-- **State:** formalization-ready. Every concern is settled to the decision level, the two fundamentals that once
-  gated the WU — the carrier question and the selection-authority shape — are both answered, and what remains open is
-  detail and policy defaults rather than direction. The seven surviving concerns share one subject: the review
-  protocol's content, under two patterns — authority claims outrunning evidence, and correct rules unreachable at the
-  decision point.
+- **State:** **not formalization-ready** — returned to drafting by adversarial pass one on 2026-07-26. The scope,
+  the framing, and concerns 3 and 5 hold; five decisions across concerns 1, 2, 4, 6, and 7 reopened as design
+  rather than detail, two of them at blocker weight where the recorded design collided with shipped driver
+  behavior. Both blockers and concern 7's spend gate have since settled; **two reopened decisions remain** —
+  concern 4's flag-versus-bundle question and concern 6's wholeness. Concern 8 was added after — provider
+  capabilities relocating onto their adapters, surfaced by concern 2's capability edit and settled on entry, with
+  adapter supply stubbed as `review-adapter-extensibility` (`provisional`) rather than designed here.
+  See § Unknowns → Reopened by adversarial pass one. The eight concerns still share one subject: the
+  review protocol's content, under two patterns — authority claims outrunning evidence, and correct rules
+  unreachable at the decision point.
 - **Resolved:** the problem framing and its two patterns — authority claims outrunning evidence, and correct rules
-  unreachable at the decision point; the seven-concern
+  unreachable at the decision point; the eight-concern
   scope; concern 1's corrected diagnosis (the typed fallback rule is already enforced; the driver was never
   consulted), the non-enforceability of driver-only selection, the operator override modelled on the existing
-  ceiling override, the provenance separation that prevents laundering, and its three sub-decisions — no pass
-  consumption, one-pass target-and-lane binding, unfloored skip; concern 2's carrier question, answered as
-  ARC-side curated orchestration and re-cut to a capability removal with a named restoration condition and an
-  accepted evaluator-diversity cost; the standard-lane-only
-  consequence of that removal; concern 3's trim-to-contract-floor decision, its three drift findings, and
-  the inverted sequencing (trim first); concern 4 resolved to a schema-emitting flag, and split into its
-  discoverability and derivability halves; concern 5 resolved to three
+  ceiling override, the provenance separation that prevents laundering, its three sub-decisions — no pass
+  consumption, one-pass target-and-lane binding, unfloored skip — and the effective-order resolution of the
+  attempt-ordering collision, with the override riding the whole fallback chain; concern 2's carrier question,
+  answered as ARC-side curated orchestration and re-cut to a capability removal **paired with a `frontline` grant
+  to `delegated-agent`**, with a named restoration condition, an accepted evaluator-diversity cost, the
+  lane-awareness work the grant requires, and scope-ineligibility routed to the frontline lane's skip arm rather
+  than a stop; concern 3's trim-to-contract-floor decision, its four-item keep list retaining the
+  repository-contract line untyped, the parity check's partial-by-construction coverage, its three drift findings,
+  and the trim-first sequencing; concern 4 resolved to a schema-emitting flag, split into its discoverability and
+  derivability halves, with both halves kept in this WU and the derivability half established as plumbing over
+  functions that already exist; concern 5 resolved to three
   wording edits with its rejected shapes recorded; concern 6's separation of the exit gate from the convergence
   signal, convergence measured on what a pass surfaced, severity provenance anchored to triage rather than the
   provider label, one shared definition across both loops, the recommend-but-never-proceed boundary for judgment
   at the cap, and the `blocker` → `critical` rename sequenced first; concern 7's finding that the stop discipline
-  is correct but archived, the two autonomy asymmetries, the `Class`-threshold spend gate defaulting to
-  disabled, and the observable-signal rule that decides which stops survive streamlining — verification and
-  integration autofire once opted in, planning-stage passes always converge with the developer first; the
+  is correct but archived, the spend gate re-resolved from a `Class` threshold on the mechanism to activity-level
+  evaluator keys with a subagent-carrier-derived domain (disabled by default for consent, not marginal value), the
+  knob-ownership split, one key per activity family rather than per stage, the aggregate-cap observation recorded
+  against rebuilding the review-budget ledger, the autonomy-asymmetry finding withdrawn as unsupported, and the
+  observable-signal rule that decides which stops survive streamlining — planning-stage passes always converge with
+  the developer first, with the rule's integration arm pending re-derivation; the
   review-budget ledger rejected with its reasoning; coordination-not-dependency with `judgment-authority-model`;
   the handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
   `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism, shipped as an errand; the extraction of the
   ephemeral-checkout lifecycle to `review-checkout-lifecycle` and the integration boundary's procedural shape to
-  `integration-boundary-accuracy`; `Class: Heavy`.
-- **Open:** how a confirmed severity maximum is computed across a chunk series, and whether the frontline lane
-  needs the same attempt field; whether existing test coverage already proves the enforced fallback rule, or a test
-  is owed; the single trimmed-guidance timeout observation; and whether the parity check lands as a unit test or a
-  pre-commit contract check. All four are detail closeable at spec time; none reopens a direction.
-- **Next:** proceed to create-spec. The draft cleared `assess-draft-readiness` on 2026-07-26, `classify-work-unit`
-  confirmed `Class: Heavy` against the post-decomposition scope, and `assess-cohort-fit` fired and was executed —
-  the two orthogonal concerns left as their own work units and the seven that remain share one subject. One caution
-  for the session that takes it up: concerns 6 and 7 landed after the last full consolidation and the extraction
-  thinned the draft around them, so read the whole document once before treating it as a single input.
+  `integration-boundary-accuracy`; concern 8's relocation of provider capabilities onto their adapters, its five
+  forward-compatibility measures and the would-be-right-anyway test that bounds them, the dispatch action staying
+  closed by construction, and the stubbing of adapter supply as `review-adapter-extensibility`; `Class: Heavy`.
+- **Open — design (gates formalization):** two of the five decisions reopened by adversarial pass one — concern 4's
+  schema-emitting flag versus the shipped bundle, and whether concern 6 stays whole given the cross-lane triage
+  ordering. Both are enumerated in § Unknowns → Reopened by adversarial pass one. The other three settled in
+  session: concern 1's attempt ordering, concern 2's frontline pairing, and concern 7's spend gate.
+- **Open — detail (closeable at spec time):** how a confirmed severity maximum is computed across a chunk series,
+  and whether the frontline lane needs the same attempt field; the emit surface for concern 4's obligation
+  projection — a new verb, an addition to the frontline envelope that already carries the decision, or routing
+  facts accepted by `arc review resolve`; whether existing test coverage already proves the enforced fallback
+  rule, or a test is owed; the single trimmed-guidance timeout observation; and whether the parity check lands as
+  a unit test or a pre-commit contract check.
+- **Next:** settle the two remaining reopened decisions — concern 4's flag-versus-bundle question and concern 6's
+  wholeness — then re-run `assess-draft-readiness`. Re-run `assess-cohort-fit` and `classify-work-unit` as well:
+  both were executed against the seven-concern post-decomposition scope, and concern 8 arrived after, weighed
+  against the two work units this WU has already spawned plus the `review-adapter-extensibility` stub. The
+  post-extraction coherence re-read has been performed end-to-end and its findings folded. Adversarial pass one is
+  spent; one pass remains under the `Heavy` cap, and it belongs after the two decisions settle, not before.
 
 ---
