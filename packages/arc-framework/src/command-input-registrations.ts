@@ -23,6 +23,10 @@ import {
 } from "./handlers/lifecycle.js";
 import { logStandaloneInputRegistration } from "./handlers/log.js";
 import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
+import {
+  wuReconcileCommandInputPolicyDeclarations,
+  wuReconcileCommandInputRegistration,
+} from "./handlers/reconcile.js";
 import { recoverCommandInputPolicyDeclarations } from "./handlers/recover.js";
 import { releaseCommitInputPolicyDeclarations } from "./handlers/release/commit-cli.js";
 import { releasePushInputPolicyDeclarations } from "./handlers/release/push-cli.js";
@@ -65,6 +69,7 @@ export const commandInputRegistrations = [
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
   planCheckInputRegistration,
+  wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
@@ -90,6 +95,7 @@ export const commandInputPolicyDeclarations = [
   ...joinCommandInputPolicyDeclarations,
   ...lifecycleCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,
+  ...wuReconcileCommandInputPolicyDeclarations,
   ...recoverCommandInputPolicyDeclarations,
   ...releaseCommitInputPolicyDeclarations,
   ...releasePushInputPolicyDeclarations,

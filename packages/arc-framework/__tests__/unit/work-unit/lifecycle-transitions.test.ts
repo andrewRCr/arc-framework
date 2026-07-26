@@ -88,16 +88,16 @@ function deriveExpectedMutators(
   } else if (
     verb === "decompose" ||
     (verb === "park" && from?.phase === "Planning") ||
-    (verb === "abandon" && ef?.dirTier === "active")
+    (verb === "abandon" && (ef?.dirTier === "active" || isParked(from)))
   ) {
     // `decompose` (any position), `park@Planning`, and the started-WU `abandon` cells
     // (Planning / Active, in `active/`) retire / remove the origin's artifacts in-verb
     // but defer the branch + worktree teardown out-of-band (a post-action
     // `arc teardown --force`), so their edges declare neither leg even where the
     // position transition (active → gone / planned) would otherwise imply them.
-    // Distinct from `abandon@parked` (deletes the preserved branch in place; no
-    // worktree) and `park@Active` (preserves the branch, tears down the worktree
-    // in-verb from the base checkout).
+    // `abandon@parked` also preserves its branch until the base-side pointer
+    // removal and receipt land; `park@Active` preserves the branch while tearing
+    // down the worktree in-verb from the base checkout.
   } else {
     // Branch — by category transition.
     const fromBranch = ef?.branch ?? "none";

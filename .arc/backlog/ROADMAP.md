@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `bff1519b9`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `afcca34dc`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,12 +13,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                 | Priority | Owner  | Depends on | Cohort |
-| ------------- | ------------------------- | -------- | ------ | ---------- | ------ |
-| `Planning`    | decomposition-doctrine    | P1       | andrew | —          | —      |
-| `Integrating` | decomposition-hardening   | P1       | andrew | —          | —      |
-| `Planning`    | review-protocol-alignment | P1       | andrew | —          | —      |
-| `Active`      | session-locus-model       | P1       | andrew | —          | —      |
+| State      | Work unit                 | Priority | Owner  | Depends on | Cohort |
+| ---------- | ------------------------- | -------- | ------ | ---------- | ------ |
+| `Planning` | decomposition-doctrine    | P1       | andrew | —          | —      |
+| `Planning` | judgment-authority-model  | P1       | andrew | —          | —      |
+| `Planning` | review-protocol-alignment | P1       | andrew | —          | —      |
+| `Active`   | session-locus-model       | P1       | andrew | —          | —      |
 
 ## Ready
 
@@ -26,9 +26,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | -------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement     | P1       | andrew | —          | approval-flow-refinement   |
 | chunked-delivery                 | P1       | andrew | —          | —                          |
-| cohortless-decomposition         | P1       | andrew | —          | —                          |
 | delivery-intent-integrity        | P1       | andrew | —          | —                          |
-| judgment-authority-model         | P1       | andrew | —          | —                          |
 | recovery-hardening               | P1       | andrew | —          | —                          |
 | roadmap-tooling                  | P1       | andrew | —          | —                          |
 | stub-mint-to-launch              | P1       | andrew | —          | —                          |
@@ -48,7 +46,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | knowledge-architecture           | P2       | andrew | —          | —                          |
 | operational-advisory-registers   | P2       | andrew | —          | —                          |
 | operational-state-docs           | P2       | andrew | —          | —                          |
-| retirement-record-relocation     | P2       | andrew | —          | —                          |
 | workflow-eval-harness            | P2       | andrew | —          | —                          |
 | handoff-optimization             | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening      | P3       | andrew | —          | architecture-remediation   |

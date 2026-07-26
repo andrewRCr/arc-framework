@@ -27,9 +27,10 @@ pwd && arc status --session-init --json
 `pwd` should be the current repository root — the directory containing `.arc/`.
 The probe returns a single JSON envelope with these top-level slots: `identity`, `user`, `worktree`,
 `currentHusk`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`, `config`, `active`, `taskCursor`,
-`domainRules`, `recommendedCombinedPrompt`, `recovery`, `sweep`, `orphanBranchSweep`, `retiredSubdirs`,
-`errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`, `inFlightComposition`,
-`cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
+`domainRules`, `releaseRouting`, `currentWuReconcile`, `userReferenceReconcile`, `recommendedCombinedPrompt`,
+`recovery`, `sweep`,
+`orphanBranchSweep`, `retiredSubdirs`, `errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`,
+`inFlightComposition`, `cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -278,6 +279,10 @@ Neither signal firing (`loadNeeded` falsy **and** `retiredSubdirs.value.recommen
 skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the notes channel (pull fires
 when `refState ∈ {remote-ahead, diverged}`; load fires when `refState === "same"`), so they never
 co-occur there.
+
+**User-reference dispatch.** After any notes pull/load, dispatch on
+`userReferenceReconcile.value.recommendedAction`: `apply` invokes the precomposed
+`recommendedCommand`; `surface` carries `recommendedPromptText` into Step 6; `skip` does nothing.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
@@ -738,6 +743,17 @@ tracked source documents the work.
   **Stale base:** {baseBranchSync.value.recommendedPromptText}
   ```
 
+- `currentWuReconcile.ok == true` AND `currentWuReconcile.value.recommendedAction == "surface"`: render
+  `currentWuReconcile.value.recommendedPromptText` verbatim. Detection only — do not apply tracked edits during
+  session initialization.
+
+  ```text
+  **Current WU reconcile:** {currentWuReconcile.value.recommendedPromptText}
+  ```
+
+- `userReferenceReconcile.ok == true` AND `userReferenceReconcile.value.recommendedAction == "surface"`:
+  render `userReferenceReconcile.value.recommendedPromptText` verbatim.
+
 - `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an
   incomplete push is outstanding (**lag, not loss**: the sibling's work is safe on its own machine; it simply
   hasn't landed at origin). Render one calm, non-gating Aware line per marker, co-located with the base-ref
@@ -832,6 +848,29 @@ tracked source documents the work.
 
   ```text
   **Uncommitted changes:** {fileCount} file(s) dirty in working tree.
+  ```
+
+- `sweep.value.retirements` non-empty: surface every receipt-backed retirement report. `actionable` offers
+  `teardown.text`; never execute it automatically. Dispatch on `lifecycle.successorReadiness.remedy`: a non-null
+  remedy is the unique default; otherwise render any `candidates` without selecting one. Treat `actionable`
+  independently as the readiness-authority signal, because multiple actionable candidates have no default remedy.
+  `blocked` carries its CLI-classified reason and grants no action.
+
+  ```text
+  **Landed retirement cleanup:** {N} work unit(s) have authoritative cleanup residue:
+  - `{lifecycle.subject.slug}` (`{lifecycle.subject.branch}`) → clean up? `{teardown.text}`
+    - Ready successor: `{lifecycle.successorReadiness.remedy.text}` (only when the remedy is non-null)
+    - Ready successors: {candidate list}; no default selected (when the remedy is null and candidates are present)
+  - `{subject.slug}` (`{subject.branch}`) — {reason}; surfaced without an action
+  ```
+
+- `sweep.value.renameMoves` non-empty: surface each `remedy.text` as an outside-worktree action. Treat
+  `remedy.argv` as the executable form and pass its arguments directly without shell reconstruction.
+  Never execute it automatically and never reconstruct a move from marker fields.
+
+  ```text
+  **Deferred rename moves:** {N} renamed worktree path(s) lag:
+  - `{from}` → `{to}`; `{remedy.text}` Execute the structured `{remedy.argv}` from outside the source worktree.
   ```
 
 - `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached

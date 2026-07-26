@@ -45,6 +45,7 @@ describe("reconcileWorktree move with real Git", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: repo,
     });
     expect(plan).toEqual({ status: "move", from: oldPath, to: newPath });
     if (plan.status !== "move") throw new Error("expected a worktree move plan");
@@ -90,6 +91,7 @@ describe("reconcileWorktree move with real Git", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: repo,
     });
     expect(move).toEqual({ status: "move", from: oldPath, to: newPath });
     if (move.status !== "move") throw new Error("expected move resolution");

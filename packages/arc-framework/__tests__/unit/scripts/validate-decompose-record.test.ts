@@ -4,7 +4,10 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
-import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
+import {
+  RETIREMENT_RECORD_NAMESPACE,
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
   parseStagedPathChanges,
   validateDecomposeCommitGate,
@@ -386,7 +389,7 @@ describe("validateDecomposeCommitGate", () => {
     const abandon = abandonReceipt("origin");
     const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
     const spoofedPath = canonicalPath.replace(
-      ".arc/.internal/retirement-receipts/",
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
       "xarc/yinternal/retirement-receipts/",
     );
     expect(validateDecomposeCommitGate({
@@ -425,6 +428,69 @@ describe("validateDecomposeCommitGate", () => {
       ),
     ).toContainEqual(expect.stringMatching(/amended|already exists/i));
     expect(validate([{ status: "A", path: recordPath }])).toContainEqual(expect.stringMatching(/patch.*mismatch/i));
+  });
+
+  it.each(["A", "M", "D"] as const)("rejects %s changes beneath root-level .arc/.internal", (status) => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    expect(validateDecomposeCommitGate({
+      changes: [{ status, path }],
+      readIndexBytes: () => status === "D" ? null : bytes("record"),
+      readHeadBytes: () => status === "A" ? null : bytes("record"),
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
+  });
+
+  it("admits a legacy receipt relocation whose exact bytes survive at the canonical namespace", () => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    const preserved = bytes(canonicalize(abandon));
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? preserved : null,
+      readHeadBytes: (path) => path === legacyPath ? preserved : null,
+    })).toEqual([]);
+  });
+
+  it.each([
+    ["absent canonically", null],
+    ["canonically divergent", bytes("different record")],
+  ])("rejects a legacy receipt deletion %s", (_label, canonicalBytes) => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? canonicalBytes : null,
+      readHeadBytes: (path) => path === legacyPath ? bytes(canonicalize(abandon)) : null,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
+  it("rejects a legacy deletion outside retirement-receipts even when bytes exist canonically", () => {
+    const legacyPath = ".arc/.internal/other-state/record.json";
+    const preserved = bytes("record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: () => preserved,
+      readHeadBytes: () => preserved,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
+  it("rejects root-level .arc/.internal inherited unchanged from a merge parent", () => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    const inherited = bytes("legacy record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path }],
+      mergeInProgress: true,
+      readIndexBytes: () => inherited,
+      readHeadBytes: () => null,
+      readParentBytes: () => [null, inherited],
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
   });
 });
 

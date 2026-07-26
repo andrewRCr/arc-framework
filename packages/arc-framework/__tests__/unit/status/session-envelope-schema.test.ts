@@ -12,7 +12,46 @@ const FIXTURE_DIR = join(import.meta.dirname, "..", "..", "fixtures", "session-e
 function fixture(name: string): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, `session-init-${name}.json`), "utf8");
   const producerCompatible = normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02");
-  return JSON.parse(producerCompatible) as Record<string, unknown>;
+  const value = JSON.parse(producerCompatible) as Record<string, unknown>;
+  const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
+  if (active.ok === true && active.value?.resolution === "single") {
+    const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
+    value.currentWuReconcile = {
+      ok: true,
+      value: {
+        status: "clean",
+        slug,
+        dependency: {
+          before: [],
+          after: [],
+          replacements: [],
+          drops: [],
+          discharged: [],
+          live: [],
+          conflicts: [],
+        },
+        trackedReferences: { edits: [] },
+        advisories: [],
+        recommendedAction: "skip",
+        recommendedCommand: null,
+        recommendedPromptText: "",
+      },
+    };
+    if ((value.identity as { identity?: string | null }).identity !== null) {
+      value.userReferenceReconcile = {
+        ok: true,
+        value: {
+          status: "clean",
+          authority: { status: "ready", ref: "main", transitions: [] },
+          plan: { status: "clean", edits: [], advisories: [] },
+          recommendedAction: "skip",
+          recommendedCommand: null,
+          recommendedPromptText: "",
+        },
+      };
+    }
+  }
+  return value;
 }
 
 function clone(value: Record<string, unknown>): Record<string, unknown> {
@@ -415,6 +454,42 @@ describe("session-init envelope schema", () => {
     const value = fixture("orient");
     setPath(value, ["sweep", "value", "worktrees"], [report]);
     expectContractFailure(value, expectedPath);
+  });
+
+  it("accepts typed retirement and rename remedies while rejecting reconstructed argv", () => {
+    const value = fixture("orient");
+    setPath(value, ["sweep", "value", "retirements"], [{
+      status: "actionable",
+      worktreePath: "/wt/retired",
+      lifecycle: {
+        subject: { slug: "retired", branch: "feat/retired" },
+        transition: "abandon",
+        authority: { kind: "receipt-backed", receiptId: "receipt", authorityVersion: "version" },
+        cleanup: {
+          branch: { status: "pending" },
+          worktree: { status: "pending" },
+          userWorkspace: { status: "pending" },
+        },
+        successorReadiness: { candidates: [], actionable: true, remedy: null },
+      },
+      teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
+    }]);
+    setPath(value, ["sweep", "value", "renameMoves"], [{
+      oldSlug: "old",
+      newSlug: "new",
+      branch: "feat/new",
+      head: "1".repeat(40),
+      from: "/wt/old",
+      to: "/wt/new",
+      remedy: {
+        argv: ["git", "worktree", "move", "/wt/old", "/wt/new"],
+        text: "git worktree move /wt/old /wt/new",
+      },
+    }]);
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+
+    setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
+    expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
   });
 
   it.each([

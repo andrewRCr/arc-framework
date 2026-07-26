@@ -24,6 +24,7 @@ import {
   type ProjectViewDirEntry,
   type ProjectViewFs,
 } from "./project-view.js";
+import { resolveProjectErrandOracleContext } from "./project-oracle-context.js";
 
 /** Repo-relative path to the tracked project readiness view. */
 export const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
@@ -70,6 +71,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
+  /** Exact retiring oracle identity suppressed by the staged transition. */
+  superseded?: { slug: string; branch: string };
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -174,11 +177,12 @@ export async function renderRoadmapFromIndexViewResult(
   options: RenderRoadmapFromIndexOptions,
 ): Promise<RoadmapIndexViewResult> {
   const fs = createIndexProjectViewFs(options);
-  const [parkedSlugs, currentBranch] = await Promise.all([
+  const [parkedSlugs, currentBranch, errandContext] = await Promise.all([
     buildLifecycleIndex({ cwd: options.cwd, fs }).then(listParkedSlugs),
     options.currentBranch === undefined
       ? resolveCurrentBranch(options.exec, options.cwd)
       : Promise.resolve(options.currentBranch),
+    resolveProjectErrandOracleContext(options.exec),
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
@@ -188,8 +192,16 @@ export async function renderRoadmapFromIndexViewResult(
       exec: options.exec,
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
+      ...errandContext,
     },
-    ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
+    ...(currentBranch === null
+      ? {}
+      : {
+          prospective: {
+            currentBranch,
+            ...(options.superseded === undefined ? {} : { superseded: options.superseded }),
+          },
+        }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,

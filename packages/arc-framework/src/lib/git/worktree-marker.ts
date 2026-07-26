@@ -49,6 +49,16 @@ export interface WorktreeHuskStamp {
   evidence?: PersistedRetirementEvidence;
 }
 
+/** Exact operational projection for a spawned rename whose directory move is deferred. */
+export interface WorktreeRenameMovePending {
+  oldSlug: string;
+  newSlug: string;
+  branch: string;
+  head: string;
+  from: string;
+  to: string;
+}
+
 /** Trust classification for a structurally valid husk stamp. */
 export type DecodedWorktreeHuskStamp =
   | { kind: "legacy"; authorization: "merged-preserved" }
@@ -72,6 +82,8 @@ interface WorktreeMarkerBase {
   createdAt: string;
   /** Optional proof that ARC completed the terminal detach transition. */
   husk?: WorktreeHuskStamp;
+  /** Exact deferred directory move for a renamed spawned worktree. */
+  renameMovePending?: WorktreeRenameMovePending;
 }
 
 /** Machine-local marker recording that ARC created a worktree. */
@@ -167,14 +179,40 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   const hasWuName = typeof marker.wuName === "string";
   const hasCreatedFor = isWorktreeSubject(marker.createdFor);
   const huskValid = marker.husk === undefined || isWorktreeHuskStamp(marker.husk);
+  const renameMoveValid = marker.renameMovePending === undefined
+    || isWorktreeRenameMovePending(marker.renameMovePending);
   return typeof marker.spawnedByArc === "boolean"
     && wuNameValid
     && createdForValid
     && (hasWuName || hasCreatedFor)
     && ownershipIsConsistent(marker.wuName, marker.createdFor)
     && huskValid
+    && renameMoveValid
+    && !(marker.husk !== undefined && marker.renameMovePending !== undefined)
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
+}
+
+function isWorktreeRenameMovePending(value: unknown): value is WorktreeRenameMovePending {
+  if (typeof value !== "object" || value === null) return false;
+  const pending = value as Record<string, unknown>;
+  const keys = Object.keys(pending).sort();
+  const expected = ["branch", "from", "head", "newSlug", "oldSlug", "to"];
+  return keys.length === expected.length
+    && keys.every((key, index) => key === expected[index])
+    && typeof pending.oldSlug === "string"
+    && pending.oldSlug !== ""
+    && typeof pending.newSlug === "string"
+    && pending.newSlug !== ""
+    && typeof pending.branch === "string"
+    && pending.branch !== ""
+    && typeof pending.head === "string"
+    && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(pending.head)
+    && typeof pending.from === "string"
+    && isAbsolute(pending.from)
+    && typeof pending.to === "string"
+    && isAbsolute(pending.to)
+    && pending.from !== pending.to;
 }
 
 function ownershipIsConsistent(wuName: unknown, createdFor: unknown): boolean {
@@ -359,6 +397,7 @@ export type RenameWorktreeOwnershipMarkerResult =
 export async function renameWorktreeOwnershipMarker(
   cwd: string,
   names: { oldWuName: string; newWuName: string },
+  options: { renameMovePending?: WorktreeRenameMovePending | null } = {},
 ): Promise<RenameWorktreeOwnershipMarkerResult> {
   const current = await readWorktreeMarker(cwd);
   if (current.kind === "absent") return { status: "absent" };
@@ -368,12 +407,18 @@ export async function renameWorktreeOwnershipMarker(
     ? current.marker.createdFor.name
     : undefined;
   const ownedName = current.marker.wuName ?? createdForName;
-  if (ownedName !== names.oldWuName) return { status: "foreign" };
+  if (ownedName !== names.oldWuName && ownedName !== names.newWuName) return { status: "foreign" };
 
+  const pending = options.renameMovePending;
+  const markerBase = { ...current.marker };
+  if (pending !== undefined) delete markerBase.renameMovePending;
   const renamed: WorktreeMarker = {
-    ...current.marker,
+    ...markerBase,
     wuName: names.newWuName,
     createdFor: { kind: "work-unit", name: names.newWuName },
+    ...(pending === null || pending === undefined || current.marker.husk !== undefined
+      ? {}
+      : { renameMovePending: pending }),
   };
   await writeWorktreeMarker(cwd, renamed);
   return { status: "renamed" };
@@ -396,7 +441,9 @@ export async function stampWorktreeHusk(
   const current = await readWorktreeMarker(cwd);
   if (current.kind !== "present") return current;
 
-  const marker: WorktreeMarker = { ...current.marker, husk };
+  const ownedMarker = { ...current.marker };
+  delete ownedMarker.renameMovePending;
+  const marker: WorktreeMarker = { ...ownedMarker, husk };
   await writeWorktreeMarker(cwd, marker);
   return { kind: "stamped", marker };
 }

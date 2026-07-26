@@ -198,6 +198,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
+    expect(result.result.placement).toMatchObject({
+      kind: "standalone",
+      coordination: "mint",
+      summary: "new cohort `mono`",
+    });
 
     // Members scaffolded with both skeletons under the new cohort.
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"))).toBe(true);
@@ -219,6 +224,91 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(depStaged["Depends On"]).toContain("alpha");
     expect(depStaged["Depends On"]).toContain("beta");
     expect(depStaged["Depends On"]).not.toContain("mono");
+  });
+
+  it("cohortless: scaffolds complete flat siblings and preserves authored dependencies", async () => {
+    await writeWu(repo, ".arc/active", "roadmap-tooling", {
+      State: "Planning",
+      Branch: "plan/roadmap-tooling",
+      Origin: "[internal]",
+      "Depends On": "lifecycle-index",
+    });
+    await commitAll(repo, "cohortless origin");
+    await execFileAsync("git", ["branch", "plan/roadmap-tooling", "HEAD"], { cwd: repo });
+    const sourcePath = validateManagedPath(".arc/active/draft-roadmap-tooling.md");
+    const sourceId = canonicalDigest({
+      schemaVersion: 2,
+      sourcePath,
+      sourceLocator: { artifact: "draft-roadmap-tooling.md", kind: "preamble" },
+    });
+
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "roadmap-tooling", phase: "Planning", location: "active" },
+      shape: "symmetric",
+      parentPosition: "cohortless",
+      entries: [newMember("roadmap-renderer"), newMember("roadmap-status")],
+      internalEdges: [{ from: "roadmap-status", to: "roadmap-renderer" }],
+      sourceAllocations: [{
+        sourceId,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded framing" },
+      }],
+      incomingEdges: [],
+      outgoingEdges: [{
+        prerequisite: "lifecycle-index",
+        disposition: { kind: "targets", targets: ["roadmap-renderer"] },
+      }],
+    };
+
+    const driver = decomposeDriver(repo);
+    const prepared = await driver.prepare(cut);
+    if (prepared.status === "refused") throw new Error(prepared.reason);
+    expect(prepared.status).toBe("prepared");
+    expect(prepared.preparation.record.allowedPaths).toEqual(expect.arrayContaining([
+      ".arc/backlog/planned/roadmap-renderer/meta-roadmap-renderer.md",
+      ".arc/backlog/planned/roadmap-renderer/draft-roadmap-renderer.md",
+      ".arc/backlog/planned/roadmap-status/meta-roadmap-status.md",
+      ".arc/backlog/planned/roadmap-status/draft-roadmap-status.md",
+    ]));
+    expect(prepared.preparation.record.allowedPaths.some((path) => (
+      path.includes("/roadmap-tooling/roadmap-renderer/")
+    ))).toBe(false);
+
+    const result = await runPreparedDecompose(decomposeCtx(repo), {
+      cut,
+      preparation: prepared.preparation,
+      revalidate: async () => await driver.revalidate(prepared.preparation),
+    });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.placement).toEqual({
+      kind: "cohortless",
+      cohort: null,
+      coordination: "none",
+      summary: "flat planned siblings (no cohort)",
+    });
+    await driver.stagePreparedResult(prepared.preparation);
+    const finalized = await driver.finalize("roadmap-tooling", prepared.preparation.locator.receiptId);
+    expect(finalized.status).toBe("recorded");
+    const rendererRoot = join(repo, ".arc/backlog/planned/roadmap-renderer");
+    const statusRoot = join(repo, ".arc/backlog/planned/roadmap-status");
+    expect(await pathExists(join(rendererRoot, "meta-roadmap-renderer.md"))).toBe(true);
+    expect(await pathExists(join(statusRoot, "draft-roadmap-status.md"))).toBe(true);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/cohort-roadmap-tooling.md"))).toBe(false);
+
+    const renderer = parseMetaProjectionRecord(
+      await readFile(join(rendererRoot, "meta-roadmap-renderer.md"), "utf8"),
+    );
+    const status = parseMetaProjectionRecord(
+      await readFile(join(statusRoot, "meta-roadmap-status.md"), "utf8"),
+    );
+    expect(renderer.Cohort).toBe("[none]");
+    expect(renderer["Depends On"]).toContain("lifecycle-index");
+    expect(status.Cohort).toBe("[none]");
+    expect(status["Depends On"]).toContain("roadmap-renderer");
+    expect(await readFile(join(rendererRoot, "draft-roadmap-renderer.md"), "utf8")).not.toContain("**Cohort:**");
   });
 
   it("runs the prepared mutation and receipt-addressed finalization as one durable transition", async () => {
@@ -351,8 +441,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       schemaVersion: 2,
       origin: { slug: "mono", phase: "Planning", location: "active" },
       shape: "heterogeneous-home",
-      parentPosition: "standalone",
-      cohort: "mono",
+      parentPosition: "cohortless",
       entries: [
         newMember("alpha"),
         {
@@ -387,6 +476,9 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
     expect(prepared.preparation.record.allowedPaths).toContain(".arc/active/meta-home.md");
+    expect(prepared.preparation.record.allowedPaths).toContain(
+      ".arc/backlog/planned/alpha/meta-alpha.md",
+    );
   });
 
   it("refuses a new-member slug already present in the lifecycle index", async () => {
@@ -447,6 +539,46 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(alpha["Depends On"]).toContain("mono");
   });
 
+  it("in-cohort extraction projects the declared sub-cohort without moving the active origin", async () => {
+    await writeWu(repo, ".arc/active", "mono", {
+      State: "Active",
+      Branch: "feat/mono",
+      Cohort: "parent",
+    });
+    await commitAll(repo, "in-cohort active origin");
+
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "mono", phase: "Active", location: "active" },
+      shape: "extraction",
+      parentPosition: "in-cohort",
+      cohort: "parent/mono",
+      entries: [
+        newMember("alpha"),
+        { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+      ],
+      internalEdges: [],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [{ prerequisite: "mono", disposition: { kind: "targets", targets: ["alpha"] } }],
+    };
+
+    const result = await runDecompose(decomposeCtx(repo), { cut });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.placement).toMatchObject({
+      kind: "in-cohort",
+      cohort: "parent/mono",
+      coordination: "mint",
+    });
+    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(true);
+    expect(await pathExists(join(
+      repo,
+      ".arc/backlog/planned/parent/mono/alpha/meta-alpha.md",
+    ))).toBe(true);
+  });
+
   it("backlog-stub-source: retires a planned stub in place (artifacts removed, no branch), prunes the emptied subdir", async () => {
     // The origin is a planned stub at the cap (cohort `parent/sub`); its members fan
     // out laterally as siblings, so retiring it leaves an emptied own-subdir to prune.
@@ -470,6 +602,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
+    expect(result.result.placement).toMatchObject({
+      kind: "at-cap",
+      cohort: "parent/sub",
+      coordination: "existing",
+    });
 
     // Members fan out as siblings under the origin's existing cohort.
     expect(await pathExists(join(repo, ".arc/backlog/planned/parent/sub/alpha/meta-alpha.md"))).toBe(true);

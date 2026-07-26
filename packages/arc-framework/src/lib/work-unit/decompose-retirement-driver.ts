@@ -7,6 +7,7 @@ import { validateManagedPath, type ManagedPath } from "../canonical/managed-path
 import type { GitExec } from "../git/exec.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "./composed-lifecycle-index.js";
 import {
   parseDecomposePreparationRecord,
   prepareDecomposeRetirement,
@@ -16,7 +17,10 @@ import {
   type DecomposeFinalTarget,
   type DecomposeFinalizationProjection,
 } from "./decompose-finalization.js";
+import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
+import { deriveDecomposeInventories } from "./decompose-inventory.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
+import { partitionTransformDependents } from "./transform-coordination.js";
 import {
   bindDecomposePreparation,
   destinationArtifactPath,
@@ -49,6 +53,8 @@ export interface InRepoDecomposeRetirementDeps {
   createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
   removeRecord(receiptId: CanonicalDigest): Promise<void>;
   atomicWriteFile?: typeof atomicWriteFile;
+  /** Remote-aware lifecycle truth shared by preparation, mutation, and finalization. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 export type PrepareDecomposeDriverResult =
@@ -56,7 +62,12 @@ export type PrepareDecomposeDriverResult =
   | { status: "refused"; reason: string };
 
 export type FinalizeDecomposeDriverResult =
-  | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
+  | {
+      status: "recorded";
+      receipt: RetirementReceipt;
+      authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
+    }
   | { status: "refused"; reason: string };
 
 /** Production two-stage decompose authority surface consumed by the CLI handler. */
@@ -75,7 +86,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
       try {
         const binding = await bindDecomposePreparation(deps, allocation);
         const id = receiptId({
-          schemaVersion: 1,
+          schemaVersion: 2,
           subject: binding.scope.subject,
           transition: "decompose",
           sourceBranch: binding.scope.source.branch,
@@ -88,6 +99,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           await currentRecord(),
           binding.sourceArtifactDigest,
           binding.inventories,
+        );
+        const transformedIncomingDependents = prepareTimeTransformedDependents(
+          deps,
+          allocation.origin.slug,
+          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+          binding.allowedPaths,
         );
         return await prepareDecomposeRetirement(
           {
@@ -102,6 +119,8 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               sourceArtifactDigest: binding.sourceArtifactDigest,
               inventories: binding.inventories,
               allowedPaths: binding.allowedPaths,
+              inventoryRead: binding.inventoryRead,
+              transformedIncomingDependents,
             }),
             readStagedPaths: async () => await readDecomposeStagedPaths(deps),
             readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
@@ -129,6 +148,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           return { status: "refused", reason: "evidence-mismatch" };
         }
         const binding = await bindDecomposePreparation(deps, record.allocation);
+        const transformedIncomingDependents = prepareTimeTransformedDependents(
+          deps,
+          record.allocation.origin.slug,
+          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+          binding.allowedPaths,
+        );
         if (canonicalize(binding.scope) !== canonicalize(record.locator.scope)
           || binding.sourceArtifactDigest !== record.sourceArtifactDigest
           || canonicalize(binding.inventories) !== canonicalize({
@@ -136,7 +161,10 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             incomingEdgeInventory: record.incomingEdgeInventory,
             outgoingEdgeInventory: record.outgoingEdgeInventory,
           })
-          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)) {
+          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)
+          || (record.schemaVersion === 2
+            && canonicalize(transformedIncomingDependents)
+              !== canonicalize(record.transformedIncomingDependents))) {
           return { status: "refused", reason: "authority-conflict" };
         }
         const snapshot = await readDecomposeAuthorityVersion(
@@ -189,8 +217,31 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           record.sourceArtifactDigest,
           inventories,
         );
-        const index = await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
+        const index = deps.composed?.index
+          ?? await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
+        let currentInventories = inventories;
+        if (deps.composed !== undefined) {
+          const sourcePaths = [...new Set(record.sourceInventory.map((source) => source.sourcePath))];
+          const sourceArtifacts = await Promise.all(sourcePaths.map(async (sourcePath) => {
+            const path = validateManagedPath(sourcePath);
+            const bytes = await deps.readBlob(record.locator.scope.source.head, path);
+            if (bytes === null) throw new Error(`source artifact disappeared: ${sourcePath}`);
+            return { path, bytes };
+          }));
+          const freshInventory = deriveDecomposeInventories({
+            originSlug: origin,
+            sourceArtifacts,
+            lifecycleIndex: index,
+          });
+          if (freshInventory.status === "rejected") {
+            return { status: "refused", reason: freshInventory.reason };
+          }
+          currentInventories = freshInventory.inventories;
+        }
         const entries = new Map(record.allocation.entries.map((entry) => [entry.destinationId, entry]));
+        const transformedDependents = record.schemaVersion === 2
+          ? record.transformedIncomingDependents
+          : record.incomingEdgeInventory.map((edge) => edge.dependent);
         const projection = async (): Promise<DecomposeFinalizationProjection> => {
           const patch = await readDecomposeStagedPatch(deps, resolveRetirementRecordRelativePath(id));
           const targets = (await Promise.all(
@@ -198,10 +249,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           )).filter((target): target is DecomposeFinalTarget => target !== null);
           return {
             sourceArtifactDigest: record.sourceArtifactDigest,
-            inventories,
+            inventories: currentInventories,
             stagedPaths: patch.paths,
             transitionPatch: patch.operations,
             targets,
+            inventoryRead: deps.composed?.readQuality ?? "tree-only",
+            transformedIncomingDependents: [...transformedDependents],
           };
         };
         const finalized = await finalizeDecomposeRetirement(
@@ -269,6 +322,23 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
       }
     },
   };
+}
+
+function prepareTimeTransformedDependents(
+  deps: InRepoDecomposeRetirementDeps,
+  origin: string,
+  incomingDependents: readonly string[],
+  allowedPaths: readonly string[],
+): string[] {
+  const dependents = deps.composed === undefined
+    ? incomingDependents
+    : partitionTransformDependents(deps.composed, origin).flatMap((partition) =>
+        partition.authority === "shared-visible"
+          && partition.writablePath !== undefined
+          && allowedPaths.includes(partition.writablePath)
+          ? [partition.dependent]
+          : []);
+  return [...dependents].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
 }
 
 async function restorePreparedRecord(

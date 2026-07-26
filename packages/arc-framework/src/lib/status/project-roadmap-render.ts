@@ -9,11 +9,10 @@
  */
 
 import type { GitExec } from "../git/exec.js";
-import { readConfiguredIdentity } from "../git/identity.js";
-import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 
+import { resolveProjectErrandOracleContext } from "./project-oracle-context.js";
 import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
@@ -41,29 +40,7 @@ export async function renderTrackedProjectReadinessViewResult(
 ): Promise<ProjectReadinessViewResult> {
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs: options.fs }));
 
-  // Errand records feed the local-ref oracle so recorded `chore/`/`fix/` errand
-  // branches are not mis-emitted as `no-record-or-meta` residue advisories —
-  // resolved here, not per caller, so every tracked-ROADMAP regen (stub, start,
-  // lifecycle ceremonies) inherits the read. No identity ⇒ no errand-record ref
-  // to read; empty+complete is authoritative (not degraded). A failed identity
-  // read is NOT authoritative: it degrades completeness so record-less branches
-  // soften to `classification-unavailable` instead of asserting residue.
-  let identity: string | null = null;
-  let identityReadFailed = false;
-  try {
-    identity = await readConfiguredIdentity(options.exec);
-  } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "identity.invalid") throw err;
-    identityReadFailed = true;
-  }
-  const recordResult: ListErrandRecordsResult = identityReadFailed
-    ? { records: [], complete: false, warnings: ["arc.identity read failed; errand records unavailable"] }
-    : identity === null
-      ? { records: [], complete: true, warnings: [] }
-      : await listErrandRecordsResult({ exec: options.exec, identity });
-  const errandSlugByBranch = new Map(
-    recordResult.records.map((record) => [record.branch, record.slug]),
-  );
+  const errandContext = await resolveProjectErrandOracleContext(options.exec);
 
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
@@ -72,8 +49,7 @@ export async function renderTrackedProjectReadinessViewResult(
       exec: options.exec,
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
-      errandSlugByBranch,
-      errandRecordsComplete: recordResult.complete,
+      ...errandContext,
     },
     ...(options.currentBranch === undefined || options.currentBranch === null
       ? {}

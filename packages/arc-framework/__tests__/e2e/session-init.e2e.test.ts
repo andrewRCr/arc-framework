@@ -98,6 +98,20 @@ interface SessionInitEnvelope {
       subject: { kind: "work-unit"; name: string };
     } | null;
   };
+  sweep?: {
+    ok: boolean;
+    value?: {
+      renameMoves: Array<{
+        oldSlug: string;
+        newSlug: string;
+        branch: string;
+        head: string;
+        from: string;
+        to: string;
+        remedy: { argv: string[]; text: string };
+      }>;
+    };
+  };
 }
 
 interface TaskCursorItemJson {
@@ -595,6 +609,67 @@ describe("session-init E2E — current detached husk advisory", () => {
     const untrustedResult = await runArc(["status", "--session-init", "--json"], canonical);
     expect(untrustedResult.exitCode).toBe(0);
     expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({ ok: true, value: null });
+  });
+});
+
+describe("session-init E2E — deferred rename move advisory", () => {
+  let repo: string;
+  let worktreeParent: string;
+
+  beforeEach(async () => {
+    repo = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-rename-wt-"));
+    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+    expect(init.exitCode).toBe(0);
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-m", "chore: initialize ARC"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(repo);
+    await cleanupTempDir(worktreeParent);
+  });
+
+  it("emits exact outside-worktree argv only while stamped registration facts match", async () => {
+    const from = join(worktreeParent, "project.old-name");
+    const to = join(worktreeParent, "project.new-name");
+    await git(repo, ["branch", "plan/new-name"]);
+    await git(repo, ["worktree", "add", from, "plan/new-name"]);
+    const canonicalFrom = await realpath(from);
+    const head = await git(from, ["rev-parse", "HEAD"]);
+    const markerDir = join(from, ".arc", "system", ".internal");
+    await mkdir(markerDir, { recursive: true });
+    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+      spawnedByArc: true,
+      wuName: "new-name",
+      createdFor: { kind: "work-unit", name: "new-name" },
+      spawningIdentity: "test-user",
+      createdAt: "2026-07-23T00:00:00.000Z",
+      renameMovePending: {
+        oldSlug: "old-name",
+        newSlug: "new-name",
+        branch: "plan/new-name",
+        head,
+        from: canonicalFrom,
+        to,
+      },
+    }));
+
+    const result = await runArc(["status", "--session-init", "--json"], from);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(parseJsonEnvelope(result.stdout).sweep?.value?.renameMoves).toEqual([{
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "plan/new-name",
+      head,
+      from: canonicalFrom,
+      to,
+      remedy: {
+        argv: ["git", "worktree", "move", canonicalFrom, to],
+        text: `Move the registered worktree from ${JSON.stringify(canonicalFrom)} to ${JSON.stringify(to)}.`,
+      },
+    }]);
   });
 });
 

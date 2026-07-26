@@ -38,12 +38,29 @@ import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { atomicWriteFile } from "../lib/fs.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import {
+  enumerateGitRetirementRecords,
+} from "../lib/work-unit/git-retirement-record-enumeration.js";
+import {
+  planUserReferenceReconcile,
+  resolveUserReferenceAuthority,
+  runUserReferenceReconcile,
+  type PlanUserReferenceReconcileInput,
+  type UserReferenceAuthorityResult,
+} from "../lib/user-reference-reconcile.js";
+import {
+  acquireAdvisoryLock,
+  getNotesLockPath,
+  releaseAdvisoryLock,
+} from "../lib/user-sync/notes-lock.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {
@@ -55,6 +72,124 @@ import {
 
 /** Uniform overwrite-confirm prompt copy. */
 const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
+
+/** CLI options for `arc user reconcile-references`. */
+export interface UserReconcileReferencesOptions {
+  apply?: boolean;
+  json?: boolean;
+}
+
+/** Inspect or apply protection-aware identity-global user-reference repairs. */
+export async function handleUserReconcileReferences(
+  opts: UserReconcileReferencesOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const identity = SlugSchema.parse(await resolveUserIdentity());
+  const io = createUserIOContext(context?.subprocess);
+  const exec = (cmd: string, args: string[]) => io.exec(cmd, args, { cwd });
+  const [{ settings }, surfaces, currentWuName] = await Promise.all([
+    readConfigSettings(cwd),
+    resolveUserSurfaceResolver({ cwd, identity, exec }),
+    resolveCurrentWuName(cwd, io.exec),
+  ]);
+  const authority = await resolveUserReferenceAuthority({
+    protection: settings["branch.protection"] === "full" ? "full" : "partial",
+    baseBranch: settings["branch.base"],
+    refreshRemoteBase: async () => {
+      try {
+        await exec("git", ["fetch", "origin", settings["branch.base"]]);
+        await exec("git", [
+          "rev-parse",
+          "--verify",
+          "--quiet",
+          `origin/${settings["branch.base"]}`,
+        ]);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
+  });
+  if (authority.status !== "ready") {
+    emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });
+    if (authority.status === "conflict") process.exitCode = 1;
+    return;
+  }
+  const readSurfaces = async (): Promise<Omit<PlanUserReferenceReconcileInput, "transitions">> => ({
+    userInbox: {
+      path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
+      content: await readOptional(io, surfaces.identityGlobalPath("USER-INBOX.md")),
+    },
+    workingMemory: {
+      path: surfaces.workingMemoryDisplayPath,
+      content: await readOptional(io, surfaces.workingMemoryPath),
+    },
+    ...(currentWuName === undefined
+      ? {}
+      : {
+          sessionNotes: {
+            path: surfaces.sessionNotesPath(SlugSchema.parse(currentWuName)),
+            content: await readOptional(io, surfaces.sessionNotesPath(SlugSchema.parse(currentWuName))),
+          },
+        }),
+  });
+  const lockPath = await getNotesLockPath(exec, cwd, identity);
+  const result = await runUserReferenceReconcile({
+    transitions: authority.transitions,
+    apply: opts.apply === true,
+    readSurfaces,
+    acquireLock: () => acquireAdvisoryLock(lockPath),
+    releaseLock: (handle) =>
+      releaseAdvisoryLock(handle as Awaited<ReturnType<typeof acquireAdvisoryLock>>),
+    atomicWrite: (path, content) => {
+      const inboxDisplay = surfaces.identityGlobalDisplayPath("USER-INBOX.md");
+      if (path !== inboxDisplay) throw new Error(`Refusing undeclared user-reference path: ${path}`);
+      return atomicWriteFile(surfaces.identityGlobalPath("USER-INBOX.md"), content);
+    },
+  });
+  emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan });
+}
+
+async function readOptional(io: UserIOContext, path: string): Promise<string> {
+  try {
+    return await io.readFile(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return "";
+  }
+}
+
+function emitUserReferenceResult(
+  opts: UserReconcileReferencesOptions,
+  result: {
+    status: string;
+    authority: UserReferenceAuthorityResult;
+    plan: ReturnType<typeof planUserReferenceReconcile> | null;
+  },
+): void {
+  const envelope = {
+    schemaVersion: 1,
+    ...result,
+    recommendedCommand: result.status === "pending" && result.plan?.edits.length
+      ? ["arc", "user", "reconcile-references", "--apply", "--json"]
+      : null,
+  };
+  if (opts.json === true) {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
+    return;
+  }
+  if (result.authority.status !== "ready") {
+    p.log.warn(`User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
+    return;
+  }
+  p.log.info(
+    `${result.status}: ${result.plan?.edits.length ?? 0} managed edit(s), `
+    + `${result.plan?.advisories.length ?? 0} advisory finding(s).`,
+  );
+}
 
 // --- Add ---
 
@@ -673,6 +808,14 @@ export const userCommandInputPolicyDeclarations = [{
   )],
 }, {
   commandPath: "user compact",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}, {
+  commandPath: "user reconcile-references",
   aliases: [],
   sites: [declareCliOptionSite("json", {
     acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
