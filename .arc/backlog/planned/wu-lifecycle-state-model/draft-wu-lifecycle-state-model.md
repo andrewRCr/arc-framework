@@ -304,3 +304,141 @@
   `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
 - _Evidence:_ `active-placement`, `completed-placement`, `planned-placement`, and `provisional-placement`; extract
   `reportInputs.placementReaders`; corresponding `scan-result.json#class-*` anchors.
+
+### `[ ]` **Decide whether a cold-minted work unit may record `Class` at start**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `arc start --new` mints a work unit with no backlog stub, and `--class` never reaches that arm —
+  the flag is threaded only into `graduate`, where it reconciles against the stub's recorded value. Before
+  `cli-command-inputs`, passing `--class` alongside `--new` was silently ignored; it is now an explicit refusal.
+  The refusal is honest about today's wiring, but it makes visible an unanswered question: a cold-minted unit
+  starts at `[TBD]` and can only resolve weight later at a `finalize` fire-point, even when the operator already
+  knows the weight at mint time.
+
+- _Approach:_ decide the policy, then align the flag with it — either accept `--class` on the cold-mint arms and
+  seed the scaffolded meta, or keep the refusal and word it as a deliberate routing instruction toward
+  `finalize` rather than as a scope statement about stubs. Worth checking against the `class-resolved` guard,
+  which today reads as graduation-specific.
+
+- _Why here:_ this WU owns the axis the question sits on — `arc start` being path-dependent and readiness being
+  read off the wrong field. `cli-command-inputs` surfaced it but explicitly does not own stub or lifecycle
+  policy.
+
+- _Captured during:_ `cli-command-inputs` base reconciliation (2026-07-24); the inherited `rename` end-to-end
+  setup was passing the inert flag and began failing once the refusal landed.
+
+### `[ ]` **The `abandon` → `teardown` lifecycle is not wired for `branch.protection: full` (first live abandon)**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ First real `arc abandon` (2026-07-24, retiring `recovery-load-scoping`) hit four distinct
+  failures in sequence. All stem from one root: the abandon cascade is authored as if it commits directly to
+  base, which full protection forbids.
+
+    1. **`arc teardown <name> --force` is unreachable after a full-protection abandon — blocking.** It refuses
+       with `Cannot husk: retirement evidence is missing`. `arc abandon` writes the receipt to
+       `.arc/.internal/retirement-receipts/` in the **base** checkout and stages it; under full protection that
+       receipt reaches `main` only via PR. But teardown resolves the evidence from the **target worktree's**
+       checkout, which is pinned to the WU branch — a branch that by construction never receives the receipt.
+       Verified: the WU worktree's receipts dir held only the prior receipt (`sha256-07d775a0…`), never
+       `sha256-a014250111…`, because its HEAD (`8ea4b3892`) predates the retirement commit. `--force` is
+       documented for exactly this case ("tear down a retired/parked origin (unmerged branch) using its
+       finalized retirement receipt"), so the documented path is unreachable under the default protection mode.
+    2. **`arc abandon` leaves a staged cascade on the protected base with no path forward.** It ran against
+       `main` in the primary worktree and staged four changes (receipt, ROADMAP, two artifact deletions), then
+       `arc release commit` refused with `branch-protection-violation (code 13)`. The verb should either cut its
+       own branch, or refuse up front with the branch it needs — not stage a cascade the operator then has to
+       rescue by hand.
+    3. **The impact plan over-promises on ROADMAP.** It prints `ROADMAP: remove its row`, but the commit only
+       bumps the `Last rendered against` SHA; the `## In Flight` row survives because that table renders from
+       local refs and the branch still exists. The row clears only after teardown plus a re-render — which,
+       per (1), cannot happen.
+    4. **One retirement consumed two errands.** Because of (2), landing the cascade required opening
+       `chore/retire-recovery-load-scoping` as a second errand purely to carry a commit the lifecycle verb had
+       already staged. The retirement itself is not errand-shaped work.
+    5. **Nothing deletes the remote branch, so the WU stays visible after full local cleanup.** `arc abandon`
+       does not touch `origin`, and remote-head pruning belongs to `teardown` — which refused per (1). After the
+       local branch and worktree were removed by hand, `arc status --project` **still** rendered the `In Flight`
+       row, sourced from the surviving `origin/plan/recovery-load-scoping` at `8ea4b3892`. This also falsifies
+       (3)'s stated cause: the row is not local-ref-driven, so removing the worktree and local branch does not
+       clear it. Resolved with `git push origin --delete` + `git fetch --prune`.
+    6. **The readiness view has no regeneration command.** `arc status --project --write` does not exist, and
+       `handlers/errand.ts:742` records regen as "advisory until `roadmap-tooling` ships the renderer — nudge a
+       hand-render." So correcting the tracked `ROADMAP` after a retirement is a hand-edit of a generated file,
+       then a third errand (`chore/roadmap-refresh-post-retirement`) to land it. Verified safe here only by
+       diffing the tracked table row-for-row against live `arc status --project` output before editing.
+
+- _Net state after the run:_ retirement is authoritative on `main` (receipt recorded, artifacts removed, user
+  workspace removed, readiness view refreshed). Local and remote hygiene were completed **manually** —
+  `git worktree remove --force`, `git branch -D`, `git push origin --delete` — because the sanctioned verb
+  refuses. Preservation was verified first: the analysis doc on `main`, and the full pre-abandon draft retained
+  out-of-band.
+
+- _Approach (design, not patch):_ decide where the retirement receipt must be legible from, then make abandon
+  and teardown agree. Candidates: have teardown resolve evidence from the base checkout rather than the target
+  worktree; have abandon cut and land its own branch so the receipt is on base before teardown runs; or split
+  teardown's evidence check from its physical cleanup so unmerged-by-design branches can be reaped on the
+  receipt alone. Whatever shape it takes, the retirement should be **one ceremony** — the run above needed three
+  errands, three PRs, and four manual git operations to retire a single planning WU, and every one of the six
+  failures is a seam between verbs that each did their own part correctly.
+
+- _Captured during:_ `recovery-load-scoping` retirement (2026-07-24) — the first live abandon in this repo.
+
+### `[ ]` **Make direct retirement's clean-index precondition explicit and batch-aware**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ A downstream-first batch of three planned-stub abandons could not stage all three transitions
+  before commit. After the first `arc abandon`, the second refused with `retirement evidence does not match the
+  requested transition`; `direct-retirement-driver.ts` actually rejects any non-empty staged path set before it
+  reads the next subject's authority. Committing each retirement cleared the index and all three then succeeded.
+  The isolation invariant is safe, but the generic authority diagnostic hides the actionable condition and makes a
+  viable serialized ceremony look like corrupt or mismatched evidence.
+
+- _Approach:_ Preserve the clean-index trust boundary, but return an explicit refusal naming the staged paths and
+  the commit-or-clear remedy. Make the multi-retirement procedure state that transitions serialize through commits;
+  evaluate a bounded batch primitive only if lifecycle design intends one atomic multi-subject ceremony.
+
+- _Captured during:_ `review-gate-right-sizing` Task 5.2 retirement batch (2026-07-24).
+
+### `[ ]` **The readiness reform has a tail-end twin: verification-passed wants a `Candidate` projection**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ the core reform names planning-completion as an attested artifact-axis signal that `State`
+  flattens into the scheduling axis, with the missing primitive being its projection to an observable field
+  (`Ready`). The identical shape exists at the other end of the lifecycle and is not captured. Verification
+  completes entirely under `**State:** Active` — the task list's verification phase runs Tier 3 gates, success
+  criteria, and the adversarial pass before any lifecycle transition — and its terminal event, `arc finalize
+  verify`, records itself **only as a string prefix in the meta's free-text `Next Action`**, which the session-init
+  probe then pattern-matches to set `sessionType: integration`. That is the same defect the reform already
+  states for readiness, in the same field, one lifecycle stage later.
+
+- _Observation (what the signal is worth):_ past verification means the implementation holds up against its
+  design, which is materially stronger and different in kind from "the code may still have defects" — the
+  integration-level concern. Nothing in `State` distinguishes them, so an outside observer, the roadmap, and an
+  agent deciding what a work unit needs next all read the weaker signal.
+
+- _Observation (the flattening this exposes):_ ARC distinguishes review **lanes** — frontline and local versus
+  hosted and PR — but has no lifecycle distinction between "no eyes on this but ours" and "visible to the team or
+  the public." The lanes carry the audience difference; the state model does not. A `Candidate` state is where
+  that distinction would live: work whose implementation is attested but which has not yet gone public.
+
+- _Approach:_ treat `Candidate` as the tail-end peer of `Ready` on the same attested artifact axis, so the reform
+  lands one projection primitive with two instances rather than solving readiness and then rediscovering the shape.
+  The two transitions the vocabulary then supports are **propose** (implementation clears, enter verification and
+  local review — private) and **submit** (verification and local review clear, open the pull request — public).
+
+- _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
+  "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
+  pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
+  through a window where nothing is public. `review-protocol-alignment` concern 9 proposes moving that fire point
+  to the PR-open boundary and renaming the command to `arc submit` — deliberately minting **no** state and not
+  re-keying `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
+  change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
+  so the two compose rather than collide.
+
+- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the naming of the
+  `arc integrate` verb, which turned out to be misnamed because it names a phase's content rather than a
+  scheduling act, unlike every sibling transition verb.

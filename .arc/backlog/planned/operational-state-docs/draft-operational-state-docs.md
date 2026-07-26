@@ -527,6 +527,45 @@
   Coordinate agenda-derived precision with `composable-workflows`; do not mint a second PR-open lifecycle verb
   by default.
 
+### `[ ]` **Spawned worktree `SESSION-NOTES` can be stale while status reports clean**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ At session-init in the `recovery-load-scoping` worktree, the checkout-local
+  `.arc/user/andrew/recovery-load-scoping/SESSION-NOTES.md` was still the seed `arc start` wrote at spawn
+  (`Commit at Handoff: 3e65d5d39`, "Next Action is seeded to `[begin current workflow]`"), while the real
+  handoff notes — written by the prior session and matching HEAD (`392924790`) — lived in the **primary**
+  worktree's identity-global tree. Two copies, silently divergent. `arc user status` reported
+  `andrew: Up to date.` and the session-init probe's `user` slot resolved `state: clean`,
+  `recommendedAction: skip`, so nothing surfaced the divergence; a session trusting the local copy would resume
+  from a stale baseline and re-derive completed work.
+
+- _Approach:_ decide which copy is authoritative for a spawned worktree and make the freshness check compare
+  them, rather than reporting clean when the on-disk copy the session will actually read is stale.
+
+- _Captured during:_ `recovery-load-scoping` session-init (2026-07-24); noticed because the seed's
+  `Commit at Handoff` disagreed with the probe's HEAD.
+
+### `[ ]` **Revisit the tombstone TTL default when projection lands — not merely make it configurable**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `TOMBSTONE_TTL_MS` is 7 days (`lib/user-sync/merge.ts:381`), cut from 90 in PR #72. The reason was
+  **legibility** — this WU's own buffer records the inbox running "~98% tombstones, 55 dead / 1 live" because
+  tombstones render in-band. That is precisely the problem the projection deliverable removes: once tombstones are
+  non-projected record fields, retaining them costs nothing to read. **The justification for 7 days evaporates when
+  projection ships**, so the default should move with it. The sibling entry "Make the tombstone GC TTL a
+  configurable per-user value" is adjacent but weaker on its own — making it tunable while leaving the default at a
+  value chosen to solve a now-absent problem ships everyone the wrong number.
+
+- _Why it matters:_ the TTL bounds how long a deletion is defended against a stale writer (below). A rarely-used
+  second machine is _more_ likely to be stale past 7 days, so the short window bites hardest exactly where the risk
+  is highest.
+
+- _Scope:_ a constant plus its config surface. Explicitly within the notes stop-loss rule — no plumbing deepened.
+
+- _Captured during:_ `WORKING-MEMORY` prune follow-up, 2026-07-25.
+
 ---
 
 ## Purpose

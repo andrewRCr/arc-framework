@@ -413,6 +413,31 @@
   Confirm whether executable support is needed beyond the prose change (packaged + self-hosted
   `integrate-work-unit.md` copies; related workflow tests if present).
 
+### `[ ]` **Scope the ROADMAP re-render to what the invoking operation actually changed**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `arc stub` at the **provisional** tier staged a `ROADMAP` re-render, and the render's only
+  substantive content was unrelated to the stub: it dropped an `Integrating` row for a sibling work unit that had
+  merged into the base branch the current branch has not merged. Provisional stubs are not rendered in `ROADMAP`'s
+  tables at all, so the invoking operation changed nothing the projection shows. The regen was dropped from the
+  commit by hand rather than carrying a base-drift projection rewrite into an unrelated planning commit.
+
+- _Observation (why it bites):_ the render reads "tree + local refs," so on any branch behind its base it encodes
+  sibling lifecycle transitions the branch has not absorbed. A regen triggered by an unrelated operation therefore
+  silently converts base drift into staged content, and the operator has to notice and unstage it. The rule in
+  `DEV-RULES.ARC` § Commit Discipline requires regen only for render-field changes on `active/` or
+  `backlog/planned/` metas and for moves into or out of `backlog/planned/` — the provisional-tier case is outside
+  it, so this is tooling reaching wider than the rule.
+
+- _Approach:_ either skip the regen when the invoking operation cannot affect rendered content (provisional-tier
+  stub creation being the clear case), or scope the render so an unrelated cross-branch delta does not ride along.
+  The second is the more general fix and interacts with the projection's source-scope choice, which is this work
+  unit's territory.
+
+- _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while minting the `planning-lane-relief`
+  stub for a decomposed face.
+
 ---
 
 ### `[ ]` **Keep the post-decomposition ROADMAP current after teardown**
