@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "housekeep-inbox-consolidation",
-  "origin": "description",
-  "intent": "Consolidate the deep personal inbox and route work-unit captures to their authoritative planning homes",
-  "branch": "chore/housekeep-inbox-consolidation",
-  "createdAt": "2026-07-26T19:05:40.301Z",
-  "returnBranch": "main"
-}
