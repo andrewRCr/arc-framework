@@ -10,7 +10,7 @@
   state's documented meaning begins — and relocate the determinism those surfaces carry as prose into typed verbs
   that can enforce it.
 
-- **State:** maturing. Pre-PRD.
+- **State:** formalization-ready. Pre-PRD.
 - **Class:** `Heavy` (a real design was authored before extraction; the deliverable is new CLI surface).
 
 ---
@@ -141,13 +141,19 @@ action, lifecycle mutation, commit, push, fetch, or second human stop between th
 which is exactly why that span absorbs cleanly while others do not. The rule also retro-explains the control:
 `verify-work-unit` is clean because it has one stop and no determinism between.
 
+**A mechanical yield is not a stop** — the rule's one edge, and the clearance wait below is what tests it. The three
+kinds share one property: the agent must supply something no verb can — judgment, the user's control point, or the
+project's own actions. A bounded wait returning at its deadline supplies nothing, and the caller resolves it by
+re-invoking the same call unchanged, so a deadline return does not break a span's stoplessness.
+
 The cut therefore falls where the stops are, and the two spans that turn out to be stopless are the ones on either
 side of the human:
 
 - **`arc integrate checkpoint <name> --json`** absorbs the pre-stop sequence — the authoritative drift read and its
   validation, the reconcile decision, lifecycle and cadence resolution, and the readiness envelope. It returns one
-  typed verdict: `ready` carrying the approved head, candidate-tail diff reference, requirement and status summary,
-  merge method, and the composed review record; `reconcile` carrying the drift verdict; or `blocked` carrying a typed
+  typed verdict: `ready` carrying the approved head, a checkpoint handle over its composed products (below), the
+  candidate-tail diff reference, the requirement and status summary, the merge method, and the composed review
+  record; `reconcile` carrying the drift verdict; or `blocked` carrying a typed
   reason. **The merge method resolves as a configured preference validated against the repository ruleset**, and a
   selection the ruleset disallows stops with both values named rather than being silently rewritten. `merge.strategy`
   stays the authority on what the project _wants_ — it is an established setting with documented traceability
@@ -156,12 +162,36 @@ side of the human:
   merge and retrying. **The validation belongs on both paths**, since the failure occurred on the errand lane, which
   reads the setting and arms native auto-merge with the matching flag — placing the check only in the work-unit
   checkpoint would leave the observed failure live.
-- **`arc integrate merge <name> --approved-head <sha> --json`** absorbs the post-approval sequence — head
+- **`arc integrate merge <name> --checkpoint <handle> --json`** absorbs the post-approval sequence — head
   recomposition and comparison against the approved value, status re-read, unlock dispatch and clearance await, check
   re-read, review-summary replacement, the final drift read, and the pinned merge. It fails closed on any mismatch
-  and returns `merged`, `invalidated` with a typed reason, or `blocked`. This span absorbs because the workflow
-  already declares it stopless, which is the boundary rule reading a property the corpus had recorded without
-  naming.
+  and returns `merged`, `invalidated` with a typed reason, `awaiting-clearance` (the bounded wait's mechanical yield,
+  resolved by re-invocation), or `blocked`. This span absorbs because the workflow already declares it stopless, which
+  is the boundary rule reading a property the corpus had recorded without naming.
+
+### Resolved — the handoff carries the checkpoint's composition verbatim
+
+The merge verb must post the `## Review` record the approver previewed, and the checkpoint is what composed it. In
+between, the approved dispositions are applied — and the record's `Triage` line reports material-finding counts by
+final disposition, so the composition's own inputs move inside the span. Passing a handle and recomposing inside the
+merge verb are materially different designs, which makes this the design's central new interface.
+
+**Resolved: the checkpoint persists its composition and the merge verb consumes it verbatim; nothing is recomposed.**
+The approved disposition set _is_ the composed input — approval means apply these, and a redirect routes to the
+composition-correction path and a fresh checkpoint — so recomposition can only diverge from what the approver
+previewed. That would be this work unit's own defect class reappearing inside its remedy, and it narrows the
+exact-head pin to the tree when what was approved includes the record.
+
+- The `ready` envelope carries a **checkpoint handle**: the approved head plus a digest over the composed products.
+- The composed record and the ruleset-validated merge method persist **verb-side**, keyed by that handle, in
+  gitignored per-WU state. Not agent-carried text, which would put a precomposed surface in the agent's hands
+  between composition and posting, weakening precomposition exactly where Defect B's remedy leans on it. Not the meta
+  file either: no lifecycle-authored commit is permitted after the checkpoint, and a gitignored write is not one.
+- The merge verb reads them back, revalidates the head, and posts what it was handed.
+- **No additional invalidation machinery is needed.** Any input to the record that could change outside the approval
+  either moves the head or unsettles pull-request state, and the verb already fails closed on both.
+- **Not carried:** the candidate-tail diff and the seam's extension report. Both are interlock surface — consumed by
+  the human before the stop, dead after it.
 
 ### Resolved — the behind-base reconcile arm is a path, not a verb
 
@@ -288,6 +318,16 @@ path as well, so neither nests under `arc integrate`.
   single terminal `absent` would return on the first tick and not be a wait at all; collapsing it into the continue
   signal would burn the full deadline whenever clearance is genuinely not required. The two instantiations differ
   in exactly this vocabulary and nowhere else, which is what the primitive is parameterized over.
+
+  **The deadline is a mechanical yield, and unlock becomes idempotent by observation.** The bounded wait returns
+  poll-again at its deadline, so the merge verb's return set grows `awaiting-clearance` carrying the approved head and
+  elapsed time — resolved by re-invoking the same call, exactly as the hosted-review await's coarse loop resolves its
+  own. What makes that re-invocation safe is one change to unlock: read the exact-head clearance status before
+  dispatching. Already-successful is cleared with no dispatch; a run in flight for this exact head skips the dispatch
+  and enters the wait; no status and no run for the head dispatches as today; and a failed clearance is terminal
+  rather than an auto-retry, because retrying is a decision and not a resume. That is a status-level read, distinct
+  from the workflow-level absence `not-required` reports. Idempotence therefore derives from canonical host state
+  rather than a local marker, and it closes a re-dispatch path that is live today independently of the wait.
 
   **The anti-polling rule is restated once, correctly.** The cost is not polling — the bounded wait polls. It is
   that a poll tick in the agent's turn loop is a full model inference over the whole conversation, where a tick
@@ -451,6 +491,17 @@ every `Class`, which belongs to `review-protocol-alignment`'s stop-discipline co
 - **Leave clearance await to the agent** (the status quo). Rejected — it contradicts the sibling step's own
   prohibition on agent polling loops, and each tick costs a full model inference where an in-process tick costs
   nothing.
+- **Put the clearance wait outside the merge verb**, leaving the verb to dispatch unlock and return. Rejected —
+  unlock through merge is the span the workflow declares stopless, and it holds the pin's most head-sensitive
+  moment, so splitting it hands the agent a live window immediately before merge: the failure mode the pin exists to
+  close. The boundary rule does not require the split, because a deadline return is a mechanical yield rather than a
+  stop.
+- **Recompose the `## Review` record inside the merge verb** from the post-disposition state. Rejected — the
+  approved disposition set is the composed input, so recomposition can only diverge from the previewed record, and it
+  narrows the exact-head pin to the tree when what was approved includes the record.
+- **Hand the composed record back through the merge verb's arguments.** Rejected — it puts a precomposed surface in
+  the agent's hands between composition and posting, weakening precomposition exactly where Defect B's remedy leans
+  on it.
 - **Exclude `run-errand`'s PR-resolution block** as out-of-boundary. Rejected — the diagnostic criterion that
   excludes `verify-work-unit` (the defect tracks machine-decidable branching) admits this, and the errand path is
   already in the change set for the `Coverage` cut, the seam, and clearance await.
@@ -475,16 +526,6 @@ every `Class`, which belongs to `review-protocol-alignment`'s stop-discipline co
 
 ## Unknowns and Assumptions
 
-- **Open — how the merge verb represents a clearance wait that outlives its deadline.** The bounded wait returns a
-  poll-again result at deadline by design, and the coarse loop over it is re-invocation; but the merge verb's own
-  return set has no such member, and re-invoking it would re-fire the unlock dispatch rather than resume the wait.
-  Either the verb grows a resume-shaped return and an idempotent unlock, or the wait sits outside it. An envelope
-  question, not a boundary one — the stop inventory does not reach it.
-- **Open — what the checkpoint-to-merge handoff carries.** The merge verb must post the record the approver
-  previewed, which the checkpoint composed, while dispositions applied between the two calls change the inputs that
-  record was composed from; the validated merge method has the same shape. Passing a checkpoint handle and
-  recomposing inside the merge verb are materially different designs. This is the design's central new interface and
-  is specification work rather than direction — but it must be settled deliberately, not discovered.
 - **Assumption — the extracted await primitive's observation vocabulary generalizes.** Clearance await is the second
   instantiation, and two instances are thin evidence that the parameterization is the right one. If a third bounded
   wait later resists the shape, the primitive absorbs a variant rather than the callers bending to it.
@@ -510,6 +551,9 @@ themselves.
   and a bare invocation names its replacement rather than failing silently.
 - **`Integrating` begins when the work becomes public.** The transition fires at the head of the publication step, so
   no work unit occupies the state during the private verification-and-local-review window.
+- **The posted review record is the previewed one.** The merge verb posts the checkpoint's composition rather than
+  rebuilding it, so the approval covers the record and not only the tree. Testable directly by comparing the
+  checkpoint envelope's composed record against what the merge call posts.
 - **No agent hand-rolls a wait or a parse at either integration boundary.** Clearance await is a bounded verb call;
   PR resolution returns a typed disposition at every site in both workflows, including the work-unit resume guard;
   and no lane discovers a disallowed merge method by attempting the merge. These are the three places a live run had
@@ -562,7 +606,9 @@ Large, and larger than the extraction source estimated. Two integration verbs ab
 spans — checkpoint and merge — plus the reconcile arm's rework into an orchestration path over stopless procedures,
 which mints one base-merge verb and one typed CI-and-routing read; two further supporting verbs — PR resolution
 across five sites in both workflows, and clearance await instantiated from a bounded-wait primitive extracted out of
-`awaitHostedReview`; merge-method validation against the repository ruleset on both lanes; a CLI
+`awaitHostedReview`, with an exact-head status read added to unlock so a resumed wait does not re-dispatch;
+run-scoped checkpoint persistence the merge verb reads back; merge-method validation against the repository ruleset
+on both lanes; a CLI
 command rename sweeping the workflows and skills that invoke it, with no deprecation surface since the project is
 pre-public-release; a transition fire-point move, which also updates the `State`-table entry recording where
 `Integrating` fires; and a five-site cut to the pull-request record.
