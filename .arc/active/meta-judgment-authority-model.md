@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Draft reworked off prior-art findings; authority model and compression register settled
+- **Last Completed:** Adversarial passes one and two resolved; compression half composed against its prior art
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the line-level compression enumeration to close the last scoping unknown, then reassess
-  draft readiness
+- **Next Action:** Run the register's systematic constraint-column pass — the last formalization gate — then
+  decide whether a third adversarial pass is worth its authorization
 
 - **PR URL:** [none]
 - **Completed:** [none]
