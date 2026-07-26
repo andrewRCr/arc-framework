@@ -75,6 +75,7 @@ const RECORD_PATTERN = new RegExp(
   `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
   "u",
 );
+const FORBIDDEN_ROOT_INTERNAL_NAMESPACE = ".arc/.internal";
 const ACTIVE_META_PATTERN = /^\.arc\/active\/meta-([^/]+)\.md$/u;
 const NESTED_LIFECYCLE_META_PATTERN =
   /^\.arc\/(?:backlog\/(?:planned|provisional)|completed)(?:\/[^/]+)*\/meta-([^/]+)\.md$/u;
@@ -239,7 +240,14 @@ function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPath
 
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
-  const changes = novelMergeChanges(input);
+  const forbidden = input.changes.find((change) =>
+    change.path === FORBIDDEN_ROOT_INTERNAL_NAMESPACE
+    || change.path.startsWith(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`));
+  if (forbidden !== undefined) {
+    return [`root-level ARC internal namespace is forbidden: ${forbidden.path}`];
+  }
+  const candidateChanges = novelMergeChanges(input);
+  const changes = candidateChanges;
   const errors: string[] = [];
   const recordChanges = changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (input.mergeInProgress === true && recordChanges.length > 0) {
@@ -296,7 +304,7 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
     errors.push("decompose retirement record already exists or was amended");
     return errors;
   }
-  if (record.schemaVersion !== 1) {
+  if (record.schemaVersion !== 1 && record.schemaVersion !== 2) {
     return ["decompose retirement record is not a finalized decompose receipt"];
   }
   const match = RECORD_PATTERN.exec(recordChange.path);

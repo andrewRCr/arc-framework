@@ -14,9 +14,9 @@
  * table. It fires *after* the retiring transition has merged, distinct from the
  * pre-merge `archive` sweep.
  *
- * Two modes share every mechanic but the gate and the branch-delete strategy:
+ * Two inferred modes share every mechanic but the gate and branch-delete strategy:
  *
- * - **`shipped`** (default) — post-merge cleanup of a `completed/` WU. The
+ * - **`shipped`** — post-merge cleanup of a `completed/` WU. The
  *   two-part safety model (settled upstream): (1) **arc-state authority** — the
  *   WU resides in `completed/` (the `archive` transition ran), resolved from the
  *   protection-aware base ref rather than the potentially stale invoking
@@ -118,7 +118,8 @@ export interface TeardownContext {
 }
 
 /**
- * Teardown mode — selects the arc-state gate and the branch-delete strategy. The
+ * Teardown mode — selected from authoritative arc-state unless an internal
+ * caller supplies the compatibility override. The
  * worktree / locus-hop / ordering / prune mechanics are identical in both.
  *
  * - `shipped` (default) — a `completed/` WU whose branch is merged. Gate:
@@ -144,7 +145,7 @@ export interface TeardownParams {
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
-  /** Teardown mode (default `shipped`). See {@link TeardownMode}. */
+  /** Compatibility override; omission infers the mode from protection-aware arc-state. */
   mode?: TeardownMode;
   /** Configured result-projection model (unknown values normalize to `partial` at the handler). */
   protection?: ProtectionMode;
@@ -175,6 +176,8 @@ export type TeardownResult =
     }
   | {
       status: "torn-down";
+      /** Authority path selected from landed lifecycle state. */
+      mode: TeardownMode;
       /** The reaped WU branch, or `null` when no local branch remained (already reaped). */
       branch: string | null;
       /** Whether the merged-safe delete removed the branch (false when the push-state gate refused it). */
@@ -496,21 +499,23 @@ async function teardownBranchProjection(
     const selfTeardown = registered !== undefined
       && registered.path !== primary
       && await isSelfTeardown(registered.path, cwd);
-    if (mode === "abandoned" && registered === undefined) {
-      return {
-        status: "rejected",
-        reason: describeTeardownAuthorizationRefusal("projection-mismatch"),
-        huskRefusal: "authorization-refused",
-      };
-    }
-    const authorizationRequired = registered !== undefined && (mode === "abandoned" || selfTeardown);
+    const authorizationRequired = mode === "abandoned" || (registered !== undefined && selfTeardown);
     let authorizationRequest: TeardownAuthorizationRequest | null = null;
     let authority: Pick<RetirementAuthorityPort, "authorize" | "revalidate"> | null = null;
     if (authorizationRequired) {
+      const authorizationHead = registered?.head
+        ?? await readRefTip(exec, `refs/heads/${branch}`);
+      if (authorizationHead === null) {
+        return {
+          status: "rejected",
+          reason: describeTeardownAuthorizationRefusal("projection-mismatch"),
+          huskRefusal: "authorization-refused",
+        };
+      }
       authorizationRequest = {
         subject,
         branch,
-        head: registered.head,
+        head: authorizationHead,
         remote: remote ?? "origin",
         requestedMode: mode,
       };
@@ -524,7 +529,7 @@ async function teardownBranchProjection(
         };
       }
       directionalAuthorization = authorization;
-      retiringProjectionPath = registered.path;
+      retiringProjectionPath = registered?.path ?? primaryPath ?? cwd;
     }
     if (registered !== undefined && registered.path !== primary && (selfTeardown || mode === "abandoned")) {
       if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
@@ -896,6 +901,7 @@ async function teardownBranchProjection(
 
   return {
     status: "torn-down",
+    mode,
     branch,
     branchDeleted,
     remoteBranchDeleted,
@@ -946,7 +952,7 @@ export async function runBranchTeardown(
 }
 
 /**
- * Run `teardown`: gate on arc-state (mode-keyed — see {@link TeardownMode}),
+ * Run `teardown`: read authoritative arc-state, infer its mode,
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
  * order — projection preparation, remote disposition, exact local ref mutation,
  * deferred physical removal, and prune. Shipped cleanup keeps its merged-safe,
@@ -962,7 +968,6 @@ export async function runBranchTeardown(
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   const { cwd, exec, indexFs } = ctx;
   const { name, base, remote, suggestion } = params;
-  const mode: TeardownMode = params.mode ?? "shipped";
   if (params.huskPath !== undefined && !isAbsolute(params.huskPath)) {
     return { status: "rejected", reason: "`--husk` requires an absolute worktree path." };
   }
@@ -1000,13 +1005,14 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     }
     shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
   }
-  if (mode === "shipped" && !shipped) {
+  const mode: TeardownMode = params.mode ?? (shipped ? "shipped" : "abandoned");
+  if (params.mode === "shipped" && !shipped) {
     return {
       status: "rejected",
       reason: `\`${name}\` has not shipped (no \`completed/\` presence) — teardown runs only after archive + merge.`,
     };
   }
-  if (mode === "abandoned" && shipped) {
+  if (params.mode === "abandoned" && shipped) {
     return {
       status: "rejected",
       reason:
@@ -1018,6 +1024,12 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   const resolved = await resolveWuBranch(exec, name);
   if ("error" in resolved) return { status: "rejected", reason: resolved.error };
   const branch = resolved.branch;
+  if (!shipped && branch === null && params.huskPath === undefined) {
+    return {
+      status: "rejected",
+      reason: `No branch or detached husk remains for receipt-backed teardown of \`${name}\`.`,
+    };
+  }
 
   return teardownBranchProjection(ctx, {
     branch,

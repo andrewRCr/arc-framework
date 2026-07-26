@@ -25,17 +25,27 @@ function index(...entries: LifecycleIndexEntry[]): LifecycleIndex {
   return new Map(entries.map((value) => [value.slug, value]));
 }
 
-function composed(lifecycleIndex: LifecycleIndex, options: { indeterminate?: string } = {}): ComposedLifecycleIndexResult {
+function composed(
+  lifecycleIndex: LifecycleIndex,
+  options: { indeterminate?: string; unreachable?: true } = {},
+): ComposedLifecycleIndexResult {
   const bySlug = new Map();
   if (options.indeterminate !== undefined) {
     bySlug.set(options.indeterminate, { marks: ["indeterminate"], warnings: [] });
   }
   return {
     index: lifecycleIndex,
-    qualityFacts: { warnings: [], resultMarks: [], bySlug },
+    recordsBySlug: new Map(),
+    qualityFacts: {
+      warnings: [],
+      resultMarks: [],
+      bySlug,
+      ...(options.unreachable === true ? { unreachable: true as const } : {}),
+    },
     worktreePathBySlug: new Map(),
     liveRefs: {},
     reachable: true,
+    readQuality: "reachable",
   };
 }
 
@@ -139,6 +149,13 @@ describe("assertRenameCollisionFree", () => {
   it("accepts an unused target slug", () => {
     expect(() => assertRenameCollisionFree(
       composed(index(entry("old-name"))),
+      { resolvedSlug: "old-name", targetSlug: "new-name" },
+    )).not.toThrow();
+  });
+
+  it("accepts an unused target from degraded reachable tree truth", () => {
+    expect(() => assertRenameCollisionFree(
+      composed(index(entry("old-name")), { unreachable: true }),
       { resolvedSlug: "old-name", targetSlug: "new-name" },
     )).not.toThrow();
   });

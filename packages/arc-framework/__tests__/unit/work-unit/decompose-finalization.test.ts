@@ -10,6 +10,7 @@ import {
   type DecomposeFinalizationProjection,
 } from "../../../src/lib/work-unit/decompose-finalization.js";
 import { decomposeInventoryDigests } from "../../../src/lib/work-unit/decompose-inventory.js";
+import { queryRetirementDisposition } from "../../../src/lib/work-unit/retirement-disposition-query.js";
 import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 import type {
   DecomposePreparationLocator,
@@ -99,19 +100,63 @@ const record: DecomposePreparationRecord = {
   cutMapDigest,
 };
 const projection: DecomposeFinalizationProjection = {
+  inventoryRead: "reachable",
   sourceArtifactDigest: record.sourceArtifactDigest,
   inventories,
   stagedPaths: [recordPath, targetPath],
   transitionPatch: [{ operation: "write", path: targetPath, contentDigest: digest("intro") }],
   targets: [{ path: ".arc/backlog/planned/origin/member-a", entries: [{ path: targetPath, state: "present", contentDigest: digest("intro") }] }],
+  transformedIncomingDependents: ["consumer"],
 };
 
-function context(overrides: Partial<DecomposeFinalizationContext> = {}) {
+function v2Fixture(inventoryRead: "tree-only" | "reachable" | "degraded") {
+  const v2ReceiptId = receiptId({
+    schemaVersion: 2,
+    subject: scope.subject,
+    transition: "decompose",
+    sourceBranch: scope.source.branch,
+    sourceHead: scope.source.head,
+  });
+  const v2Locator: DecomposePreparationLocator = {
+    ...locator,
+    receiptId: v2ReceiptId,
+    preparationId: preparationId({
+      receiptId: v2ReceiptId,
+      baseHead: scope.resultProjection.head,
+      ...inventoryDigests,
+      cutMapDigest,
+    }),
+  };
+  const v2Record: DecomposePreparationRecord = {
+    ...record,
+    schemaVersion: 2,
+    inventoryRead,
+    transformedIncomingDependents: ["consumer"],
+    locator: v2Locator,
+  };
+  return {
+    locator: v2Locator,
+    record: v2Record,
+    projection: {
+      ...projection,
+      inventoryRead,
+      stagedPaths: [resolveRetirementRecordRelativePath(v2ReceiptId), targetPath],
+    },
+  };
+}
+
+function context(
+  overrides: Partial<DecomposeFinalizationContext> = {},
+  fixture: { record: DecomposePreparationRecord; projection: DecomposeFinalizationProjection } = {
+    record,
+    projection,
+  },
+) {
   const replacements: string[] = [];
   const ctx: DecomposeFinalizationContext = {
     readAuthoritySnapshot: async () => ({ authorityVersion: "prepared-version", recordState: "prepared-decompose" }),
-    readRecord: async () => canonicalize(record),
-    readProjection: async () => projection,
+    readRecord: async () => canonicalize(fixture.record),
+    readProjection: async () => fixture.projection,
     readTargetArtifact: async () => bytes("intro"),
     readDependsOn: async (slug) => {
       if (slug === "consumer") return ["other", "member-a"];
@@ -119,8 +164,8 @@ function context(overrides: Partial<DecomposeFinalizationContext> = {}) {
       return [];
     },
     replaceAndStageRecord: async (_id, expected, next, stagedPaths) => {
-      expect(expected).toBe(canonicalize(record));
-      expect(stagedPaths).toEqual(projection.stagedPaths);
+      expect(expected).toBe(canonicalize(fixture.record));
+      expect(stagedPaths).toEqual(fixture.projection.stagedPaths);
       replacements.push(next);
     },
     ...overrides,
@@ -139,6 +184,39 @@ describe("finalizeDecomposeRetirement", () => {
       receiptId: locator.receiptId,
       transition: "decompose",
       result: { kind: "decompose", preparationId: locator.preparationId },
+    });
+    expect(result.lifecycle).toEqual({
+      subject: { slug: "origin", branch: "plan/origin" },
+      transition: "decompose",
+      authority: {
+        kind: "receipt-backed",
+        receiptId: locator.receiptId,
+        authorityVersion: result.authorityVersion,
+      },
+      cleanup: {
+        branch: { status: "pending" },
+        worktree: { status: "pending" },
+        userWorkspace: { status: "pending" },
+      },
+      successorReadiness: {
+        candidates: ["member-b"],
+        actionable: false,
+        remedy: null,
+      },
+    });
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: result.receipt.receiptId,
+        content: "",
+        record: { kind: "receipt", value: result.receipt },
+      }],
+    }, {
+      retiredSubject: "origin",
+      dependentSlug: "consumer",
+    })).toMatchObject({
+      status: "unique",
+      disposition: { kind: "replace", replacementTargets: ["member-a"] },
     });
     expect(h.replacements).toEqual([canonicalize(result.receipt)]);
   });
@@ -183,6 +261,94 @@ describe("finalizeDecomposeRetirement", () => {
     expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
   });
 
+  it("does not require branch-private incoming edges to be mutated in the result checkout", async () => {
+    const branchPrivateProjection = {
+      ...projection,
+      transformedIncomingDependents: [],
+    };
+    const result = await finalizeDecomposeRetirement(
+      context({
+        readProjection: async () => branchPrivateProjection,
+        readDependsOn: async (slug) => slug === "member-a" ? ["foundation"] : [],
+      }).ctx,
+      locator,
+      "prepared-version",
+    );
+
+    expect(result.status).toBe("recorded");
+  });
+
+  it("persists the transformed incoming-edge partition in v2 receipts", async () => {
+    const fixture = v2Fixture("reachable");
+    const result = await finalizeDecomposeRetirement(
+      context({}, fixture).ctx,
+      fixture.locator,
+      "prepared-version",
+    );
+
+    expect(result).toMatchObject({
+      status: "recorded",
+      receipt: {
+        schemaVersion: 2,
+        result: { transformedIncomingDependents: ["consumer"] },
+      },
+    });
+  });
+
+  it("projects retirement cleanup as inapplicable for a branchless source", async () => {
+    const branchlessAllocation = {
+      ...record.allocation,
+      origin: { ...record.allocation.origin, location: "planned" as const },
+      shape: "backlog-stub-source" as const,
+    };
+    const branchlessCutMapDigest = canonicalDigest(branchlessAllocation);
+    const branchlessLocator: DecomposePreparationLocator = {
+      ...locator,
+      preparationId: preparationId({
+        receiptId: locator.receiptId,
+        baseHead: locator.scope.resultProjection.head,
+        ...inventoryDigests,
+        cutMapDigest: branchlessCutMapDigest,
+      }),
+    };
+    const branchlessRecord: DecomposePreparationRecord = {
+      ...record,
+      locator: branchlessLocator,
+      allocation: branchlessAllocation,
+      cutMapDigest: branchlessCutMapDigest,
+    };
+    const h = context({}, { record: branchlessRecord, projection });
+
+    const result = await finalizeDecomposeRetirement(h.ctx, branchlessLocator, "prepared-version");
+
+    expect(result.status).toBe("recorded");
+    if (result.status !== "recorded") return;
+    expect(result.lifecycle.subject.branch).toBeNull();
+    expect(result.lifecycle.cleanup).toEqual({
+      branch: { status: "not-applicable" },
+      worktree: { status: "not-applicable" },
+      userWorkspace: { status: "not-applicable" },
+    });
+  });
+
+  it("binds finalization to the prepare-time transformed-dependent partition", async () => {
+    const fixture = v2Fixture("reachable");
+    const result = await finalizeDecomposeRetirement(
+      context({
+        readProjection: async () => ({
+          ...fixture.projection,
+          // A fresh post-mutation composition no longer exposes the retired edge.
+          // Finalization must not silently replace the partition prepared earlier.
+          transformedIncomingDependents: [],
+        }),
+      }, fixture).ctx,
+      fixture.locator,
+      "prepared-version",
+    );
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
+  });
+
   it("refuses undeclared or duplicated dependencies on a new member", async () => {
     for (const dependencies of [
       ["foundation", "unexpected"],
@@ -211,5 +377,50 @@ describe("finalizeDecomposeRetirement", () => {
     );
 
     expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+  });
+
+  it("preserves degraded preparation quality when the reachable inventory is unchanged", async () => {
+    const fixture = v2Fixture("degraded");
+    const h = context({}, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({
+      status: "recorded",
+      receipt: { schemaVersion: 2, inventoryRead: "degraded" },
+    });
+  });
+
+  it("refuses reachable-to-degraded quality regression before replacing the preparation", async () => {
+    const fixture = v2Fixture("reachable");
+    const h = context({
+      readProjection: async () => ({ ...fixture.projection, inventoryRead: "degraded" }),
+    }, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
+    expect(h.replacements).toEqual([]);
+  });
+
+  it("refuses a newly enlarged reachable inventory before replacing the preparation", async () => {
+    const fixture = v2Fixture("reachable");
+    const h = context({
+      readProjection: async () => ({
+        ...fixture.projection,
+        inventories: {
+          ...fixture.projection.inventories,
+          incomingEdgeInventory: [
+            ...fixture.projection.inventories.incomingEdgeInventory,
+            { dependent: "new-consumer", currentTargets: ["origin"] },
+          ],
+        },
+      }),
+    }, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
+    expect(h.replacements).toEqual([]);
   });
 });

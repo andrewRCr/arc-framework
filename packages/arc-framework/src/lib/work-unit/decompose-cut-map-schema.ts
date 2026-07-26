@@ -23,7 +23,7 @@ const CanonicalDigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must
 const DecomposeSlugSchema = SlugSchema.transform((value): string => value);
 
 export const TransformShapeSchema = z.enum(["symmetric", "extraction", "backlog-stub-source", "heterogeneous-home"]);
-export const ParentPositionSchema = z.enum(["standalone", "in-cohort", "at-cap"]);
+export const ParentPositionSchema = z.enum(["standalone", "in-cohort", "cohortless", "at-cap"]);
 export const OriginLocationSchema = z.enum(["provisional", "planned", "active"]);
 export const OriginDispositionSchema = z.enum(["keep-active", "park"]);
 export const ExistingHomeKindSchema = z.enum(["fold", "atomic-edit"]);
@@ -207,10 +207,10 @@ function refineEntryCoupling(map: StructuralMap, ctx: z.RefinementCtx): void {
 }
 
 function refinePlacementAndShape(map: StructuralMap, ctx: z.RefinementCtx): void {
-  if (map.parentPosition === "at-cap" && map.cohort !== undefined) {
-    addIssue(ctx, ["cohort"], "at-cap decomposition must omit cohort");
+  if ((map.parentPosition === "cohortless" || map.parentPosition === "at-cap") && map.cohort !== undefined) {
+    addIssue(ctx, ["cohort"], `${map.parentPosition} decomposition must omit cohort`);
   }
-  if (map.parentPosition !== "at-cap" && map.cohort === undefined) {
+  if ((map.parentPosition === "standalone" || map.parentPosition === "in-cohort") && map.cohort === undefined) {
     addIssue(ctx, ["cohort"], `${map.parentPosition} decomposition requires a cohort placement`);
   }
   const members = map.entries.filter((entry) => entry.kind === "new-member");
@@ -235,6 +235,9 @@ function refineIdentities(map: StructuralMap, ctx: z.RefinementCtx): void {
   if (duplicateId !== null) addIssue(ctx, ["entries"], `duplicate destinationId ${duplicateId}`);
   const coordinations = map.entries.filter((entry) => entry.kind === "cohort-coordination");
   if (coordinations.length > 1) addIssue(ctx, ["entries"], "at most one cohort-coordination entry is allowed");
+  if (map.parentPosition === "cohortless" && coordinations.length > 0) {
+    addIssue(ctx, ["entries"], "cohortless decomposition forbids cohort-coordination entries");
+  }
   const duplicateIdentity = duplicate(map.entries.map(entryIdentity));
   if (duplicateIdentity !== null) addIssue(ctx, ["entries"], `duplicate destination identity ${duplicateIdentity}`);
   if (coordinations[0] !== undefined && coordinations[0].cohort !== map.cohort) {
@@ -255,6 +258,12 @@ function refineEdgesAndAllocations(map: StructuralMap, ctx: z.RefinementCtx): vo
   }
   if (duplicate(map.sourceAllocations.map((allocation) => allocation.sourceId)) !== null) {
     addIssue(ctx, ["sourceAllocations"], "duplicate source allocation");
+  }
+  if (
+    map.parentPosition === "cohortless"
+    && map.sourceAllocations.some((allocation) => allocation.ownership === "cohort-shared")
+  ) {
+    addIssue(ctx, ["sourceAllocations"], "cohortless decomposition forbids cohort-shared source ownership");
   }
   const destinations = new Map(map.entries.map((entry) => [entry.destinationId, entry]));
   for (const [index, allocation] of map.sourceAllocations.entries()) {

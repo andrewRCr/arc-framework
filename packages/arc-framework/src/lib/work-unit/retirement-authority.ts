@@ -74,9 +74,8 @@ export interface PreparedDecomposeRetirement {
 }
 
 /** Durable compare-and-set envelope written before decompose mutates artifacts. */
-export interface DecomposePreparationRecord {
+interface DecomposePreparationRecordBase {
   kind: "prepared-decompose";
-  schemaVersion: 1;
   locator: DecomposePreparationLocator;
   allocation: DecomposeAllocationMap;
   sourceInventory: DecomposeSourceInventoryEntry[];
@@ -90,9 +89,20 @@ export interface DecomposePreparationRecord {
   cutMapDigest: CanonicalDigest;
 }
 
+/** Closed quality fact for the lifecycle inventory bound into retirement evidence. */
+export type InventoryRead = "not-applicable" | "tree-only" | "reachable" | "degraded";
+
+/** Exact historical and current decompose preparation envelopes. */
+export type DecomposePreparationRecord =
+  | (DecomposePreparationRecordBase & { schemaVersion: 1 })
+  | (DecomposePreparationRecordBase & {
+      schemaVersion: 2;
+      inventoryRead: Exclude<InventoryRead, "not-applicable">;
+      transformedIncomingDependents: string[];
+    });
+
 /** Canonical non-shipped retirement receipt. */
-export interface RetirementReceipt {
-  schemaVersion: 1;
+interface RetirementReceiptBase {
   receiptId: CanonicalDigest;
   subject: WorktreeSubject;
   transition: RetirementTransition;
@@ -114,6 +124,10 @@ export interface RetirementReceipt {
         sourceInventoryDigest: CanonicalDigest;
         incomingEdgeInventoryDigest: CanonicalDigest;
         outgoingEdgeInventoryDigest: CanonicalDigest;
+        sourceInventory?: DecomposeSourceInventoryEntry[];
+        incomingEdgeInventory?: DecomposeIncomingEdgeInventoryEntry[];
+        outgoingEdgeInventory?: DecomposeOutgoingEdgeInventoryEntry[];
+        transformedIncomingDependents?: string[];
         targets: ReadonlyArray<{
           path: string;
           artifactDigest: CanonicalDigest;
@@ -122,6 +136,11 @@ export interface RetirementReceipt {
     | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
     | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
 }
+
+/** Exact historical and current retirement receipt envelopes. */
+export type RetirementReceipt =
+  | (RetirementReceiptBase & { schemaVersion: 1 })
+  | (RetirementReceiptBase & { schemaVersion: 2; inventoryRead: InventoryRead });
 
 /** Exact source and result projections bound by an authority snapshot. */
 export interface RetirementAuthorityScope {

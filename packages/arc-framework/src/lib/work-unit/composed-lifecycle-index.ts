@@ -19,6 +19,7 @@ import type {
 import type { RefTipMap } from "../git/remote-ref-reader.js";
 import {
   resolveProjectReadinessComposition,
+  type ProjectReadinessRecord,
   type ProjectReadinessProspectiveInput,
   type ProjectReadinessOracleOptions,
   type ProjectViewFs,
@@ -55,10 +56,22 @@ export interface ResolveComposedLifecycleIndexOptions {
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */
 export interface ComposedLifecycleIndexResult {
   index: LifecycleIndex;
+  /** Selected semantic record, current-tree candidate, and optional exact write authority by slug. */
+  recordsBySlug: ReadonlyMap<string, ComposedLifecycleRecord>;
   qualityFacts: ComposedLifecycleQualityFacts;
   worktreePathBySlug: ReadonlyMap<string, string>;
   liveRefs: RefTipMap;
   reachable: boolean;
+  /** Closed inventory-read fact retained for transform evidence. */
+  readQuality: "tree-only" | "reachable" | "degraded";
+}
+
+/** Orthogonal semantic and current-tree projections for one composed work unit. */
+export interface ComposedLifecycleRecord {
+  selected: ProjectReadinessRecord;
+  currentTree: ProjectReadinessRecord | null;
+  /** Current-checkout path granted only by complete semantic agreement. */
+  writablePath?: string;
 }
 
 /** Warning codes that make one named target unsafe for branch-minting decisions. */
@@ -77,7 +90,6 @@ export function isComposedLifecycleSlugIndeterminate(
   result: ComposedLifecycleIndexResult,
   slug: string,
 ): boolean {
-  if (result.qualityFacts.unreachable === true) return true;
   if (result.qualityFacts.resultMarks.includes("indeterminate")) return true;
   const fact = result.qualityFacts.bySlug.get(slug);
   if (fact === undefined) return false;
@@ -88,6 +100,23 @@ export function isComposedLifecycleSlugIndeterminate(
 function normalizedPath(cwd: string, path: string | undefined): string | undefined {
   if (path === undefined || !isAbsolute(path)) return path;
   return relative(cwd, path).split(sep).join("/");
+}
+
+function normalizedSemanticRecord(record: ProjectReadinessRecord): object {
+  return {
+    slug: record.slug,
+    location: record.location,
+    state: record.state,
+    owner: record.owner ?? null,
+    priority: record.priority,
+    cohort: record.cohort ?? null,
+    dependsOn: [...new Set(record.dependsOn)].sort(),
+    scheduling: record.scheduling ?? null,
+  };
+}
+
+function recordsAgree(left: ProjectReadinessRecord, right: ProjectReadinessRecord): boolean {
+  return JSON.stringify(normalizedSemanticRecord(left)) === JSON.stringify(normalizedSemanticRecord(right));
 }
 
 function qualityFactsFor(
@@ -137,6 +166,19 @@ export async function resolveComposedLifecycleIndex(
     ...(options.prospective !== undefined ? { prospective: options.prospective } : {}),
   });
   const oracleResult = composition.oracleResult;
+  const treeBySlug = new Map(composition.treeRecords.map((record) => [record.slug, record] as const));
+  const recordsBySlug = new Map<string, ComposedLifecycleRecord>();
+  for (const selected of composition.records) {
+    const currentTree = treeBySlug.get(selected.slug) ?? null;
+    const writablePath = currentTree !== null && recordsAgree(selected, currentTree)
+      ? normalizedPath(options.cwd, currentTree.source.path)
+      : undefined;
+    recordsBySlug.set(selected.slug, {
+      selected,
+      currentTree,
+      ...(writablePath !== undefined ? { writablePath } : {}),
+    });
+  }
   const worktreePathBySlug = new Map<string, string>();
   for (const entry of oracleResult?.entries ?? []) {
     if (entry.kind === "work-unit" && entry.worktreePath !== undefined) {
@@ -154,9 +196,13 @@ export async function resolveComposedLifecycleIndex(
         path: normalizedPath(options.cwd, record.source.path),
       })),
     ),
+    recordsBySlug,
     qualityFacts: qualityFactsFor(oracleResult, options.oracle !== undefined && options.oracle.localOnly !== true),
     worktreePathBySlug,
     liveRefs: { ...(oracleResult?.liveRefs ?? {}) },
     reachable: oracleResult?.reachable ?? false,
+    readQuality: options.oracle === undefined || options.oracle.localOnly === true
+      ? "tree-only"
+      : oracleResult?.reachable === true ? "reachable" : "degraded",
   };
 }

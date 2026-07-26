@@ -287,10 +287,11 @@ describe("rename result derivation", () => {
     expect((failure as Error).message).toContain(omittedResult);
   });
 
-  it("adds caller-declared sibling paths without duplicating derived pairs or ROADMAP", async () => {
+  it("binds only caller-declared shared-visible paths from a mixed dependent inventory", async () => {
     const sourcePath = ".arc/active/meta-sample.md";
     const resultPath = ".arc/active/meta-renamed-sample.md";
     const siblingPath = ".arc/active/spec-sibling.md";
+    const privatePath = ".arc/active/meta-private-dependent.md";
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
       if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
@@ -331,6 +332,7 @@ describe("rename result derivation", () => {
       ["write", siblingPath],
       ["write", ROADMAP_PATH],
     ]);
+    expect(operations).not.toContainEqual(expect.objectContaining({ path: privatePath }));
   });
 
   it.each([

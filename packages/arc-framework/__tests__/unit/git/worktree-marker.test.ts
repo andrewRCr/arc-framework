@@ -23,6 +23,7 @@ import {
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
   type WorktreeHuskStamp,
+  type WorktreeRenameMovePending,
   type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -136,6 +137,33 @@ describe("worktree-marker", () => {
     await writeWorktreeMarker(cwd, marker);
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker });
+  });
+
+  it("round-trips a closed pending rename move and rejects a marker that is also husked", async () => {
+    const renameMovePending: WorktreeRenameMovePending = {
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "feat/new-name",
+      head: "0123456789abcdef0123456789abcdef01234567",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+    };
+    const marker: WorktreeMarker = { ...sampleMarker, renameMovePending };
+
+    await writeWorktreeMarker(cwd, marker);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker });
+
+    const path = resolveWorktreeMarkerPath(cwd);
+    await writeFile(path, JSON.stringify({
+      ...marker,
+      husk: {
+        sha: renameMovePending.head,
+        at: "2026-07-14T20:00:00.000Z",
+        subject: { kind: "work-unit", name: "new-name" },
+        branch: "feat/new-name",
+      },
+    }), "utf8");
+    expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
   });
 
   it("rejects partial husk stamps and recordless subjects that disagree with the stamped branch", async () => {
@@ -394,6 +422,35 @@ describe("stampWorktreeHusk", () => {
     expect((await stampWorktreeHusk(cwd, husk)).kind).toBe("malformed");
     expect(await readFile(path, "utf8")).toBe("{ not json");
   });
+
+  it("clears a pending rename move when terminal husking supersedes it", async () => {
+    const marker: WorktreeMarker = {
+      spawnedByArc: true,
+      wuName: "worktree-foundation",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      renameMovePending: {
+        oldSlug: "old-name",
+        newSlug: "worktree-foundation",
+        branch: "feat/worktree-foundation",
+        head: husk.sha,
+        from: "/work/project.old-name",
+        to: "/work/project.worktree-foundation",
+      },
+    };
+    await writeWorktreeMarker(cwd, marker);
+
+    expect(await stampWorktreeHusk(cwd, husk)).toEqual({
+      kind: "stamped",
+      marker: {
+        spawnedByArc: true,
+        wuName: "worktree-foundation",
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        husk,
+      },
+    });
+  });
 });
 
 describe("renameWorktreeOwnershipMarker", () => {
@@ -425,6 +482,35 @@ describe("renameWorktreeOwnershipMarker", () => {
         wuName: "new-name",
         createdFor: { kind: "work-unit", name: "new-name" },
         spawningIdentity: "andrew",
+      },
+    });
+  });
+
+  it("binds a deferred self-move to the renamed owned marker", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "old-name" },
+      spawningIdentity: "andrew",
+    });
+    const renameMovePending: WorktreeRenameMovePending = {
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "feat/new-name",
+      head: "0123456789abcdef0123456789abcdef01234567",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+    };
+
+    await expect(renameWorktreeOwnershipMarker(cwd, {
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    }, { renameMovePending })).resolves.toEqual({ status: "renamed" });
+    expect(await readWorktreeMarker(cwd)).toMatchObject({
+      kind: "present",
+      marker: {
+        wuName: "new-name",
+        createdFor: { kind: "work-unit", name: "new-name" },
+        renameMovePending,
       },
     });
   });

@@ -37,7 +37,7 @@ import {
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { boundedFetch, type GitExec } from "../lib/git/exec.js";
+import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
@@ -51,8 +51,14 @@ import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-deri
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
-import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
+import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
+import {
+  resolveComposedLifecycleIndex,
+  type ComposedLifecycleIndexResult,
+} from "../lib/work-unit/composed-lifecycle-index.js";
+import { findIntegratingDependentAdvisories } from "../lib/work-unit/transform-coordination.js";
+import type { RetirementLifecycleResult } from "../lib/work-unit/retirement-lifecycle-result.js";
 import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import {
   DISPATCH_MODE,
@@ -82,6 +88,7 @@ import {
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
 import { runRenameCommand } from "../commands/rename.js";
+import { runUserClose } from "../commands/user/close.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
@@ -213,9 +220,7 @@ async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase |
 }
 
 /** Read config once and build the production executor context, returning both. */
-async function buildExecutor(
-  base: VerbBase,
-): Promise<{ executor: ExecuteTransitionContext; settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"] }> {
+async function buildExecutor(base: VerbBase) {
   const { settings } = await readConfigSettings(base.cwd);
   const executor = buildExecutorContext({
     cwd: base.cwd,
@@ -226,6 +231,25 @@ async function buildExecutor(
     internalTemplateDir: getInternalTemplatePath(),
   });
   return { executor, settings };
+}
+
+/** Resolve the remote-aware lifecycle truth shared by destructive transform handlers. */
+async function resolveTransformComposition(
+  base: VerbBase,
+  settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
+): Promise<ComposedLifecycleIndexResult> {
+  const currentBranch = await getCurrentBranch(base.io.exec);
+  return await resolveComposedLifecycleIndex({
+    cwd: base.cwd,
+    fs: lifecycleFs,
+    oracle: {
+      exec: base.io.exec,
+      baseBranch: settings["branch.base"],
+      localOnly: false,
+      expandLiveOnly: true,
+    },
+    ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
+  });
 }
 
 /** Bind the shared in-repository direct-transition retirement boundaries. */
@@ -328,6 +352,7 @@ export const IntegrateCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   lastCompleted: z.string().trim().min(1),
   action: z.string().trim().min(1),
+  allowAdvisories: z.boolean().optional(),
 }).strict();
 export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
 export const ArchiveCommandInputSchema = z.object({
@@ -445,6 +470,7 @@ export const lifecycleCommandInputRegistrations = [
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
       "option.action": "action",
+      "option.allow-advisories": "allowAdvisories",
     },
   },
   {
@@ -633,6 +659,12 @@ export interface DecomposeOptions {
   finalize?: string;
 }
 
+function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
+  return Object.values(lifecycle.cleanup).some(
+    (projection) => projection.status === "pending" || projection.status === "blocked",
+  );
+}
+
 /**
  * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
  * members per a structured cut-map. Deserializes + validates the cut-map file
@@ -655,6 +687,8 @@ export async function handleDecompose(
   if (base === null) return;
 
   const originArg = input.origin;
+  const { executor, settings } = await buildExecutor(base);
+  const composed = await resolveTransformComposition(base, settings);
   const driver = createInRepoDecomposeRetirementDriver({
     cwd: base.cwd,
     exec: base.io.exec,
@@ -663,6 +697,7 @@ export async function handleDecompose(
     readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
     createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
     removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+    composed,
   });
   const finalizeId = input.finalize?.trim();
   if (finalizeId !== undefined && finalizeId !== "") {
@@ -675,13 +710,14 @@ export async function handleDecompose(
       refuse(finalized.reason);
       return;
     }
-    p.note(
-      [
-        `Origin:  ${originArg}`,
-        `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
-      ].join("\n"),
-      "Decompose finalized",
-    );
+    const lines = [
+      `Origin:  ${originArg}`,
+      `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
+    ];
+    if (retirementCleanupRequired(finalized.lifecycle)) {
+      lines.push(`Cleanup: after landing — \`arc teardown ${originArg}\``);
+    }
+    p.note(lines.join("\n"), "Decompose finalized");
     p.outro("Done.");
     return;
   }
@@ -710,10 +746,13 @@ export async function handleDecompose(
     refuse(`cut-map origin \`${parsed.params.origin.slug}\` does not match the \`<origin>\` argument \`${originArg}\`.`);
     return;
   }
+  for (const advisory of findIntegratingDependentAdvisories(composed, originArg)) {
+    p.log.warn(advisory.text);
+  }
 
-  const { executor } = await buildExecutor(base);
   const decomposeContext = {
     executor,
+    composed,
     fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
     removeFs: { readdir: (path: string) => readdir(path), rm: (path: string) => rm(path), rmdir: (path: string) => rmdir(path) },
   };
@@ -735,16 +774,17 @@ export async function handleDecompose(
   }
   if (preparation !== null) await driver.stagePreparedResult(preparation.preparation);
 
-  const { members, repointed, origin: disposition, teardown } = result.result;
+  const { placement, members, repointed, origin: disposition, teardown } = result.result;
   const lines = [
     `Origin:     ${originArg} (${disposition})`,
+    `Placement:  ${placement.summary}`,
     `Members:    ${members.map((m) => m.slug).join(", ")}`,
     `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
   ];
   if (teardown !== null) {
-    // The started origin's branch + worktree teardown is deferred to post-merge —
-    // surface the exact command rather than reaping the live branch mid-transform.
-    lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+    lines.push(
+      `Cleanup:    after finalize + landing — \`arc teardown ${teardown.slug}\` (branch \`${teardown.branch}\`)`,
+    );
   }
   if (preparation !== null) {
     lines.push(
@@ -776,11 +816,16 @@ export async function handleRename(
     baseBranch: settings["branch.base"],
     io: base.io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+    onPreparedAdvisories: (advisories) => {
+      for (const advisory of advisories) p.log.warn(advisory);
+      return Promise.resolve();
+    },
   }, { sourceSlug: renameSource, targetSlug: renameTarget });
   if (result.status !== "renamed") {
     refuse(result.reason);
     return;
   }
+  for (const advisory of result.advisories) p.log.warn(advisory);
   const lines = [
     `Work unit: ${renameSource} → ${renameTarget}`,
     `Shape:     ${result.shape}`,
@@ -812,6 +857,13 @@ export async function handleRename(
       lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
     } else if (result.worktree.status === "unmatched") {
       lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
+    } else if (result.worktree.status === "deferred-self-move") {
+      lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
+      if (result.marker === "renamed") {
+        lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
+      } else {
+        lines.push(`Marker:    ${result.marker ?? "unavailable"}; no move action projected`);
+      }
     } else {
       lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
     }
@@ -954,6 +1006,10 @@ export async function handleActivate(
     nextAction: action,
   });
   if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
   }
@@ -1178,7 +1234,7 @@ export async function handlePark(
   // tree / target the primary). park@Active preserves the branch and tore the
   // worktree down in-verb, so it owes no teardown.
   if (result.outcome.status === "ok" && result.outcome.from?.phase === "Planning") {
-    parkedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+    parkedLines.push(`Teardown:  after landing — \`arc teardown ${target}\``);
   }
   reportOutcome("Parked", parkedLines, result.outcome);
 }
@@ -1214,7 +1270,8 @@ export async function handleResume(
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
-  const ctx = { executor, fs: parkResumeFsSeam(base) };
+  const composed = await resolveTransformComposition(base, settings);
+  const ctx = { executor, fs: parkResumeFsSeam(base), composed };
 
   // In place (`--here`): no fresh worktree, so the spawn config (location
   // template / repo) isn't needed — the preserved branch is checked out here.
@@ -1428,6 +1485,7 @@ export async function handleMaterialize(
 export interface IntegrateOptions {
   lastCompleted?: string;
   action?: string;
+  allowAdvisories?: boolean;
 }
 
 /**
@@ -1455,10 +1513,39 @@ export async function handleIntegrate(
   const { lastCompleted, action } = input;
 
   const { executor } = await buildExecutor(base);
-  const result = await runIntegrate(executor, { name: target, lastCompleted, nextAction: action });
+  const result = await runIntegrate(executor, {
+    name: target,
+    lastCompleted,
+    nextAction: action,
+    ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
+  });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
+  }
+  if (result.status === "reconcile-failed") {
+    refuse(result.reason);
+    return;
+  }
+  if (result.status === "reconcile-pending") {
+    for (const advisory of result.reconcile.prepared.plan.advisories) {
+      p.log.info(
+        `Reconcile advisory: ${advisory.path}:${advisory.line} — `
+        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+      );
+    }
+    refuse(result.reason);
+    return;
+  }
+  if (result.reconcile.status === "pending") {
+    for (const advisory of result.reconcile.prepared.plan.advisories) {
+      p.log.info(
+        `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
+        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+      );
+    }
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
@@ -1570,10 +1657,21 @@ export async function handleAbandon(
   // Resolve the source state to compose a truthful impact plan — the cascade legs
   // vary by cell (a backlog stub removes only artifacts; a started WU also tears
   // down its branch and worktree; a parked WU deletes its branch but has none).
-  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
+  const { executor, settings } = await buildExecutor(base);
+  const composed = await resolveTransformComposition(base, settings);
+  const index = composed.index;
   const state = resolveSlugState(index, target);
   const entry = index.get(target);
-  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).branch;
+  const writablePath = composed.recordsBySlug.get(target)?.writablePath;
+  if (entry !== undefined && writablePath === undefined) {
+    refuse(
+      `Cannot abandon \`${target}\`: composed lifecycle truth does not grant current-checkout write authority.`,
+    );
+    return;
+  }
+  const branch = writablePath === undefined
+    ? null
+    : parseMetaRecord(await base.io.readFile(join(base.cwd, writablePath))).branch;
 
   const plan = planAbandon(state, branch, target);
   if (!plan.legal) {
@@ -1585,21 +1683,25 @@ export async function handleAbandon(
     );
     return;
   }
+  const coordination = findIntegratingDependentAdvisories(composed, target);
 
   // Present the destructive cascade before any mutation, then gate on explicit confirmation.
-  p.note(plan.lines.join("\n"), `Abandon \`${target}\` — impact plan`);
+  p.note(
+    [...plan.lines, ...coordination.map((advisory) => `Coordination: ${advisory.text}`)].join("\n"),
+    `Abandon \`${target}\` — impact plan`,
+  );
   if (context.confirmation !== "accept") {
     refuse(`Refusing to abandon \`${target}\` without \`--yes\` (safe default). Re-run with \`--yes\` to proceed.`);
     return;
   }
 
-  const { executor } = await buildExecutor(base);
   const retirement = createInRepoAbandonRetirementContext(directRetirementDeps(base));
   const result = await runAbandon(
     {
       executor,
       fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
       retirement,
+      composed,
     },
     { name: target, confirmed: true },
   );
@@ -1607,12 +1709,9 @@ export async function handleAbandon(
     refuse(result.reason);
     return;
   }
-  // A started WU's branch + worktree teardown is out-of-band — surface the exact
-  // post-action command (the in-verb teardown legs were dropped to avoid the
-  // self-teardown defect; see the abandon edges in lifecycle-transitions).
   const abandonedLines = [`Work unit: ${target}`];
-  if (state === "planning" || state === "active") {
-    abandonedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+  if (retirementCleanupRequired(result.lifecycle)) {
+    abandonedLines.push(`Cleanup:   after landing — \`arc teardown ${target}\``);
   }
   reportOutcome("Abandoned", abandonedLines, result.outcome);
 }
@@ -1724,15 +1823,13 @@ function reportTeardownResult(
 /**
  * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
  * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
- * prune the stale tracking ref. Two modes (default `shipped`; `--force` selects
- * `abandoned`):
+ * prune the stale tracking ref. The verb infers its evidence-backed mode:
  *
  * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
  *   arc-state + the merged-safe push-state durability check.
- * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
- *   into its members, a `park@Planning` shelf) whose branch is unmerged. The flag
- *   selects non-shipped cleanup; transition-specific receipt evidence authorizes
- *   each destructive operation. Refuses a `completed/` WU (use the default path).
+ * - unshipped — cleanup of a retired / parked origin whose branch is unmerged;
+ *   transition-specific receipt evidence authorizes each destructive operation.
+ *   `--force` is accepted as a compatibility spelling and grants no authority.
  *
  * `arc teardown --branch chore/<slug>` is the recordless cheap-branch sibling:
  * it skips the WU arc-state gate but keeps the merged-safe containment check,
@@ -1831,7 +1928,7 @@ export async function handleTeardown(
     {
       name: wuName ?? "",
       base: baseBranch,
-      mode: input.force ? "abandoned" : "shipped",
+      mode: input.force ? "abandoned" : undefined,
       protection: settings["branch.protection"] === "full" ? "full" : "partial",
       huskPath: input.husk,
     },
@@ -1843,6 +1940,9 @@ export async function handleTeardown(
       refuse(result.reason);
     }
     return;
+  }
+  if (result.mode === "abandoned") {
+    await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: wuName ?? "" });
   }
 
   const branchLine =

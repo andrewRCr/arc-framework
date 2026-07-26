@@ -19,7 +19,7 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import {
   parseMetaRecord,
@@ -29,7 +29,7 @@ import {
 import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
 import { SlugSchema } from "../../kernel/index.js";
-import { resolveArcPath } from "../../layout/index.js";
+import { resolveArcPath, WorkUnitPlacementSchema } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
 import type {
@@ -39,7 +39,15 @@ import type {
   DecomposeAllocationMap,
 } from "../decompose-cut-map.js";
 import { newMemberDependencies } from "../decompose-cut-map.js";
+import {
+  projectDecomposePlacement,
+  resolveDecomposeMemberPlacement,
+  type DecomposeMemberPlacement,
+  type DecomposePlacementProjection,
+} from "../decompose-placement.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
+import { partitionTransformDependents } from "../transform-coordination.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -50,6 +58,11 @@ import { resolveSlugState } from "../lifecycle-resolver.js";
 import type { Location, Phase } from "../lifecycle-state.js";
 import { artifactMatcher, pruneEmptyBacklogSource } from "../mutators/relocate-artifacts.js";
 import type { PreparedDecomposeRetirement } from "../retirement-authority.js";
+import {
+  deriveDecomposeSuccessorCandidates,
+  projectExtractionLifecycle,
+  type RetirementLifecycleResult,
+} from "../retirement-lifecycle-result.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -83,14 +96,8 @@ export interface ScaffoldOriginContext {
 
 /** The resolved request the batch scaffold writes. */
 export interface ScaffoldCohortMembersParams {
-  /**
-   * The resolved cohort placement path the members nest under — dual-placed (the
-   * meta `Cohort` field + the draft header). All three parent-position arms
-   * collapse to this single value: the caller resolves it (the cut-map's cohort
-   * for the standalone / in-cohort arms, the origin's existing cohort for the
-   * at-cap lateral fan-out).
-   */
-  cohort: string;
+  /** Canonical planned placement shared by scaffolding and retirement. */
+  placement: DecomposeMemberPlacement;
   /** Origin-inherited field values. */
   originContext: ScaffoldOriginContext;
   /** The cut's new members, in cut-map order. */
@@ -128,13 +135,19 @@ export interface ScaffoldedMember {
  * @param cohort - The member's cohort path, mirrored into the header.
  * @returns The rendered draft markdown, terminated by a single newline.
  */
-export function renderMemberDraft(slug: string, origin: string, cohort: string): string {
+export function renderMemberDraft(
+  slug: string,
+  origin: string,
+  placement: DecomposeMemberPlacement,
+): string {
   const renderedOrigin = origin === "internal" ? "[internal]" : origin;
+  const cohort = placement.cohort.length === 0
+    ? ""
+    : `- **Cohort:** \`${placement.cohort.join("/")}\`\n`;
   return `# Draft: ${slug}
 
 - **Origin:** ${renderedOrigin}
-- **Cohort:** \`${cohort}\`
-- **Purpose:** —
+${cohort}- **Purpose:** —
 
 ---
 
@@ -183,14 +196,18 @@ export async function scaffoldCohortMembers(
   ctx: ScaffoldCohortMembersContext,
   params: ScaffoldCohortMembersParams,
 ): Promise<ScaffoldedMember[]> {
-  const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
+  const { originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
-  const cohortSegments = cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  const parsedPlacement = WorkUnitPlacementSchema.parse(params.placement);
+  if (parsedPlacement.kind !== "backlog" || parsedPlacement.commitment !== "planned") {
+    throw new Error("decompose members require a planned backlog placement");
+  }
+  const placement = params.placement;
+  const cohort = placement.cohort.length === 0 ? null : placement.cohort.join("/");
   const validatedMembers = members.map((member) => ({
     member,
     slug: SlugSchema.parse(member.slug),
   }));
-  const placement = { kind: "backlog", commitment: "planned", cohort: cohortSegments } as const;
 
   for (const { member, slug } of validatedMembers) {
     const dir = resolveArcPath({ kind: "work-unit-container", placement, slug });
@@ -212,7 +229,7 @@ export async function scaffoldCohortMembers(
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
     await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(slug, overrides));
-    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(slug, originContext.origin, cohort));
+    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(slug, originContext.origin, placement));
 
     scaffolded.push({ slug, metaPath, draftPath });
   }
@@ -246,6 +263,8 @@ export interface RunDecomposeContext {
   fs: CohortMemberScaffoldFs;
   /** Artifact-removal seam for the origin teardown. */
   removeFs: DecomposeRemoveFs;
+  /** Remote-aware inventory shared with preparation; omitted preserves tree-only library calls. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 /** The operational inputs a `runDecompose` supplies beyond the cut-map. */
@@ -269,13 +288,13 @@ export interface RepointedEdge {
 }
 
 /**
- * The started origin's out-of-band teardown locators — what the workflow's
- * post-merge `arc teardown <slug> --force` call targets. Resolved from meta
+ * The started origin's deferred cleanup locators — what the workflow's
+ * post-landing `arc teardown <slug>` call targets. Resolved from meta
  * fields (never `git branch` inference), since `arc teardown` does the git-roster
  * branch / worktree resolution itself at teardown time.
  */
 export interface OriginTeardown {
-  /** The retired origin slug — the `arc teardown <slug> --force` target. */
+  /** The retired origin slug — the `arc teardown <slug>` target. */
   slug: string;
   /** The origin's branch (from the meta `Branch` field) — surfaced for the allocation-map PR description. */
   branch: string;
@@ -283,6 +302,8 @@ export interface OriginTeardown {
 
 /** The structured account a `runDecompose` returns — the substrate the workflow renders into the allocation map. */
 export interface DecomposeResult {
+  /** CLI-owned placement and coordination projection for workflow dispatch. */
+  placement: DecomposePlacementProjection;
   /** The members scaffolded, in cut order. */
   members: ScaffoldedMember[];
   /** The incoming edges re-pointed off the retired origin (empty on the extraction shape). */
@@ -296,6 +317,12 @@ export interface DecomposeResult {
    * <slug> --force` post-merge with these.
    */
   teardown: OriginTeardown | null;
+  /**
+   * Complete lifecycle result for extraction, whose non-retirement authority is
+   * known immediately. Receipt-backed retirement receives this result from
+   * finalization, after the preparation is replaced by its receipt.
+   */
+  lifecycle: RetirementLifecycleResult | null;
 }
 
 /** The outcome of a `runDecompose` — a rejection reason, or the structured account of what it did. */
@@ -344,7 +371,7 @@ export async function runPreparedDecompose(
  * in-verb leg: firing it here would trip on the verb's own staged (uncommitted)
  * tree and, in-place, target the un-removable primary worktree. Instead
  * `runDecompose` returns its locators in `result.teardown`, and the workflow runs
- * `arc teardown <slug> --force` once the decompose has committed and merged. A
+ * `arc teardown <slug>` once the decompose has finalized and landed. A
  * backlog-stub origin owns no branch / worktree, so `teardown` is `null` there as
  * on the extraction shape.
  *
@@ -363,23 +390,25 @@ export async function runDecompose(
   const { cut } = params;
   const originSlug = cut.origin.slug;
 
-  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const index = ctx.composed?.index
+    ?? await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const originEntry = index.get(originSlug);
   if (originEntry === undefined) {
     return { status: "rejected", reason: `decompose origin "${originSlug}" is absent from the lifecycle index.` };
   }
-  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
-
-  // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
-  // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out
-  // (no new node minted), which the cut-map omits.
-  const placementCohort = cut.cohort ?? originEntry.cohort ?? undefined;
-  if (placementCohort === undefined || placementCohort === "") {
+  const originPath = ctx.composed === undefined
+    ? originEntry.path
+    : ctx.composed.recordsBySlug.get(originSlug)?.writablePath;
+  if (originPath === undefined) {
     return {
       status: "rejected",
-      reason: `decompose needs a cohort placement: the cut-map omits one and origin "${originSlug}" carries no cohort.`,
+      reason: `decompose origin "${originSlug}" has no current-checkout write authority.`,
     };
   }
+  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originPath)));
+
+  const memberPlacement = resolveDecomposeMemberPlacement(cut, originSlug, originEntry.cohort);
+  if (memberPlacement.status === "refused") return { status: "rejected", reason: memberPlacement.reason };
 
   const newMembers = cut.entries.filter((e): e is NewMemberEntry => e.kind === "new-member");
 
@@ -387,7 +416,7 @@ export async function runDecompose(
   const members = await scaffoldCohortMembers(
     { cwd: executor.cwd, fs: ctx.fs },
     {
-      cohort: placementCohort,
+      placement: memberPlacement.placement,
       originContext: {
         origin: originRecord.origin ?? "internal",
         owner: originRecord.owner ?? "—",
@@ -398,6 +427,10 @@ export async function runDecompose(
       outgoingEdges: cut.outgoingEdges,
     },
   );
+  for (const member of members) {
+    await executor.stageMeta?.(member.metaPath);
+    await executor.stageMeta?.(member.draftPath);
+  }
 
   const originRetired = cut.shape !== "extraction";
   // A started (`Planning`-phase, `active`-location) origin owns a branch + worktree
@@ -413,13 +446,13 @@ export async function runDecompose(
     repointed = await sweepIncomingEdges(ctx, index, originSlug, cut.incomingEdges);
 
     // Leg 2 — origin artifact retirement via the reserved edge; its render side-effect fires Leg 4.
-    const outcome = await tearDownOrigin(ctx, originSlug);
+    const outcome = await tearDownOrigin(ctx, originSlug, originRecord.branch);
     if (outcome.status !== "ok") {
       return { status: "rejected", reason: outcome.message };
     }
 
     // A started origin's branch + worktree teardown is deferred out-of-band — return
-    // its locators for the workflow's post-merge `arc teardown --force`. A backlog
+    // its locators for the workflow's post-landing `arc teardown`. A backlog
     // stub owns no branch / worktree, so none is owed.
     if (originStarted) {
       teardown = { slug: originSlug, branch: originRecord.branch ?? "[none]" };
@@ -432,7 +465,20 @@ export async function runDecompose(
 
   return {
     status: "decomposed",
-    result: { members, repointed, origin: originRetired ? "retired" : "survived", teardown },
+    result: {
+      placement: projectDecomposePlacement(cut.parentPosition, memberPlacement.placement),
+      members,
+      repointed,
+      origin: originRetired ? "retired" : "survived",
+      teardown,
+      lifecycle: originRetired
+        ? null
+        : projectExtractionLifecycle(
+            originSlug,
+            originRecord.branch,
+            deriveDecomposeSuccessorCandidates(cut),
+          ),
+    },
   };
 }
 
@@ -449,16 +495,27 @@ async function sweepIncomingEdges(
 ): Promise<RepointedEdge[]> {
   const { executor } = ctx;
   const repointed: RepointedEdge[] = [];
+  const partitions = new Map(
+    (ctx.composed === undefined ? [] : partitionTransformDependents(ctx.composed, originSlug))
+      .map((partition) => [partition.dependent, partition] as const),
+  );
   for (const edge of incomingEdges) {
     const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
-    const abs = join(executor.cwd, entry.path);
+    const partition = partitions.get(edge.dependent);
+    const writablePath = ctx.composed === undefined
+      ? entry.path
+      : partition?.authority === "shared-visible"
+        ? partition.writablePath
+        : undefined;
+    if (writablePath === undefined) continue;
+    const abs = join(executor.cwd, writablePath);
     const before = await executor.indexFs.readFile(abs);
     const replacements = edge.disposition.kind === "replace" ? edge.disposition.replacementTargets : [];
     const after = repointDependsOn(before, originSlug, replacements);
     if (after === before) continue;
     await ctx.fs.writeFile(abs, after);
-    if (executor.stageMeta !== undefined) await executor.stageMeta(entry.path);
+    if (executor.stageMeta !== undefined) await executor.stageMeta(writablePath);
     repointed.push({ dependent: edge.dependent, to: replacements });
   }
   return repointed;
@@ -469,17 +526,27 @@ async function sweepIncomingEdges(
  * edge — `decompose@planning` for a started origin, the artifacts-only
  * `decompose@planned` / `decompose@provisional` for a backlog stub. Every edge
  * fires `artifacts: remove` alone; a started origin's branch + worktree teardown
- * is out-of-band (post-merge `arc teardown --force`), never an in-verb leg. The
+ * is deferred (post-landing `arc teardown`), never an in-verb leg. The
  * `remove` runner deletes the origin's artifact set and prunes the emptied
  * backlog subdir so a retired stub leaves no orphaned cohort dir.
  */
 async function tearDownOrigin(
   ctx: RunDecomposeContext,
   originSlug: string,
+  sourceBranch: string | null,
 ): Promise<TransitionOutcome> {
   const { executor } = ctx;
-  const scaffoldOrRemove = buildOriginRemoveRunner(executor.cwd, ctx.removeFs);
-  return executeTransition({ ...executor, scaffoldOrRemove }, { verb: "decompose", slug: originSlug, inputs: {} });
+  const scaffoldOrRemove = buildOriginRemoveRunner(executor.cwd, ctx.removeFs, executor.stageMeta);
+  return executeTransition(
+    { ...executor, scaffoldOrRemove },
+    {
+      verb: "decompose",
+      slug: originSlug,
+      inputs: sourceBranch === null || sourceBranch === "[none]"
+        ? {}
+        : { supersededSource: { slug: originSlug, branch: sourceBranch } },
+    },
+  );
 }
 
 /**
@@ -488,7 +555,11 @@ async function tearDownOrigin(
  * backlog subdir(s) via the shared {@link pruneEmptyBacklogSource} (a no-op for a
  * flat `active/` origin, which has no per-WU subdir to drop).
  */
-function buildOriginRemoveRunner(cwd: string, removeFs: DecomposeRemoveFs): ArtifactRunner {
+function buildOriginRemoveRunner(
+  cwd: string,
+  removeFs: DecomposeRemoveFs,
+  stagePath?: (path: string) => Promise<void>,
+): ArtifactRunner {
   return async ({ disposition, slug, fromDir }) => {
     if (disposition !== "remove") {
       throw new Error(`decompose retires the origin via removal; received a \`${disposition}\` disposition.`);
@@ -498,7 +569,10 @@ function buildOriginRemoveRunner(cwd: string, removeFs: DecomposeRemoveFs): Arti
     const absDir = join(cwd, fromDir);
     const matcher = artifactMatcher(slug);
     const names = (await removeFs.readdir(absDir)).filter((n) => matcher.test(n)).sort();
-    for (const n of names) await removeFs.rm(join(absDir, n));
+    for (const n of names) {
+      await removeFs.rm(join(absDir, n));
+      await stagePath?.(posix.join(fromDir, n));
+    }
 
     await pruneEmptyBacklogSource(removeFs, absDir);
   };
