@@ -120,17 +120,40 @@ another look and **recommends** it, citing the signal. At the cap with live mate
 the evidence warrants continuing rather than stopping silently. **The agent may recommend past the cap; it may never
 proceed past it.**
 
-**D6.3 — Route verified severity to the driver.** Every hosted finding already carries two severities: the adapter
-normalizes the provider's label into `NormalizedReviewFindingSchema`, and the primary's verified severity is recorded
-separately on `DispositionReportItemSchema` alongside `sourceVerification` and mandatory `verificationRefs`, with a
-refinement forcing rejection of anything source does not support. Both are already typed. What is missing is that **the
-driver cannot see it**: `ReviewAttemptSchema` records a source and an outcome with no severity, so continue-or-stop is
-decided against "findings happened."
+**Cap authority is visible and one-pass-scoped.** The primary owns loop accounting but never keeps it implicit:
+every completed result reports `Pass N of M` beside the outcome. At `N == M`, the activity reports `cap-exhausted`
+and stops before another evaluator invocation. A recommendation to continue states why another pass is worth its
+cost, but it is not authorization. Only explicit approval naming the activity and next pass authorizes exactly one
+pass beyond the configured cap; after that pass, any further continuation requires fresh approval. The cap remains
+absent from evaluator context, where it could bias the review, while staying explicit in primary control flow and the
+operator-facing report. Driver-managed lanes retain their typed `approval-required / obtain-ceiling-override` path;
+the agent-managed adversarial loop applies the same one-extra-pass authority invariant.
 
-The external command does **not** accept a caller-computed severity scalar. That value is duplicated,
-control-bearing derived state: a stale, mistyped, or provider-sourced value is schema-valid but can falsely converge
-after a material finding or buy an unnecessary pass after a minor one. The caller is not treated as hostile; the
-boundary simply refuses to make it restate a fact already present in a stronger typed record.
+**D6.3 — Route verified severity to the driver.** Review handling already presents two severities to the operator, but
+the typed contract collapses them into one. The adapter normalizes the provider's label into
+`NormalizedReviewFindingSchema`; `review-triage` asks the primary to verify and re-grade it against source. Yet
+`AuthorDispositionSchema` accepts no severity, `prepareDispositionProposal` copies `finding.severity` into
+`DispositionReportItemSchema`, and exact-source validation requires the two values to remain equal. The ARC re-grade
+therefore survives only in the audience-visible prose while the durable record retains the provider label. Before the
+driver can consume verified severity, observation and judgment must become structurally distinct.
+
+`DispositionReportItemSchema` replaces the ambiguous source-controlled fields with two provenance lanes:
+
+- **Reported observation:** required `reportedSeverity` plus optional `reportedNit`, copied from the normalized source
+  finding and checked by exact-source validation.
+- **ARC judgment:** nullable `verifiedSeverity` plus optional `verifiedNit`, supplied by triage and bound to its
+  `sourceVerification` and `verificationRefs`. `verified` requires a non-null verified severity;
+  `not-supported` requires `verifiedSeverity: null`, no verified nit, and `disposition: reject`.
+
+`verifiedNit` is legal only with verified `minor`. Gating derives from `verifiedSeverity`, `verifiedNit`, and the
+existing minor-gating policy; reported fields never control ARC gating. The provider observation remains intact for
+provenance while a primary re-grade neither rewrites source nor fails source validation.
+
+The external command does **not** accept a caller-computed pass-level severity scalar. That detached summary would be
+duplicated, control-bearing derived state: a stale, mistyped, or provider-sourced value could falsely converge after a
+material finding or buy an unnecessary pass after a minor one. The caller is not treated as hostile; the boundary
+accepts each source-verified finding judgment for approval, then refuses to make the caller restate the summary already
+derivable from that stronger typed record.
 
 `ReviewAttemptSchema` instead gains conditionally required, ordered-unique `reviewOperationIds`. A findings-bearing
 attempt echoes a non-empty list of the exact operation ids returned by the producing review verbs; other outcomes omit
@@ -138,16 +161,26 @@ the field. The command boundary loads those operations' durable `ApprovedDisposi
 `ApprovedDispositionRecordStore`. The caller names observed operations but neither supplies their approved records nor
 restates any derived severity.
 
+The result side extends one channel-neutral outcome architecture rather than adding a hosted-only store.
+`FrontlineOutcomeRecordSchema` / `FrontlineOutcomeStore` generalize to a discriminated `ReviewResultRecordSchema`
+(`frontline` / `hosted`) and `ReviewResultRecordStore`, retaining the existing record-per-operation,
+version-checked, idempotent storage in the Git-common `outcomes` namespace. Local receipts remain a distinct
+evidentiary ledger; operation state, immutable source descriptors, and approved dispositions likewise keep their
+different lifecycle and authority semantics. The shared persistence substrate is reused without collapsing
+domain-distinct records into one generic repository.
+
 The approved set inside that record is necessary but not sufficient on its own. It binds target, policy, rubric, and
 approval, but not the review result it dispositions; a same-target set from another pass or an incomplete subset could
 otherwise drive false convergence. Reuse the existing record layer rather than minting a parallel proof:
 
 - Local and frontline records retain `respond-command.ts`'s exact comparison against their durable receipt or outcome
   before append.
-- `ApprovedDispositionSourceSchema` gains a hosted variant. The hosted await path derives a canonical
-  `hostedResultId` over the exact request handle and complete normalized finding result; hosted triage compares the
-  approved set one-for-one with that result before appending an approved disposition record whose `operationId` is the
-  result id and whose source carries the hosted result binding.
+- `ApprovedDispositionSourceSchema` gains a hosted variant. The hosted path derives a stable `operationId` from the
+  exact request handle and persists the complete normalized finding result under that identity. A separate canonical
+  `hostedResultId` binds the handle and result content; the source variant carries both the store-issued result
+  reference and result id. Hosted triage resolves that record, compares the approved set one-for-one with it, and
+  appends the approved disposition record under the unchanged operation id. Operation identity never aliases a result
+  digest.
 - Every lane therefore hands the driver the same source-bound record type. No new approval vocabulary or detached
   finding-summary record is introduced.
 
@@ -173,14 +206,14 @@ maxConfirmedSeverity: ReviewSeverity | null
 ```
 
 The policy reducer receives that normalized summary internally; neither field is accepted from external JSON. The
-confirmed subset is the items with `sourceVerification: "verified"` whose disposition is not `reject`, and the maximum
-is computed only across that subset.
+confirmed subset is the items with `sourceVerification: "verified"`, non-null `verifiedSeverity`, and a disposition
+other than `reject`; the maximum is computed from `verifiedSeverity` only.
 
-The qualifier is not pedantry. `DispositionReportItemSchema` carries a mandatory `severity` on **every** item
-regardless of verification outcome, and its refinement forces `disposition: "reject"` when source does not support a
-finding without zeroing that severity. A maximum over the whole set would therefore report `major` for a pass whose
-findings were all refuted at triage, forcing another pass for a pass that confirmed nothing — the exact inversion of
-`D6.2`'s rule and of this unit's stated saving.
+The distinction is load-bearing. Exact-source validation compares `reportedSeverity` / `reportedNit` with the durable
+result and deliberately does not compare the verified fields with provider claims. Without that separation, either a
+legitimate re-grade fails source validation or the provider retains control over ARC convergence. A refuted provider
+`major` or `critical` remains legible as reported provenance while its null verified severity contributes nothing to
+the maximum — the behavior `D6.2`'s convergence rule requires.
 
 **All-refuted is an explicit case, not a default.** Referencing a source-bound record whose non-empty approved set has
 an empty confirmed subset derives `confirmedFindingCount: 0` and `maxConfirmedSeverity: null`, which resolves
@@ -219,11 +252,11 @@ result and appends the approved disposition record from `D6.3`; this is evidence
 disposition. The driver consumes that record, then response performs the approved set.
 
 For local and frontline lanes, refactor the exact-source validation and record append currently nested in
-`respond-command.ts` into that pre-driver binding step while retaining its existing schemas and store. Record
-preparation may project the response far enough to derive any `fixAuthorization`; the authorization is stored on the
-prepared record, while the workflow holds the projected next action and performs it only after the driver result. The
-hosted lane adds the equivalent record preparation between triage and thread settlement. No lane fabricates a record
-from the approved set alone.
+`respond-command.ts` into that pre-driver binding step while retaining the revised source-authoritative record shape
+and shared store. Record preparation may project the response far enough to derive any `fixAuthorization`; the
+authorization is stored on the prepared record, while the workflow holds the projected next action and performs it
+only after the driver result. The hosted lane adds the equivalent record preparation between triage and thread
+settlement. No lane fabricates a record from the approved set alone.
 
 The reorder edits `integrate-work-unit.md`'s Step 3 lane dispatch and its Step 4 hosted findings arm, and settles two
 things the reorder itself creates. The hosted lane moves too: settlement is response, so it follows the driver call
@@ -262,5 +295,15 @@ Convergence, suspension, and ceiling exhaustion all end the _review_ loop; none 
 Every findings-bearing pass-closing driver call then derives its confirmed-finding summary from the approved records,
 one convergence semantic is mechanically enforced rather than agentically honored on two lanes out of three, and the
 all-refuted and minors-only arms deliver their saving everywhere instead of nowhere.
+
+## Draft State
+
+- **Readiness:** `formalization-ready`
+- **Resolved:** advisory coverage semantics; severity vocabulary; exit-gate versus convergence semantics;
+  visible pass-cap authority and one-pass overrides; source-bound verified-severity reduction; one channel-neutral
+  result-store architecture; lane-order and outstanding-disposition behavior.
+- **Open:** none at the design level. Schema field layout, helper extraction, and task partitioning remain
+  downstream formalization and implementation details.
+- **Next:** capture the settled draft and proceed to `create-spec`.
 
 ---
