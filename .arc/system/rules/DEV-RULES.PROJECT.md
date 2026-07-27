@@ -138,6 +138,8 @@ instead.
 - ESM throughout (`type: "module"`, Node16 module resolution)
 - Prefer explicit return types on exported functions
 - Use `unknown` over `any` for external data; validate and narrow before use
+- Shared helpers return only what they establish; each caller applies its own failure policy
+  (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
 - TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
   describing the module's purpose
 
