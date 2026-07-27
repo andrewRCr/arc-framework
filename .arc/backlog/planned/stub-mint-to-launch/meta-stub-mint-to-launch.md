@@ -17,7 +17,11 @@
 - **Blockers:** [none]
 
 - **Next Action:** Iterate `draft-stub-mint-to-launch.md` via `arc-plan`; settle the resumable orchestration and
-  durable-locus boundaries before spec generation.
+  durable-locus boundaries before spec generation. Scope now also carries entry-point-agnostic mint semantics
+  (commitment inheritance, close-with-launch) routed from the 2026-07-26 decompositions — re-run
+  `classify-work-unit`, since the recorded `Light` predates them. Sequencing: decomposition is operationally
+  critical and `decomposition-doctrine` will drive more cuts, so this should land ahead of that doctrine rather
+  than after it.
 
 - **PR URL:** [none]
 - **Completed:** [none]
