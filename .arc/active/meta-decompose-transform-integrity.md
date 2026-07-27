@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-decompose-transform-integrity.md`
+- **Design:** `spec-decompose-transform-integrity.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
