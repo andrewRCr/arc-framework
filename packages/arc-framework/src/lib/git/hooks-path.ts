@@ -91,11 +91,12 @@ export function classifyHooksPath(input: ClassifyHooksPathInput): HooksPathVerdi
  * @param value - Absolute or configured path fragment
  */
 export function isDisabledHooksPath(value: string): boolean {
+  // Backslashes → `/` first so Windows device paths compare as exact forms
+  // (`\\.\NUL` → `//./nul`), never via a broad "ends with nul" match.
   const normalized = value.trim().replace(/\\/g, "/").toLowerCase();
   return normalized === "/dev/null"
     || normalized === "nul"
-    || normalized === "\\\\.\\nul"
-    || normalized.endsWith("/nul");
+    || normalized === "//./nul";
 }
 
 /**
