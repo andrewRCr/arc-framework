@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** `create-spec` — detailed RFC approved and finalized after adversarial pass 2
+- **Last Completed:** `create-spec` — detailed RFC amended after exceptional adversarial pass 3
 - **Next Task:** [none]
 - **Blockers:** [none]
 
