@@ -9,6 +9,18 @@ import {
 import { ROADMAP_PATH } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
+function isStagedReceiptList(args: readonly string[]): boolean {
+  return args.join("\0") === [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=A",
+    "-z",
+    "--",
+    ".arc/system/.internal/retirement-receipts",
+  ].join("\0");
+}
+
 function assessment(
   overrides: Partial<RoadmapConflictAutoRemedyAssessmentInput> = {},
 ): RoadmapConflictAutoRemedyAssessmentInput {
@@ -76,6 +88,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
 
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
       gitArgs.push([...args]);
+      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
       if (args[0] === "ls-files") return { stdout: "", stderr: "" };
       if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
       if (args[0] === "worktree") return { stdout: "", stderr: "" };
@@ -128,6 +141,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
 
   it("returns failed when the worktree write throws", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
       if (args[0] === "ls-files") return { stdout: "", stderr: "" };
       if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
       if (args[0] === "worktree") return { stdout: "", stderr: "" };
