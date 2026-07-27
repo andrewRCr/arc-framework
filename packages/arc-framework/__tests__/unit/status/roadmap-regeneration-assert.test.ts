@@ -42,8 +42,21 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   ].join("\n");
 }
 
+function isStagedReceiptList(args: readonly string[]): boolean {
+  return args.join("\0") === [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=A",
+    "-z",
+    "--",
+    ".arc/system/.internal/retirement-receipts",
+  ].join("\0");
+}
+
 function makeIndexExec(files: Record<string, string>): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       const lines = Object.keys(files)
@@ -73,6 +86,7 @@ function makeTransitionExec(
 ): GitExec {
   const metaPath = `.arc/active/meta-${input.slug}.md`;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       return {
