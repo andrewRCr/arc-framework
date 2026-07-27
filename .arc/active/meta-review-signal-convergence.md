@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** generate-tasks structural pass and PR-size evaluation
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** `decompose-transform-integrity` preferred; `chunked-delivery` is the alternate unblocker
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Resume from `notes-review-signal-convergence.md` § Blocker and resume condition when unblocked
 
 - **PR URL:** [none]
 - **Completed:** [none]
