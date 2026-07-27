@@ -106,8 +106,8 @@ Every `.arc/**` edit doubles into `packages/arc-framework/arc/**` per the two-co
 - **Superseding `merge.strategy`.** It stays authoritative over what the project wants; the ruleset is authoritative
   over what the host accepts.
 - **Re-running full verification after every review fix.** Delta verification is primary-owned and
-  consequence-scaled; full verification re-entry is reserved for changes that materially undermine the original
-  attestation.
+  consequence-scaled; one converged Tier 3 attests a changed implementation after review, rather than multiplying
+  full verification and adversarial passes by the number of fixes.
 - **A deprecation or alias window for the renamed command.** Pre-public-release, no external callers.
 
 ## Proposed Design
@@ -146,34 +146,38 @@ typed verdict:
 - **`reconcile`** — carrying the drift verdict; routes to the orchestration path in C.
 - **`blocked`** — carrying a typed reason.
 
-**B2. `arc integrate merge <name> --checkpoint <handle> --json`** absorbs the post-approval sequence: head
-recomposition and comparison against the approved value, status re-read, unlock dispatch and clearance await, check
-re-read, merge-method revalidation, review-summary replacement, the final drift read, and the pinned merge. Returns
-`merged`, `invalidated` with a typed reason, `awaiting-clearance` (D2's mechanical yield), or `blocked`. It fails
-closed on any mismatch.
+B1 treats E4's converged exact-head full attestation as a readiness prerequisite whenever the current Candidate
+lineage contains an implementation-changing review response.
+
+**B2. `arc integrate merge <name> --checkpoint <handle> --json`** absorbs the post-approval sequence: execute the
+approved settlement plan, recompose and compare the head against the approved value, re-read status, dispatch unlock
+and await clearance, re-read checks, revalidate the merge method, replace the review summary, read final drift, and
+perform the pinned merge. It returns `merged`, `invalidated` with a typed reason, `awaiting-clearance` (D2's
+mechanical yield), or `blocked`. It fails closed on any mismatch.
 
 The span is stopless, but the workflow's own declaration does not prove it: that declaration is bounded to
 final-drift-read → merge, a strict subset of what B2 absorbs. The wider span needs its own argument, and it is
-one line — every step between approval and the final drift read is a machine action over canonical host state
-(recompose, compare, re-read status, dispatch unlock, await clearance, re-read checks, replace the summary). The one
-that looks like a review action, replacing the stale PR summary with the previewed record, is a mechanical post of
-text the checkpoint already composed and the approver already saw; it decides nothing. No judgment leaf, no
-interlock release, no extension fire point falls inside.
+one line — every step between approval and the final drift read is a machine action over canonical state (execute
+the approved plan, recompose, compare, re-read status, dispatch unlock, await clearance, re-read checks, replace the
+summary). Settlement applies decisions the approver already authorized; replacing the stale PR summary posts text
+the checkpoint already composed. Neither decides anything. No judgment leaf, interlock release, or extension fire
+point falls inside.
 
-**B3. The handoff carries the checkpoint's composition verbatim; nothing is recomposed.** The merge verb must post
-the `## Review` record the approver previewed, and the approved disposition set _is_ the input that record was
-composed from — approval means apply these, and a redirect routes to the composition-correction path and a fresh
-checkpoint. So recomposition can only diverge from what was previewed, and it would narrow the exact-head pin to the
-tree when what was approved includes the record.
+**B3. The handoff carries the checkpoint's composition and settlement plan verbatim; nothing is rederived.** The
+merge verb must post the `## Review` record the approver previewed and execute the final dispositions and channel
+settlements that approval authorizes. The approved disposition set is the shared input to both products; a redirect
+routes to composition correction and a fresh checkpoint.
 
-- The handle is the approved head plus a digest over the composed products. **The digest is load-bearing, not
-  ceremony:** the head alone cannot distinguish two checkpoint runs at the _same_ head, which B6's retry-safe seam
-  re-fire can produce. Without it, merge could post a later run's record while the approval was over an earlier
-  one — the exact class of surface-misdescription this work unit exists to close.
-- The composed record and the validated merge method persist **verb-side**, keyed by the handle, in gitignored
-  per-WU state. Not agent-carried text, which would put a precomposed surface in the agent's hands between
-  composition and posting. Not the meta file: no lifecycle-authored commit is permitted after the checkpoint, and a
-  gitignored write is not one.
+- The canonical settlement plan binds the exact originating and fix targets, actor, finding and thread identities,
+  dispositions, and reply content needed by the existing source settlement APIs. The handle is the approved head
+  plus a digest over that plan, the composed review record, and the validated merge method. **The digest is
+  load-bearing, not ceremony:** the head alone cannot distinguish two checkpoint runs at the _same_ head, which
+  B6's retry-safe seam re-fire can produce.
+- The composed record, settlement plan, and validated merge method persist **verb-side**, keyed by the handle, in
+  gitignored per-WU state. They are not agent-carried values or meta-file content.
+- B2 executes the persisted plan idempotently before recomposing the head. `settled` and `already-settled` continue;
+  missing, stale, ambiguous, or actor-mismatched settlement returns `invalidated` before unlock or merge. B2 never
+  rebuilds the plan from mutable threads or agent narration.
 - **No additional invalidation machinery.** Any input to the record that could change outside the approval either
   moves the head or unsettles PR state, and B2 already fails closed on both.
 - **Not carried:** the candidate-tail diff and the seam's extension report — interlock surface, consumed by the
@@ -205,8 +209,8 @@ filtering; free-form actions remain visibly extension-owned.
 
 ### C. The behind-base reconcile arm becomes an orchestration path
 
-The arm looks absorbable and is not: walked against source it holds **five stops** across roughly sixty-five lines,
-and only two are judgment.
+The arm looks absorbable and is not: walked against source it holds **five stop-bearing spans containing seven
+individual stops** across roughly sixty-five lines, and only two are judgment.
 
 | Span | Content                                                             | Kind                       |
 | ---- | ------------------------------------------------------------------- | -------------------------- |
@@ -232,8 +236,9 @@ thin orchestration path over stopless procedures:
   re-runs D1 and passes the fresh reference; C3 rejects a stale reference. The call returns required-check status,
   routed review obligation, current base OID, and one of `settled`, `review-required`, `checks-pending`,
   `base-moved`, or `blocked`; the workflow follows its typed next action rather than recomputing the conjunction.
-- **C4.** Span 6's dispatch verb already exists; what deletes is the prose validating its envelope.
-- **C5.** Spans 3, 4, 7, and 8 stay prose — they _are_ the cadence.
+- **C4.** Span 6's dispatch verb already exists; what deletes is the prose validating its envelope. The
+  retain-advisories direction leaf remains immediately after the typed dispatch.
+- **C5.** Spans 3, 4, 6, 7, and 8 stay prose — they _are_ the cadence.
 
 **C6. Self-validation prose is deleted wherever a verb we own returns the envelope.** The step currently instructs
 the agent to confirm the drift verb returned well-formed typed fields. If that verb can emit a malformed envelope,
@@ -302,11 +307,12 @@ orthogonal artifact axis: an implementation whose full verification completed an
 review, but whose configured pre-publication review obligations may still be open. It is a projection over typed
 evidence, never a fifth `State` value or a stored boolean.
 
-**E1. `arc propose <name> --json` replaces `arc finalize verify`.** It runs at the existing verification-finalize
-fire point after Tier 3, success-criteria validation, and any configured adversarial verification. It writes the
-integration pointer and Candidate attestation through the managed WU record, stages with the existing verification
-commit, leaves `State: Active`, and returns the typed pre-publication locus. It creates no additional interlock,
-commit, or user decision.
+**E1. `arc propose <name> --json` replaces `arc finalize verify`.** Its initial invocation runs at the existing
+verification-finalize fire point after Tier 3, success-criteria validation, and any configured adversarial
+verification. It writes the integration pointer and Candidate lineage root through the managed WU record, stages
+with the existing verification commit, leaves `State: Active`, and returns the typed pre-publication locus. E4
+reuses the same verb to attest a later converged review head. Neither form creates an additional interlock, commit,
+or user decision.
 
 The schema is TypeScript-owned and projects into the managed WU record:
 
@@ -327,12 +333,13 @@ code-owned operational-state writes, avoiding self-reference and harmless handof
 remains head-bound in the existing review controller. `candidateId` binds those exact-target operations back to the
 attestation.
 
-**E2. Candidate currentness composes existing response evidence.** `arc propose` establishes the lineage root.
-Approved review fixes already persist the old target, new target, disposition identity, applying actor, and
-verification references through `review-response`; those records advance Candidate automatically. No Candidate
-pass counter, findings store, source router, refresh command, or second fix ledger is introduced. A code-owned
-operational-only delta preserves Candidate mechanically. An unexplained reviewable delta returns `blocked` with the
-exact delta and one re-attestation action.
+**E2. Candidate currentness composes existing response evidence.** The initial `arc propose` establishes the
+lineage root. Approved review fixes already persist the old target, new target, disposition identity, applying
+actor, and verification references through `review-response`; those records advance Candidate automatically. A
+later `arc propose` may attest only the recognized current lineage head under E4. No Candidate pass counter,
+findings store, source router, refresh command, or second fix ledger is introduced. A code-owned operational-only
+delta preserves Candidate mechanically. An unexplained reviewable delta returns `blocked` with the exact delta and
+one action back to full verification, which establishes a new lineage root rather than repairing the old one.
 
 **E3. Pre-publication review is one typed conditional procedure.** It runs author self-review when active, the
 frontline lane when configured, and the standard lane before publication only when the first remaining ordered
@@ -356,19 +363,29 @@ increment. The CLI supplies the exact delta and prior evidence; the primary sele
   gate-oracle, materially interacting, or uncertain change undermines the original attestation.
 
 The choice and evidence persist with the response record. A reviewer or adversarial pass never selects the scope.
-Full `verify-work-unit` and its adversarial fire point do not automatically re-run after every fix. If
-implementation changed during review, one final Tier 3 run covers the converged candidate before merge; an unchanged
-tree reuses the initial attestation.
+Full `verify-work-unit` and its adversarial fire point do not automatically re-run after every fix.
+
+After review converges on an implementation-changing lineage, typed status projects
+`candidate-convergence-verification-pending`. The primary runs one final Tier 3 and then invokes `arc propose` over
+the recognized current lineage. That invocation records full verification evidence for the exact converged head,
+leaves `Active` or `Integrating` unchanged, and rejects any unexplained delta rather than repairing or refreshing
+Candidate. Repeating it at the same target is a no-op. B1 blocks checkpoint readiness when the current
+implementation-changing lineage head lacks this full attestation. An unchanged tree reuses the initial attestation.
 
 **E5. `arc submit <name> --json` replaces the old `arc integrate` transition.** It requires a current Candidate
-lineage and every configured pre-publication obligation settled or typed no-op. It then fires
-`Active → Integrating`, writes the publication resume pointer, and stages the existing transition commit and
-ROADMAP projection. `Integrating` means submission/public integration is underway; a pull request need not exist at
-the exact transition instant.
+lineage and every configured pre-publication obligation settled or typed no-op, with one exact exception: a
+hosted-first standard obligation at `awaiting-change-request` / `open-change-request` is submit-eligible when its
+durable obligation reference is carried across pull-request creation. That state is a deferred reservation, never
+reported as settled or no-op; no other open obligation permits submission. `submit` then fires
+`Active → Integrating`, writes the publication resume pointer plus any carried reservation, and stages the existing
+transition commit and ROADMAP projection. `Integrating` means submission/public integration is underway; a pull
+request need not exist at the exact transition instant. After creation, the same obligation resumes at the reserved
+hosted source under E3.
 
 **E6. The zero-review path is zero-cost.** `propose` replaces one existing command, `submit` replaces another, and
 the intervening procedure returns no-op. It adds no command, commit, approval, or judgment count. Repeated
-same-target `propose` is a no-op; repeated `submit` reports the observable publication resume point.
+same-target `propose` is a no-op; repeated `submit` reports the observable publication resume point. The
+review-fix path reuses `propose` only once after a changed implementation converges.
 
 **E7. The rename frees `integrate` as a namespace.** `arc integrate checkpoint` and `arc integrate merge` are
 honest phase procedures rather than subcommands beneath a transition named like the merge. Bare `arc integrate`
@@ -378,11 +395,13 @@ errors with a pointer to `arc submit` and lists its subcommands.
 compatibility obligation exists to discharge and an alias would preserve the misleading name.
 
 **E9. Agent discovery is a typed projection.** `arc status` and session initialization resolve Candidate and review
-evidence into `candidate-review-pending`, `candidate-fix-pending`, `candidate-submit-ready`,
-`publication-pending`, or `hosted-review-pending`, each with one typed next action and precomposed interaction text
-where needed. These are operational loci, not stored lifecycle states. Narrative `Next Action` prefixes are no
-longer operational authority for this boundary. The agent never parses review config, compares Candidate digests,
-counts passes, clears records, or reconstructs resume state.
+evidence into `candidate-review-pending`, `candidate-fix-pending`,
+`candidate-convergence-verification-pending`, `candidate-submit-ready`, `publication-pending`, or
+`hosted-review-pending`, each with one typed next action and precomposed interaction text where needed.
+`candidate-submit-ready` may carry only E5's exact hosted-first deferred reservation. These are operational loci,
+not stored lifecycle states. Narrative `Next Action` prefixes are no longer operational authority for this
+boundary. The agent never parses review config, compares Candidate digests, counts passes, clears records, or
+reconstructs resume state.
 
 ### F. The transition fires at the publication boundary
 
@@ -391,7 +410,7 @@ any adversarial verification entirely under `**State:** Active`; E1 then records
 review also remains under `Active`. What the transition sits before is **publication**.
 
 Because the transition is a commit — it flips the state, writes the pointer fields, regenerates `ROADMAP`, stages
-both, and lands `chore(arc): integrate {name}` — "the pull-request-open boundary" is three placements with
+both, and lands `chore(arc): submit {name}` — "the pull-request-open boundary" is three placements with
 materially different mechanics:
 
 | Placement                                                | Cost                                                                                                                                           |
@@ -480,8 +499,8 @@ being a paragraph the agent must remember and narrate and becomes a precondition
 **On the spine and its boundaries**
 
 - **Fold the whole reconcile arm into the checkpoint verb.** Rejected — it makes a read-and-verdict command mutating
-  and swallows five stops, including two extension fire points and three interlock releases, silently deleting live
-  control points from any project that populates them.
+  and swallows five stop-bearing spans containing seven individual stops, including two extension fire points and
+  three interlock releases, silently deleting live control points from any project that populates them.
 - **Absorb the arm into a third `arc integrate reconcile` verb cut at the judgment leaf.** Rejected once the stop
   inventory is complete: the leaf is not the only stop, so a span starting after it still swallows the push
   extension contract and the push and commit interlock releases.
@@ -507,6 +526,10 @@ being a paragraph the agent must remember and narrate and becomes a precondition
 - **Put the clearance wait outside the merge verb.** Rejected — unlock through merge is the span declared stopless
   and holds the pin's most head-sensitive moment, so splitting it hands the agent a live window immediately before
   merge. The boundary rule does not require the split, because a deadline return is a mechanical yield.
+- **Leave approved dispositions and channel settlement outside the merge handle.** Rejected — settlement is part
+  of what the integration interlock authorizes, and reconstructing it from mutable threads after approval would
+  sever the exact approval boundary. The checkpoint therefore persists one digest-bound plan and B2 executes it
+  idempotently.
 - **Build clearance await as its own mechanism.** Rejected — `awaitHostedReview` is already the shape, and a second
   independently-authored bounded wait would put two backoff-and-deadline implementations in one namespace.
 - **Leave clearance await to the agent** (status quo). Rejected — it contradicts the sibling step's own prohibition
@@ -526,6 +549,14 @@ being a paragraph the agent must remember and narrate and becomes a precondition
 - **Exclude `run-errand`'s PR-resolution block as out-of-boundary.** Rejected — the diagnostic criterion that
   excludes `verify-work-unit` (the defect tracks machine-decidable branching) admits this, and the errand path is
   already in the change set for G, B6, and D2.
+
+**On Candidate convergence**
+
+- **Add a dedicated convergence-attestation command.** Rejected — the operation has the same meaning as the
+  initial attestation over a later authorized lineage head. Reusing `arc propose` keeps discovery compact and makes
+  repeated same-target invocation naturally idempotent.
+- **Treat the final Tier 3 result as agent-carried evidence.** Rejected — B1 needs an exact-head, durable
+  prerequisite it can validate without parsing session narration.
 
 **On the rename**
 
@@ -596,10 +627,12 @@ mode or per-artifact configuration axis.
 coverage: the two spine envelopes' typed verdicts and fail-closed paths; machine-surface exception filtering plus
 the separate extension block; the extracted wait primitive under both instantiations; re-lock, provenance rejection,
 trusted success/failure, and duplicate-dispatch retry; PR resolution across all six dispositions; merge-method
-validation at all three call sites; Candidate projection and lineage; ordered-source reservation; delta-verification
-routing; idempotent propose/submit; and typed session-resume loci. End-to-end fixtures cover the minimal no-review
-path, frontline review, local-first standard review, hosted-first standard review, interruption between submit and
-PR creation, a review-fix lineage advance, cap exhaustion, and unexplained Candidate drift.
+validation at all three call sites; settlement-plan composition, digest binding, idempotent execution, and every
+invalidation class; Candidate projection and lineage; ordered-source reservation carried through submit;
+delta-verification routing; converged exact-head re-attestation; idempotent propose/submit; and typed session-resume
+loci. End-to-end fixtures cover the minimal no-review path, frontline review, local-first standard review,
+hosted-first standard review, interruption between submit and PR creation, a review-fix lineage advance,
+convergence-verification pending and completion, cap exhaustion, and unexplained Candidate drift.
 
 **This is partly a swap, not purely a gain, and the change set must say so.** Workflow prose here is _not_ untested:
 integration tests assert the exact strings this design rewrites — the merge pseudocode block B2 absorbs, the
@@ -657,27 +690,31 @@ requirement.
 
 1. **The final integration step's residual length is a function of its stop inventory.** Every stopless run is a
    verb call; what remains is the stops in order, each with the guarding invariant. Checkable against C's table for
-   the reconcile arm, which fixes that arm at five stops.
+   the reconcile arm, which fixes that arm at five stop-bearing spans containing seven individual stops.
 2. **A fully clean candidate's machine-computed interlock surface renders what the approver decides on** — what is
    merging, where review landed, the merge method — not all nine established facts, with the collapsing done by the
    composer. Free-form extension evidence renders in a separate labelled block. Both are tested structurally, not
    judged from a transcript.
-3. **The posted review record is the previewed one.** Verified by comparing the checkpoint envelope's composed
-   record against what the merge call posts.
+3. **The posted review record and executed settlement are exactly what approval covered.** The checkpoint persists
+   one digest-bound record and canonical settlement plan; merge posts the record and executes the plan
+   idempotently. Missing, stale, ambiguous, or actor-mismatched settlement invalidates before unlock or merge.
 4. **`propose` and `submit` name different axes without adding happy-path ceremony.** `arc propose` replaces
    `arc finalize verify`, records Candidate while leaving `State: Active`, and `arc submit` replaces the old
    transition. Under no-review configuration the path adds zero commands, commits, approvals, and agent judgments.
 5. **Candidate is a typed attestation and verified lineage, not a lifecycle state or exact-head boolean.** A
    review-driven old-target/new-target response with approved delta verification advances it automatically;
-   operational-only projection churn preserves it; an unexplained reviewable delta blocks with the exact delta and
-   one corrective action. No Candidate refresh or repair command exists.
+   operational-only projection churn preserves it; a changed converged lineage receives an exact-head full
+   attestation through `arc propose`; an unexplained reviewable delta blocks with the exact delta and one corrective
+   action. No Candidate refresh or repair command exists.
 6. **Ordered standard-review sources preserve preference across publication.** With
    `[coderabbit-pr,codex-pr,delegated-agent]`, pre-PR resolution returns `awaiting-change-request`, then selects
-   CodeRabbit PR after creation; the delegated agent cannot leapfrog it. Reversing the order selects the local
-   carrier before submission. Frontline remains a separate advisory lane.
+   CodeRabbit PR after creation; submit carries that exact deferred reservation without calling it settled or
+   no-op, and the delegated agent cannot leapfrog it. Reversing the order selects the local carrier before
+   submission. Frontline remains a separate advisory lane.
 7. **Review-fix verification is bounded and primary-owned.** One fix increment produces one
    `targeted | focused | full` decision with persisted evidence. Full verification and adversarial verification do
-   not automatically re-enter per pass; any implementation changes receive one converged Tier 3 run before merge.
+   not automatically re-enter per pass; any implementation changes receive one converged Tier 3 run followed by
+   `arc propose`, and B1 rejects the current head until that full attestation exists.
 8. **`arc integrate` names no lifecycle transition.** `arc submit` is the scheduling verb; the old verb name is
    absent from all inventoried source, doc, and test surfaces — including `lifecycle-transitions.ts`'s `VERBS`
    registry, transition edge, `reopen` inverse, and illegal-cell table; `integrate` survives only as the namespace
@@ -704,9 +741,9 @@ requirement.
    `run-errand`'s duplicate fires collapse to one at the shared position. The transition's `commit-interlock`
    release moves to the publication-step head. Any other relocation or lost obligation is a defect.
 15. **Agent discovery is typed and idempotent.** Session initialization resolves Candidate/review loci without
-   parsing narrative fields; every locus carries one next action; repeated propose, submit, review-resume,
-   checkpoint, and merge calls either advance or report the same observable resume point; every refusal names the
-   failed invariant and one corrective command.
+   parsing narrative fields, including `candidate-convergence-verification-pending`; every locus carries one next
+   action; repeated propose, submit, review-resume, checkpoint, and merge calls either advance or report the same
+   observable resume point; every refusal names the failed invariant and one corrective command.
 
 ## Open Questions
 
