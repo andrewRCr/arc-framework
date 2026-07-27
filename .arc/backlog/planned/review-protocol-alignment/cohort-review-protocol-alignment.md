@@ -76,6 +76,9 @@ proposals that add governing machinery answer a question that was already answer
   read as clearance.
 - **Convergence is keyed to ARC's own verified severity**, uniformly across every lane.
 - **The stop discipline is stated where the decision is made**, and review spend is opt-in per activity.
+- **Mechanics preserve proportional judgment.** Exact-target bindings protect evidence and merge authority without
+  turning every target movement into mandatory review activity. Deterministic machinery removes agent work; it does not
+  prevent a disclosed, source-grounded applicability judgment where an existing default has already served its purpose.
 
 ## Shared Boundaries
 
@@ -87,8 +90,8 @@ proposals that add governing machinery answer a question that was already answer
 - **Designing how a project supplies a review adapter.** The loading mechanism, its trust boundary, and
   registration-contract versioning are `review-adapter-extensibility`'s.
 - **Settling the authority model.** Which rules yield to demonstrated judgment, who may override, and how an override is
-  disclosed belong to `judgment-authority-model`. This work unit asks only whether the shipped workflow carries the
-  discipline its own spec defined.
+  disclosed belong to `judgment-authority-model`. This cohort does not re-derive that model, but it must preserve the
+  workflow's existing judgment leaves and must not turn defaults into invariants while that model is pending.
 - **Bounding spawn context.** Bounding what a spawned worker receives belongs to `execution-delegation-doctrine`.
 - **Preserving ephemeral-checkout diagnostics.** `review-checkout-lifecycle` owns that.
 - **Rebuilding a review-budget ledger.** Rejected with reasoning under Alternatives.
@@ -299,5 +302,10 @@ including the frontline-obligation question.
    dispatch and preserves its typed unknown-provider result. The driver _and its request schema_ resolve against an
    injected capability set assembled at a named seam; the registration contract validates through the shipped schema
    bundle; and an unregistered source still fails safe as `unknown-source`.
+9. The `decompose-roadmap-supersession` Errand is retained as a proportionality regression scenario across the cohort:
+   a small, already-understood change does not acquire another review merely because its exact head moved; posting a
+   request artifact is not reported as provider execution; adapter and disposition mechanics require no internal-schema
+   construction by the caller; and clean, already-established facts collapse rather than creating permission or wait
+   turns. Exact-head review evidence and merge authority still invalidate when their guarded SHA changes.
 
 ---

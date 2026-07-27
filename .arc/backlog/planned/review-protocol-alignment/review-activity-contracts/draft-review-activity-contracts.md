@@ -69,7 +69,9 @@ track authority rather than every judgment, final dispositions and release coinc
 earlier needs approval, exceeding a pass ceiling is a third stop by exception, and ordinary agent judgments do not
 create permission turns. Counting `integrate-work-unit.md`'s own stop-class callouts confirms the shape. But that
 statement lives only in a completed work unit's archived spec, which the agent running integration never loads. State it
-in `integrate-work-unit.md`, where the decision is made.
+in `integrate-work-unit.md`, where the decision is made. State the dual explicitly too: protocol state may bind or
+invalidate evidence, but it does not replace the workflow's disclosed review-applicability judgment with mandatory
+activity.
 
 **D7.2 — Gate the activity, not the mechanism.** Both review lanes ship with empty source lists, so no automatic review
 spend is incurred until a source is named. The adversarial method has **no configuration surface at all**, across four
@@ -154,8 +156,12 @@ three planning stages, which is wrong. The rule that decides:
   when a project has opted in. Live evidence from this work unit's own grooming: the concern that became
   `integration-boundary-accuracy` existed only in the developer's head at the moment the draft otherwise read as
   complete; an autofired pass would have attacked a draft about to grow by roughly a third.
-- **Integration is out of scope** for the rule, now that the spend gate sits on the activity: it has no standalone offer
-  fire-point, reaching the mechanism only as the carrier behind the lanes, whose spend the source lists already gate.
+- **Integration has no standalone offer fire-point, but it remains in scope for proportional activity control.** Source
+  lists opt the lanes into review spend; they do not decide whether a moved target needs a repeated complete pass, a
+  focused supplemental pass, or only targeted verification. That remains the workflow's review-applicability judgment.
+  Exact-head movement invalidates SHA-bound evidence and merge authority; it does not by itself invalidate the
+  applicability of prior complete coverage. A request artifact proves delivery only, not that a provider accepted,
+  started, or completed work, so no wait may be justified from delivery state alone.
 
 **D7.5 — The planning-stage surface is a convergence check, not a spawn authorization form.** What is approved is that
 _the stage is complete_; that agreement supplies the intent the artifact cannot show. Once supplied, the now-current
@@ -167,5 +173,28 @@ before it is attacked — never an enumeration of pass counts, rubrics, and eval
 and which evaluator serves it; the current declared workflow fire-point activates each individual invocation; `Class`
 keeps only recommendation posture and pass cap, no longer doubling as an on/off switch; and the stage-completion stop
 is untouched, being an input channel rather than a spend decision.
+
+**D7.6 — Keep a tiny-Errand proportionality regression.** The `decompose-roadmap-supersession` integration is the
+counterexample this design must make impossible: a small change with complete hosted coverage, one approved fix, clean
+focused verification, and a later non-interacting test-only adjustment spent roughly forty minutes in review protocol
+before merge. The path created an unused local operation, required caller-side internal record construction, waited on
+an edited-summary signal the adapter could not observe, requested an unnecessary repeat review, and then treated the
+posted request as work in progress.
+
+The regression is behavioral, not a wall-clock threshold:
+
+1. the preferred hosted source remains pending until pull-request coordinates exist instead of falling through to an
+   unused local operation;
+2. public verbs own any record construction needed for hosted response and settlement;
+3. provider observation distinguishes delivery from accepted, running, and terminal activity, including an edited
+   incremental-clean signal;
+4. a narrow, demonstrably non-interacting target delta carries prior complete coverage through targeted verification
+   without another provider request; and
+5. the integration surface expands only unclean or decision-bearing facts while exact-head merge authority remains
+   fail-closed.
+
+The general rule-yield and runtime-override model remains `judgment-authority-model`'s. This unit consumes its governing
+constraint — disclosed common-sense judgment stays available unless a genuine authority or bias boundary forbids it —
+and owns the review-activity mechanics that must not obstruct that judgment.
 
 ---
