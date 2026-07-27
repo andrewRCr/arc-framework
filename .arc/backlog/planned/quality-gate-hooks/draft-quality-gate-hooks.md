@@ -22,6 +22,27 @@
   warning or quality gate. The hazard grows with parallel worktree use.
 - _Approach:_ evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
   catches manually created worktrees; pin the selected composition with tests.
+- _Fold-in (2026-07-27 drain):_ a second entry path is `arc errand open`, which occupies **in place** with no
+  spawn path — so `worktree.post_create` has nothing to hang off for errands even when an errand wants its own
+  checkout. Provisioning today is work-unit-spawn-scoped. Decide whether `arc errand open` should gain a
+  spawn-and-provision path (design fork; multi-step). The **cheap resolve-and-warn/fail when hooksPath is
+  missing** guard was split to an execute-now errand at the same drain and may land ahead of this design work.
+
+### `[ ]` **A lint run over an excluded or untracked path reports a false green**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-27); captured during
+  `review-protocol-alignment` handoff and `integration-boundary-accuracy` create-spec.
+- _Concern:_ two false-green shapes. (1) `WORKING-MEMORY.md` / `USER-INBOX.md` are excluded by glob;
+  `lint:md` / `format:tables` against those paths report `0 file(s)` and exit zero — indistinguishable from a
+  clean pass. (2) A newly authored **untracked** `spec-*.md` linted clean under `npm run -s lint:md` while the
+  run scanned ~1200 tracked files and silently omitted the path under edit; staging then surfaced 55 real
+  errors. A zero-match guard would not catch (2).
+- _Approach fork:_ the generalizing fix is closer to "state what was covered, or fail closed when a
+  gate-eligible path went unchecked" than to declining on zero matches alone. Mechanism (git-aware file list)
+  is inferred from behavior, not yet verified in config.
+- _Fold-in:_ settle which defect is being fixed before touching `.markdownlint-cli2.jsonc` and the
+  `lint:md` / `lint:md:staged` / `format:tables` scripts — load-bearing primary quality-gate tooling; likely
+  reviewed lane.
 
 ### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
 
