@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "npm-audit-remediate",
+  "origin": "inbox",
+  "intent": "Non-breaking npm audit fix first; separate judgment for markdownlint-cli2 major if needed",
+  "branch": "fix/npm-audit-remediate",
+  "createdAt": "2026-07-27T23:35:00.648Z",
+  "originEntry": "Audit and remediate npm dependency vulnerabilities",
+  "returnBranch": "fix/stale-dist-lifecycle-gate"
+}
