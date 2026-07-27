@@ -6,8 +6,9 @@
   registering themselves in the primary repository — two defects of one lifecycle, the ephemeral checkout the
   frontline review path materializes and tears down.
 
-- **State:** maturing — direction settled and twice re-grounded against source; the retention and reap mechanics
-  carry open decisions that two adversarial passes surfaced. Pre-PRD.
+- **State:** maturing — direction settled and twice re-grounded against source; the implementation mechanisms and
+  two-member decomposition cut are closed. Paused at the pre-decomposition boundary pending the preferred transform
+  machinery. Pre-PRD.
 - **Class:** `Heavy` (a real design was authored before extraction; scale is moderate).
 
 ---
@@ -65,11 +66,13 @@ recorded here as corroboration, not as this work unit's reason.
 
 ### Success signal
 
-The work succeeded when, after a frontline review returns a non-success outcome, the developer can read that pass's
-retained diagnostic — partial provider output plus the provider's own per-run record — without re-running the
-review, and when no frontline review checkout remains registered in the primary repository once its review has
-ended, including a review killed mid-run. Checkouts belonging to the chunk-projection path are outside this
-signal; that surface is `chunk-scope-binding`'s.
+The work succeeded when, after a frontline review returns an execution-backed non-success outcome, the developer
+can read that pass's retained diagnostic — partial provider output plus the provider's own per-run record — without
+re-running the review, and when an ARC-owned frontline checkout whose root remains available for cleanup does not
+stay registered in the primary repository once its review has ended, including a review killed mid-run. A checkout
+root deleted by an external actor before ARC can reap it remains an ordinary Git-prune condition rather than
+grounds for a repository-wide prune here. Checkouts belonging to the chunk-projection path are outside this signal;
+that surface is `chunk-scope-binding`'s.
 
 ## Resolved design decisions
 
@@ -88,24 +91,30 @@ signal; that surface is `chunk-scope-binding`'s.
   plus pass alone is strictly coarser — two reviews of one head against different bases, or under different
   sources, would otherwise be indistinguishable in exactly the design meant to restore correlation. Never in the
   working tree, never committed, never carried by notes sync. What lands there is the pass's captured stdout and
-  stderr plus a copy of the provider's own per-run record — self-contained, so reading it later depends on nothing
-  the provider still holds.
+  stderr, `internalState.json`, and the per-file finding payloads. Omit `git.json` and `incrementalDiff.json`: they
+  dominate size with source material reconstructible from the retained head and base. The selected diagnostic
+  outputs stand alone after collection, so reading them later depends on nothing the provider still holds.
   **Why persist at all,** rather than surface the diagnostic inline when the failure is reported: the provider's
-  record is a six-figure byte count of structured JSON, far past what a failure report can carry, and the outcome
-  reaches the developer through a typed record read later rather than an attended terminal. Captured stdout and
-  stderr alone would fit inline; the provider record is what forces storage.
+  retained analysis and findings are a six-figure byte count of structured JSON, far past what a failure report can
+  carry, and the outcome reaches the developer through a typed record read later rather than an attended terminal.
+  Captured stdout and stderr alone would fit inline; the provider record is what forces storage.
   **Shape — one record holding the whole ring, not one record per diagnostic.** The publisher addresses records by
-  name and offers no listing operation, so a ring spread across individually-named records could not enumerate
-  itself to evict. A single record carrying the bounded entry list sidesteps that: its read-modify-write update
-  path is ring semantics exactly, already serialized by the advisory lock and already atomic, so eviction needs no
-  new publisher capability and no cross-record consistency story. Each entry embeds the pass's captured streams and
-  the copied provider files as string fields. Captured output is truncated to a per-entry bound with an explicit
-  marker, so one pathological run cannot crowd the ring.
-- **Retention — a per-repository ring buffer over failure diagnostics.** Keep the last N failed passes; the oldest
-  drops as a new one lands. No clock, no reaping schedule, no sweep integration, and no growth for a surface to
-  report — the structure cannot grow. At the observed artifact size a useful N costs single-digit megabytes, so
-  retention is not the disk-management problem the pre-grounding design sized it against, and N is an
-  implementation constant rather than a policy surface.
+  name and offers neither listing nor deletion, so a ring spread across individually-named records could not evict
+  without widening the publisher. A single record carrying the bounded entry list sidesteps that: its
+  read-modify-write update path is ring semantics exactly, already serialized by the advisory lock and already
+  atomic, so eviction needs no new publisher capability and no cross-record consistency story. Each entry embeds
+  the pass's captured streams and selected provider files as string fields. Keep four entries, each capped at four
+  mebibytes of serialized UTF-8. Cap stdout and stderr at 256 KiB apiece, retaining equal head and tail with an
+  explicit omitted-byte marker. If the complete selected provider files still exceed the entry budget, preserve
+  complete per-file finding payloads ahead of `internalState.json`, omit whole files until the serialized entry
+  fits, and record each omitted path and byte count; never retain malformed partial JSON. Across 128 measured runs
+  the selected provider set is 158 KB at the median, 875 KB at the 90th percentile, and 2.3 MB at the maximum, so
+  the ordinary case stays well below the hard bound.
+- **Retention — a four-entry per-repository ring buffer over failure diagnostics.** The oldest drops as a fifth
+  failed pass lands. Four retains both attempts from the originating incident plus two adjacent failures without
+  prepaying for historical analysis nobody has asked for. The entry cap bounds the serialized diagnostic record to
+  roughly 16 MiB plus its small schema envelope. No clock, no reaping schedule, no sweep integration, and no growth
+  for a surface to report.
 - **Ownership — the adapter collects, and returns what it collected.** The adapter owns the process handles, so
   threading partial stdout and stderr into the timed-out outcome is its responsibility. It also owns the one piece
   of provider-specific knowledge the work needs — where that provider persists its artifacts — which must not
@@ -118,31 +127,57 @@ signal; that surface is `chunk-scope-binding`'s.
   outcome and executable identity it already returns. Do not attempt to carry a collection hook on the source
   descriptor — that value is parsed into a frozen strict object, canonically compared for identity, and hashed into
   the source binding, so it cannot hold a function.
-  **Failure tolerance:** the adapter guards its own collection. A collect that throws must degrade to a recorded
-  absence, never propagate — an unsuccessful review must still return its outcome and still tear down.
+  **Persistence:** `executeAndPersistFrontlineRun` already holds the exact generation-specific operation identifier
+  when it awaits the adapter. Give its execution dependencies a diagnostics store and persist the optional
+  diagnostic there before publishing the terminal outcome. Persisting in the command layer after
+  `executeFrontlineRun` returns is too late: failed outcomes admit a fresh generation under a different identifier.
+  **Failure tolerance:** the adapter guards collection and the policy layer guards persistence. Either failure
+  degrades to a recorded absence and never propagates — an unsuccessful review must still return its outcome,
+  publish its ordinary durable record, and tear down.
 - **Trust boundary — inherited from the destination, and it needs no argument of its own.** The collected artifacts
-  embed source: the provider's per-run record contains the full diff it reviewed. Storing them under the
-  repository's own Git common directory means the audience that can read a diagnostic is exactly the audience that
-  can already read the source it was derived from, so the destination carries no exposure the repository does not
-  carry already, and no permissions design is owed. Preserved diagnostics stay **local-only: never synced, never
-  committed, never written to the working tree.** No claim is made here about temporary-directory permissions —
-  the directories in question are created owner-only, so exposure was never the discriminator between destinations.
+  embed source excerpts and findings. Storing them under the repository's own Git common directory means the
+  audience that can read a diagnostic is exactly the audience that can already read the source it was derived from,
+  so the destination carries no exposure the repository does not carry already, and no permissions design is owed.
+  Preserved diagnostics stay **local-only: never synced, never committed, never written to the working tree.** No
+  claim is made here about temporary-directory permissions — the directories in question are created owner-only, so
+  exposure was never the discriminator between destinations.
 
 ### Worktree registration isolation
 
 **Reap the leak; do not relocate the registration.** The binding problem is the leaked checkout, not the live one.
 A review that completes already cleans up; a killed one leaves a registered worktree behind because both cleanup
 paths sit in a `finally` that a killed process never runs. So the fix is to make the _next_ materialization reap
-what a previous one abandoned: enumerate worktrees, drop any frontline temp checkout that cannot still be in use,
-then create the new one. Self-healing, and it stays inside the file that already owns the temporary root, using the
-forced removal it already performs at teardown.
+what a previous one abandoned: read the repository-common ownership leases, drop any leased checkout that cannot
+still be in use, then create the new one. Self-healing, and it stays inside the file that already owns the temporary
+root, using the forced removal it already performs at teardown.
 
-**Liveness bound.** Reaping on the temp-path prefix alone would delete a concurrently running review's checkout —
-frontline operations lock per operation, so two reviews of different targets can overlap. Discriminate on age
-against the execution deadline the carrier already enforces: the boundary aborts at its timeout and force-kills
-shortly after, so a frontline temp root older than that deadline plus slack cannot belong to a live run, while a
-live run's root cannot be that old. The bound derives from the existing timeout constant rather than introducing a
-tunable of its own.
+**Lease and liveness bound.** Reaping on the temp-path prefix alone would delete a concurrently running review's
+checkout — frontline operations lock per operation, so two reviews of different targets can overlap. Before
+`git worktree add`, write an entry to one locked repository-common materialization record with a minted lease
+identifier, checkout path, owner process identifier, creation time, phase, and reap time. The `preparing` phase
+stays live while its process exists and its conservative hard ceiling has not elapsed; that ceiling is the maximum
+accepted frontline timeout plus kill slack from creation, not the ten-minute default. A normal dead-process result
+therefore reaps a preparation crash promptly, while process-identifier reuse can delay cleanup only to the hard
+ceiling.
+
+When the bounded provider clock begins, have the execution boundary publish its exact absolute deadline through a
+lifecycle callback; atomically replace the lease phase with `running` and its reap time with that deadline plus the
+fixed process-kill slack. A running lease becomes removable only after that time. Reuse the existing
+repository-common review sweep lock to serialize reap, registration, and normal release. The next materialization
+examines only entries in the ownership record, never every path with a matching temporary prefix. For each expired
+entry whose root still exists, force-remove the worktree registration, remove the temporary root, and delete the
+lease; if cleanup fails, retain the lease so a later materialization retries it. A lease created before a failed
+`worktree add` follows the same path, with an unregistered root requiring only directory removal.
+
+Normal release follows the same ordering: remove the registration first, and remove the root and lease only after
+that succeeds. This deliberately replaces the current unconditional root deletion after a failed
+`git worktree remove`; retaining the root preserves the targeted cleanup handle for the next reap.
+
+If an external actor has already deleted the leased root, remove the spent lease but do not invoke repository-wide
+`git worktree prune`: that command cannot target the one registration and may remove unrelated missing worktrees.
+The stale registration stays on Git's existing prune or administrator path. ARC's own normal lifecycle never
+deletes the root without first removing the registration, so this exclusion preserves the killed-provider case
+without adding a general worktree-repair subsystem.
 
 **What this does not fix, deliberately.** A review checkout stays registered while its review is actually running.
 That is visible in `git worktree list`, and session-init's sweep will classify it as externally managed and offer
@@ -162,7 +197,7 @@ Two supporting observations, recorded so they are not re-derived:
   sibling work unit's integration: four chunk checkouts survived the merge, and the closing report surfaced them to
   the developer with a note that removal would require force-discarding staged and untracked content. That was the
   right call on the evidence available — but the content was entirely review projection of work that had just
-  merged, so nothing was at risk and the developer had no decision to make. On the frontline path the age-bounded
+  merged, so nothing was at risk and the developer had no decision to make. On the frontline path the lease-bounded
   reap sidesteps the judgment: a frontline temp checkout past the execution deadline is spent by construction, so
   its removal needs no adjudication. The general problem — telling reproducible scratch from real unsaved work —
   remains open wherever checkouts outlive a bounded deadline, which is the chunk-projection path's concern.
@@ -221,68 +256,54 @@ Two supporting observations, recorded so they are not re-derived:
   It does not arise: the review gate already publishes durable state under the repository's Git common directory,
   so diagnostics conform to that rather than introducing ARC's first out-of-repo write. Platform resolution and
   permission mode both disappear with it.
-- **Resolved — the reap needs no _sweep-surface_ stamp, but it does need a private marker.** Extending the typed
-  session-init sweep and its orientation rendering to recognize an ephemeral, reproducible checkout stays rejected.
-  What replaces it is smaller and local: a marker the materialization host writes into the temporary root it
-  already creates, read only by the next materialization. An earlier revision claimed no marker at all was needed,
-  reasoning that the execution deadline bounds liveness — see the liveness decision below for why that is false.
-  Whether the chunk-projection surfaces want a sweep-visible stamp is that work's call; their checkouts outlive any
-  single deadline, so nothing here transfers.
+- **Resolved — the reap needs no _sweep-surface_ stamp, but it does need private ownership and lease state.**
+  Extending the typed session-init sweep and its orientation rendering to recognize an ephemeral, reproducible
+  checkout stays rejected. The materialization host owns the state and the next materialization consumes it.
+  The state lives in one repository-common lease record: placing it only inside the temporary root would erase the
+  ownership proof in the one exceptional case the reap cannot safely repair. An earlier revision claimed no marker
+  at all was needed, reasoning that the execution deadline bounds liveness; the pre-boundary materialization window
+  makes that false. Whether the chunk-projection surfaces want a sweep-visible stamp is that work's call; their
+  checkouts outlive any single deadline, so nothing here transfers.
 
-### Open decisions
+  The lease/reap mechanism is expected to add about 120–220 production lines and 180–320 test lines: roughly 35–60
+  for the lease record, 40–80 for the ownership/liveness decision, 20–40 for orchestration, and 25–40 for cleanup
+  and failure handling. Excluding absent-root repair avoids the additional targeted-prune subsystem.
 
-Four decisions remain, each surfaced by an adversarial pass against a settled-looking revision. The first three are
-coupled through the collected subset; the fourth rides with them. All are design divergence rather than spec
-detail: two competent engineers handed the draft as it stands would build materially different things.
+### Resolved work-unit boundary
 
-- **Open — how the reap tells a live checkout from an abandoned one.** The execution timeout is a caller-supplied
-  request field with a multi-week ceiling, not a fixed constant; the constant is only its default. A separate
-  process cannot observe another run's requested timeout, so a threshold built on the constant would reap a live
-  review started with a longer deadline — the natural response to the originating incident — and force-remove the
-  directory the provider is running in. The existing code only derives its own analogous bound because it holds the
-  request. **Proposed:** the materialization host writes the run's absolute deadline into the temporary root it
-  creates, and the reap reads that rather than inferring one. This also has to answer the case where the root is
-  gone but its registration survives, where there is no marker to read and forced removal fails.
-- **Open — which component persists a collected diagnostic, and under which operation identifier.** The adapter
-  collecting and returning is settled; nothing yet moves that value into storage. The execution port takes no
-  arguments, and the operation identifier is minted inside the run's generation loop — where a single command
-  invocation may execute under several identifiers, since the retained failure classes are exactly the ones that
-  admit a fresh generation. Persisting after the run returns would therefore misattribute or drop entries.
-  **Proposed:** a diagnostics store reached through the execution dependencies and written where the exact
-  identifier is in hand, which also gives the write its own failure-tolerance boundary — one the earlier "no second
-  locus" framing assumed away.
-- **Open — what subset is collected, and whether one ring record survives it.** Measured across the provider's
-  own store, a per-run artifact set runs to a median of 680 KB, a 90th percentile of 3.2 MB, and a maximum of
-  8.4 MB; size tracks diff size, and the runs closest to the originating target sit in the 4–5 MB range. An earlier
-  revision generalized from a 128 KB sample that turned out to be a run which died early — the least representative
-  case. A single record holding the ring is read, parsed, re-escaped and rewritten whole on every failed pass, so
-  the shape and the collected subset have to be settled together. **Proposed:** collect selectively rather than
-  whole. Dropping the per-file analysis payloads takes the median to 183 KB; additionally dropping the stored copy
-  of the diff — reconstructible, since the head and base commits are retained and present in the repository —
-  reaches a 77 KB median against the provider's analysis state, which is where the confirmed diagnostic value sits.
-  Neither step settles the record shape on its own: a ring of any useful depth is still large enough that one
-  record per pass with directory-level eviction deserves comparison, which the host layer can do even though the
-  record publisher exposes no listing operation.
-- **Open — whether the provider's per-run log joins the collected set.** It carries phase timings and the
-  termination event at roughly a kilobyte, answering "why did it stop" more directly than the analysis state does,
-  and its correlation is the most fragile of the artifacts: its filename carries only a run identifier, with
-  nothing tying it to a repository, head, or working directory. Cheap to collect in the same window with knowledge
-  the adapter already holds; excluded so far only by omission.
-- **Settled minimally — collection reports what it could not find, and nothing more.** Collection has to locate an
-  undocumented third-party directory structure, and the adapter pins one provider CLI version today. When the
-  layout shifts, record that the provider artifacts were unavailable and keep the captured stdout and stderr; do
-  not build a compatibility shim across layout versions for a case that has not happened. A failed collect must
-  never fail the review or block cleanup.
-- **Moot — ref-reachability and refspec design.** Both were open only while materialization moved into a clone.
-  Keeping the checkout in the primary preserves the current derivation contract untouched, so object reachability
-  and ref-namespace mapping stop being this work unit's questions. Recorded because the reasoning is the same
-  reasoning that rejected the clone, and it should not be re-derived if relocation is ever revisited.
-- **Confirmed — the provider's retained record is diagnostic, and is the higher-value half.** The originating
-  timeout's record carries completed per-file analysis for multiple files, a dozen detailed code-block ranges, and
-  the target head among its reviewed commit ids. The run therefore reached substantive analysis before the deadline
-  fired rather than stalling on the size of the diff — which is the explanation the incident went looking for, and
-  it points at the return phase rather than the target. Collect the record whole: the value is in how far the run
-  demonstrably got, which no subset of it preserves.
+- **Decompose into two work units.** The diagnostics and checkout-reap legs share the frontline run command and
+  repository-common state substrate, but they correct independent failures, are independently deliverable, and each
+  warrants a work unit on its own. The mature design therefore becomes a `review-checkout-lifecycle` cohort with
+  `review-failure-diagnostics` and `review-checkout-reaping` members, no semantic dependency edge, and the shared
+  lifecycle/storage coordination held at the cohort. The exact cut map, source evidence, and pause/resume boundary
+  are preserved in `notes-review-checkout-lifecycle.md`.
+
+### Decisions closed by source grounding
+
+- **Persistence locus — the generation loop's policy layer.** `executeAndPersistFrontlineRun` has the exact
+  operation identifier when the adapter returns, so it persists there through an injected diagnostics store before
+  publishing the terminal outcome. The command layer is too late because a retryable failure may already have
+  advanced to another generation.
+- **Collected subset — analysis state plus actual finding payloads.** Keep `internalState.json` and every per-file
+  finding record; omit `git.json` and `incrementalDiff.json`. The latter two are reconstructible source payloads and
+  dominate size. The per-file records are not expendable analysis cache: one inspected timed-out run held seven
+  completed findings across three categories, while its internal state held 85 detailed summary ranges. Across 128
+  runs the selected set measured 158 KB median / 875 KB p90 / 2.3 MB maximum, versus 676 KB / 3.3 MB / 8.6 MB for
+  whole buckets.
+- **Record shape — one bounded ring survives.** The selected subset makes its low-frequency rewrite tolerable, and
+  the existing publisher has neither listing nor deletion. One record avoids widening that boundary solely to
+  implement eviction.
+- **Provider log — exclude until it is bindable.** The measured logs are only 253–1,357 bytes and do carry phase
+  timing plus termination, but their filename UUID appears nowhere in the review store and their content carries no
+  repository, working-directory, process, or run identifier. Concurrent provider runs make time-window matching
+  unsafe across repositories. Do not guess; add the log only if a later provider version exposes a trustworthy
+  correlation seam.
+- **Collection compatibility — report absence, do not emulate old layouts.** The adapter pins one provider version.
+  When its undocumented layout shifts, retain captured stdout and stderr, record that provider artifacts were
+  unavailable, and do not build a multi-version compatibility shim. Collection or persistence failure must never
+  fail the review or block cleanup.
+- **Ref reachability and refspecs — moot.** Those questions existed only while materialization moved into a clone.
+  Keeping the checkout in the primary preserves target derivation and the ref namespace unchanged.
 
 ## Composition / Coordination
 
@@ -295,9 +316,9 @@ detail: two competent engineers handed the draft as it stands would build materi
 
 ## Scope Estimate
 
-Medium, and materially smaller after grounding than at extraction. The execution adapter carries both halves of the
-evidence work: awaiting the operation the abort path currently races past, and collecting the provider's record
-before it returns. Storage is a new namespace on the existing Git-common-directory publisher holding one bounded
-ring record — no new resolver, no reaping schedule, no sweep integration, no configuration surface, no new provider
-capability. Registration leakage is an age-bounded reap inside the materialization host, leaving the current
-worktree materialization and its derivation contract untouched. No unrun measurement sits on the critical path.
+Two moderate, independently deliverable implementation legs. The evidence leg spans the execution adapter,
+provider collector, generation-loop policy layer, and one bounded Git-common-directory diagnostic record — no new
+resolver, reaping schedule, sweep integration, configuration surface, or provider capability. The registration leg
+adds one common-state lease record plus bounded reaping inside the materialization host and one execution-boundary
+deadline callback, leaving target derivation untouched and declining absent-root repair. Their shared command and
+state seams are coordination points, not yet evidence that the two legs need one delivery boundary.
