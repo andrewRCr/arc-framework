@@ -225,6 +225,48 @@ Resolved by slug 2026-07-26 — do not trust cached state.
 - **Shipped, no longer pending:** `decomposition-machinery` and `decomposition-hardening` (the latter is what
   `cohortless-decomposition` became). Their gaps are `decompose-transform-integrity`'s, not this work unit's.
 
+## Sequencing
+
+Settled 2026-07-26. Decomposition is operationally critical, so the whole program shipping complete matters more
+than any single member shipping early.
+
+**Critical path.** `decompose-transform-integrity` leads — it is the precondition, the longest pole, and the work
+currently blocking real cuts. It entered planning 2026-07-26, running parallel to this work unit. Inside it,
+**test topology goes first**: nothing else there is verifiable by the tests that missed the original defects, so
+every other member depends on it; the rest then parallelize.
+
+**Parallel.** `stub-mint-to-launch` runs alongside the machinery work — different surfaces, one seam to coordinate
+(close-with-launch touches the decompose close path). It should still land ahead of this doctrine, since every cut
+this doctrine prescribes mints members through it. This work unit's own planning parallelizes with all of the
+above; only its **integration** is gated on machinery readiness.
+
+**Deliverable-level gating.** The five deliverables do not share one dependency:
+
+| Deliverable                 | Effect on cut volume | Gated on machinery               |
+|-----------------------------|----------------------|----------------------------------|
+| 5 — intent over adjacency   | Prevents growth      | No — causes zero cuts            |
+| 2 — recorded verdict        | Records a decision   | Essentially no                   |
+| 1 — discriminator rebalance | Increases cuts       | Yes                              |
+| 4 — stack-vs-coupling test  | Increases cuts       | Yes                              |
+| 3 — split reading           | Increases cuts       | Yes, and needs the new mechanism |
+
+Deliverables 5 and 2 could land early and would _reduce_ pressure on the machinery rather than add to it.
+
+**A second candidate cut line.** That gating table cuts prevention (5, 2) from prescription (1, 4, 3), crossing the
+doctrine-text-versus-mechanism line recorded in § Recorded cohort-fit verdict. Neither cut is real yet under this
+work unit's own maturity gate, so the verdict stands unchanged — but if a cut does become real, the gating line is
+the more useful one. Recorded so a later pass does not rediscover it.
+
+**Shared-surface ordering.** `assess-cohort-fit` has three pending editors: this work unit, `cohort-cut-coherence`,
+and `chunked-delivery`. **This one leads** — deliverable 1 changes the discriminator itself, while the others are an
+adjacent rail and a delivery-framing/vocabulary pass respectively, and both should land on a settled discriminator
+rather than the reverse. `cohort-cut-coherence` may be absorbed here in any case. Read the method's current tip and
+extend it; do not re-derive from an older mental model.
+
+**One fork, not an order.** `planning-iteration-mechanics` owns the planning-closeout gate shape. Either it leads
+and deliverable 2's verdict slots into its closeout checklist, or deliverable 2 lands freestanding and that work
+unit absorbs it later.
+
 ## Unknowns and Assumptions
 
 - **Where the verdict lives** — a draft/spec section versus a meta field; whichever is chosen must survive artifact
