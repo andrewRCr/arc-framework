@@ -8,16 +8,16 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-integration-boundary-accuracy.md`
+- **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** `create-spec` — spec authored at `detailed`/RFC, adversarial pass 1 folded
+- **Current Workflow:** `generate-tasks`
+- **Last Completed:** `create-spec` — detailed RFC approved and finalized after adversarial pass 2
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec — adversarial pass 2 over the folded spec, then Gate 1 approval
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
