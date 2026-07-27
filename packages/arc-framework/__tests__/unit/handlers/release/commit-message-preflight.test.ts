@@ -70,6 +70,33 @@ describe("createCommitMessagePreflight", () => {
     expect(result).toHaveProperty("message", expect.stringContaining("Commit validation FAILED"));
   });
 
+  it("diagnoses literal escaped newlines when they flatten an otherwise valid message", async () => {
+    const { preflight } = create();
+    const flattened = [
+      "feat(release): diagnose escaped newlines",
+      "",
+      "- Preserve literal input bytes.",
+      "",
+      "Context: standalone (maintenance)",
+    ].join("\\n");
+
+    const result = await preflight({ args: ["-m", flattened], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).toHaveProperty("message", expect.stringContaining("Literal escaped newlines"));
+    expect(result).toHaveProperty("message", expect.stringContaining("-F"));
+    expect(result).toHaveProperty("message", expect.stringContaining("separate `-m` arguments"));
+  });
+
+  it("does not diagnose escaped newlines when expanding them leaves the message invalid", async () => {
+    const { preflight } = create();
+
+    const result = await preflight({ args: ["-m", "short\\nstill invalid"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).toHaveProperty("message", expect.not.stringContaining("Literal escaped newlines"));
+  });
+
   it.each([
     { label: "unsupported short grammar", args: ["-Smsecret"], repo: repository() },
     {

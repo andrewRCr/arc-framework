@@ -127,6 +127,11 @@ Apply standard software engineering principles:
 - **KISS** (keep it simple)
 - **YAGNI** (you aren't gonna need it)
 
+**Pre-public-release compatibility posture:** ARC is currently pre-public-release. Until its first public release,
+unpublished project-owned contracts and development-only persisted state may change in place. Do not add
+backward-compatibility aliases, migration readers, or data migrations for them; clear or regenerate development state
+instead.
+
 **TypeScript standards:**
 
 - Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries

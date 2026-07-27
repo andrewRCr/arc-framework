@@ -1,14 +1,14 @@
-# Metadata: review-protocol-alignment
+# Metadata: review-activity-contracts
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** [none]
-- **Depends On:** [none]
+- **Cohort:** `review-protocol-alignment`
+- **Depends On:** `review-source-authority`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-protocol-alignment.md`
+- **Design:** `draft-review-activity-contracts.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
