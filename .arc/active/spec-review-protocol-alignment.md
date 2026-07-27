@@ -107,7 +107,7 @@ design unit names `adversarial-review.md`, `integrate-work-unit.md`, `session-in
 `drain-inbox.md`, or `arc-config.yml`, it means both copies. Stated once here rather than repeated per unit, because a
 task list sized against one copy is sized at half its true surface.
 
-### D1 — Operator selection override
+## D1 — Operator selection override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`
 already carries a typed, target-bound, validated override with enumerated rejection reasons and a dedicated
@@ -202,7 +202,7 @@ effective order, not the next candidate. The ordered-unique attempt-history refi
 already-attempted exclusion still prevent a second execution. Override validation therefore checks membership,
 eligibility, target, and lane, while attempt history decides which eligible member may run next.
 
-### D2 — Capability re-cut: remove `chunked` from `coderabbit-cli`
+## D2 — Capability re-cut: remove `chunked` from `coderabbit-cli`
 
 Remove an advertisement nothing backs, and make its absence legible rather than fatal. Two code edits — `D2.1` and
 `D2.2` — plus a recorded hand-off; `D2.2` is what lets the removal stand alone.
@@ -254,7 +254,7 @@ requires authoring a frontline requirement type — or widening a literal that p
 identity — neither of which is settled anywhere. That is a design question, not plumbing, and it belongs with the
 work unit that needs the capability.
 
-### D3 — Trim the guidance surface to the contract floor
+## D3 — Trim the guidance surface to the contract floor
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly
 `@coderabbitai full review` (or `@coderabbitai review`), the Codex adapter posts `@codex review`, and the CodeRabbit CLI
@@ -309,7 +309,7 @@ items across the two copies, the typed fields back items 1 through 3, and item 4
 total when it is not is the defect this design unit exists to remove, so the check reporting its own reach is part of
 the deliverable rather than a nicety.
 
-### D4 — Request-body legibility
+## D4 — Request-body legibility
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no
 example, no schema-emitting flag. `run-errand` and `integrate-work-unit.md` instruct the agent to invoke these verbs
@@ -412,7 +412,7 @@ signal the other exists. `D4.2`'s flag separates them at the CLI by schema id; t
 same reader one layer down. Rename the light one to its role. Separable from the rest of `D4` if scope demands it,
 and recorded here because it serves the same reader and the same goal.
 
-### D5 — `adversarial-review`'s `withstood` field
+## D5 — `adversarial-review`'s `withstood` field
 
 The defect is in consumption, not production. Demonstrated 2026-07-24: three false claims rode through two independent
 fresh-context passes under `withstood` and were relayed on the strength of that label, then refuted in full against
@@ -441,7 +441,7 @@ Three edits to `adversarial-review.md` and its prompt template — no new mechan
    `verify-work-unit` carries more risk than the planning stages, since its passes re-validate success criteria against
    a diff.
 
-### D6 — Convergence semantics and severity provenance
+## D6 — Convergence semantics and severity provenance
 
 **D6.1 — Rename `blocker` → `critical`.** `ReviewSeveritySchema` (`src/scripts/review-gate/core/review-primitives.ts`)
 becomes `["critical", "major", "minor"]`.
@@ -668,7 +668,7 @@ Every findings-bearing pass-closing driver call then derives its confirmed-findi
 one convergence semantic is mechanically enforced rather than agentically honored on two lanes out of three, and the
 all-refuted and minors-only arms deliver their saving everywhere instead of nowhere.
 
-### D7 — Stop discipline and spend opt-in
+## D7 — Stop discipline and spend opt-in
 
 **D7.1 — Carry the stop discipline into the workflow.** The choreography already matches its design intent: human stops
 track authority rather than every judgment, final dispositions and release coincide in one structured gate when nothing
@@ -774,7 +774,7 @@ and which evaluator serves it; the current declared workflow fire-point activate
 keeps only recommendation posture and pass cap, no longer doubling as an on/off switch; and the stage-completion stop
 is untouched, being an input channel rather than a spend decision.
 
-### D8 — Relocate provider capabilities onto their adapters
+## D8 — Relocate provider capabilities onto their adapters
 
 The source id schema is an open slug pattern, and the policy machinery is genuinely provider-neutral: lanes, scopes,
 pull-request dependence, and dispatch action are abstract axes, the source lists are ordered configuration, and the
