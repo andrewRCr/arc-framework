@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** `draft-design` — draft captured, two adversarial passes run
+- **Last Completed:** `create-spec` — spec authored at `detailed`/RFC, adversarial pass 1 folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec — adversarial pass 2 over the folded spec, then Gate 1 approval
 
 - **PR URL:** [none]
 - **Completed:** [none]
