@@ -40,6 +40,16 @@ prescribed remedy — regenerate — makes the hook pass by publishing a readine
 transform. The errand on `fix/decompose-roadmap-supersession` is already in flight against this deadlock, judged
 urgent enough to fix ahead of this work unit; treat it as delivered work to confirm, not to redo.
 
+**The deadlock is the severe case of a general seam.** The derived ROADMAP has several renderers that do not agree
+on the same view, and the disagreement surfaces routinely rather than exceptionally. Three instances inside a
+single day: a base merge conflicted on the file and needed the dedicated conflict auto-remedy to regenerate from
+the staged-index projection; `arc stub` regenerated the file at mint time, yet the pre-commit renderer rejected its
+output and required a re-render from staged sources for a ten-line diff; and the supersession deadlock above. The
+first two are benign — clean remedies, correct outcomes — while the third publishes a view contradicting the
+finalized transform. Fixing only the third leaves the seam. Worth deciding whether the ROADMAP wants one renderer
+with explicit inputs (staged versus worktree, supersession, degraded views) rather than several callers of a shared
+index view that each supply different context.
+
 **The enabling cause: test topology.** Each of the above sat behind a fixture that does not reproduce the real
 lifecycle. The symmetric E2E commits origin artifacts on base and then branches, so it never builds the ordinary
 planning topology and gave positive assurance over exactly the case that failed. The lifecycle E2E installs only
@@ -73,6 +83,8 @@ themselves complete.
 - Whether cross-cutting sections route to the cohort document by rule, or the cut map gains an explicit
   destination kind for content owned by no member.
 - Whether the empty-`sourceAllocations` extraction shape is acceptable by design or must be made expressible.
+- Whether the ROADMAP renderer seam belongs here at all. Unifying it reaches well past decomposition, so this may
+  own only the supersession-input fix and route the wider consolidation to whoever owns the readiness view.
 
 ## Boundaries
 
