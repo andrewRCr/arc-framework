@@ -365,6 +365,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ).toBe(0);
     expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ transition: "decompose" });
 
+    await git(repo, ["add", "--", ".arc/backlog/ROADMAP.md"]);
     const roadmapGate = await runRoadmapRegenerationAssert({
       cwd: repo,
       exec: rawGitExec(repo),
