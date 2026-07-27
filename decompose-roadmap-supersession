@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "decompose-roadmap-supersession",
+  "origin": "description",
+  "intent": "Carry finalized decomposition supersession into commit-time ROADMAP validation",
+  "branch": "fix/decompose-roadmap-supersession",
+  "createdAt": "2026-07-27T00:30:43.194Z",
+  "returnBranch": "plan/review-protocol-alignment"
+}
