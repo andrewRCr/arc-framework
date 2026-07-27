@@ -8,12 +8,36 @@ import type {
   CommitCheckArtifactResolver,
 } from "./types.js";
 
-const SEARCH_ROOTS: Readonly<Record<CommitCheckArtifactFamily, readonly string[]>> = {
-  tasks: ["active"],
-  design: ["active", "backlog"],
-  meta: ["active", "completed"],
+/** One family search root and whether filename match may recurse under it. */
+interface SearchRoot {
+  /** Path relative to `.arc/`. */
+  path: string;
+  /**
+   * When true, match `filename` at any depth under the root (completed archives,
+   * backlog cohorts). When false, only the root directory itself (flat `active/`
+   * task lists).
+   */
+  recursive: boolean;
+}
+
+/**
+ * Family → search roots. Task lists stay flat under `active/` but must resolve
+ * after archive under nested `completed/` quarter/order/cohort layouts.
+ */
+const SEARCH_ROOTS: Readonly<Record<CommitCheckArtifactFamily, readonly SearchRoot[]>> = {
+  tasks: [
+    { path: "active", recursive: false },
+    { path: "completed", recursive: true },
+  ],
+  design: [
+    { path: "active", recursive: true },
+    { path: "backlog", recursive: true },
+  ],
+  meta: [
+    { path: "active", recursive: true },
+    { path: "completed", recursive: true },
+  ],
 };
-const RECURSIVE_FAMILIES = new Set<CommitCheckArtifactFamily>(["design", "meta"]);
 
 function isMissing(error: unknown): boolean {
   return (
@@ -54,11 +78,11 @@ export function createFilesystemArtifactResolver(arcRoot: string): CommitCheckAr
     }
 
     let unavailable = false;
-    for (const relativeRoot of SEARCH_ROOTS[family]) {
+    for (const searchRoot of SEARCH_ROOTS[family]) {
       const result = await inspectRoot(
-        join(arcRoot, relativeRoot),
+        join(arcRoot, searchRoot.path),
         filename,
-        RECURSIVE_FAMILIES.has(family),
+        searchRoot.recursive,
       );
       if (result === "found") return "found";
       if (result === "unresolvable") unavailable = true;
