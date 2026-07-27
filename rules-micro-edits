@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "rules-micro-edits",
+  "origin": "inbox",
+  "intent": "Concise rules/docs micro-edits: DEV-RULES.PROJECT (resolver + gate repair), testing-standards override + .default fixture fidelity, run-errand gh pagination",
+  "branch": "chore/rules-micro-edits",
+  "createdAt": "2026-07-27T22:12:38.399Z",
+  "originEntry": "Rule: a shared resolver reports failure rather than baking in one caller's default",
+  "returnBranch": "fix/hooks-path-resolve-guard"
+}
