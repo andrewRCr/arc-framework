@@ -60,3 +60,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: authoring or iterating plans / PRDs / workflows that add conditional or dispatch logic to
       prose, mint agent-interpreted markup, reshape workflow or skill authoring conventions, move logic across the
       CLI↔agent boundary, or add correctness machinery for procedural content
+- `project/strategy-pm-composition-evolution.md` - **Provisional.** External-PM composition and authority
+  forward-compat principles
+    - Consult when: authoring or iterating plans / specs / workflows that add PM fields, external tracker bindings,
+      lifecycle sync, provider adapters, or Planning Module boundaries; do not deepen duplicate authority or
+      provider-specific workflow mechanics before checking it

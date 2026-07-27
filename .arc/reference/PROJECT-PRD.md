@@ -172,11 +172,12 @@ software development.
 - [`the-framework.md`][the-framework] — session lifecycle, skills, task execution, committing,
   handoffs.
 - [`STRATEGY-INDEX.md`][strategy-index] — codified strategy guidance across domains.
-- Forward-compat check-docs — internal architectural direction along three evolution axes:
+- Forward-compat check-docs — internal architectural direction along four evolution axes:
   [`strategy-storage-evolution.md`][storage-evolution] (where state lives),
   [`strategy-knowledge-evolution.md`][knowledge-evolution] (where guidance lives), and
-  [`strategy-procedure-evolution.md`][procedure-evolution] (how procedure executes). Each points at its
-  north-star draft; consult per its Self-Check when planning work in its axis.
+  [`strategy-procedure-evolution.md`][procedure-evolution] (how procedure executes), and
+  [`strategy-pm-composition-evolution.md`][pm-composition-evolution] (how ARC composes with external PM
+  authorities). Consult each document's Self-Check when planning work in its axis.
 
 ---
 
@@ -187,3 +188,4 @@ software development.
 [storage-evolution]: strategies/project/strategy-storage-evolution.md
 [knowledge-evolution]: strategies/project/strategy-knowledge-evolution.md
 [procedure-evolution]: strategies/project/strategy-procedure-evolution.md
+[pm-composition-evolution]: strategies/project/strategy-pm-composition-evolution.md
