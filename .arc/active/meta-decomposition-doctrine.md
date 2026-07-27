@@ -13,11 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft reworked to five deliverables and `Class` ratcheted to `Heavy`; program sequencing
+  recorded.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Continue `draft-design` — settle the four open decisions in
+  `draft-decomposition-doctrine.md` § Unknowns; the draft is `maturing`, not formalization-ready.
 
 - **PR URL:** [none]
 - **Completed:** [none]
