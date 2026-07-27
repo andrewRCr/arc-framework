@@ -33,7 +33,7 @@
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-18);
   captured at the storage-substrate grooming (2026-07-17).
-- _Concern:_ check-docs currently exist as a convention _inside_ `strategy-*` (three sibling forward-compat
+- _Concern:_ check-docs currently exist as a convention _inside_ `strategy-*` (four sibling forward-compat
   check-docs in `strategies/project/`, each a blockquote header + self-check trigger list + principles) — it
   works, but the shape is untyped and the "strategy" family name is already slated for redesign by this WU's
   target model (both newer siblings carry the naming note). A named family (`checkdoc-*`, frontmatter `type`)

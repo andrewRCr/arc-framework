@@ -18,10 +18,11 @@ interim workflow and CLI work composing with it, so near-term WUs don't accrete 
 agent-interpreted markup, or untyped boundaries a later compilation must undo.
 
 **Scope:** Workflow and skill authoring shape, the CLI↔agent boundary, agent-interpreted markup, placement of
-conditional and dispatch logic, correctness machinery for procedural content. Third of three sibling check-docs:
+conditional and dispatch logic, correctness machinery for procedural content. One of four sibling check-docs:
 [`strategy-storage-evolution.md`](strategy-storage-evolution.md) owns where state lives,
-[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance lives, and
-this doc owns how procedure executes.
+[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance lives,
+[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md) owns how ARC composes with external PM
+authorities, and this doc owns how procedure executes.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
 direction for ARC's own evolution — for plan / PRD / workflow authors in this repo, not for adopters configuring
@@ -147,6 +148,8 @@ earns a definition before use.
   author-for-humans / address-for-agents) are the seam the two share.
 - **[`strategy-storage-evolution.md`](strategy-storage-evolution.md)** — sibling check-doc; Principle 3 here
   composes with its Principles 1 and 6 (storage as abstraction, mode-agnostic workflow logic).
+- **[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md)** — sibling check-doc for
+  external-PM composition; its typed provider verbs, verdicts, and remedies consume this doc's CLI↔agent boundary.
 - **`strategy-workflow-authoring.md`** — the adopter-facing authoring conventions. Principles here that graduate
   to shipped convention land there (verbs-over-mechanics is the first candidate), coordinated with
   `composable-workflows` D1's planned rewrite of that strategy.

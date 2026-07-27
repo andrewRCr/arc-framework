@@ -139,5 +139,9 @@ Demotion from always-loaded goes only to an _explicit trigger_, and constraints 
 - **[`strategy-storage-evolution.md`](strategy-storage-evolution.md)** — sibling check-doc (same
   interim-discipline shape); its record/projection and tracked-vs-materialized principles are what
   Principle 9 composes with.
+- **[`strategy-procedure-evolution.md`](strategy-procedure-evolution.md)** — sibling check-doc for the procedural
+  substrate; its typed fire-point and execution model carries knowledge triggers into use.
+- **[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md)** — sibling check-doc for
+  external-PM composition; its authority boundary consumes Principle 9's authored-once, audience-aware projection.
 - **`draft-skill-infrastructure-cleanup.md`** — the skill-side rewrite pass consuming Principle 2's
   firing-condition authoring standard.
