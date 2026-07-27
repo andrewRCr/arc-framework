@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** `create-spec` — detailed RFC amended after exceptional adversarial pass 3
+- **Last Completed:** `generate-tasks` Pass 1 — delivery sizing and candidate cut recorded
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** `decompose-transform-integrity` (preferred); `chunked-delivery` is an alternate unblock
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** When either lands, recheck the delivery path from `notes-integration-boundary-accuracy.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
