@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "fix-generated-template-length",
+  "origin": "inbox",
+  "intent": "Wrap generated template lines that overrun body/MD line limits (handoff commit body + arc start SESSION-NOTES seed)",
+  "branch": "fix/fix-generated-template-length",
+  "createdAt": "2026-07-27T21:48:10.100Z",
+  "originEntry": "Handoff's meta-commit body template overruns the commit-msg line limit",
+  "returnBranch": "chore/housekeep-inbox-drain"
+}
