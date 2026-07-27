@@ -1,0 +1,171 @@
+# Draft: review-activity-contracts
+
+- **Origin:** [internal]
+- **Cohort:** `review-protocol-alignment`
+- **Purpose:** Keep hosted-review guidance at its contract floor and make planning and verification audit dispatch
+  explicit, typed, and bounded.
+
+---
+
+## Hosted Guidance Contract
+
+Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly
+`@coderabbitai full review` (or `@coderabbitai review`), the Codex adapter posts `@codex review`, and the CodeRabbit CLI
+provider injects none. The live typed generator has one consumer, the local carrier's guidance projection. **The two
+static `arc:review-guidance` blocks are therefore the sole channel by which any ARC rubric reaches a hosted reviewer**,
+which is why they cannot simply be deleted. They are byte-identical (31 lines each, modulo indentation), nothing
+validates them, and they have already drifted: both carry **six** rubric dimensions while
+`STANDARD_REVIEW_BASELINE_CONTRACT` carries **five** — the sixth, "Repository contract coherence", exists in no typed
+source. The published `sha256:cea850…` digest recomputes correctly from the typed contract and proves nothing: it does
+not cover the rendered dimension prose, so it is structurally incapable of detecting that drift and did not.
+
+**D3.1 — The trim.** Criterion: _keep only what a provider cannot know_. Cut the finding requirements and five of the
+six rubric dimensions — instructing a specialized code reviewer to check correctness, boundary cases, or to cite a
+stable locus is its product, not information, and at `path: "**/*"` that cost is paid on every file. Cut the
+`Rubric:` / `sha256:` line, which has no live consumer and is demonstrably not a drift check. Four items survive in both
+`.coderabbit.yaml` and `AGENTS.md`:
+
+1. **Exact-scope binding** — the complete requested change set, not a sample or only the latest fix; bind to the exact
+   requested target.
+2. **The clean-result floor** — unavailable, partial, ambiguous, or failed review is never clean.
+3. **The evaluator boundary** — the review is not given author conclusions, preferred fixes, self-verification
+   claims, or suspected weak spots. Stated as the exclusion it is, matching the typed `excludedContext`; an earlier
+   phrasing ("do not accept author conclusions") named a different actor and a different obligation, and would not
+   have been derivable from the field it is checked against.
+4. **Repository contract coherence** — rewritten out of dimension register into the same register as the other three,
+   naming the actual contracts: the two-copy package-source / project-instance sync discipline, the self-hosting
+   `npx arc` invocation rule, and the adopter-facing versus internal-dev audience boundary.
+
+Item 4 survives **by** the criterion rather than as an exception to it: a generic reviewer cannot know these. It stays
+untyped, deliberately — no method declares the `review-augmentation` frontmatter that would route a project dimension
+into the projection, and minting one to maintain a single line would re-instate the generator this trim deletes. Both
+files are this repository's own configuration rather than shipped artifacts, so repository-specific content is exactly
+what belongs in a repo-local static block.
+
+**D3.2 — The parity check.** At four items, parity resolves without restoring a generator. A new
+`lint:arc:review-guidance` root script backed by `src/scripts/audit-review-guidance.ts` — the dev-only home the existing
+`lint:arc:*` family already uses, since `src/` is excluded from the package's published `files` — asserts:
+
+- string equality (modulo indentation) between the two carriers' block bodies;
+- items 1, 2, and 3 against `STANDARD_REVIEW_BASELINE_CONTRACT.coverage`, `.cleanRule.nonCleanResults`, and
+  `.evaluatorBoundary.excludedContext` respectively. Item 2's backing is `nonCleanResults` alone, not the whole
+  `cleanRule` object: `requiredDimensionTreatment` ("all rubric dimensions considered") refers to the five dimensions
+  `D3.1` cuts, so it is deliberately no longer carried to hosted reviewers and there is nothing left to check it
+  against.
+
+`evaluatorBoundary` is typed and is checkable exactly as `coverage` and `cleanRule` are; leaving it unchecked would
+reopen the untyped drift channel this unit exists to close. Only item 4 has no typed source — deliberately, per the
+paragraph below.
+
+**Its coverage is partial by construction and the check states so in its own output:** string equality covers all four
+items across the two copies, the typed fields back items 1 through 3, and item 4 is unbacked. A check that reads as
+total when it is not is the defect this design unit exists to remove, so the check reporting its own reach is part of
+the deliverable rather than a nicety.
+
+## Audit Activity Control
+
+**D7.1 — Carry the stop discipline into the workflow.** The choreography already matches its design intent: human stops
+track authority rather than every judgment, final dispositions and release coincide in one structured gate when nothing
+earlier needs approval, exceeding a pass ceiling is a third stop by exception, and ordinary agent judgments do not
+create permission turns. Counting `integrate-work-unit.md`'s own stop-class callouts confirms the shape. But that
+statement lives only in a completed work unit's archived spec, which the agent running integration never loads. State it
+in `integrate-work-unit.md`, where the decision is made.
+
+**D7.2 — Gate the activity, not the mechanism.** Both review lanes ship with empty source lists, so no automatic review
+spend is incurred until a source is named. The adversarial method has **no configuration surface at all**, across four
+standalone offer fire-points — the three planning stages and verification. An adopter who does not want subagent spend
+can only decline, at every fire point, indefinitely: four permission turns that return nothing.
+
+A key gating `adversarial-review` itself is rejected — it contradicts the method's own identity contract, which states
+that the caller owns launch policy and that the mechanism never weakens the caller's obligation. The method is a
+carrier, not an activity, and its context-provisioning table already lists frontline and standard review as fire-points,
+so the lanes are among its callers. Instead, each review **activity** carries its own evaluator key, the way the lanes
+already carry source lists. Two new keys in `arc-config.yml`, beside `review.frontline_sources` and
+`review.standard_sources`:
+
+```yaml
+# Evaluator for planning-stage design audits (draft-design, create-spec, generate-tasks).
+# Subagent carriers only: hosted and CLI providers review diffs and cannot audit a design
+# document. `none` disables the audit; the stage-completion check is unaffected.
+review.planning_audit: none        # none (default) | delegated-agent
+review.verification_audit: none    # same domain
+```
+
+Four review activities, one uniform place to look. The value is singular where the lane keys are plural, so "one
+evaluator, no fallback" reads off the shape rather than a comment. `adversarial-review` gets no configuration surface.
+
+**A config key is not a YAML line.** `review.frontline_sources` and `review.standard_sources` are each declared in
+`src/lib/config/schema.ts`, validated in `src/commands/config/validate.ts`, and one is referenced in
+`src/commands/update.ts`. The two new keys follow the same path — schema declaration, validation with a typed
+diagnostic for an out-of-domain value, and both copies of `arc-config.yml`. The package-source copy ships the `none`
+default; whether this repository's own instance overrides it is a project decision recorded against the sanctioned
+divergences the framework-sync test already admits.
+
+**One key per activity family, not per stage.** The adopter decision is a single posture question. If granularity is
+ever wanted, the natural cut is _early versus finalization_, not per-stage, and it arrives additively as a scope
+qualifier beside the evaluator key — evaluator and scope are orthogonal, so splitting later is cheaper than
+un-splitting.
+
+**Disabled by default for consent, not because the practice is marginal.** It matches the empty source lists. Recorded
+explicitly because a reader meeting a disabled default could otherwise infer the practice earns little: adopting these
+passes moved issue-catching from _during or after code review_ to _before implementation_.
+
+**Configuration is inert until a declared fire-point.** A non-`none` evaluator key is not ambient permission to spawn
+and does not authorize the evaluator outside its activity. Each invocation is explicit through the conjunction of:
+
+1. the executing workflow reaching its declared adversarial-review fire-point;
+2. that activity's config key naming a registered evaluator; and
+3. the dispatch binding the exact artifacts, rubric, orientation, pass cap, and prior findings, with a read-only
+   no-edit contract.
+
+That conjunction is the per-invocation activation carrier: the config selects the activity posture, while the current
+workflow fire-point authorizes this run now. It needs no second conversational permission turn, and it creates no
+standing "subagents allowed" state. The invocation and evaluator are surfaced with the resulting pass so an automatic
+launch remains legible. This is a read-only derivation activity under DEV-RULES.ARC § Sub-agent scope; it does not
+relax execution delegation.
+
+**D7.3 — The evaluator domain is derived from an explicit audit capability.** `nextAction: "local-prepare"` proves
+only that a source implements the local code-review operation; that operation derives a Git target and standard-review
+requirement and does not establish arbitrary document-and-rubric audit support. The registration capability therefore
+gains `auditActivities: ("planning" | "verification")[]`. `delegated-agent` declares both activities; providers that
+only review diffs declare neither.
+
+Each audit config key derives its valid evaluator domain by selecting registrations that name its activity. Naming a
+hosted provider is then a validation error with a typed diagnostic rather than a runtime surprise, and the domain stays
+correct as adapters change without treating an unrelated dispatch tag as proof. The constraint remains structural: at
+draft-design time there is no diff and no pull request, only a document, so only a carrier explicitly declaring that
+audit contract can serve. `delegated-agent` names the **carrier**, not the gate lane.
+
+**D7.4 — Which stops survive streamlining.** The verification fire-point stops at every `Class` — the adversarial
+fire-point scales its _posture_ by `Class` but the offer awaits a call regardless, so at `Light` it is a permission turn
+about a pass the posture already declines to recommend. Removing it uniformly would reach every fire-point including the
+three planning stages, which is wrong. The rule that decides:
+
+> **A stop is required wherever the completion signal is not fully observable in the artifact.**
+
+- **The verification trigger is artifact-observable.** The task list's phases are complete and the verification phase is
+  the literal next item. An agent reading the artifact holds exactly what the developer holds, so the stop adds no
+  information. Reaching this declared fire-point with a configured evaluator is therefore the explicit invocation;
+  no additional authorization turn is required. Declining costs little either way: the adversarial pass **augments**
+  the self-verify and never replaces it, so the floor beneath an automatically fired pass is the full criteria
+  validation that runs regardless.
+- **Planning-stage boundaries are not.** Whether a draft is done depends on intent the developer has not yet uttered,
+  which no artifact carries and no readiness read can reach. Here the stop **is** the input channel, so it holds even
+  when a project has opted in. Live evidence from this work unit's own grooming: the concern that became
+  `integration-boundary-accuracy` existed only in the developer's head at the moment the draft otherwise read as
+  complete; an autofired pass would have attacked a draft about to grow by roughly a third.
+- **Integration is out of scope** for the rule, now that the spend gate sits on the activity: it has no standalone offer
+  fire-point, reaching the mechanism only as the carrier behind the lanes, whose spend the source lists already gate.
+
+**D7.5 — The planning-stage surface is a convergence check, not a spawn authorization form.** What is approved is that
+_the stage is complete_; that agreement supplies the intent the artifact cannot show. Once supplied, the now-current
+fire-point plus the configured evaluator explicitly activates the individual pass — not as standing consent and not as
+a second decision. So the surface is one conversational question — this stage looks done, is there anything to raise
+before it is attacked — never an enumeration of pass counts, rubrics, and evaluator conditions.
+
+**What each surface owns after the change:** the `*_sources` and `*_audit` keys select whether an activity is enabled
+and which evaluator serves it; the current declared workflow fire-point activates each individual invocation; `Class`
+keeps only recommendation posture and pass cap, no longer doubling as an on/off switch; and the stage-completion stop
+is untouched, being an input channel rather than a spend decision.
+
+---
