@@ -24,9 +24,9 @@ override-active: false
 
 - Test observable behavior through public interfaces; don't assert on implementation — including **don't assert
   on spy / call args as the outcome** (that verifies wiring, not behavior).
-- **Keep mocked boundaries faithful** — a stub returning what the real dependency never would (including
-  success-shaped where it would error) passes against a fiction; cover response-dependent behavior at a tier
-  that runs the real thing.
+- **Keep mocked boundaries and fixtures faithful** — a stub inventing dependency outcomes, or a hand-built
+  fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture invariants from
+  the producer; cover response-dependent behavior at a tier that runs the real thing.
 - **See it fail first** — a test that has never failed may assert nothing.
 - **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
