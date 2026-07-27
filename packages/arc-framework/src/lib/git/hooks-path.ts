@@ -146,19 +146,20 @@ export async function resolveHooksPathVerdict(
   );
   const resolvedPath = hooksStdout.trim();
 
-  let configured: string | null = null;
-  try {
-    const { stdout: configStdout } = await exec(
-      "git",
-      ["config", "--get", "core.hooksPath"],
-      { cwd },
-    );
-    const value = configStdout.trim();
-    configured = value === "" ? null : value;
-  } catch {
-    // `git config --get` exits non-zero when the key is unset.
-    configured = null;
-  }
+  // `git config --get` exits non-zero when the key is unset.
+  const configured = await (async (): Promise<string | null> => {
+    try {
+      const { stdout: configStdout } = await exec(
+        "git",
+        ["config", "--get", "core.hooksPath"],
+        { cwd },
+      );
+      const value = configStdout.trim();
+      return value === "" ? null : value;
+    } catch {
+      return null;
+    }
+  })();
 
   const absolute = isAbsolute(resolvedPath) ? resolvedPath : resolve(cwd, resolvedPath);
   return classifyHooksPath({
