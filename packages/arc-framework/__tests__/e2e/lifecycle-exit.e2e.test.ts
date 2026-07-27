@@ -27,7 +27,9 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { canonicalDigest, isCanonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
+import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { parseDecomposePreparationRecord } from "../../src/lib/work-unit/decompose-preparation.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir } from "./helpers.js";
 
@@ -38,6 +40,18 @@ const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 async function git(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
+}
+
+/** Git executor preserving exact stdout bytes and defaulting unscoped reads to the temp repo. */
+function rawGitExec(cwd: string): GitExec {
+  return async (cmd, args, options) => {
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
+      cwd: options?.cwd ?? cwd,
+      signal: options?.signal,
+      encoding: "utf8",
+    });
+    return { stdout, stderr };
+  };
 }
 
 /** Stage everything and commit, bypassing hooks (scaffolding, not a hook test). */
@@ -350,6 +364,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       `${finalized.stdout}${finalized.stderr}\nStaged:\n${await git(repo, ["diff", "--cached", "--name-status"])}`,
     ).toBe(0);
     expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ transition: "decompose" });
+
+    const roadmapGate = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec: rawGitExec(repo),
+      baseBranch: "main",
+    });
+    expect(roadmapGate).toEqual({ exitCode: 0, stdout: "", stderr: "" });
 
     const committed = await commitAttempt(repo, "finalized decompose");
     expect(committed.exitCode, committed.stdout + committed.stderr).toBe(0);
