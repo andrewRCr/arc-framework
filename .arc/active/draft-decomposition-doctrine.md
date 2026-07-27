@@ -2,112 +2,251 @@
 
 - **Origin:** [internal] — minted on the decomposition-program grooming branch (2026-07-21); captured from the
   `review-architecture` integration postmortem discussion at session-init.
-- **Purpose:** Close the planning-pipeline gap that let a 307-file / ~24.7k-insertion change ship as one work
-  unit with no recorded decomposition decision: rebalance the size-vs-orthogonality discriminator, make the
-  cohort-fit verdict a recorded artifact, force a re-read when task-generation materializes scale evidence, and
-  codify the stack-vs-coupling test.
+- **Purpose:** Make decomposition reliable and early enough to be the frontline defense against unreviewable work
+  units, without over-correcting into churn: rebalance the size-vs-orthogonality discriminator, record the verdict,
+  add a split reading beside the shipped shrink reading, codify the stack-vs-coupling test, and gate adoption on
+  stated intent rather than domain adjacency.
 
-- **State:** Draft — pre-spec capture (2026-07-21). Iterate before promotion.
+- **State:** Draft — reworked 2026-07-26 against shipped `review-chunking`, `solution-proportionality`,
+  `decomposition-machinery`, and `decomposition-hardening`. Maturing.
 
 ---
 
 ## Problem / Motivation
 
-`review-architecture` reached integration as one WU at 307 files / ~24.7k insertions — a surface its own notes
-record as exceeding what any single review invocation can navigate, requiring an ad-hoc eight-pass chunked
-review. The planning record shows four distinct failure points, each a doctrine or pipeline gap rather than an
-execution mistake:
+### The two conditions
 
-1. **The doctrine licenses unbounded single-WU size.** `assess-cohort-fit` and `strategy-work-organization`
-   § WU sizing standard say one coherent concern "stays one WU, however large," justified by the per-task
-   review grain — which covers _execution_ review only. The integration-time review surface has no owner in the
-   sizing standard, and the stance is only safe once `review-chunking` ships; today it presumes a mechanism
-   that does not exist yet.
-2. **Coupling was never tested against the stack shape.** The recorded keep-whole rationale ("one
-   forward-contract cutover; splitting would create an unusable intermediate contract") describes _sequential
-   dependency_ — which the sizing standard itself delivers as a stack of dependency-ordered WUs. Sequential
-   coupling read as design-coupling, and the alternative was never weighed on the record. Verification proved
-   the seams were real: the local channel, the rubric overlay, and enforcement scope were all carved off to
-   other owners after the fact.
-3. **The primary signal fired with no forced re-read.** Deliverable count is the standard's stated primary
-   signal; at generate-tasks it materialized as 8 phases / ~111 leaf tasks / 5 new methods / two review
-   channels. The sizing review that ran trimmed edge scope but never re-opened the WU-count question — the
-   re-entry valve relies on spontaneous noticing, and Heavy-WU momentum beat it.
-4. **No verdict artifact exists.** Cohort-fit produces no recorded output when it answers "stays one WU," so
-   there is nothing to audit, nothing a later gate can challenge, and no way to tell whether the method ran at
-   all. `Class`, by contrast, is a recorded, ratcheted field.
+Aggressive decomposition is the right default **only if two things hold**: the cut happens at the right
+design-reasoning moment, and the cut is cheap. Both conditions are load-bearing, and neither is currently owned.
 
-The case is not isolated: `session-locus-model` sits at 187 files / ~26.4k insertions mid-implementation, and
-the two completed `cli-substrate-adoption` members each integrate at ~7.5k. Where decomposition _was_ applied
-(that cohort), it worked — two reviewable members instead of one ~40k monolith.
+- **Cut too early** and you split before the concern's shape has settled — the remaining pieces get harder to
+  reason about, and the cut itself is naive. This is the real reason decomposition gets resisted, and the
+  resistance is well-founded.
+- **Cut expensively** and authors avoid it regardless of doctrine. Guidance that prescribes a painful operation
+  does not change behavior; it just adds a rule people work around.
+
+The current state fails both. The maturity gate names the right moment but nothing forces a read at it, and the
+machinery's cost is unmeasured — measured now, and high (§ Machinery readiness).
+
+### What is already codified — and does not need inventing
+
+`assess-cohort-fit` already carries the model this work unit was assumed to need:
+
+- **Plan-grouping is not delivery-grouping.** "One concern **plans** as a single coherent draft but **delivers** as
+  a stack of WUs along natural deliverable/phase boundaries. At decomposition the one draft becomes N
+  self-contained WU specs + cross-WU coordination."
+- **Timing is gated on design maturity.** "Decompose when the design is stable enough that the cuts are real, not
+  before. Speculative design → hold as one unit and iterate; settled design → decompose."
+- **Two arms.** `draft-design` is the _predicted_ arm (design still forming); `create-spec` is the _emergent_ arm
+  (a matured draft).
+
+The problem is therefore **not that the model is wrong — it is that the model does not bite.** That reframing
+matters: it is a much smaller and better-posed problem than redesigning the decomposition lifecycle, and it points
+the deliverables at enforcement and evidence rather than at new concepts.
+
+There is one exception, and it is the keystone below.
+
+### The keystone — a design cut is not a delivery cut
+
+Deferring **design** with substantial overlap is genuinely bad: it splits a concern before its shape is known,
+leaves each piece harder to reason about, and produces a naive cut. Deferring **implementation** is ordinary good
+engineering. Collapsing the two is what makes decomposition feel like a loss.
+
+So separate them:
+
+- A **design cut** re-opens what the thing _is_. Expensive, correctly resisted, and only legitimate while the
+  design is still forming.
+- A **delivery cut** keeps the settled design whole and splits only _how it lands_. Cheap, healthy, and the same
+  deferral authors already accept everywhere else.
+
+Everything downstream of a settled design should be a delivery cut. This is the concept the current doctrine
+lacks, and it is what converts decomposition from something a scope-averse author resists into something they
+reach for.
+
+### The four original failure points
+
+`review-architecture` reached integration as one work unit at 307 files / ~24.7k insertions — a surface its own
+notes record as exceeding what any single review invocation can navigate, requiring an ad-hoc eight-pass chunked
+review. Four gaps, each doctrine or pipeline rather than execution error:
+
+1. **The doctrine licenses unbounded single-WU size.** `assess-cohort-fit` and `strategy-work-organization` § WU
+   sizing standard say one coherent concern "stays one WU, however large," justified by the per-task review grain —
+   which covers _execution_ review only. The integration-time review surface has no owner in the sizing standard.
+2. **Coupling was never tested against the stack shape.** The recorded keep-whole rationale ("one forward-contract
+   cutover; splitting would create an unusable intermediate contract") describes _sequential dependency_ — which the
+   sizing standard itself delivers as a stack of dependency-ordered WUs. Sequential coupling read as design
+   coupling, and the alternative was never weighed on the record. Verification proved the seams were real.
+3. **The primary signal fired with no forced re-read.** Deliverable count is the standard's stated primary signal;
+   at generate-tasks it materialized as 8 phases / ~111 leaf tasks / 5 new methods / two review channels. The sizing
+   review that ran trimmed edge scope but never re-opened the WU-count question.
+4. **No verdict artifact exists.** Cohort-fit produces no recorded output when it answers "stays one WU," so there
+   is nothing to audit, nothing a later gate can challenge, and no way to tell whether the method ran at all.
+   `Class`, by contrast, is a recorded, ratcheted field.
+
+### The fifth failure point — adoption by adjacency
+
+The four above explain why an oversized WU is not _cut_. They do not explain why it got oversized. `session-locus-model`
+reached 195 commits and +48,254 lines because two further work units were built inside it and never received their own
+spec, review boundary, or scoping decision: `lib/locus` (6,893) is the specced intent, while `lib/errand` grew
+1,389 → 7,789 and `lib/housekeep` + `lib/groom` (1,889, nine new CLI verbs) trace to none of the six motivating
+failures.
+
+The absorption path is capture → "same domain" → adopt → "then we should also cover this case, and this one." Domain
+adjacency is the trigger at both ends: at drain, a capture routes into an active WU because it touches the same
+subsystem; inside planning, each adopted concern recruits its own adjacent cases. Neither step asks whether the
+concern serves the WU's **stated intent** — only whether it is in its _neighbourhood_. The two floors gate whether
+something is WU-shaped; nothing gates whether it belongs to _this_ WU.
+
+Every absorbed concern was individually legitimate, which is exactly why nothing stopped them. The failure is only
+visible cumulatively.
+
+This is the cheapest lever in the whole problem: **a work unit that never accretes foreign concerns needs cutting far
+less often.** It also directly answers the over-correction risk — the way to avoid splitting everything is to stop
+concerns arriving where they do not belong, not to split more aggressively downstream.
+
+### Why chunked review is not the answer
+
+`review-chunking` has shipped, and this project runs it at a 5,000-line / 150-file threshold. That genuinely helps,
+and `chunked-delivery` will help further. But chunked review and stacked PRs are a **backstop — a tool to reach for
+when warranted or when something has gone wrong — not the frontline defense.** The frontline defense is not letting
+an unreviewable surface reach integration at all.
+
+Two reasons the bound survives a shipped chunking mechanism. First, chunked review of ~24k lines is still a
+week-scale cost the plan should have priced. Second, review capacity is not the only cost of a large PR: it is also
+unbisectable, unrevertable, and un-cherry-pickable, and it blocks its own base for as long as it takes. Those costs
+are independent of who or what does the reviewing, so evidence that a reviewer copes with 5k lines does not license
+25k.
+
+That also bounds the aggressiveness sensibly. The target is not "smallest possible PR" — it is **each unit
+independently landable and revertable**, which has a natural floor and does not push toward churn-splitting.
+
+### Machinery readiness — the second condition, currently unmet
+
+Decomposition is operationally critical, and the two shipped machinery work units (`decomposition-machinery`,
+`decomposition-hardening`) left the operation expensive. Evidence from the first live decompositions after them,
+all 2026-07-26 and recorded against `decompose-transform-integrity`:
+
+- Both cut arms disagree with their own run context — the symmetric arm refuses outright against branch-private
+  planning artifacts, the extraction arm stages members where the ship leg cannot reach them.
+- Conservation covers only the origin artifact group, so branch-private planning outputs are silently strandable.
+- Heading-scan granularity fails in both directions, requiring manual document surgery before a cut map can be
+  authored.
+- Finalization is not idempotent and reports only `evidence-mismatch`; recovering from an ordinary post-finalization
+  content refinement required searching Git's object database to reproduce a receipt's patch digest.
+- A decomposition PR can never auto-clear: the workflow promises the auto-merge lane, but every retirement
+  decomposition emits a JSON receipt outside the planning classifier's grammar.
+
+**This work unit must not ship ahead of that readiness.** Prescribing more cutting while cutting is expensive
+produces exactly the avoidance this doctrine exists to correct. Stated as a sequencing precondition, not a
+`Depends On` edge, so the doctrine text can progress in parallel — but the ordering claim is now evidence-backed
+rather than a hunch.
 
 ## Proposed direction
 
-Four deliverables, all edits to existing surfaces — no new machinery, no new always-loaded context:
+Five deliverables, all edits to existing surfaces — no new machinery, no new always-loaded context.
 
 1. **Discriminator rebalance** — `assess-cohort-fit` + `strategy-work-organization` § WU sizing standard.
    Orthogonality stays the trigger, but "one coherent concern stays one WU, however large" gains an
    integration-reviewability bound: past a stated scale, coherence alone no longer settles the question and the
-   decision must be made (and recorded) rather than defaulted. `review-chunking` raises that bound — chunked
-   review makes a larger coherent WU tractable — but does not remove it; even chunked review of ~24k lines is a
-   week-scale cost the plan should have priced.
+   decision must be made and recorded rather than defaulted. Shipped chunked review _raises_ that bound; it does not
+   remove it. State the bound as independent landability and revertability rather than a raw line count, so it does
+   not drift with tooling maturity.
+
 2. **Recorded verdict** — cohort-fit's answer becomes a written artifact at the design-stage reads that already
-   invoke it (`draft-design`, `create-spec`): "stays one WU because X" or the cut-map, landing in the draft /
-   spec alongside `Class`. Auditable, challengeable, and proof the method ran.
-3. **Generate-tasks tripwire** — thresholds over materialized plan evidence (phase count, leaf count, estimated
-   file surface) that force a cohort-fit re-run _with a recorded outcome_ when crossed. Wires into the existing
-   sizing review at generate-tasks so it can trigger decomposition, not only edge-trimming; the re-entry valve
-   stops relying on spontaneous noticing. The same materialized evidence admits a second, _prior_ reading —
-   proportionality ("should this shrink?") before decomposition ("should this split?"): decomposing an
-   overdesigned plan institutionalizes the excess across N members. The shrink reading is owned by the
-   solution-proportionality concern (see § Coordination); this WU owns the split reading and honors the
-   ordering.
+   invoke it (`draft-design`, `create-spec`): "stays one WU because X" or the cut-map, landing in the draft or spec
+   alongside `Class`. Auditable, challengeable, and proof the method ran. Coordinate placement with
+   `planning-iteration-mechanics`, which owns the planning-closeout gate shape.
+
+3. **Split reading at generate-tasks — as a delivery cut.** `solution-proportionality` shipped
+   `assess-design-proportionality` with a fire-point at generate-tasks, reading the provisional skeleton's phase
+   count, parent-task titles, and subtask-count signals. That is the _shrink_ reading ("should this be smaller?").
+   Add the _split_ reading ("should this be several?") beside it, honoring the stated order — shrink first, since
+   decomposing an overdesigned plan institutionalizes the excess across N members.
+
+   **The remedy must differ from the shrink remedy.** Proportionality's `revise` arm amends the spec and restarts at
+   Resolve depth & Class — it routes upstream into re-design, which is correct for a shrink but wrong for a split:
+   at generate-tasks the design is settled and only the grounded estimate of the resulting diff has changed.
+   Re-opening the design there is precisely the design-deferral authors are right to resist. So the split reading
+   resolves as a **delivery cut** — the settled design is preserved whole and only its delivery is partitioned.
+   This is the one genuinely new mechanism, and it is what `assess-cohort-fit` currently refuses: its contract sends
+   a generate-tasks discovery upstream to the design stages.
+
 4. **Stack-vs-coupling test** — codify that a sequential forward-contract chain is a _stack signal_, not a
-   keep-whole signal: an "unusable intermediate contract" claim must be tested against dependency-ordered
-   delivery (each member shipping a usable contract to the next) before it justifies one WU. Lands beside the
+   keep-whole signal: an "unusable intermediate contract" claim must be tested against dependency-ordered delivery
+   (each member shipping a usable contract to the next) before it justifies one WU. Lands beside the
    stack-vs-cohort bullet the standard already carries.
+
+5. **Intent over adjacency at adoption** — a routing-time and planning-time check keyed to intent rather than
+   domain. For a candidate adoption, name which of the target WU's recorded goals or motivating failures it serves,
+   and refuse when the answer is "none, but it is nearby." Cheapest form is a drain-side prompt on route-into-active
+   plus a planning-side pass when a spec's design sections outgrow its Goals list. Pairs naturally with deliverable
+   1's size signal, since the failure is only visible cumulatively — no single adoption looks wrong.
+
+   The same adjacency pressure applies to remediation: review findings against an oversized branch route back into
+   that branch by default, compounding the original scoping error rather than surfacing it.
+
+## Recorded cohort-fit verdict
+
+Practicing deliverable 2 on this work unit.
+
+**Verdict: stays one WU, with a predicted cut.** The five deliverables share two surfaces (`assess-cohort-fit`,
+`strategy-work-organization` § WU sizing standard) and one altitude — they are the same concern read at different
+fire-points, not orthogonal subsystems.
+
+The predicted cut, if one becomes real: deliverables 1, 4, and 5 are **doctrine text** on settled surfaces, while
+deliverable 3 is a **pipeline mechanism** with a fire-point, a remedy shape, and a new cut kind. If deliverable 3's
+delivery-cut mechanism proves to need its own design, that is the seam — and by this work unit's own maturity gate,
+the cut is not yet real, so it holds as one and re-confirms as the draft matures.
+
+Deliberately _not_ absorbed, per deliverable 5 applied to this work unit: all decomposition machinery and mechanics
+(`decompose-transform-integrity`), and mint-time properties of cut members such as commitment inheritance and
+close-with-launch (`stub-mint-to-launch`). Both are adjacent; neither serves this work unit's stated intent.
 
 ## Coordination
 
-- **`chunked-delivery`** — shares the `assess-cohort-fit` touchpoint through its amended-invariant coherency pass.
-  Coordinate that edit here; the reviewability bound separately calibrates against `review-chunking`'s chunking
-  mechanism. Until that mechanism ships, doctrine text references the bound neutrally — no forward-pointer to
-  unshipped mechanism in adopter-facing surfaces.
-- **`cohortless-decomposition`** (intended retitle: `decomposition-machinery`) — this WU increases decomposition
-  frequency; the machinery must be parallel-safe concurrently or first. Soft precedence, not a `Depends On` edge.
-- **`cohort-cut-coherence`** — adjacent rail on the same two surfaces (`assess-cohort-fit`,
-  `strategy-work-organization` § Decomposition). Open question below: absorb it here or keep it separate.
-- **`planning-iteration-mechanics`** — owns the planning-closeout gate shape; the recorded verdict may land as
-  part of its closeout checklist rather than a freestanding rule. Coordinate placement at grooming.
-- **Solution proportionality** (captured to `USER-INBOX § Work Unit`, `WU_Target: solution-proportionality`) —
-  the sibling scale-governance concern: whether the designed solution is right-sized for the chartered problem
-  at all, ex ante. Shares the generate-tasks fire-point with deliverable 3 under a strict order — shrink-reading
-  before split-reading — and relates to `planning-iteration-mechanics`' buffered appetite/continuation tripwire
-  (the in-flight half of the same family). Wrapper decision (paired siblings vs. one WU vs. stay with PIM) is
-  that capture's grooming call, not this WU's.
-- **Deliberately out of scope:** the unwired-ports guard (`USER-INBOX § Work Unit`, `WU_Target: TBD` —
-  layer-decomposition shipping zero-caller contracts). Different failure class (delivery integrity, not
-  scoping); it splits across `quality-gate-hooks` / `planning-iteration-mechanics` per its own capture.
+Resolved by slug 2026-07-26 — do not trust cached state.
+
+- **`decompose-transform-integrity`** (planned) — the machinery owner, minted from the 2026-07-26 decomposition
+  failures. This work unit increases decomposition frequency; that one makes decomposition cheap. Sequencing
+  precondition (§ Machinery readiness), not a `Depends On` edge.
+- **`stub-mint-to-launch`** (planned) — owns entry-point-agnostic mint semantics for cut members. Should land ahead
+  of this doctrine, since every cut this doctrine prescribes mints members through it.
+- **`review-chunking`** (shipped) — the chunking mechanism now exists, so doctrine text may reference chunked review
+  as real rather than prospective. It raises the reviewability bound without removing it.
+- **`solution-proportionality`** (shipped) — delivered `assess-design-proportionality` and the generate-tasks
+  fire-point deliverable 3 extends. The shrink-before-split order is now an ordering against shipped behavior.
+- **`chunked-delivery`** (planned) — shares the `assess-cohort-fit` touchpoint through its amended-invariant
+  coherency pass, and owns delivery-framing plus cut-map versus chunk vocabulary. Coordinate that edit; read the
+  method's current tip and extend it rather than re-deriving.
+- **`cohort-cut-coherence`** (planned) — adjacent rail on the same two surfaces. Open question below: absorb or keep
+  separate.
+- **`planning-iteration-mechanics`** (planned) — owns the planning-closeout gate shape; deliverable 2's recorded
+  verdict may land as part of its closeout checklist rather than as a freestanding rule.
+- **Shipped, no longer pending:** `decomposition-machinery` and `decomposition-hardening` (the latter is what
+  `cohortless-decomposition` became). Their gaps are `decompose-transform-integrity`'s, not this work unit's.
 
 ## Unknowns and Assumptions
 
-- **Where the verdict lives** — a draft/spec section vs. a meta field; whichever is chosen must survive artifact
+- **Where the verdict lives** — a draft/spec section versus a meta field; whichever is chosen must survive artifact
   relocation and read naturally at the next grooming pass.
-- **Tripwire calibration** — thresholds are heads-up-grade, not gates; settle values against the live corpus
-  (the five in-flight WUs span 44–307 files) and whether the check stays prose-first or compiles into a CLI
-  check later (procedure-evolution north star: deterministic logic migrates to the CLI).
-- **Bound survival post-`review-chunking`** — whether the integration-reviewability bound converts to a
-  chunk-count bound once chunked review exists, or stays LOC/file-shaped.
-- **`cohort-cut-coherence` absorption** — same surfaces, same altitude, both small; folding it in may beat two
-  passes over one method. Decide at grooming.
-- **Class expectation:** Light — composition from settled analysis; no invention. Resolve via
-  `classify-work-unit` at grooming.
-- **Knowledge-placement check** (per `strategy-knowledge-evolution`): all four deliverables declare at existing
-  fire-sites (method body, strategy section, generate-tasks step); no new always-loaded surface, no new doc
-  family.
+- **How the delivery cut is expressed** — whether it reuses the existing cut-map with a delivery-only disposition, or
+  needs its own shape. This is deliverable 3's real open question and the likeliest source of a genuine cut.
+- **Bound formulation** — whether independent landability and revertability can be stated crisply enough to act on,
+  or whether it degrades into a line-count threshold in practice.
+- **Deliverable 5's placement** — the drain-side prompt and the planning-side pass may belong to different owners
+  (housekeep routing versus planning closeout) even though they enforce one rule.
+- **`cohort-cut-coherence` absorption** — same surfaces, same altitude, both small; folding it in may beat two passes
+  over one method.
+- **Class:** ratcheted `Light → Heavy` at this rework. The original `Light` assumed composition from settled
+  analysis; the design-cut versus delivery-cut distinction and deliverable 3's remedy shape are authored design.
+  `Novel` is arguable — one concept is invented while the rest composes.
+- **Knowledge-placement check** (per `strategy-knowledge-evolution`): all five deliverables declare at existing
+  fire-sites (method body, strategy section, generate-tasks step); no new always-loaded surface, no new doc family.
 
 ## Scope Estimate
 
-**Small–Medium.** One method + one strategy section + one workflow step, package-synced across both copies.
-Rules text, not machinery; the tripwire's CLI compilation, if any, is deferred to the procedure-evolution
-owners.
+**Medium.** Two methods, one strategy section, one workflow step, and a routing prompt — package-synced across both
+copies. Rules text plus one new mechanism (deliverable 3's delivery cut), which is where the weight sits. The
+tripwire's CLI compilation, if any, remains deferred to the procedure-evolution owners.
+
+---

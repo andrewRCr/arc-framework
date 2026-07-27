@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
 | ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/decomposition-doctrine` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/decomposition-doctrine` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
