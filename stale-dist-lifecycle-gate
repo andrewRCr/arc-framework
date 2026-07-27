@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "stale-dist-lifecycle-gate",
+  "origin": "inbox",
+  "intent": "Refuse at first lifecycle mutation when dist is stale, not only at release commit",
+  "branch": "fix/stale-dist-lifecycle-gate",
+  "createdAt": "2026-07-27T23:20:21.612Z",
+  "originEntry": "Stale `dist` warns on some lifecycle verbs and hard-refuses on others",
+  "returnBranch": "fix/footer-nested-completed"
+}
