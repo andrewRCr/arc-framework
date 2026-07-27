@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "footer-nested-completed",
+  "origin": "inbox",
+  "intent": "Resolve Context footer filename-only refs under nested .arc/completed layouts",
+  "branch": "fix/footer-nested-completed",
+  "createdAt": "2026-07-27T23:18:44.279Z",
+  "originEntry": "Resolve commit-footer artifacts inside nested completed archives",
+  "returnBranch": "main"
+}
