@@ -511,18 +511,11 @@ remain live derivations from metas. The core supplies an exact-base integration 
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
 
-    - `[ ]` **4.3.a Bind the immutable result operation to one repository locus**
-        - Add one production adapter that derives the complete `V3PlanCompositionInput` from the revalidated
-          completed map and pinned source/base trees, then composes the immutable plan without caller-authored
-          paths, bytes, topology, retirement, dependency, or ROADMAP operands.
-        - Bind exact full/partial occupation, worktree registration and marker state, materialization, staging,
-          post-occupation revalidation, and partial preimage restoration through existing v3 state machines.
-        - Build `test-first` (one behavior at a time):
-            - Exact partial and full candidates produce the same canonical plan and prepared report.
-            - Source/base/post-occupation drift, path collision, unsupported bytes, branch/worktree conflict, and
-              materialization failure refuse before leaking partial authority.
-            - Partial failure restores exact index/worktree images; full failure reports only exact retry/discard
-              facts for its owned candidate generation.
+    - `[x]` **4.3.a Bind the immutable result operation to one repository locus**
+        - The repository adapter derives the immutable plan from pinned trees, occupies an exact claim-backed
+          candidate or configured-base locus, revalidates before mutation, materializes and stages final bytes,
+          replaces the receipt placeholder through the durable driver, and returns only bounded restoration or
+          exact candidate-generation retry/discard authority on refusal.
 
     - `[ ]` **4.3.b Expose execute, discard, and finalize through closed command modes**
         - Add mutually exclusive cut-map execute, exact cut-map discard, and receipt-plus-continuation finalization

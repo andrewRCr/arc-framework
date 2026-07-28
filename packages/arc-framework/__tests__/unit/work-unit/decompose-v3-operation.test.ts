@@ -330,6 +330,40 @@ describe("executeV3DecomposeOperation", () => {
     });
   });
 
+  it("restores partial paths when durable preparation persistence refuses", async () => {
+    const fixture = operationFixture();
+    const captured = preimages(fixture.plan);
+    let restored: readonly V3PartialPathPreimage[] = [];
+    const result = await executeV3DecomposeOperation({
+      protection: "partial",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+      sourceArtifactInventory: fixture.sourceArtifactInventory,
+    }, dependencies(fixture, partialOccupation(), [], {
+      partialRecovery: {
+        capture: async () => captured,
+        restore: async (images) => {
+          restored = images;
+        },
+        verify: async () => ({ status: "restored" }),
+      },
+      persist: async () => ({ status: "refused", reason: "durable-authority-moved" }),
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "persistence",
+      reason: "durable-authority-moved",
+      recovery: {
+        kind: "partial-restoration",
+        status: "restored",
+        restoredPaths: [fixture.firstPath, fixture.secondPath],
+      },
+    });
+    expect(restored).toHaveLength(2);
+  });
+
   it("leaves a full candidate with exact retry and discard facts at every post-occupation failure", async () => {
     const fixture = operationFixture();
     const occupation = fullOccupation();

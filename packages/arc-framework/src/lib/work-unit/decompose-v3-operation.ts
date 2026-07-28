@@ -73,6 +73,9 @@ export interface V3DecomposeOperationDependencies {
   prepare?: (
     input: CreateV3DecomposePreparationInput,
   ) => CreateV3DecomposePreparationResult;
+  persist?: (
+    preparation: V3DecomposePreparation,
+  ) => Promise<{ status: "persisted" } | { status: "refused"; reason: string }>;
 }
 
 export type V3DecomposeOperationRecovery =
@@ -112,6 +115,7 @@ export type V3DecomposeOperationResult =
         | "partial-capture"
         | "materialization"
         | "preparation"
+        | "persistence"
         | "restoration";
       reason: string;
       report?: V3DecomposeResultReport;
@@ -325,6 +329,36 @@ export async function executeV3DecomposeOperation(
       report,
       recovery,
     };
+  }
+
+  if (dependencies.persist !== undefined) {
+    let persisted: { status: "persisted" } | { status: "refused"; reason: string };
+    try {
+      persisted = await dependencies.persist(prepared.preparation);
+    } catch {
+      persisted = { status: "refused", reason: "preparation-persistence-failed" };
+    }
+    if (persisted.status === "refused") {
+      const mutatedPaths = materialization.paths
+        .filter(({ disposition }) => disposition === "applied")
+        .map(({ path }) => path);
+      const recovery = occupation.protection === "partial"
+        ? await restorePartial(
+            partialPreimages,
+            mutatedPaths,
+            dependencies.partialRecovery as V3PartialRecoveryIO,
+          )
+        : fullRecovery(input.plan, occupation);
+      return {
+        status: "refused",
+        stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+          ? "restoration"
+          : "persistence",
+        reason: persisted.reason,
+        report,
+        recovery,
+      };
+    }
   }
 
   return {

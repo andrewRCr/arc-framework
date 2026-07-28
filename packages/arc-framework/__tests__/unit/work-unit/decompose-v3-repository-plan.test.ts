@@ -245,4 +245,35 @@ describe("v3 repository plan projection", () => {
       ".arc/backlog/planned/origin/meta-origin.md": { kind: "absent" },
     });
   });
+
+  it("refuses an unsupported existing destination object before rendering the result", async () => {
+    const input = fixture();
+    const unsupported = {
+      kind: "object" as const,
+      objectKind: "symlink",
+      mode: "120000",
+      bytes: encoder.encode("../foreign"),
+    };
+    input.sourceTree[".arc/reference/shared.txt"] = unsupported;
+    input.mergeBaseTree[".arc/reference/shared.txt"] = unsupported;
+    input.resultBaseTree[".arc/reference/shared.txt"] = unsupported;
+    const renderRoadmap = vi.fn(async () => encoder.encode("# should not render\n"));
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      refusal: { stage: "content", reason: "target-projection-failed" },
+    });
+    expect(renderRoadmap).not.toHaveBeenCalled();
+  });
 });
