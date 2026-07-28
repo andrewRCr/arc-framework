@@ -7,10 +7,7 @@
  */
 
 import type { CanonicalDigest } from "../canonical/canonical-json.js";
-import {
-  parseV3DecomposePreparation,
-  type V3DecomposePreparationFacts,
-} from "./decompose-v3-preparation.js";
+import type { V3DecomposePreparationFacts } from "./decompose-v3-preparation.js";
 import {
   parseV3DecomposeReceipt,
   type V3DecomposeReceipt,
@@ -113,26 +110,7 @@ function claimRetirement(
 }
 
 function authenticateReceipt(input: unknown): V3DecomposeReceipt | null {
-  const candidate = typeof input === "string"
-    ? (() => {
-      try {
-        return JSON.parse(input) as unknown;
-      } catch {
-        return null;
-      }
-    })()
-    : input;
-  if (candidate === null || typeof candidate !== "object") return null;
-  const record = candidate as Partial<V3DecomposeReceipt>;
-  const preparation = parseV3DecomposePreparation({
-    kind: "prepared-decompose",
-    schemaVersion: 3,
-    receiptId: record.receiptId,
-    preparationId: record.preparationId,
-    facts: record.prepared,
-  });
-  if (preparation === null) return null;
-  return parseV3DecomposeReceipt(input, preparation);
+  return parseV3DecomposeReceipt(input);
 }
 
 /**
