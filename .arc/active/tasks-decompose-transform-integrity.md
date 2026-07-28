@@ -406,26 +406,15 @@ authority; finalization checks mechanics and persists no approval credential.
           separate legacy policy; malformed, multiple, amended, rider-bearing, ownership-drifted, and
           path-partition-drifted evidence is rejected.
 
-    - `[ ]` **3.4.c Refresh only reviewed fully staged uncommitted refinement**
-        - Require receipt absence from the exact candidate parent, allowed destination-only changes, and
-          index/worktree parity.
-        - Preserve source, allocation, inventories, result base, dependencies, allowed paths, candidate ownership,
-          publication, constitutive topology, and byte-identical prior `initialContinuation`. Require the newly
-          supplied continuation input to equal the finalized value; recompute only
-          destination/managed-result/patch facts from one pinned candidate/index identity.
-        - Recheck the pinned tree/index identity and worktree parity immediately before and after receipt
-          compare-and-swap. On movement or staging failure, restore the exact prior finalized receipt in index and
-          worktree or return typed bounded residue without claiming refresh.
-        - Build `test-first` (one behavior at a time):
-            - Reviewed staged refinement returns `refreshed`.
-            - Parent presence, unstaged/mixed paths, foreign changes, publication drift, or mechanical-boundary
-              change refuses.
-            - Selected-to-different-selected, selected-to-none, and none-to-selected continuation changes refuse
-              without replacing the receipt.
-            - Race injection between validation and receipt staging refuses and preserves/restores exact prior
-              receipt state.
-            - A real-Git case proves parent-tree absence, index/worktree separation, pinned tree identity, and
-              refresh rollback.
+    - `[x]` **3.4.c Refresh only reviewed fully staged uncommitted refinement**
+        - Added opaque destination-only refresh authorization that preserves every preparation-bound mechanical
+          fact and the finalized continuation while refusing path, prestate, non-destination, and continuation
+          drift.
+        - The Git driver now requires the exact receipt-plus-transition staged set and index/worktree parity, pins
+          candidate identity immediately around receipt replacement, and restores the exact prior receipt or
+          returns typed bounded residue.
+        - Real-Git coverage proves parent absence, reviewed refresh, foreign and mixed-path refusal, post-check race
+          refusal, and exact prior-receipt restoration.
 
     - `[ ]` **3.4.d Map typed recovery once**
         - Define a closed `{ action, establishedFacts }` recovery union over `retry`, `discard`, `re-preflight`,

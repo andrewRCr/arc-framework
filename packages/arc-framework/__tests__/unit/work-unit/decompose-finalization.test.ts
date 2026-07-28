@@ -3,12 +3,17 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
+  authorizeV3DecomposeRefresh,
   finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
   resolveV3DecomposeFinalizationTransition,
   type V3DecomposeFinalizationContext,
 } from "../../../src/lib/work-unit/decompose-finalization.js";
-import { createV3DecomposeReceipt } from "../../../src/lib/work-unit/decompose-v3-receipt.js";
+import {
+  createV3DecomposeReceipt,
+  type V3DecomposeContinuationInput,
+  type V3ManagedPathResult,
+} from "../../../src/lib/work-unit/decompose-v3-receipt.js";
 import { validateFinalizedV3Decomposition } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
 
 describe("retired v1/v2 decomposition finalization boundary", () => {
@@ -61,6 +66,54 @@ describe("v3 decomposition finalization boundary", () => {
     };
   }
 
+  function refinedReceipt() {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const managedPathResults = structuredClone(receipt.finalized.managedPathResults);
+    const destinationPath = preparation.facts.destinationOutputPaths[0]!.paths[0]!;
+    const result = managedPathResults.find(({ path }) => path === destinationPath);
+    if (result?.after.kind !== "file") throw new Error("fixture destination must be a file");
+    result.after.contentDigest = canonicalDigest("refined destination");
+    const destinationOutputs = preparation.facts.destinationOutputPaths.map(({ destinationId, paths }) => ({
+      destinationId,
+      outputs: paths.map((path) => {
+        const output = managedPathResults.find((candidate) => candidate.path === path);
+        if (output === undefined) throw new Error("fixture destination output must exist");
+        return { path, after: output.after };
+      }),
+    }));
+    const refined = createV3DecomposeReceipt(
+      preparation,
+      managedPathResults,
+      destinationOutputs,
+      receipt.finalized.publication.initialContinuation,
+    );
+    if (refined === null) throw new Error("refined receipt must be canonical");
+    return { preparation, receipt, refined };
+  }
+
+  function recreateReceipt(
+    managedPathResults: readonly V3ManagedPathResult[],
+    continuation: V3DecomposeContinuationInput,
+  ) {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const destinationOutputs = preparation.facts.destinationOutputPaths.map(({ destinationId, paths }) => ({
+      destinationId,
+      outputs: paths.map((path) => {
+        const result = managedPathResults.find((candidate) => candidate.path === path);
+        if (result === undefined) throw new Error("destination result must exist");
+        return { path, after: result.after };
+      }),
+    }));
+    const receipt = createV3DecomposeReceipt(
+      preparation,
+      managedPathResults,
+      destinationOutputs,
+      continuation,
+    );
+    if (receipt === null) throw new Error("receipt must be canonical");
+    return receipt;
+  }
+
   function fixtureContext(): {
     ctx: V3DecomposeFinalizationContext;
     readStored(): string;
@@ -83,6 +136,7 @@ describe("v3 decomposition finalization boundary", () => {
           if (stored !== expected) throw new Error("compare-and-set failed");
           stored = next;
           writeCount += 1;
+          return { status: "replaced" };
         },
       },
       readStored: () => stored,
@@ -91,18 +145,23 @@ describe("v3 decomposition finalization boundary", () => {
   }
 
   it("returns one receipt-bound payload for recorded, already-finalized, and refreshed", () => {
-    const { preparation, receipt, facts } = fixtureFacts();
+    const { preparation, receipt: prior, refined: receipt } = refinedReceipt();
+    const facts = fixtureFacts().facts;
+    facts.receipt = receipt;
+    facts.destinationOutputs = receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({ destinationId, outputs }),
+    );
+    facts.managedPathResults = receipt.finalized.managedPathResults;
+    facts.transitionPatch = receipt.finalized.transitionPatch;
+    facts.publication = receipt.finalized.publication;
     const validation = validateFinalizedV3Decomposition(facts);
     if (validation.status !== "validated") throw new Error("fixture must validate");
-    const prior = createV3DecomposeReceipt(
-      preparation,
-      receipt.finalized.managedPathResults,
-      receipt.finalized.destinationDigests.map(
-        ({ destinationId, outputs }) => ({ destinationId, outputs }),
-      ),
-      { kind: "none" },
+    const refresh = authorizeV3DecomposeRefresh(
+      prior,
+      receipt,
+      prior.finalized.publication.initialContinuation,
     );
-    if (prior === null) throw new Error("prior receipt must be canonical");
+    if (refresh.status !== "authorized") throw new Error("refresh must be authorized");
 
     const recorded = resolveV3DecomposeFinalizationTransition({
       validation,
@@ -121,7 +180,7 @@ describe("v3 decomposition finalization boundary", () => {
       parentRecord: null,
       indexRecord: canonicalize(prior),
       worktreeRecord: canonicalize(prior),
-      refresh: { status: "authorized", priorReceipt: prior },
+      refresh,
     });
 
     expect(recorded).toMatchObject({ status: "recorded", mutation: { kind: "replace" } });
@@ -138,6 +197,91 @@ describe("v3 decomposition finalization boundary", () => {
     };
     expect(payload(alreadyFinalized)).toEqual(payload(recorded));
     expect(payload(refreshed)).toEqual(payload(recorded));
+  });
+
+  it("authorizes a destination-only refinement with unchanged continuation", () => {
+    const { receipt, refined } = refinedReceipt();
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      refined,
+      receipt.finalized.publication.initialContinuation,
+    )).toMatchObject({
+      status: "authorized",
+      priorReceipt: receipt,
+    });
+  });
+
+  it.each([
+    [{ kind: "selected", slugs: ["member-b"] }],
+    [{ kind: "none" }],
+  ] as const)("refuses a changed selected continuation", (continuation) => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const candidate = recreateReceipt(
+      receipt.finalized.managedPathResults,
+      structuredClone(continuation) as V3DecomposeContinuationInput,
+    );
+    expect(authorizeV3DecomposeRefresh(receipt, candidate, continuation)).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
+  });
+
+  it("refuses changing a finalized none continuation to selected", () => {
+    const { receipt: selected } = v3DecompositionEvidenceFixture();
+    const prior = recreateReceipt(selected.finalized.managedPathResults, { kind: "none" });
+    expect(authorizeV3DecomposeRefresh(
+      prior,
+      selected,
+      selected.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
+  });
+
+  it("refuses an invalid supplied continuation without throwing", () => {
+    const { receipt, refined } = refinedReceipt();
+    expect(authorizeV3DecomposeRefresh(receipt, refined, { kind: "selected", slugs: ["foreign"] })).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
+  });
+
+  it("refuses a changed managed-path prestate boundary", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const changed = structuredClone(receipt.finalized.managedPathResults);
+    changed[0]!.before = {
+      kind: "file",
+      mode: "100644",
+      contentDigest: canonicalDigest("changed prestate"),
+    };
+    const candidate = recreateReceipt(changed, receipt.finalized.publication.initialContinuation);
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      candidate,
+      receipt.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-path-boundary-changed", locus: changed[0]!.path },
+    });
+  });
+
+  it("refuses a changed non-destination result", () => {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const changed = structuredClone(receipt.finalized.managedPathResults);
+    const destinationPaths = new Set(preparation.facts.destinationOutputPaths.flatMap(({ paths }) => paths));
+    const result = changed.find(({ path }) => !destinationPaths.has(path));
+    if (result?.after.kind !== "file") throw new Error("fixture topology result must be a file");
+    result.after.contentDigest = canonicalDigest("changed topology");
+    const candidate = recreateReceipt(changed, receipt.finalized.publication.initialContinuation);
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      candidate,
+      receipt.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-nondestination-changed", locus: result.path },
+    });
   });
 
   it.each([
@@ -234,6 +378,34 @@ describe("v3 decomposition finalization boundary", () => {
       diagnostic: "prospective-projection-mismatch",
     });
     expect(harness.writes()).toBe(0);
+  });
+
+  it("propagates typed bounded residue instead of claiming finalization", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.replaceAndStageRecord = async () => ({
+      status: "refused",
+      refusal: {
+        code: "record-rollback-residue",
+        locus: "index",
+        diagnostic: "prior receipt could not be restored in the index",
+      },
+    });
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "evidence-mismatch",
+      diagnostic: "record-rollback-residue",
+      refusal: {
+        code: "record-rollback-residue",
+        locus: "index",
+        diagnostic: "prior receipt could not be restored in the index",
+      },
+    });
   });
 
   it("returns no authority and performs no write for stored or live drift", async () => {

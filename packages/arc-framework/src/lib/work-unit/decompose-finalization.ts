@@ -7,6 +7,7 @@ import {
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
 import {
+  parseV3DecomposeContinuationInput,
   parseV3DecomposeReceipt,
   type V3DecomposeReceipt,
 } from "./decompose-v3-receipt.js";
@@ -83,7 +84,7 @@ export interface V3DecomposeFinalizationContext {
     receiptId: CanonicalDigest,
     expectedContent: string,
     nextContent: string,
-  ): Promise<void>;
+  ): Promise<V3DecomposeRecordMutationResult>;
 }
 
 export type V3DecomposeFinalizationResult =
@@ -94,7 +95,7 @@ export type V3DecomposeFinalizationResult =
     status: "refused";
     reason: TeardownAuthorizationRefusal;
     diagnostic?: string;
-    refusal?: V3DecomposeFinalizationTransitionRefusal;
+    refusal?: V3DecomposeFinalizationTransitionRefusal | V3DecomposeRecordMutationRefusal;
   };
 
 type V3FinalizationRecord =
@@ -103,11 +104,106 @@ type V3FinalizationRecord =
   | { kind: "receipt"; value: V3DecomposeReceipt; bytes: string }
   | { kind: "invalid" };
 
+const refreshAuthority: unique symbol = Symbol("v3-decompose-refresh-authority");
+
+export type V3DecomposeRefreshRefusal =
+  | { code: "refresh-evidence-invalid" }
+  | { code: "refresh-mechanical-boundary-changed" }
+  | { code: "refresh-continuation-changed" }
+  | { code: "refresh-path-boundary-changed"; locus?: string }
+  | { code: "refresh-nondestination-changed"; locus: string };
+
+export type V3DecomposeRefreshAuthorization =
+  | {
+    status: "authorized";
+    priorReceipt: V3DecomposeReceipt;
+    readonly [refreshAuthority]: true;
+  }
+  | { status: "refused"; refusal: V3DecomposeRefreshRefusal };
+
+/**
+ * Authorize one uncommitted refresh without reopening mechanical or semantic authority.
+ *
+ * @param priorInput - Existing canonical finalized receipt
+ * @param candidateInput - Receipt recomputed from the pinned candidate index
+ * @param suppliedContinuation - Ephemeral continuation supplied to this finalize invocation
+ * @returns Opaque refresh authority or one typed refusal
+ */
+export function authorizeV3DecomposeRefresh(
+  priorInput: unknown,
+  candidateInput: unknown,
+  suppliedContinuation: unknown,
+): V3DecomposeRefreshAuthorization {
+  const prior = parseV3DecomposeReceipt(priorInput);
+  const candidate = parseV3DecomposeReceipt(candidateInput);
+  if (prior === null || candidate === null) {
+    return { status: "refused", refusal: { code: "refresh-evidence-invalid" } };
+  }
+  if (prior.receiptId !== candidate.receiptId
+    || prior.preparationId !== candidate.preparationId
+    || canonicalize(prior.prepared) !== canonicalize(candidate.prepared)) {
+    return { status: "refused", refusal: { code: "refresh-mechanical-boundary-changed" } };
+  }
+  const priorContinuation = prior.finalized.publication.initialContinuation;
+  const supplied = parseV3DecomposeContinuationInput(
+    suppliedContinuation,
+    prior.prepared.candidatePublication,
+  );
+  if (canonicalize(priorContinuation) !== canonicalize(candidate.finalized.publication.initialContinuation)
+    || supplied === null
+    || canonicalize(priorContinuation) !== canonicalize(supplied)) {
+    return { status: "refused", refusal: { code: "refresh-continuation-changed" } };
+  }
+  const destinationPaths = new Set(
+    prior.prepared.destinationOutputPaths.flatMap(({ paths }) => paths),
+  );
+  const priorResults = prior.finalized.managedPathResults;
+  const candidateResults = candidate.finalized.managedPathResults;
+  for (let index = 0; index < Math.max(priorResults.length, candidateResults.length); index += 1) {
+    const before = priorResults[index];
+    const after = candidateResults[index];
+    if (before === undefined || after === undefined || before.path !== after.path
+      || canonicalize(before.before) !== canonicalize(after.before)) {
+      return {
+        status: "refused",
+        refusal: {
+          code: "refresh-path-boundary-changed",
+          ...((before?.path ?? after?.path) === undefined ? {} : { locus: before?.path ?? after?.path }),
+        },
+      };
+    }
+    if (!destinationPaths.has(before.path) && canonicalize(before.after) !== canonicalize(after.after)) {
+      return {
+        status: "refused",
+        refusal: { code: "refresh-nondestination-changed", locus: before.path },
+      };
+    }
+  }
+  return {
+    status: "authorized",
+    priorReceipt: prior,
+    [refreshAuthority]: true,
+  };
+}
+
 export type V3DecomposeFinalizationTransitionRefusal =
   | { code: "validation-mismatch"; mismatch: V3DecompositionMismatch }
   | { code: "candidate-parent-record"; locus: "parent" }
   | { code: "record-state-mismatch"; locus: "index" | "worktree" | "index-worktree" }
   | { code: "refresh-not-authorized"; locus: "index" | "worktree" };
+
+export type V3DecomposeRecordMutationRefusal =
+  | { code: "record-projection-moved"; locus: "before" | "after" }
+  | { code: "record-replacement-failed"; diagnostic: string }
+  | {
+    code: "record-rollback-residue";
+    locus: "worktree" | "index" | "projection";
+    diagnostic: string;
+  };
+
+export type V3DecomposeRecordMutationResult =
+  | { status: "replaced" }
+  | { status: "refused"; refusal: V3DecomposeRecordMutationRefusal };
 
 export interface ResolveV3DecomposeFinalizationTransitionInput {
   validation: FinalizedV3DecompositionValidation;
@@ -117,6 +213,7 @@ export interface ResolveV3DecomposeFinalizationTransitionInput {
   refresh?: {
     status: "authorized";
     priorReceipt: V3DecomposeReceipt;
+    readonly [refreshAuthority]: true;
   };
 }
 
@@ -295,11 +392,19 @@ export async function finalizeV3DecomposeRetirement(
       };
     }
     if (transition.mutation.kind === "replace") {
-      await ctx.replaceAndStageRecord(
+      const mutation = await ctx.replaceAndStageRecord(
         transition.receipt.receiptId,
         transition.mutation.expected,
         transition.mutation.next,
       );
+      if (mutation.status === "refused") {
+        return {
+          status: "refused",
+          reason: "evidence-mismatch",
+          diagnostic: mutation.refusal.code,
+          refusal: mutation.refusal,
+        };
+      }
     }
     return {
       status: transition.status,

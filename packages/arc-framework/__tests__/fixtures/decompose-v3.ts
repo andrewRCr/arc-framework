@@ -24,16 +24,21 @@ import {
   type V3DecomposeCutMap,
 } from "../../src/lib/work-unit/decompose-v3-schema.js";
 
-export function v3DecompositionEvidenceFixture(): {
+export function v3DecompositionEvidenceFixture(options: {
+  sourceHead?: string;
+  resultBaseHead?: string;
+  digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
+} = {}): {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
 } {
+  const digestLabel = options.digestLabel ?? canonicalDigest;
   const sourceLocator = { artifact: "draft-origin.md", kind: "preamble" as const };
   const sourceUnit = {
     sourceId: v3SourceId({ sourcePath: ".arc/active/draft-origin.md", sourceLocator }),
     sourcePath: ".arc/active/draft-origin.md",
     sourceLocator,
-    contentDigest: canonicalDigest("source unit"),
+    contentDigest: digestLabel("source unit"),
   };
   const incomingEdge = {
     dependent: "consumer",
@@ -46,9 +51,9 @@ export function v3DecompositionEvidenceFixture(): {
       kind: "started-planning" as const,
       logicalBranch: "plan/origin",
       ref: "refs/heads/plan/origin",
-      head: "a".repeat(40),
+      head: options.sourceHead ?? "a".repeat(40),
     },
-    resultBase: { ref: "refs/heads/main", head: "b".repeat(40) },
+    resultBase: { ref: "refs/heads/main", head: options.resultBaseHead ?? "b".repeat(40) },
     planningProfile: { kind: "draft" as const, sourceDesign: ["draft-origin.md"] },
     sourceUnits: [sourceUnit],
     incomingEdges: [incomingEdge],
@@ -103,7 +108,7 @@ export function v3DecompositionEvidenceFixture(): {
     after: {
       kind: "file" as const,
       mode: "100644" as const,
-      contentDigest: canonicalDigest("cohort topology"),
+      contentDigest: digestLabel("cohort topology"),
     },
   }];
   const topology = { facts: topologyFacts, digest: v3TopologyDigest(topologyFacts) };
@@ -119,7 +124,7 @@ export function v3DecompositionEvidenceFixture(): {
   const file = (label: string) => ({
     kind: "file" as const,
     mode: "100644" as const,
-    contentDigest: canonicalDigest(label),
+    contentDigest: digestLabel(label),
   });
   const prospectiveProjection = {
     overlay: { origin: "origin", sourceBranch: "plan/origin", planId },

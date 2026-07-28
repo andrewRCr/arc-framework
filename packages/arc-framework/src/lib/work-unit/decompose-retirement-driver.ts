@@ -20,10 +20,12 @@ import {
   prepareDecomposeRetirement,
 } from "./decompose-preparation.js";
 import {
+  authorizeV3DecomposeRefresh,
   finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
   type DecomposeFinalTarget,
   type DecomposeFinalizationProjection,
+  type V3DecomposeRecordMutationResult,
   type V3DecomposeFinalizationResult,
 } from "./decompose-finalization.js";
 import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
@@ -233,12 +235,29 @@ async function readV3FinalizationProjection(
   preparation: V3DecomposePreparation,
 ): Promise<{
   authorityVersion: CanonicalDigest;
+  candidateIndexIdentity: CanonicalDigest;
+  sourceHead: string;
+  resultBaseHead: string;
+  candidateHead: string;
+  indexTree: string;
   parentRecord: string | null;
   indexRecord: string | null;
   worktreeRecord: string | null;
 }> {
   const machine = preparation.facts.completedMap.machine;
-  const [sourceHead, resultBaseHead, candidateHead, indexTree, parentRecord, indexRecord, worktreeRecord] =
+  const receiptPath = resolveRetirementRecordRelativePath(preparation.receiptId);
+  const candidatePaths = preparation.facts.allowedPaths.filter((path) => path !== receiptPath);
+  const [
+    sourceHead,
+    resultBaseHead,
+    candidateHead,
+    indexTree,
+    parentRecord,
+    indexRecord,
+    worktreeRecord,
+    stagedPaths,
+    candidateStates,
+  ] =
     await Promise.all([
       resolveV3Ref(deps, machine.source.ref),
       resolveV3Ref(deps, machine.resultBase.ref),
@@ -247,12 +266,31 @@ async function readV3FinalizationProjection(
       readV3RecordBlob(deps, "HEAD", preparation.receiptId),
       readV3RecordBlob(deps, null, preparation.receiptId),
       readDecomposeRecord(deps, preparation.receiptId),
+      readDecomposeStagedPaths(deps),
+      Promise.all(candidatePaths.map(async (rawPath) => {
+        const path = validateManagedPath(rawPath);
+        return { path, state: await readV3PathState(deps, null, path) };
+      })),
     ]);
   if (sourceHead !== machine.source.head || resultBaseHead !== machine.resultBase.head
     || candidateHead !== machine.resultBase.head || indexTree === "") {
     throw new Error("v3 decompose projection changed");
   }
+  const candidateIndexIdentity = canonicalDigest({
+    schemaVersion: 3,
+    kind: "v3-decompose-candidate-index",
+    sourceHead,
+    resultBaseHead,
+    candidateHead,
+    candidateStates,
+    stagedPaths: stagedPaths.filter((path) => path !== receiptPath),
+  });
   return {
+    candidateIndexIdentity,
+    sourceHead,
+    resultBaseHead,
+    candidateHead,
+    indexTree,
     parentRecord,
     indexRecord,
     worktreeRecord,
@@ -269,6 +307,17 @@ async function readV3FinalizationProjection(
       worktreeRecord: worktreeRecord === null ? null : digestBytes(Buffer.from(worktreeRecord, "utf8")),
     }),
   };
+}
+
+async function requireExactV3StagedPaths(
+  deps: InRepoDecomposeRetirementDeps,
+  paths: readonly string[],
+): Promise<void> {
+  const expected = [...paths].sort(compareUtf8);
+  const actual = await readDecomposeStagedPaths(deps);
+  if (canonicalize(actual) !== canonicalize(expected)) {
+    throw new Error("v3 decompose staged path set changed");
+  }
 }
 
 async function requireV3IndexWorktreeParity(
@@ -289,16 +338,30 @@ async function requireV3IndexWorktreeParity(
 
 async function replaceV3Record(
   deps: InRepoDecomposeRetirementDeps,
+  preparation: V3DecomposePreparation,
+  expectedProjection: Awaited<ReturnType<typeof readV3FinalizationProjection>>,
+  expectedStagedPaths: readonly string[],
   receiptId: CanonicalDigest,
   expected: string,
   next: string,
-): Promise<void> {
+): Promise<V3DecomposeRecordMutationResult> {
   const path = resolveRetirementRecordPath(deps.cwd, receiptId);
   const relativePath = resolveRetirementRecordRelativePath(receiptId);
-  if (await deps.readFile(path) !== expected) throw new Error("prepared record changed");
-  const write = deps.atomicWriteFile ?? atomicWriteFile;
-  await write(path, next);
   try {
+    const immediatelyBefore = await readV3FinalizationProjection(deps, preparation);
+    await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+    await requireExactV3StagedPaths(deps, expectedStagedPaths);
+    if (immediatelyBefore.authorityVersion !== expectedProjection.authorityVersion
+      || immediatelyBefore.candidateIndexIdentity !== expectedProjection.candidateIndexIdentity
+      || await deps.readFile(path) !== expected) {
+      return { status: "refused", refusal: { code: "record-projection-moved", locus: "before" } };
+    }
+  } catch {
+    return { status: "refused", refusal: { code: "record-projection-moved", locus: "before" } };
+  }
+  const write = deps.atomicWriteFile ?? atomicWriteFile;
+  try {
+    await write(path, next);
     await stageDecomposePaths(deps, [relativePath]);
     const staged = await deps.readBlob(null, validateManagedPath(relativePath));
     if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next) {
@@ -307,13 +370,55 @@ async function replaceV3Record(
   } catch (error) {
     const rollbackFailure = await restorePreparedRecord(deps, write, path, relativePath, expected);
     if (rollbackFailure !== null) {
-      throw new Error(
-        `finalized record update failed: ${errorMessage(error)}. Rollback was incomplete: ${rollbackFailure}.`,
-        { cause: error },
-      );
+      return {
+        status: "refused",
+        refusal: {
+          code: "record-rollback-residue",
+          locus: rollbackFailure.locus,
+          diagnostic: `${errorMessage(error)}; ${rollbackFailure.diagnostic}`,
+        },
+      };
     }
-    throw error;
+    return {
+      status: "refused",
+      refusal: { code: "record-replacement-failed", diagnostic: errorMessage(error) },
+    };
   }
+  let postCasMatches: boolean;
+  try {
+    const immediatelyAfter = await readV3FinalizationProjection(deps, preparation);
+    await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+    await requireExactV3StagedPaths(deps, expectedStagedPaths);
+    postCasMatches = immediatelyAfter.sourceHead === expectedProjection.sourceHead
+      && immediatelyAfter.resultBaseHead === expectedProjection.resultBaseHead
+      && immediatelyAfter.candidateHead === expectedProjection.candidateHead
+      && immediatelyAfter.parentRecord === expectedProjection.parentRecord
+      && immediatelyAfter.candidateIndexIdentity === expectedProjection.candidateIndexIdentity
+      && immediatelyAfter.indexRecord === next
+      && immediatelyAfter.worktreeRecord === next;
+  } catch {
+    postCasMatches = false;
+  }
+  if (!postCasMatches) {
+    const rollbackFailure = await restorePreparedRecord(
+      deps,
+      write,
+      path,
+      relativePath,
+      expected,
+    );
+    return rollbackFailure === null
+      ? { status: "refused", refusal: { code: "record-projection-moved", locus: "after" } }
+      : {
+          status: "refused",
+          refusal: {
+            code: "record-rollback-residue",
+            locus: rollbackFailure.locus,
+            diagnostic: rollbackFailure.diagnostic,
+          },
+        };
+  }
+  return { status: "replaced" };
 }
 
 function deriveV3DestinationOutputs(
@@ -443,6 +548,21 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           continuation.publication.initialContinuation,
         );
         if (receipt === null) return { status: "refused", reason: "receipt-derivation-mismatch" };
+        const expectedStagedPaths = [...new Set([
+          receiptPath,
+          ...receipt.finalized.transitionPatch.map(({ path }) => path),
+        ])].sort(compareUtf8);
+        await requireExactV3StagedPaths(deps, expectedStagedPaths);
+        const refresh = storedReceipt === null
+          ? undefined
+          : authorizeV3DecomposeRefresh(
+              storedReceipt,
+              receipt,
+              input.continuation,
+            );
+        if (refresh?.status === "refused") {
+          return { status: "refused", reason: refresh.refusal.code };
+        }
         const projectionAfter = await readV3FinalizationProjection(deps, preparation);
         await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
         if (projectionBefore.authorityVersion !== projectionAfter.authorityVersion) {
@@ -469,6 +589,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             topology: preparation.facts.topology,
             publication: receipt.finalized.publication,
           },
+          ...(refresh === undefined ? {} : { refresh }),
         };
         return await finalizeV3DecomposeRetirement(
           {
@@ -476,7 +597,15 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             validateProspectiveProjection: async (prepared, overlay) =>
               await validateProspectiveProjection(prepared, overlay),
             replaceAndStageRecord: async (recordId, expected, next) => {
-              await replaceV3Record(deps, recordId, expected, next);
+              return await replaceV3Record(
+                deps,
+                preparation,
+                projectionAfter,
+                expectedStagedPaths,
+                recordId,
+                expected,
+                next,
+              );
             },
           },
           receipt,
@@ -706,7 +835,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
                 if (rollbackFailure !== null) {
                   throw new Error(
                     `finalized record update failed: ${errorMessage(error)}. `
-                    + `Rollback was incomplete: ${rollbackFailure}.`,
+                    + `Rollback was incomplete: ${rollbackFailure.diagnostic}.`,
                     { cause: error },
                   );
                 }
@@ -751,24 +880,46 @@ async function restorePreparedRecord(
   path: string,
   relativePath: string,
   expected: string,
-): Promise<string | null> {
+): Promise<{ locus: "worktree" | "index" | "projection"; diagnostic: string } | null> {
   try {
     await write(path, expected);
   } catch (error) {
-    return `prepared record working-tree restoration failed: ${errorMessage(error)}`;
+    return {
+      locus: "worktree",
+      diagnostic: `prepared record working-tree restoration failed: ${errorMessage(error)}`,
+    };
+  }
+  try {
+    if (await deps.readFile(path) !== expected) {
+      return {
+        locus: "worktree",
+        diagnostic: "prepared record working-tree restoration could not be verified",
+      };
+    }
+  } catch (error) {
+    return {
+      locus: "worktree",
+      diagnostic: `prepared record working-tree verification failed: ${errorMessage(error)}`,
+    };
   }
   try {
     await stageDecomposePaths(deps, [relativePath]);
   } catch (error) {
-    return `prepared record index restoration failed: ${errorMessage(error)}`;
+    return {
+      locus: "index",
+      diagnostic: `prepared record index restoration failed: ${errorMessage(error)}`,
+    };
   }
   try {
     const staged = await deps.readBlob(null, validateManagedPath(relativePath));
     if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== expected) {
-      return "prepared record is absent from the restored index";
+      return { locus: "index", diagnostic: "prepared record is absent from the restored index" };
     }
   } catch (error) {
-    return `prepared record index verification failed: ${errorMessage(error)}`;
+    return {
+      locus: "index",
+      diagnostic: `prepared record index verification failed: ${errorMessage(error)}`,
+    };
   }
   return null;
 }
