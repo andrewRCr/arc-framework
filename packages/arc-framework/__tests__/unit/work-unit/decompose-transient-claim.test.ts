@@ -6,25 +6,37 @@ import {
   decomposeTransientClaimId,
   occupyDecomposeTransientClaim,
   parseDecomposeTransientClaim,
+  projectDecomposeTransientCandidateOwnership,
+  projectLiveDecomposeCandidateBranches,
   releaseDecomposeTransientWorktree,
   reserveDecomposeTransientWorktree,
   retireDecomposeTransientClaim,
 } from "../../../src/lib/work-unit/decompose-transient-claim.js";
 
 const CUT_MAP_DIGEST = canonicalDigest({ cut: "map" });
+const LANDED = {
+  kind: "landed" as const,
+  receiptId: canonicalDigest("receipt"),
+  candidateHead: "candidate-head",
+};
+const DISCARDED = {
+  kind: "discarded" as const,
+  planId: canonicalDigest("plan"),
+  candidateHead: "candidate-head",
+};
 
 function binding(overrides: Partial<{
   origin: string;
   candidateBranch: string;
   sourceHead: string;
-  resultBase: string;
+  resultBaseHead: string;
   cutMapDigest: typeof CUT_MAP_DIGEST;
 }> = {}) {
   return {
     origin: "origin",
     candidateBranch: "arc/decompose/origin/candidate",
     sourceHead: "source-head",
-    resultBase: "result-base",
+    resultBaseHead: "result-base",
     cutMapDigest: CUT_MAP_DIGEST,
     ...overrides,
   };
@@ -53,12 +65,12 @@ function occupy() {
     {
       registrations: [{
         path,
-        candidateBranch: acquired.candidateBranch,
-        head: acquired.resultBase,
+        candidateBranch: acquired.binding.candidateBranch,
+        head: acquired.binding.resultBaseHead,
       }],
       branch: {
-        candidateBranch: acquired.candidateBranch,
-        head: acquired.resultBase,
+        candidateBranch: acquired.binding.candidateBranch,
+        head: acquired.binding.resultBaseHead,
       },
       marker: {
         claimId: acquired.claimId,
@@ -95,7 +107,7 @@ describe("decomposition transient claim", () => {
       schemaVersion: 1,
       kind: "decomposition-candidate",
       generation: 1,
-      state: "pending",
+      state: { kind: "pending" },
       registration: { kind: "unregistered" },
     });
     expect(claim.candidateWorktree).toBe(canonicalDigest({
@@ -115,6 +127,15 @@ describe("decomposition transient claim", () => {
       generation: claim.generation,
       candidateWorktree: claim.candidateWorktree,
     })).not.toContain(path);
+    expect(projectDecomposeTransientCandidateOwnership(reserved.claim)).toEqual({
+      kind: "claimed",
+      protection: "full",
+      claimId: claim.claimId,
+      generation: 1,
+      candidateBranch: claim.binding.candidateBranch,
+      candidateWorktree: claim.candidateWorktree,
+    });
+    expect(JSON.stringify(projectDecomposeTransientCandidateOwnership(reserved.claim))).not.toContain(path);
   });
 
   it("makes exact acquire and reserve retries idempotent but rejects mismatches", () => {
@@ -140,6 +161,14 @@ describe("decomposition transient claim", () => {
       status: "conflict",
       reason: "registration-mismatch",
     });
+    expect(projectLiveDecomposeCandidateBranches([
+      "{malformed",
+      reserved.claim,
+      structuredClone(reserved.claim),
+    ])).toEqual(new Set());
+    expect(projectLiveDecomposeCandidateBranches([reserved.claim])).toEqual(
+      new Set([claim.binding.candidateBranch]),
+    );
   });
 
   it("occupies only with one exact registration, branch, and marker projection", () => {
@@ -148,8 +177,15 @@ describe("decomposition transient claim", () => {
     const reserved = reserveDecomposeTransientWorktree(claim, claim.claimId, 1, path);
     if (reserved.status !== "reserved") throw new Error("expected reservation");
     const exact = {
-      registrations: [{ path, candidateBranch: claim.candidateBranch, head: claim.resultBase }],
-      branch: { candidateBranch: claim.candidateBranch, head: claim.resultBase },
+      registrations: [{
+        path,
+        candidateBranch: claim.binding.candidateBranch,
+        head: claim.binding.resultBaseHead,
+      }],
+      branch: {
+        candidateBranch: claim.binding.candidateBranch,
+        head: claim.binding.resultBaseHead,
+      },
       marker: {
         claimId: claim.claimId,
         generation: 1,
@@ -180,7 +216,7 @@ describe("decomposition transient claim", () => {
       occupied.claim,
       occupied.claim.claimId,
       occupied.claim.generation,
-      "landed",
+      LANDED,
     );
     expect(retired.status).toBe("retired");
     if (retired.status !== "retired") throw new Error("expected retirement");
@@ -188,13 +224,13 @@ describe("decomposition transient claim", () => {
       retired.claim,
       retired.claim.claimId,
       retired.claim.generation,
-      "landed",
+      LANDED,
     )).toEqual({ status: "already-retired-matching", claim: retired.claim });
     expect(retireDecomposeTransientClaim(
       retired.claim,
       retired.claim.claimId,
       retired.claim.generation,
-      "discarded",
+      DISCARDED,
     )).toEqual({ status: "conflict", reason: "terminal-mismatch" });
 
     expect(acquireDecomposeTransientClaim(retired.claim, retired.claim.claimId, binding())).toEqual({
@@ -233,7 +269,7 @@ describe("decomposition transient claim", () => {
 
   it("fails closed for missing, unproven release, foreign identity, and malformed records", () => {
     const claim = acquire();
-    expect(retireDecomposeTransientClaim(null, claim.claimId, 1, "landed")).toEqual({
+    expect(retireDecomposeTransientClaim(null, claim.claimId, 1, LANDED)).toEqual({
       status: "missing-unproven",
       reason: "claim-missing",
     });
@@ -257,7 +293,7 @@ describe("decomposition transient claim", () => {
       occupied.claim,
       occupied.claim.claimId,
       occupied.claim.generation,
-      "discarded",
+      DISCARDED,
     );
     if (retired.status !== "retired") throw new Error("expected retirement");
     expect(releaseDecomposeTransientWorktree(

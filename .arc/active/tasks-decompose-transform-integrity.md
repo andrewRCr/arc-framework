@@ -240,59 +240,17 @@ mutation authority; it already contains the operator-approved map and every mech
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
-    - `[ ]` **2.3.a Define exact transient candidate ownership**
-        - Store each operational claim at
-          `<git-common-dir>/arc/transient-claims/<claimId>.json`, where `claimId` is the canonical digest of
-          `{ schemaVersion: 1, kind: "decomposition-candidate", origin, candidateBranch }`. The closed record binds
-          that key and a positive monotonic generation to origin, branch, source head, result base, cut-map digest,
-          deterministic opaque worktree identity, adapter-only registration, and pending/occupied/terminal state
-          without carrying semantic approval. Derive `candidateWorktree` from
-          `{ schemaVersion: 1, kind: "decomposition-candidate-worktree", claimId, generation }`.
-        - Give the machine-local registration one closed
-          `unregistered | intended{path} | registered{path} | released{lastPath}` arm. Keep canonical absolute host
-          paths solely in this operational mapping; exclude them from claim/worktree identity,
-          `candidateOwnership`, preparation, and receipts.
-        - Serialize each key with a repository-common lock and atomic replacement. Keep exactly the latest
-          generation: retain a landed/discarded terminal until the next successful acquire advances it, then make
-          every retry against the old generation a conflict.
-        - Implement `acquire(claimId, binding)`, `reserveWorktree(claimId, generation, path)`,
-          `occupy(claimId, generation, path)`, `retire(claimId, expectedGeneration, terminal)`, and
-          `releaseWorktree(claimId, generation, candidateWorktree, path)`. Persist `intended` before branch or
-          filesystem mutation. `occupy` requires that path's exact Git registration, candidate branch/head, and ARC
-          marker carrying claim ID/generation/worktree identity before atomically recording
-          `registered/occupied`. Retire preserves the registration for cleanup; release requires matching terminal
-          authority plus absent Git registration/marker/branch occupation before recording `released`.
-          Exact retries are idempotent; acquire advances only a released terminal and retire returns
-          `retired | already-retired-matching | conflict | missing-unproven`.
-        - Treat exact `pending/unregistered` as a valid pathless post-acquire recovery state. An exact retry may
-          reserve it but may inspect no path; preserve it after post-acquire failure unless an exact-generation
-          rollback compare-and-swap proves no reservation, branch, worktree, marker, or observer can exist.
-        - Integrate exact live claims with in-flight, status/session residue, and cleanup readers. Missing,
-          malformed, mismatched, foreign, or superseded claims grant no occupation or deletion authority.
-        - Define crash-safe ordering and rollback across pending claim persistence, intended-path reservation,
-          branch creation, worktree registration/marker creation, occupation completion, post-occupation
-          validation, terminal retirement, local cleanup, and registration release. On restart, only an exact
-          `intended` mapping may inspect or complete the reserved path; foreign bytes, branch/head, Git
-          registration, or marker state refuses without adoption.
-        - Expose the created full-protection claim-ID/generation/branch/opaque-worktree identity as the exact
-          `candidateOwnership` value later copied into preparation; keep host filesystem paths in the local claim
-          adapter and outside claim/receipt identity. Partial protection produces only its explicit not-applicable
-          value.
-        - Build `test-first` (one behavior at a time):
-            - An exact live generation suppresses only its candidate's residue warning.
-            - Every malformed, missing, mismatched, or superseded generation fails closed.
-            - Different claim IDs proceed independently; concurrent acquire/reserve/occupy/retire/release calls on
-              one key serialize without lost updates.
-            - Worktree identity is stable across path changes and restart, while no absolute path enters
-              preparation/receipt bytes; zero, duplicate, stale, foreign, or malformed registrations fail closed.
-            - A matching terminal retries idempotently, a safe new acquire replaces it with generation plus one,
-              only after exact registration release, and every older retry then conflicts.
-            - Failure/crash injection at every reserve/create/register/mark/occupy/retire/cleanup/release boundary
-              leaves either one pathless resumable exact `pending/unregistered` generation, one path-addressable
-              resumable exact claim/candidate, typed recovery-required residue, or no branch, worktree, or claim
-              residue.
-            - Exact terminal retry is idempotent; landed/discarded mismatch, concurrent generation, and unproven
-              absence fail closed.
+    - `[x]` **2.3.a Define exact transient candidate ownership**
+        - Added one closed repository-common claim machine with content-derived claim/worktree identities, positive
+          generations, pathless pending recovery, adapter-only path registration, and exact acquire, reserve,
+          occupy, retire, release, and terminal retry semantics.
+        - Added per-claim locking and atomic persistence. Canonical filename/record mismatches, malformed state,
+          stale generations, duplicate branch claims, incomplete occupation evidence, and unproven cleanup all fail
+          closed; write-failure and concurrency coverage proves preserved resumability without lost updates.
+        - Worktree markers and preparation ownership now carry only the claim/generation/branch/opaque-worktree
+          tuple. In-flight, status/session, and cleanup derivation loads exact common-directory claims, suppresses
+          only unambiguous live candidate residue, and surfaces invalid operational records without host-path
+          leakage.
 
     - `[ ]` **2.3.b Implement the result-occupation seam**
         - Give the in-repository driver one pure/injectable branch-operation seam over protection mode, configured

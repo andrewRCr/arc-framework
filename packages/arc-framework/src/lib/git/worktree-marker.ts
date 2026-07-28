@@ -84,6 +84,12 @@ interface WorktreeMarkerBase {
   husk?: WorktreeHuskStamp;
   /** Exact deferred directory move for a renamed spawned worktree. */
   renameMovePending?: WorktreeRenameMovePending;
+  /** Exact decomposition-candidate claim generation occupying this worktree. */
+  decompositionCandidate?: {
+    claimId: string;
+    generation: number;
+    candidateWorktree: string;
+  };
 }
 
 /** Machine-local marker recording that ARC created a worktree. */
@@ -181,6 +187,17 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   const huskValid = marker.husk === undefined || isWorktreeHuskStamp(marker.husk);
   const renameMoveValid = marker.renameMovePending === undefined
     || isWorktreeRenameMovePending(marker.renameMovePending);
+  const candidate = marker.decompositionCandidate;
+  const decompositionCandidateValid = candidate === undefined
+    || (typeof candidate === "object"
+      && candidate !== null
+      && Object.keys(candidate).sort().join("\0")
+        === ["candidateWorktree", "claimId", "generation"].join("\0")
+      && isCanonicalDigest((candidate as Record<string, unknown>).claimId)
+      && typeof (candidate as Record<string, unknown>).generation === "number"
+      && Number.isInteger((candidate as Record<string, unknown>).generation)
+      && ((candidate as Record<string, unknown>).generation as number) > 0
+      && isCanonicalDigest((candidate as Record<string, unknown>).candidateWorktree));
   return typeof marker.spawnedByArc === "boolean"
     && wuNameValid
     && createdForValid
@@ -188,6 +205,7 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
     && ownershipIsConsistent(marker.wuName, marker.createdFor)
     && huskValid
     && renameMoveValid
+    && decompositionCandidateValid
     && !(marker.husk !== undefined && marker.renameMovePending !== undefined)
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
@@ -348,6 +366,8 @@ export interface WriteWorktreeOwnershipMarkerOptions {
   spawningIdentity: string;
   /** Marker creation time in epoch millis; defaults to `Date.now()`. Injectable for tests. */
   now?: number;
+  /** Exact decomposition candidate generation, present only for candidate worktrees. */
+  decompositionCandidate?: WorktreeMarkerBase["decompositionCandidate"];
 }
 
 /**
@@ -375,6 +395,9 @@ export async function writeWorktreeOwnershipMarker(
     ...ownership,
     spawningIdentity: options.spawningIdentity,
     createdAt: new Date(options.now ?? Date.now()).toISOString(),
+    ...(options.decompositionCandidate === undefined
+      ? {}
+      : { decompositionCandidate: options.decompositionCandidate }),
   });
 }
 

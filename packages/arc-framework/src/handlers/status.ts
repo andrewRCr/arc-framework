@@ -551,6 +551,7 @@ export async function handleStatus(
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
         const result = await deriveInFlight({
           exec,
+          decompositionClaimCwd: cwd,
           localOnly: false,
           baseBranch: resolved.settings["branch.base"],
           identity,

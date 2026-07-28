@@ -1334,6 +1334,7 @@ async function resolveMaterializeCandidate(
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs }));
   const result = await deriveInFlight({
     exec: base.io.exec,
+    decompositionClaimCwd: base.cwd,
     localOnly: false,
     baseBranch: settings["branch.base"],
     identity: base.identity,

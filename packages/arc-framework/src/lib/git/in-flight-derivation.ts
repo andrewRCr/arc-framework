@@ -27,6 +27,7 @@ import {
   type ParsedMetaRecord,
 } from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { readLiveDecomposeTransientClaimProjection } from "../work-unit/decompose-transient-claim-store.js";
 
 import type { GitExec } from "./exec.js";
 import {
@@ -83,6 +84,7 @@ export type InFlightWarningCode =
   | "stale-location-shadow"
   | "candidate-shadowed"
   | "location-ambiguous"
+  | "decomposition-claim-invalid"
   | "input-snapshot-disagreement";
 
 /** Structured warning surfaced by in-flight derivation consumers. */
@@ -247,6 +249,10 @@ export interface DeriveInFlightOptions {
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
   prSource?: PrSource;
+  /** Exact live decomposition candidate branches from the validated transient-claim reader. */
+  decompositionCandidateBranches?: ReadonlySet<string>;
+  /** Checkout used to load repository-common decomposition candidate claims. */
+  decompositionClaimCwd?: string;
 }
 
 /**
@@ -335,11 +341,19 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const remoteReadDegraded = branches === undefined
     && !(options.localOnly ?? false)
     && !branchSet.reachable;
+  const claimProjection = options.decompositionClaimCwd === undefined
+    ? null
+    : await readLiveDecomposeTransientClaimProjection(exec, options.decompositionClaimCwd);
+  const decompositionCandidateBranches = options.decompositionCandidateBranches
+    ?? claimProjection?.branches
+    ?? new Set<string>();
   const classifiedResidue = dedupeResidue(
     classified
       .map((classification) => classification.residue)
       .filter((item): item is IndexedResidue => item !== null),
-  ).filter(({ residue: item }) => !candidateEntries.some((entry) => entry.branch === item.branch));
+  ).filter(({ residue: item }) =>
+    !candidateEntries.some((entry) => entry.branch === item.branch)
+    && !(item.reason === "no-record-or-meta" && decompositionCandidateBranches.has(item.branch)));
   const observedBranches = new Set(markedInputs.map((input) => input.branch));
   for (const ref of Object.keys(branchSet.liveRefs)) observedBranches.add(branchFromInputRef(ref, remote));
   const recordResidue = branches === undefined
@@ -373,6 +387,12 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     );
   if (!worktreeResult.ok) {
     warnings.unshift(worktreeListFailedWarning());
+  }
+  if (claimProjection !== null) {
+    warnings.unshift(...claimProjection.diagnostics.map((rendered): InFlightWarning => ({
+      code: "decomposition-claim-invalid",
+      rendered,
+    })));
   }
   warnings.unshift(...input.warnings);
   if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());

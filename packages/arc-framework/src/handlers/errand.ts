@@ -182,6 +182,7 @@ export async function handleErrandCheck(
 
   const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
     exec,
+    cwd,
     identity,
     teamMode,
     localOnly,

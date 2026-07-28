@@ -165,6 +165,7 @@ export async function handleActiveInFlight(
 
   const result = await runActiveInFlight({
     exec,
+    cwd,
     identity,
     teamMode,
     localOnly,
