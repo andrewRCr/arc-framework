@@ -34,6 +34,32 @@ would create temporary duplicated validators or an artificial dependency WU rath
 delivery. Review chunking or stacked delivery can separate review/merge boundaries if the measured implementation
 diff reaches the upper end.
 
+## Manual Delivery Stack
+
+This work unit uses disposable delivery refs to give each bounded slice its own exact `merge-ok` target while the
+canonical WU state remains anchored to `feat/decompose-transform-integrity`. The local stack begins:
+
+1. `feat/decompose-transform-integrity-delivery-00-planning` — planning and lifecycle artifacts through
+   `421f4caaf`.
+2. `feat/decompose-transform-integrity-delivery-01-authority` — Phase 1 through `31ad6078b`, plus the temporary
+   compatibility cap that keeps the established public decomposition lifecycle intact.
+3. `feat/decompose-transform-integrity-delivery-02-plan` — Phase 2 through `bb2fb1c46`, inheriting that cap while
+   the v3 mutation runtime remains internal.
+4. `feat/decompose-transform-integrity-delivery-03-finalization` — Phase 3 through `4006303c9`, removing the
+   temporary cap only after the finalized-candidate lifecycle is coherent.
+
+Later implementation slices extend the stack from the preceding landed tree. Delivery refs carry no independent
+ARC meta, notes, or lifecycle identity.
+
+For every slice after the first: merge updated `main` into the delivery branch before retargeting its PR to
+`main`; the merge must move the head so `merge-ok` evaluates the exact new base/head pair. Never carry a green
+result across retargeting, rewrite a published delivery ref, or merge a slice whose tree is not independently
+green and semantically coherent. A stalled stack leaves `main` at the last complete slice; the next ref remains
+unmerged and may be abandoned without rollback.
+
+Review chunking applies within each attention-heavy delivery. The complete series also receives union-coverage and
+cross-delivery seam review; no local chunk report or earlier stacked-base result grants terminal authority.
+
 ## Implementation Grounding
 
 - `packages/arc-framework/src/lib/work-unit/composed-lifecycle-index.ts` contains
