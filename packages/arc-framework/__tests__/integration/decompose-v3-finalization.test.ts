@@ -196,6 +196,25 @@ describe("v3 decompose refresh against real Git", () => {
     ], { cwd: repo })).rejects.toThrow();
   });
 
+  it("refuses a missing authority record without mutating the candidate", async () => {
+    const { driver, fixture, repo } = await harness();
+    await rm(resolveRetirementRecordPath(repo, fixture.receipt.receiptId));
+    const before = (await execFileAsync("git", ["status", "--porcelain=v1", "-z"], { cwd: repo })).stdout;
+
+    expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
+      continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
+      composition: composition(),
+      readinessDeps: readyDeps,
+    })).toMatchObject({
+      status: "refused",
+      reason: "evidence-missing",
+      recovery: { action: "re-preflight" },
+    });
+    expect((await execFileAsync("git", ["status", "--porcelain=v1", "-z"], { cwd: repo })).stdout)
+      .toBe(before);
+  });
+
   it("refuses a race after the pre-CAS check and restores the exact prior receipt", async () => {
     const { driver, fixture, repo } = await harness({ raceAfterWrite: true });
     const result = await driver.finalizeV3("origin", fixture.receipt.receiptId, {
