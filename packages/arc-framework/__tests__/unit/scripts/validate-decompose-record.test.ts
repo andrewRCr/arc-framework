@@ -168,7 +168,15 @@ function validateRename(options: RenameFixtureOptions = {}): string[] {
 
 describe("validateDecomposeCommitGate", () => {
   it("accepts one exact canonical v3 receipt addition through live validation", () => {
-    const { preparation, receipt: v3Receipt } = v3DecompositionEvidenceFixture();
+    const taskArtifact = {
+      path: ".arc/active/tasks-origin.md",
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      contentDigest: canonicalDigest("source tasks"),
+    };
+    const { preparation, receipt: v3Receipt } = v3DecompositionEvidenceFixture({
+      additionalSourceArtifacts: [taskArtifact],
+    });
     const v3RecordPath = resolveRetirementRecordRelativePath(v3Receipt.receiptId);
     const changes: StagedPathChange[] = [
       { status: "A", path: v3RecordPath },
@@ -179,6 +187,12 @@ describe("validateDecomposeCommitGate", () => {
     ];
     const machine = preparation.facts.completedMap.machine;
     const sourcePath = machine.sourceUnits[0]!.sourcePath;
+    const sourceArtifactInventory = [{
+      path: sourcePath,
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      contentDigest: machine.sourceUnits[0]!.contentDigest,
+    }, taskArtifact];
 
     const input = {
       changes,
@@ -187,6 +201,7 @@ describe("validateDecomposeCommitGate", () => {
       resolveRef: (ref) => ref === machine.source.ref
         ? machine.source.head
         : ref === machine.resultBase.ref ? machine.resultBase.head : null,
+      readSourceArtifactInventory: () => sourceArtifactInventory,
       readPathState: (ref, path) => {
         if (ref === machine.source.head && path === sourcePath) {
           return {

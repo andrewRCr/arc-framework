@@ -23,6 +23,7 @@ import {
   v3SourceId,
   v3SourceInventoryDigest,
   type V3DecomposeCutMap,
+  type V3SourceArtifactEntry,
 } from "../../src/lib/work-unit/decompose-v3-schema.js";
 
 export function v3DecompositionEvidenceFixture(options: {
@@ -30,6 +31,7 @@ export function v3DecompositionEvidenceFixture(options: {
   sourceHead?: string;
   resultBaseHead?: string;
   digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
+  additionalSourceArtifacts?: readonly V3SourceArtifactEntry[];
 } = {}): {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
@@ -148,12 +150,14 @@ export function v3DecompositionEvidenceFixture(options: {
     { destinationId: "member-a", paths: [resultPaths[0]!] },
     { destinationId: "member-b", paths: [resultPaths[1]!] },
   ];
-  const sourceArtifactDigest = v3SourceArtifactDigest([{
+  const sourceArtifactInventory = [{
     path: sourceUnit.sourcePath,
     objectKind: "blob",
     mode: "100644",
     contentDigest: sourceUnit.contentDigest,
-  }]);
+  } satisfies V3SourceArtifactEntry, ...(options.additionalSourceArtifacts ?? [])]
+    .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
+  const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
   if (sourceArtifactDigest === null) throw new Error("fixture source artifacts must be canonical");
   const facts = {
     preflightId: machine.preflightId,
