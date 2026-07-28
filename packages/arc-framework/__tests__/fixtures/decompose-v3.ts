@@ -129,6 +129,10 @@ export function v3DecompositionEvidenceFixture(): {
       after: file("roadmap after"),
     },
   };
+  const destinationOutputPaths = [
+    { destinationId: "member-a", paths: [resultPaths[0]!] },
+    { destinationId: "member-b", paths: [resultPaths[1]!] },
+  ];
   const sourceArtifactDigest = v3SourceArtifactDigest([{
     path: sourceUnit.sourcePath,
     objectKind: "blob",
@@ -149,6 +153,7 @@ export function v3DecompositionEvidenceFixture(): {
     candidateOwnership: { kind: "not-applicable" as const, protection: "partial" as const },
     candidatePublication,
     topology,
+    destinationOutputPaths,
     prospectiveProjection,
   };
   const preparationId = v3PreparationId({
@@ -164,6 +169,7 @@ export function v3DecompositionEvidenceFixture(): {
     candidateOwnership: facts.candidateOwnership,
     candidatePublication,
     topologyDigest: topology.digest,
+    destinationOutputPaths,
     prospectiveProjection,
   });
   const preparation: V3DecomposePreparation = {

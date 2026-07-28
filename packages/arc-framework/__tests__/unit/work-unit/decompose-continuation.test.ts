@@ -95,6 +95,13 @@ function preparationWithExistingDestination(): V3DecomposePreparation {
   });
   preparation.facts.cutMapDigest = cutMapDigest;
   preparation.facts.candidatePublication = candidatePublication;
+  preparation.facts.destinationOutputPaths = [
+    {
+      destinationId: "existing",
+      paths: [preparation.facts.destinationOutputPaths[0]!.paths[0]!],
+    },
+    ...preparation.facts.destinationOutputPaths,
+  ];
   preparation.facts.prospectiveProjection.overlay.planId = planId;
   preparation.preparationId = v3PreparationId({
     receiptId: preparation.receiptId,
@@ -109,6 +116,7 @@ function preparationWithExistingDestination(): V3DecomposePreparation {
     candidateOwnership: preparation.facts.candidateOwnership,
     candidatePublication,
     topologyDigest: preparation.facts.topology.digest,
+    destinationOutputPaths: preparation.facts.destinationOutputPaths,
     prospectiveProjection: preparation.facts.prospectiveProjection,
   });
   const parsed = parseV3DecomposePreparation(preparation);

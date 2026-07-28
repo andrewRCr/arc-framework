@@ -38,10 +38,11 @@ import {
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { canonicalize } from "../lib/canonical/canonical-json.js";
+import { canonicalize, isCanonicalDigest } from "../lib/canonical/canonical-json.js";
+import { contentDigest } from "../lib/canonical/content-digest.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
+import { getArcTemplatePath, getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -79,6 +80,23 @@ import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { revalidateV3DecomposeExecutionPreflight } from "../lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
+import {
+  createInRepoDecomposeRetirementDriver,
+  type InRepoDecomposeRetirementDeps,
+} from "../lib/work-unit/decompose-retirement-driver.js";
+import { resolveProjectReadinessComposition } from "../lib/status/project-view.js";
+import { decomposeReadinessDeps } from "../lib/work-unit/decompose-launch-readiness.js";
+import {
+  buildLiveCohortContext,
+  classifyPath as classifyCohortPath,
+} from "../scripts/validate-cohort-consistency.js";
+import type { CohortConsistencyInput } from "../lib/active/cohort-consistency.js";
+import type { V3TopologyTreeState } from "../lib/work-unit/decompose-v3-topology.js";
+import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
+import {
+  createIndexProjectViewFs,
+  renderRoadmapFromIndexViewResult,
+} from "../lib/status/roadmap-regeneration-assert.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -260,6 +278,92 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
     readFile: base.io.readFile,
     createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
     removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  };
+}
+
+/** Bind v3 finalization to one pinned candidate/index projection. */
+function v3DecomposeRetirementDeps(
+  base: Pick<VerbBase, "cwd" | "io">,
+): InRepoDecomposeRetirementDeps {
+  return {
+    cwd: base.cwd,
+    exec: base.io.exec,
+    lifecycleFs,
+    readFile: base.io.readFile,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+    readTopologyValidationInput: async (preparation) => {
+      const candidateTree: Record<
+        string,
+        Exclude<V3TopologyTreeState, { kind: "absent" }>
+      > = {};
+      const metas: CohortConsistencyInput["metas"] = [];
+      const cohortDocs: CohortConsistencyInput["cohortDocs"] = [];
+      const { stdout } = await base.io.exec(
+        "git",
+        ["ls-files", "--stage", "-z", "--", ".arc/active", ".arc/backlog", ".arc/completed"],
+        { cwd: base.cwd },
+      );
+      for (const entry of stdout.split("\0").filter(Boolean)) {
+        const match = /^(100644|100755) [0-9a-f]{40,64} 0\t(.+)$/u.exec(entry);
+        const mode = match?.[1];
+        const path = match?.[2];
+        if ((mode !== "100644" && mode !== "100755") || path === undefined) continue;
+        const classification = classifyCohortPath(path);
+        const topologyPath = preparation.facts.topology.facts.some(
+          (fact) => fact.kind !== "none" && fact.path === path,
+        );
+        if (classification === "other" && !topologyPath) continue;
+        const bytes = await readGitBlobBytes(base.cwd, null, path);
+        if (bytes === null) continue;
+        if (topologyPath) {
+          candidateTree[path] = { kind: "object", objectKind: "blob", mode, bytes };
+        }
+        if (classification !== "other") {
+          const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+          if (classification === "meta") metas.push({ path, content });
+          else cohortDocs.push({ path, content });
+        }
+      }
+      const live = buildLiveCohortContext(
+        metas.map(({ path, content }) => ({ path, content })),
+        cohortDocs.map(({ path }) => path),
+      );
+      return {
+        candidateTree,
+        cohortTemplate: new Uint8Array(await readFile(
+          join(
+            getArcTemplatePath(),
+            "reference",
+            "templates",
+            "arc",
+            "work-unit",
+            "template-cohort.md",
+          ),
+        )),
+        cohortConsistency: {
+          metas,
+          cohortDocs,
+          liveMembersByDir: live.liveMembersByDir,
+          existingCohortDocDirs: live.existingCohortDocDirs,
+        },
+      };
+    },
+    validateProspectiveProjection: async (preparation, overlay) => {
+      const expected = preparation.facts.prospectiveProjection.roadmap.after;
+      if (expected.kind !== "file") return false;
+      const rendered = await renderRoadmapFromIndexViewResult({
+        cwd: base.cwd,
+        exec: base.io.exec,
+        transitionOverlay: transitionOverlayCompositionInput(overlay),
+      });
+      if (rendered.indeterminate) return false;
+      const content = rendered.result.markdown.endsWith("\n")
+        ? rendered.result.markdown
+        : `${rendered.result.markdown}\n`;
+      return contentDigest(new TextEncoder().encode(content)) === expected.contentDigest;
+    },
   };
 }
 
@@ -774,6 +878,57 @@ export async function handleDecompose(
     }
   }
   p.intro("arc decompose");
+  if (input.mode.kind === "finalize-with-continuation") {
+    const cwd = resolveArcRoot();
+    if (cwd === null) {
+      refuse("Not inside an ARC project (no .arc/ directory found walking up from cwd).");
+      return;
+    }
+    if (!isCanonicalDigest(input.mode.receiptId)) {
+      refuse("invalid receipt ID");
+      return;
+    }
+    let continuation: unknown;
+    try {
+      const content = await readFile(input.mode.continuation, "utf8");
+      continuation = JSON.parse(content) as unknown;
+    } catch (error) {
+      refuse(`continuation input is unreadable or malformed: ${
+        error instanceof Error ? error.message : String(error)
+      }`);
+      return;
+    }
+    try {
+      const io = createUserIOContext(context?.subprocess);
+      const composition = await resolveProjectReadinessComposition({
+        cwd,
+        fs: createIndexProjectViewFs({ cwd, exec: io.exec }),
+      });
+      const driver = createInRepoDecomposeRetirementDriver(v3DecomposeRetirementDeps({ cwd, io }));
+      const result = await driver.finalizeV3(input.origin, input.mode.receiptId, {
+        continuation,
+        composition,
+        readinessDeps: decomposeReadinessDeps,
+      });
+      if (result.status === "refused") {
+        refuse(result.reason);
+        return;
+      }
+      p.note([
+        `Status:    ${result.status}`,
+        `Receipt:   ${result.receipt.receiptId}`,
+        `Authority: ${result.authorityVersion}`,
+      ].join("\n"), "Decompose finalization");
+      if (retirementCleanupRequired(result.lifecycle)) {
+        p.log.info("Retirement cleanup remains pending until the finalized candidate lands.");
+      }
+      p.outro("Done.");
+      return;
+    } catch (error) {
+      refuse(error instanceof Error ? error.message : String(error));
+      return;
+    }
+  }
   if (input.mode.kind === "execute") {
     const cwd = resolveArcRoot();
     if (cwd === null) {

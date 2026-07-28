@@ -115,6 +115,7 @@ describe("produceDecompositionIntegrationAnchor", () => {
       candidateOwnership: claimed,
       candidatePublication: fixture.receipt.prepared.candidatePublication,
       topologyDigest: fixture.receipt.prepared.topology.digest,
+      destinationOutputPaths: fixture.receipt.prepared.destinationOutputPaths,
       prospectiveProjection: fixture.receipt.prepared.prospectiveProjection,
     });
 

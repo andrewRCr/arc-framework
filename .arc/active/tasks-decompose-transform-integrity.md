@@ -395,39 +395,16 @@ authority; finalization checks mechanics and persists no approval credential.
           rejects drift without deriving replacement authority, and layers the exact incomplete-Purpose floor over
           unchanged generic cohort-consistency diagnostics.
 
-    - `[ ]` **3.4.b Return closed finalization statuses from one authority**
-        - Make the Git adapter produce one normalized, pinned evidence bundle for the Phase 1 canonical validator.
-          A closed status-transition policy consumes preparation/finalized record state plus that same validation
-          result; the driver performs only the authorized compare-and-swap.
-        - Migrate decompose finalization and the commit adapter to the canonical validator only after
-          preparation-bound publication/topology, continuation, materialization, topology validation, and readiness
-          producers exist. Keep Git/index/parent reads in their adapters, require exactly one canonical v3
-          decomposition addition at commit, and preserve separate non-decompose policy.
-        - Require `arc decompose <origin> --finalize <receipt-id> --continuation <file>` for the finalize arm. Read
-          and validate the continuation file atomically, carry the preparation-bound candidate publication and
-          topology unchanged, and seal only the typed continuation addition in the finalized receipt.
-        - Derive one `managedPathResults` entry for every non-receipt allowed path and partition it exactly into
-          changed `transitionPatch` entries and explicit equal-state unchanged results. Always compare the prepared
-          result-base tree with the pinned candidate result rather than an operational retry preimage. Carry
-          preparation-bound `candidateOwnership` unchanged into the receipt.
-        - Propagate `recorded`, `already-finalized`, and `refreshed` through finalization, driver, authority port,
-          and handler with one canonical receipt-derived lifecycle projection.
-        - Recompose the pinned candidate with the receipt-derived `ValidatedTransitionOverlay`; require exact
-          structured project-view and ROADMAP-byte parity with the preparation-bound prospective result before
-          receipt replacement.
-        - Define the parent/index/worktree state matrix. `already-finalized` requires the same canonical finalized
-          receipt in index and worktree, absence from the exact candidate parent, and validator-proven candidate
-          authority; it performs zero writes. Mixed projections and committed parent presence are typed refusals.
-        - Build `test-first` (one behavior at a time):
-            - Recorded, already-finalized, and refreshed return the same complete receipt-bound authority/lifecycle
-              payload under unchanged candidate facts.
-            - Every preparation/finalized parent/index/worktree combination has one deterministic status or typed
-              mismatch and locus.
-            - Adapter/finalization/commit parity proves no adapter-owned branch grants authority.
-            - Malformed, obsolete, multiple, amended, rider-bearing, candidate-ownership-mismatched, or
-              path-partition-mismatched evidence refuses without weakening rename, abandon, or park commits.
-            - Missing/changed continuation input or prospective/validated overlay mismatch refuses without
-              replacing preparation.
+    - `[x]` **3.4.b Return closed finalization statuses from one authority**
+        - Finalization now reduces one pinned parent/index/worktree and ref bundle through the canonical validator,
+          preparation-authenticated destination/path bindings, exact managed-path partitioning, and one closed
+          status policy; only its compare-and-swap instruction can write.
+        - The CLI, driver, authority port, and handler propagate one receipt-derived authority/lifecycle payload for
+          recorded, already-finalized, and refreshed, while continuation, topology, readiness, candidate parity,
+          structured project-view/ROADMAP parity, and committed or mixed record states fail closed.
+        - The commit adapter accepts exactly one canonical v3 addition through the same validator and preserves the
+          separate legacy policy; malformed, multiple, amended, rider-bearing, ownership-drifted, and
+          path-partition-drifted evidence is rejected.
 
     - `[ ]` **3.4.c Refresh only reviewed fully staged uncommitted refinement**
         - Require receipt absence from the exact candidate parent, allowed destination-only changes, and

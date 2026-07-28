@@ -136,12 +136,19 @@ vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
 const mockPrepareDecompose = vi.fn();
 const mockStagePreparedResult = vi.fn();
 const mockFinalizeDecompose = vi.fn();
+const mockFinalizeV3Decompose = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
   createInRepoDecomposeRetirementDriver: () => ({
+    finalizeV3: (...a: unknown[]) => mockFinalizeV3Decompose(...a),
     prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
     stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
     finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
   }),
+}));
+const mockResolveProjectReadinessComposition = vi.fn();
+vi.mock("../../../src/lib/status/project-view.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/status/project-view.js")>(),
+  resolveProjectReadinessComposition: (...a: unknown[]) => mockResolveProjectReadinessComposition(...a),
 }));
 
 const mockRunPromote = vi.fn();
@@ -383,6 +390,23 @@ beforeEach(() => {
     authorityVersion: "finalized-version",
     lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
+  mockResolveProjectReadinessComposition.mockResolvedValue({
+    acceptedCandidates: [],
+    rejectedRecords: [],
+    records: [],
+    treeRecords: [],
+    derivationWarnings: [],
+    sourceWarnings: [],
+    indeterminate: false,
+    view: { title: "Project", records: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false },
+  });
+  mockFinalizeV3Decompose.mockResolvedValue({
+    status: "recorded",
+    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+    authorityVersion: "finalized-version",
+    transitionOverlay: {},
+    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -460,14 +484,30 @@ describe("handleDecompose", () => {
     expect(mockLogError).toHaveBeenCalled();
   });
 
-  it("fails closed for finalize-with-continuation until the v3 runtime is wired", async () => {
+  it.each(["recorded", "already-finalized", "refreshed"] as const)(
+    "reads one continuation input and propagates the %s v3 finalization result",
+    async (status) => {
     const receiptId = `sha256:${"a".repeat(64)}`;
+    mockFinalizeV3Decompose.mockResolvedValue({
+      status,
+      receipt: { receiptId },
+      authorityVersion: "finalized-version",
+      transitionOverlay: {},
+      lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
+    });
 
     await handleDecompose("mono", { finalize: receiptId, continuation: "continuation.json" });
 
     expect(mockFinalizeDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("unsupported-transition:v3-runtime-not-wired");
-  });
+    expect(mockReadFile).toHaveBeenCalledTimes(1);
+    expect(mockFinalizeV3Decompose).toHaveBeenCalledWith(
+      "mono",
+      receiptId,
+      expect.objectContaining({ continuation: { schemaVersion: 1 } }),
+    );
+    expect(mockLogError).not.toHaveBeenCalled();
+    },
+  );
 
   it("refuses a malformed cut-map before any mutation", async () => {
     mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({

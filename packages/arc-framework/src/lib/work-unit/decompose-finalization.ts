@@ -13,9 +13,15 @@ import {
 import {
   validateFinalizedV3Decomposition,
   type FinalizedV3DecompositionFacts,
+  type FinalizedV3DecompositionValidation,
+  type V3DecompositionMismatch,
 } from "./validate-v3-decomposition.js";
 import type { DecomposeInventories } from "./decompose-inventory.js";
-import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
+import {
+  projectPendingRetirementLifecycle,
+  type RetirementLifecycleResult,
+} from "./retirement-lifecycle-result.js";
+import type { ValidatedTransitionOverlay } from "./transition-overlay.js";
 import type {
   DecomposePreparationLocator,
   DecomposePreparationRecord,
@@ -61,15 +67,18 @@ export interface DecomposeFinalizationContext {
 
 /** Git/filesystem adapter facts, normalized before the canonical v3 boundary. */
 export interface V3DecomposeFinalizationContext {
-  readAuthoritySnapshot(receiptId: CanonicalDigest): Promise<{
+  readEvidence(receipt: V3DecomposeReceipt): Promise<{
     authorityVersion: string;
-    recordState: "absent" | "prepared-decompose";
+    parentRecord: string | null;
+    indexRecord: string | null;
+    worktreeRecord: string | null;
+    facts: FinalizedV3DecompositionFacts;
+    refresh?: ResolveV3DecomposeFinalizationTransitionInput["refresh"];
   }>;
-  readRecord(receiptId: CanonicalDigest): Promise<string | null>;
-  readFinalizedFacts(
+  validateProspectiveProjection(
     preparation: V3DecomposePreparation,
-    receipt: V3DecomposeReceipt,
-  ): Promise<FinalizedV3DecompositionFacts>;
+    overlay: ValidatedTransitionOverlay,
+  ): Promise<boolean>;
   replaceAndStageRecord(
     receiptId: CanonicalDigest,
     expectedContent: string,
@@ -78,8 +87,165 @@ export interface V3DecomposeFinalizationContext {
 }
 
 export type V3DecomposeFinalizationResult =
-  | { status: "recorded"; receipt: V3DecomposeReceipt; authorityVersion: string }
-  | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string };
+  | (V3DecomposeFinalizationAuthorityPayload & {
+    status: "recorded" | "already-finalized" | "refreshed";
+  })
+  | {
+    status: "refused";
+    reason: TeardownAuthorizationRefusal;
+    diagnostic?: string;
+    refusal?: V3DecomposeFinalizationTransitionRefusal;
+  };
+
+type V3FinalizationRecord =
+  | { kind: "absent" }
+  | { kind: "preparation"; value: V3DecomposePreparation; bytes: string }
+  | { kind: "receipt"; value: V3DecomposeReceipt; bytes: string }
+  | { kind: "invalid" };
+
+export type V3DecomposeFinalizationTransitionRefusal =
+  | { code: "validation-mismatch"; mismatch: V3DecompositionMismatch }
+  | { code: "candidate-parent-record"; locus: "parent" }
+  | { code: "record-state-mismatch"; locus: "index" | "worktree" | "index-worktree" }
+  | { code: "refresh-not-authorized"; locus: "index" | "worktree" };
+
+export interface ResolveV3DecomposeFinalizationTransitionInput {
+  validation: FinalizedV3DecompositionValidation;
+  parentRecord: unknown;
+  indexRecord: unknown;
+  worktreeRecord: unknown;
+  refresh?: {
+    status: "authorized";
+    priorReceipt: V3DecomposeReceipt;
+  };
+}
+
+interface V3DecomposeFinalizationAuthorityPayload {
+  receipt: V3DecomposeReceipt;
+  authorityVersion: CanonicalDigest;
+  transitionOverlay: ValidatedTransitionOverlay;
+  lifecycle: RetirementLifecycleResult;
+}
+
+export type V3DecomposeFinalizationTransitionResult =
+  | (V3DecomposeFinalizationAuthorityPayload & {
+    status: "recorded" | "refreshed";
+    mutation: { kind: "replace"; expected: string; next: string };
+  })
+  | (V3DecomposeFinalizationAuthorityPayload & {
+    status: "already-finalized";
+    mutation: { kind: "none" };
+  })
+  | { status: "refused"; refusal: V3DecomposeFinalizationTransitionRefusal };
+
+function decodeFinalizationRecord(input: unknown): V3FinalizationRecord {
+  if (input === null) return { kind: "absent" };
+  const preparation = parseV3DecomposePreparation(input);
+  if (preparation !== null) {
+    return { kind: "preparation", value: preparation, bytes: canonicalize(preparation) };
+  }
+  const receipt = parseV3DecomposeReceipt(input);
+  return receipt === null
+    ? { kind: "invalid" }
+    : { kind: "receipt", value: receipt, bytes: canonicalize(receipt) };
+}
+
+function selectedContinuation(receipt: V3DecomposeReceipt): readonly string[] {
+  const continuation = receipt.finalized.publication.initialContinuation;
+  return continuation.kind === "selected" ? continuation.slugs : [];
+}
+
+function finalizationPayload(
+  validation: Extract<FinalizedV3DecompositionValidation, { status: "validated" }>,
+): V3DecomposeFinalizationAuthorityPayload {
+  const { preparation, receipt, transitionOverlay } = validation.authority;
+  const authorityVersion = canonicalDigest({
+    schemaVersion: 3,
+    kind: "finalized-decompose-authority",
+    receipt,
+  });
+  return {
+    receipt,
+    authorityVersion,
+    transitionOverlay,
+    lifecycle: projectPendingRetirementLifecycle({
+      slug: preparation.facts.completedMap.machine.source.origin,
+      branch: preparation.facts.completedMap.machine.source.logicalBranch,
+      transition: "decompose",
+      receiptId: receipt.receiptId,
+      authorityVersion,
+      successorCandidates: selectedContinuation(receipt),
+    }),
+  };
+}
+
+/**
+ * Select one finalization status from canonical validation and exact record projections.
+ *
+ * The result grants at most one exact record replacement. Git/filesystem callers
+ * perform that compare-and-set only after this policy returns it.
+ *
+ * @param input - Canonical validation plus pinned candidate parent, index, and worktree records
+ * @returns One closed success status with shared authority, or a typed refusal
+ */
+export function resolveV3DecomposeFinalizationTransition(
+  input: ResolveV3DecomposeFinalizationTransitionInput,
+): V3DecomposeFinalizationTransitionResult {
+  if (input.validation.status === "mismatch") {
+    return {
+      status: "refused",
+      refusal: { code: "validation-mismatch", mismatch: input.validation.mismatch },
+    };
+  }
+  const parent = decodeFinalizationRecord(input.parentRecord);
+  if (parent.kind !== "absent") {
+    return {
+      status: "refused",
+      refusal: { code: "candidate-parent-record", locus: "parent" },
+    };
+  }
+  const index = decodeFinalizationRecord(input.indexRecord);
+  const worktree = decodeFinalizationRecord(input.worktreeRecord);
+  if (index.kind === "invalid" || index.kind === "absent") {
+    return { status: "refused", refusal: { code: "record-state-mismatch", locus: "index" } };
+  }
+  if (worktree.kind === "invalid" || worktree.kind === "absent") {
+    return { status: "refused", refusal: { code: "record-state-mismatch", locus: "worktree" } };
+  }
+  if (index.bytes !== worktree.bytes || index.kind !== worktree.kind) {
+    return { status: "refused", refusal: { code: "record-state-mismatch", locus: "index-worktree" } };
+  }
+
+  const { preparation, receipt } = input.validation.authority;
+  const preparationBytes = canonicalize(preparation);
+  const receiptBytes = canonicalize(receipt);
+  const payload = finalizationPayload(input.validation);
+  if (index.kind === "preparation" && index.bytes === preparationBytes) {
+    return {
+      status: "recorded",
+      ...payload,
+      mutation: { kind: "replace", expected: preparationBytes, next: receiptBytes },
+    };
+  }
+  if (index.kind === "receipt" && index.bytes === receiptBytes) {
+    return { status: "already-finalized", ...payload, mutation: { kind: "none" } };
+  }
+  if (index.kind === "receipt") {
+    if (input.refresh === undefined) {
+      return { status: "refused", refusal: { code: "refresh-not-authorized", locus: "index" } };
+    }
+    const priorBytes = canonicalize(input.refresh.priorReceipt);
+    if (index.bytes !== priorBytes) {
+      return { status: "refused", refusal: { code: "refresh-not-authorized", locus: "worktree" } };
+    }
+    return {
+      status: "refreshed",
+      ...payload,
+      mutation: { kind: "replace", expected: priorBytes, next: receiptBytes },
+    };
+  }
+  return { status: "refused", refusal: { code: "record-state-mismatch", locus: "index-worktree" } };
+}
 
 /**
  * Validate one candidate through the central v3 boundary and atomically seal it.
@@ -93,40 +259,54 @@ export async function finalizeV3DecomposeRetirement(
   expectedAuthorityVersion: string,
 ): Promise<V3DecomposeFinalizationResult> {
   try {
-    const preliminary = parseV3DecomposeReceipt(receiptCandidate);
-    if (preliminary === null) return { status: "refused", reason: "evidence-mismatch" };
-    const snapshot = await ctx.readAuthoritySnapshot(preliminary.receiptId);
-    if (snapshot.authorityVersion !== expectedAuthorityVersion || snapshot.recordState !== "prepared-decompose") {
+    const receipt = parseV3DecomposeReceipt(receiptCandidate);
+    if (receipt === null) return { status: "refused", reason: "evidence-mismatch" };
+    const evidence = await ctx.readEvidence(receipt);
+    if (evidence.authorityVersion !== expectedAuthorityVersion) {
       return { status: "refused", reason: "authority-conflict" };
     }
-    const stored = await ctx.readRecord(preliminary.receiptId);
-    if (stored === null) return { status: "refused", reason: "evidence-missing" };
-    const preparation = parseV3DecomposePreparation(stored);
-    if (preparation === null || preparation.receiptId !== preliminary.receiptId) {
-      return { status: "refused", reason: "evidence-mismatch", diagnostic: "prepared record changed" };
-    }
-    const receipt = parseV3DecomposeReceipt(receiptCandidate, preparation);
-    if (receipt === null) return { status: "refused", reason: "evidence-mismatch" };
-    const facts = await ctx.readFinalizedFacts(preparation, receipt);
-    const validation = validateFinalizedV3Decomposition(facts);
-    if (validation.status !== "validated") {
+    const validation = validateFinalizedV3Decomposition(evidence.facts);
+    const transition = resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: evidence.parentRecord,
+      indexRecord: evidence.indexRecord,
+      worktreeRecord: evidence.worktreeRecord,
+      ...(evidence.refresh === undefined ? {} : { refresh: evidence.refresh }),
+    });
+    if (transition.status === "refused") {
       return {
         status: "refused",
         reason: "evidence-mismatch",
-        diagnostic: validation.mismatch.locus === undefined
-          ? validation.mismatch.kind
-          : `${validation.mismatch.kind}: ${validation.mismatch.locus}`,
+        diagnostic: transition.refusal.code,
+        refusal: transition.refusal,
       };
     }
-    if (canonicalize(validation.authority.preparation) !== canonicalize(preparation)
-      || canonicalize(validation.authority.receipt) !== canonicalize(receipt)) {
+    if (validation.status !== "validated") {
       return { status: "refused", reason: "evidence-mismatch" };
     }
-    await ctx.replaceAndStageRecord(receipt.receiptId, stored, canonicalize(receipt));
+    if (!await ctx.validateProspectiveProjection(
+      validation.authority.preparation,
+      transition.transitionOverlay,
+    )) {
+      return {
+        status: "refused",
+        reason: "projection-mismatch",
+        diagnostic: "prospective-projection-mismatch",
+      };
+    }
+    if (transition.mutation.kind === "replace") {
+      await ctx.replaceAndStageRecord(
+        transition.receipt.receiptId,
+        transition.mutation.expected,
+        transition.mutation.next,
+      );
+    }
     return {
-      status: "recorded",
-      receipt,
-      authorityVersion: canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt }),
+      status: transition.status,
+      receipt: transition.receipt,
+      authorityVersion: transition.authorityVersion,
+      transitionOverlay: transition.transitionOverlay,
+      lifecycle: transition.lifecycle,
     };
   } catch (error) {
     return {
