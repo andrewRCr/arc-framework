@@ -244,12 +244,12 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "ambiguous" });
   });
 
-  it("fails closed when live publication identity or entry ordering drifts", () => {
+  it("distinguishes caller publication drift from stored namespace corruption", () => {
     const candidate = input();
     candidate.snapshot.publication = publication({
       entries: [...publication().entries].reverse(),
     });
 
-    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "namespace-corrupt" });
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "projection-mismatch" });
   });
 });
