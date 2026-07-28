@@ -62,14 +62,13 @@ units.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
-    - `[ ]` **1.2.a Build the H2-H6 heading-stack inventory**
-        - Extend the section locator with level, ancestry, and per-parent occurrence identity, then generalize the
-          Markdown boundary scanner while preserving existing normalization and incidental-heading protections.
-        - Derive ranges as UTF-8 byte offsets over original bytes; decoded text is classification input only.
-        - Build `test-first` (one behavior at a time):
-            - Preamble, parent lead content, and nested headings concatenate to the exact input without overlap.
-            - Level jumps and repeated siblings receive stable parent-qualified occurrences.
-            - Fences, HTML, quotes, lists, BOM, multibyte text, and CRLF preserve exact behavior and bytes.
+    - `[x]` **1.2.a Build the H2-H6 heading-stack inventory**
+        - Scanned preamble, parent lead, and every H2-H6 descendant as disjoint original-byte ranges with
+          hierarchy-qualified, normalized, per-parent occurrence identities.
+        - Made occurrence keys collision-safe, treated H1 as a hierarchy reset without allocating it, and preserved
+          a leading BOM while classifying an immediate ATX or Setext heading.
+        - Pinned CRLF, multibyte, BOM, level-jump, repeated-parent, fence, HTML, quote, list, no-heading, and opaque
+          non-Markdown behavior while proving exact byte reconstruction.
 
     - `[ ]` **1.2.b Resolve hierarchy-qualified locators**
         - Resolve the complete hierarchy-qualified locator and derive `sourceId` from schema version, source path,

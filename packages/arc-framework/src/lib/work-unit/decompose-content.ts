@@ -214,7 +214,7 @@ function markdownBoundaries(content: string, allLevels = false): HeadingBoundary
       }
       container = null;
       paragraph = [];
-      if (allLevels ? atx.level >= 2 : atx.level === 2) {
+      if (allLevels || atx.level === 2) {
         headings.push({ start: line.start, level: atx.level, headingSource: atx.headingSource });
       }
       continue;
@@ -232,6 +232,16 @@ function markdownBoundaries(content: string, allLevels = false): HeadingBoundary
       continue;
     }
     if (isSetextH1Underline(line.body) && paragraph.length > 0) {
+      if (allLevels) {
+        const first = paragraph[0];
+        if (first !== undefined) {
+          headings.push({
+            start: first.start,
+            level: 1,
+            headingSource: normalizeDecomposeHeadingSource(paragraph.map((part) => part.body).join("\n")),
+          });
+        }
+      }
       paragraph = [];
       continue;
     }
@@ -317,7 +327,10 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
       units: [{ locator: { artifact, kind: "whole-file" }, content, bytes: new Uint8Array(bytes) }],
     };
   }
-  const headings = markdownBoundaries(content, true);
+  const classificationOffset = content.startsWith("\uFEFF") ? 1 : 0;
+  const boundaries = markdownBoundaries(content.slice(classificationOffset), true)
+    .map((heading) => ({ ...heading, start: heading.start + classificationOffset }));
+  const headings = boundaries.filter(({ level }) => level >= 2);
   const units: V3DecomposeContentUnit[] = [];
   const appendUnit = (start: number, end: number, locator: V3DecomposeContentLocator): void => {
     units.push({
@@ -333,18 +346,18 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
   appendUnit(0, headings[0]?.start ?? 0, { artifact, kind: "preamble" });
   const stack: Array<{ level: number; headingSource: string; occurrence: number }> = [];
   const occurrences = new Map<string, number>();
-  for (let index = 0; index < headings.length; index++) {
-    const heading = headings[index];
-    if (heading === undefined) continue;
+  let headingIndex = 0;
+  for (const heading of boundaries) {
+    if (heading.level === 1) {
+      stack.length = 0;
+      continue;
+    }
     while ((stack.at(-1)?.level ?? 0) >= heading.level) stack.pop();
     const ancestry = stack.map((entry) => ({ ...entry }));
-    const parentKey = ancestry
-      .map(({ level, headingSource, occurrence }) => `${level}:${headingSource}:${occurrence}`)
-      .join("\0");
-    const key = `${parentKey}\0${heading.level}:${heading.headingSource}`;
+    const key = JSON.stringify([ancestry, heading.level, heading.headingSource]);
     const occurrence = occurrences.get(key) ?? 0;
     occurrences.set(key, occurrence + 1);
-    appendUnit(heading.start, headings[index + 1]?.start ?? content.length, {
+    appendUnit(heading.start, headings[headingIndex + 1]?.start ?? content.length, {
       artifact,
       kind: "section",
       level: heading.level,
@@ -353,6 +366,7 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
       occurrence,
     });
     stack.push({ level: heading.level, headingSource: heading.headingSource, occurrence });
+    headingIndex += 1;
   }
   return { status: "scanned", units };
 }

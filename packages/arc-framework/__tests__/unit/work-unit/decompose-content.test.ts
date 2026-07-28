@@ -302,6 +302,148 @@ describe("scanV3DecomposeContent", () => {
       .toEqual(Buffer.from(original));
   });
 
+  it("keeps an initial BOM in preamble bytes while recognizing the first heading", () => {
+    for (const source of [
+      "\uFEFF## First\r\nbody\r\n",
+      "\uFEFFFirst\r\n-----\r\nbody\r\n",
+    ]) {
+      const original = bytes(source);
+      const result = scanV3DecomposeContent("draft-sample.md", original);
+      expect(result.status).toBe("scanned");
+      if (result.status !== "scanned") continue;
+
+      expect(result.units.map(({ locator }) => locator.kind)).toEqual(["preamble", "section"]);
+      expect(result.units[0]?.content).toBe("\uFEFF");
+      expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+        .toEqual(Buffer.from(original));
+    }
+  });
+
+  it("keeps preamble, parent lead, and nested CRLF units disjoint over original bytes", () => {
+    const source = [
+      "\uFEFFpréface",
+      "",
+      "## Parent",
+      "lead 😀",
+      "### Child",
+      "child",
+      "##### Jump",
+      "deep",
+      "###### Bottom",
+      "bottom",
+      "",
+    ].join("\r\n");
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("draft-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ content }) => content)).toEqual([
+      "\uFEFFpréface\r\n\r\n",
+      "## Parent\r\nlead 😀\r\n",
+      "### Child\r\nchild\r\n",
+      "##### Jump\r\ndeep\r\n",
+      "###### Bottom\r\nbottom\r\n",
+    ]);
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+  });
+
+  it("scopes repeated sibling occurrences by structural parent identity", () => {
+    const source = [
+      "## a",
+      "### b",
+      "#### Same",
+      "one",
+      `## a:0\u00003:b`,
+      "#### Same",
+      "two",
+      "",
+    ].join("\n");
+    const result = scanV3DecomposeContent("draft-sample.md", bytes(source));
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units
+      .filter(({ locator }) => locator.kind === "section" && locator.headingSource === "Same")
+      .map(({ locator }) => locator.kind === "section" ? locator.occurrence : -1))
+      .toEqual([0, 0]);
+  });
+
+  it("resets hierarchy ancestry across an intervening H1 without losing bytes", () => {
+    const source = "## Parent\nlead\n# New root\nroot lead\n### Child\nbody\n";
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("draft-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ content }) => content)).toEqual([
+      "",
+      "## Parent\nlead\n# New root\nroot lead\n",
+      "### Child\nbody\n",
+    ]);
+    expect(result.units.at(-1)?.locator).toMatchObject({
+      kind: "section",
+      headingSource: "Child",
+      ancestry: [],
+    });
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+  });
+
+  it("keeps incidental headings inside fences, HTML, quotes, and lists", () => {
+    const source = [
+      "```md",
+      "### fenced",
+      "```",
+      "<div>",
+      "#### html",
+      "</div>",
+      "",
+      "> ##### quoted",
+      "",
+      "- item",
+      "  ###### listed",
+      "",
+      "## Real",
+      "lead",
+      "### Child",
+      "body",
+      "",
+    ].join("\n");
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("draft-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.slice(1).map(({ locator }) =>
+      locator.kind === "section" ? locator.headingSource : locator.kind))
+      .toEqual(["Real", "Child"]);
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+  });
+
+  it("uses exact preamble and whole-file units when no H2-H6 boundary exists", () => {
+    const markdown = bytes("# Root\ntext 😀\r\n");
+    const binary = new Uint8Array([0xff, 0x00, 0x7f]);
+    expect(scanV3DecomposeContent("notes-sample.md", markdown)).toEqual({
+      status: "scanned",
+      units: [{
+        locator: { artifact: "notes-sample.md", kind: "preamble" },
+        content: "# Root\ntext 😀\r\n",
+        bytes: markdown,
+      }],
+    });
+    expect(scanV3DecomposeContent("payload.bin", binary)).toEqual({
+      status: "scanned",
+      units: [{
+        locator: { artifact: "payload.bin", kind: "whole-file" },
+        content: "\uFFFD\u0000\u007F",
+        bytes: binary,
+      }],
+    });
+  });
+
   it("resolves identical headings only under their exact parent identity", () => {
     const result = scanV3DecomposeContent(
       "draft-sample.md",
