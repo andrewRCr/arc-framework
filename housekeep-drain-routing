@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-drain-routing",
+  "origin": "description",
+  "intent": "Housekeep: route backlog captures; mint decompose-preflight-scaling",
+  "branch": "chore/housekeep-drain-routing",
+  "createdAt": "2026-07-28T21:50:54.091Z",
+  "returnBranch": "main"
+}
