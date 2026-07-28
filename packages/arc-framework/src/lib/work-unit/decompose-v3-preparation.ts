@@ -170,6 +170,13 @@ export function v3PreparationId(input: {
   return canonicalDigest({ schemaVersion: 3, ...input });
 }
 
+/** Digest the exact closed constitutive-topology fact array. */
+export function v3TopologyDigest(
+  facts: V3DecomposePreparationFacts["topology"]["facts"],
+): CanonicalDigest {
+  return canonicalDigest(z.array(TopologyFactSchema).parse(facts));
+}
+
 /** Derive the exact preparation-bound publication from canonical destination order. */
 export function v3CandidatePublication(
   map: V3DecomposeCutMap,
@@ -223,7 +230,7 @@ export function parseV3DecomposePreparation(input: unknown): V3DecomposePreparat
     || facts.incomingEdgeInventoryDigest !== v3IncomingEdgeInventoryDigest(map.machine)
     || facts.outgoingEdgeInventoryDigest !== v3OutgoingEdgeInventoryDigest(map.machine)
     || record.receiptId !== v3ReceiptId(map.machine)) return null;
-  const topologyDigest = canonicalDigest(facts.topology.facts);
+  const topologyDigest = v3TopologyDigest(facts.topology.facts);
   if (facts.topology.digest !== topologyDigest) return null;
   const planId = v3PlanId({
     preflightId: facts.preflightId,

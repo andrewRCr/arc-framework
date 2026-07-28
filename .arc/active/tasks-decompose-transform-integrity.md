@@ -29,39 +29,13 @@ units.
         - Preserved complete enumeration and reconciliation for the seven retained rename/abandon records; obsolete
           decomposition evidence no longer grants reference, cleanup, commit, or lifecycle authority.
 
-    - `[ ]` **1.1.b Define starter and completed cut-map schemas**
-        - Add closed `V3DecomposeStarterMap` and `V3DecomposeCutMap` schemas with the spec-defined shared
-          `{ schemaVersion, machine, authoring }` envelope.
-        - Implement the spec's exact closed nested records for source/result binding, every planning-profile arm,
-          source units, incoming/outgoing edge identities, placement, destination and target arms, source
-          allocations, dependency dispositions, and their author slots. Give the unknown-cardinality shape,
-          placement, destinations, and internal-edge fields whole-field `{ "status": "author" }` slots.
-        - Close the public domain to machine-derived `started-planning | backlog-stub` source kind,
-          `symmetric | heterogeneous` authoring shape, direct-member/cohort/subcohort/at-cap placement, and
-          new-member/existing-home/cohort-coordination destinations. Admit no public extraction shape or
-          surviving-origin destination.
-        - Prepopulate one source-allocation element per machine source unit and one disposition element per machine
-          dependency edge. Preserve each machine identity/order while exposing only its ownership/disposition slot;
-          completed parsing requires exact identity agreement and concrete closed values everywhere.
-        - Implement the exact UTF-8 ordering rules and canonical preimages for edge IDs, `receiptId`, `preflightId`,
-          `cutMapDigest`, `allowedPathsDigest`, `topologyDigest`, `transitionPatchDigest`, and the four prepared
-          source/inventory digests. `sourceArtifactDigest` hashes the versioned path-sorted regular-blob inventory
-          with stored mode and exact stored-byte content digest; the source/incoming/outgoing inventory digests hash
-          their versioned canonical machine arrays. Hash only the closed values named by the spec and never a
-          digest's own field or checkout bytes/path.
-        - Build `test-first` (one behavior at a time):
-            - Byte-exact canonical starter and completed fixtures cover every nested union arm, author-slot shape,
-              identity array, and deterministic round-trip.
-            - Perturbing each canonical preimage member, source blob mode/bytes, or machine inventory member changes
-              only the identity or digest it feeds; reordering, self-hashing, omitted members, checkout-byte
-              substitution, and unversioned inventory hashing refuse or fail fixture equality.
-            - Symmetric maps require at least two new members and no existing home; heterogeneous maps require at
-              least one of each, while zero/one/many internal edges replace their collection slot without changing
-              the envelope.
-            - Every remaining placeholder, missing/extra/reordered machine identity, or operator-tampered machine
-              field refuses with direct authoring guidance.
-            - Extraction, surviving-origin, unknown shape/placement/destination, and source-kind tampering refuse
-              at the public decoder.
+    - `[x]` **1.1.b Define starter and completed cut-map schemas**
+        - Closed the v3 machine/authoring envelopes, every public union arm, exact placement depth, starter slot,
+          machine identity, canonical order, and symmetric/heterogeneous cardinality rule.
+        - Projected every named digest from validated closed operands so extra, self-referential, checkout-only, and
+          unversioned inputs cannot alter authority; the detailed decoder returns one deterministic actionable locus.
+        - Pinned canonical starter/completed bytes and every versioned identity while covering all nested arms,
+          preimage perturbations, stored-byte changes, placeholders, tampering, and identity-array drift.
 
     - `[ ]` **1.1.c Bind prepared evidence and allowed paths**
         - Define the exact closed `V3DecomposePreparation` version-plus-kind arm in the shared retirement-record

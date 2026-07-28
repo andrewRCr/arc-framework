@@ -25,9 +25,24 @@ const ManagedPathSchema = z.string().refine(
   (value: string): boolean => isManagedPath(value),
   "must be a managed repository-relative path",
 );
+function isCanonicalCohortPath(value: string, depth?: 1 | 2): boolean {
+  if (value !== value.trim() || !isSafeCohortPath(value) || validateCohortPath(value) !== null) return false;
+  const segments = value.split("/");
+  return (depth === undefined ? segments.length === 1 || segments.length === 2 : segments.length === depth)
+    && segments.every((segment) => SlugSchema.safeParse(segment).success);
+}
+
 const CohortPathSchema = z.string().refine(
-  (value) => isSafeCohortPath(value) && validateCohortPath(value) === null,
-  "must be a safe cohort path",
+  (value) => isCanonicalCohortPath(value),
+  "must be a canonical one- or two-segment cohort path",
+);
+const TopLevelCohortPathSchema = z.string().refine(
+  (value) => isCanonicalCohortPath(value, 1),
+  "must be a canonical one-segment cohort path",
+);
+const NestedCohortPathSchema = z.string().refine(
+  (value) => isCanonicalCohortPath(value, 2),
+  "must be a canonical two-segment cohort path",
 );
 const AuthorSlotSchema = z.strictObject({ status: z.literal("author") });
 const HeadingIdentitySchema = z.strictObject({
@@ -80,6 +95,12 @@ const IncomingEdgeSchema = z.strictObject({
   currentTargets: z.array(DecomposeSlugSchema),
 });
 const OutgoingEdgeSchema = z.strictObject({ edgeId: DigestSchema, prerequisite: DecomposeSlugSchema });
+const SourceArtifactEntrySchema = z.strictObject({
+  path: ManagedPathSchema,
+  objectKind: z.literal("blob"),
+  mode: z.enum(["100644", "100755"]),
+  contentDigest: DigestSchema,
+});
 
 const MachineSchema = z.strictObject({
   preflightId: DigestSchema,
@@ -93,9 +114,9 @@ const MachineSchema = z.strictObject({
 
 const PlacementSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("direct-member") }),
-  z.strictObject({ kind: z.literal("cohort"), cohort: CohortPathSchema }),
-  z.strictObject({ kind: z.literal("subcohort"), cohort: CohortPathSchema }),
-  z.strictObject({ kind: z.literal("at-cap"), parent: CohortPathSchema }),
+  z.strictObject({ kind: z.literal("cohort"), cohort: TopLevelCohortPathSchema }),
+  z.strictObject({ kind: z.literal("subcohort"), cohort: NestedCohortPathSchema }),
+  z.strictObject({ kind: z.literal("at-cap"), parent: NestedCohortPathSchema }),
 ]);
 const ExistingTargetSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), slug: DecomposeSlugSchema }),
@@ -187,6 +208,23 @@ export type V3DecomposeStarterMap = z.infer<typeof V3DecomposeStarterMapSchema>;
 export type V3DecomposeCutMap = z.infer<typeof V3DecomposeCutMapSchema>;
 export type V3DecomposeMachine = V3DecomposeCutMap["machine"];
 
+export interface V3DecomposeMapIssue {
+  code:
+    | "invalid-structure"
+    | "incomplete-authoring"
+    | "machine-order"
+    | "machine-identity"
+    | "authoring-identity"
+    | "authoring-order"
+    | "shape-cardinality";
+  path: string;
+  message: string;
+}
+
+export type V3DecomposeCutMapDecodeResult =
+  | { status: "accepted"; value: V3DecomposeCutMap }
+  | { status: "rejected"; issue: V3DecomposeMapIssue };
+
 export interface V3SourceArtifactEntry {
   path: string;
   objectKind: "blob";
@@ -218,12 +256,14 @@ function identityArraysMatch(
 
 /** Canonical identity for one incoming dependency edge. */
 export function v3IncomingEdgeId(edge: { dependent: string; currentTargets: string[] }): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, kind: "incoming", ...edge });
+  const preimage = IncomingEdgeSchema.omit({ edgeId: true }).parse(edge);
+  return canonicalDigest({ schemaVersion: 3, kind: "incoming", ...preimage });
 }
 
 /** Canonical identity for one outgoing dependency edge. */
 export function v3OutgoingEdgeId(edge: { prerequisite: string }): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, kind: "outgoing", ...edge });
+  const preimage = OutgoingEdgeSchema.omit({ edgeId: true }).parse(edge);
+  return canonicalDigest({ schemaVersion: 3, kind: "outgoing", ...preimage });
 }
 
 /** Canonical identity for one source allocation unit. */
@@ -231,12 +271,17 @@ export function v3SourceId(source: {
   sourcePath: string;
   sourceLocator: z.infer<typeof V3DecomposeLocatorSchema>;
 }): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, ...source });
+  const preimage = z.strictObject({
+    sourcePath: ManagedPathSchema,
+    sourceLocator: V3DecomposeLocatorSchema,
+  }).parse(source);
+  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 /** Canonical identity for the machine-owned decomposition preflight. */
 export function v3PreflightId(machine: Omit<V3DecomposeMachine, "preflightId">): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, ...machine });
+  const preimage = MachineSchema.omit({ preflightId: true }).parse(machine);
+  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 /** Stable retirement identity for one exact v3 source transition. */
@@ -252,7 +297,7 @@ export function v3ReceiptId(machine: V3DecomposeMachine): CanonicalDigest {
 
 /** Digest one exact completed cut map. */
 export function v3CutMapDigest(map: V3DecomposeCutMap): CanonicalDigest {
-  return canonicalDigest(map);
+  return canonicalDigest(V3DecomposeCutMapSchema.parse(map));
 }
 
 /** Digest the canonical complete authorization path set. */
@@ -262,47 +307,125 @@ export function v3AllowedPathsDigest(paths: readonly string[]): CanonicalDigest 
 
 /** Digest the complete stored-blob source artifact inventory. */
 export function v3SourceArtifactDigest(entries: readonly V3SourceArtifactEntry[]): CanonicalDigest | null {
-  if (!ordered(entries.map(({ path }) => path))) return null;
-  return canonicalDigest({ schemaVersion: 3, kind: "source-artifact-inventory", entries });
+  const parsed = z.array(SourceArtifactEntrySchema).safeParse(entries);
+  if (!parsed.success || !ordered(parsed.data.map(({ path }) => path))) return null;
+  return canonicalDigest({ schemaVersion: 3, kind: "source-artifact-inventory", entries: parsed.data });
 }
 
 /** Digest the immutable machine source-unit inventory. */
 export function v3SourceInventoryDigest(machine: V3DecomposeMachine): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, kind: "source-unit-inventory", entries: machine.sourceUnits });
+  const entries = z.array(SourceUnitSchema).parse(machine.sourceUnits);
+  return canonicalDigest({ schemaVersion: 3, kind: "source-unit-inventory", entries });
 }
 
 /** Digest the immutable machine incoming-edge inventory. */
 export function v3IncomingEdgeInventoryDigest(machine: V3DecomposeMachine): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, kind: "incoming-edge-inventory", entries: machine.incomingEdges });
+  const entries = z.array(IncomingEdgeSchema).parse(machine.incomingEdges);
+  return canonicalDigest({ schemaVersion: 3, kind: "incoming-edge-inventory", entries });
 }
 
 /** Digest the immutable machine outgoing-edge inventory. */
 export function v3OutgoingEdgeInventoryDigest(machine: V3DecomposeMachine): CanonicalDigest {
-  return canonicalDigest({ schemaVersion: 3, kind: "outgoing-edge-inventory", entries: machine.outgoingEdges });
+  const entries = z.array(OutgoingEdgeSchema).parse(machine.outgoingEdges);
+  return canonicalDigest({ schemaVersion: 3, kind: "outgoing-edge-inventory", entries });
+}
+
+function valueAtPath(input: unknown, path: PropertyKey[]): unknown {
+  let value = input;
+  for (const part of path) {
+    if (typeof value !== "object" || value === null) return undefined;
+    value = (value as Record<PropertyKey, unknown>)[part];
+  }
+  return value;
+}
+
+function formatPath(path: PropertyKey[]): string {
+  return path.map(String).join(".");
+}
+
+function structuralIssue(input: unknown, error: z.ZodError): V3DecomposeMapIssue {
+  const first = error.issues[0];
+  const path = first?.path ?? [];
+  for (let length = path.length; length >= 0; length -= 1) {
+    const candidatePath = path.slice(0, length);
+    const value = valueAtPath(input, candidatePath);
+    if (typeof value === "object" && value !== null
+      && (value as { status?: unknown }).status === "author") {
+      const locus = formatPath(candidatePath);
+      return {
+        code: "incomplete-authoring",
+        path: locus,
+        message: `Replace the author slot at ${locus} with a complete closed value.`,
+      };
+    }
+  }
+  return {
+    code: "invalid-structure",
+    path: formatPath(path),
+    message: first?.message ?? "The completed cut map is not structurally valid.",
+  };
+}
+
+function machineIssue(machine: V3DecomposeMachine): V3DecomposeMapIssue | null {
+  const sourceIds = machine.sourceUnits.map(({ sourceId }) => sourceId);
+  if (!ordered(sourceIds)) return {
+    code: "machine-order",
+    path: "machine.sourceUnits",
+    message: "Keep machine source units in unique UTF-8 sourceId order.",
+  };
+  const incomingIds = machine.incomingEdges.map(({ edgeId }) => edgeId);
+  if (!ordered(incomingIds)) return {
+    code: "machine-order",
+    path: "machine.incomingEdges",
+    message: "Keep machine incoming edges in unique UTF-8 edgeId order.",
+  };
+  const outgoingIds = machine.outgoingEdges.map(({ edgeId }) => edgeId);
+  if (!ordered(outgoingIds)) return {
+    code: "machine-order",
+    path: "machine.outgoingEdges",
+    message: "Keep machine outgoing edges in unique UTF-8 edgeId order.",
+  };
+  const sourceIndex = machine.sourceUnits.findIndex((unit) => unit.sourceId !== v3SourceId({
+    sourcePath: unit.sourcePath,
+    sourceLocator: unit.sourceLocator,
+  }));
+  if (sourceIndex >= 0) return {
+    code: "machine-identity",
+    path: `machine.sourceUnits.${sourceIndex}.sourceId`,
+    message: "Restore the machine-derived sourceId; author only fields under authoring.",
+  };
+  const incomingIndex = machine.incomingEdges.findIndex((edge) =>
+    !ordered(edge.currentTargets)
+    || edge.edgeId !== v3IncomingEdgeId({ dependent: edge.dependent, currentTargets: edge.currentTargets }));
+  if (incomingIndex >= 0) return {
+    code: "machine-identity",
+    path: `machine.incomingEdges.${incomingIndex}`,
+    message: "Restore the machine-derived incoming edge and its unique UTF-8 target order.",
+  };
+  const outgoingIndex = machine.outgoingEdges.findIndex((edge) =>
+    edge.edgeId !== v3OutgoingEdgeId({ prerequisite: edge.prerequisite }));
+  if (outgoingIndex >= 0) return {
+    code: "machine-identity",
+    path: `machine.outgoingEdges.${outgoingIndex}`,
+    message: "Restore the machine-derived outgoing edge; author only its disposition.",
+  };
+  const expectedPreflightId = v3PreflightId({
+    source: machine.source,
+    resultBase: machine.resultBase,
+    planningProfile: machine.planningProfile,
+    sourceUnits: machine.sourceUnits,
+    incomingEdges: machine.incomingEdges,
+    outgoingEdges: machine.outgoingEdges,
+  });
+  return machine.preflightId === expectedPreflightId ? null : {
+    code: "machine-identity",
+    path: "machine.preflightId",
+    message: "Restore the complete machine envelope emitted by preflight.",
+  };
 }
 
 function machineIsCanonical(machine: V3DecomposeMachine): boolean {
-  const sourceIds = machine.sourceUnits.map(({ sourceId }) => sourceId);
-  const incomingIds = machine.incomingEdges.map(({ edgeId }) => edgeId);
-  const outgoingIds = machine.outgoingEdges.map(({ edgeId }) => edgeId);
-  return ordered(sourceIds)
-    && ordered(incomingIds)
-    && ordered(outgoingIds)
-    && machine.sourceUnits.every((unit) => unit.sourceId === v3SourceId({
-      sourcePath: unit.sourcePath,
-      sourceLocator: unit.sourceLocator,
-    }))
-    && machine.incomingEdges.every((edge) => ordered(edge.currentTargets)
-      && edge.edgeId === v3IncomingEdgeId({ dependent: edge.dependent, currentTargets: edge.currentTargets }))
-    && machine.outgoingEdges.every((edge) => edge.edgeId === v3OutgoingEdgeId({ prerequisite: edge.prerequisite }))
-    && machine.preflightId === v3PreflightId({
-      source: machine.source,
-      resultBase: machine.resultBase,
-      planningProfile: machine.planningProfile,
-      sourceUnits: machine.sourceUnits,
-      incomingEdges: machine.incomingEdges,
-      outgoingEdges: machine.outgoingEdges,
-    });
+  return machineIssue(machine) === null;
 }
 
 /** Parse and validate a closed v3 starter map. */
@@ -315,22 +438,68 @@ export function parseV3DecomposeStarterMap(input: unknown): V3DecomposeStarterMa
 
 /** Parse and validate a closed, fully authored v3 cut map. */
 export function parseV3DecomposeCutMap(input: unknown): V3DecomposeCutMap | null {
+  const result = decodeV3DecomposeCutMap(input);
+  return result.status === "accepted" ? result.value : null;
+}
+
+/** Decode a completed map with one deterministic author-actionable refusal. */
+export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecodeResult {
   const parsed = V3DecomposeCutMapSchema.safeParse(input);
-  if (!parsed.success || !machineIsCanonical(parsed.data.machine)
-    || !identityArraysMatch(parsed.data.machine, parsed.data.authoring)) return null;
+  if (!parsed.success) return { status: "rejected", issue: structuralIssue(input, parsed.error) };
+  const invalidMachine = machineIssue(parsed.data.machine);
+  if (invalidMachine !== null) return { status: "rejected", issue: invalidMachine };
+  const identityPairs = [
+    ["sourceAllocations", parsed.data.machine.sourceUnits.map(({ sourceId }) => sourceId),
+      parsed.data.authoring.sourceAllocations.map(({ sourceId }) => sourceId)],
+    ["incomingDispositions", parsed.data.machine.incomingEdges.map(({ edgeId }) => edgeId),
+      parsed.data.authoring.incomingDispositions.map(({ edgeId }) => edgeId)],
+    ["outgoingDispositions", parsed.data.machine.outgoingEdges.map(({ edgeId }) => edgeId),
+      parsed.data.authoring.outgoingDispositions.map(({ edgeId }) => edgeId)],
+  ] as const;
+  const invalidIdentityPair = identityPairs.find(([, machineIds, authorIds]) =>
+    machineIds.join("\0") !== authorIds.join("\0"));
+  if (invalidIdentityPair !== undefined) return {
+    status: "rejected",
+    issue: {
+      code: "authoring-identity",
+      path: `authoring.${invalidIdentityPair[0]}`,
+      message: "Preserve every machine identity exactly once and in machine order; edit only its authored value.",
+    },
+  };
   const { authoring } = parsed.data;
   const destinationIds = authoring.destinations.map(({ destinationId }) => destinationId);
   const internalIds = authoring.internalEdges.map(({ from, to }) => `${from}\0${to}`);
   const newCount = authoring.destinations.filter(({ kind }) => kind === "new-member").length;
   const existingCount = authoring.destinations.filter(({ kind }) => kind === "existing-home").length;
-  if (!ordered(destinationIds) || !ordered(internalIds)
-    || authoring.incomingDispositions.some(({ disposition }) =>
-      disposition.kind === "replace" && !ordered(disposition.replacementTargets))
-    || authoring.outgoingDispositions.some(({ disposition }) =>
-      disposition.kind === "targets" && !ordered(disposition.targets))
-    || (authoring.shape === "symmetric" && (newCount < 2 || existingCount !== 0))
-    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))) return null;
-  return parsed.data;
+  const unorderedPath = !ordered(destinationIds) ? "authoring.destinations"
+    : !ordered(internalIds) ? "authoring.internalEdges"
+      : authoring.incomingDispositions.findIndex(({ disposition }) =>
+        disposition.kind === "replace" && !ordered(disposition.replacementTargets)) >= 0
+        ? "authoring.incomingDispositions"
+        : authoring.outgoingDispositions.findIndex(({ disposition }) =>
+          disposition.kind === "targets" && !ordered(disposition.targets)) >= 0
+          ? "authoring.outgoingDispositions"
+          : null;
+  if (unorderedPath !== null) return {
+    status: "rejected",
+    issue: {
+      code: "authoring-order",
+      path: unorderedPath,
+      message: "Keep authored identities unique and in canonical UTF-8 order.",
+    },
+  };
+  if ((authoring.shape === "symmetric" && (newCount < 2 || existingCount !== 0))
+    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))) return {
+    status: "rejected",
+    issue: {
+      code: "shape-cardinality",
+      path: "authoring.shape",
+      message: authoring.shape === "symmetric"
+        ? "A symmetric map needs at least two new members and no existing home."
+        : "A heterogeneous map needs at least one new member and one existing home.",
+    },
+  };
+  return { status: "accepted", value: parsed.data };
 }
 
 /** Build the starter author slots from one canonical machine envelope. */

@@ -136,5 +136,19 @@ describe("v3 decomposition preflight", () => {
       status: "stale",
       reason: "source-artifact-inventory",
     });
+
+    const storedBytesOnly = input();
+    storedBytesOnly.localBranches[0]!.sourceArtifacts[0]!.bytes = bytes("# Draft\n\n## One\nChanged body.\n");
+    expect(revalidateV3DecomposePreflight(initial.preflight, storedBytesOnly)).toEqual({
+      status: "stale",
+      reason: "source-artifact-inventory",
+    });
+    const changedResult = createV3DecomposePreflight(storedBytesOnly);
+    expect(changedResult.status).toBe("ready");
+    if (changedResult.status !== "ready") return;
+    expect(changedResult.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId))
+      .toEqual(initial.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId));
+    expect(changedResult.preflight.starterMap.machine.sourceUnits.map(({ contentDigest }) => contentDigest))
+      .not.toEqual(initial.preflight.starterMap.machine.sourceUnits.map(({ contentDigest }) => contentDigest));
   });
 });

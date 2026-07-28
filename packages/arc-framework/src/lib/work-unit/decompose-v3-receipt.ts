@@ -93,7 +93,7 @@ function receiptPath(receiptId: CanonicalDigest): string {
 export function v3TransitionPatchDigest(
   patch: readonly z.infer<typeof TransitionPatchEntrySchema>[],
 ): CanonicalDigest {
-  return canonicalDigest(patch);
+  return canonicalDigest(z.array(TransitionPatchEntrySchema).parse(patch));
 }
 
 /** Canonical digest for one destination's exact managed outputs. */
