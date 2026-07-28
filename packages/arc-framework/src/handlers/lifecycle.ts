@@ -319,24 +319,8 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
-  preflight: z.literal(true).optional(),
-  cutMap: z.string().min(1).optional(),
-  finalize: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  continuation: z.string().min(1).optional(),
-  discard: z.string().min(1).optional(),
-  handoff: z.literal(true).optional(),
-}).strict().superRefine((value, refinement) => {
-  const modes = [
-    value.preflight === true,
-    value.cutMap !== undefined,
-    value.finalize !== undefined || value.continuation !== undefined,
-    value.discard !== undefined,
-    value.handoff === true,
-  ].filter(Boolean).length;
-  if (modes !== 1 || ((value.finalize === undefined) !== (value.continuation === undefined))) {
-    refinement.addIssue({ code: "custom", message: "Provide exactly one complete decompose mode." });
-  }
-});
+  preflight: z.literal(true),
+}).strict();
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -440,11 +424,6 @@ export const lifecycleCommandInputRegistrations = [
     schemaFields: {
       "operand.origin": "origin",
       "option.preflight": "preflight",
-      "option.cut-map": "cutMap",
-      "option.finalize": "finalize",
-      "option.continuation": "continuation",
-      "option.discard": "discard",
-      "option.handoff": "handoff",
     },
   },
   {
@@ -671,16 +650,6 @@ export async function handleStub(
 export interface DecomposeOptions {
   /** Emit one exact machine-derived starter map without mutation. */
   preflight?: true;
-  /** Path to the completed canonical v3 map. */
-  cutMap?: string;
-  /** Deterministic prepared receipt ID to finalize. */
-  finalize?: string;
-  /** Closed continuation input paired with finalize. */
-  continuation?: string;
-  /** Completed map identifying the exact candidate to discard. */
-  discard?: string;
-  /** Resolve landed publication facts. */
-  handoff?: true;
 }
 
 function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
@@ -690,14 +659,12 @@ function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolea
 }
 
 /**
- * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
- * members per a structured cut-map. Deserializes + validates the cut-map file
- * (the boundary `parseCutMap`), refusing a malformed file before any mutation,
- * then runs the deterministic legs (`runDecompose`): batch-scaffold the members,
- * retire the origin through its reserved edge (skipped on the extraction shape),
- * re-point the incoming `Depends On` edges, and regenerate the ROADMAP. The
- * cut-map's judgment (members, distribution, dispositions) is authored upstream;
- * the command never fabricates it.
+ * Emit one canonical read-only v3 decomposition preflight.
+ *
+ * @param origin - Planning source slug to authenticate and inspect.
+ * @param opts - Closed command mode; only preflight is accepted.
+ * @param context - Optional interaction context supplying subprocess execution.
+ * @returns A promise that resolves after emitting the starter map or a refusal.
  */
 export async function handleDecompose(
   origin: string | undefined,
@@ -706,42 +673,29 @@ export async function handleDecompose(
 ): Promise<void> {
   const input = parseLifecycleCommand(DecomposeCommandInputSchema, { origin: origin?.trim(), ...opts });
   if (input === null) return;
-  if (input.preflight === true) {
-    const cwd = resolveArcRoot();
-    if (cwd === null) {
-      process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+  const cwd = resolveArcRoot();
+  if (cwd === null) {
+    process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    const { settings } = await readConfigSettings(cwd);
+    const io = createUserIOContext(context?.subprocess);
+    const result = await createGitV3DecomposePreflight({
+      cwd,
+      exec: io.exec,
+      readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+    }, settings["branch.base"], input.origin);
+    if (result.status === "rejected") {
+      process.stderr.write(`${result.reason}\n`);
       process.exitCode = 1;
       return;
     }
-    try {
-      const { settings } = await readConfigSettings(cwd);
-      const io = createUserIOContext(context?.subprocess);
-      const result = await createGitV3DecomposePreflight({
-        cwd,
-        exec: io.exec,
-        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-      }, settings["branch.base"], input.origin);
-      if (result.status === "rejected") {
-        process.stderr.write(`${result.reason}\n`);
-        process.exitCode = 1;
-        return;
-      }
-      process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
-      return;
-    } catch (error) {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      process.exitCode = 1;
-      return;
-    }
-  }
-  p.intro("arc decompose");
-  if (input.handoff === true || input.discard !== undefined) {
-    refuse("unsupported-transition:v3-command-mode-not-wired");
-    return;
-  }
-  if (input.finalize !== undefined || input.cutMap !== undefined) {
-    refuse("unsupported-transition:v3-runtime-not-wired");
-    return;
+    process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
   }
 }
 
