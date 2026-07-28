@@ -158,11 +158,14 @@ describe("runJoin", () => {
       ["config", "core.hooksPath", ".arc/system/.internal/githooks"],
     ]);
 
-    // guard: merge driver was retired in d8e5048 — no merge.* git config should be written
+    // Repository-local driver wiring is restored on every developer join.
     const mergeDriverCall = execCalls.find(
-      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+      (c) => c[1]?.includes("merge.arc-roadmap.driver"),
     );
-    expect(mergeDriverCall).toBeUndefined();
+    expect(mergeDriverCall).toBeDefined();
+    expect(mergeDriverCall![1].join(" ")).toContain(
+      "arc hook-remedy-roadmap-conflict",
+    );
   });
 
   it("creates user directory with templates", async () => {
