@@ -7,6 +7,10 @@ import {
 import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
+import {
+  parseV3DecomposeReceipt,
+  type V3DecomposeReceipt,
+} from "./decompose-v3-receipt.js";
 import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
 
 type JsonObject = Record<string, unknown>;
@@ -98,6 +102,34 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
   return null;
 }
 
+/** One fully authenticated receipt arm in the shared retirement namespace. */
+export type ParsedRetirementReceiptRecord =
+  | { kind: "retained"; receipt: RetirementReceipt }
+  | { kind: "v3-decomposition"; receipt: V3DecomposeReceipt };
+
+/**
+ * Discriminate and authenticate one canonical receipt without cross-version fallback.
+ *
+ * @param content - Untrusted canonical receipt JSON
+ * @returns One complete retained or v3 decomposition receipt, or `null`
+ */
+export function parseRetirementReceiptRecord(content: string): ParsedRetirementReceiptRecord | null {
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(content) as unknown;
+  } catch {
+    return null;
+  }
+  if (canonicalize(candidate) !== content || !isObject(candidate)) return null;
+  if (candidate.schemaVersion === 3 && candidate.kind === "decompose-receipt") {
+    const receipt = parseV3DecomposeReceipt(candidate);
+    return receipt === null ? null : { kind: "v3-decomposition", receipt };
+  }
+  if (candidate.schemaVersion !== 1 && candidate.schemaVersion !== 2) return null;
+  const receipt = parseRetirementReceipt(content);
+  return receipt === null ? null : { kind: "retained", receipt };
+}
+
 /**
  * Decode one finalized retirement receipt from canonical JSON.
  *
@@ -126,7 +158,6 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
       || (schemaVersion === 2
         && ((subject.kind === "work-unit") === (parsed.inventoryRead === "not-applicable")))
       || (parsed.transition !== "abandon"
-        && parsed.transition !== "decompose"
         && parsed.transition !== "park-planning"
         && parsed.transition !== "rename")
       || !isCanonicalDigest(parsed.transitionPatchDigest)
@@ -163,9 +194,7 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
         };
     const expectedLifecycle = transition === "park-planning" ? "planned" : "nonexistent";
     const projectionMatches = transition === "abandon"
-      || (transition === "decompose"
-        ? receipt.retiringProjection.kind === "unchanged"
-        : receipt.retiringProjection.kind === "direct-transition");
+      || receipt.retiringProjection.kind === "direct-transition";
     if (
       validateReceiptMatrix(receipt, expectedLifecycle) !== null
       || !projectionMatches

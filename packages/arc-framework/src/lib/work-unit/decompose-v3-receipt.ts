@@ -15,6 +15,7 @@ import {
   V3PathStateSchema,
   V3CandidatePublicationSchema,
   parseV3DecomposePreparation,
+  v3DecomposeReceiptPath,
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
 
@@ -29,17 +30,18 @@ export const V3DecomposeContinuationInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("selected"), slugs: z.array(DecomposeSlugSchema).min(1) }),
   z.strictObject({ kind: z.literal("none") }),
 ]);
-const DestinationDigestSchema = z.strictObject({
-  destinationId: z.string().refine((value) => value.trim() !== "", "must be non-empty"),
-  digest: DigestSchema,
-});
 const DestinationOutputSchema = z.strictObject({
   path: ManagedPathSchema,
   after: V3PathStateSchema,
 });
+const DestinationDigestSchema = z.strictObject({
+  destinationId: z.string().refine((value) => value.trim() !== "", "must be non-empty"),
+  outputs: z.array(DestinationOutputSchema).min(1),
+  digest: DigestSchema,
+});
 const DestinationOutputsSchema = z.strictObject({
   destinationId: DestinationDigestSchema.shape.destinationId,
-  outputs: z.array(DestinationOutputSchema).min(1),
+  outputs: DestinationDigestSchema.shape.outputs,
 });
 const ManagedPathResultSchema = z.strictObject({
   path: ManagedPathSchema,
@@ -92,10 +94,6 @@ function statesEqual(
   right: V3ManagedPathResult["after"],
 ): boolean {
   return canonicalize(left) === canonicalize(right);
-}
-
-function receiptPath(receiptId: CanonicalDigest): string {
-  return `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
 }
 
 /** Canonical mode-aware patch identity. */
@@ -158,7 +156,7 @@ export function createV3DecomposeReceipt(
     !statesEqual(before, after));
   const destinationDigests = destinationOutputs.data.map(({ destinationId, outputs }) => {
     const digest = v3DestinationDigest(destinationId, outputs);
-    return digest === null ? null : { destinationId, digest };
+    return digest === null ? null : { destinationId, outputs, digest };
   });
   if (destinationDigests.some((entry) => entry === null)) return null;
   return parseV3DecomposeReceipt({
@@ -244,7 +242,7 @@ export function parseV3DecomposeReceipt(
       receipt.finalized.publication.initialContinuation,
       actualPublication,
     ) === null) return null;
-  const expectedReceiptPath = receiptPath(receipt.receiptId);
+  const expectedReceiptPath = v3DecomposeReceiptPath(receipt.receiptId);
   if (receipt.prepared.allowedPaths.filter((path) => path === expectedReceiptPath).length !== 1) return null;
   const allowed = receipt.prepared.allowedPaths.filter((path) => path !== expectedReceiptPath);
   const resultPaths = receipt.finalized.managedPathResults.map(({ path }) => path);
@@ -255,6 +253,13 @@ export function parseV3DecomposeReceipt(
   if (!ordered(receipt.finalized.destinationDigests.map(({ destinationId }) => destinationId))
     || canonicalize(receipt.finalized.destinationDigests.map(({ destinationId }) => destinationId))
       !== canonicalize(expectedDestinationIds)
+    || receipt.finalized.destinationDigests.some(({ destinationId, outputs, digest }) =>
+      !ordered(outputs.map(({ path }) => path))
+      || outputs.some((output) => {
+        const result = receipt.finalized.managedPathResults.find(({ path }) => path === output.path);
+        return result === undefined || canonicalize(result.after) !== canonicalize(output.after);
+      })
+      || v3DestinationDigest(destinationId, outputs) !== digest)
     || !ordered(resultPaths)
     || !ordered(patchPaths)
     || canonicalize(allowed) !== canonicalize(resultPaths)

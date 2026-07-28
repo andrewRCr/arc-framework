@@ -12,6 +12,7 @@ import {
   type V3DecomposePreparation,
   type V3CandidatePublication,
 } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
+import { v3AllowedPathsDigest } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 describe("v3 decomposition preparation identities", () => {
   const publication: V3CandidatePublication = {
@@ -169,6 +170,20 @@ describe("v3 decomposition preparation identities", () => {
     const changed = structuredClone(preparation);
     changed.facts.completedMap.machine.resultBase.head = "c".repeat(40);
     expect(parseV3DecomposePreparation(changed)).toBeNull();
+  });
+
+  it("requires the exact recursive receipt path in stored preparation authority", () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const missingReceiptPath = structuredClone(preparation);
+    missingReceiptPath.facts.allowedPaths = missingReceiptPath.facts.allowedPaths.filter(
+      (path) => !path.includes("/retirement-receipts/"),
+    );
+    const allowedPathsDigest = v3AllowedPathsDigest(missingReceiptPath.facts.allowedPaths);
+    if (allowedPathsDigest === null) throw new Error("expected canonical paths");
+    missingReceiptPath.facts.allowedPathsDigest = allowedPathsDigest;
+    reseal(missingReceiptPath);
+
+    expect(parseV3DecomposePreparation(missingReceiptPath)).toBeNull();
   });
 
   it("derives publication, ownership, and prospective observation from bound facts", () => {

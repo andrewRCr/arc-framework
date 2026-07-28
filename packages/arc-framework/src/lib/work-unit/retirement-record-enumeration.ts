@@ -14,9 +14,9 @@ import {
   parseV3DecomposePreparation,
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
-import { parseV3DecomposeReceipt, type V3DecomposeReceipt } from "./decompose-v3-receipt.js";
+import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type { DecomposePreparationRecord, RetirementReceipt } from "./retirement-authority.js";
-import { parseRetirementReceipt } from "./retirement-receipt-codec.js";
+import { parseRetirementReceiptRecord } from "./retirement-receipt-codec.js";
 import { decodeRetirementRecordKey } from "./retirement-record-store.js";
 
 /** One raw record discovered by an adapter, without exposing its storage path. */
@@ -67,13 +67,12 @@ export function validateRetirementRecordEnumeration(
     } catch {
       return { status: "namespace-corrupt" };
     }
-    const receipt = parseRetirementReceipt(entry.content);
-    const preparation = receipt === null ? parseDecomposePreparationRecord(entry.content, id) : null;
-    const v3Preparation = receipt === null && preparation === null
+    const decodedReceipt = parseRetirementReceiptRecord(entry.content);
+    const receipt = decodedReceipt?.kind === "retained" ? decodedReceipt.receipt : null;
+    const v3Receipt = decodedReceipt?.kind === "v3-decomposition" ? decodedReceipt.receipt : null;
+    const preparation = decodedReceipt === null ? parseDecomposePreparationRecord(entry.content, id) : null;
+    const v3Preparation = decodedReceipt === null && preparation === null
       ? parseV3DecomposePreparation(entry.content)
-      : null;
-    const v3Receipt = receipt === null && preparation === null && v3Preparation === null
-      ? parseV3DecomposeReceipt(entry.content)
       : null;
     const record: EnumeratedRetirementRecord | null = receipt !== null && receipt.receiptId === id
       ? { id, content: entry.content, record: { kind: "receipt", value: receipt } }

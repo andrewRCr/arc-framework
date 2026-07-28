@@ -87,18 +87,14 @@ units.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
-    - `[ ]` **1.3.a Decode and rederive every stored invariant**
-        - Implement the canonical v3 decomposition branch in the shared receipt codec and recompute
-          receipt/preparation identities, candidate ownership, inventories, allowed paths, managed path results,
-          changed/unchanged partition, transition patch, destination digests, and publication. Preserve the existing
-          non-decompose receipt decoder without admitting v1/v2 decomposition.
-        - Keep the decoder closed and return no partial authority on failure. It does not produce either overlay arm;
-          keep integration-anchor consumers outside this phase.
-        - Build `test-first` (one behavior at a time):
-            - Canonical v3 decomposition evidence and the retained non-decompose receipt set decode.
-            - Tampering, duplicate/unsorted paths or entries, and malformed topology or continuation facts refuse.
-            - V1/v2 decomposition evidence refuses while a namespace containing only retained transition records
-              remains valid.
+    - `[x]` **1.3.a Decode and rederive every stored invariant**
+        - Added one discriminator-first shared receipt codec for retained transitions and closed v3 decomposition,
+          with namespace enumeration consuming only its authenticated receipt arms.
+        - Co-located each destination digest's exact output preimage, rederived it during untrusted decoding, and
+          authenticated the recursive receipt path, embedded preparation, result partition, patch, publication, and
+          continuation without returning partial or overlay authority.
+        - Retained rename, abandon, and park namespaces remain valid while legacy v1/v2 decomposition and all
+          version/kind collisions fail the namespace closed.
 
     - `[ ]` **1.3.b Validate the exact live decomposition**
         - Consolidate source/allocation inventory, target/dependency binding, result-base preconditions, and

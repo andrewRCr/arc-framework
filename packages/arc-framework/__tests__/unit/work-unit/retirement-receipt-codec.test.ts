@@ -4,7 +4,11 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import { parseCutMap, type DecomposeAllocationMap } from "../../../src/lib/work-unit/decompose-cut-map.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
-import { parseRetirementReceipt } from "../../../src/lib/work-unit/retirement-receipt-codec.js";
+import {
+  parseRetirementReceipt,
+  parseRetirementReceiptRecord,
+} from "../../../src/lib/work-unit/retirement-receipt-codec.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const digest = (label: string) => canonicalDigest(label);
 
@@ -340,5 +344,30 @@ describe("parseRetirementReceipt", () => {
       base.result = { kind: "discard", artifactDigest: "absent" };
     }
     expect(parseRetirementReceipt(canonicalize(base))).toBeNull();
+  });
+});
+
+describe("parseRetirementReceiptRecord", () => {
+  it("discriminates canonical v3 decomposition from retained receipts", () => {
+    const retained = receiptFor();
+    const { receipt: decomposition } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementReceiptRecord(contentOf(retained))).toEqual({
+      kind: "retained",
+      receipt: retained,
+    });
+    expect(parseRetirementReceiptRecord(canonicalize(decomposition))).toEqual({
+      kind: "v3-decomposition",
+      receipt: decomposition,
+    });
+  });
+
+  it("refuses malformed v3 authority without falling through to retained decoding", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const tampered = structuredClone(receipt);
+    tampered.finalized.destinationDigests[0]!.digest = digest("forged");
+
+    expect(parseRetirementReceiptRecord(canonicalize(tampered))).toBeNull();
+    expect(parseRetirementReceiptRecord(canonicalize({ ...receipt, schemaVersion: 2 }))).toBeNull();
   });
 });

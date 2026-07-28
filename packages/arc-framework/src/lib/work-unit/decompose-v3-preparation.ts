@@ -35,6 +35,12 @@ const ManagedPathSchema = z.string().refine(
   "must be a managed repository-relative path",
 );
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
+
+/** Canonical managed path for one finalized v3 decomposition receipt. */
+export function v3DecomposeReceiptPath(receiptId: CanonicalDigest): string {
+  return `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
+}
+
 export const V3PathStateSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("absent") }),
   z.strictObject({
@@ -310,7 +316,7 @@ export function createV3DecomposePreparation(
     return { status: "rejected", reason: "plan-binding-mismatch" };
   }
   const receiptId = v3ReceiptId(map.machine);
-  const recordPath = `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
+  const recordPath = v3DecomposeReceiptPath(receiptId);
   if (!input.plan.allowedPaths.includes(recordPath)) {
     return { status: "rejected", reason: "receipt-path-missing" };
   }
@@ -394,7 +400,9 @@ export function parseV3DecomposePreparation(input: unknown): V3DecomposePreparat
     || facts.sourceInventoryDigest !== v3SourceInventoryDigest(map.machine)
     || facts.incomingEdgeInventoryDigest !== v3IncomingEdgeInventoryDigest(map.machine)
     || facts.outgoingEdgeInventoryDigest !== v3OutgoingEdgeInventoryDigest(map.machine)
-    || record.receiptId !== v3ReceiptId(map.machine)) return null;
+    || record.receiptId !== v3ReceiptId(map.machine)
+    || facts.allowedPaths.filter((path) =>
+      path === v3DecomposeReceiptPath(record.receiptId)).length !== 1) return null;
   const topologyFacts = parseV3TopologyFacts(facts.topology.facts);
   if (topologyFacts === null
     || !candidateOwnershipIsBound(facts.candidateOwnership)

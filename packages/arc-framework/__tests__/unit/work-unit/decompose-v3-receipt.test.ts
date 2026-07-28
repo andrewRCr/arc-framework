@@ -119,7 +119,7 @@ describe("v3 finalized decomposition evidence", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(receipt);
     expect(bytes).toBe(canonicalize(JSON.parse(bytes)));
-    expect(canonicalDigest(bytes)).toBe("sha256:c2dfe6ccdf2fd26d201d13a9105a4aabdf43912045b77b561053bc119012e8fb");
+    expect(canonicalDigest(bytes)).toBe("sha256:e92e7aaf5fa8ba83ba4c09f1c78f9e8a746f6484b7e2f60784f5d56482e3efc2");
   });
 
   it("seals exact prepared publication and a disjoint exhaustive path partition", () => {
@@ -187,6 +187,18 @@ describe("v3 finalized decomposition evidence", () => {
   it("refuses noncanonical arrays, unsupported objects, and digest drift", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const variants: unknown[] = [];
+
+    const destinationDigestDrift = structuredClone(receipt);
+    destinationDigestDrift.finalized.destinationDigests[0]!.digest = canonicalDigest("other destination");
+    variants.push(destinationDigestDrift);
+
+    const destinationOutputDrift = structuredClone(receipt);
+    destinationOutputDrift.finalized.destinationDigests[0]!.outputs[0]!.after = file;
+    variants.push(destinationOutputDrift);
+
+    const missingDestinationOutput = structuredClone(receipt);
+    missingDestinationOutput.finalized.destinationDigests[0]!.outputs = [];
+    variants.push(missingDestinationOutput);
 
     const unsortedResults = structuredClone(receipt);
     unsortedResults.finalized.managedPathResults.reverse();
