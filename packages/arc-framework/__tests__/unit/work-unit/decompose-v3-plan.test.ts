@@ -196,6 +196,59 @@ describe("validated v3 decomposition plan path registry", () => {
     });
   });
 
+  it("refuses one exclusive role claimed by different managed paths", () => {
+    const secondPath = ".arc/backlog/B.md";
+    expect(buildValidatedDecomposePlan({
+      ...operands,
+      claims: [
+        {
+          kind: "exclusive",
+          path: ".arc/backlog/A.md",
+          role: "roadmap",
+          base: absent,
+          after: file("roadmap-a"),
+        },
+        {
+          kind: "exclusive",
+          path: secondPath,
+          role: "roadmap",
+          base: absent,
+          after: file("roadmap-b"),
+        },
+      ],
+    })).toEqual({
+      ok: false,
+      refusal: { code: "duplicate-role-owner", path: secondPath },
+    });
+  });
+
+  it("reports malformed contributor identity as an invalid operand", () => {
+    const path = ".arc/active/meta-member-a.md";
+    expect(buildValidatedDecomposePlan({
+      ...operands,
+      claims: [{
+        kind: "contributor",
+        path,
+        base: absent,
+        contributor: {
+          kind: "content",
+          destinationId: "member-a",
+          destinationKind: "new-member",
+          artifactRole: "meta",
+          contributorKind: "allocation",
+          contributorIdentity: "",
+          sourceProjection: [],
+          disposition: "whole-file",
+          before: absent,
+          after: file("member-a"),
+        },
+      }],
+    })).toEqual({
+      ok: false,
+      refusal: { code: "invalid-plan-operand", path },
+    });
+  });
+
   it("refuses duplicate whole-file content owners", () => {
     const path = ".arc/active/meta-member-a.md";
     const owner = (

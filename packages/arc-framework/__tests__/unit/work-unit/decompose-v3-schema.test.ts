@@ -229,6 +229,24 @@ function comprehensiveCompleted(): V3DecomposeCutMap {
   };
 }
 
+function retainOnlyNewA(value: V3DecomposeCutMap): void {
+  value.authoring.destinations = value.authoring.destinations
+    .filter((destination) => destination.kind !== "new-member" || destination.slug === "new-a");
+  value.authoring.internalEdges = value.authoring.internalEdges
+    .filter(({ from, to }) => from !== "new-b" && to !== "new-b");
+  for (const edge of value.authoring.incomingDispositions) {
+    if (edge.disposition.kind === "replace") {
+      edge.disposition.replacementTargets = edge.disposition.replacementTargets
+        .filter((target) => target !== "new-b");
+    }
+  }
+  for (const edge of value.authoring.outgoingDispositions) {
+    if (edge.disposition.kind === "targets") {
+      edge.disposition.targets = edge.disposition.targets.filter((target) => target !== "new-b");
+    }
+  }
+}
+
 interface LooseCompletedMap {
   machine: { source: { kind: unknown } };
   authoring: {
@@ -457,8 +475,7 @@ describe("v3 decomposition map schema", () => {
 
     const direct = comprehensiveCompleted();
     direct.authoring.placement = { kind: "direct-member" };
-    direct.authoring.destinations = direct.authoring.destinations
-      .filter((destination) => destination.kind !== "new-member" || destination.slug === "new-a");
+    retainOnlyNewA(direct);
     expect(parseV3DecomposeCutMap(direct)).not.toBeNull();
   });
 
@@ -503,8 +520,7 @@ describe("v3 decomposition map schema", () => {
     });
 
     const singleMemberCohort = comprehensiveCompleted();
-    singleMemberCohort.authoring.destinations = singleMemberCohort.authoring.destinations
-      .filter((destination) => destination.kind !== "new-member" || destination.slug === "new-a");
+    retainOnlyNewA(singleMemberCohort);
     expect(decodeV3DecomposeCutMap(singleMemberCohort)).toMatchObject({
       status: "rejected",
       issue: { code: "placement-cardinality", path: "authoring.placement" },
@@ -540,6 +556,66 @@ describe("v3 decomposition map schema", () => {
       expect(decodeV3DecomposeCutMap(reordered)).toMatchObject({
         status: "rejected",
         issue: { code: "authoring-identity", path: `authoring.${collection}` },
+      });
+    }
+  });
+
+  it("refuses every dangling authored destination reference", () => {
+    const cases: Array<{
+      mutate(value: V3DecomposeCutMap): void;
+      path: string;
+    }> = [
+      {
+        mutate: (value) => {
+          value.authoring.sourceAllocations[0]!.disposition = {
+            ...value.authoring.sourceAllocations[0]!.disposition,
+            kind: "target",
+            destinationId: "missing",
+            targetLocator: { artifact: "draft-missing.md", kind: "preamble" },
+          };
+        },
+        path: "authoring.sourceAllocations.0.disposition.destinationId",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.internalEdges[0]!.from = "missing";
+        },
+        path: "authoring.internalEdges.0.from",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.internalEdges[0]!.to = "missing";
+        },
+        path: "authoring.internalEdges.0.to",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.incomingDispositions[0]!.disposition = {
+            kind: "replace",
+            replacementTargets: ["missing"],
+          };
+        },
+        path: "authoring.incomingDispositions.0.disposition.replacementTargets.0",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.outgoingDispositions[0]!.disposition = {
+            kind: "targets",
+            targets: ["missing"],
+          };
+        },
+        path: "authoring.outgoingDispositions.0.disposition.targets.0",
+      },
+    ];
+    for (const candidate of cases) {
+      const value = completed();
+      candidate.mutate(value);
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: candidate.path,
+        },
       });
     }
   });
