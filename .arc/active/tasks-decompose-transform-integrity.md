@@ -367,40 +367,13 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
-    - `[ ]` **3.3.a Define shared aggregate launch readiness**
-        - Refactor project-record loading/composition to return one pinned
-          `ProjectReadinessCompositionResult`: ordered accepted candidate records with slug/path/lifecycle location,
-          typed rejected-record facts with slug hint/path/locus/reason, and the ordinary merged view. Preserve
-          duplicates in the accepted list and malformed/unreadable/unsupported-lifecycle evidence before any
-          merge; unidentified rejected records make the composition indeterminate.
-        - Add `resolveLaunchReadiness()` over only that pinned result. Require exactly one accepted planned record
-          for the requested slug, no matching or unidentified rejection, `State: Planning`, and non-parked
-          scheduling; perform no second project-record scan.
-        - Classify dependency edges under the shared shipped-only doctrine, so `Integrating` remains blocked, and
-          consume one required batch `DecomposeReadinessProvider` result mapping every accepted slug to
-          `{ kind: ready }` or `{ kind: blocked, blockers: [{ code, locus }, ...] }`. Return a closed
-          `ready | blocked | refused` result with exact blocker and source loci.
-        - Introduce one shared `DecomposeReadinessDeps` bundle used by candidate composition and landed handoff.
-          Define `adaptProjectReadinessProvider()` over the existing public batch `ProjectReadinessProvider`;
-          production adapts `depsOnlyReadinessProvider` and tests may inject a native typed provider. The adapter
-          calls the existing provider once with all accepted records, requires one verdict per slug and no extra
-          key, and converts blocked verdicts to a nonempty `provider-blocked` slug locus. Preserve the existing
-          project-view provider interface/options. Add no project config field or optional local default.
-        - Treat missing, duplicate, malformed, wrong-lifecycle, and indeterminate records as `refused`; treat
-          a missing, thrown, malformed, key-incomplete, or key-excess provider result as `refused`; treat
-          unsatisfied dependencies and valid provider denial as `blocked`. Never let missing lookup state collapse
-          to an empty-edge ready result.
-        - Build `test-first` (one behavior at a time):
-            - One valid unparked Planning record with shipped dependencies and a ready provider returns `ready`.
-            - Composition retains duplicate accepted records and rejected malformed records even when the ordinary
-              merged view would collapse or omit them.
-            - Integrating, active, parked, and missing dependencies plus provider blockers remain distinguishable.
-            - Missing, duplicate, malformed, wrong-state/location, indeterminate records, and
-              missing/extra/malformed provider map results return typed `refused` with their exact loci.
-            - Adapter contract tests preserve existing project-view provider socket behavior and give every blocked
-              adapted verdict a typed provider locus without replacing dependency-edge loci.
-            - Candidate continuation and landed handoff receive the same dependency bundle, consume the same
-              function, and equal pinned compositions return equal readiness results.
+    - `[x]` **3.3.a Define shared aggregate launch readiness**
+        - Project composition now retains ordered, duplicate-preserving accepted candidates and typed rejected
+          source facts beside its unchanged ordinary merged view; unidentified rejected evidence is indeterminate.
+        - Added one pure `resolveLaunchReadiness()` reduction with closed ready/blocked/refused results, shipped-only
+          dependency facts, exact source/provider loci, and fail-closed record and batch-provider validation.
+        - Added the required shared dependency bundle and one-call adapter over the existing project-view provider;
+          production keeps the established dependency-only socket without a config or helper-local fallback.
 
     - `[ ]` **3.3.b Validate the closed continuation input**
         - Parse `V3DecomposeContinuationInput` only after candidate authoring. Call `resolveLaunchReadiness()` over
