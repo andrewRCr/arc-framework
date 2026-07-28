@@ -156,6 +156,35 @@ not this model and overstates the harness rule it names. Corrected: an invariant
 **decide**, never the capability to act; the holder making the reserved decision is the rule working, not a waiver.
 What reaffirmation cannot do is move that decision to the agent.
 
+**Amended after an independent read (2026-07-28).** A fresh-context adversarial pass over the landed section
+returned nineteen findings; verification against source confirmed eleven, downgraded one, and rejected four. Seven
+changes landed, taking the section from 31 nb to **36**. Three were defects this pass introduced and the earlier
+one missed:
+
+- `Marked or not, the reading below classifies it` contradicted the section's own next heading, the file header,
+  and `adr-030` — three surfaces scope the reading to unmarked rules and the always-loaded one did not. Under the
+  broad reading a marked rule is re-classifiable, and the design concedes the satisfaction test wrongly releases
+  `--no-verify`. Cut.
+- § Whose call was **compressed below the point where it constrains anything**. It states who _may_ discharge and
+  never told the agent what to do when that is not them — and this register kept the block specifically on the
+  cross-owner case it then failed to reach. One clause restored: _where the resolved holder is not you, propose
+  rather than discharge._
+- `An agent is never the judge of whether the check on its own output applies` over-fired on two of the three
+  recorded live failures, and contradicted § Quality gate failure's deterministic-same-concern branch — a rule
+  already in the file granting exactly the discharge the backstop forbade. Scoped to applicability; reading what a
+  check reported, including that it produced no result, is now explicitly not that judgment. D5.1 permits this
+  ("correcting a rule's scope is not weakening it") and forbids the cut the reviewer offered as an alternative.
+
+The largest change was a **domain extension, not a correction**: every operative clause was rule-indexed, so an act
+no rule covers fell outside the section entirely. Success Criterion 1's reserved falsifier is exactly that shape —
+verified, since no propose-versus-self-add rule ships anywhere in the package tree. The section's own
+self-attestation block was the tell: act-shaped, and hand-written under a claim of derivation the text could not
+support. `Both limbs reach acts, not only rules` closes it, and makes the falsifier run.
+
+`dischargeable` was defined in the brief and used nowhere; the term it was defined _in terms of_ — `ignorance-guard`
+— was defined nowhere in the always-loaded set at all. The reading's first bullet now uses the word, and the brief
+entry no longer depends on an undefined one.
+
 **Why § Whose call did not demote.** The register predicted `demote → strategy-team-coordination`, and the holder
 half relocating removed the argument that had protected it. It stays on T1 anyway: `Owner` is per-WU, so a
 maintainer-role agent can work a WU owned by someone else, and an agent about to discharge a default over a surface

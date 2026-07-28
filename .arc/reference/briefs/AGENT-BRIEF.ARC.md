@@ -69,9 +69,9 @@ Precise meanings — assume the technical sense.
   text does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant has
   a **holder**, and that holder making the reserved decision is the rule working rather than a waiver. Orthogonal
   to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
-- **Dischargeable:** Said of an ignorance-guard — whether the fact that would settle the rule's concern is the
-  agent's own to establish (dischargeable, so a default) or lives with someone else and has not been said
-  (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
+- **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
+  to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
+  said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.

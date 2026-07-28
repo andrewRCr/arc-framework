@@ -17,7 +17,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 ## Rule Authority
 
 Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
-unless marked **invariant**. Marked or not, the reading below classifies it.
+unless marked **invariant**.
 
 **`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
 whether the _agent_ may set it aside in the moment. Configurability is never itself a discharge.
@@ -25,7 +25,8 @@ whether the _agent_ may set it aside in the moment. Configurability is never its
 **Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern does
 not arise here.
 
-- You can name one, and it is yours to establish → **default**. Discharge it as below.
+- You can name one, and it is yours to establish or already supplied — the doubt is **dischargeable** →
+  **default**. Discharge it as below.
 - The fact is not yours to establish — it lives with someone else and has not been said → **invariant**.
   Ask for it; do not infer it.
 - You can name nothing, or no fact you could produce would settle it → **invariant**.
@@ -34,9 +35,13 @@ not arise here.
 it withholds an _authorization_ rather than a _judgment_ — a decision reserved to a person because it commits
 them.
 
+**Both limbs reach acts, not only rules.** A record attesting your own work, or a decision that commits someone
+else, is caught whether or not a rule addresses it. Absence of a rule is not a grant.
+
 A rule **protects the integrity of a check** when the agent's own work is what the check examines — quality
-gates, verification, review, and the commit and merge gates that admit work. An agent is never the judge of
-whether the check on its own output applies.
+gates, verification, review, and the commit and merge gates that admit work (illustrative, not exhaustive). An
+agent is never the judge of whether a check applies to its own work; reading what a check reported, including
+that it produced no result, is not that judgment.
 
 The same limb settles **self-attestation**. Writing that a gate was met, that a human approved, or that a pass
 was rigorous attests the agent's own output and discharges nothing. The claim needs a witness the agent does
@@ -50,11 +55,12 @@ does is move that decision to the agent.
 
 **Discharging a default.** Name the rule and the fact that discharges it, surface it where the developer is
 already reading — the gate or the completion report, never a log — leave it reversible in one turn, and
-proceed. Raise it once: a reaffirmation is a decision, not an invitation to re-raise.
+proceed. Raise it once per instance: a reaffirmation is a decision, not an invitation to re-raise.
 
 **Whose call.** Authority resolves from the actor's role and the surface the rule governs; no rule declares its
 own authority. The owner of the governed surface may discharge a default over it; a rule governing a surface
-with no single owner, or governing the project's own standards, resolves to the maintainer.
+with no single owner, or governing the project's own standards, resolves to the maintainer. Where the resolved
+holder is not you, propose rather than discharge.
 
 ---
 

@@ -32,8 +32,9 @@ Task 3.4.
         - Both copies verified identical by `diff`; the authored section verified byte-exact against the spec's
           normative block.
 
-- _Outcome:_ The section landed at **31 nb**, not the 46 the spec specified. Task 1.4's five-test pass was pulled
-  forward and run before authoring rather than after, so the text was authored once at its settled size instead of
+- _Outcome:_ The section first landed at **31 nb**, not the 46 the spec specified, and an independent adversarial
+  read then took it to **36** (see Task 1.6). Task 1.4's five-test pass was pulled forward and run before authoring
+  rather than after, so the text was authored once at its settled size instead of
   authored-then-cut. Every block carrying a rule returned `constraint → stays`; the 15 nb removed was justification
   for rules that stayed, which has no demotion destination because nothing summons a rationale. Two spec amendments
   followed: the reaffirmation clause was **corrected**, not just compressed — as authored it claimed an invariant
@@ -72,8 +73,11 @@ Task 3.4.
     - Three entries added to `## Vocabulary` in both copies, verified byte-identical. Placed immediately before
       `Interlock`, whose always-stop / configurable split is the two axes in miniature and reads correctly only
       once both are defined.
-    - `dischargeable` is defined of an ignorance-guard, per the design. "Protects the integrity of a check" was
-      not minted as a term — it stays bounded inline in § Rule Authority.
+    - `dischargeable` was first defined of an _ignorance-guard_ per the design, and rewritten at Task 1.6: that
+      framing depended on a term defined nowhere in the always-loaded set. It is now said of the doubt a rule
+      guards, and § Rule Authority's first reading bullet uses the word — the design requires each term earn its
+      definition before use, and it had no use.
+    - "Protects the integrity of a check" was not minted as a term — it stays bounded inline in § Rule Authority.
     - Each entry points at the reading rather than restating it, so the classification procedure has one home.
 
 ### `[x]` **1.4 Subject § Rule Authority to the register's own five tests**
@@ -99,8 +103,8 @@ Task 3.4.
           Nothing demotes, so Task 3.6 gains no row from this block.
 
     - `[x]` **1.4.c Restate the debit as measured**
-        - Measured at **31 nb**, down from the 46 first authored; Phase 3's and Phase 5's sizing now rests on a
-          settled figure. No pending credit to carry — no block demoted.
+        - Measured at **31 nb**, down from the 46 first authored, then revised to **36** by Task 1.6's fixes;
+          Phase 3's and Phase 5's sizing rests on the 36 figure. No pending credit to carry — no block demoted.
 
 - _Outcome:_ The `DEV-RULES.ARC` leg nets roughly −24 nb on day one rather than −9, and growth on the file drops
   from 11% to 7%. Two spec amendments fell out of the pass beyond the sizing: the reaffirmation clause was
@@ -138,6 +142,47 @@ Task 3.4.
 - _Outcome:_ Five marker sites total, matching the design's predicted footprint. The one thing the design had not
   settled was what to do when a single bullet carries both classes — resolved by attaching the marker to the rule's
   lead-in rather than the bullet's, which keeps the footprint honest without splitting bullets Phase 3 will rework.
+
+### `[x]` **1.6 Independent read of § Rule Authority**
+
+- _Goal:_ The section that governs how every other rule is read is validated by someone who did not author it,
+  before Phase 2 builds the trigger tier on top of it.
+
+- _Note:_ Emergent task. The section's own self-attestation limb is the argument for it — a pass audited and
+  compressed by its own author is the party under examination writing the record.
+
+    - `[x]` **1.6.a Run the read and verify its findings against source**
+        - Nineteen findings returned; verification confirmed eleven, downgraded one, rejected four. Two were
+          real but **pre-existing in the design's normative text**, not introduced by the compression — the
+          reading's uncovered branch (the settling fact is not yours _and has been said_) is present in the
+          original four-branch text too.
+
+    - `[x]` **1.6.b Apply the confirmed fixes**
+        - Cut `Marked or not, the reading below classifies it` — it contradicted the section's own next heading,
+          the file header, and `adr-030`, and under the broad reading made marked rules re-classifiable.
+        - Restored an imperative to § Whose call: _where the resolved holder is not you, propose rather than
+          discharge._ The block had been compressed below the point where it constrained the cross-owner case
+          Task 1.4.b kept it for.
+        - Scoped the check-integrity sentence to **applicability**; reading what a check reported, including that
+          it produced no result, is explicitly not that judgment. Resolves the collision with § Quality gate
+          failure's deterministic-same-concern branch, which already granted the discharge the backstop forbade.
+        - Marked limb one's enumeration illustrative; disambiguated `Raise it once` to per-instance; wired
+          `dischargeable` into the reading's first bullet and rewrote the brief entry off the undefined
+          `ignorance-guard`.
+
+    - `[x]` **1.6.c Settle the act-versus-rule domain gap**
+        - Every operative clause was rule-indexed, so an act no rule covers fell outside the section. Success
+          Criterion 1's reserved falsifier is exactly that shape, and no propose-versus-self-add rule ships
+          anywhere in the package tree — verified.
+        - `Both limbs reach acts, not only rules` closes it. The falsifier now runs, and the self-attestation
+          block becomes a worked instance rather than a rule asserted under a claim of derivation its own limb
+          could not support.
+
+- _Outcome:_ 31 nb → **36**. The three defects worth remembering were all in the same direction: a compression
+  pass optimizing for size removed two clauses that were load-bearing for _meaning_ (§ Whose call's imperative,
+  and the qualification the reaffirmation clause needed), and left standing one sentence that reads as a rule but
+  is justification, where it then over-fired on the failures the section exists to fix. Size and meaning are
+  different axes, and the author of a cut is the worst-placed party to tell them apart.
 
 ## **Phase 2:** Trigger tier
 
@@ -401,6 +446,14 @@ an orphan.
     - `[ ]` **3.4.c § Leave it cleaner**
         - Resolve the contradiction between "always propose placement before acting" and the inline-fix permission
           two lines above it: a same-concern cleanup in a file already under edit is a discharged default.
+        - **Field evidence from Phase 1, worth writing the rephrasing against.** Two same-concern mechanical fixes
+          during Task 1.4 — reverting a table-formatter regression on an untouched row, and correcting nested
+          backticks that tripped MD038 — were fixed and reported without a proposal turn. Both were correct under
+          § Quality gate failure's deterministic-same-concern branch and both violated "always propose placement,"
+          which is the over-firing this row exists to fix. The rephrasing should make that class explicitly
+          dischargeable rather than leaving the two rules to disagree.
+        - § Quality gate failure's first branch is the shape to match — it already states the judgment split this
+          row needs, so the rephrasing is an alignment rather than a new rule.
 
     - `[ ]` **3.4.d § Commit control — reseat merge authority**
         - Move the merge-authority block out of commit control into a new `### Merge authority` subsection under
