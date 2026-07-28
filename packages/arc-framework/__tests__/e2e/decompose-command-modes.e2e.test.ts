@@ -202,6 +202,63 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
   return cutMapPath;
 }
 
+async function writeMultiMemberCohortlessCutMap(repo: string): Promise<string> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    machine: {
+      sourceUnits: Array<{
+        sourceId: string;
+        sourceLocator: { artifact: string; [key: string]: unknown };
+      }>;
+    };
+  };
+  expect(starter.machine.sourceUnits.length).toBeGreaterThan(1);
+  const completed = {
+    schemaVersion: 3,
+    machine: starter.machine,
+    authoring: {
+      shape: "symmetric",
+      placement: { kind: "direct-member" },
+      destinations: [
+        {
+          kind: "new-member",
+          destinationId: "alpha",
+          slug: "alpha",
+          workClass: "Heavy",
+        },
+        {
+          kind: "new-member",
+          destinationId: "beta",
+          slug: "beta",
+          workClass: "Heavy",
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit, index) => {
+        const destinationId = index % 2 === 0 ? "alpha" : "beta";
+        return {
+          sourceId: unit.sourceId,
+          ownership: "destination-owned",
+          disposition: {
+            kind: "target",
+            destinationId,
+            targetLocator: {
+              ...unit.sourceLocator,
+              artifact: `draft-${destinationId}.md`,
+            },
+          },
+        };
+      }),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "multi-member-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return cutMapPath;
+}
+
 async function writePartialHeterogeneousCutMap(repo: string): Promise<{
   cutMapPath: string;
   machine: {
@@ -434,6 +491,32 @@ describe("arc decompose command modes", () => {
         },
       },
     });
+  });
+
+  it("refuses destination-owned multi-member direct placement before repository mutation", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeMultiMemberCohortlessCutMap(repo);
+    const beforeRefusal = await repositorySnapshot(repo);
+
+    const refused = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(refused.exitCode).not.toBe(0);
+    expect(JSON.parse(refused.stdout)).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "completed-map",
+      locus: "authoring.placement",
+      recovery: { kind: "none" },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(beforeRefusal);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["worktree", "list", "--porcelain"]))
+      .not.toContain("branch refs/heads/chore/decompose-origin");
+    expect(await claimFiles(repo)).toEqual([]);
   });
 
   it("retires one heterogeneous direct member on the partial base without candidate authority", async () => {

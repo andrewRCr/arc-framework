@@ -126,6 +126,19 @@ describe("init", () => {
     for (const target of linkedTargets) {
       expect(await pathExists(target), target).toBe(true);
     }
+
+    const decomposeWorkflow = await readFile(
+      join(tmpDir, ".arc", "system", "workflows", "arc", "work-unit-lifecycle", "decompose-work-unit.md"),
+      "utf-8",
+    );
+    const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
+    const interlockIndex = decomposeWorkflow.indexOf("`workflow-interlock`");
+    const finalizationIndex = decomposeWorkflow.indexOf("## 6. Finalize with explicit continuation");
+    expect(decomposeWorkflow.match(/`workflow-interlock`/g)).toHaveLength(1);
+    expect(authoringIndex).toBeGreaterThanOrEqual(0);
+    expect(interlockIndex).toBeGreaterThan(authoringIndex);
+    expect(finalizationIndex).toBeGreaterThan(interlockIndex);
+    expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {

@@ -565,14 +565,10 @@ local-cleanup boundaries without importing extension-owned matrices.
 - _Outcome:_ The canonical installed lifecycle proves receipt-backed publication, projection, handoff, and
   local-only cleanup as one exact full-protection topology without importing lower-tier implementation seams.
 
-### `[ ]` **5.2 Cover representative core variants without a cross-product**
+### `[x]` **5.2 Cover representative core variants without a cross-product**
 
 - _Goal:_ Focused command and integration cases prove the remaining core shapes without repeating the canonical
   full-protection lifecycle.
-
-- _Note:_ Design coverage: D2-D6. Extension-owned lifecycle matrices remain outside this phase.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
 
     - `[x]` **5.2.a Combine partial protection, heterogeneous allocation, and cohortless eligibility**
         - A built-command case now refuses stale existing-home bytes without mutation, then retires one direct
@@ -586,16 +582,16 @@ local-cleanup boundaries without importing extension-owned matrices.
           not-applicable anchor without source/candidate worktrees or claims. Empty source parents prune through
           the shared bounded helper while nonempty parents and their unrelated bytes remain intact.
 
-    - `[ ]` **5.2.c Own topology and installation assertions at their narrow seams**
-        - Add a pure planner/materializer table for standalone cohort, in-cohort subcohort, missing-parent backfill,
-          at-cap provenance/idempotency, and eligible single-new-member cohortless placement.
-        - Add a destination-owned v3 multi-member cohortless refusal before candidate, claim, or path creation;
-          do not satisfy it with an extraction-shaped surviving origin.
-        - Piggyback one ordinary-install assertion that the default shipped workflow contains the reviewed
-          distribution interlock while planning-lane and `arc-cleared` behavior are absent/inactive.
-        - Keep the canonical full lifecycle only in Task 5.1. Exclude extraction, committed-unlanded refresh,
-          descendant-base landing, planning-lane automation, durable enumeration, narrative reconciliation, and
-          live-remote cleanup; retain core ownership of uncommitted refresh and exact-base local cleanup.
+    - `[x]` **5.2.c Own topology and installation assertions at their narrow seams**
+        - Existing pure planner/materializer suites own the standalone, nested, missing-parent, at-cap,
+          single-member, refusal, provenance, and idempotency matrix. A built-command case now proves
+          destination-owned multi-member direct placement refuses without candidate, claim, or path mutation.
+        - Ordinary initialization now proves the installed workflow has exactly one reviewed distribution
+          interlock between authoring and finalization, with no planning-lane or `arc-cleared` surface.
+
+- _Outcome:_ The bounded variant set closes partial/direct, configured-ref, topology, materialization, and default
+  installation behavior without duplicating the canonical full-protection lifecycle or importing extraction,
+  base-mobility, planning-lane, durable-consumer, or live-remote-cleanup matrices.
 
 ## **Phase 6:** Verification
 
