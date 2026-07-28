@@ -358,14 +358,10 @@ authority; finalization checks mechanics and persists no approval credential.
   successful output preserves workflow maturity and whose failures either prove every captured preimage restored
   or expose exact non-authoritative recovery residue.
 
-### `[ ]` **3.3 Validate candidate continuation against shared readiness**
+### `[x]` **3.3 Validate candidate continuation against shared readiness**
 
 - _Goal:_ Candidate and landed consumers make the same fail-closed launch-readiness decision while the
   post-authoring distribution decision supplies only the continuation finalization must seal.
-
-- _Note:_ Design coverage: D4, D5. Workflow placement of the interlock is implemented in Task 4.3.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
     - `[x]` **3.3.a Define shared aggregate launch readiness**
         - Project composition now retains ordered, duplicate-preserving accepted candidates and typed rejected
@@ -375,19 +371,15 @@ authority; finalization checks mechanics and persists no approval credential.
         - Added the required shared dependency bundle and one-call adapter over the existing project-view provider;
           production keeps the established dependency-only socket without a config or helper-local fallback.
 
-    - `[ ]` **3.3.b Validate the closed continuation input**
-        - Parse `V3DecomposeContinuationInput` only after candidate authoring. Call `resolveLaunchReadiness()` over
-          the exact pinned candidate composition for every selected new leaf. Permit explicit `none`; do not infer a
-          default.
-        - Reject existing destinations, blocked members, absent entries, and selection or dependency drift before
-          finalization.
-        - Return only the validated continuation joined to the preparation-bound publication at finalization;
-          never rebuild the logical anchor or entries, mutate preparation, or persist the input separately.
-        - Build `test-first` (one behavior at a time):
-            - One or several ready new leaves and explicit none pass.
-            - Exact blocker slugs and selection loci survive typed refusal for operator correction.
-            - Malformed, reordered, stale, or repeated selections refuse with preparation and receipt bytes
-              unchanged.
+    - `[x]` **3.3.b Validate the closed continuation input**
+        - Added one pure post-authoring validator that accepts only ordered unique new-leaf selections or explicit
+          none, calls the shared readiness reducer for every selection, and preserves exact selection/source loci.
+        - Validation joins the accepted choice only to the preparation-bound anchor and entries; malformed,
+          existing, absent, stale, reordered, repeated, blocked, or refused selections produce typed issues without
+          mutating preparation or receipt bytes.
+
+- _Outcome:_ Candidate selection now reduces one lossless project snapshot through the same required readiness
+  bundle intended for landed handoff, and only a validated ephemeral choice can join immutable publication facts.
 
 ### `[ ]` **3.4 Finalize idempotently and route typed recovery**
 
