@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-transform-integrity.md`
-- **Task List:** [none]
+- **Task List:** `tasks-decompose-transform-integrity.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** `generate-tasks` Pass 3 — ground Phase 1, Closed v3 evidence and conservation
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

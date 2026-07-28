@@ -2,599 +2,1080 @@
 
 - **Origin:** [internal]
 
-- **Purpose:** Make decomposition a trustworthy, low-friction transform over ARC's real planning topology:
-  conserve the complete source, preserve settled planning authority, produce a base-landable result, and prove the
-  transition without operator-authored evidence or new coordination state.
+- **Purpose:** Make retirement decomposition a trustworthy, low-friction transform over ARC's real planning
+  topology: conserve the exact source, preserve settled planning authority, publish a durable logical anchor, and
+  produce a base-rooted result whose transition can be validated without operator-authored proof.
 
 ---
 
 ## Introduction / Context
 
-ARC's shipped decomposition machinery does not yet implement the topology its workflows prescribe. A started work
-unit normally lives on a planning branch while the integration base retains an earlier backlog projection. The
-symmetric transform expects a base-rooted result but derives write authority from the current checkout; extraction
-authors result artifacts on the surviving source branch even though its ship leg expects a base-cut result branch.
-The positive tests flatten that distinction by placing source artifacts on base or installing only part of the
-real hook chain.
+ARC's decomposition workflow describes a result that the current transform cannot yet produce reliably. A started
+work unit normally has branch-private planning authority while the integration base retains an earlier backlog
+projection. The current symmetric transform mixes those projections, scaffolds only draft-stage members, and makes
+later consumers reconstruct transition authority independently.
 
-The resulting failures span one coupled transform contract:
+This work unit owns the minimum trustworthy retirement core. It closes one versioned contract from read-only
+preflight through exact-base result creation, semantic authoring, finalization, commit, project projection, and
+receipt-backed teardown eligibility. It also publishes the stable topology and continuation facts needed by
+post-merge launch orchestration without creating a scheduler.
 
-- Source conservation accounts for the origin artifact group but not unrelated branch-private riders that a
-  retirement would strand.
-- Markdown allocation at H2 is too coarse for conventional nested specs and too permissive when no whole H2 can
-  move, allowing an empty conservation record.
-- New-member scaffolding assumes `meta-*` plus `draft-*`, so a decomposition discovered after a reviewed spec or
-  during task skeletonization discards completed planning authority and restarts design work.
-- Finalization is exact but not recoverable after ordinary, approved destination refinement; descendant-base
-  landing, merge-parent projection, the planning lane, and remote teardown each interpret the receipt differently.
-- Reconcile warns about ordinary historical prose referring to a decomposed work unit, while durable receipt
-  lookup launches one Git process per record and grows in cost with routine decomposition.
+Four cohort members own separable extensions:
 
-These are not independent conveniences. They determine whether one approved allocation can be prepared, authored,
-finalized, committed, landed, reconciled, and cleaned up without semantic drift. This RFC therefore treats
-decomposition as one closed, versioned transform and makes every lifecycle consumer derive authority from the same
-validated result.
+- `decompose-base-mobility` admits append-only committed-unlanded refresh and descendant-base landing.
+- `decompose-extraction` adds the additive result and explicit source-finish transform.
+- `decompose-planning-lane` adds the optional host-side planning-lane exception.
+- `decompose-durable-consumers` improves historical narrative reconciliation, receipt enumeration, and remote
+  teardown.
+
+The core remains useful without any extension: ordinary decomposition stays reviewed, the candidate is exact-base
+landable, the project view converges, and operators receive one durable origin-addressable anchor and launch
+handoff.
 
 ## Goals
 
-1. Run every decomposition arm against the real separation between an exact source projection and a base-rooted
-   result projection.
-2. Prove that retiring transforms conserve all expected source work and refuse unaccounted branch-private riders
-   before creating result residue.
-3. Make allocation fine-grained and exact enough for ordinary nested Markdown without inventing a new authoring
-   language.
-4. Preserve the latest completed planning authority when creating members, including direct entry at
-   `generate-tasks` from complete child specs.
-5. Keep finalization exact while making safe pre-commit retries, destination refinements, and unrelated base
-   movement routine.
-6. Give commit hooks, project-readiness projection, exact-ref classification, merge validation, and teardown one
-   version-aware interpretation of finalized decomposition evidence.
-7. Keep semantic judgment at the distribution interlock while hiding deterministic proof mechanics behind CLI
-   verbs and typed results.
-8. Exercise the full lifecycle in realistic Git topology with the complete hook chain and direct recovery cases.
-9. Preserve durable historical receipts while bounding their enumeration cost and avoiding a second state system.
+1. Resolve an exact committed source and exact base-rooted result before mutation.
+2. Refuse unaccounted retirement delta and conserve every source allocation exactly once.
+3. Inventory nested Markdown as stable, disjoint H2-H6 units without adding an authoring language.
+4. Preserve reviewed draft or spec authority, including direct child entry at `generate-tasks`.
+5. Materialize required cohort topology without inventing semantic coordination content.
+6. Finalize one canonical v3 receipt idempotently and refresh only approved, fully staged, uncommitted refinement.
+7. Give commit validation, project-readiness projection, and exact-base lifecycle consumers one typed authority.
+8. Publish a durable logical anchor, exact entry set, and typed initial-continuation disposition for post-merge
+   launch orchestration.
+9. Keep deterministic proof and recovery in typed library/CLI code while retaining one human distribution
+   interlock over authored semantics.
+10. Exercise the core through realistic Git topology and the complete installed hook chain.
 
 ## Non-Goals
 
-- Define when work should decompose, how to distinguish a cohort from a stack, or what tripwires should trigger a
-  cut. Those are decomposition-doctrine concerns.
-- Generalize mint-time inheritance or close-with-launch behavior for every new work unit. This RFC owns only the
-  planning artifacts and entry stage produced by decomposition.
-- Keep a fully retiring origin alive and retarget it to an arbitrary member. Extraction remains the shape for a
-  genuine semantic survivor; rename may compose with it separately.
-- Transport arbitrary branch-private changes from the source worktree to the result, or turn the cut map into a
-  general patch carrier.
-- Add receipt expiry, garbage collection, compaction records, acknowledgements, transactions, pending-state
-  records, or another durable store.
-- Consolidate the ROADMAP renderer family, rename or dematerialize ROADMAP, or design the future generic
-  record-to-projection engine.
-- Add a partial-spec, `create-spec`, ready-to-activate, mixed-maturity, or arbitrary artifact-bundle entry mode.
-- Change historical v1/v2 receipt meaning or permit obsolete cut-map schemas to author new transforms.
+- Define the judgment for when to decompose or how to choose a cohort beyond the anchor invariant.
+- Support multi-member cohortless fan-out. Every multi-member decomposition has a durable logical anchor.
+- Transport arbitrary source-branch riders or turn the cut map into a patch carrier.
+- Add extraction, source thinning, committed-unlanded refresh, descendant-base landing, or remote-ancestry
+  cleanup.
+- Add the optional planning-lane classifier, `arc-cleared` workflow, CODEOWNERS exception, or host setup recipe.
+- Add decomposition-receipt migration, backward-compatible decomposition authoring, receipt expiry, compaction,
+  acknowledgement, cache, pending-state, rollback-ledger, or scheduler records.
+- Consolidate the ROADMAP renderer family or build a generic record-to-projection engine.
+- Add partial-spec, `create-spec`, ready-to-activate, mixed-maturity, or arbitrary artifact-bundle entry modes.
 
 ## Proposed Design
 
-### D1. Establish exact source and result projections before mutation
-
-The transform resolves two explicit projections:
-
-- The **source projection** is the exact committed work-unit branch and head whose content will be allocated.
-- The **result projection** is the checkout and index that will land on the configured integration base. Under full
-  protection it is a `chore/decompose-<origin>` branch cut from base; under partial protection it is the base
-  checkout itself.
-
-The read-only preflight emits the starter map without creating a branch. After that map is authored, the
-`--cut-map` invocation starts from the base checkout and validates the complete map, exact source binding,
-retirement-only branch delta, destinations, and exact result base before mutation. Under full protection the CLI
-then creates and occupies the result branch at that validated base object; branch creation is not external workflow
-choreography. A preflight or completed-map refusal therefore leaves no result branch. Under partial protection the
-validated base checkout remains the result.
-
-Preparation, candidate staging, semantic authoring, finalization, and commit remain in that one result checkout and
-index. The staged candidate is reversible and the source branch remains exact and read-only until receipt-backed
-teardown. No staged patch moves between worktrees. A failure after successful branch creation names the candidate
-branch and its direct retry or discard action; it is not represented as durable pending state.
-
-The transform arms apply the split as follows:
-
-- A started symmetric or heterogeneous retirement reads the planning source, proves and removes its unchanged
-  predecessor stub from the result when one exists, and writes the complete replacement on the result.
-- A backlog-stub source reads and mutates the same base-rooted projection and owes no planning-branch teardown.
-- Heterogeneous destinations must already be writable in the result projection. A branch-private existing work
-  unit is not a destination for this atomic transform.
-- Extraction runs an additive result leg first. After that result is reachable from the integration base, an
-  explicit source-side finish leg revalidates the same cut map and landed destinations, previews the thinning,
-  and removes only the approved source blocks.
-
-Extraction's finish leg is independently retryable and idempotent. Changed source content produces a refreshed
-preview whose machine-owned identities are regenerated while still-valid semantic choices are retained. Missing
-destinations refuse with the exact locator and retry action. Losing the temporary cut map requires regenerating
-the read-only inventory and reauthoring it against the already-landed destinations; the surviving source and Git
-history provide proportionate recovery, so extraction gains no receipt or transaction record.
-
-### D2. Refuse unaccounted retirement delta
-
-Before a retiring transform mutates the result, it compares the exact source with the source/result merge base and classifies
-the source-only delta. The expected lifecycle projection includes the origin artifact relocation, removal of its
-predecessor, and derived ROADMAP movement. Any other source-private path that is not already identical on the
-result is an unaccounted rider and refuses the transform.
-
-The refusal names each path and directs the operator to ship it through its own route before retrying. The cut map
-cannot absorb the rider. Extraction skips this retirement-only check because the source branch survives and the
-finish leg has authority solely over allocated planning blocks; committed implementation work and other
-branch-private changes remain on that branch.
-
-The result-side removal of a predecessor stub is narrow: it must be proven as the unchanged base ancestor of the
-started source artifact group. That projected removal does not close the source's user workspace; post-landing,
-receipt-backed teardown owns closure.
-
-### D3. Introduce v3 allocation and transition evidence
-
-New transforms use schema v3 for the cut map, preparation, and finalized receipt. V3 adds the exact data needed by
-the transform without creating a new record family:
-
-- Section locators include heading level, ancestry, and occurrence identity.
-- Every allocation carries a machine-emitted source-unit identity and content digest.
-- The finalized receipt retains the prepared result-base head.
-- The transition binding records the exact stored-content state and mode before and after every touched path.
-
-The v3 section locator is a closed object with `artifact`, `kind: section`, `level`, `headingSource`, `ancestry`,
-and `occurrence`. Each `ancestry` entry is the closed tuple `{ level, headingSource, occurrence }` for one parent,
-ordered outermost to innermost. `level` is the integer 2-6. `headingSource` uses the existing canonical heading-text
-normalization: remove ATX opening and optional closing markers, collapse horizontal whitespace, trim it, and
-normalize to NFC; Setext H2 retains the existing captured-paragraph normalization.
-
-The scanner maintains a heading stack. Before adding a heading at level L, it removes every stacked heading whose
-level is greater than or equal to L; the remaining last entry is the parent. Heading-level jumps are legal, so an
-H5 may be the direct child of an H2. `occurrence` is zero-based among headings with the same level and normalized
-source that share that exact parent identity; top-level H2 headings use the empty ancestry. Source IDs are the
-canonical digest of `{ schemaVersion: 3, sourcePath, sourceLocator }`, where `sourceLocator` is that exact closed
-object. Content digests remain separately bound to each allocation.
-
-The remaining v3 evidence fields are closed as follows:
-
-- `receiptId` remains the canonical digest of `{ schemaVersion: 3, subject, transition: decompose, sourceBranch,
-  sourceHead }`, so one exact source transition keeps one record path across an unlanded base refresh.
-- Preparation stores unique UTF-8 path-sorted `allowedPaths` plus their `allowedPathsDigest`. Its
-  `resultBase.head` is the exact `locator.scope.resultProjection.head`.
-- `preparationId` is the canonical digest of `{ receiptId, resultBaseHead, sourceInventoryDigest,
-  incomingEdgeInventoryDigest, outgoingEdgeInventoryDigest, cutMapDigest, allowedPathsDigest }`.
-- The finalized receipt adds `resultBase: { head }` and a `transitionPatch` array while retaining
-  `transitionPatchDigest`. Its decompose result retains the preparation ID, allocation, inventories, inventory
-  digests, cut-map digest, target digests, and transformed incoming dependents.
-
-A transition-patch path state is exactly `absent` or `file`. `file` carries a regular-file mode (`100644` or
-`100755`) and the existing canonical digest of the stored bytes; it does not persist a Git blob OID. Every patch
-entry is the closed tuple `{ path, before, after }`. `before` is read from `resultBase`, `after` from the finalized
-candidate, and the two states must differ. Entries are unique and UTF-8 path-sorted and cover every changed
-non-receipt managed path exactly once. The receipt path is excluded to avoid recursive identity.
-
-An existing file preserves its input mode, and a new managed file uses `100644`. Symlinks, submodules, unknown
-object types, and unexpected mode changes refuse. `transitionPatchDigest` is the canonical digest of the exact
-ordered array. The closed v3 decoder recomputes receipt ID, preparation ID, allowed-path digest, cut-map and
-inventory digests, and transition-patch digest before granting authority.
-
-A read-only preflight resolves the exact committed source and emits a ready-to-author v3 cut map containing
-artifact names, canonical source-unit IDs, hierarchy-qualified locators, content digests, and dependency edges.
-The operator authors only destinations, ownership, dependency dispositions, and reasons. Preflight creates no
-branch, preparation, cache, or durable state. The later `--cut-map` run validates the completed authored map before
-it creates a result branch, then preparation independently re-derives the inventory after entering the exact result
-projection and rejects any intervening drift.
-
-New-transform authoring accepts v3 only. A v1/v2 map receives a deterministic upgrade refusal rather than implicit
-reinterpretation. Durable readers continue to decode and validate historical v1/v2 receipts under their original
-closed schemas, receipt identities, and paths. Existing records are never rewritten or migrated.
-
-### D4. Allocate disjoint Markdown blocks and enforce ownership
-
-Markdown inventory becomes a disjoint, exhaustive sequence:
-
-1. Content before the first H2 is the artifact preamble.
-2. Each recognized H2-H6 opens one block that ends immediately before the next recognized H2-H6.
-3. A parent block contains only its own lead content; nested headings start separate, non-overlapping blocks.
-4. Existing fence, HTML, quote, and list protections continue to exclude incidental heading syntax.
-5. Non-Markdown artifacts remain whole-file allocation units.
-
-When one block still contains concerns for multiple destinations, the source is refined with ordinary Markdown
-subheadings and committed before preflight is rerun. V3 does not add line ranges, allocation markers, selectable
-overlapping frontiers, or any other document language.
-
-Every source unit is allocated exactly once or explicitly dropped with a reason. `destination-owned` material has
-exactly one authoritative new member, surviving origin, or existing home. Multiple consumers use pointers and
-seam coordination rather than shared ownership. `cohort-shared` is reserved for genuinely ownerless sequencing,
-constraints, provenance, and closeout material in the cohort document; task-driving design cannot use it.
-
-Destination kind and ownership are validated together. Cohortless decomposition still rejects cohort-shared
-material. At fanout cap, the existing parent cohort document is the valid cohort-coordination destination; no new
-destination kind or coordination artifact is introduced. Extraction must assign at least one real source unit to
-every extracted new member, so an empty allocation cannot stand in for conservation.
-
-### D5. Preserve completed planning maturity
-
-New members use one homogeneous profile inferred from their v3 design destinations:
-
-| Completed authority at the cut | Required output per new member        | Entry workflow   |
-| ------------------------------ | ------------------------------------- | ---------------- |
-| No finalized, reviewed spec    | Complete `draft-<member>.md`          | `draft-design`   |
-| Finalized, reviewed spec       | Complete single or paired member spec | `generate-tasks` |
-
-Every new member must receive design content in exactly one entry profile, and all new members in the transform
-must use the same profile. Missing design destinations, mixed draft/spec members, or a draft plus any spec
-authority for one member refuse before mutation. Existing-home destinations retain their own lifecycle state and
-are excluded from homogeneity.
-
-The mature profile is eligible only when the exact source metadata points either to one conventional finalized
-`spec-<origin>.md` or to the sanctioned layered pair `spec-<origin>-prd.md` plus
-`spec-<origin>-rfc.md`, all present in the source inventory. Any other multi-spec set refuses. Target locators then
-infer and validate the output profile; no maturity field or operator-entered stage value is added.
-
-Every new member mirrors that source spec family. A single-spec source yields one complete
-`spec-<member>.md`. A layered source yields both `spec-<member>-prd.md` and `spec-<member>-rfc.md`, with the PRD
-owning the shared context spine and the referential RFC owning technical design. Metadata records both paired files
-in the existing comma-separated `Design` shape. All source units from both parent specs remain subject to exact
-allocation and the distribution interlock reviews the child pair as one complementary authority. Layering does not
-create another maturity profile or entry workflow.
-
-There is no `create-spec` entry. If a cut becomes apparent during spec authoring, the holistic spec is completed
-and reviewed before decomposition. If the cut prevents that without reopening design, the draft profile is used.
-The mature profile is eligible only when partitioning the reviewed design does not reopen a decision.
-
-Mature child specs are complete, self-contained semantic projections of the reviewed parent spec. Task-driving
-design still has one authoritative destination. Shared context may be repeated for self-containment, while truly
-ownerless sequencing remains in cohort coordination.
-
-An approved parent task skeleton may also be conserved. Because the exact source cannot read an uncommitted
-worktree, the existing structural-pass approval authorizes one source checkpoint commit when the skeleton is worth
-carrying. This adds no review gate, receipt, or manually supplied evidence. Allocated
-`tasks-<member>.md` files are provisional seeds; omitting them remains valid.
-
-The result scaffold returns the profile-appropriate managed destinations and allowed paths. The workflow authors
-the semantic draft, spec, and optional task content; the CLI does not synthesize or judge that content.
-
-The existing mandatory decomposition interlock moves to the post-authoring, pre-finalization boundary; it is not
-duplicated. It surfaces the approved map beside the actual child artifacts, heterogeneous target edits, and planned
-origin, dependency, and ROADMAP delta. For the mature profile it confirms that every child spec or sanctioned pair
-is complete and self-contained, every allocation is represented, and partitioning introduced no new design
-decision. This is a review of the distribution, not a replay of `draft-design`, `create-spec`, or their adversarial
-reviews. A failed distribution remains an uncommitted result candidate that can be corrected or discarded; it
-cannot enter `generate-tasks`.
-
-Generated member metadata uses the existing fields:
-
-- Draft profile: `State: Planning`, the member draft as `Design`, `Current Workflow: draft-design`, no task-list
-  pointer, and the begin-workflow action sentinel.
-- Mature profile: `State: Planning`, the single or paired member spec authority as `Design`,
-  `Current Workflow: generate-tasks`, no task-list pointer, and the begin-workflow action sentinel.
-
-`arc start` preserves a valid planning workflow already recorded on a graduated work unit. If it is unset, start
-derives `generate-tasks` from a spec design and `draft-design` from a draft or absent design. An inconsistent tuple
-refuses with a direct remedy instead of resetting to `draft-design`.
-
-At mature-child entry, `generate-tasks` starts from its normal depth/Class assessment. A conventional tasks file
-with no metadata pointer is read only as a provisional structural seed and may be retained, rewritten, or
-discarded during structural decomposition. The task-list pointer is set only by ordinary task-list finalization
-after content, grounding, review, and interlock checks pass.
-
-These profiles apply to both retired-origin decomposition and extraction of unbuilt scope. The existing full-split
-escape hatch remains the route when Active implementation belongs to several results.
-
-### D6. Make finalization exact, idempotent, and refreshable
-
-For a retirement, finalization is unavailable until the post-authoring distribution interlock approves the actual
-candidate. It revalidates that candidate and seals the already-authorized transform. Extraction creates no
-retirement receipt; the same distribution interlock instead gates its additive result commit, and the later
-source-finish leg retains its separate thinning interlock.
-
-The finalize command handles four states:
-
-- A preparation is finalized normally.
-- A finalized receipt whose staged candidate still matches returns typed `already-finalized` success.
-- A finalized receipt absent from the result parent may be refreshed after approved destination edits.
-- A committed receipt that remains absent from the integration base may be rebound to a newer exact base through
-  the unlanded base-refresh path below.
-
-Refresh is allowed only while the receipt is uncommitted and the exact source, allocation, inventories,
-result-base preconditions, dependency allocation, and closed allowed-path set still validate. It recomputes the
-transition patch and destination digests and replaces only the staged receipt. Once committed, semantic destination
-refinement waits until the decomposition result lands and proceeds as a separate ordinary content change.
-
-A committed receipt is immutable once reachable from the configured integration base. Before that point, unrelated
-base movement may use one narrow append-only refresh without rewriting published history:
-
-1. Update the result branch to the observed base through the normal append-only reconcile.
-2. Prove the old receipt is canonical, absent from the integration base, and still binds the exact source,
-   allocation, inventories, allowed paths, and semantic target digests.
-3. Refuse any changed semantic destination, new incoming dependency on the origin, or conflicting touched path.
-4. Internally derive a new preparation ID, result base, transition patch, and patch digest; regenerate only
-   base-derived candidate paths such as ROADMAP.
-5. Replace the live-tree receipt at the same receipt-ID path and commit that refresh normally.
-
-The prior receipt remains only in unlanded branch history; the candidate tree and its exact diff against base carry
-one current receipt. The local commit validator recognizes only this fully validated old-to-new v3 refresh. It adds
-no refresh record, token, operator-authored evidence, force push, rebase, or amend path.
-
-Unsafe retries return a typed mismatch with a concrete locus: record state, source projection, result-base
-precondition, path, mode, destination content, or dependency. The operator is given the direct refresh, re-preflight,
-or reauthor action. No rollback record or second preparation store is added.
-
-A single version-aware finalized-decompose validator owns:
-
-1. Closed schema decoding and receipt identity.
-2. Source and allocation inventory validation.
-3. Target and dependency bindings.
-4. Result-base and touched-path preconditions.
-5. Exact mode-aware candidate patch derivation.
-
-The commit hook, exact-ref planning classifier, landing adapter, and transition-overlay adapter consume this typed
-result. Receipt-shaped JSON that does not pass the full decoder and validator grants no authority.
-
-### D7. Admit safe descendant-base landing
-
-The exact-parent case remains the default. A v3 result may land on a descendant of its prepared base only when:
-
-- Every touched path still has the prepared pre-mutation stored-content state and mode.
-- Applying the exact authorized patch yields the candidate result.
-- No incoming change adds a dependency on the retired origin.
-- The host binds the successful validation to the exact current base and head and reruns it after either moves.
-
-This check belongs in the existing exact-base/head adapter used by the merge gate. Unrelated base movement is
-accepted without operator action; a conflicting path or dependency is a hard failure with a direct remedy, never a
-fallback from a planning lane to reviewed.
-
-When the host cannot bind validation to the live candidate, the workflow updates the result branch append-only and
-uses the committed-unlanded refresh to bind the one current receipt to the exact parent. The landing attempt requires
-that base object to remain current; another base move repeats the typed refresh path. It never asks the operator for
-a base object, receipt reconstruction, or other proof material. Partial-protection direct commits naturally retain
-the exact current base parent.
-
-### D8. Derive one validated transition overlay and planning-lane exception
-
-The structured project-readiness projection accepts a validated transition overlay stating that one decompose
-candidate supersedes its origin. Markdown rendering does not discover or reinterpret the transition. The current
-tracked-ROADMAP adapter derives the overlay from the one finalized receipt represented by the candidate.
-
-During merge-like operations, the adapter considers relevant operation parents but selects a receipt only when the
-shared validator derives the current candidate from its durable result-base and patch binding. A receipt that is
-merely historical or absent from another parent supplies no authority. Multiple or contradictory candidates fail
-closed. The pre-commit assertion and conflict remedy consume the same structured projection.
-
-The exact-ref classifier returns `planning` for a decomposition only when:
-
-- Exactly one canonical v3 finalized decompose receipt is added by the candidate.
-- The shared validator proves that receipt against the exact change.
-- Every other changed endpoint already belongs to the planning lane.
-
-Malformed or legacy receipts, multiple receipt additions, unrelated record transitions, foreign-owner changes,
-code, rules, strategies, or other riders keep the change reviewed. An invalid receipt for a purported retirement
-also fails the retirement gate. The classifier and merge-gate ownership recipe change together.
-
-The receipt proves mechanical fidelity, not semantic approval. The post-authoring distribution interlock remains
-the human authority over destinations, dependencies, ownership, reasoned drops, and actual child completeness. No
-approval credential, signature, or semantic classifier is added to the record.
-
-### D9. Calibrate reconciliation, receipt enumeration, and teardown
-
-Current-work-unit reconciliation keeps exact dependency repair, dangling origin-artifact detection, and all
-existing rename/removal behavior. It emits no advisory solely because ordinary narrative prose names a work unit
-whose reachable terminal transition is `decompose`. A decomposed identity remains valid historical context.
-Backticked artifact references and structured dependencies continue through their existing integrity rules. No
-informational severity, prose classifier, marker syntax, or acknowledgement state is introduced.
-
-Retirement receipts remain a durable transition ledger. Enumeration replaces one `git show` process per record
-with batched Git object reads while preserving complete namespace validation, stable ordering, and typed failures.
-A many-receipt fixture proves bounded process fan-out. Raw receipt count or age does not trigger pruning.
-
-Receipt-backed teardown continues to require the exact local source head. For the observed remote planning ref:
-
-- Absent is already resolved.
-- Equal to the source head is safe to delete.
-- A strict ancestor of the source head is safe to delete because it contains no unique remote work.
-- A descendant or divergent ref refuses.
-
-Deletion uses the observed remote object as an exact compare-and-delete lease so a concurrent move vetoes cleanup.
-No publish-only-to-delete round trip or additional cleanup state is required.
-
-### D10. Keep routine operation below the proof boundary
-
-Deterministic logic stays in typed CLI/lib code. Workflows invoke verbs and present precomputed results; they do
-not evaluate Git topology, receipt identity, schema fields, or retry eligibility in prose. Existing artifact paths
-and metadata fields remain the storage boundary, with no new mode or configuration axis.
-
-The happy path adds only the interaction inherent in the operation:
-
-- Retirement: read-only preflight, map authoring, CLI-owned validation/scaffolding, semantic distribution, the one
-  relocated distribution interlock, finalization, and the existing commit/ship release.
-- Extraction: the same authored-result sequence and distribution interlock, followed after landing by one explicit,
-  reviewable source-finish leg.
-
-Operators never calculate digests, locate object IDs, transcribe machine fields, reconstruct receipts, or perform
-Git-object archaeology. Idempotent retries report success. Safe wording edits and unrelated base movement refresh
-or validate automatically. Refusals name the exact path, source block, locator, dependency, or record condition and
-the immediate recovery action.
+### D1. Replace decomposition evidence with one closed v3 contract
+
+New decomposition authoring, preparation, finalization, and authority use schema v3 only. ARC is pre-release and
+has no external installations whose historical decomposition receipts require compatibility. Existing
+repository-owned v1/v2 decomposition records are current self-hosting inputs to reference reconciliation, so they
+cannot be deleted blindly. Implementation first resolves any live reference or cleanup obligation they still
+carry, then deletes those development records and decomposition-only fixtures/branches. No migration reader,
+upgrader, alias, startup cleanup, or compatibility layer is added.
+
+The retirement receipt substrate is shared with rename, abandon, and park. Those current transitions still author
+and consume the existing generic receipt versions; changing their contract is unrelated scope. The shared codec
+retains only the behavior those non-decompose transitions and any still-live records require. A v1/v2 receipt with
+`transition: decompose` grants no new authoring, finalization, projection, landing, publication, or cleanup
+authority.
+
+V3 defines four closed shapes:
+
+- `V3DecomposeStarterMap` is machine output with explicit incomplete operator slots.
+- `V3DecomposeCutMap` is the fully authored input accepted by preparation.
+- `V3DecomposeContinuationInput` is the ephemeral post-authoring selected-slugs-or-none choice supplied to
+  finalization.
+- `V3DecomposeReceipt` is the canonical finalized retirement authority.
+
+Starter and completed maps share one closed envelope:
+
+```text
+schemaVersion: 3
+machine:
+  preflightId
+  source: { origin, kind, logicalBranch, ref, head }
+  resultBase: { ref, head }
+  planningProfile
+  sourceUnits[]
+  incomingEdges[]
+  outgoingEdges[]
+authoring:
+  shape
+  placement
+  destinations
+  internalEdges
+  sourceAllocations[]
+  incomingDispositions[]
+  outgoingDispositions[]
+```
+
+`machine` is identical in starter and completed bytes. In the starter, unknown-cardinality `shape`, `placement`,
+`destinations`, and `internalEdges` are whole-field `{ "status": "author" }` slots. `sourceAllocations` has one
+machine-identified element per `sourceUnit`; ownership and disposition are separate author slots. Incoming and
+outgoing disposition arrays likewise have one machine edge identity apiece and one author slot. The completed map
+replaces every slot with its concrete closed value while retaining the same machine identities and ordering.
+Completed-map parsing rejects every placeholder, missing/extra identity, unknown field, and operator change to
+`machine`.
+
+The nested map records are closed:
+
+```text
+planningProfile:
+  kind: draft
+  sourceDesign: [] | [<draft basename>]
+| kind: single-spec
+  sourceDesign: [<spec basename>]
+| kind: paired-spec
+  sourceDesign: [<PRD basename>, <RFC basename>]
+
+sourceUnit:
+  sourceId
+  sourcePath
+  sourceLocator
+  contentDigest
+
+incomingEdge:
+  edgeId
+  dependent
+  currentTargets[]
+
+outgoingEdge:
+  edgeId
+  prerequisite
+
+placement:
+  kind: direct-member
+| kind: cohort
+  cohort: <one-segment cohort path>
+| kind: subcohort
+  cohort: <two-segment cohort path>
+| kind: at-cap
+  parent: <two-segment cohort path>
+
+destination:
+  kind: new-member
+  destinationId
+  slug
+  workClass
+| kind: existing-home
+  destinationId
+  target: <work-unit | draft-block | document target>
+| kind: cohort-coordination
+  destinationId
+  cohort: <cohort path>
+
+sourceAllocation:
+  sourceId
+  ownership: <destination-owned | cohort-shared | author slot>
+  disposition: <target | drop | author slot>
+
+target:
+  kind: target
+  destinationId
+  targetLocator
+| kind: drop
+  reason
+
+incomingDisposition:
+  edgeId
+  disposition:
+    kind: replace
+    replacementTargets[]
+  | kind: drop
+    reason
+  | <author slot>
+
+outgoingDisposition:
+  edgeId
+  disposition:
+    kind: targets
+    targets[]
+  | kind: drop
+    reason
+  | <author slot>
+```
+
+Work-unit targets are `{ kind: "work-unit", slug }`; draft-block targets add the v3
+hierarchy-qualified `locator`; document targets are `{ kind: "document", path }`. `targetLocator` uses the same v3
+locator domain. Internal edges are `{ from, to }`. `edgeId` is the canonical digest of
+`{ schemaVersion: 3, kind: incoming, dependent, currentTargets }` or
+`{ schemaVersion: 3, kind: outgoing, prerequisite }`. `currentTargets`, replacement/target slug arrays, and every
+identity array are unique and UTF-8 byte-sorted; the paired design array alone preserves semantic PRD-then-RFC
+order. Machine source units and edges sort by ID, destinations by `destinationId`, internal edges by `(from, to)`,
+and the three authored identity arrays by their copied `sourceId` or `edgeId`. Candidate-publication entries are
+derived by iterating that canonical destination order, omitting `cohort-coordination`, and mapping every remaining
+destination to exactly one `new-leaf` or `existing-destination` entry. The stored entry no longer needs to carry a
+new member's `destinationId`; its order remains rederivable from `completedMap`.
+
+Canonical identity preimages are exact:
+
+```text
+receiptId = digest({
+  schemaVersion: 3,
+  subject: { kind: work-unit, name: machine.source.origin },
+  transition: decompose,
+  sourceBranch: machine.source.logicalBranch,
+  sourceHead: machine.source.head
+})
+
+preflightId = digest({
+  schemaVersion: 3,
+  source,
+  resultBase,
+  planningProfile,
+  sourceUnits,
+  incomingEdges,
+  outgoingEdges
+})
+
+cutMapDigest = digest(V3DecomposeCutMap)
+allowedPathsDigest = digest(allowedPaths)
+topologyDigest = digest(topologyFacts)
+transitionPatchDigest = digest(transitionPatch)
+
+sourceArtifactDigest = digest({
+  schemaVersion: 3,
+  kind: source-artifact-inventory,
+  entries: [
+    {
+      path,
+      objectKind: blob,
+      mode: 100644 | 100755,
+      contentDigest: digestBytes(exactStoredBlobBytes)
+    },
+    ...
+  ]
+})
+
+sourceInventoryDigest = digest({
+  schemaVersion: 3,
+  kind: source-unit-inventory,
+  entries: machine.sourceUnits
+})
+
+incomingEdgeInventoryDigest = digest({
+  schemaVersion: 3,
+  kind: incoming-edge-inventory,
+  entries: machine.incomingEdges
+})
+
+outgoingEdgeInventoryDigest = digest({
+  schemaVersion: 3,
+  kind: outgoing-edge-inventory,
+  entries: machine.outgoingEdges
+})
+```
+
+Every `digest()` operand is canonical JSON over exactly the shown closed value. A digest field never hashes itself.
+Source-artifact entries cover the complete committed source artifact family exactly once and sort by UTF-8 path;
+their bytes are Git stored bytes after clean filters, never checkout bytes. The three machine inventory arrays use
+their already-canonical ID ordering without a second normalization. The source/result refs, not checkout paths,
+enter machine identity.
+
+`V3DecomposeContinuationInput` is closed canonical JSON containing only
+`{ "kind": "selected", "slugs": [...] }` or `{ "kind": "none" }`. Selected slugs are unique and ordered by the
+candidate publication; the input carries no receipt, object, path, readiness, or approval claim.
+
+The public v3 authoring domain is closed. `machine.source.kind` is `started-planning` or `backlog-stub`;
+source lifecycle is machine identity, not an operator-authored shape. `authoring.shape` is `symmetric` or
+`heterogeneous`, `authoring.placement` is `direct-member`, `cohort`, `subcohort`, or `at-cap`, and destinations
+are only `new-member`, `existing-home`, or `cohort-coordination`. A symmetric map has at least two new members
+and no existing home. A heterogeneous map has at least one new member and at least one existing home. Public
+starter maps, completed maps, preparations, and receipts have no `surviving-origin` destination and no extraction
+shape. The reusable topology planner may separately accept an internal extraction constituent with one surviving
+origin; that DTO is not accepted by the decomposition CLI, cut-map codec, preparation, or receipt codec.
+
+Section locators contain `artifact`, `kind: section`, `level`, `headingSource`, `ancestry`, and `occurrence`.
+`level` is 2-6. Each ancestry entry is `{ level, headingSource, occurrence }`, ordered outermost to innermost.
+Heading text uses the existing canonical normalization. A stack removes headings at or below the next heading's
+level before assigning its parent, so legal level jumps remain stable. Occurrence is zero-based among equal
+normalized headings with the same level and exact parent identity.
+
+Markdown inventory is a disjoint exhaustive byte sequence:
+
+1. Content before the first H2 is the preamble.
+2. Every recognized H2-H6 begins a unit ending before the next recognized H2-H6.
+3. A parent's unit contains its lead content only; nested headings begin separate units.
+4. Existing fence, HTML, quote, and list protections continue to suppress incidental heading syntax.
+5. Non-Markdown artifacts remain whole-file units.
+
+`sourceId` is the canonical digest of `{ schemaVersion: 3, sourcePath, sourceLocator }`; content digest is a
+separate binding. Every source unit is allocated exactly once or explicitly dropped with a reason.
+`destination-owned` material has one authoritative new member or existing home. `cohort-shared` is limited to
+ownerless sequencing, constraints, provenance, and closeout content; it cannot carry task-driving design.
+
+Preparation uses a v3-specific closed record in the shared retirement-record namespace:
+
+```text
+V3DecomposePreparation:
+  kind: prepared-decompose
+  schemaVersion: 3
+  receiptId
+  preparationId
+  facts:
+    preflightId
+    completedMap
+    cutMapDigest
+    sourceArtifactDigest
+    sourceInventoryDigest
+    incomingEdgeInventoryDigest
+    outgoingEdgeInventoryDigest
+    allowedPaths[]
+    allowedPathsDigest
+    candidateOwnership
+    candidatePublication
+    topology: { facts[], digest }
+    prospectiveProjection:
+      overlay: { origin, sourceBranch, planId }
+      roadmap: { path, before, after }
+```
+
+`completedMap` is the exact canonical `V3DecomposeCutMap`; its immutable machine envelope therefore carries source,
+result base, planning profile, source units, and dependency inventories. `candidatePublication` is the exact
+logical anchor and ordered entries without continuation. Topology facts are one `{ kind: "none" }` fact or an
+ordered unique-path list of `{ kind, path, before, after }`, where `kind` is `create`, `ensure`, `backfill`, `reuse`,
+or `append`; `reuse` has equal states and every write action differs. `topology.digest` is `topologyDigest`. The
+ROADMAP observation is one managed path state transition; its overlay binds only the origin, source branch, and
+exact plan.
+
+`candidateOwnership` is closed:
+
+```text
+kind: claimed
+protection: full
+claimId: <exact repository-common claim key>
+generation: <exact claim generation>
+candidateBranch: <exact local branch>
+candidateWorktree: <opaque registered-worktree identity>
+| kind: not-applicable
+protection: partial
+```
+
+The full arm is copied from the operational claim created before preparation; the partial arm is fixed by the
+validated execution mode. Configuration or claim-store state observed later cannot select a different protection
+arm, key, or generation. `candidateWorktree` is a stable claim identity, never an absolute host filesystem path;
+it is the canonical digest of
+`{ schemaVersion: 1, kind: decomposition-candidate-worktree, claimId, generation }`. Only the machine-local claim
+record maps that identity to a reserved or registered path, and that adapter mapping is never copied into
+preparation or receipt authority.
+
+The remaining identity preimages are:
+
+```text
+planId = digest({
+  schemaVersion: 3,
+  preflightId,
+  cutMapDigest,
+  allowedPathsDigest,
+  candidatePublication,
+  topologyDigest
+})
+
+preparationId = digest({
+  schemaVersion: 3,
+  receiptId,
+  planId,
+  resultBaseHead: completedMap.machine.resultBase.head,
+  sourceArtifactDigest,
+  sourceInventoryDigest,
+  incomingEdgeInventoryDigest,
+  outgoingEdgeInventoryDigest,
+  cutMapDigest,
+  allowedPathsDigest,
+  candidateOwnership,
+  candidatePublication,
+  topologyDigest,
+  prospectiveProjection
+})
+```
+
+The finalized v3 record is also decomposition-specific rather than an extension of the generic v1/v2 result arm:
+
+```text
+V3DecomposeReceipt:
+  kind: decompose-receipt
+  schemaVersion: 3
+  receiptId
+  preparationId
+  prepared: <exact V3DecomposePreparation.facts>
+  finalized:
+    destinationDigests[]
+    managedPathResults[]
+    transitionPatch[]
+    transitionPatchDigest
+    publication:
+      logicalAnchor
+      entries[]
+      initialContinuation
+```
+
+`prepared` is byte-for-byte equal to preparation `facts`. `destinationDigests` is unique and sorted by
+`destinationId`; each entry is `{ destinationId, digest }`, where `digest` hashes
+`{ destinationId, outputs: [{ path, after }] }` over that destination's UTF-8 path-sorted managed outputs.
+`publication.logicalAnchor` and `entries` are byte-for-byte equal to `candidatePublication`; finalization adds only
+`initialContinuation`.
+
+`allowedPaths` is the complete authorization and validation closure, including the receipt path, changed
+destinations, and unchanged managed topology observations such as `reuse`. The finalized receipt adds destination
+digests and unique UTF-8 path-sorted `managedPathResults` for every non-receipt allowed path. Each result is
+`{ path, before, after }`; a path state is `absent` or a regular file with stored-byte digest and mode `100644` or
+`100755`. `before` is always the prepared result-base tree state and `after` is the pinned candidate result, never
+an operational retry preimage. A mode-aware `transitionPatch` is exactly the ordered subset whose `before` and
+`after` differ. Equal states are required for the complementary unchanged subset and forbidden in patch entries.
+The receipt path is excluded from both result sets to avoid recursive identity. Symlinks, submodules, unknown
+object types, uncovered paths, overlapping changed/unchanged classifications, and unexpected mode changes refuse.
+
+`receiptId` remains stable for one exact source transition. `preparationId` additionally binds the exact result
+base, claim key/generation, candidate publication, constitutive topology, prospective projection, and all prepared
+inventories and paths. The shared namespace decoder first discriminates the v3 decomposition record by
+`schemaVersion` plus `kind`; it never parses it through the generic v1/v2 result arm. The closed decoder recomputes
+every identity, digest, ordering, prepared-fact equality, result partition, and patch invariant before granting
+authority.
+
+Complete retirement-record enumeration carries three explicit authenticated arms: retained generic receipt, v3
+decomposition preparation, and v3 decomposition receipt. Old v1/v2 decomposition preparations are not a retained
+arm. A v3 preparation is nonterminal and contributes no reference transition or dependent disposition. A v3
+receipt projects its retired subject from `prepared.completedMap.machine.source.origin`; reference reconciliation
+exposes the same closed `decompose` transition used by current consumers. Dependent-disposition queries join the
+requested dependent to the canonical machine incoming edge, then join its `edgeId` to exactly one authored incoming
+disposition and return that closed replace/drop value with fixed `tree-only` evidence quality. Missing, duplicate,
+or inconsistent joins make the authenticated record invalid rather than degrading to absent. Existing generic
+rename, abandon, and park projections remain unchanged. The child durable-consumer work extends enumeration reach
+and historical narrative; it does not own this baseline shared-namespace compatibility.
+
+### D2. Build one read-only source and result plan before mutation
+
+`arc decompose <origin> --preflight` reads the exact committed source from configured Git refs in any attached
+project checkout. It emits only canonical starter-map JSON on stdout; diagnostics and warnings use stderr.
+Refusal exits nonzero and emits no partial JSON. Uncommitted source bytes never enter evidence.
+
+Source selection is closed and checkout-independent. Resolve configured `branch.base` as the exact local
+`refs/heads/<branch.base>`, then enumerate only local `refs/heads/*` other than that base as committed source
+candidates. Remote-tracking refs, worktree pseudo-refs, fetch, and the invocation checkout's current branch are
+never candidates or fallbacks. A non-base ref qualifies only when its committed tree contains exactly one
+supported `.arc/active/meta-<slug>.md` for the requested origin with `State: Planning` and `Branch` exactly equal
+to that ref's short name. Exactly one qualifying non-base ref wins and yields `source.kind: started-planning`.
+Zero qualifying non-base refs may fall back to the configured base only when that tree contains exactly one
+supported predecessor for the origin: either an active Planning meta whose `Branch` equals the base, or a
+provisional/planned backlog meta whose `Branch` is absent or `[none]`. The latter yields `backlog-stub`; the
+base-branch active form yields `started-planning`.
+
+More than one qualifying non-base candidate, multiple supported origin paths in one candidate tree, a branch
+self-identity mismatch, or an incompatible base/source predecessor refuses. Local aliases at the same commit are
+still distinct candidates and qualify only through their own exact `Branch` self-identity, so divergent
+self-authenticating candidates refuse rather than winning by ref order. The selected committed tree supplies
+metadata, content, and dependency truth; attached worktrees and the invocation locus cannot change the result.
+Before starter emission, that same tree also produces the closed D3 `planningProfile` from its exact metadata and
+design-artifact inventory. Starter construction accepts no caller-supplied or placeholder profile. Completed-map
+revalidation rereads the tree and rederives the same profile with the other machine inventories before comparing
+`preflightId`.
+
+`arc decompose <origin> --cut-map <path>` validates the completed map and builds one ephemeral
+`ValidatedDecomposePlan` before any branch or filesystem action. The plan binds:
+
+- exact source branch/head and result-base head;
+- content and incoming/outgoing dependency inventories;
+- exhaustive allocation and ownership;
+- source/result placement and writable destination path states;
+- predecessor action and retirement-only delta;
+- planning profile and output metadata tuples;
+- cohort topology actions;
+- exact allowed paths and recovery facts.
+
+A canonical managed-path registry closes overlap before branch creation. Every plan-owned path appears exactly once
+with one base prestate and either an exclusive role or one composed mutation. Receipt/evidence paths, retiring
+source/predecessor paths, and ROADMAP are exclusive and cannot also be an author destination, topology path, or
+dependency target. A composed mutation carries an ordered contributor list and one final state:
+
+1. topology structure;
+2. destination/allocation or existing-home content in canonical
+   `(destinationId, contributorKind, contributorIdentity)` order, where a scaffold's identity is its artifact role
+   and an allocation's identity is `(sourceId, targetLocator)`;
+3. dependency transformations in canonical `edgeId` order.
+
+Each contributor consumes the exact prior contributor's after-state. Multiple whole-file content owners,
+incompatible modes/object kinds, duplicate role ownership, a contributor that cannot apply to the prior state, or
+any exclusive-path collision refuses before occupation. The registry derives the unique sorted `allowedPaths`;
+separate planners may produce contributors but only the final one-entry-per-path mutation table reaches
+materialization.
+
+A retiring source is compared with its source/result merge base. Expected origin-artifact evolution, unchanged
+base-ancestor predecessor removal, derived ROADMAP movement, and paths already identical on the result are
+accounted. Every other nonidentical source-private path is a rider and refuses by exact path. The cut map cannot
+absorb it.
+
+Under full protection the driver creates or resumes `chore/decompose-<origin>` at the validated base. An absent
+branch may be created; an existing branch resumes only when its exact source/base/map candidate binding matches.
+Under partial protection the validated base checkout must have a clean relevant index and worktree.
+
+The full-protection candidate is an intentional transient locus, not unowned branch residue. Its occupation uses
+the shared transient identity/claim substrate so in-flight and cleanup readers recognize exact recorded ownership
+rather than trusting the `chore/decompose-*` prefix. That claim carries operational branch/worktree ownership only;
+it is not decomposition evidence, a pending transform record, or semantic approval. Landing or exact discard
+retires only the matching claim key and generation. Preparation copies the exact completed
+key/generation/branch/worktree into its `candidateOwnership`; this correlation does not turn the claim into
+semantic evidence.
+
+The store is repository-common and machine-local at
+`<git-common-dir>/arc/transient-claims/<claimId>.json`. Its logical key is:
+
+```text
+claimId = digest({
+  schemaVersion: 1,
+  kind: decomposition-candidate,
+  origin,
+  candidateBranch
+})
+```
+
+One closed record exists per key:
+
+```text
+schemaVersion: 1
+kind: decomposition-candidate
+claimId
+generation: <positive integer, monotonic for this claimId>
+binding: { origin, candidateBranch, sourceHead, resultBaseHead, cutMapDigest }
+candidateWorktree: digest({
+  schemaVersion: 1,
+  kind: decomposition-candidate-worktree,
+  claimId,
+  generation
+})
+registration:
+  kind: unregistered
+| kind: intended
+  path: <canonical absolute machine-local path>
+| kind: registered
+  path: <canonical absolute machine-local path>
+| kind: released
+  lastPath: <canonical absolute machine-local path>
+state:
+  kind: pending
+| kind: occupied
+| kind: terminal
+  terminal:
+    kind: landed
+    receiptId
+    candidateHead
+  | kind: discarded
+    planId
+    candidateHead
+```
+
+The registration arm is adapter-only operational state in the same machine-local claim record; its path never enters
+`claimId`, `candidateWorktree`, preparation, or receipt identity. A repository-common lock plus atomic replacement
+serializes each key. `acquire(claimId, binding)` creates generation one with deterministic `candidateWorktree` and
+`unregistered`, resumes the same pending/occupied generation only for an exact binding, advances a terminal record
+only after its registration is `released` and its old candidate branch/worktree occupation is absent, and otherwise
+returns `conflict`.
+
+`pending/unregistered` is a valid pathless crash-recovery state after `acquire` and before reservation. An exact
+binding retry may continue only by reserving its path; it grants no authority to inspect, adopt, or delete any
+filesystem location. A pre-acquire refusal leaves no claim. A failure after successful acquire preserves this
+generation unless an explicit exact-generation rollback compare-and-swap proves that no reservation, branch,
+worktree, marker, or other observer can exist.
+
+Before branch or filesystem mutation, `reserveWorktree(claimId, generation, path)` changes exact `unregistered` to
+`intended` and is idempotent only for the same canonical path. Candidate creation writes the exact
+`{ claimId, generation, candidateWorktree }` tuple into the machine-local ARC worktree marker.
+`occupy(claimId, generation, path)` accepts only the reserved path registered by Git to the exact candidate branch
+and expected head with that matching marker, then atomically changes `intended/pending` to `registered/occupied`;
+retry of the matching registered/occupied pair is idempotent. On restart, `intended` is the sole authority to inspect
+that path: an absent candidate may be recreated, an exact registered branch/head with an absent marker may be
+completed, and any foreign bytes, branch, head, registration, or marker conflict refuses without adoption.
+
+`retire(claimId, expectedGeneration, terminal)` returns `retired`, `already-retired-matching`, `conflict`, or
+`missing-unproven`. It changes only the exact current pending/occupied generation, preserves the matching terminal
+record for idempotent retry, and never treats file absence as completion. The single latest record is the retention
+bound. After exact local cleanup, `releaseWorktree(claimId, generation, candidateWorktree, path)` changes only a
+matching terminal `registered` mapping to `released` after the Git registration, marker, and branch occupation are
+absent; retry is idempotent. A later successful acquire replaces only that released terminal with generation plus
+one, after which an old retry is `conflict`. Malformed records or mappings fail closed and are never overwritten as
+absent.
+
+One driver operation consumes `ValidatedDecomposePlan` and owns branch occupation, post-occupation revalidation,
+mutation, staging, and preparation. No later layer re-derives plan authority. The source remains read-only.
+Full-protection failure leaves the exact named candidate and returns a retry or discard command. Partial-protection
+failure restores only transform-owned paths from captured preimages.
+
+Discard is explicit and typed:
+
+```text
+arc decompose <origin> --discard <cut-map>
+```
+
+It revalidates the same source, map, deterministic candidate branch, and uncommitted candidate binding before
+retiring the exact generation as discarded. Only retired or already-retired-matching authority grants deletion of
+that transform-created candidate; exact cleanup then releases its worktree registration. A crash between retirement,
+cleanup, and release resumes from the terminal generation, and only the matching discarded terminal plus released
+registration proves an already-completed discard. It never deletes a changed or foreign branch and never removes
+finalized receipt evidence. No opaque token or durable pending record is introduced.
+
+### D3. Preserve planning maturity and materialize topology
+
+One homogeneous planning profile is inferred for all new members:
+
+| Completed authority at the cut | New-member output                          | Entry workflow   |
+| ------------------------------ | ------------------------------------------ | ---------------- |
+| No finalized reviewed spec     | Complete `draft-<member>.md`               | `draft-design`   |
+| Finalized reviewed spec        | Complete single or paired member spec      | `generate-tasks` |
+
+A mature profile is valid for one conventional finalized spec or the sanctioned PRD/RFC pair named by source
+metadata and present in the exact inventory. Every member mirrors the source family. Existing-home destinations
+retain their lifecycle state and do not participate in homogeneity.
+
+Member specs are complete, self-contained semantic projections. Task-driving authority has one destination;
+context may repeat for self-containment, while genuinely ownerless coordination belongs in the cohort document.
+There is no `create-spec` entry.
+
+An approved structural task skeleton may be allocated into `tasks-<member>.md`. It remains provisional:
+metadata records `Task List: [none]`, and ordinary `generate-tasks` may retain, rewrite, or discard it.
+Only task-list finalization sets the pointer.
+
+Every new-leaf meta produced by decomposition carries one managed optional transitional field immediately after
+`Review Rubric`: `Decomposition Receipt: <canonical receiptId>`. Its field descriptor is omit-when-absent rather
+than default-backed: parsing returns absent when the marker is missing, ordinary rendering emits it only from an
+explicit supplied value, and reconciliation never backfills it. Reconciliation preserves a present marker at its
+canonical position, while decomposition tuple validation rejects duplicates or misplaced markers. The field is
+absent from ordinary meta templates, ordinary rendered metas, and existing-home destinations.
+
+The canonical receipt ID is fixed by the source transition before destination bytes are materialized; publication
+determines which new-leaf tuples receive it but does not feed that identity. Destination digests and the receipt
+path likewise do not feed the ID. The field alone grants no receipt, publication, start, or cleanup authority.
+
+`arc start` preserves a valid recorded planning workflow. If `Decomposition Receipt` is absent, ordinary planning
+policy remains unchanged, including `create-spec`. If present, start first decodes the canonical ID, loads that
+exact receipt path from the pinned configured-base tree, and requires the shared exact-base
+`DecompositionIntegrationAnchor` to validate its landed receipt/publication relation. The anchor producer is
+available before start and is reused later by handoff and cleanup; start never builds a private landing validator.
+The publication must name this slug as a `new-leaf` with the exact bound planning profile and artifact family. Start
+then admits only draft/`draft-design` or all-spec/`generate-tasks`; an inconsistent design/workflow/task tuple
+refuses before mutation. If the recorded workflow is absent, it derives `generate-tasks` from all-spec authority
+and `draft-design` from draft or absent authority.
+
+The read-only start preflight produces one `ValidatedGraduationTransaction` containing the exact source artifact
+snapshot, destination absence/prestates, branch/worktree occupation operands, and complete target bytes and modes.
+Before mutation, the preflight applies the existing managed-field reconciliation model to the source meta and
+records the exact ordered `backfilled` field list. It then composes phase, the preserved/derived workflow,
+`Next Action`, every other existing soft-field ceremony change, an explicitly supplied `--class` replacement when
+requested, and removal of `Decomposition Receipt` into the complete target meta bytes. Without `--class`, the
+recorded Class is preserved. The optional receipt field is omit-when-absent and is never counted as a backfill.
+
+A start-only `atomicGraduate` executor port owns branch/worktree occupation, artifact relocation, target-byte
+writes, index staging, and reverse-order rollback as one encoding leg for ordinary and decomposition-produced
+graduates. Start does not use the generic per-file relocation leg or any post-transition meta/class/workflow/soft
+field write. Existing lifecycle verbs keep their current forward-recovery behavior.
+
+The atomic port returns success only after exact destination/index parity is established. A refusal changes
+nothing; an application failure completes rollback to the captured source/index/worktree/branch preimages before
+returning failure. Failure to complete rollback is a typed `graduation-recovery-required` result carrying only the
+exact established residue and never a successful or partially authoritative Planning transition. Successful start
+preserves the existing `GraduateResult` success contract: `backfilled` is the precomputed reconciliation list and
+`notice` uses the existing exact backfill notice or `null`. The command result gains only the typed
+recovery-required arm for incomplete rollback; fully rolled-back failures retain the ordinary rejected result.
+Successful decomposition start therefore removes the marker in the same transaction that relocates the member;
+after success the member is ordinary Planning authority and may progress through its recorded workflow normally.
+
+The reusable topology planner receives already-decided placement; it never chooses whether or how to group. It
+returns exact coordination and optional parent paths plus typed actions:
+
+- create a canonical explicitly incomplete cohort doc;
+- ensure or backfill a missing parent doc;
+- reuse an existing doc;
+- append exact at-cap provenance;
+- or perform no action for an eligible single-member cohortless result.
+
+Every decomposition resolves a logical anchor. A result with exactly one new member and any number of
+existing-destination edits may use that direct member; existing destinations do not become newly minted cohort
+members. Normal multi-member fan-out uses the origin-named cohort or subcohort. At the nesting cap it uses an
+origin-keyed fan-out block under the existing parent coordination doc. A multi-member cut map that resolves
+cohortless refuses even when all content is destination-owned.
+
+The topology contributor uses the canonical cohort template with structural identity filled and `Purpose: —`.
+It never overwrites an existing doc independently; an explicitly allocated content contributor may compose onto
+the same validated path through the managed-path registry. Exact at-cap provenance is idempotent; conflicting
+same-origin provenance refuses. Command output reports every coordination and parent path and its disposition.
+Finalization refuses missing docs or the exact Purpose sentinel, but it does not require optional prose or invent
+semantic content.
+
+### D4. Finalize exact evidence and expose one authority
+
+The post-authoring distribution interlock is the sole semantic approval boundary. It reviews the actual child
+drafts/specs/provisional tasks, heterogeneous edits, cohort coordination, allocation, dependency effects, and
+initial continuation. Mechanical validation proves completeness and exact bindings; the human judges semantic
+fidelity and whether partitioning reopened design.
+
+Finalization enforces mechanics only. Workflow ordering ensures the interlock has occurred; no approval token,
+signature, prose classifier, or semantic credential is persisted.
+
+Finalize returns:
+
+- `recorded` for initial sealing;
+- `already-finalized` when the exact staged candidate already matches;
+- `refreshed` when an approved, fully staged, uncommitted destination refinement changes only recomputable
+  destination and transition facts.
+
+Uncommitted refresh requires the receipt to be absent from the candidate parent, exact index/worktree parity for
+all relevant paths, unchanged source/allocation/inventories/result-base/dependencies/allowed paths/candidate
+ownership, candidate publication/topology, and byte-identical prior `initialContinuation`, with no foreign path.
+The supplied continuation must equal the already-finalized value; refresh cannot reopen or replace the interlock's
+semantic selection. It recomputes only destination, managed-result, and patch facts, then replaces and stages only
+the receipt. Once committed, the core never rewrites or refreshes evidence.
+
+One `validateFinalizedV3Decomposition()` boundary owns closed decoding, source/allocation inventory validation,
+target/dependency binding, exact result-base/path preconditions, and mode-aware candidate patch derivation. It
+returns canonical authority or one typed mismatch with a stable optional locus. The finalization driver, commit
+adapter, transition-overlay adapter, and exact-base integration-anchor adapter consume that result.
+
+The hook adapter owns Git/index/parent reads and passes normalized facts into pure policy. One exact v3
+decomposition addition is accepted; malformed, multiple, obsolete-decompose, modified, deleted, or rider-bearing
+decomposition evidence refuses. Existing non-decompose transition policy stays on its current shared receipt
+contract. The core does not admit committed same-path refresh—that belongs to `decompose-base-mobility`.
+
+One recovery mapper translates typed mismatches to `retry`, `discard`, `re-preflight`, or `reauthor`. It can
+render only candidate, cut-map, path, and receipt facts actually established by validation.
+
+### D5. Publish durable decomposition and project-transition facts
+
+Every finalized retirement receipt includes one closed `DecompositionPublication`:
+
+```text
+logicalAnchor:
+  kind: direct-member
+  slug: <new-leaf slug>
+| kind: cohort
+  cohort: <one-segment cohort path>
+| kind: subcohort
+  cohort: <two-segment cohort path>
+| kind: at-cap-fanout
+  parent: <two-segment cohort path>
+  origin: <retired origin slug>
+entries:
+  - kind: new-leaf
+    slug: <work-unit slug>
+  - kind: existing-destination
+    destinationId: <stable destination identity>
+    target:
+      kind: work-unit
+      slug: <work-unit slug>
+    | kind: draft-block
+      slug: <work-unit slug>
+      locator: <v3 hierarchy-qualified locator>
+    | kind: document
+      path: <managed repository path>
+initialContinuation:
+  kind: selected
+  slugs: [<one or more new-leaf slugs>]
+| kind: none
+```
+
+The validated plan projects and preparation binds the candidate publication — the logical anchor plus exact
+ordered entry set — before authoring. The distribution interlock supplies only `V3DecomposeContinuationInput`;
+finalization validates and seals the preparation-bound publication with that continuation, never re-projecting
+anchor or entries from the authored candidate. `entries` is unique and ordered by the completed map's canonical
+`destinationId` order after `cohort-coordination` destinations are filtered out. Selected slugs must appear in the
+same relative order as the resulting new-leaf subsequence. Selected entries must be new leaves that are
+launch-ready in the candidate projection; existing destinations cannot be selected. Explicit `none` is a terminal
+disposition for this handoff, not persistent scheduling state.
+
+The receipt stores stable logical identity, not a mutable display path or ready/blocked snapshot. Current display
+path derives from the logical anchor and current topology. Member metas remain authoritative for membership,
+dependencies, priority, workflow, and lifecycle state. Project-record composition returns one lossless
+`ProjectReadinessCompositionResult` before any merge or render reduction:
+
+```text
+acceptedCandidates[]:
+  slug
+  path
+  lifecycleLocation
+  record
+rejectedRecords[]:
+  slugHint: <path-derived slug | null>
+  path
+  locus
+  reason: unreadable | malformed | unsupported-lifecycle
+view: <the ordinary composed project-readiness view>
+```
+
+Accepted candidates remain an ordered list, so duplicate records for one slug are preserved rather than collapsed
+by the ordinary view. Rejected facts survive with their source path and parse locus; a record whose path cannot
+identify a slug uses `slugHint: null` and makes the composition indeterminate rather than disappearing. A supplied
+prospective or validated transition overlay is applied while producing this one result. Rendering may consume
+`view`, but launch authority receives the entire pinned result and performs no second scan.
+
+Candidate continuation validation and landed handoff share one `resolveLaunchReadiness()` aggregate over that
+exact result. For the requested slug it requires exactly one accepted planned candidate, no matching rejected
+record, no unidentified rejected record, `State: Planning`, and non-parked scheduling. It classifies dependencies
+under the shipped-only doctrine (`Integrating` remains blocked), then consumes the one batch result produced for
+the pinned composition by:
+
+```text
+DecomposeReadinessProvider.resolve({
+  candidates: [{ slug, record, dependencyFacts }],
+  composition
+}) -> ReadonlyMap<
+  slug,
+  { kind: ready }
+  | { kind: blocked, blockers: [{ code, locus }, ...] }
+>
+```
+
+One shared `DecomposeReadinessDeps` bundle resolves and injects this required provider into both candidate and
+landed composition paths. Production uses `adaptProjectReadinessProvider(depsOnlyReadinessProvider)`: the adapter
+passes the accepted records once to the existing batch `ProjectReadinessProvider`, requires exactly one
+`ready | blocked` verdict per accepted slug and no extra key, and maps `blocked` to a nonempty
+`provider-blocked` blocker at that slug's provider locus. Dependency blockers retain their separately classified
+edge loci. Tests may inject a native typed provider. Existing project-view provider options and their public batch
+interface remain unchanged; no project configuration axis or optional helper/composer-local default is added.
+A missing provider, thrown call, missing/extra map key, unknown result field, empty blocker set on typed `blocked`,
+or otherwise malformed provider result returns typed `refused`.
+
+Missing, duplicate, malformed, wrong-lifecycle, or otherwise indeterminate project records return typed `refused`;
+unsatisfied dependencies or a valid provider denial return typed `blocked`; only the complete conjunction returns
+`ready`. Every non-ready result preserves exact blocker and source loci, including provider blocker loci. The
+publication is not a scheduler or status record.
+
+Existing work-unit targets resolve against exact landed lifecycle records. Draft-block targets resolve their
+owning record plus exact artifact locator, and document targets resolve their exact managed path state in the same
+pinned tree. All existing destinations remain publication/display facts but are never continuation-eligible.
+
+The built CLI exposes that re-resolution as read-only `arc decompose <origin> --handoff`. It authenticates one
+pinned configured-base tree, returns a closed landed-handoff result through the public command boundary, and
+changes no ref, index, worktree, claim, or lifecycle record. A prepared or committed-unlanded candidate returns a
+typed non-landed result rather than exposing candidate members to base-rooted consumers.
+
+Extraction has a surviving origin and no retirement receipt; its member owns that separate conservative launch
+boundary. The core does not fabricate publication evidence for extraction.
+
+Before receipt finalization, the immutable `ValidatedDecomposePlan` produces a `ProspectiveTransitionOverlay`
+binding only its exact origin, source branch, and plan identity. This transient operand is accepted only by the
+in-process result composer to render the candidate project view and ROADMAP; it grants no commit, merge,
+publication, landing, claim-retirement, or cleanup authority. Preparation binds its suppression facts and exact
+rendered ROADMAP path state.
+
+The finalized validator independently produces:
+
+- `ValidatedTransitionOverlay`, which suppresses exactly the retired origin in structured project readiness; and
+- exact-base `DecompositionIntegrationAnchor`, which binds receipt, origin, source head, current base, and
+  candidate head after the canonical receipt validates against its prepared base.
+
+Project-view and ROADMAP rendering apply a supplied minimal overlay but never discover or validate receipts.
+Finalization composes the receipt-derived overlay against the pinned candidate tree and requires exact structured
+view and ROADMAP-byte parity with the preparation-bound prospective result before replacing evidence. Direct
+execution uses only the prospective arm; commit, merge recovery, landed publication, and cleanup accept only the
+validated arm. Hook/conflict recovery pins `HEAD`, ordered `MERGE_HEAD`, index/candidate tree, configured base,
+and relevant objects, then selects exactly one validator-proven overlay. Historical, other-parent-only, deleted,
+ambiguous, contradictory, or raced evidence grants no authority. Recovery is merge-specific; rebase, cherry-pick,
+and revert receive no inferred parent semantics.
+
+The exact-base integration anchor is the shared consumer contract. `decompose-base-mobility` extends its derivation
+to a current descendant base; it does not introduce a second anchor shape. Core teardown composition requires the
+receipt to be landed and the exact-base anchor to validate before it exposes local source cleanup eligibility.
+More durable enumeration and remote cleanup behavior belongs to `decompose-durable-consumers`.
+
+The anchor derives one closed `claimRetirement` arm only from the canonical receipt's preparation-bound
+`candidateOwnership`. A `claimed` full-protection value becomes
+`{ kind: required, claimId, generation, candidateBranch, candidateWorktree }` and must still correlate to the
+exact operational claim. A partial `not-applicable` value becomes
+`{ kind: not-applicable, protection: partial }`. Current configuration and unbound claim-store discovery cannot
+select or change the arm.
+
+The full arm grants cleanup only after compare-and-swap returns `retired` or `already-retired-matching`;
+`conflict`, `missing-unproven`, a discarded terminal, or a concurrent generation grants none. The partial arm
+performs no claim CAS and may grant cleanup directly from the exact anchor, but refuses if any matching live or
+superseded candidate claim exists. An unproven-missing claim is a full-arm failure only, never a requirement
+manufactured for partial protection.
+
+### D6. Keep workflow orchestration below the proof boundary
+
+The shipped decomposition workflow invokes typed verbs in this order:
+
+1. read-only preflight;
+2. semantic map authoring;
+3. validate, create/resume, scaffold, and prepare;
+4. author reported member, existing-home, and cohort destinations;
+5. run one distribution interlock, including initial continuation;
+6. finalize with the closed continuation input;
+7. commit and ship through existing release controls;
+8. query the landed publication through the read-only handoff command and pass its facts to launch orchestration.
+
+Workflow prose does not evaluate Git topology, schema fields, digests, receipt identity, branch collision, or
+retry eligibility. It renders CLI-reported paths, statuses, and direct next actions. Commit, push, and integration
+interlocks remain release controls rather than duplicate semantic-distribution gates.
+
+One canonical end-to-end fixture uses normal CLI initialization, branch-private source planning artifacts, a true
+base predecessor, the complete installed hook chain, machine-produced starter fields, exact-base landing, project
+projection, publication handoff, and receipt-backed local teardown eligibility. Focused unit and integration tests
+own schema, allocation, topology, protection-mode, mismatch, merge-parent, and recovery matrices.
 
 ## Alternatives & Rationale
 
-### Transport the source patch into a result worktree
+### Preserve v1/v2 decomposition receipts
 
-Rejected. The preparation already distinguishes exact source and result projections. Moving a staged patch between
-worktrees would duplicate that abstraction, obscure authority, and add recovery obligations for partial transport.
-A base-rooted result that reads an immutable source is simpler and makes the landed candidate directly provable.
+Rejected. ARC is pre-release and has no other installs. Once their current self-hosting reference/cleanup
+obligations are resolved, keeping decomposition-specific legacy fixtures and authority paths would add permanent
+complexity for deletable development state. This does not rewrite the shared receipt versions still used by
+unrelated transition verbs.
 
-### Preserve arbitrary source-branch riders in the cut map
+### Transport the source patch into the result worktree
 
-Rejected. Decomposition is a planning transform, not a branch migration primitive. Expanding allocation to carry
-code, rules, or unrelated planning would weaken the anti-rider boundary and make semantic review unbounded.
-Retirement refuses riders; extraction preserves them on its surviving branch.
+Rejected. The result should read an immutable source and write directly on its base-rooted candidate. Patch
+transport would duplicate the projection model and broaden recovery.
 
-### Add line-range allocation, Markdown markers, or overlapping sections
+### Carry source riders in the cut map
 
-Rejected. Each creates a new authoring language with fragile identity and additional operator precision. Disjoint
-H2-H6 blocks plus ordinary subheading refinement provide exact coverage with familiar Markdown.
+Rejected. Decomposition is a planning transform, not a branch migration primitive. Riders ship through their own
+route before retirement.
 
-### Add an extraction receipt or cross-branch transaction
+### Add line ranges, allocation markers, or overlapping sections
 
-Rejected. Extraction is additive-first and non-destructive until its explicit finish leg. Duplicated scope is
-visible, the source survives, and Git history permits recovery. A persistent coordinator would add machinery
-without eliminating an irreversible intermediate state.
+Rejected. Disjoint H2-H6 units plus ordinary Markdown refinement provide exact coverage without creating another
+authoring language.
 
-### Expire, compact, or acknowledge retirement receipts
+### Allow multi-member cohortless fan-out
 
-Rejected. Time cannot prove that offline work units and future consumers no longer need provenance. Current storage
-volume is immaterial; the measured issue is per-record process fan-out. Batched reads address that cost without
-retention policy or a new record family.
+Rejected. Even mechanically valid destination ownership would lose the origin-addressable mental model and
+durable sequencing anchor. Multi-member publication therefore always has a cohort, subcohort, or at-cap anchor.
 
-### Enter decomposed members at `create-spec` or ready-to-activate
+### Enter members at `create-spec` or ready-to-activate
 
-Rejected. A partial spec is not durable reviewed authority, while a parent task list is not a finalized child plan.
-The two completed-authority boundaries are sufficient: complete drafts restart design, and complete specs restart
-task derivation. This preserves validated work without smuggling unfinished planning past its normal checks.
+Rejected. Partial specs are not reviewed authority, and a parent skeleton is not a finalized child task list.
+Complete drafts resume design; complete specs resume task derivation.
 
-### Flatten a layered PRD/RFC into one child spec
+### Persist display path, readiness, or launch status
 
-Rejected. Layering is a sanctioned authority shape with distinct product and engineering ownership. Flattening it
-during decomposition would discard that boundary and make downstream `Design` metadata misrepresent the reviewed
-source. Paired sources therefore produce paired child authority within the same mature profile.
+Rejected. These facts change as metas and lifecycle state change. The receipt stores stable publication identity
+and the interlock disposition; consumers derive the live frontier.
 
-### Keep and rename a retiring origin as one arbitrary child
+### Add a second child-spec review or approval credential
 
-Rejected. Lifecycle identity should follow semantic continuity, not shell reuse. Retaining an unrelated child would
-make provenance misleading and force special cases across conservation and teardown. A true survivor uses
-extraction and may be renamed afterward with the existing operation.
-
-### Broaden the planning lane for the retirement namespace
-
-Rejected. Path-based admission would let malformed evidence or unrelated retirement records bypass review. The
-narrow exception is one fully validated v3 decompose receipt accompanying an otherwise planning-only exact change.
-
-### Consolidate ROADMAP rendering or build the future record engine here
-
-Rejected. The lasting contract needed by decomposition is only a validated transition overlay at the structured
-projection boundary. Renderer consolidation and operational-state materialization have separate owners and a
-different migration horizon.
-
-### Add a second child-spec review ceremony
-
-Rejected. A pre-authoring interlock cannot inspect content that does not exist yet, but adding a second stop would
-add friction without adding authority. Placing the one distribution interlock after semantic authoring lets it
-review the actual child artifacts before finalization or commit.
-
-### Bind preflight with a token or pending record
-
-Rejected. The completed map and exact source can be validated synchronously by the command that owns result-branch
-creation, and preparation revalidates them after entering the result projection. A token would introduce recovery
-and expiry semantics without closing a state the ordered command cannot already close.
-
-### Rebase or amend a published result to refresh its receipt
-
-Rejected. Rewriting the result branch would orphan commit-bound evidence and require a force push. The narrow
-unlanded refresh preserves append-only history, replaces only the candidate-tree receipt, and remains unavailable
-after the receipt reaches the integration base.
+Rejected. One post-authoring interlock can inspect the actual distribution. Persisting a token would create
+credential and recovery semantics without proving human judgment.
 
 ## Cross-cutting Considerations
 
 ### Trust and failure behavior
 
-All destructive authority is bound to exact, versioned evidence. Source drift, target drift, mode changes,
-unaccounted paths, ambiguous receipts, dependency reintroduction, and remote divergence fail closed before their
-respective destructive action. Semantic allocation remains human-approved; validation cannot infer intent from
-content or convert a mechanical receipt into an approval credential.
+Every destructive action is bound to exact versioned evidence. Source drift, base drift, unaccounted paths,
+ambiguous receipts, target or dependency mismatch, unsupported object types, and changed candidates fail before
+their corresponding destructive step. Refusals name the stable locus and one direct recovery action.
 
-### Compatibility and migration
+### Compatibility and development-state cleanup
 
-V3 is forward-only for authoring new transforms. Historical v1/v2 receipts remain readable and retain their
-original identity and validation rules, but they receive none of the new planning-lane authority. No persisted
-record is migrated. Existing draft-profile behavior remains valid, and projects that never use mature
-decomposition see no new workflow choice.
-
-Historical decoding is an operational safety obligation, not a public compatibility alias: current receipts still
-authorize teardown and explain terminal lifecycle state for offline or long-running work. Clearing them would
-discard live provenance.
-
-The implementation uses the existing Zod/kernel contract boundary, pure injectable library logic, command
-orchestration, conventional WU artifacts, and existing metadata fields. It introduces no dependency,
-infrastructure component, or configuration key.
+V3 replaces unpublished decomposition contracts in place. The repository audit has already shown that two old
+decomposition receipts still participate in reference reconciliation; implementation resolves those internal
+obligations and deletes the records rather than migrating them. Existing generic receipt behavior for rename,
+abandon, and park remains outside this WU. No decomposition compatibility code survives solely for pre-release
+state.
 
 ### Storage and procedure evolution
 
-The design treats paths and Git refs as the current storage adapter, not as work-unit identity. The v3 record is
-version-checked and storage-agnostic in meaning, so it can move with the existing record substrate. Planning
-maturity is inferred from ordinary design artifacts rather than a new tracking field. Workflow prose receives
-typed verdicts and direct actions from the CLI; deterministic topology and schema logic do not grow in the
-stochastic instruction layer.
-
-The staged-index transition-overlay adapter is explicitly interim. The structured overlay contract survives if
-ROADMAP becomes materialized operational state; Git-operation-parent discovery may then disappear without changing
-decomposition semantics.
+Git paths and refs remain storage adapters rather than semantic identity. The receipt is versioned and closed; the
+publication stores stable logical identity while display and readiness derive from current authority. Workflow
+prose consumes typed results instead of growing deterministic procedure logic.
 
 ### Performance
 
-Inventory and candidate validation remain proportional to the touched artifacts and paths. Receipt enumeration
-batches object access so Git subprocess count does not scale linearly with receipt count. No cache or mutable index
-is introduced; measured tree-size pressure, not speculation, would justify future retention work.
+Core validation is proportional to the touched artifacts and paths. It adds no cache or mutable index. Receipt
+enumeration improvements are intentionally deferred to `decompose-durable-consumers`.
 
 ### Testing
 
-Unit tests cover the exact v3 preparation/receipt identities and patch-state schema, disjoint Markdown inventory,
-single/paired profile inference, ownership coupling, typed mismatch categories, mode-aware patches, descendant-base
-checks, remote ancestry classification, narrative reconcile filtering, and batched receipt enumeration.
-
-Integration tests cover command/lib composition, preflight-to-prepare drift detection, complete destination
-allocation, uncommitted and committed-unlanded finalization refresh, layered child distribution, extraction finish
-retries, start-stage preservation, provisional-task behavior, transition-overlay selection across operation
-parents, and exact-ref lane classification.
-
-E2E fixtures create work units through the normal lifecycle, keep planning artifacts branch-private, use the real
-base predecessor state, install the complete pre-commit chain, and exercise the actual commit and landing
-boundaries. The suite includes both protection modes where behavior differs. It verifies the already-landed
-ROADMAP supersession fix against a real decomposition and implements only any remaining transform-local gap.
+Unit tests cover closed v3 identities, starter/completed distinction, disjoint byte inventory, allocation and
+ownership, planning profiles, topology, publication, typed mismatches, path modes, exact-base anchors, and
+transition overlays. Integration tests cover preflight-to-prepare drift, result creation/resume/discard,
+finalization retries, start-stage preservation, provisional tasks, merge-parent selection, and workflow ordering.
+The E2E fixture proves the normal lifecycle with installed hooks and no hand-authored machine evidence.
 
 ### Rollout and package/project sync
 
-Implementation proceeds as one schema-and-consumer migration: land v3 decoding/validation and tests before
-granting any new classifier or landing authority. The new authoring path then replaces v2 output while v1/v2 read
-paths remain isolated. Workflow and other adopter-facing methodology edits are made in package source and synced
-through the project mechanism; internal planning artifacts remain project-only.
+Implementation lands the v3 decoder/validator before any consumer authority. V3 authoring then replaces obsolete
+development schemas and receipts. Adopter-facing methodology changes are made in package source and rendered to
+the project copy; planning artifacts remain project-only. Ordinary installs keep decomposition reviewed.
 
 ## Success Criteria
 
-- A normally started symmetric work unit decomposes from its branch-private source into a base-rooted result and
-  commits with the repository's complete hook chain.
-- A backlog-stub source and a heterogeneous retirement follow the same result authority; read-only or completed-map
-  refusal occurs before CLI-owned result-branch creation.
-- Retirement refuses every unexpected source-private rider by path; extraction with committed Active code does
-  not misclassify retained code as a rider.
-- Preflight emits a complete v3 starter map whose H2-H6 units use the specified parent-stack, sibling-occurrence,
-  heading-normalization, and source-ID algorithm.
-- V3 decoding rejects any non-canonical preparation ID, allowed-path digest, result-base binding, path-state shape,
-  patch ordering, mode, receipt identity, or transition-patch digest before granting authority.
-- The `--cut-map` run refuses empty extracted-member allocation, missing or mixed design destinations, invalid
-  ownership/destination combinations, unaccounted riders, and source drift before it creates the result branch;
-  preparation revalidates after entering the result projection.
-- Draft-profile members retain current behavior, while mature members preserve the parent's single or layered spec
-  family, enter `generate-tasks`, and keep `Task List: [none]`.
-- The one relocated distribution interlock reviews the actual mature child specs and refuses finalization or commit
-  when a child is incomplete, an allocation is absent, or partitioning reopened design.
-- A mature member with a provisional task seed reruns normal task generation, may rewrite the seed, and sets its
-  pointer only at ordinary finalization.
-- `arc start` preserves or safely derives the valid member workflow and refuses an inconsistent metadata/design
-  tuple instead of resetting it.
-- Extraction lands destinations first, finishes source thinning separately, and safely handles changed-source,
-  already-finished, missing-destination, and lost-scratch recovery without persistent coordination state.
-- Finalize succeeds idempotently, refreshes an approved uncommitted destination-only edit, performs a constrained
-  append-only refresh for a committed but unlanded receipt after unrelated base movement, and names the exact unsafe
-  mismatch locus.
-- A candidate lands over unrelated descendant-base movement only when touched-path, mode, patch, dependency, and
-  exact-head binding checks all succeed; material conflicts refuse with a direct remedy.
-- Pre-commit projection and merge-conflict recovery derive the same one-receipt supersession overlay across
-  ordinary and merge-parent topologies.
-- Exact-ref classification admits exactly one fully validated v3 decomposition companion to an otherwise
-  planning-only change and rejects all malformed, legacy, multiple-record, or rider cases.
-- Current-work-unit reconcile reports no advisory for plain narrative history naming a decomposed identity while
-  retaining dependency, dangling-artifact, rename, and removal checks.
-- A many-receipt fixture proves batched object reads with bounded Git process fan-out and no receipt pruning.
-- Teardown deletes absent, equal, and stale-ancestor remote source refs safely under the observed-object lease and
-  refuses descendants, divergence, or concurrent movement.
-- No routine successful or recoverable path asks the operator to supply a digest, Git object ID, receipt identity,
-  base head, or reconstructed evidence record.
+- A normally started symmetric work unit decomposes from its branch-private source into an exact-base result and
+  commits through the complete installed hook chain.
+- Backlog-stub and heterogeneous retirement use the same result authority while preserving their distinct
+  predecessor and existing-home behavior.
+- No v1/v2 decomposition authoring or authority remains; old decomposition records are deleted after their live
+  self-hosting obligations are resolved, while unrelated transition receipt behavior is unchanged.
+- Preflight emits canonical v3 JSON only on stdout and changes no ref, branch, index, worktree, or record.
+- Source selection uses only self-authenticating local branch refs or the exact configured-base predecessor;
+  checkout, remote refs, aliases, and ref order cannot change or ambiguously choose the source.
+- Starter output has one exact machine envelope and explicit scalar, collection, source-allocation, and
+  dependency-disposition author slots; completed input preserves every machine field.
+- Preflight derives the exact planning profile from the pinned source before starter emission and rederives it with
+  every other machine field before completed-map authority.
+- Every v3 nested record, preparation envelope, receipt envelope, ordering rule, and canonical digest preimage is
+  closed and byte-fixtured; v3 decomposition records use their own version-plus-kind shared-namespace arms.
+- Source-artifact and source/incoming/outgoing inventory digests have explicit versioned preimages over exact
+  stored modes/bytes or canonical machine arrays; no preparation operand is implementation-selected.
+- Public v3 authoring admits only started-planning/backlog-stub symmetric or heterogeneous retirement; extraction
+  and surviving origin remain outside the core codecs.
+- Preparation and receipts bind one immutable candidate-ownership arm, so landing cannot infer protection or claim
+  generation from current configuration.
+- Full-protection occupation uses the exact repository-common claim key, store path, generation record, atomic
+  compare-and-swap API, and latest-terminal retention bound; missing or malformed state never proves completion.
+- Full-protection worktree identity is deterministic from claim/generation, while its crash-recoverable intended,
+  registered, and released path mapping remains solely in machine-local operational state.
+- A post-acquire `pending/unregistered` generation remains resumable without granting path authority; collision and
+  crash handling never require deleting that sole generation as if it were residue.
+- Preparation binds the exact candidate publication and constitutive topology before execution; later authoring
+  and finalization can validate but cannot re-project either identity.
+- One canonical path registry rejects exclusive-role collisions and composes every legitimate
+  topology/content/dependency overlap into one final mutation before occupation.
+- Managed path results cover every non-receipt allowed path exactly once; transition patches are precisely the
+  changed subset and unchanged reuse paths remain explicit.
+- Nested Markdown inventory is byte-exhaustive and non-overlapping, with stable hierarchy-qualified identities.
+- Allocation, destination, ownership, reasoned-drop, rider, path-state, and dependency violations refuse before
+  result creation.
+- Every decomposition publishes an origin-addressable direct-member, cohort, subcohort, or at-cap anchor;
+  cohortless multi-member maps refuse.
+- Required cohort docs are reported and materialized only through planned composed edits; topology scaffolding
+  never overwrites existing content or invents semantics, and placeholder Purpose floors block finalization.
+- Draft and mature members preserve their complete authority, enter the matching workflow, and keep provisional
+  tasks non-authoritative.
+- Exact-base anchor production precedes `arc start`, landed handoff, and cleanup; all three consumers reuse the
+  same fast-forward/merge landing relation and receipt-carried claim-retirement arm.
+- New leaves alone carry the exact optional decomposition-receipt marker; `arc start` validates its landed
+  publication, preserves or derives workflow authority, and removes the marker only with successful relocation;
+  ordinary rendering and reconciliation never emit or backfill the field.
+- Start executes one validated atomic graduation transaction; ordinary failure restores branch/worktree,
+  artifact, meta, and index preimages, while incomplete rollback returns typed non-authoritative residue.
+- Atomic start preserves managed-field backfill, optional caller-supplied Class, and the existing successful
+  `GraduateResult.backfilled/notice` surface without any post-transaction meta write.
+- Finalization returns exact idempotent statuses and refreshes only approved fully staged uncommitted refinement
+  while preserving the exact finalized initial continuation.
+- Commit validation, merge-parent projection, ROADMAP convergence, and exact-base integration anchors consume the
+  same canonical v3 validation result.
+- Shared record enumeration, reference reconciliation, and dependent-disposition lookup explicitly consume v3
+  preparation/receipt arms without changing retained generic transition behavior.
+- The finalized receipt stores exact publication entries and typed initial continuation while live display,
+  ready, and blocked facts remain derived.
+- Publication order is the completed map's canonical destination order after coordination destinations are
+  filtered, and selected slugs preserve the resulting new-leaf order.
+- Candidate continuation and landed handoff call the same aggregate `resolveLaunchReadiness()` contract, including
+  lifecycle, shipped-only dependency, and configured-provider blockers; absent or invalid records never default
+  ready.
+- Readiness consumes one lossless pinned composition carrying accepted candidates and rejected-record facts, and
+  both paths receive the same required provider through the shared decomposition dependency bundle.
+- Existing work-unit, draft-block, and document destinations have closed publication identities and remain
+  continuation-ineligible.
+- Finalization accepts one closed continuation input and atomically seals it without persisting an approval claim.
+- Candidate ROADMAP rendering uses only plan-bound prospective authority, and finalization proves exact parity
+  before durable validated overlay authority exists.
+- The public read-only landed-handoff command grants no candidate-time authority and changes no repository or
+  claim state.
+- Partial-protection anchors encode claim retirement as not applicable and grant cleanup without claim CAS only
+  when no unexpected matching claim exists.
+- Prepared or committed-unlanded candidate members remain nonexistent to base-rooted start resolution; only the
+  synchronized landed base exposes them to launch consumers.
+- One post-authoring interlock owns semantic distribution approval; no evidence or meta field claims to prove that
+  judgment.
+- Ordinary installs remain reviewed and default-off from any planning-lane automation.
+- Routine operation never asks the operator for a digest, object ID, receipt ID, base head, or reconstructed
+  evidence.
 
 ## Open Questions
 
