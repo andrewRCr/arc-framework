@@ -164,12 +164,13 @@ describe("Markdown authority", () => {
     })).rejects.toMatchObject({ code: "markdown.manifest-missing" });
   });
 
-  it("enumerates the same NUL-safe selected scope for worktree and staged lint", async () => {
+  it("enumerates a NUL-safe selected scope for worktree and index views", async () => {
     const stdout = [
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
       "docs/temp-guide.md",
+      "docs/new-untracked.md",
       ".arc/active/temp-draft.md",
       ".arc/completed/2026-q3/old.md",
       "fixtures/node_modules/ignored.md",
@@ -184,11 +185,24 @@ describe("Markdown authority", () => {
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
       "docs/temp-guide.md",
+      "docs/new-untracked.md",
     ];
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
       .resolves.toEqual(expected);
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: "/repo" },
+    );
+
+    exec.mockClear();
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "index" }))
       .resolves.toEqual(expected);
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["ls-files", "--cached", "-z"],
+      { cwd: "/repo" },
+    );
   });
 
   it("keeps Configurable and Scaffolded copies independently editable", () => {
