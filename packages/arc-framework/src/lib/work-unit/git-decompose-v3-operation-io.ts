@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  rmdir,
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, resolve } from "node:path";
 
@@ -38,6 +39,7 @@ import type {
 import type { V3PlanBlob } from "./decompose-v3-plan-composer.js";
 import type { V3MaterializerIO } from "./decompose-v3-materializer.js";
 import type { V3PlanCanonicalPathState } from "./decompose-v3-plan.js";
+import { pruneEmptyBacklogSource } from "./mutators/relocate-artifacts.js";
 
 export interface GitV3DecomposeOperationIO {
   occupation: DecomposeResultOccupationAdapter;
@@ -450,8 +452,11 @@ function materializer(
       return Promise.resolve(bytes === undefined ? null : new Uint8Array(bytes));
     },
     applyAndStageFinal: async (path, state, bytes) => {
+      let removedParent: string | null = null;
       if (state.kind === "absent") {
-        await rm(join(cwd, ...validateManagedPath(path).split("/")), { force: true });
+        const absolute = join(cwd, ...validateManagedPath(path).split("/"));
+        await rm(absolute, { force: true });
+        removedParent = dirname(absolute);
       } else {
         if (bytes === null) throw new Error(`Missing final bytes: ${path}`);
         const absolute = await ensureSafeParents(cwd, path);
@@ -459,6 +464,9 @@ function materializer(
         await chmod(absolute, state.mode === "100755" ? 0o755 : 0o644);
       }
       await stagePath(exec, cwd, path);
+      if (removedParent !== null) {
+        await pruneEmptyBacklogSource({ readdir, rmdir }, removedParent);
+      }
     },
   };
 }

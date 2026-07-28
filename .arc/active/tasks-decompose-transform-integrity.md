@@ -580,13 +580,11 @@ local-cleanup boundaries without importing extension-owned matrices.
           typed existing-destination publication, the not-applicable anchor arm, and the absence of candidate,
           claim, remote, cohort, or continuation authority for existing homes are proved together.
 
-    - `[ ]` **5.2.b Exercise a configured-ref backlog-stub retirement**
-        - Run this case under partial protection. Resolve the committed source from its configured ref with no
-          active source workspace. Assert exact predecessor removal, canonical receipt/publication, profile-correct
-          new members, and correct empty-parent pruning or nonempty-parent preservation.
-        - Assert the explicit partial `candidateOwnership`/`claimRetirement` arms, no source-worktree teardown, no
-          candidate branch/worktree, no transient claim or claim CAS, and no full-protection behavior. Keep this a
-          focused command/integration case rather than a second complete lifecycle.
+    - `[x]` **5.2.b Exercise a configured-ref backlog-stub retirement**
+        - A real-Git command case now resolves a single-spec stub directly from `refs/heads/main`, removes its exact
+          predecessor, publishes profile-correct cohort members, finalizes on the partial base, and resolves the
+          not-applicable anchor without source/candidate worktrees or claims. Empty source parents prune through
+          the shared bounded helper while nonempty parents and their unrelated bytes remain intact.
 
     - `[ ]` **5.2.c Own topology and installation assertions at their narrow seams**
         - Add a pure planner/materializer table for standalone cohort, in-cohort subcohort, missing-parent backfill,
