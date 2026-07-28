@@ -173,13 +173,12 @@ async function readV3SourceArtifactInventory(
   const machine = preparation.facts.completedMap.machine;
   const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
     .sort(compareUtf8);
-  const entries: V3SourceArtifactEntry[] = [];
-  for (const rawPath of sourcePaths) {
+  const entries = await Promise.all(sourcePaths.map(async (rawPath): Promise<V3SourceArtifactEntry> => {
     const path = validateManagedPath(rawPath);
     const state = await readV3PathState(deps, machine.source.head, path);
     if (state.kind !== "file") throw new Error(`source artifact disappeared: ${path}`);
-    entries.push({ path, objectKind: "blob", mode: state.mode, contentDigest: state.contentDigest });
-  }
+    return { path, objectKind: "blob", mode: state.mode, contentDigest: state.contentDigest };
+  }));
   const digest = v3SourceArtifactDigest(entries);
   if (digest === null) throw new Error("source artifact inventory is not canonical");
   return { entries, digest };
