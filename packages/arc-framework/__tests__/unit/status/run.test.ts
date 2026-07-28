@@ -2742,6 +2742,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "identity",
       "inboxState",
       "mode",
+      "pathSet",
       "pushability",
       "recommendedSummaryLine",
       "releaseRouting",
@@ -2751,6 +2752,58 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+    expect(result.pathSet).toEqual({ sessionNotes: null, workingMemory: null });
+  });
+
+  it("emits resolved handoff pathSet from handler-supplied resolvers", async () => {
+    const probes = sessionHandoffProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-example-wu.md",
+          sessionType: "execution",
+        }),
+      ),
+    });
+    const resolveSessionNotesPath = vi.fn(
+      (workUnitName: string) => `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`,
+    );
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+      workingMemoryPath: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+      resolveSessionNotesPath,
+    });
+    expect(result.pathSet).toEqual({
+      sessionNotes: "/repo/.arc/user/andrew/example-wu/SESSION-NOTES.md",
+      workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+    });
+    expect(resolveSessionNotesPath).toHaveBeenCalledWith("example-wu");
+  });
+
+  it("nulls pathSet fields when identity is absent", async () => {
+    const probes = sessionHandoffProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-example-wu.md",
+          sessionType: "execution",
+        }),
+      ),
+    });
+    const resolveSessionNotesPath = vi.fn(
+      (workUnitName: string) => `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`,
+    );
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: "maintainer",
+      probes,
+      workingMemoryPath: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+      resolveSessionNotesPath,
+    });
+    expect(result.pathSet).toEqual({ sessionNotes: null, workingMemory: null });
+    expect(resolveSessionNotesPath).not.toHaveBeenCalled();
   });
 
   it("finalizes loadNeeded on the handoff user slot when disk lags behind the notes ref", async () => {

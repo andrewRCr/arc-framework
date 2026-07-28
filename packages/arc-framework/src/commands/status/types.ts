@@ -450,6 +450,20 @@ export interface HandoffSyncInterlock {
 }
 
 /**
+ * Resolved handoff surface paths — write/read locations for SESSION-NOTES and
+ * WORKING-MEMORY. Absolute when present; `null` when identity is absent or
+ * (for `sessionNotes`) no single active work unit is resolved. The agent must
+ * not re-derive these from identity + slug conventions: the two surfaces resolve
+ * by opposite rules (checkout-local vs primary-worktree resolver-backed).
+ */
+export interface HandoffPathSet {
+  /** Checkout-local SESSION-NOTES absolute path for the active WU, or `null`. */
+  sessionNotes: string | null;
+  /** Resolver-backed WORKING-MEMORY absolute path (primary worktree), or `null`. */
+  workingMemory: string | null;
+}
+
+/**
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
@@ -466,6 +480,10 @@ export interface HandoffSyncInterlock {
  * agent-side `git rev-parse` calls. Falls back to `null` when the worktree
  * probe itself fails — `recommendedSummaryLine` is null on the same condition
  * so downstream consumers tolerate the absence.
+ *
+ * `pathSet` carries the absolute SESSION-NOTES and WORKING-MEMORY paths so the
+ * handoff workflow never reconstructs them from conventions (those two surfaces
+ * resolve by opposite rules under linked-worktree operation).
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
@@ -507,6 +525,13 @@ export interface SessionHandoffResult {
    * Present whenever identity resolved; omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
+  /**
+   * Resolved absolute paths for SESSION-NOTES (checkout-local) and WORKING-MEMORY
+   * (primary-worktree resolver-backed). Always present; fields are `null` when
+   * identity is absent or no active WU anchors SESSION-NOTES. Stable from
+   * probe-1 (depends only on identity + active resolution).
+   */
+  pathSet: HandoffPathSet;
   /**
    * State-aware top-of-Confirm-Handoff line, populated only when sync
    * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
@@ -751,4 +776,12 @@ export interface RunSessionHandoffStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionHandoffProbes;
+  /** Exact identity-global WORKING-MEMORY path resolved by the handler. */
+  workingMemoryPath?: string | null;
+  /**
+   * Resolve the checkout-local SESSION-NOTES absolute path for a WU slug.
+   * Handler supplies from the user-surface resolver; not called when identity
+   * or active WU is absent.
+   */
+  resolveSessionNotesPath?: (workUnitName: string) => string;
 }

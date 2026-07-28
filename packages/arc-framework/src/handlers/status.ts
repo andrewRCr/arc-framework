@@ -474,7 +474,18 @@ export async function handleStatus(
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
-    const result = await runSessionHandoffStatus({ identity, role, probes });
+    const handoffSurfaces = identity === null
+      ? null
+      : await userSurfacesFor(identity);
+    const result = await runSessionHandoffStatus({
+      identity,
+      role,
+      probes,
+      workingMemoryPath: handoffSurfaces?.workingMemoryPath ?? null,
+      resolveSessionNotesPath: handoffSurfaces === null
+        ? undefined
+        : (workUnitName) => handoffSurfaces.sessionNotesPath(SlugSchema.parse(workUnitName)),
+    });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

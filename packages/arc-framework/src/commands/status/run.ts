@@ -686,7 +686,13 @@ function normalizeNotesLoadPolicy(raw: string): NotesLoadPolicy {
 export async function runSessionHandoffStatus(
   options: RunSessionHandoffStatusOptions,
 ): Promise<SessionHandoffResult> {
-  const { identity, role, probes } = options;
+  const {
+    identity,
+    role,
+    probes,
+    workingMemoryPath = null,
+    resolveSessionNotesPath,
+  } = options;
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
@@ -735,6 +741,16 @@ export async function runSessionHandoffStatus(
     })
     : null;
 
+  const pathSet = {
+    sessionNotes:
+      identity !== null
+      && handoffActiveWuName !== null
+      && resolveSessionNotesPath !== undefined
+        ? resolveSessionNotesPath(handoffActiveWuName)
+        : null,
+    workingMemory: identity !== null ? workingMemoryPath : null,
+  };
+
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
@@ -749,6 +765,7 @@ export async function runSessionHandoffStatus(
     restateCandidates: toProbe(restateCandidates),
     releaseRouting: toProbe(releaseRouting),
     ...(inboxState !== null ? { inboxState: toProbe(inboxState) } : {}),
+    pathSet,
     recommendedSummaryLine,
   };
 }

@@ -38,6 +38,7 @@ arc status --session-handoff --json
 | `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
 | `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
 | `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)      |
+| `pathSet`                | `{sessionNotes, workingMemory}` — absolute write/read paths (or `null` per field). Do not re-derive from conventions  |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
 
 On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
@@ -47,7 +48,7 @@ drift for Confirm Handoff — calm parallel-session steady state vs inspect-befo
 **Slot freshness contract.** Probe-1 captures pre-path state. The active-WU meta-file commit, errand checkpoint
 commit, and between-WUs context routing may mutate `worktree`, `dirty`, and `head`; re-read those slots from
 probe-2 to render post-path truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
-`pushability`, `restateCandidates`) remain stable from probe-1.
+`pushability`, `restateCandidates`, `pathSet`) remain stable from probe-1.
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -84,12 +85,12 @@ follow the override instead):
   for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
   `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
   planning cycles with no active WU, no tracked meta file exists.
-- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/<wu-name>/`) — per-WU session context:
-  completed work, decisions, debugging insights, things tried. Replaced each handoff (not appended).
-  Between work units, skip SESSION-NOTES entirely — there is no anchored WU subdir to write. Identity resolved
-  from `git config arc.identity`; `<wu-name>` derived from the active meta filename (basename of
-  `active.value.path`, strip `meta-` prefix and `.md` suffix) in the active-WU path.
-- **WORKING-MEMORY.md** (gitignored, `.arc/user/{identity}/`) — cross-WU persistent context. Entries
+- **SESSION-NOTES.md** (gitignored) — path from `pathSet.sessionNotes` (checkout-local to the active
+  worktree; `null` between WUs or without identity). Per-WU session context: completed work, decisions,
+  debugging insights, things tried. Replaced each handoff (not appended). Write only at the emitted path —
+  never reconstruct from identity + slug under a different checkout.
+- **WORKING-MEMORY.md** (gitignored) — path from `pathSet.workingMemory` (resolver-backed to the primary
+  worktree under linked-worktree operation; `null` without identity). Cross-WU persistent context. Entries
   survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
   (see WORKING-MEMORY entries guidance below).
 
@@ -327,9 +328,9 @@ kebab-case name = filename without `.md`) — the pre-commit validator and sessi
 key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
 
-**Update `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md`** (per-WU session context — gitignored; active-WU
-path only). Derive `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
-prefix and `.md` suffix). Between-WUs handoff skips this section entirely.
+**Update SESSION-NOTES at `pathSet.sessionNotes`** (per-WU session context — gitignored; active-WU path only).
+`pathSet.sessionNotes` is `null` when no active WU or identity is absent — Between-WUs handoff skips this
+section entirely. Do not re-derive the path from identity + slug.
 
 **Audience:** The next session's agent loading from cold context. They already have tracked state —
 git log, task list, meta file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
