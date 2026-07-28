@@ -108,7 +108,7 @@ describe("ROADMAP conflict remedy script", () => {
       writeFileSync(roadmapPath, "# Roadmap\n\nalpha\nmiddle\ncurrent omega\n");
       expect(git("commit", "-am", "current").status).toBe(0);
 
-      const merge = git("merge", "incoming");
+      const merge = git("merge", "--no-edit", "incoming");
       expect(merge.status).toBe(0);
       expect(`${merge.stdout}${merge.stderr}`).not.toContain(
         "arc hook-remedy-roadmap-conflict",
