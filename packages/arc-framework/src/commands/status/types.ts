@@ -785,15 +785,30 @@ export interface HandoffSurfacePaths {
   sessionNotesPath: (workUnitName: string) => string;
 }
 
-export interface RunSessionHandoffStatusOptions {
-  identity: string | null;
-  role: string | null;
-  probes: SessionHandoffProbes;
-  /**
-   * Resolve identity-global handoff surfaces. Invoked inside the composite
-   * under `safeProbe("pathSet", …)` so rejections become `pathSet` probe
-   * errors instead of aborting the envelope. Omit when identity is null;
-   * never called when identity is null even if supplied.
-   */
-  resolveHandoffSurfaces?: () => Promise<HandoffSurfacePaths>;
-}
+/**
+ * Session-handoff orchestrator options — identity and surface resolution are
+ * coupled so a non-null identity cannot silently omit the resolver (which would
+ * otherwise report a successful `pathSet` of null identity-global paths).
+ *
+ * - `identity: null` — no surfaces; `resolveHandoffSurfaces` is unavailable.
+ * - `identity: string` — `resolveHandoffSurfaces` is required; the composite
+ *   invokes it under `safeProbe("pathSet", …)`.
+ */
+export type RunSessionHandoffStatusOptions =
+  | {
+    identity: null;
+    role: string | null;
+    probes: SessionHandoffProbes;
+    resolveHandoffSurfaces?: never;
+  }
+  | {
+    identity: string;
+    role: string | null;
+    probes: SessionHandoffProbes;
+    /**
+     * Resolve identity-global handoff surfaces. Invoked inside the composite
+     * under `safeProbe("pathSet", …)` so rejections become `pathSet` probe
+     * errors instead of aborting the envelope.
+     */
+    resolveHandoffSurfaces: () => Promise<HandoffSurfacePaths>;
+  };

@@ -531,6 +531,18 @@ function sessionHandoffProbes(
   };
 }
 
+/** Minimal handoff surfaces for tests that only need a required identity-bound resolver. */
+function stubHandoffSurfaces(overrides: {
+  workingMemoryPath?: string;
+  sessionNotesPath?: (workUnitName: string) => string;
+} = {}) {
+  return {
+    workingMemoryPath: overrides.workingMemoryPath ?? "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+    sessionNotesPath: overrides.sessionNotesPath
+      ?? ((workUnitName: string) => `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`),
+  };
+}
+
 // --- Tests ---
 
 describe("runStatus — orchestration", () => {
@@ -2682,7 +2694,12 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
 describe("runSessionHandoffStatus — orchestration", () => {
   it("invokes every probe helper exactly once", async () => {
     const probes = sessionHandoffProbes();
-    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
+    await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
+    });
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
@@ -2717,6 +2734,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
 
     expect(result.releaseRouting.ok).toBe(true);
@@ -2733,6 +2751,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
@@ -2752,9 +2771,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+    // Active resolution is none by default — SESSION-NOTES null; WORKING-MEMORY from resolver.
     expect(result.pathSet).toEqual({
       ok: true,
-      value: { sessionNotes: null, workingMemory: null },
+      value: {
+        sessionNotes: null,
+        workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
+      },
     });
   });
 
@@ -2771,10 +2794,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const sessionNotesPath = vi.fn(
       (workUnitName: string) => `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`,
     );
-    const resolveHandoffSurfaces = vi.fn(async () => ({
-      workingMemoryPath: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
-      sessionNotesPath,
-    }));
+    const resolveHandoffSurfaces = vi.fn(async () => stubHandoffSurfaces({ sessionNotesPath }));
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
@@ -2802,22 +2822,15 @@ describe("runSessionHandoffStatus — orchestration", () => {
         }),
       ),
     });
-    const resolveHandoffSurfaces = vi.fn(async () => ({
-      workingMemoryPath: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
-      sessionNotesPath: (workUnitName: string) =>
-        `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`,
-    }));
     const result = await runSessionHandoffStatus({
       identity: null,
       role: "maintainer",
       probes,
-      resolveHandoffSurfaces,
     });
     expect(result.pathSet).toEqual({
       ok: true,
       value: { sessionNotes: null, workingMemory: null },
     });
-    expect(resolveHandoffSurfaces).not.toHaveBeenCalled();
   });
 
   it("captures handoff surface resolution failure as a pathSet probe error", async () => {
@@ -2858,6 +2871,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
@@ -2889,6 +2903,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
 
     expect(result.user.ok).toBe(true);
@@ -2928,6 +2943,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
         identity: "andrew",
         role: "maintainer",
         probes,
+        resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
       });
       expect(result.user.ok).toBe(true);
       if (result.user.ok) {
@@ -2945,6 +2961,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
@@ -2961,6 +2978,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
     expect(result.inboxState?.ok).toBe(true);
@@ -2988,6 +3006,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.inboxState?.ok).toBe(false);
     if (result.inboxState && !result.inboxState.ok) {
@@ -3012,6 +3031,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.restateCandidates.ok).toBe(true);
     if (result.restateCandidates.ok) {
@@ -3029,6 +3049,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.restateCandidates.ok).toBe(true);
     if (result.restateCandidates.ok) {
@@ -3046,6 +3067,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.restateCandidates.ok).toBe(false);
     if (!result.restateCandidates.ok) {
@@ -3075,6 +3097,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.pushability.ok).toBe(true);
     if (result.pushability.ok) {
@@ -3091,6 +3114,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.head.ok).toBe(true);
     if (result.head.ok) expect(result.head.value.hash).toBe("deadbee");
@@ -3104,6 +3128,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.head.ok).toBe(true);
     if (result.head.ok) expect(result.head.value.hash).toBeNull();
@@ -3117,6 +3142,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.head.ok).toBe(false);
     if (!result.head.ok) {
@@ -3136,6 +3162,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.dirty.ok).toBe(true);
     if (result.dirty.ok) {
@@ -3151,6 +3178,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) {
@@ -3167,6 +3195,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
@@ -3188,6 +3217,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
 
     expect(result.user.ok).toBe(true);
@@ -3212,6 +3242,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.syncInterlock.ok).toBe(true);
     if (result.syncInterlock.ok) {
@@ -3232,6 +3263,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
@@ -3249,6 +3281,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.dirty.ok).toBe(false);
     expect(result.syncInterlock.ok).toBe(false);
@@ -3294,6 +3327,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.dirty.ok).toBe(false);
     if (!result.dirty.ok) {
@@ -3328,7 +3362,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),
     });
-    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
+    await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
+    });
     expect(peakInFlight).toBe(6);
   });
 
@@ -3342,6 +3381,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.recommendedSummaryLine).toBe(
       "**Reconcile required:** `feature/foo` diverged from `origin/feature/foo` "
@@ -3359,6 +3399,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.recommendedSummaryLine).toBe(
       "**Worktree:** 4 unpushed commit(s) on `feature/baz`.",
@@ -3371,6 +3412,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.recommendedSummaryLine).toBeNull();
   });
@@ -3410,6 +3452,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.recommendedSummaryLine).toBeNull();
   });
@@ -3424,6 +3467,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.recommendedSummaryLine).toBeNull();
   });
@@ -3436,6 +3480,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.branch).toBe("technical/probe-two");
   });
@@ -3448,6 +3493,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.branch).toBeNull();
   });

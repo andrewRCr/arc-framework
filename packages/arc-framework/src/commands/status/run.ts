@@ -688,12 +688,7 @@ function normalizeNotesLoadPolicy(raw: string): NotesLoadPolicy {
 export async function runSessionHandoffStatus(
   options: RunSessionHandoffStatusOptions,
 ): Promise<SessionHandoffResult> {
-  const {
-    identity,
-    role,
-    probes,
-    resolveHandoffSurfaces,
-  } = options;
+  const { identity, role, probes } = options;
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
@@ -705,9 +700,11 @@ export async function runSessionHandoffStatus(
     : safeProbe("inboxState", () => probes.inboxState(identity));
   // Surface resolution stays inside the composite: rejections become pathSet
   // probe errors rather than aborting the envelope before other slots resolve.
-  const surfacesTask = identity !== null && resolveHandoffSurfaces !== undefined
-    ? safeProbe("pathSet", () => resolveHandoffSurfaces())
-    : okAsync(null as HandoffSurfacePaths | null);
+  // The options union requires a resolver whenever identity is non-null, so a
+  // successful pathSet never silently nulls identity-global paths for lack of one.
+  const surfacesTask = identity === null
+    ? okAsync(null as HandoffSurfacePaths | null)
+    : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
     user, worktree, dirty, active, releaseRouting,
@@ -775,7 +772,8 @@ export async function runSessionHandoffStatus(
 /**
  * Compose the handoff pathSet probe from resolved surfaces + active WU.
  * Surface resolution failures pass through as `ok: false`; absent surfaces
- * (no identity / no resolver) yield null paths without erroring.
+ * (identity null only — the options union requires a resolver otherwise)
+ * yield null paths without erroring.
  */
 function composeHandoffPathSet(options: {
   surfaces: SessionResult<HandoffSurfacePaths | null>;
