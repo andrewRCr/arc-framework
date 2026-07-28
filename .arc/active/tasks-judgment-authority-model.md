@@ -60,7 +60,7 @@ Task 3.4.
     - Risks recorded: the undischargeable-ignorance shape (which Task 1.5 marks) and marker drift eroding the
       derived reading into an annotation habit.
 
-### `[ ]` **1.3 `AGENT-BRIEF.ARC` vocabulary additions**
+### `[x]` **1.3 `AGENT-BRIEF.ARC` vocabulary additions**
 
 - _Goal:_ `invariant`, `default`, and `dischargeable` are defined before § Rule Authority uses them, so the
   reading does not depend on terms the reader has to infer.
@@ -69,11 +69,12 @@ Task 3.4.
   block edits in scope. The brief's other overlaps with `DEV-RULES.ARC` are real and belong to a different work
   unit.
 
-    - Both copies; `AGENT-BRIEF.ARC` is a Framework file, so author in the package source and sync.
-    - Add to the `## Vocabulary` block, matching the surrounding entries' shape and density.
-    - `dischargeable` is defined **of an ignorance-guard** — whether the missing fact is the agent's to establish
-      or lives with someone else.
-    - "Protects the integrity of a check" stays bounded inline in § Rule Authority; do not mint it as a term.
+    - Three entries added to `## Vocabulary` in both copies, verified byte-identical. Placed immediately before
+      `Interlock`, whose always-stop / configurable split is the two axes in miniature and reads correctly only
+      once both are defined.
+    - `dischargeable` is defined of an ignorance-guard, per the design. "Protects the integrity of a check" was
+      not minted as a term — it stays bounded inline in § Rule Authority.
+    - Each entry points at the reading rather than restating it, so the classification procedure has one home.
 
 ### `[x]` **1.4 Subject § Rule Authority to the register's own five tests**
 
