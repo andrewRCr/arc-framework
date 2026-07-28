@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "collapse-strategy-index-descriptions",
+  "origin": "inbox",
+  "intent": "Collapse STRATEGY-INDEX duplicated description lines into firing conditions",
+  "branch": "chore/collapse-strategy-index-descriptions",
+  "createdAt": "2026-07-28T21:20:39.273Z",
+  "originEntry": "Collapse `STRATEGY-INDEX`'s duplicated description lines into their firing conditions",
+  "returnBranch": "fix/exclude-name-status-meta-ref"
+}
