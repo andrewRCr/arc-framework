@@ -210,6 +210,27 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(result.qualityFacts.warnings).toEqual([]);
   });
 
+  it("does not suppress an origin from a different source branch", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "retired-origin";
+    const branch = `feat/${slug}`;
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch }],
+      metas: { [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch) },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: true, baseBranch: "main" },
+      transitionOverlay: { origin: slug, sourceBranch: "feat/other-origin" },
+    });
+
+    expect(result.index.has(slug)).toBe(true);
+    expect(result.recordsBySlug.has(slug)).toBe(true);
+    expect(result.worktreePathBySlug.has(slug)).toBe(true);
+  });
+
   it("retains reachable live membership tips for destructive consumers", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
     const slug = "live-member";
