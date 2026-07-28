@@ -426,47 +426,34 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("prepares before dispatching the prepared decompose mutation", async () => {
+  it("never routes a completed v3 map through the retired v2 runtime", async () => {
     await handleDecompose("mono", { cutMap: "cut.json" });
 
-    expect(mockParseCutMap).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose).toHaveBeenCalledTimes(1);
-    expect(mockRunPreparedDecompose).toHaveBeenCalledTimes(1);
-    expect(mockStagePreparedResult).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRunPreparedDecompose.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
-    const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
-    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
-    expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("Placement:  flat planned siblings (no cohort)"),
-      "Decomposed",
-    );
+    expect(mockParseCutMap).not.toHaveBeenCalled();
+    expect(mockPrepareDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockStagePreparedResult).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith("unsupported-transition:v3-runtime-not-wired");
   });
 
-  it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
+  it("requires continuation evidence and never invokes the retired finalizer", async () => {
     const receiptId = `sha256:${"a".repeat(64)}`;
     await handleDecompose("mono", { finalize: receiptId });
 
     expect(mockReadFile).not.toHaveBeenCalled();
     expect(mockPrepareDecompose).not.toHaveBeenCalled();
-    expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
+    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("arc teardown mono"), "Decompose finalized");
+    expect(mockLogError).toHaveBeenCalled();
   });
 
-  it("does not advertise teardown when finalizing a branchless origin", async () => {
+  it("fails closed for finalize-with-continuation until the v3 runtime is wired", async () => {
     const receiptId = `sha256:${"a".repeat(64)}`;
-    mockFinalizeDecompose.mockResolvedValue({
-      status: "recorded",
-      receipt: { receiptId },
-      authorityVersion: "finalized-version",
-      lifecycle: { ...branchlessRetirementLifecycle, transition: "decompose" },
-    });
 
-    await handleDecompose("mono", { finalize: receiptId });
+    await handleDecompose("mono", { finalize: receiptId, continuation: "continuation.json" });
 
-    expect(mockNote).toHaveBeenCalledWith(expect.not.stringContaining("arc teardown"), "Decompose finalized");
+    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith("unsupported-transition:v3-runtime-not-wired");
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {

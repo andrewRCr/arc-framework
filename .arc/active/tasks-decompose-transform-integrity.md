@@ -23,16 +23,11 @@ units.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
-    - `[ ]` **1.1.a Resolve and clear obsolete decomposition state**
-        - Confirm the two repository-owned old decomposition receipts and enumerate the reference/cleanup
-          obligations they still serve.
-        - Resolve those self-hosting references or cleanup claims explicitly, then delete the development records
-          before removing any v1/v2 decomposition decoder branch. Delete decomposition-specific legacy fixtures
-          and authority branches with them.
-        - Preserve the existing shared receipt behavior still owned by rename, abandon, and park. Add no upgrader,
-          migration reader, startup cleanup, alias, or compatibility hierarchy.
-        - Verify the remaining seven non-decomposition receipts still enumerate, reference reconciliation remains
-          healthy, and obsolete decomposition evidence grants no cleanup, commit, or lifecycle authority.
+    - `[x]` **1.1.a Resolve and clear obsolete decomposition state**
+        - Confirmed that the two old decomposition receipts' dependency obligations were already materialized,
+          deleted both records, and removed their v1/v2 decomposition authority without adding compatibility.
+        - Preserved complete enumeration and reconciliation for the seven retained rename/abandon records; obsolete
+          decomposition evidence no longer grants reference, cleanup, commit, or lifecycle authority.
 
     - `[ ]` **1.1.b Define starter and completed cut-map schemas**
         - Add closed `V3DecomposeStarterMap` and `V3DecomposeCutMap` schemas with the spec-defined shared
