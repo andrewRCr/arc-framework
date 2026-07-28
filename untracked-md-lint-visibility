@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "untracked-md-lint-visibility",
+  "origin": "description",
+  "intent": "Untracked Markdown files are invisible to lint:md",
+  "branch": "fix/untracked-md-lint-visibility",
+  "createdAt": "2026-07-28T19:07:08.911Z",
+  "returnBranch": "main"
+}
