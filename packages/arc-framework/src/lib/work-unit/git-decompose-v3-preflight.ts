@@ -50,23 +50,6 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
   return null;
 }
 
-function planningProfile(
-  origin: string,
-  design: readonly string[],
-): V3DecomposeSourceMeta["planningProfile"] | null {
-  const names = design.map((value) => posix.basename(value));
-  if (names.length === 1 && names[0] === `draft-${origin}.md`) {
-    return { kind: "draft", sourceDesign: [names[0]] };
-  }
-  if (names.length === 1 && names[0]?.endsWith(`-${origin}.md`) === true) {
-    return { kind: "single-spec", sourceDesign: [names[0]] };
-  }
-  if (names.length === 2 && names.every((name) => name.endsWith(`-${origin}.md`))) {
-    return { kind: "paired-spec", sourceDesign: [names[0] ?? "", names[1] ?? ""] };
-  }
-  return null;
-}
-
 async function readSnapshot(
   deps: GitV3DecomposePreflightDependencies,
   ref: string,
@@ -106,26 +89,33 @@ async function readSnapshot(
   const origins: V3DecomposeSourceMeta[] = [];
   for (const meta of metaRecords.filter(({ slug }) => slug === origin)) {
     const location = locationOf(meta.path);
-    const profile = planningProfile(origin, meta.record.design);
-    if (location === null || profile === null || meta.record.state === null) continue;
+    if (location === null || meta.record.state === null) continue;
     origins.push({
       path: meta.path,
       origin,
       location,
       state: meta.record.state,
       branch: meta.record.branch,
-      planningProfile: profile,
+      design: meta.record.design,
+      taskList: meta.record.taskList,
     });
   }
 
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
   const matcher = artifactMatcher(origin);
-  const designNames = new Set(sourceMeta?.planningProfile.sourceDesign ?? []);
+  const layeredDesignNames = new Set([
+    `spec-${origin}-prd.md`,
+    `spec-${origin}-rfc.md`,
+  ]);
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
-      if (posix.dirname(entry.path) !== sourceDir || !matcher.test(posix.basename(entry.path))) continue;
+      const name = posix.basename(entry.path);
+      if (
+        posix.dirname(entry.path) !== sourceDir
+        || (!matcher.test(name) && !layeredDesignNames.has(name))
+      ) continue;
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {
         throw new Error(`unsupported-artifact:${entry.path}`);
       }
@@ -136,7 +126,6 @@ async function readSnapshot(
         objectKind: "blob",
         mode: entry.mode,
         bytes,
-        allocatable: designNames.has(posix.basename(entry.path)),
       });
     }
   }

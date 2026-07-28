@@ -150,18 +150,14 @@ mutation authority; it already contains the operator-approved map and every mech
         - Checkout-locus, alias, duplicate-path/ref, branch-identity, incompatible-predecessor, missing/stale-base,
           and uncommitted-state cases now prove deterministic selection or refusal without remote or worktree reads.
 
-    - `[ ]` **2.1.b Infer the exact source planning profile**
-        - Treat exact source metadata `Design` pointers as authority and require every pointer to resolve in the
-          tree-pinned source inventory. Infer draft-only, one conventional finalized spec, or exactly the sanctioned
-          PRD/RFC pair before starter construction; accept no caller-supplied or placeholder profile.
-        - Refuse draft/spec mixtures, extra or duplicated design authority, missing files or pointers,
-          wrong-origin names, unsanctioned spec sets, and inconsistent task-pointer state at the exact metadata or
-          artifact locus.
-        - Build `test-first` (one behavior at a time):
-            - Draft, conventional single-spec, and sanctioned paired-spec sources resolve one closed
-              `PlanningProfile`.
-            - Every mixed, missing, duplicated, or inconsistent authority shape refuses deterministically before
-              starter output.
+    - `[x]` **2.1.b Infer the exact source planning profile**
+        - Preflight now derives draft, conventional single-spec, or the sanctioned slug-paired PRD/RFC profile from
+          raw tree-pinned `Design` and `Task List` metadata; callers cannot supply a profile or artifact scan set.
+        - Every design pointer and any authoritative task pointer must resolve exactly once in the selected source
+          inventory. Mixed, missing, duplicated, wrong-origin, unsanctioned, or task-inconsistent authority refuses
+          at the exact metadata field or artifact path before starter construction.
+        - Invalid self-authenticating source profiles remain selected and fail closed instead of disappearing behind
+          configured-base fallback; an unset task pointer keeps provisional task bytes non-authoritative.
 
     - `[ ]` **2.1.c Expose canonical machine-readable preflight**
         - Redesign decompose input as a closed command-mode union and add the `preflight` arm through the CLI

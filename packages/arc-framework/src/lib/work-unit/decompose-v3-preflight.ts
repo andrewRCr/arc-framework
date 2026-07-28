@@ -42,16 +42,16 @@ export interface V3DecomposeSourceMeta {
   location: "active" | "backlog";
   state: string;
   branch: string | null;
-  planningProfile: PlanningProfile;
+  design: readonly string[];
+  taskList: string | null;
 }
 
-/** Exact Git-stored source artifact bytes. `allocatable` controls v3 scanning only. */
+/** Exact Git-stored source artifact bytes. */
 export interface V3DecomposeStoredArtifact {
   path: string;
   objectKind: "blob";
   mode: "100644" | "100755";
   bytes: Uint8Array;
-  allocatable: boolean;
 }
 
 /**
@@ -113,7 +113,7 @@ export interface V3DecomposePreflight {
 
 export type V3DecomposePreflightResult =
   | { status: "ready"; preflight: V3DecomposePreflight }
-  | { status: "rejected"; reason: V3DecomposePreflightMismatch };
+  | { status: "rejected"; reason: V3DecomposePreflightMismatch; locus?: string };
 
 export type V3DecomposePreflightRevalidationResult =
   | { status: "current"; preflight: V3DecomposePreflight }
@@ -156,13 +156,44 @@ function sourceMetaFor(
   return { meta: matches[0] ?? null, reason: null };
 }
 
-function profileArtifactsResolve(
-  profile: PlanningProfile,
+function inferPlanningProfile(
+  meta: V3DecomposeSourceMeta,
   artifacts: readonly V3DecomposeStoredArtifact[],
-): boolean {
-  const names = artifacts.map(({ path }) => posix.basename(path));
-  if (new Set(profile.sourceDesign).size !== profile.sourceDesign.length) return false;
-  return profile.sourceDesign.every((design) => names.filter((name) => name === design).length === 1);
+): { profile: PlanningProfile } | { locus: string } {
+  const designLocus = `${meta.path}#Design`;
+  if (meta.design.some((pointer) => posix.basename(pointer) !== pointer)) {
+    return { locus: designLocus };
+  }
+  let profile: PlanningProfile;
+  if (meta.design.length === 1 && meta.design[0] === `draft-${meta.origin}.md`) {
+    profile = { kind: "draft", sourceDesign: [meta.design[0]] };
+  } else if (meta.design.length === 1 && meta.design[0] === `spec-${meta.origin}.md`) {
+    profile = { kind: "single-spec", sourceDesign: [meta.design[0]] };
+  } else if (
+    meta.design.length === 2
+    && meta.design[0] === `spec-${meta.origin}-prd.md`
+    && meta.design[1] === `spec-${meta.origin}-rfc.md`
+  ) {
+    profile = { kind: "paired-spec", sourceDesign: [meta.design[0], meta.design[1]] };
+  } else {
+    return { locus: designLocus };
+  }
+
+  const sourceDir = posix.dirname(meta.path);
+  for (const pointer of profile.sourceDesign) {
+    const matches = artifacts.filter(({ path }) => posix.basename(path) === pointer);
+    if (matches.length !== 1) return { locus: posix.join(sourceDir, pointer) };
+  }
+
+  if (meta.taskList !== null) {
+    const expectedTaskList = `tasks-${meta.origin}.md`;
+    if (profile.kind === "draft" || meta.taskList !== expectedTaskList) {
+      return { locus: `${meta.path}#Task List` };
+    }
+    const matches = artifacts.filter(({ path }) => posix.basename(path) === expectedTaskList);
+    if (matches.length !== 1) return { locus: posix.join(sourceDir, expectedTaskList) };
+  }
+  return { profile };
 }
 
 function artifactInventory(
@@ -182,10 +213,12 @@ function artifactInventory(
 
 function sourceUnits(
   artifacts: readonly V3DecomposeStoredArtifact[],
+  profile: PlanningProfile,
 ): { units: V3DecomposeMachine["sourceUnits"]; reason: V3DecomposePreflightMismatch | null } {
   const units: V3DecomposeMachine["sourceUnits"] = [];
+  const designNames = new Set(profile.sourceDesign);
   for (const artifact of artifacts) {
-    if (!artifact.allocatable) continue;
+    if (!designNames.has(posix.basename(artifact.path))) continue;
     const scan = scanV3DecomposeContent(posix.basename(artifact.path), artifact.bytes);
     if (scan.status === "rejected") return { units: [], reason: "source-scan" };
     for (const unit of scan.units) {
@@ -290,12 +323,13 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
     }
   }
 
-  if (!profileArtifactsResolve(selected.meta.planningProfile, selected.snapshot.sourceArtifacts)) {
-    return { status: "rejected", reason: "planning-profile" };
+  const inferred = inferPlanningProfile(selected.meta, selected.snapshot.sourceArtifacts);
+  if ("locus" in inferred) {
+    return { status: "rejected", reason: "planning-profile", locus: inferred.locus };
   }
   const artifacts = artifactInventory(selected.snapshot.sourceArtifacts);
   if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
-  const scanned = sourceUnits(selected.snapshot.sourceArtifacts);
+  const scanned = sourceUnits(selected.snapshot.sourceArtifacts, inferred.profile);
   if (scanned.reason !== null) return { status: "rejected", reason: scanned.reason };
   const incoming = incomingEdges(selected.snapshot.incomingEdges);
   if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
@@ -311,7 +345,7 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
       head: selected.snapshot.head,
     },
     resultBase: { ref: input.resultBase.ref, head: input.resultBase.head },
-    planningProfile: selected.meta.planningProfile,
+    planningProfile: inferred.profile,
     sourceUnits: scanned.units,
     incomingEdges: incoming.edges,
     outgoingEdges: outgoing.edges,
@@ -348,7 +382,11 @@ export function revalidateV3DecomposePreflight(
     return { status: "stale", reason: "source-artifact-inventory" };
   }
   const refreshed = createV3DecomposePreflight(input);
-  if (refreshed.status === "rejected") return { status: "stale", reason: refreshed.reason };
+  if (refreshed.status === "rejected") {
+    return { status: "stale", reason: refreshed.reason, ...(refreshed.locus === undefined ? {} : {
+      locus: refreshed.locus,
+    }) };
+  }
   const currentMap = refreshed.preflight.starterMap;
   const prior = previousMap.machine;
   const current = currentMap.machine;
