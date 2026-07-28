@@ -328,24 +328,12 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
-    - `[ ]` **3.2.a Produce the shared exact-base integration anchor**
-        - Define the pure exact-base `DecompositionIntegrationAnchor` producer before any start consumer. Consume
-          canonical v3 authority plus pinned commit/tree facts and return one closed anchor or a typed
-          absent/not-landed/stale/ambiguous/refused result.
-        - Bind `preparedBaseHead`, `candidateCommitHead`, `currentBaseHead`, receipt, origin, source head, and one
-          receipt-derived `claimRetirement` arm. Full protection carries exact
-          claim-ID/generation/branch/opaque-worktree identity; partial protection carries not-applicable. Current
-          configuration and unbound claim discovery cannot select the arm.
-        - Implement exact fast-forward and merge-commit relations. Derive the candidate commit from pinned landing
-          topology, bind its tree to the receipt transition, and require the current configured base to be the
-          exact landed result/merge commit; do not search generic history or admit descendant-base mobility.
-        - Add one configured-base adapter that pins/rereads the base and supplies normalized facts. `arc start`,
-          landed handoff, and cleanup consume this producer rather than creating private landing validators.
-        - Build `test-first` (one behavior at a time):
-            - Exact fast-forward and non-fast-forward merge landing produce the same canonical anchor contract.
-            - Prepared, finalized-uncommitted, committed-unlanded, candidate-only, other-branch, base-moved,
-              candidate-moved, ambiguous, descendant-base-only, and raced evidence produce no anchor.
-            - Every consumer receives byte-equal anchor authority for one pinned landing snapshot.
+    - `[x]` **3.2.a Produce the shared exact-base integration anchor**
+        - Added the closed pure anchor producer with canonical v3 authentication, exact fast-forward/two-parent
+          merge relations, receipt-derived claim retirement, and typed no-authority outcomes.
+        - Added one configured-base Git adapter that enumerates the pinned receipt namespace, derives the candidate
+          from landing topology, verifies exact transition paths/prestates/bytes/tree parity, and rereads the base
+          before returning byte-stable shared authority.
 
     - `[ ]` **3.2.b Validate exact planning tuples**
         - Keep `checkCurrentWorkflowConsistency()` as the generic pure State/workflow/Design-prefix invariant.
