@@ -26,20 +26,20 @@ the workflow to refresh slots that the selected handoff path mutates.
 arc status --session-handoff --json
 ```
 
-| Field                    | Contents                                                                                                              |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                     |
-| `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header  |
-| `dirty`                  | `{state: clean / dirty, fileCount}`. Re-read from probe-2 for the SESSION-NOTES "Uncommitted Work" section            |
-| `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts  |
-| `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                     |
-| `syncInterlock`          | `{value, source}` — gates handoff auto-invoke of `arc sync` (`on-handoff`/`on-workflow` fire; `manual` skips)         |
-| `active`                 | Active meta file resolution + sessionType (same shape as session-init)                                                |
-| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
-| `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
-| `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)      |
-| `pathSet`                | `{sessionNotes, workingMemory}` — absolute write/read paths (or `null` per field). Do not re-derive from conventions  |
-| `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
+| Field                    | Contents                                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                    |
+| `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header |
+| `dirty`                  | `{state: clean / dirty, fileCount}`. Re-read from probe-2 for the SESSION-NOTES "Uncommitted Work" section           |
+| `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts |
+| `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                    |
+| `syncInterlock`          | `{value, source}` — gates handoff auto-invoke of `arc sync` (`on-handoff`/`on-workflow` fire; `manual` skips)        |
+| `active`                 | Active meta file resolution + sessionType (same shape as session-init)                                               |
+| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor          |
+| `pushability`            | Pushability pre-check matrix for the worktree push leg                                                               |
+| `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)     |
+| `pathSet`                | Probe of `{sessionNotes, workingMemory}` absolute paths (`null` when N/A). Do not re-derive from conventions         |
+| `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)   |
 
 On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
 `user.value.notesDriftSurface` (`{direction, register: expected | caution}`) carries unresolved notes/disk
@@ -85,13 +85,14 @@ follow the override instead):
   for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
   `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
   planning cycles with no active WU, no tracked meta file exists.
-- **SESSION-NOTES.md** (gitignored) — path from `pathSet.sessionNotes` (checkout-local to the active
-  worktree; `null` between WUs or without identity). Per-WU session context: completed work, decisions,
-  debugging insights, things tried. Replaced each handoff (not appended). Write only at the emitted path —
-  never reconstruct from identity + slug under a different checkout.
-- **WORKING-MEMORY.md** (gitignored) — path from `pathSet.workingMemory` (resolver-backed to the primary
-  worktree under linked-worktree operation; `null` without identity). Cross-WU persistent context. Entries
-  survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
+- **SESSION-NOTES.md** (gitignored) — path from `pathSet.value.sessionNotes` when `pathSet.ok` (checkout-local
+  to the active worktree; `null` between WUs or without identity). Per-WU session context: completed work,
+  decisions, debugging insights, things tried. Replaced each handoff (not appended). Write only at the emitted
+  path — never reconstruct from identity + slug under a different checkout. When `pathSet.ok === false`, surface
+  the probe error and do not guess a path.
+- **WORKING-MEMORY.md** (gitignored) — path from `pathSet.value.workingMemory` when `pathSet.ok` (resolver-backed
+  to the primary worktree under linked-worktree operation; `null` without identity). Cross-WU persistent context.
+  Entries survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
   (see WORKING-MEMORY entries guidance below).
 
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
@@ -328,9 +329,9 @@ kebab-case name = filename without `.md`) — the pre-commit validator and sessi
 key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
 
-**Update SESSION-NOTES at `pathSet.sessionNotes`** (per-WU session context — gitignored; active-WU path only).
-`pathSet.sessionNotes` is `null` when no active WU or identity is absent — Between-WUs handoff skips this
-section entirely. Do not re-derive the path from identity + slug.
+**Update SESSION-NOTES at `pathSet.value.sessionNotes`** (per-WU session context — gitignored; active-WU path
+only). Requires `pathSet.ok`; the path is `null` when no active WU or identity is absent — Between-WUs handoff
+skips this section entirely. Do not re-derive the path from identity + slug.
 
 **Audience:** The next session's agent loading from cold context. They already have tracked state —
 git log, task list, meta file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write

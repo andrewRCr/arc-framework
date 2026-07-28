@@ -527,11 +527,13 @@ export interface SessionHandoffResult {
   inboxState?: Probe<InboxStateResult>;
   /**
    * Resolved absolute paths for SESSION-NOTES (checkout-local) and WORKING-MEMORY
-   * (primary-worktree resolver-backed). Always present; fields are `null` when
-   * identity is absent or no active WU anchors SESSION-NOTES. Stable from
-   * probe-1 (depends only on identity + active resolution).
+   * (primary-worktree resolver-backed). Probe-shaped so surface-resolution
+   * failures stay inside the composite envelope (`ok: false`) rather than
+   * aborting `arc status --session-handoff --json`. On success, fields are
+   * `null` when identity is absent or no active WU anchors SESSION-NOTES.
+   * Stable from probe-1 (depends only on identity + active resolution).
    */
-  pathSet: HandoffPathSet;
+  pathSet: Probe<HandoffPathSet>;
   /**
    * State-aware top-of-Confirm-Handoff line, populated only when sync
    * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
@@ -772,16 +774,26 @@ export interface RunRecoverStatusOptions {
   workingMemoryPath?: string | null;
 }
 
+/**
+ * User-surface paths needed to compose the handoff `pathSet` slot.
+ * Resolved inside the composite under `safeProbe("pathSet", …)`.
+ */
+export interface HandoffSurfacePaths {
+  /** Exact identity-global WORKING-MEMORY absolute path. */
+  workingMemoryPath: string;
+  /** Checkout-local SESSION-NOTES absolute path for a WU slug. */
+  sessionNotesPath: (workUnitName: string) => string;
+}
+
 export interface RunSessionHandoffStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionHandoffProbes;
-  /** Exact identity-global WORKING-MEMORY path resolved by the handler. */
-  workingMemoryPath?: string | null;
   /**
-   * Resolve the checkout-local SESSION-NOTES absolute path for a WU slug.
-   * Handler supplies from the user-surface resolver; not called when identity
-   * or active WU is absent.
+   * Resolve identity-global handoff surfaces. Invoked inside the composite
+   * under `safeProbe("pathSet", …)` so rejections become `pathSet` probe
+   * errors instead of aborting the envelope. Omit when identity is null;
+   * never called when identity is null even if supplied.
    */
-  resolveSessionNotesPath?: (workUnitName: string) => string;
+  resolveHandoffSurfaces?: () => Promise<HandoffSurfacePaths>;
 }
