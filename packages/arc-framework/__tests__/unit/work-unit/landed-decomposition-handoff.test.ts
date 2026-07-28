@@ -12,13 +12,13 @@ const BASE_HEAD = "c".repeat(40);
 const PREPARED_BASE = "b".repeat(40);
 const CANDIDATE_TREE = "d".repeat(40);
 
-function namespaceEntry(content = canonicalize(v3DecompositionEvidenceFixture().receipt)) {
+function namespaceEntry(content?: string) {
   const { receipt } = v3DecompositionEvidenceFixture();
   return {
     filename: `${receipt.receiptId.replace(":", "-")}.json`,
     mode: "100644",
     type: "blob",
-    content,
+    content: content ?? canonicalize(receipt),
   };
 }
 
