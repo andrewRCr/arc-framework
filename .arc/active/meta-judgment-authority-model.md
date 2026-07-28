@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-judgment-authority-model.md`
+- **Design:** `spec-judgment-authority-model.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft captured formalization-ready — register carries a per-row constraint column, three
   adversarial passes dispositioned
 - **Next Task:** [none]

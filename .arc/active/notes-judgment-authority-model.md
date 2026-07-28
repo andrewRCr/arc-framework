@@ -1,7 +1,7 @@
 # Notes: judgment-authority-model
 
-> _Internal working record for this work unit. The design lives in `draft-judgment-authority-model.md`; this
-> file holds the evidence too large to carry there._
+> _Internal working record for this work unit. The design lives in `spec-judgment-authority-model.md`; this
+> file holds the evidence and rationale too large to carry there._
 
 ---
 
@@ -16,8 +16,8 @@ settled: the audience test, the summoning test, the loud-versus-quiet cut test, 
 
 **Units.** `nb` is nonblank lines within the section — what a disposition actually moves. The earlier ~315 figure
 counted raw lines and the two are **not** comparable: `DEV-RULES.ARC` is 570 raw / 418 nb and `DEV-RULES.PROJECT`
-is 348 raw / 267 nb, so the register is ~45% and ~45% of each file's substantive content rather than
-"about a third," with a correspondingly larger raw footprint.
+is 348 raw / 267 nb. After three rounds of corrections the register is 144/418 ≈ 34% and 102/267 ≈ 38% —
+about a third of each file after all, though of substantive rather than raw lines.
 
 **Measured against base as of the 2026-07-26 reconcile, re-measured at the 2026-07-28 reconcile.** A sibling
 errand edited § Method and extension loading (`0a7a7931b`), and the 2026-07-28 base merge then rewrote
@@ -39,6 +39,13 @@ are the re-audit that closes it: every row now carries an explicit **constraint 
 destination**, which is the procedural lesson pass one drew. Line ranges are dropped from the record — they decay
 on every base merge (above) and re-derive mechanically from the heading structure; `nb` and the section identity
 are what survive.
+
+**Counting convention — state it or it gets re-derived differently.** Each section is counted from its heading
+**through its trailing `---` separator**, applied consistently across every row (§ Review-Increment Invariant 12
+rather than 11, § Context quality 25 rather than 24, both tables of contents 22 combined rather than 20). What the
+convention must **exclude** is the file's own trailing link block — the error this register made three times before
+D7.6 pinned it. A per-heading count that stops at the next heading picks up the link block on the last section of
+the file; stop at the next heading _or_ the final `---`, whichever comes first.
 
 **Test order per row**, applied in sequence, stopping at the first test that settles it:
 
@@ -67,7 +74,7 @@ trigger) · `stays` (the constraint determination ended it) · `blocked` · `out
 | ------------------------------------------ | -- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------- | --- |
 | Preamble                                   | 11 | yes   | keep — carries the `[configurable]` reading rule                                                                                                                                                         | —                                                                                                                    | stays             | 0   |
 | Contents                                   | 11 | no    | cut                                                                                                                                                                                                      | navigation for a human scanner; the file loads whole and `§` resolution never consults it                            | firm              | 11  |
-| Review-Increment Invariant                 | 12 | yes   | keep ¶1 unqualified; restructure ¶2's five exempted operations as a list                                                                                                                                 | —                                                                                                                    | stays             | 0   |
+| Review-Increment Invariant                 | 12 | yes   | keep ¶1 unqualified; restructure ¶2's four exempted operations as a list                                                                                                                                 | —                                                                                                                    | stays             | 0   |
 | Scaled Process, Invariant Discipline       | 10 | mixed | keep the invariant-floor line; demote the `Class`-versus-Work-Character taxonomy                                                                                                                         | `strategy-work-organization` — passive index entry                                                                   | trigger           | 6   |
 | Commit control                             | 85 | mixed | itemized below                                                                                                                                                                                           | —                                                                                                                    | —                 | 33  |
 | Commit format                              | 6  | yes   | keep — don't-reconstruct-from-`git log` is a quiet-failing ignorance-guard                                                                                                                               | —                                                                                                                    | stays             | 1   |
@@ -97,7 +104,7 @@ trigger) · `stays` (the constraint determination ended it) · `blocked` · `out
 | `.arc/` artifact references                | 10 | yes   | keep both rules; compress                                                                                                                                                                                | —                                                                                                                    | authoring         | 3   |
 | Write for the reader, not the author       | 14 | yes   | keep the constraint **and both examples**; compress the communication-artifact expansion only                                                                                                            | retracted from a 7 nb compression — the examples disambiguate, as in § No meta-project references                    | authoring         | 3   |
 | Commit and PR surface language             | 7  | yes   | compress                                                                                                                                                                                                 | —                                                                                                                    | authoring         | 3   |
-| When to Load Additional Guidance           | 17 | no    | blocked — a pure pointer index `knowledge-evolution` P4 wants derived                                                                                                                                    | no summoning mechanism until `knowledge-architecture` ships a derived-access-path surface                            | blocked           | 17  |
+| When to Load Additional Guidance           | 15 | no    | blocked — a pure pointer index `knowledge-evolution` P4 wants derived                                                                                                                                    | no summoning mechanism until `knowledge-architecture` ships a derived-access-path surface                            | blocked           | 15  |
 
 **§ Commit control, itemized** — the file's largest block:
 
@@ -122,44 +129,113 @@ trigger) · `stays` (the constraint determination ended it) · `blocked` · `out
 
 ### `DEV-RULES.PROJECT` — 348 raw / 267 nonblank lines
 
-| Section                           | nb | C?    | Disposition                                                                                                                                                          | Destination / mechanism                                | Tier      | Δnb |
-| --------------------------------- | -- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------- | --- |
-| Preamble                          | 7  | no    | keep                                                                                                                                                                 | —                                                      | stays     | 0   |
-| Contents                          | 11 | no    | cut                                                                                                                                                                  | as above                                               | firm      | 11  |
-| Quality Gates — preamble          | 4  | yes   | keep — zero tolerance                                                                                                                                                | —                                                      | stays     | 1   |
-| Selecting what to run             | 26 | yes   | **keep unchanged — the exemplar**                                                                                                                                    | cite as the target shape; change nothing               | stays     | 0   |
-| The six numbered gate entries     | 35 | mixed | demote the commands behind a one-line retarget of the `quality-gate-commands` passthrough; keep the four constraints `QUICK-REFERENCE` does not carry                | mechanism 1 fires once retargeted                      | firm      | 28  |
-| Testing Requirements              | 10 | mixed | keep the coverage posture; demote the tier and method elaboration                                                                                                    | `test-first` / `testing-standards` declarations — fire | firm      | 6   |
-| Code Quality Principles           | 19 | mixed | cut DRY / SOLID / KISS; **keep YAGNI**, reframed as scope discipline; the TypeScript standards and the pre-public-release posture stay; reseat or rename the heading | register cut 1 — see § Base drift                      | decided   | 7   |
-| Markdown quality                  | 8  | mixed | keep line length and the underfill note; cut the always-run-lint duplication                                                                                         | —                                                      | firm      | 3   |
-| Documentation style               | 12 | yes   | keep the collaborative voice and the reference-link convention; compress the examples                                                                                | —                                                      | authoring | 4   |
-| Workflow prose economy            | 7  | mixed | demote, keeping a one-line obligation                                                                                                                                | `strategy-workflow-authoring` — passive index entry    | trigger   | 5   |
-| Verbs over mechanics              | 5  | mixed | keep the verb-gap capture instruction; demote the rationale                                                                                                          | `strategy-workflow-authoring` — same entry             | trigger   | 3   |
-| Commit Conventions (self-hosting) | 12 | yes   | keep the scope rule; compress the rationale                                                                                                                          | —                                                      | authoring | 4   |
-| Package-Project Sync              | 24 | mixed | keep the two-copy direction constraint and the npm-spike hazard; demote the hook explanation and the skill-drift hazard                                              | `strategy-package-project-sync` — passive index entry  | trigger   | 10  |
-| Audience Boundaries — preamble    | 3  | yes   | keep                                                                                                                                                                 | —                                                      | stays     | 1   |
-| Surface taxonomy                  | 19 | yes   | **keep verbatim** — the path lists are the operative content, not prose around it; compressing them trades a quiet-failing rule's precision for 5 nb                 | retracted from a 5 nb compression                      | stays     | 0   |
-| Leak patterns                     | 12 | yes   | keep — quiet-failing constraints                                                                                                                                     | —                                                      | stays     | 2   |
-| Package-source mirror inheritance | 3  | yes   | keep                                                                                                                                                                 | —                                                      | stays     | 1   |
-| Relationship to DEV-RULES.ARC     | 8  | no    | cut to a one-line "both apply" — pure cross-reference reconciliation                                                                                                 | —                                                      | firm      | 6   |
-| Capture Routing                   | 3  | yes   | keep                                                                                                                                                                 | —                                                      | stays     | 1   |
-| Surface agent-side friction       | 14 | yes   | keep the standing instruction; compress the two trigger-class definitions                                                                                            | —                                                      | authoring | 6   |
-| Architecture Decision Records     | 24 | mixed | keep the internal-only leak rule and relocate it into § Audience Boundaries; demote the decision criteria and placement rationale                                    | `strategy-adr-methodology` — passive index entry       | trigger   | 16  |
+| Section                           | nb | C?    | Disposition                                                                                                                                                                                                   | Destination / mechanism                                                       | Tier      | Δnb |
+| --------------------------------- | -- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------- | --- |
+| Preamble                          | 7  | no    | keep                                                                                                                                                                                                          | —                                                                             | stays     | 0   |
+| Contents                          | 11 | no    | cut                                                                                                                                                                                                           | as above                                                                      | firm      | 11  |
+| Quality Gates — preamble          | 4  | yes   | keep — zero tolerance                                                                                                                                                                                         | —                                                                             | stays     | 1   |
+| Selecting what to run             | 26 | yes   | **keep unchanged — the exemplar**                                                                                                                                                                             | cite as the target shape; change nothing                                      | stays     | 0   |
+| The six numbered gate entries     | 35 | mixed | demote the commands behind a one-line retarget of the `quality-gate-commands` passthrough; keep the four constraints `QUICK-REFERENCE` does not carry                                                         | mechanism 1 fires once retargeted                                             | firm      | 28  |
+| Testing Requirements              | 10 | mixed | keep the coverage posture; demote the tier and method elaboration                                                                                                                                             | `test-first` / `testing-standards` declarations — fire                        | firm      | 6   |
+| Code Quality Principles           | 19 | mixed | cut DRY / SOLID / KISS; **keep YAGNI**, reframed as scope discipline; the TypeScript standards and the pre-public-release posture stay; reseat or rename the heading                                          | register cut 1 — see § Base drift                                             | decided   | 7   |
+| Markdown quality                  | 8  | mixed | keep line length and the underfill note; cut the always-run-lint duplication                                                                                                                                  | —                                                                             | firm      | 3   |
+| Documentation style               | 12 | yes   | keep the collaborative voice and the reference-link convention; compress the examples                                                                                                                         | —                                                                             | authoring | 4   |
+| Workflow prose economy            | 7  | mixed | demote, keeping a one-line obligation                                                                                                                                                                         | `strategy-workflow-authoring` — passive index entry                           | trigger   | 5   |
+| Verbs over mechanics              | 5  | mixed | keep the verb-gap capture instruction; demote the rationale                                                                                                                                                   | `strategy-workflow-authoring` — same entry                                    | trigger   | 3   |
+| Commit Conventions (self-hosting) | 12 | yes   | keep the scope rule; compress the rationale                                                                                                                                                                   | —                                                                             | authoring | 4   |
+| Package-Project Sync              | 24 | mixed | keep the two-copy direction constraint and the npm-spike hazard; demote the hook explanation and the skill-drift hazard                                                                                       | `strategy-package-project-sync` — passive index entry                         | trigger   | 10  |
+| Audience Boundaries — preamble    | 3  | yes   | keep                                                                                                                                                                                                          | —                                                                             | stays     | 1   |
+| Surface taxonomy                  | 19 | yes   | **keep verbatim** — the path lists are the operative content, not prose around it; compressing them trades a quiet-failing rule's precision for 5 nb                                                          | retracted from a 5 nb compression                                             | stays     | 0   |
+| Leak patterns                     | 12 | yes   | keep — quiet-failing constraints                                                                                                                                                                              | —                                                                             | stays     | 2   |
+| Package-source mirror inheritance | 3  | yes   | keep                                                                                                                                                                                                          | —                                                                             | stays     | 1   |
+| Relationship to DEV-RULES.ARC     | 8  | no    | cut to a one-line "both apply" — pure cross-reference reconciliation                                                                                                                                          | —                                                                             | firm      | 6   |
+| Capture Routing                   | 3  | yes   | keep                                                                                                                                                                                                          | —                                                                             | stays     | 1   |
+| Surface agent-side friction       | 14 | yes   | keep the standing instruction; compress the two trigger-class definitions                                                                                                                                     | —                                                                             | authoring | 6   |
+| Architecture Decision Records     | 12 | mixed | compress the 3 nb pointer in place; relocate the 8 nb internal-only leak rule into § Audience Boundaries (within-file, not a demotion) — the criteria this row once proposed demoting are not in the instance | none — nothing demotes; `strategy-adr-methodology` is no longer a destination | authoring | 3   |
 
 ### Totals
 
 | File                                                 | firm   | decided | authoring | trigger | blocked | residue | Total Δnb |
 | ---------------------------------------------------- | ------ | ------- | --------- | ------- | ------- | ------- | --------- |
-| `DEV-RULES.ARC` (canonical — ships)                  | 43     | 12      | 19        | 47      | 17      | 8       | 146       |
-| `DEV-RULES.PROJECT` (instance — ships as a template) | 54     | 7       | 14        | 34      | 0       | 6       | 115       |
-| **Both**                                             | **97** | **19**  | **33**    | **81**  | **17**  | **14**  | **261**   |
+| `DEV-RULES.ARC` (canonical — ships)                  | 43     | 12      | 19        | 47      | 15      | 8       | 144       |
+| `DEV-RULES.PROJECT` (instance — template mirrors it) | 54     | 7       | 17        | 18      | 0       | 6       | 102       |
+| **Both**                                             | **97** | **19**  | **36**    | **65**  | **15**  | **14**  | **246**   |
 
-Down from the pre-audit 318. The 57 nb difference is content the constraint column and the two authoring
-retractions returned to the always-loaded set. The `P3` tier carries no Δ — its one row (Prefix mapping) was
-withdrawn rather than deferred.
+Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below. The `P3` tier
+carries no Δ — its one row (Prefix mapping) was withdrawn rather than deferred. The `trigger` tier is what D6
+gates, and it is now 65 nb across **seven** index entries.
 
 **`firm` + `decided` is what may be authored against today: 116 nb**, of which 55 is canonical `DEV-RULES.ARC`
-and 61 is the instance file. The instance share across the whole register is 115 / 261 ≈ **44%**.
+and 61 is the instance file — unaffected by every correction so far, which land in the `trigger`, `authoring`, and
+`blocked` tiers. The instance share across the whole register is 102 / 246 ≈ **41%**.
+
+### Corrections from the create-spec adversarial pass (2026-07-28)
+
+Three findings against the register, all confirmed at source. Two share a root cause the register should hold
+onto: **dispositions drifted between the instance file and the package template**, which are not the same
+document.
+
+1. **§ Architecture Decision Records was measured at 24 nb and is 12.** The extra 12 is the file's trailing `---`
+   plus 11 link definitions — the identical trailing-link-block error this record already caught and corrected for
+   § When to Load Additional Guidance (24 raw / 17 nb, not 43). Catching it once did not generalize it. Worse than
+   the number: the row proposed demoting "the decision criteria," which the **instance does not contain** — it
+   carries only a pointer ("See ADR Methodology Strategy — decision criteria, three-tier stability model,
+   amendment vs. supersession"). The criteria live in the package template at lines 152–165. So the row needs its
+   disposition re-derived, not merely its count corrected. Cascade: `PROJECT` trigger 34 → ~21, register 261 →
+   ~248, the trigger tier 81 → ~68.
+
+2. **The template is not a blank fill-in, and several rows reach it.** Verified in
+   `packages/arc-framework/arc/system/rules/DEV-RULES.PROJECT.md`: DRY / SOLID / KISS / YAGNI (82–85),
+   "Always run markdown linting after updating documentation files" (99), a § Contents block (21),
+   § Documentation style (106–119), and the ADR write / don't-write criteria (152–165). The draft's
+   instance-only framing generalized a narrower true fact (its § Quality Gates carries none of this repo's
+   numbered entries) into a claim about the whole half. Where the template carries a row's target, the row's
+   disposition applies there too and the increment stages both.
+
+3. **The trigger tier's index-entry list was one short.** § Task interlock's team elaboration (4 nb) routes to
+   `strategy-team-coordination`, which carries a passive `Consult when:` line and was missing from the seven. The
+   set is eight, and it is closed by construction: it is exactly the `strategy-*` destinations the `trigger` rows
+   name.
+
+### Corrections from the create-spec adversarial pass two (2026-07-28)
+
+Six more, all confirmed at source. Three are false claims about repository **mechanisms** rather than about
+content — a class pass one did not probe at all.
+
+4. **§ Architecture Decision Records re-derived, and it changes D6's set.** The row is `authoring`, not
+   `trigger`: compress the 3 nb pointer in place and relocate the 8 nb leak rule within the file. Nothing
+   demotes, so `strategy-adr-methodology` — which this row was the **only** register row to name — stops being a
+   destination and leaves the index-rewrite set. Net: 3 nb moves `trigger` → `authoring` (register total
+   unchanged), and D6 gates 65 nb across seven entries. The lesson is that a "closed by construction" set cannot
+   rest on a row flagged as unsettled; re-deriving the row was cheaper than shipping the closure claim.
+
+5. **§ When to Load Additional Guidance is 15 nb, not 17** (lines 527–549; 550 is the `---`). Third instance of
+   the trailing-link-block error, after § Architecture Decision Records and the original § When to Load
+   correction. Catching it twice did not generalize it either. **A per-heading count must exclude the trailing
+   link block by construction.** `ARC` 146 → 144, register 248 → 246; `blocked` disposition unchanged.
+
+6. **`lint:arc:section-refs` does not do what its name suggests.** It refuses the `§` glyph inside `src/` and
+   `__tests__/` TypeScript — the no-meta-project-references-in-code rule — and never resolves a Markdown `§`
+   citation against a heading. Nothing in the repository validates an inbound `§` citation, and the pre-commit
+   link check skips anchor-only links. Since the register moves, renames, and empties cited headings across ~45
+   live citation sites in both copies, the sweep is a **hand** obligation per task. Recorded as a verb gap.
+
+7. **The package-counterpart hook does not fire for the Configurable half.** `check-package-sync.sh` warns on a
+   missing counterpart only for `Framework`; its `Configurable` arm implements the blind-`cp` error alone. Per
+   `.arc/system/.internal/manifest.json`: `DEV-RULES.PROJECT` and `STRATEGY-INDEX` are **Configurable**, while
+   `DEV-RULES.ARC` and all seven `strategies/arc/*` destinations are **Framework**. So exactly the two surfaces
+   where template drift was newly recognized have no mechanical backstop.
+
+8. **The shipped `STRATEGY-INDEX` copy was never in D6's scope.** Its `## ARC Framework Strategies` block is
+   identical across copies and carries six of the seven passive entries. Rewriting the instance alone would ship
+   projects a shortened rules file whose demoted content lands in Framework strategies reachable only through the
+   60–75% line — P10 violated for every project, the same instance-versus-shipped asymmetry pass one found in D8.
+   The package copy's maintenance footer ("add a 'Consult when:' sub-item") also instructs future authors to
+   restore the form D6 removes, and must change with it.
+
+9. **D7.2 asserted a demotion its own row rejects.** "The procedure moves to `integrate-work-unit`" was inherited
+   from the draft, written before the constraint-column pass disqualified that destination under P3. The row is
+   `keep whole`, Δ0; the reseat is a within-file relocation.
 
 ### What the constraint column changed
 
@@ -177,18 +253,22 @@ and 61 is the instance file. The instance share across the whole register is 115
    twice (deferred review, prefix mapping) and `integrate-work-unit` fails on merge authority, which is the draft's
    own worked case. The earlier "roughly a fifth of the committable tier" reading was too pessimistic.
 
-3. **The trigger tier is the single largest at ~82 nb, and it is all one defect.** Every `strategy-*` destination
-   in the register reaches its content through a passive `Consult when:` line — the 60–75% band in a trigger
-   costume. Seven index entries need re-authoring to P2 strength before _any_ of that content may move:
+3. **The trigger tier is the single largest, and it is all one defect.** Every `strategy-*` destination in the
+   register reaches its content through a passive `Consult when:` line — the 60–75% band in a trigger costume.
+   Seven index entries need re-authoring to P2 strength before _any_ of that content may move:
    `strategy-work-organization`, `strategy-work-planning`, `strategy-session-operations`,
-   `strategy-workflow-authoring`, `strategy-package-project-sync`, `strategy-adr-methodology`, and a new entry for
-   `strategy-interlock-release-wrappers`. That is a bounded, enumerable task, and it is the deliverable's critical
-   path rather than an incidental prerequisite.
+   `strategy-workflow-authoring`, `strategy-package-project-sync`, `strategy-team-coordination`, and a new entry
+   for `strategy-interlock-release-wrappers`. That is a bounded, enumerable task, and it is the deliverable's
+   critical path rather than an incidental prerequisite.
+   _(This pass recorded ~82 nb across a different seven — it included `strategy-adr-methodology` and omitted
+   `strategy-team-coordination`. Both memberships and the figure are superseded; see § Corrections items 3 and 4.
+   Current: 65 nb across the seven above.)_
 
 4. **The authorable tier is 116 nb, and 53% of it sits in the instance file.** Of that, 55 nb is canonical
-   `DEV-RULES.ARC` and 61 nb is `DEV-RULES.PROJECT`, which ships as a 175-line fill-in template no project
-   inherits. The instance share across the whole register is 115 / 261 ≈ **44%**, confirming the draft's ~41%
-   estimate. The canonical tier — what actually reaches every project on day one — is 55 nb.
+   `DEV-RULES.ARC` and 61 nb is `DEV-RULES.PROJECT`. The canonical tier — what actually reaches every project on
+   day one — is 55 nb. _(This pass read the instance file as a fill-in template no project inherits, and put the
+   instance share at 115 / 261 ≈ 44%; both are superseded — see § Corrections, items 1 and 2. The template mirrors
+   several register rows, and the share is now 102 / 246 ≈ 41%.)_
 
 5. **The author's-interest caveat splits into two risk classes, and only one of them is a gate.** The draft
    bundled "cuts 2–5 plus roughly ten compress-in-place verdicts" as one class. They are not: an outright **cut**
@@ -304,5 +384,102 @@ Retained for the evidence they carry, not as live dispositions:
   rather than a surface one.
 - **The measurement has held up under both passes and the base merge**; what failed each time was the disposition
   logic. That is the argument for the constraint column being part of the artifact rather than a one-time audit.
+
+---
+
+## Design rationale
+
+Reasoning the spec depends on but does not restate. Task generation and execution reach for this when a
+disposition needs its _why_.
+
+### What model progress erodes
+
+Model progress erodes **capability rules** and does nothing to **preference or authority rules**. This is the
+reasoning underneath the spec's cut test, and the reason that test reads guard type as a proxy rather than as the
+criterion.
+
+- A _capability_ rule tells the agent how to be good at something — how to decompose, how to search before
+  assuming, how many files is too many. Each is a bet against the model, and each release settles it further
+  against the author.
+- A _preference or authority_ rule says what the developer wants and who decides. "Merge requires explicit human
+  authorization" is derivable from nothing in the codebase; it is a choice about where the human stands. No amount
+  of capability touches it.
+
+Published guidance points the same way. Anthropic's 2026 context-engineering note removes prescription, worked
+examples ("giving examples actually constrains them"), and duplication, while explicitly preserving "particular
+opinions, knowledge, or best practices that are particular to you, your team, or product" — this corpus's entire
+content class.
+
+**One asymmetry that guidance does not address, and it matters before anyone cites it as license to cut.** A
+system prompt ships to every user and every task and cannot know the context, so it must be small. These rules are
+per-project, authored by the person they bind, and revisable in a commit. "A universal prompt should be minimal"
+does not generalize to "a project's rules should be minimal" — the system prompt is small because it is ignorant;
+these exist because they are not.
+
+### Gate versus granularity
+
+The review-increment invariant bundles two claims that the register separates:
+
+- **A gate exists** — every review increment closes with a structured approval gate before commit.
+  Scope-invariant, true at leaf, phase, or WU width. Stays universal and unqualified.
+- **The increment is one leaf** — a granularity setting, no longer the observed default. Becomes a named
+  **floor**: the fallback when nothing wider is authorized, and the right setting for a tricky change or one the
+  developer wants to stay close to.
+
+§ Review-Increment Invariant is already scope-agnostic and needs no change. Frequency of use at the finest setting
+is not evidence about the gate's necessity — under deferred review the gate fires at a wider boundary, which is
+why `unit-scoped-review` must invent a break-out matrix and deviation ledger to keep it honest there. The
+rephrasing is forward-compatible with that work unit's parametrization by construction, and does not do its work.
+
+### Destination mechanism 3 — bounded by what ARC controls
+
+An emitted remedy — the failing gate, hook, or CLI output naming its own fix — can only fire where **ARC owns the
+output stream**. The live instance arrived during this work unit's own base reconcile: a `ROADMAP` merge conflict
+is auto-remedied by the pre-commit githook, but `git merge` reports the conflict several steps earlier and says
+nothing, so the operator stands at a conflict with no signal that doing nothing is correct. The worse failure is
+available too — hand-resolving a regenerable projection produces a worse result than the regeneration. Where the
+failing operation belongs to another tool, the remedy has to arrive from a surface ARC does own (`arc status`, the
+session probe), which is a different mechanism. This bound is why gate-emission work left the deliverable.
+
+### The two P6s
+
+- **`knowledge-evolution` P6 — extract on fan-in, not aesthetics.** This is what authorizes the extraction at all:
+  the fan-in is demonstrated, repeatedly, not anticipated. Eight independent enactments, three of them arriving
+  unprompted during this work unit's own grooming.
+- **`procedure-evolution` P6 — emitted text is precomposed CLI-side.** The `ROADMAP` precedent (pre-commit
+  CHECK 17) is a shell `echo` in a hook, which is the pattern P6 argues against; a new emission belongs in the
+  CLI's precomposed-text layer rather than a second hook-side template. Bounded, and it reinforces leaving
+  gate-emission out of this deliverable.
+
+### Why decisions landed where they did
+
+The condensed resolution record, for the question task generation asks most often.
+
+- **The problem is a propagation gap, not an invention** — six prior enactments identified, so the model is
+  composed rather than invented. This is what holds `Class` at `Heavy` rather than `Novel`.
+- **Face (c)'s idiom-divergence framing was withdrawn** in favor of an internal ADR-versus-rules inconsistency:
+  `adr-029` already grants the authority the rules surface withholds. Raising it as a departure from industry
+  idiom wasted a pass and would waste another.
+- **The discriminator settled as satisfaction-test-primary plus a two-limb backstop**, after probing three
+  candidate tests against the corpus. Satisfaction is primary because it forces the disclosure as a byproduct and
+  fails safe on silence; the backstop exists because the satisfaction and standing tests both wrongly release
+  `--no-verify`.
+- **The ignorance arm gained a dischargeability qualifier** when a third shape surfaced: a rule guarding an
+  ignorance the agent can never discharge behaves as an invariant. The satisfaction test's fall-through already
+  reached that verdict, which is further evidence for satisfaction-primary.
+- **Per-rule authority vocabulary was dropped** after a ~10-candidate probe returned no counterexample, on two
+  findings: `policy` collapses into `invariant`, and the case that would justify `maintainer` resolves without a
+  declaration. A third argument (that `procedure-evolution` P2 forbade the markup) was **withdrawn as an
+  overread** — P2 prohibits control flow in agent-evaluated markup, not classification markers.
+- **Cross-harness precedence moved out of the ADR into § Rule Authority's backstop.** Placing it in the ADR was
+  placement by frequency, which `knowledge-evolution` P1 replaces with miss-cost.
+- **`unit-scoped-review` is downstream, not an upstream constraint** — it has no settled model to constrain
+  anything with, and its content is visibly a consumer. No `Depends On` edge in either direction.
+- **The compression half was composed against prior art it had re-derived** — `analysis-load-set-scoping`'s
+  two-clause demotion precondition and unsafe-versus-pointless split, and `loadset-composition`'s adherence bands
+  and demote-only-to-an-explicit-trigger rule. Pass two's central correction.
+- **Two procedural lessons the register produced**, both cases of a disposition made at too coarse a grain: the
+  constraint determination must precede the destination, and the audience test must run at bullet granularity
+  rather than per section.
 
 ---
