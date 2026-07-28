@@ -1,8 +1,8 @@
 # Metadata: decompose-transform-integrity
 
-| **State**  | **Owner** | **Branch**                           | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/decompose-transform-integrity` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                           | **Class** | **Priority** |
+| --------- | --------- | ------------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/decompose-transform-integrity` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-decompose-transform-integrity.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** `generate-tasks` Pass 2 — content fill reviewed
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Resolve and clear obsolete decomposition state
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — Resolve and clear obsolete decomposition state
 
 - **PR URL:** [none]
 - **Completed:** [none]
