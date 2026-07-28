@@ -551,28 +551,13 @@ local-cleanup boundaries without importing extension-owned matrices.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
 
-    - `[ ]` **5.1.a Build the realistic decomposition fixture**
-        - Keep the canonical acceptance black-box: import only Node built-ins and run the built CLI. Initialize a
-          repository normally, set `branch.protection: full`, and assert `core.hooksPath` remains
-          `.arc/system/.internal/githooks` with the installed `pre-commit`, `commit-msg`, and `pre-push` chain.
-        - Name fixture-only setup helpers as hook-bypassing and restrict them to repository bootstrap before the
-          acceptance history. Use plain `git commit` through the installed chain for a valid control commit and
-          every candidate/finalization commit; remove the synthetic decomposition-only hook installer.
-        - Through built CLI commands, create and commit a planned predecessor on the configured base, then start it
-          onto source branch `plan/origin` and its attached worktree. Commit branch-private paired-spec planning
-          authority with a nontrivial provisional task seed while the base retains the exact planned predecessor.
-        - Assert configured primary/base/source refs, registered source worktree, merge base, exact heads,
-          predecessor bytes, the absence of source-only bytes from base, and the absence of the deterministic
-          candidate ref/worktree/claim. Use a local bare remote for synchronization and no network.
-        - Commit one unrelated source rider and prove pre-occupation validation refuses before any candidate,
-          claim, or result path exists. Revert the rider in committed source history, rerun preflight, and continue
-          only from the new exact source head.
-        - Run `--preflight` through an explicitly non-TTY helper that keeps stdout and stderr separate. Persist its
-          canonical stdout, prove it changes no ref/index/worktree/claim state, and obtain the same source binding
-          from the source and another attached checkout.
-        - Complete the map as an explicitly symmetric retirement with at least three new leaves and no existing
-          home, using only the documented semantic allocation, ownership, and dependency slots. Compare the decoded
-          map before and after authoring so every machine-owned field remains byte-for-byte equal.
+    - `[x]` **5.1.a Build the realistic decomposition fixture**
+        - Normal initialization now drives a full-protection `stub → start` topology through the installed hook
+          chain and a local bare remote. The base retains its planned draft predecessor while `plan/origin` owns
+          paired-spec planning plus a nontrivial task seed.
+        - A committed source rider refuses before candidate occupation, its committed revert forces a new exact
+          source head, and canonical non-TTY preflight is checkout-independent and mutation-free. The persisted
+          symmetric three-leaf map edits only public author slots and preserves the machine envelope byte-for-byte.
 
     - `[ ]` **5.1.b Drive one canonical started retirement**
         - Exercise candidate occupation, exact tuple/cohort materialization, semantic authoring, the fixture's
