@@ -38,7 +38,14 @@ describe("validateFinalizedV3Decomposition", () => {
   it("returns canonical authority for exact normalized facts", () => {
     expect(validateFinalizedV3Decomposition(exactFacts())).toMatchObject({
       status: "validated",
-      authority: { receipt: { kind: "decompose-receipt", schemaVersion: 3 } },
+      authority: {
+        receipt: { kind: "decompose-receipt", schemaVersion: 3 },
+        transitionOverlay: {
+          kind: "validated",
+          origin: "origin",
+          sourceBranch: "plan/origin",
+        },
+      },
     });
   });
 

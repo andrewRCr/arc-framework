@@ -54,6 +54,10 @@ import {
   transformDependentMutationExclusions,
 } from "../lib/work-unit/transform-coordination.js";
 import {
+  createProspectiveTransitionOverlay,
+  transitionOverlayCompositionInput,
+} from "../lib/work-unit/transition-overlay.js";
+import {
   runRename,
   type RenamePlan,
   type RenameSubjectShape,
@@ -202,8 +206,7 @@ export async function runRenameCommand(
             ...(plan.oldBranch === null
               ? {}
               : {
-                  transitionOverlay: {
-                    kind: "prospective",
+                  transitionOverlay: transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
                     origin: plan.sourceSlug,
                     sourceBranch: plan.oldBranch,
                     planId: canonicalDigest({
@@ -212,7 +215,7 @@ export async function runRenameCommand(
                       sourceBranch: plan.oldBranch,
                       target: plan.targetSlug,
                     }),
-                  },
+                  })),
                 }),
           });
           return {

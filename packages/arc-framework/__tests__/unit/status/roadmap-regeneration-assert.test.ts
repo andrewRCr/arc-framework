@@ -229,6 +229,11 @@ describe("renderRoadmapFromIndexViewResult", () => {
     // the assert appends).
     expect(`${view.result.markdown}\n`).toBe(markdown);
     expect(view.result.facts.some((fact) => fact.slug === "ready")).toBe(true);
+    expect(exec).not.toHaveBeenCalledWith(
+      "git",
+      expect.arrayContaining(["diff", "--cached"]),
+      expect.anything(),
+    );
   });
 
   it.each([

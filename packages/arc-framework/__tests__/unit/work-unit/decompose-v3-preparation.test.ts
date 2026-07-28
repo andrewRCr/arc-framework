@@ -13,6 +13,7 @@ import {
   type V3CandidatePublication,
 } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 import { v3AllowedPathsDigest } from "../../../src/lib/work-unit/decompose-v3-schema.js";
+import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
 
 describe("v3 decomposition preparation identities", () => {
   const publication: V3CandidatePublication = {
@@ -316,12 +317,11 @@ describe("v3 decomposition preparation identities", () => {
       planId: facts.prospectiveProjection.overlay.planId,
       allowedPaths: facts.allowedPaths,
       allowedPathsDigest: facts.allowedPathsDigest,
-      prospectiveOverlay: {
-        kind: "prospective" as const,
+      prospectiveOverlay: createProspectiveTransitionOverlay({
         origin: facts.prospectiveProjection.overlay.origin,
         sourceBranch: facts.prospectiveProjection.overlay.sourceBranch,
         planId: facts.prospectiveProjection.overlay.planId,
-      },
+      }),
       roadmap: facts.prospectiveProjection.roadmap,
       mutations: [],
     };

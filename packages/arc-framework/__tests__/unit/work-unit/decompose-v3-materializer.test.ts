@@ -9,6 +9,7 @@ import type {
   V3PlanCanonicalPathState,
   ValidatedDecomposePlan,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
+import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
 
 const encoder = new TextEncoder();
 const beforeBytes = encoder.encode("before\n");
@@ -22,12 +23,11 @@ function plan(): ValidatedDecomposePlan {
     planId: canonicalDigest({ plan: 1 }),
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
-    prospectiveOverlay: {
-      kind: "prospective",
+    prospectiveOverlay: createProspectiveTransitionOverlay({
       origin: "origin",
       sourceBranch: "plan/origin",
       planId: canonicalDigest({ plan: 1 }),
-    },
+    }),
     roadmap: {
       path: ".arc/backlog/ROADMAP.md",
       before,

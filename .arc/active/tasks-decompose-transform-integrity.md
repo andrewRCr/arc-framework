@@ -78,14 +78,10 @@ units.
   changes only with path or hierarchy, while stored-byte changes remain a separate content binding and refuse at
   the affected source-unit locus.
 
-### `[ ]` **1.3 Centralize v3 validation and transition composition**
+### `[x]` **1.3 Centralize v3 validation and transition composition**
 
 - _Goal:_ One canonical validator answers whether evidence proves the live transition, and one receipt-blind
   composition seam carries either plan-bound or validated suppression without duplicating project-readiness policy.
-
-- _Note:_ Design coverage: D1, D4, D5.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
     - `[x]` **1.3.a Decode and rederive every stored invariant**
         - Added one discriminator-first shared receipt codec for retained transitions and closed v3 decomposition,
@@ -114,23 +110,19 @@ units.
           machine edge to one authored `edgeId` disposition with fixed `tree-only` evidence. Duplicate, missing,
           legacy, conflicting, and malformed authority fails closed instead of appearing absent.
 
-    - `[ ]` **1.3.d Establish receipt-blind transition overlay composition**
-        - Define separate opaque/minimal `ProspectiveTransitionOverlay` and `ValidatedTransitionOverlay` arms over
-          one receipt-blind structured composition input. The first binds immutable-plan identity and is accepted
-          only during plan-bound candidate rendering; the second is created only from finalized canonical authority
-          and is accepted by durable consumers.
-        - Split ordinary `prospectiveTree: { currentBranch }` precedence from optional `transitionOverlay`. Replace
-          only the current untyped prospective supersession arm so staged activation, start, archive, and own-branch
-          residue behavior remain unchanged.
-        - Apply the overlay in shared project-record/oracle composition, not Markdown rendering. Migrate ROADMAP,
-          composed-lifecycle, and direct reconciliation call sites to the same receipt-blind composition interface
-          before any planning or finalization consumer uses it.
-        - Build `test-first` (one behavior at a time):
-            - The overlay suppresses only its exact origin/source branch while same-slug/wrong-branch,
-              same-branch/wrong-slug, and sibling records remain.
-            - No overlay leaves ordinary prospective-tree behavior and rendered readiness byte-identical.
-            - Plan-derived and receipt-derived equal suppression facts compose records and ROADMAP identically,
-              while prospective authority cannot enter commit, merge, publication, landing, or cleanup adapters.
+    - `[x]` **1.3.d Establish receipt-blind transition overlay composition**
+        - Added opaque constructor-produced prospective and validated authority arms whose identity is stripped into
+          one minimal origin/source-branch input before shared project-record composition; only the canonical
+          finalized validator creates the durable arm.
+        - Kept ordinary current-branch prospective precedence independent, migrated direct transition, ROADMAP, and
+          composed-lifecycle callers, and removed staged-receipt discovery from the renderer. Exact suppression now
+          covers records, warnings, quality facts, and worktree projections without reaching authority adapters.
+        - Proved exact-pair suppression, mismatch and sibling preservation, unchanged no-overlay behavior, and
+          prospective/validated record plus rendered-ROADMAP parity.
+
+- _Outcome:_ Closed decoding, live validation, shared transition consumers, and receipt-blind composition now form
+  one authority path: plan-bound overlays remain transient, finalized overlays originate at the canonical
+  validator, and neither record enumeration nor project readiness reconstructs decomposition proof.
 
 ## **Phase 2:** Exact preflight and result planning
 

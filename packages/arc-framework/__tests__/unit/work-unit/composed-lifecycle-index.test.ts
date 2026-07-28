@@ -187,6 +187,29 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["ls-remote"]), expect.anything());
   });
 
+  it("removes an exact transition suppression from every composed oracle channel", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "retired-origin";
+    const branch = `feat/${slug}`;
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch }],
+      metas: { [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch) },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: true, baseBranch: "main" },
+      transitionOverlay: { origin: slug, sourceBranch: branch },
+    });
+
+    expect(result.index.has(slug)).toBe(false);
+    expect(result.recordsBySlug.has(slug)).toBe(false);
+    expect(result.worktreePathBySlug.has(slug)).toBe(false);
+    expect(result.qualityFacts.bySlug.has(slug)).toBe(false);
+    expect(result.qualityFacts.warnings).toEqual([]);
+  });
+
   it("retains reachable live membership tips for destructive consumers", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
     const slug = "live-member";

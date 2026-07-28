@@ -15,6 +15,10 @@ import {
   v3SourceArtifactDigest,
   type V3SourceArtifactEntry,
 } from "./decompose-v3-schema.js";
+import {
+  createValidatedTransitionOverlay,
+  type ValidatedTransitionOverlay,
+} from "./transition-overlay.js";
 
 export type V3DecompositionMismatchKind =
   | "preparation"
@@ -57,6 +61,7 @@ export interface FinalizedV3DecompositionFacts {
 export interface ValidatedFinalizedV3Decomposition {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
+  transitionOverlay: ValidatedTransitionOverlay;
 }
 
 export type FinalizedV3DecompositionValidation =
@@ -256,5 +261,15 @@ export function validateFinalizedV3Decomposition(
   if (!sameCanonical(facts.publication, receipt.finalized.publication)) {
     return { status: "mismatch", mismatch: { kind: "publication" } };
   }
-  return { status: "validated", authority: { preparation, receipt } };
+  return {
+    status: "validated",
+    authority: {
+      preparation,
+      receipt,
+      transitionOverlay: createValidatedTransitionOverlay({
+        origin: preparation.facts.completedMap.machine.source.origin,
+        sourceBranch: preparation.facts.completedMap.machine.source.logicalBranch,
+      }),
+    },
+  };
 }

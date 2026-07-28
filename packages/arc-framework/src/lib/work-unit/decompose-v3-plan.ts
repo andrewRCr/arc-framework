@@ -7,7 +7,10 @@ import {
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
-import type { ProspectiveTransitionOverlay } from "../status/project-view.js";
+import {
+  createProspectiveTransitionOverlay,
+  type ProspectiveTransitionOverlay,
+} from "./transition-overlay.js";
 import {
   V3PathStateSchema,
   v3PlanId,
@@ -368,12 +371,11 @@ export function buildValidatedDecomposePlan(
       planId,
       allowedPaths,
       allowedPathsDigest,
-      prospectiveOverlay: {
-        kind: "prospective",
+      prospectiveOverlay: createProspectiveTransitionOverlay({
         origin: input.origin,
         sourceBranch: input.sourceBranch,
         planId,
-      },
+      }),
       roadmap,
       mutations,
     },

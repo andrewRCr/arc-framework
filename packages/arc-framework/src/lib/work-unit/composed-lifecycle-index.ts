@@ -21,10 +21,10 @@ import {
   resolveProjectReadinessComposition,
   type ProjectReadinessRecord,
   type ProjectReadinessProspectiveInput,
-  type ProjectReadinessTransitionOverlay,
   type ProjectReadinessOracleOptions,
   type ProjectViewFs,
 } from "../status/project-view.js";
+import type { TransitionOverlayCompositionInput } from "./transition-overlay.js";
 
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "./lifecycle-index.js";
 
@@ -53,7 +53,7 @@ export interface ResolveComposedLifecycleIndexOptions {
   /** Optional staged-tree precedence for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
   /** Optional receipt-blind transition suppression. */
-  transitionOverlay?: ProjectReadinessTransitionOverlay;
+  transitionOverlay?: TransitionOverlayCompositionInput;
 }
 
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */

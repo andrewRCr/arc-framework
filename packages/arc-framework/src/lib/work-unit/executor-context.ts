@@ -44,7 +44,6 @@ import {
   setMetaFinalizeFields,
   reconcileMetaFields,
 } from "../active/meta-reader.js";
-import { canonicalDigest } from "../canonical/canonical-json.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
@@ -78,6 +77,7 @@ import {
 } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { transitionOverlayCompositionInput } from "./transition-overlay.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -291,20 +291,10 @@ export function buildExecutorContext(
                 exec,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
-                ...(inputs.supersededSource === undefined
+                ...(inputs.transitionOverlay === undefined
                   ? {}
                   : {
-                      transitionOverlay: {
-                        kind: "prospective",
-                        origin: inputs.supersededSource.slug,
-                        sourceBranch: inputs.supersededSource.branch,
-                        planId: canonicalDigest({
-                          kind: "transition",
-                          origin: inputs.supersededSource.slug,
-                          sourceBranch: inputs.supersededSource.branch,
-                          to,
-                        }),
-                      },
+                      transitionOverlay: transitionOverlayCompositionInput(inputs.transitionOverlay),
                     }),
               });
               return {
