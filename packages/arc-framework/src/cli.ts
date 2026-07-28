@@ -292,15 +292,13 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Plan, execute, finalize, discard, or inspect one decomposition transition")
+  .description("Preflight, execute, or finalize one decomposition transition")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
   .option("--cut-map <file>", "Execute one completed canonical v3 cut map")
   .option("--finalize <receipt-id>", "Finalize one exact prepared v3 candidate")
   .option("--continuation <file>", "Closed continuation input required by --finalize")
-  .option("--discard <cut-map>", "Discard the exact uncommitted candidate for a completed map")
-  .option("--handoff", "Resolve the exact landed facts-only publication handoff")
   .action(withInteractionContext(
-    { machineReadable: (options) => options.preflight === true || options.handoff === true },
+    { machineReadable: (options) => options.preflight === true },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
   ));
 

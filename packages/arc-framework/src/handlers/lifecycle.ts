@@ -323,20 +323,42 @@ export const DecomposeCommandInputSchema = z.object({
   cutMap: z.string().min(1).optional(),
   finalize: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   continuation: z.string().min(1).optional(),
-  discard: z.string().min(1).optional(),
-  handoff: z.literal(true).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = [
     value.preflight === true,
     value.cutMap !== undefined,
     value.finalize !== undefined || value.continuation !== undefined,
-    value.discard !== undefined,
-    value.handoff === true,
   ].filter(Boolean).length;
   if (modes !== 1 || ((value.finalize === undefined) !== (value.continuation === undefined))) {
     refinement.addIssue({ code: "custom", message: "Provide exactly one complete decompose mode." });
   }
 });
+
+type DecomposeCommandInput = z.output<typeof DecomposeCommandInputSchema>;
+type NormalizedDecomposeCommandInput =
+  | { origin: string; mode: { kind: "preflight" } }
+  | { origin: string; mode: { kind: "execute"; cutMap: string } }
+  | {
+    origin: string;
+    mode: { kind: "finalize-with-continuation"; receiptId: string; continuation: string };
+  };
+
+/** Normalize the three syntax arms into one closed command discriminator. */
+export function normalizeDecomposeCommandInput(input: DecomposeCommandInput): NormalizedDecomposeCommandInput {
+  if (input.preflight === true) return { origin: input.origin, mode: { kind: "preflight" } };
+  if (input.cutMap !== undefined) return { origin: input.origin, mode: { kind: "execute", cutMap: input.cutMap } };
+  if (input.finalize === undefined || input.continuation === undefined) {
+    throw new TypeError("Validated decompose input has no complete mode.");
+  }
+  return {
+    origin: input.origin,
+    mode: {
+      kind: "finalize-with-continuation",
+      receiptId: input.finalize,
+      continuation: input.continuation,
+    },
+  };
+}
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -443,8 +465,6 @@ export const lifecycleCommandInputRegistrations = [
       "option.cut-map": "cutMap",
       "option.finalize": "finalize",
       "option.continuation": "continuation",
-      "option.discard": "discard",
-      "option.handoff": "handoff",
     },
   },
   {
@@ -677,10 +697,6 @@ export interface DecomposeOptions {
   finalize?: string;
   /** Closed continuation input paired with finalize. */
   continuation?: string;
-  /** Completed map identifying the exact candidate to discard. */
-  discard?: string;
-  /** Resolve landed publication facts. */
-  handoff?: true;
 }
 
 function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
@@ -704,9 +720,19 @@ export async function handleDecompose(
   opts: DecomposeOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  const input = parseLifecycleCommand(DecomposeCommandInputSchema, { origin: origin?.trim(), ...opts });
-  if (input === null) return;
-  if (input.preflight === true) {
+  const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
+  if (!parsed.success) {
+    const diagnostic = z.prettifyError(parsed.error);
+    if (opts.preflight === true) {
+      process.stderr.write(`${diagnostic}\n`);
+      process.exitCode = 1;
+    } else {
+      refuse(diagnostic);
+    }
+    return;
+  }
+  const input = normalizeDecomposeCommandInput(parsed.data);
+  if (input.mode.kind === "preflight") {
     const cwd = resolveArcRoot();
     if (cwd === null) {
       process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
@@ -714,7 +740,8 @@ export async function handleDecompose(
       return;
     }
     try {
-      const { settings } = await readConfigSettings(cwd);
+      const { settings, warnings } = await readConfigSettings(cwd);
+      for (const warning of warnings) process.stderr.write(`${warning}\n`);
       const io = createUserIOContext(context?.subprocess);
       const result = await createGitV3DecomposePreflight({
         cwd,
@@ -722,7 +749,10 @@ export async function handleDecompose(
         readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
       }, settings["branch.base"], input.origin);
       if (result.status === "rejected") {
-        process.stderr.write(`${result.reason}\n`);
+        const locus = "locus" in result ? result.locus : undefined;
+        process.stderr.write(
+          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
+        );
         process.exitCode = 1;
         return;
       }
@@ -735,14 +765,7 @@ export async function handleDecompose(
     }
   }
   p.intro("arc decompose");
-  if (input.handoff === true || input.discard !== undefined) {
-    refuse("unsupported-transition:v3-command-mode-not-wired");
-    return;
-  }
-  if (input.finalize !== undefined || input.cutMap !== undefined) {
-    refuse("unsupported-transition:v3-runtime-not-wired");
-    return;
-  }
+  refuse("unsupported-transition:v3-runtime-not-wired");
 }
 
 /** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */

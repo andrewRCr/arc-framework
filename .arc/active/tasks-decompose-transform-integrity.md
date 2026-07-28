@@ -159,23 +159,15 @@ mutation authority; it already contains the operator-approved map and every mech
         - Invalid self-authenticating source profiles remain selected and fail closed instead of disappearing behind
           configured-base fallback; an unset task pointer keeps provisional task bytes non-authoritative.
 
-    - `[ ]` **2.1.c Expose canonical machine-readable preflight**
-        - Redesign decompose input as a closed command-mode union and add the `preflight` arm through the CLI
-          registry and lifecycle boundary. Select machine mode before any interactive intro or renderer output.
-          Establish execute and finalize-with-continuation as the other base arms; later discard and handoff tasks
-          extend the same discriminator.
-        - Emit one atomic canonical starter-map JSON write on stdout after success, including the tree-derived
-          `planningProfile` in its machine envelope and `preflightId`. Send every warning and diagnostic, including
-          schema, project-root, config, source-resolution, and profile failures, to stderr; emit no partial stdout
-          on nonzero refusal.
-        - Keep preflight locally read-only: forbid fetch and mutating Git verbs and preserve the full ref namespace,
-          worktree registrations/heads, every attached index/worktree, record namespace, and filesystem residue.
-        - Build `test-first` (one behavior at a time):
-            - The base mode schema accepts exactly one of preflight, execute cut-map, or
-              finalize-with-continuation and rejects pairwise, partial-finalize, all-mode, and no-mode combinations.
-            - Success stdout is byte-exact canonical JSON with no interactive prefix or suffix; every refusal tier
-              leaves stdout empty and diagnostics on stderr.
-            - Success and refusal leave all repository, checkout, lifecycle, and filesystem observations unchanged.
+    - `[x]` **2.1.c Expose canonical machine-readable preflight**
+        - Decompose input now normalizes to one closed preflight, execute, or finalize-with-continuation arm; future
+          discard and handoff flags remain outside the registry until their owning tasks extend the discriminator.
+        - Machine mode is selected before interactive rendering. Success writes exactly one canonical starter map
+          containing the inferred profile and `preflightId`; config warnings and every refusal tier write only to
+          stderr, with no partial stdout.
+        - Real-Git coverage proves preflight preserves the complete ref and worktree registries, attached indices,
+          retirement records, and dirty filesystem bytes while ignoring remote-tracking and invocation-checkout
+          state.
 
     - `[ ]` **2.1.d Revalidate the exact preflight binding**
         - Bind a typed preflight identity/digest into the starter map. Before result planning, atomically re-read the
