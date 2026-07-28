@@ -207,7 +207,7 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(second.status).toBe("resolved");
     if (first.status !== "resolved" || second.status !== "resolved") return;
     expect(second.handoff.authority).toEqual(first.handoff.authority);
-    expect(second.handoff.displayAnchor).not.toBe(first.handoff.displayAnchor);
+    expect(second.handoff.displayAnchor).not.toEqual(first.handoff.displayAnchor);
     expect(second.handoff.selectedReadiness).not.toEqual(first.handoff.selectedReadiness);
     expect(second.handoff.initialContinuation).toEqual(first.handoff.initialContinuation);
   });
