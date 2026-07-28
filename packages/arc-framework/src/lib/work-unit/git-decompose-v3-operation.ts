@@ -24,6 +24,7 @@ import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import {
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
+import { revalidateV3DecomposeExecutionPreflight } from "./decompose-v3-execution-preflight.js";
 import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
 import {
   createInRepoDecomposeRetirementDriver,
@@ -38,6 +39,7 @@ import {
   writeRetirementRecord,
 } from "./retirement-record-store.js";
 import type { ProtectionMode } from "../git/write-context.js";
+import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 
 export interface GitV3DecomposeOperationDependencies extends GitV3RepositoryPlanDependencies {
   spawningIdentity: string;
@@ -47,6 +49,13 @@ export interface GitV3DecomposeOperationInput {
   protection: ProtectionMode;
   baseBranch: string;
   completedMap: unknown;
+}
+
+export interface GitV3DecomposeCommandInput {
+  protection: ProtectionMode;
+  baseBranch: string;
+  origin: string;
+  cutMapPath: string;
 }
 
 export type GitV3DecomposeOperationResult =
@@ -315,4 +324,50 @@ export async function executeGitV3DecomposeOperation(
     operation,
     durablePreparation: persistence.durable,
   };
+}
+
+/**
+ * Read one canonical cut map, revalidate its invocation provenance, and execute its immutable result.
+ *
+ * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
+ * @param input - Closed execute-command operands and configured repository policy.
+ * @returns One prepared repository result or a closed refusal with exact recovery.
+ */
+export async function executeGitV3DecomposeCommand(
+  dependencies: GitV3DecomposeOperationDependencies,
+  input: GitV3DecomposeCommandInput,
+): Promise<GitV3DecomposeOperationResult> {
+  const revalidated = await revalidateV3DecomposeExecutionPreflight({
+    readCutMap: async (path) => new Uint8Array(await readFile(path)),
+    resolvePreflight: async (origin) => {
+      const result = await createGitV3DecomposePreflight({
+        cwd: dependencies.cwd,
+        exec: dependencies.exec,
+        readBlob: (ref, path) => dependencies.readBlob(ref, path),
+      }, input.baseBranch, origin);
+      return result.status === "ready"
+        ? result
+        : {
+            status: "rejected",
+            reason: result.reason,
+            ...("locus" in result && result.locus !== undefined
+              ? { locus: result.locus }
+              : {}),
+          };
+    },
+  }, input.origin, input.cutMapPath);
+  if (revalidated.status !== "current") {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: revalidated.reason,
+      locus: revalidated.locus,
+      recovery: { kind: "none" },
+    };
+  }
+  return await executeGitV3DecomposeOperation(dependencies, {
+    protection: input.protection,
+    baseBranch: input.baseBranch,
+    completedMap: revalidated.completedMap,
+  });
 }

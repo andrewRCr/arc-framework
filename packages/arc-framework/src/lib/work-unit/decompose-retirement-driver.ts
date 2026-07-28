@@ -136,6 +136,7 @@ export interface FinalizeV3DecomposeDriverInput {
   continuationPath: string;
   composition: ProjectReadinessCompositionResult;
   readinessDeps: DecomposeReadinessDeps;
+  sourceArtifactInventory?: readonly V3SourceArtifactEntry[];
 }
 
 /** Production two-stage decompose authority surface consumed by the CLI handler. */
@@ -218,14 +219,22 @@ async function readV3AuthoritySnapshot(
 async function readV3SourceArtifactInventory(
   deps: InRepoDecomposeRetirementDeps,
   preparation: V3DecomposePreparation,
+  supplied?: readonly V3SourceArtifactEntry[],
 ): Promise<{ entries: V3SourceArtifactEntry[]; digest: CanonicalDigest }> {
   const machine = preparation.facts.completedMap.machine;
-  const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
-    .sort(compareUtf8);
+  const sourcePaths = supplied === undefined
+    ? [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))].sort(compareUtf8)
+    : supplied.map(({ path }) => path);
   const entries = await Promise.all(sourcePaths.map(async (rawPath): Promise<V3SourceArtifactEntry> => {
     const path = validateManagedPath(rawPath);
     const state = await readV3PathState(deps, machine.source.head, path);
     if (state.kind !== "file") throw new Error(`source artifact disappeared: ${path}`);
+    const expected = supplied?.find((candidate) => candidate.path === path);
+    if (expected !== undefined
+      && (expected.mode !== state.mode
+        || expected.contentDigest !== state.contentDigest)) {
+      throw new Error(`source artifact changed: ${path}`);
+    }
     return { path, objectKind: "blob", mode: state.mode, contentDigest: state.contentDigest };
   }));
   const digest = v3SourceArtifactDigest(entries);
@@ -624,7 +633,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
                 after: await readV3PathState(deps, null, path),
               };
             })),
-          readV3SourceArtifactInventory(deps, preparation),
+          readV3SourceArtifactInventory(deps, preparation, input.sourceArtifactInventory),
         ]);
         const destinationOutputs = deriveV3DestinationOutputs(preparation, managedPathResults);
         if (destinationOutputs === null) {
@@ -703,10 +712,17 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           projectionAfter.authorityVersion,
         );
         if (finalized.status === "refused") {
+          const diagnostic = finalized.refusal?.code === "validation-mismatch"
+            ? [
+                finalized.refusal.code,
+                finalized.refusal.mismatch.kind,
+                finalized.refusal.mismatch.locus,
+              ].filter((value) => value !== undefined).join(":")
+            : finalized.diagnostic;
           return refused(
-            finalized.diagnostic === undefined
+            diagnostic === undefined
               ? finalized.reason
-              : `${finalized.reason}: ${finalized.diagnostic}`,
+              : `${finalized.reason}: ${diagnostic}`,
             finalizationRecoveryCause(finalized.refusal),
           );
         }

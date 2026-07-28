@@ -44,6 +44,13 @@ interface ListedTreeObject {
   mode: string;
 }
 
+function bindGitCwd(exec: GitExec, cwd: string): GitExec {
+  return async (command, args, options) => await exec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
+}
+
 function normalizeObjectKind(mode: string, gitKind: string): string {
   if (mode === "120000") return "symlink";
   if (mode === "160000") return "gitlink";
@@ -67,7 +74,8 @@ function parseTreeObjects(stdout: string): ListedTreeObject[] | null {
   return objects;
 }
 
-async function readTree(
+/** Read one exact Git tree into the canonical repository-plan object model. */
+export async function readGitV3RepositoryTree(
   dependencies: GitV3RepositoryPlanDependencies,
   oid: string,
 ): Promise<V3RepositoryPlanTree | null> {
@@ -114,7 +122,11 @@ class TreeDirEntry implements ProjectViewDirEntry {
   }
 }
 
-function createTreeProjectViewFs(cwd: string, tree: V3RepositoryPlanTree): ProjectViewFs {
+/** Project one pinned canonical repository tree through the shared project-view filesystem seam. */
+export function createGitV3RepositoryTreeProjectViewFs(
+  cwd: string,
+  tree: V3RepositoryPlanTree,
+): ProjectViewFs {
   const files = new Map<string, string>();
   for (const [path, state] of Object.entries(tree)) {
     if (state.kind === "absent") continue;
@@ -244,9 +256,9 @@ export async function composeGitV3RepositoryPlan(
       return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
     }
     const [sourceTree, mergeBaseTree, resultBaseTree, renderedRef] = await Promise.all([
-      readTree(dependencies, sourceHead),
-      readTree(dependencies, mergeBases[0]),
-      readTree(dependencies, resultBaseHead),
+      readGitV3RepositoryTree(dependencies, sourceHead),
+      readGitV3RepositoryTree(dependencies, mergeBases[0]),
+      readGitV3RepositoryTree(dependencies, resultBaseHead),
       shortRef(dependencies, resultBaseHead),
     ]);
     if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
@@ -263,9 +275,9 @@ export async function composeGitV3RepositoryPlan(
       renderRoadmap: async (projectedTree, overlay) => {
         const readiness = await resolveProjectReadinessViewInput({
           cwd: dependencies.cwd,
-          fs: createTreeProjectViewFs(dependencies.cwd, projectedTree),
+          fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, projectedTree),
           localRefs: {
-            exec: dependencies.exec,
+            exec: bindGitCwd(dependencies.exec, dependencies.cwd),
             baseBranch,
             decompositionClaimCwd: dependencies.cwd,
           },

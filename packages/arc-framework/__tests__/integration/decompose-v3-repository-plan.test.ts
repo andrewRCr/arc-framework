@@ -7,9 +7,15 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { discardGitV3DecomposeCandidate } from "../../src/lib/work-unit/git-decompose-v3-candidate-discard.js";
+import { finalizeGitV3DecomposeOperation } from "../../src/lib/work-unit/git-decompose-v3-finalization.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
-import { executeGitV3DecomposeOperation } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
+import {
+  executeGitV3DecomposeCommand,
+  executeGitV3DecomposeOperation,
+} from "../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
 
 const execFileAsync = promisify(execFile);
@@ -281,6 +287,30 @@ describe("Git v3 repository plan", () => {
     }
   });
 
+  it("preserves the Git preflight refusal code at the command boundary", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(repo, ["branch", "-m", "missing-main"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "git-preflight:missing-base",
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+  });
+
   it("preserves a foreign deterministic candidate branch without acquiring a claim", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
     await git(repo, ["branch", "chore/decompose-origin", "main"]);
@@ -425,5 +455,90 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["diff", "--cached", "--name-only"]))
       .toBe(".arc/reference/foreign.txt\n");
     expect(await claimFiles(repo)).toEqual([]);
+  });
+
+  it("discards only the exact prepared candidate and releases its terminal generation", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const prepared = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(prepared.status, JSON.stringify(prepared)).toBe("prepared");
+
+    const discarded = await discardGitV3DecomposeCandidate(
+      dependencies,
+      "main",
+      "origin",
+      cutMapPath,
+    );
+
+    expect(discarded, JSON.stringify(discarded)).toMatchObject({
+      status: "discarded",
+      generation: 1,
+      candidateBranch: "chore/decompose-origin",
+    });
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["worktree", "list", "--porcelain"]))
+      .not.toContain("branch refs/heads/chore/decompose-origin");
+    const [claimName] = await claimFiles(repo);
+    expect(claimName).toBeDefined();
+    expect(JSON.parse(await readFile(
+      join(repo, ".git", "arc", "transient-claims", claimName!),
+      "utf8",
+    ))).toMatchObject({
+      generation: 1,
+      state: { kind: "terminal", terminal: { kind: "discarded" } },
+      registration: { kind: "released" },
+    });
+  });
+
+  it("finalizes a prepared candidate through pinned topology and project projection", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const prepared = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(prepared.status, JSON.stringify(prepared)).toBe("prepared");
+    if (prepared.status !== "prepared"
+      || prepared.operation.occupation.protection !== "full") return;
+    const candidate = prepared.operation.occupation.path;
+    const continuationPath = join(repo, "continuation.json");
+    await writeFile(
+      continuationPath,
+      `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
+    );
+
+    const finalized = await finalizeGitV3DecomposeOperation({
+      ...dependencies,
+      cwd: candidate,
+      readBlob: async (ref, path) => await readBlob(candidate, ref, path),
+    }, {
+      baseBranch: "main",
+      origin: "origin",
+      receiptId: prepared.operation.preparation.receiptId,
+      continuationPath,
+    });
+
+    expect(finalized, JSON.stringify(finalized)).toMatchObject({
+      status: "recorded",
+      receipt: {
+        receiptId: prepared.operation.preparation.receiptId,
+        finalized: {
+          publication: {
+            initialContinuation: { kind: "selected", slugs: ["member"] },
+          },
+        },
+      },
+    });
   });
 });

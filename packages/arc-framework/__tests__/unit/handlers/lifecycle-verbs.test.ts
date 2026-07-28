@@ -63,6 +63,7 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
 vi.mock("../../../src/lib/paths.js", () => ({
+  getArcTemplatePath: () => "/arc",
   getInternalTemplatePath: () => "/tpl",
   resolveArcRoot: () => "/repo",
 }));
@@ -160,6 +161,21 @@ const mockResolveGitLandedDecompositionHandoff = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-landed-decomposition-handoff.js", () => ({
   resolveGitLandedDecompositionHandoff: (...args: unknown[]) =>
     mockResolveGitLandedDecompositionHandoff(...args),
+}));
+const mockExecuteGitV3DecomposeCommand = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
+  executeGitV3DecomposeCommand: (...args: unknown[]) =>
+    mockExecuteGitV3DecomposeCommand(...args),
+}));
+const mockDiscardGitV3DecomposeCandidate = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-candidate-discard.js", () => ({
+  discardGitV3DecomposeCandidate: (...args: unknown[]) =>
+    mockDiscardGitV3DecomposeCandidate(...args),
+}));
+const mockFinalizeGitV3DecomposeOperation = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-finalization.js", () => ({
+  finalizeGitV3DecomposeOperation: (...args: unknown[]) =>
+    mockFinalizeGitV3DecomposeOperation(...args),
 }));
 
 const mockRunPromote = vi.fn();
@@ -426,6 +442,20 @@ beforeEach(() => {
     status: "resolved",
     handoff: { kind: "landed-decomposition-handoff", schemaVersion: 1 },
   });
+  mockExecuteGitV3DecomposeCommand.mockResolvedValue({
+    status: "prepared",
+    operation: { report: { destinations: ["member"] } },
+  });
+  mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
+    status: "discarded",
+    claimId: `sha256:${"b".repeat(64)}`,
+    generation: 1,
+    candidateBranch: "chore/decompose-mono",
+  });
+  mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
+    status: "recorded",
+    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -494,6 +524,10 @@ describe("handleDecompose", () => {
     expect(mockFinalizeDecompose).not.toHaveBeenCalled();
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockStagePreparedResult).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -510,6 +544,10 @@ describe("handleDecompose", () => {
     expect(stdoutWrite).toHaveBeenCalledWith(
       '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
     );
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -524,6 +562,134 @@ describe("handleDecompose", () => {
 
     expect(stdoutWrite).toHaveBeenCalledWith('{"status":"not-landed"}\n');
     expect(stderrWrite).toHaveBeenCalledWith("not-landed\n");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("routes execute only through the repository operation adapter", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "partial",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"operation":{"report":{"destinations":["member"]}},"status":"prepared"}\n',
+    );
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("routes discard only through the exact candidate adapter", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { discard: "cut-map.json" });
+
+    expect(mockDiscardGitV3DecomposeCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo" }),
+      "main",
+      "mono",
+      "cut-map.json",
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"candidateBranch":"chore/decompose-mono","claimId":"sha256:${
+        "b".repeat(64)
+      }","generation":1,"status":"discarded"}\n`,
+    );
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("routes a complete finalize invocation only through the pinned finalization adapter", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const receiptId = `sha256:${"a".repeat(64)}`;
+
+    await handleDecompose("mono", {
+      finalize: receiptId,
+      continuation: "continuation.json",
+    });
+
+    expect(mockFinalizeGitV3DecomposeOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo" }),
+      {
+        baseBranch: "main",
+        origin: "mono",
+        receiptId,
+        continuationPath: "continuation.json",
+      },
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"receipt":{"receiptId":"${receiptId}"},"status":"recorded"}\n`,
+    );
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("surfaces the finalization adapter's precomposed recovery without rebuilding it", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    const remedy = "ADAPTER-ONLY: return to the exact authored candidate";
+    mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
+      status: "refused",
+      reason: "continuation-invalid",
+      recovery: {
+        action: "reauthor",
+        establishedFacts: {
+          provenance: "finalize-command",
+          origin: "mono",
+          receiptId,
+          continuationPath: "continuation.json",
+        },
+      },
+      remedy,
+    });
+
+    await handleDecompose("mono", {
+      finalize: receiptId,
+      continuation: "continuation.json",
+    });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"reason":"continuation-invalid","recovery":{"action":"reauthor",`
+      + `"establishedFacts":{"continuationPath":"continuation.json",`
+      + `"origin":"mono","provenance":"finalize-command","receiptId":"${receiptId}"}},`
+      + `"remedy":"${remedy}","status":"refused"}\n`,
+    );
+    expect(stderrWrite).toHaveBeenCalledWith(`continuation-invalid\n${remedy}\n`);
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it.each([
+    ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
+    ["finalize without continuation", { finalize: `sha256:${"a".repeat(64)}` }],
+    ["continuation without finalize", { continuation: "continuation.json" }],
+  ])("refuses %s before any production adapter", async (_case, options) => {
+    await handleDecompose(
+      "mono",
+      options as unknown as Parameters<typeof handleDecompose>[1],
+    );
+
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 

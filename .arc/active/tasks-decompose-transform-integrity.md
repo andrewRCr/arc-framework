@@ -517,17 +517,10 @@ remain live derivations from metas. The core supplies an exact-base integration 
           replaces the receipt placeholder through the durable driver, and returns only bounded restoration or
           exact candidate-generation retry/discard authority on refusal.
 
-    - `[ ]` **4.3.b Expose execute, discard, and finalize through closed command modes**
-        - Add mutually exclusive cut-map execute, exact cut-map discard, and receipt-plus-continuation finalization
-          modes beside preflight and landed handoff. Emit canonical typed results and precomposed recovery only.
-        - Bind discard to the exact revalidated plan and claim generation. Bind finalization to the stored
-          preparation, pinned candidate tree, shared readiness composition, topology validation, prospective versus
-          validated project/ROADMAP parity, and the existing recovery renderer.
-        - Build `test-first` (one behavior at a time):
-            - Every valid mode reaches only its production adapter and conflicting or incomplete modes refuse.
-            - Execute reports exact destination/topology packets; discard and finalization expose only
-              provenance-backed retry, reauthorization, re-preflight, reauthor, or prose guidance.
-            - No handler reconstructs a receipt, digest, path, branch, worktree, or recovery operand.
+    - `[x]` **4.3.b Expose execute, discard, and finalize through closed command modes**
+        - Mutually exclusive command modes now route through repository-bound execute, exact-generation discard,
+          and pinned finalization adapters. Canonical results retain plan packets and typed recovery authority;
+          handlers only emit adapter-produced facts and remedies.
 
     - `[ ]` **4.3.c Move the distribution interlock to the authored candidate**
         - Edit package-source `decompose-work-unit.md` and render its Framework project copy.
