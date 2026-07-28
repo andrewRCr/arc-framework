@@ -42,7 +42,7 @@ Task 3.4.
   cross-owner case rather than the contributor one. Ledger: the `DEV-RULES.ARC` leg now nets roughly −24 nb on day
   one rather than −9. Determination table in `notes-judgment-authority-model.md`.
 
-### `[ ]` **1.2 Anchoring ADR**
+### `[x]` **1.2 Anchoring ADR**
 
 - _Goal:_ `adr-016`, `adr-020`, and `adr-029` read as one authority model whose two senses of "invariant" are
   stated rather than left for a reader to discover.
@@ -50,15 +50,15 @@ Task 3.4.
 - _Note:_ ADRs are internal-only. This one must not be referenced from `strategies/arc/`, docs-site content, or
   any other shipped surface. It is a non-moving artifact and rides the ceremony commit.
 
-    - Number is `adr-030` — `adr-029` is the current highest. The slug names the decision, not the work unit:
-      the model being anchored, in the shape the neighbouring ADR filenames use.
-    - Carry the rationale, not the rule: ARC sits on top of harnesses with their own authority models while
-      claiming harness-agnosticism, and at least one host harness states operator-reaffirmation-is-decisive as a
-      first-class rule. The precedence **rule** itself lives in § Rule Authority's backstop, not here.
-    - Carry the terminology reconciliation: `adr-016` uses _invariant_ for **not project-configurable**;
-      § Rule Authority uses it for **not agent-dischargeable**. State both senses and the coincidence on the two
-      interlocks that has kept the collision from biting.
-    - Generalizing, not superseding — the three anchored ADRs stay in force unchanged.
+    - Landed as `adr-030-anchor-agent-rule-authority.md`, Accepted. Carries the harness-agnosticism rationale,
+      the two-axis terminology reconciliation (configurability vs. dischargeability, coinciding on the two
+      interlocks), and the generalizing-not-superseding relationship to all three anchored ADRs.
+    - The precedence **rule** the design expected to point at no longer exists: D1's amended clause scopes the
+      model to the agent's own authority, so a harness rule about the operator's decisions addresses a different
+      question and no precedence claim is made. The ADR states that scoping decision rather than a precedence
+      one. D2 amended to match.
+    - Risks recorded: the undischargeable-ignorance shape (which Task 1.5 marks) and marker drift eroding the
+      derived reading into an annotation habit.
 
 ### `[ ]` **1.3 `AGENT-BRIEF.ARC` vocabulary additions**
 

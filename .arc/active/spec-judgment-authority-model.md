@@ -237,11 +237,15 @@ Six properties the realization must preserve:
 ### D2 — The anchoring ADR
 
 One ADR under `reference/adr/` anchoring `adr-016`, `adr-020`, and `adr-029` under a single model —
-**generalizing, not superseding**. Its content boundary is narrower than an earlier reading assumed: the
-cross-harness precedence **rule** moved out of it into D1's backstop, because placement by frequency is the wrong
-test and ADRs are summoned by nothing. What the ADR carries is the **rationale** — ARC sits on top of harnesses
-with their own authority models while claiming harness-agnosticism (`PROJECT-PRD`; `adr-005`, `adr-006`), and at
-least one host harness states the operator-reaffirmation-is-decisive norm as a first-class rule.
+**generalizing, not superseding**. Its content boundary is narrower than an earlier reading assumed: no
+cross-harness precedence **rule** is stated anywhere, because none is needed. D1's amended clause scopes the model
+to the agent's own authority — an invariant withholds the authority to decide, never the capability to act — and a
+harness rule about how the agent treats the _operator's_ decisions addresses a different question. What the ADR
+carries is the **rationale** for that scoping: ARC sits on top of harnesses with their own authority models while
+claiming agent- and harness-agnosticism (`PROJECT-PRD`; `adr-002`), and at least one host harness states the
+operator-reaffirmation-is-decisive norm as a first-class rule. Placement by frequency is the test — the reading is
+applied constantly and belongs in the register; why it has this shape is consulted rarely, and ADRs are summoned by
+nothing.
 
 It also carries one **terminology reconciliation**, without which "generalizing, not superseding" is not true.
 `adr-016` uses _invariant_ to mean **not project-configurable** ("the task-interlock remains invariant and is not
