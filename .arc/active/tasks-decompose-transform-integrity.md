@@ -178,14 +178,10 @@ mutation authority; it already contains the operator-approved map and every mech
   input can advance only when its complete machine envelope still matches the freshly rederived source and result
   base, while every drift path remains locally read-only.
 
-### `[ ]` **2.2 Build the complete immutable result plan**
+### `[x]` **2.2 Build the complete immutable result plan**
 
 - _Goal:_ Every pre-creation refusal and every permitted write is represented once in the plan consumed by the
   driver.
-
-- _Note:_ Design coverage: D2, D3, D5.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
     - `[x]` **2.2.a Enforce allocation, ownership, and dependency conservation**
         - Added one pure pre-creation pipeline whose fixed decode, machine-binding, live-conservation, ownership,
@@ -221,32 +217,19 @@ mutation authority; it already contains the operator-approved map and every mech
         - Preparation now consumes the combined projected authority and revalidates it on create/decode; missing,
           extra, mismatched, drifted, or unstable publication/topology operands refuse before occupation.
 
-    - `[ ]` **2.2.e Compose one mutation per managed path**
-        - From the tree-derived profile and validated allocation, produce content contributors for every new-member
-          artifact, optional provisional task, existing-home edit, and dependency edit. Bind destination
-          ID/kind, managed path, artifact role, canonical source IDs/content projection, object kind/mode, and
-          mutation disposition.
-        - Build one canonical path registry over destination/content, dependency, topology, predecessor/source
-          retirement, ROADMAP, and evidence roles. Receipt/evidence, retiring source/predecessor, and ROADMAP paths
-          are exclusive. Every other path has one base prestate and contributors ordered as topology structure,
-          content by `(destinationId, contributorKind, contributorIdentity)`, then dependency transforms by
-          `edgeId`; scaffold identity is artifact role, allocation identity is `(sourceId, targetLocator)`, and
-          each contributor consumes the prior exact after-state.
-        - Refuse multiple whole-file owners, duplicate/incompatible roles, unsupported types or modes, an
-          inapplicable contributor, or any exclusive-role collision before branch creation. Derive unique
-          UTF-8-sorted `allowedPaths` from the registry; with the already-projected publication/topology, compute
-          `planId`, its `ProspectiveTransitionOverlay`, and the exclusive ROADMAP after-state, then close every
-          valid path to one final bytes/mode mutation. Later materialization receives only this table.
-        - Give each new-leaf meta contribution the stable prepared `receiptId` in optional
-          `Decomposition Receipt`; omit the field from ordinary templates and every existing-home contribution.
-        - Build `test-first` (one behavior at a time):
-            - Valid profiles and optional task seeds produce deterministic one-entry-per-path mutations, allowed
-              paths, plan identity, prospective overlay, and ROADMAP result.
-            - A cohort topology scaffold plus allocated coordination content composes in order; an existing-home
-              meta content edit plus one or several dependency dispositions composes once in canonical edge order.
-            - Duplicate whole-file writers, topology/content order mismatch, receipt/predecessor/ROADMAP collision,
-              unwritable homes, extra paths, symlinks, submodules, unexpected modes, and ambiguous content refuse
-              before branch creation.
+    - `[x]` **2.2.e Compose one mutation per managed path**
+        - Added a typed byte-level composer that binds every profile artifact, optional provisional task,
+          allocation projection, topology action, dependency edit, retirement, ROADMAP update, and evidence write
+          into the canonical registry before exposing a plan.
+        - The registry now retains destination, artifact, source-projection, dependent, and edge identity, enforces
+          semantic contributor order and exact prestates, and returns one UTF-8-ordered final mutation plus
+          content-addressed bytes per path.
+        - New-leaf metas render the prepared receipt marker exactly once; existing homes and ordinary rendering
+          omit it. Profile, path-set, role, writer, object, mode, collision, and continuity violations fail closed.
+
+- _Outcome:_ One read-only pipeline now carries tree-pinned conservation, retirement, topology, publication, and
+  content facts into a preparation-bound plan whose complete path authority is unique, ordered, byte-exact, and
+  directly consumable without later resolver or contributor writes.
 
 ### `[ ]` **2.3 Define exact candidate occupation**
 

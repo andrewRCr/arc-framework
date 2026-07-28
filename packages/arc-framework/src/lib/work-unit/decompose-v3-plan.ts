@@ -49,14 +49,19 @@ export interface V3PlanTopologyContributor extends V3PlanContributorBase {
 export interface V3PlanContentContributor extends V3PlanContributorBase {
   kind: "content";
   destinationId: string;
+  destinationKind: "new-member" | "existing-home" | "cohort-coordination";
+  artifactRole: string;
   contributorKind: string;
   contributorIdentity: string;
+  sourceProjection: Array<{ sourceId: string; targetLocator: unknown }>;
   disposition: "whole-file" | "patch";
 }
 
 export interface V3PlanDependencyContributor extends V3PlanContributorBase {
   kind: "dependency";
   edgeId: string;
+  destinationId: string | null;
+  dependent: string;
 }
 
 export type V3PlanContributor =
@@ -185,9 +190,16 @@ function contributorIdentity(contributor: V3PlanContributor): string {
 function contributorKey(contributor: V3PlanContributor): readonly string[] {
   if (contributor.kind === "topology") return ["0", contributor.contributorIdentity];
   if (contributor.kind === "content") {
+    const kindOrder: Record<string, string> = {
+      scaffold: "0",
+      "provisional-task": "0",
+      allocation: "1",
+      "existing-home-edit": "1",
+    };
     return [
       "1",
       contributor.destinationId,
+      kindOrder[contributor.contributorKind] ?? contributor.contributorKind,
       contributor.contributorKind,
       contributor.contributorIdentity,
     ];
@@ -201,10 +213,18 @@ function validIdentity(value: string): boolean {
 
 function contributorIsStructurallyValid(contributor: V3PlanContributor): boolean {
   if (contributor.kind === "topology") return validIdentity(contributor.contributorIdentity);
-  if (contributor.kind === "dependency") return validIdentity(contributor.edgeId);
+  if (contributor.kind === "dependency") {
+    return validIdentity(contributor.edgeId)
+      && validIdentity(contributor.dependent)
+      && (contributor.destinationId === null || validIdentity(contributor.destinationId));
+  }
   return validIdentity(contributor.destinationId)
+    && validIdentity(contributor.destinationKind)
+    && validIdentity(contributor.artifactRole)
     && validIdentity(contributor.contributorKind)
-    && validIdentity(contributor.contributorIdentity);
+    && validIdentity(contributor.contributorIdentity)
+    && contributor.sourceProjection.every(({ sourceId, targetLocator }) =>
+      validIdentity(sourceId) && typeof targetLocator === "object" && targetLocator !== null);
 }
 
 function modeTransitionIsCompatible(
@@ -308,6 +328,9 @@ export function buildValidatedDecomposePlan(
 
     const roleKeys = contributors.map((contributor) => contributorKey(contributor).join("\0"));
     if (new Set(roleKeys).size !== roleKeys.length) {
+      return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+    }
+    if (contributors.filter(({ kind }) => kind === "topology").length > 1) {
       return { ok: false, refusal: { code: "duplicate-role-owner", path } };
     }
     if (contributors.filter(

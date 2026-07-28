@@ -42,8 +42,11 @@ function plan(): ValidatedDecomposePlan {
         contributors: [{
           kind: "content",
           destinationId: "member",
+          destinationKind: "new-member",
+          artifactRole: "meta",
           contributorKind: "meta",
           contributorIdentity: "member-meta",
+          sourceProjection: [],
           disposition: "whole-file",
           before: { kind: "absent" },
           after,
