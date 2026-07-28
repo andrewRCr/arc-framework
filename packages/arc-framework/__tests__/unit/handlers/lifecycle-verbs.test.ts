@@ -144,6 +144,11 @@ vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
   }),
 }));
 
+const mockCreateGitV3DecomposePreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
+  createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
+}));
+
 const mockRunPromote = vi.fn();
 const mockRunDemote = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/promote-demote.js", () => ({
@@ -383,6 +388,10 @@ beforeEach(() => {
     authorityVersion: "finalized-version",
     lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
+  mockCreateGitV3DecomposePreflight.mockResolvedValue({
+    status: "accepted",
+    preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -400,6 +409,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   process.exitCode = undefined;
 });
 
@@ -439,90 +449,32 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("never routes a completed v3 map through the retired v2 runtime", async () => {
-    await handleDecompose("mono", { cutMap: "cut.json" });
+  it("exposes only the complete read-only v3 preflight", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
+    await handleDecompose("mono", { preflight: true });
+
+    expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
     expect(mockParseCutMap).not.toHaveBeenCalled();
     expect(mockPrepareDecompose).not.toHaveBeenCalled();
+    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockStagePreparedResult).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("unsupported-transition:v3-runtime-not-wired");
+    expect(process.exitCode).toBeUndefined();
   });
 
-  it("requires continuation evidence and never invokes the retired finalizer", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    await handleDecompose("mono", { finalize: receiptId });
-
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockPrepareDecompose).not.toHaveBeenCalled();
-    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
-  });
-
-  it("fails closed for finalize-with-continuation until the v3 runtime is wired", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-
-    await handleDecompose("mono", { finalize: receiptId, continuation: "continuation.json" });
-
-    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("unsupported-transition:v3-runtime-not-wired");
-  });
-
-  it("refuses a malformed cut-map before any mutation", async () => {
-    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
-      status: "stale",
-      reason: "completed-map",
-      locus: "cut.json",
-    });
-
-    await handleDecompose("mono", { cutMap: "cut.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("completed-map: cut.json");
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("refuses a missing / unreadable cut-map file before mutation", async () => {
-    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
-      status: "stale",
-      reason: "completed-map",
-      locus: "missing.json",
-    });
-
-    await handleDecompose("mono", { cutMap: "missing.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("completed-map: missing.json");
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
-    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
-      status: "stale",
-      reason: "completed-map",
-      locus: "machine.source.origin",
-    });
-
-    await handleDecompose("other", { cutMap: "cut.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalledWith("completed-map: machine.source.origin");
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("refuses without `--cut-map`, never dispatching", async () => {
+  it("refuses an invocation without preflight authority", async () => {
     await handleDecompose("mono", {});
 
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses without an origin argument", async () => {
-    await handleDecompose(undefined, { cutMap: "cut.json" });
+    await handleDecompose(undefined, { preflight: true });
 
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

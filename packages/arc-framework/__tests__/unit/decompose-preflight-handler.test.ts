@@ -41,7 +41,7 @@ let stdoutSpy: ReturnType<typeof vi.spyOn>;
 let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   process.exitCode = undefined;
   stdout = "";
   stderr = "";
@@ -96,13 +96,16 @@ describe("handleDecompose preflight mode", () => {
     expect(mockIntro).not.toHaveBeenCalled();
   });
 
+  it("refuses an invocation without preflight authority before emitting machine output", async () => {
+    await handleDecompose("origin", {});
+
+    expect(stdout).toBe("");
+    expect(stderr).toBe("");
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("preflight"));
+    expect(process.exitCode).toBe(1);
+  });
+
   it.each([
-    {
-      name: "schema",
-      configure: () => undefined,
-      invoke: () => handleDecompose("origin", { preflight: true, cutMap: "map.json" }),
-      diagnostic: "Provide exactly one complete decompose mode",
-    },
     {
       name: "project root",
       configure: () => mockResolveArcRoot.mockReturnValue(null),

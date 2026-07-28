@@ -292,11 +292,8 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, execute, or finalize one decomposition transition")
+  .description("Emit one canonical read-only v3 decomposition preflight")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
-  .option("--cut-map <file>", "Execute one completed canonical v3 cut map")
-  .option("--finalize <receipt-id>", "Finalize one exact prepared v3 candidate")
-  .option("--continuation <file>", "Closed continuation input required by --finalize")
   .action(withInteractionContext(
     { machineReadable: (options) => options.preflight === true },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
