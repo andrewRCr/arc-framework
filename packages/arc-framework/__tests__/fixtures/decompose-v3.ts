@@ -1,6 +1,7 @@
 import { canonicalDigest, sortByCanonicalBytes } from "../../src/lib/canonical/canonical-json.js";
 import {
   v3CandidatePublication,
+  v3DecomposeReceiptPath,
   v3PlanId,
   v3PreparationId,
   type V3DecomposePreparation,
@@ -86,7 +87,7 @@ export function v3DecompositionEvidenceFixture(): {
     ".arc/backlog/planned/origin/member-a/meta-member-a.md",
     ".arc/backlog/planned/origin/member-b/meta-member-b.md",
   ];
-  const recordPath = `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
+  const recordPath = v3DecomposeReceiptPath(receiptId);
   const allowedPaths = sortByCanonicalBytes([...resultPaths, recordPath]);
   const allowedPathsDigest = v3AllowedPathsDigest(allowedPaths);
   if (allowedPathsDigest === null) throw new Error("fixture paths must be canonical");
