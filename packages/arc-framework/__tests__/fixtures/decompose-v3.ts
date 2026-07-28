@@ -1,6 +1,7 @@
 import { canonicalDigest, sortByCanonicalBytes } from "../../src/lib/canonical/canonical-json.js";
 import {
   v3CandidatePublication,
+  v3DecomposeReceiptPath,
   v3PlanId,
   v3PreparationId,
   v3TopologyDigest,
@@ -97,7 +98,7 @@ export function v3DecompositionEvidenceFixture(options: {
   ];
   const roadmapPath = ".arc/backlog/ROADMAP.md";
   const topologyPath = `.arc/backlog/planned/${origin}/cohort-${origin}.md`;
-  const recordPath = `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
+  const recordPath = v3DecomposeReceiptPath(receiptId);
   const allowedPaths = sortByCanonicalBytes([
     ...resultPaths,
     roadmapPath,
