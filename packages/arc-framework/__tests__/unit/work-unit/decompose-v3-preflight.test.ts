@@ -139,9 +139,12 @@ describe("v3 decomposition preflight", () => {
 
     const storedBytesOnly = input();
     storedBytesOnly.localBranches[0]!.sourceArtifacts[0]!.bytes = bytes("# Draft\n\n## One\nChanged body.\n");
+    const changedUnitIndex = initial.preflight.starterMap.machine.sourceUnits.findIndex(({ sourceLocator }) =>
+      sourceLocator.kind === "section" && sourceLocator.headingSource === "One");
     expect(revalidateV3DecomposePreflight(initial.preflight, storedBytesOnly)).toEqual({
       status: "stale",
-      reason: "source-artifact-inventory",
+      reason: "source-units",
+      locus: `machine.sourceUnits.${changedUnitIndex}.contentDigest`,
     });
     const changedResult = createV3DecomposePreflight(storedBytesOnly);
     expect(changedResult.status).toBe("ready");

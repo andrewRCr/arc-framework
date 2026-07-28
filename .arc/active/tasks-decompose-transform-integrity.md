@@ -53,14 +53,10 @@ units.
   receipt now form one closed, byte-pinned identity chain whose namespace, operands, paths, publication, topology,
   ownership, and transition partitions are authenticated before use.
 
-### `[ ]` **1.2 Scan stable disjoint allocation units**
+### `[x]` **1.2 Scan stable disjoint allocation units**
 
 - _Goal:_ Every source artifact can be conserved exactly once using hierarchy-qualified identities over its
   original bytes.
-
-- _Note:_ Design coverage: D1.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
     - `[x]` **1.2.a Build the H2-H6 heading-stack inventory**
         - Scanned preamble, parent lead, and every H2-H6 descendant as disjoint original-byte ranges with
@@ -70,13 +66,17 @@ units.
         - Pinned CRLF, multibyte, BOM, level-jump, repeated-parent, fence, HTML, quote, list, no-heading, and opaque
           non-Markdown behavior while proving exact byte reconstruction.
 
-    - `[ ]` **1.2.b Resolve hierarchy-qualified locators**
-        - Resolve the complete hierarchy-qualified locator and derive `sourceId` from schema version, source path,
-          and locator while retaining content digest separately.
-        - Build `test-first` (one behavior at a time):
-            - Identical headings under different parents resolve uniquely.
-            - Hierarchy movement changes identity; byte-only edits change only content state.
-            - Wrong ancestry, level, occurrence, or digest refuses at the exact source locus.
+    - `[x]` **1.2.b Resolve hierarchy-qualified locators**
+        - Closed locator ancestry to strictly increasing parent levels, projected untrusted locators canonically,
+          and required one exact match independent of object property order.
+        - Added one source-unit authentication seam that binds managed path plus locator into `sourceId`, retains
+          exact stored-byte digest separately, and reports stable identity, locator, or content loci on refusal.
+        - Preflight revalidation now pinpoints byte drift at the affected source-unit digest; hierarchy movement,
+          malformed ancestry, wrong level/occurrence, duplicate resolution, and byte-only edits are pinned.
+
+- _Outcome:_ Every allocatable artifact now yields an exhaustive original-byte inventory whose structural identity
+  changes only with path or hierarchy, while stored-byte changes remain a separate content binding and refuse at
+  the affected source-unit locus.
 
 ### `[ ]` **1.3 Centralize v3 validation and transition composition**
 

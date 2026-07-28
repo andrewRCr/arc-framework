@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   resolveDecomposeContentLocator,
   resolveV3DecomposeContentLocator,
+  resolveV3DecomposeSourceUnit,
   scanDecomposeContent,
   scanV3DecomposeContent,
 } from "../../../src/lib/work-unit/decompose-content.js";
+import { v3SourceId } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 
@@ -469,6 +472,133 @@ describe("scanV3DecomposeContent", () => {
       },
       "draft-sample.md",
     )).toMatchObject({ status: "rejected" });
+  });
+
+  it("projects untrusted locators canonically and refuses every wrong component at its source locus", () => {
+    const result = scanV3DecomposeContent(
+      "draft-sample.md",
+      bytes("## Parent\n### Same\none\n### Same\ntwo\n"),
+    );
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    const target = result.units.at(-1);
+    expect(target?.locator.kind).toBe("section");
+    if (target === undefined || target.locator.kind !== "section") return;
+
+    const reordered = {
+      occurrence: target.locator.occurrence,
+      ancestry: target.locator.ancestry,
+      headingSource: target.locator.headingSource,
+      level: target.locator.level,
+      kind: target.locator.kind,
+      artifact: target.locator.artifact,
+    };
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      reordered,
+      "draft-sample.md",
+    )).toEqual({ status: "resolved", unit: target });
+
+    for (const locator of [
+      { ...target.locator, level: 4 },
+      { ...target.locator, occurrence: 99 },
+      {
+        ...target.locator,
+        ancestry: [{ ...target.locator.ancestry[0]!, headingSource: "Other" }],
+      },
+    ]) {
+      expect(resolveV3DecomposeContentLocator(
+        result.units,
+        locator,
+        "draft-sample.md",
+      )).toMatchObject({
+        status: "rejected",
+        locus: expect.stringContaining("draft-sample.md"),
+      });
+    }
+    expect(resolveV3DecomposeContentLocator(
+      [...result.units, target],
+      target.locator,
+      "draft-sample.md",
+    )).toMatchObject({ status: "rejected", reason: expect.stringMatching(/2 times/) });
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      { ...target.locator, approval: "accepted" },
+      "draft-sample.md",
+    )).toMatchObject({ status: "rejected", reason: expect.stringMatching(/invalid/i) });
+  });
+
+  it("authenticates source identity and content state as separate bindings", () => {
+    const sourcePath = ".arc/active/draft-sample.md";
+    const original = bytes("## Parent\n### Child\nbody\n");
+    const scan = scanV3DecomposeContent("draft-sample.md", original);
+    expect(scan.status).toBe("scanned");
+    if (scan.status !== "scanned") return;
+    const unit = scan.units.at(-1);
+    expect(unit).toBeDefined();
+    if (unit === undefined) return;
+    const reference = {
+      sourcePath,
+      sourceLocator: unit.locator,
+      sourceId: v3SourceId({ sourcePath, sourceLocator: unit.locator }),
+      contentDigest: digestBytes(unit.bytes),
+    };
+
+    expect(resolveV3DecomposeSourceUnit(reference, original))
+      .toEqual({ status: "resolved", unit });
+    expect(resolveV3DecomposeSourceUnit(
+      { ...reference, sourceId: digestBytes(bytes("other identity")) },
+      original,
+    )).toMatchObject({ status: "rejected", code: "source-id", locus: sourcePath });
+    expect(resolveV3DecomposeSourceUnit(
+      { ...reference, contentDigest: digestBytes(bytes("other content")) },
+      original,
+    )).toMatchObject({ status: "rejected", code: "source-content", locus: expect.stringContaining(sourcePath) });
+    expect(resolveV3DecomposeSourceUnit(
+      {
+        ...reference,
+        sourceLocator: {
+          ...unit.locator,
+          ...(unit.locator.kind === "section" ? { occurrence: 99 } : {}),
+        },
+      },
+      original,
+    )).toMatchObject({ status: "rejected", code: "source-id", locus: sourcePath });
+  });
+
+  it("changes identity on hierarchy movement but not on byte-only edits", () => {
+    const sourcePath = ".arc/active/draft-sample.md";
+    const underFirst = scanV3DecomposeContent(
+      "draft-sample.md",
+      bytes("## First\n### Child\nbody\n"),
+    );
+    const underSecond = scanV3DecomposeContent(
+      "draft-sample.md",
+      bytes("## Second\n### Child\nbody\n"),
+    );
+    const edited = scanV3DecomposeContent(
+      "draft-sample.md",
+      bytes("## First\n### Child\nedited body\n"),
+    );
+    expect(underFirst.status).toBe("scanned");
+    expect(underSecond.status).toBe("scanned");
+    expect(edited.status).toBe("scanned");
+    if (underFirst.status !== "scanned"
+      || underSecond.status !== "scanned"
+      || edited.status !== "scanned") return;
+    const firstChild = underFirst.units.at(-1);
+    const secondChild = underSecond.units.at(-1);
+    const editedChild = edited.units.at(-1);
+    expect(firstChild).toBeDefined();
+    expect(secondChild).toBeDefined();
+    expect(editedChild).toBeDefined();
+    if (firstChild === undefined || secondChild === undefined || editedChild === undefined) return;
+
+    const identity = (locator: typeof firstChild.locator) =>
+      v3SourceId({ sourcePath, sourceLocator: locator });
+    expect(identity(firstChild.locator)).not.toBe(identity(secondChild.locator));
+    expect(identity(firstChild.locator)).toBe(identity(editedChild.locator));
+    expect(digestBytes(firstChild.bytes)).not.toBe(digestBytes(editedChild.bytes));
   });
 });
 

@@ -639,6 +639,29 @@ describe("v3 decomposition map schema", () => {
       }));
     expect(v3SourceId({ sourcePath: unit.sourcePath, sourceLocator: unit.sourceLocator }))
       .toBe(v3SourceId({ sourcePath: unit.sourcePath, sourceLocator: unit.sourceLocator }));
+    for (const sourceLocator of [
+      {
+        artifact: "draft-origin.md",
+        kind: "section" as const,
+        level: 3,
+        headingSource: "Child",
+        ancestry: [{ level: 3, headingSource: "Impossible", occurrence: 0 }],
+        occurrence: 0,
+      },
+      {
+        artifact: "draft-origin.md",
+        kind: "section" as const,
+        level: 5,
+        headingSource: "Child",
+        ancestry: [
+          { level: 4, headingSource: "Inner", occurrence: 0 },
+          { level: 2, headingSource: "Outer", occurrence: 0 },
+        ],
+        occurrence: 0,
+      },
+    ]) {
+      expect(() => v3SourceId({ sourcePath: unit.sourcePath, sourceLocator })).toThrow();
+    }
 
     const artifact = {
       path: "a.md",

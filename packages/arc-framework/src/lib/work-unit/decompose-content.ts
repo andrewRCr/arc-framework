@@ -1,10 +1,19 @@
 /** Deterministic source-unit scanning and locator resolution for decompose. */
 
+import { z } from "zod";
+
+import {
+  canonicalize,
+  digestBytes,
+  isCanonicalDigest,
+} from "../canonical/canonical-json.js";
+import { isManagedPath } from "../canonical/managed-path.js";
 import type { DecomposeContentLocator } from "./decompose-cut-map.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
-import type { z } from "zod";
-
-import type { V3DecomposeLocatorSchema } from "./decompose-v3-schema.js";
+import {
+  V3DecomposeLocatorSchema,
+  v3SourceId,
+} from "./decompose-v3-schema.js";
 
 export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
@@ -299,7 +308,21 @@ export type V3DecomposeContentScanResult =
 
 export type V3DecomposeContentResolution =
   | { status: "resolved"; unit: V3DecomposeContentUnit }
-  | { status: "rejected"; reason: string };
+  | {
+      status: "rejected";
+      reason: string;
+      code?: "source-reference" | "source-id" | "source-locator" | "source-content";
+      locus?: string;
+    };
+
+const V3DecomposeSourceReferenceSchema = z.strictObject({
+  sourceId: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  sourcePath: z.string().refine(isManagedPath, "must be a managed repository-relative path"),
+  sourceLocator: V3DecomposeLocatorSchema,
+  contentDigest: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+});
+
+export type V3DecomposeSourceReference = z.infer<typeof V3DecomposeSourceReferenceSchema>;
 
 function byteOffset(content: string, offset: number): number {
   return new TextEncoder().encode(content.slice(0, offset)).length;
@@ -374,20 +397,107 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
 /** Resolve one complete hierarchy-qualified v3 locator exactly once. */
 export function resolveV3DecomposeContentLocator(
   units: readonly V3DecomposeContentUnit[],
-  locator: V3DecomposeContentLocator,
+  locator: unknown,
   declaredArtifact: string,
 ): V3DecomposeContentResolution {
-  if (!isArtifactBasename(declaredArtifact) || locator.artifact !== declaredArtifact) {
-    return { status: "rejected", reason: "content locator artifact does not match the declared target artifact." };
+  const parsed = V3DecomposeLocatorSchema.safeParse(locator);
+  if (!parsed.success) {
+    return {
+      status: "rejected",
+      reason: "content locator is invalid.",
+      code: "source-locator",
+      locus: declaredArtifact,
+    };
   }
-  const encoded = JSON.stringify(locator);
-  const matches = units.filter((candidate) => JSON.stringify(candidate.locator) === encoded);
+  const sourceLocus = `${declaredArtifact}#${canonicalize(parsed.data)}`;
+  if (!isArtifactBasename(declaredArtifact) || parsed.data.artifact !== declaredArtifact) {
+    return {
+      status: "rejected",
+      reason: "content locator artifact does not match the declared target artifact.",
+      code: "source-locator",
+      locus: sourceLocus,
+    };
+  }
+  const encoded = canonicalize(parsed.data);
+  const matches = units.filter((candidate) => {
+    const candidateLocator = V3DecomposeLocatorSchema.safeParse(candidate.locator);
+    return candidateLocator.success && canonicalize(candidateLocator.data) === encoded;
+  });
   return matches.length === 1 && matches[0] !== undefined
     ? { status: "resolved", unit: matches[0] }
     : {
         status: "rejected",
         reason: `content locator must resolve exactly once; resolved ${matches.length} times.`,
+        code: "source-locator",
+        locus: sourceLocus,
       };
+}
+
+/**
+ * Authenticate one stored source reference against its exact artifact bytes.
+ *
+ * @param referenceInput - Closed path, locator, stable identity, and separate content binding
+ * @param storedBytes - Exact stored blob bytes for the reference's source path
+ * @returns The uniquely resolved byte unit, or one deterministic source locus
+ */
+export function resolveV3DecomposeSourceUnit(
+  referenceInput: unknown,
+  storedBytes: Uint8Array,
+): V3DecomposeContentResolution {
+  const parsed = V3DecomposeSourceReferenceSchema.safeParse(referenceInput);
+  if (!parsed.success) {
+    return {
+      status: "rejected",
+      reason: "source reference is invalid.",
+      code: "source-reference",
+    };
+  }
+  const reference = parsed.data;
+  if (reference.sourceId !== v3SourceId({
+    sourcePath: reference.sourcePath,
+    sourceLocator: reference.sourceLocator,
+  })) {
+    return {
+      status: "rejected",
+      reason: "source identity does not match its path and locator.",
+      code: "source-id",
+      locus: reference.sourcePath,
+    };
+  }
+  const artifact = reference.sourcePath.split("/").at(-1);
+  if (artifact === undefined) {
+    return {
+      status: "rejected",
+      reason: "source path has no artifact basename.",
+      code: "source-reference",
+      locus: reference.sourcePath,
+    };
+  }
+  const scan = scanV3DecomposeContent(artifact, storedBytes);
+  if (scan.status === "rejected") {
+    return {
+      status: "rejected",
+      reason: scan.reason,
+      code: "source-locator",
+      locus: reference.sourcePath,
+    };
+  }
+  const resolved = resolveV3DecomposeContentLocator(scan.units, reference.sourceLocator, artifact);
+  if (resolved.status === "rejected") {
+    return {
+      ...resolved,
+      locus: `${reference.sourcePath}#${canonicalize(reference.sourceLocator)}`,
+    };
+  }
+  if (digestBytes(resolved.unit.bytes) !== reference.contentDigest) {
+    return {
+      status: "rejected",
+      reason: "source content digest does not match the resolved stored bytes.",
+      code: "source-content",
+      locus: `${reference.sourcePath}#${canonicalize(reference.sourceLocator)}`,
+    };
+  }
+  return resolved;
 }
 
 function unit(

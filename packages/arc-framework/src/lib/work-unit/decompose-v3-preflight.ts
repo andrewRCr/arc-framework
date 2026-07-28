@@ -22,7 +22,10 @@ import {
   type V3DecomposeStarterMap,
   type V3SourceArtifactEntry,
 } from "./decompose-v3-schema.js";
-import { scanV3DecomposeContent } from "./decompose-content.js";
+import {
+  resolveV3DecomposeSourceUnit,
+  scanV3DecomposeContent,
+} from "./decompose-content.js";
 
 type PlanningProfile = V3DecomposeMachine["planningProfile"];
 
@@ -113,7 +116,7 @@ export type V3DecomposePreflightResult =
 
 export type V3DecomposePreflightRevalidationResult =
   | { status: "current"; preflight: V3DecomposePreflight }
-  | { status: "stale"; reason: V3DecomposePreflightMismatch };
+  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus?: string };
 
 function compareBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
@@ -352,6 +355,34 @@ export function revalidateV3DecomposePreflight(
   if (prior.resultBase.head !== current.resultBase.head) return { status: "stale", reason: "result-head" };
   if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
     return { status: "stale", reason: "planning-profile" };
+  }
+  const currentSource = [input.sourceBase, ...input.localBranches].find((snapshot) =>
+    snapshot.ref === current.source.ref && snapshot.head === current.source.head);
+  if (currentSource === undefined) return { status: "stale", reason: "source-ref" };
+  for (let index = 0; index < prior.sourceUnits.length; index += 1) {
+    const sourceUnit = prior.sourceUnits[index];
+    if (sourceUnit === undefined) continue;
+    const artifact = currentSource.sourceArtifacts.find(({ path }) => path === sourceUnit.sourcePath);
+    if (artifact === undefined) {
+      return {
+        status: "stale",
+        reason: "source-units",
+        locus: `machine.sourceUnits.${index}.sourcePath`,
+      };
+    }
+    const resolution = resolveV3DecomposeSourceUnit(sourceUnit, artifact.bytes);
+    if (resolution.status === "rejected") {
+      const field = resolution.code === "source-content"
+        ? "contentDigest"
+        : resolution.code === "source-id"
+          ? "sourceId"
+          : "sourceLocator";
+      return {
+        status: "stale",
+        reason: "source-units",
+        locus: `machine.sourceUnits.${index}.${field}`,
+      };
+    }
   }
   if (previous.sourceArtifactDigest !== refreshed.preflight.sourceArtifactDigest) {
     return { status: "stale", reason: "source-artifact-inventory" };

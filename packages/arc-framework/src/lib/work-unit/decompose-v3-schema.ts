@@ -68,7 +68,22 @@ export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
     occurrence: z.number().int().nonnegative(),
   }),
   z.strictObject({ artifact: BasenameSchema, kind: z.literal("whole-file") }),
-]);
+]).superRefine((locator, ctx) => {
+  if (locator.kind !== "section") return;
+  let previousLevel = 1;
+  for (let index = 0; index < locator.ancestry.length; index += 1) {
+    const ancestor = locator.ancestry[index];
+    if (ancestor !== undefined
+      && (ancestor.level <= previousLevel || ancestor.level >= locator.level)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ancestry levels must increase strictly and remain below the section level",
+        path: ["ancestry", index, "level"],
+      });
+    }
+    if (ancestor !== undefined) previousLevel = ancestor.level;
+  }
+});
 
 const SourceSchema = z.strictObject({
   origin: DecomposeSlugSchema,
