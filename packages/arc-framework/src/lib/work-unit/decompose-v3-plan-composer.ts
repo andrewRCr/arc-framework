@@ -7,7 +7,11 @@ import {
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
-import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  renderMetaFile,
+  type MetaRenderOverrides,
+} from "../active/meta-reader.js";
 import type { V3DecomposeCutMap, V3DecomposeMachine } from "./decompose-v3-schema.js";
 import {
   buildValidatedDecomposePlan,
@@ -118,6 +122,7 @@ export type V3PlanCompositionRefusalCode =
   | "dependency-projection-mismatch"
   | "receipt-marker-missing"
   | "receipt-marker-forbidden"
+  | "profile-meta-mismatch"
   | "managed-path-set-mismatch"
   | "unsupported-path-state"
   | "incompatible-base-prestate"
@@ -182,6 +187,45 @@ function contentIdentity(contribution: V3PlannedContentContribution): string {
     return projection === undefined ? "" : canonicalDigest(projection);
   }
   return contribution.artifactRole;
+}
+
+function artifactBasename(path: string): string {
+  return path.split("/").at(-1) ?? "";
+}
+
+function validNewMemberProfileMeta(
+  input: V3PlanCompositionInput,
+  destinationId: string,
+): boolean {
+  const contributions = input.content.filter((entry) =>
+    entry.destinationId === destinationId && entry.destinationKind === "new-member");
+  const meta = contributions.filter(({ artifactRole }) => artifactRole === "meta");
+  if (meta.length !== 1 || meta[0]?.after.kind !== "object"
+    || meta[0].after.objectKind !== "blob") return false;
+  let record;
+  try {
+    record = parseMetaRecord(decoder.decode(meta[0].after.bytes));
+  } catch {
+    return false;
+  }
+  const roles: V3ContentArtifactRole[] = input.planningProfile.kind === "draft"
+    ? ["draft"]
+    : input.planningProfile.kind === "single-spec"
+      ? ["spec"]
+      : ["spec", "rfc"];
+  const design = roles.map((role) => {
+    const paths = [...new Set(
+      contributions.filter((entry) => entry.artifactRole === role).map(({ path }) => path),
+    )];
+    return paths.length === 1 ? artifactBasename(paths[0] ?? "") : "";
+  });
+  const workflow = input.planningProfile.kind === "draft" ? "draft-design" : "generate-tasks";
+  return design.every((path) => path !== "")
+    && canonicalDigest(record.design) === canonicalDigest(design)
+    && record.state === "Planning"
+    && record.taskList === null
+    && record.currentWorkflow === workflow
+    && record.nextAction === `Begin ${workflow}`;
 }
 
 function destinationRoleIsApplicable(contribution: V3PlannedContentContribution): boolean {
@@ -394,6 +438,18 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
           },
         };
       }
+    }
+  }
+  for (const destination of input.destinations) {
+    if (destination.kind === "new-member"
+      && !validNewMemberProfileMeta(input, destination.destinationId)) {
+      return {
+        status: "refused",
+        refusal: {
+          code: "profile-meta-mismatch",
+          destinationId: destination.destinationId,
+        },
+      };
     }
   }
   for (const dependency of input.dependencies) {

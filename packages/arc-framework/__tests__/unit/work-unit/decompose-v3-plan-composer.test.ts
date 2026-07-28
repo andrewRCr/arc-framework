@@ -11,7 +11,7 @@ import {
   type V3PlanCompositionInput,
   type V3PlannedContentContribution,
 } from "../../../src/lib/work-unit/decompose-v3-plan-composer.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
 describe("v3 decomposition plan composition", () => {
   const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -61,6 +61,8 @@ describe("v3 decomposition plan composition", () => {
       workClass: "Heavy",
       priority: "P1",
       design: ["draft-member-a.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
     });
     return {
       preflightId: canonicalDigest("preflight"),
@@ -246,7 +248,23 @@ describe("v3 decomposition plan composition", () => {
         ...artifacts.map(({ path }) => path),
       ],
       content: [
-        meta,
+        {
+          ...meta,
+          after: {
+            kind: "object",
+            objectKind: "blob",
+            mode: "100644",
+            bytes: renderV3NewLeafMeta("member-a", receiptId, {
+              state: "Planning",
+              owner: "andrew",
+              workClass: "Heavy",
+              priority: "P1",
+              design: artifacts.map(({ path }) => path.split("/").at(-1) ?? ""),
+              currentWorkflow: "generate-tasks",
+              nextAction: "Begin generate-tasks",
+            }),
+          },
+        },
         ...artifacts.map(({ role, path }) => content({
           path,
           artifactRole: role,
@@ -255,6 +273,48 @@ describe("v3 decomposition plan composition", () => {
       ],
     });
     expect(result.status).toBe("composed");
+    if (result.status !== "composed") return;
+    const metaMutation = result.plan.mutations.find(({ path }) => path === metaPath);
+    if (metaMutation?.after.kind !== "file") throw new Error("expected meta mutation");
+    const metaContentDigest = metaMutation.after.contentDigest;
+    const metaBlob = result.blobs.find(({ contentDigest }) =>
+      contentDigest === metaContentDigest);
+    if (metaBlob === undefined) throw new Error("expected meta blob");
+    const record = parseMetaRecord(new TextDecoder().decode(metaBlob.bytes));
+    expect(record.design).toEqual(artifacts.map(({ path }) => path.split("/").at(-1)));
+    expect(record.taskList).toBeNull();
+    expect(record.currentWorkflow).toBe("generate-tasks");
+    expect(record.nextAction).toBe("Begin generate-tasks");
+  });
+
+  it("refuses a new-leaf meta whose workflow tuple does not match its profile", () => {
+    const input = baseInput();
+    const meta = input.content.find(({ artifactRole }) => artifactRole === "meta");
+    if (meta === undefined) throw new Error("expected meta contribution");
+    const result = composeV3DecomposePlan({
+      ...input,
+      content: input.content.map((entry) => entry === meta
+        ? {
+            ...entry,
+            after: {
+              kind: "object",
+              objectKind: "blob",
+              mode: "100644",
+              bytes: renderV3NewLeafMeta("member-a", receiptId, {
+                state: "Planning",
+                owner: "andrew",
+                design: ["draft-member-a.md"],
+                currentWorkflow: "generate-tasks",
+                nextAction: "Begin generate-tasks",
+              }),
+            },
+          }
+        : entry),
+    });
+    expect(result).toEqual({
+      status: "refused",
+      refusal: { code: "profile-meta-mismatch", destinationId: "a" },
+    });
   });
 
   it("accepts an optional provisional task without making it authoritative", () => {

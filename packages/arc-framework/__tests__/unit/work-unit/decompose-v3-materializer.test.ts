@@ -16,9 +16,15 @@ const beforeBytes = encoder.encode("before\n");
 const afterBytes = encoder.encode("after\n");
 const before = { kind: "file", mode: "100644", contentDigest: digestBytes(beforeBytes) } as const;
 const after = { kind: "file", mode: "100644", contentDigest: digestBytes(afterBytes) } as const;
+const draftBytes = encoder.encode("# Draft: member\n");
+const draftAfter = { kind: "file", mode: "100644", contentDigest: digestBytes(draftBytes) } as const;
 
 function plan(): ValidatedDecomposePlan {
-  const allowedPaths = [".arc/active/meta-member.md", ".arc/backlog/ROADMAP.md"];
+  const allowedPaths = [
+    ".arc/active/meta-member.md",
+    ".arc/backlog/planned/member/draft-member.md",
+    ".arc/backlog/ROADMAP.md",
+  ];
   return {
     planId: canonicalDigest({ plan: 1 }),
     cutMapDigest: canonicalDigest("cut-map"),
@@ -56,6 +62,24 @@ function plan(): ValidatedDecomposePlan {
         }],
       },
       {
+        kind: "composed",
+        path: ".arc/backlog/planned/member/draft-member.md",
+        before: { kind: "absent" },
+        after: draftAfter,
+        contributors: [{
+          kind: "content",
+          destinationId: "member",
+          destinationKind: "new-member",
+          artifactRole: "draft",
+          contributorKind: "scaffold",
+          contributorIdentity: "member-draft",
+          sourceProjection: [],
+          disposition: "whole-file",
+          before: { kind: "absent" },
+          after: draftAfter,
+        }],
+      },
+      {
         kind: "exclusive",
         path: ".arc/backlog/ROADMAP.md",
         role: "roadmap",
@@ -82,8 +106,9 @@ function harness(
     applications,
     io: {
       observe: async (path) => states.get(path) ?? { kind: "absent" },
-      readBlob: async () => blob,
-      applyFinal: async (path, state, bytes) => {
+      readBlob: async (contentDigest) =>
+        contentDigest === draftAfter.contentDigest ? draftBytes : blob,
+      applyAndStageFinal: async (path, state, bytes) => {
         applications.push({ path, state, bytes });
         states.set(path, state);
       },
@@ -95,6 +120,7 @@ describe("materializeV3DecomposePlan", () => {
   it("validates all paths and final blobs before applying each final state once", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
       [".arc/backlog/ROADMAP.md", before],
     ]));
 
@@ -103,14 +129,24 @@ describe("materializeV3DecomposePlan", () => {
     expect(result.status).toBe("materialized");
     expect(h.applications.map(({ path }) => path)).toEqual([
       ".arc/active/meta-member.md",
+      ".arc/backlog/planned/member/draft-member.md",
       ".arc/backlog/ROADMAP.md",
     ]);
-    expect(h.applications.every(({ bytes }) => bytes === afterBytes)).toBe(true);
+    expect(h.applications.map(({ bytes }) => bytes)).toEqual([afterBytes, draftBytes, afterBytes]);
+    expect(result).toMatchObject({
+      status: "materialized",
+      members: [{
+        destinationId: "member",
+        metaPath: ".arc/active/meta-member.md",
+        artifactPaths: [".arc/backlog/planned/member/draft-member.md"],
+      }],
+    });
   });
 
   it("returns already-applied paths without a second write", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", after],
+      [".arc/backlog/planned/member/draft-member.md", draftAfter],
       [".arc/backlog/ROADMAP.md", after],
     ]));
 
@@ -119,6 +155,7 @@ describe("materializeV3DecomposePlan", () => {
     expect(result).toMatchObject({
       status: "materialized",
       paths: [
+        { disposition: "already-applied" },
         { disposition: "already-applied" },
         { disposition: "already-applied" },
       ],
@@ -134,6 +171,7 @@ describe("materializeV3DecomposePlan", () => {
     } as const;
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
       [".arc/backlog/ROADMAP.md", conflict],
     ]));
 
@@ -148,6 +186,7 @@ describe("materializeV3DecomposePlan", () => {
   it("performs zero writes for missing or digest-mismatched final blobs", async () => {
     const states = new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
       [".arc/backlog/ROADMAP.md", before],
     ]);
     const missing = harness(states, null);

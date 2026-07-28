@@ -278,36 +278,16 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
-    - `[ ]` **3.1.a Materialize one canonical mutation per managed path**
-        - Extend the managed meta field model with optional `Decomposition Receipt` immediately after
-          `Review Rubric`. Give it omit-when-absent parsing/rendering/reconciliation semantics: ordinary rendering
-          never emits or backfills it, while present values retain canonical position and exact bytes.
-        - Replace live scaffolding and independent topology/destination writers with one materializer that accepts
-          only the `ValidatedDecomposePlan` one-entry-per-path mutation table. Validate every path's base prestate
-          or exact already-applied final state before the first write, then write and stage each final bytes/mode
-          result at most once without rerunning contributor logic.
-        - Materialize the composed results for every planned draft/spec/task/meta, existing-home edit, dependency
-          edit, and cohort path. Preserve contributor provenance for reporting, but never expose an intermediate
-          topology/content/dependency state as a writable operation.
-        - Emit `Decomposition Receipt: <canonical receiptId>` only through the composed new-leaf meta result. Do not
-          add the optional field to standard templates, ordinary metas, or existing homes.
-        - Return each path's applied/already-applied disposition and each new member's `metaPath` plus
-          profile-neutral `artifactPaths`; preserve unrelated existing-home bytes through the planned final state.
-        - Build `test-first` (one behavior at a time):
-            - Every output artifact is byte-identical to its planned final state, emitted/staged at most once, and
-              introduces no unallocated template prose or placeholder.
-            - Draft members carry exact Design, `draft-design`, `Task List: [none]`, and begin-workflow Next Action;
-              mature single/paired members carry canonical Design order, `generate-tasks`, the same unset task
-              pointer, and begin-workflow Next Action.
-            - Every new leaf carries the exact prepared receipt ID while ordinary and existing-home metas remain
-              byte-identical without the optional field.
-            - Parsing returns absent for ordinary metas; rendering/reconciliation omits rather than backfills the
-              field, preserves one canonical supplied marker, and refuses duplicate or misplaced decomposition
-              markers at tuple validation.
-            - Topology-plus-coordination content and existing-home-content-plus-dependency paths each produce one
-              final write; optional task seed bytes remain staged but unpointed.
-            - A conflict in the last planned path produces zero writes; partial retry accepts only exact base or
-              final states and never resumes from an intermediate contributor state.
+    - `[x]` **3.1.a Materialize one canonical mutation per managed path**
+        - The managed optional `Decomposition Receipt` field now omits on ordinary render/reconcile, preserves one
+          explicit canonical value after `Review Rubric`, and has tuple validation for duplicate, misplaced,
+          malformed, or mismatched markers.
+        - The immutable materializer validates every path prestate and content-addressed final blob before its first
+          apply-and-stage call, accepts only exact base/final retry states, and emits each composed final path once
+          without exposing contributor intermediates.
+        - New-member output includes destination ID, meta path, and profile-neutral artifact paths. Draft and mature
+          meta tuples bind exact Design order, unset Task List, entry workflow/Next Action, and prepared receipt;
+          existing homes and ordinary metas cannot acquire the marker.
 
     - `[ ]` **3.1.b Report composed topology and destination outcomes**
         - Join the materializer's path dispositions back to the immutable contributor provenance. Report each

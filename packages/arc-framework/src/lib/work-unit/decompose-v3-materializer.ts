@@ -8,7 +8,7 @@ import type {
 export interface V3MaterializerIO {
   observe(path: string): Promise<V3PlanCanonicalPathState>;
   readBlob(contentDigest: string): Promise<Uint8Array | null>;
-  applyFinal(
+  applyAndStageFinal(
     path: string,
     state: V3PlanCanonicalPathState,
     bytes: Uint8Array | null,
@@ -21,11 +21,22 @@ export interface V3MaterializedPath {
   mutation: V3ValidatedPathMutation;
 }
 
+export interface V3MaterializedMember {
+  destinationId: string;
+  metaPath: string;
+  artifactPaths: string[];
+}
+
 export type V3MaterializationResult =
-  | { status: "materialized"; paths: V3MaterializedPath[] }
+  | { status: "materialized"; paths: V3MaterializedPath[]; members: V3MaterializedMember[] }
   | {
       status: "refused";
-      reason: "path-conflict" | "missing-final-blob" | "final-blob-mismatch" | "apply-failed";
+      reason:
+        | "path-conflict"
+        | "missing-final-blob"
+        | "final-blob-mismatch"
+        | "invalid-member-projection"
+        | "apply-failed";
       path: string;
     };
 
@@ -34,6 +45,41 @@ function statesEqual(
   right: V3PlanCanonicalPathState,
 ): boolean {
   return canonicalDigest(left) === canonicalDigest(right);
+}
+
+function projectMembers(
+  plan: ValidatedDecomposePlan,
+): { ok: true; members: V3MaterializedMember[] } | { ok: false; path: string } {
+  const projected = new Map<string, { metaPaths: string[]; artifactPaths: string[] }>();
+  for (const mutation of plan.mutations) {
+    if (mutation.kind !== "composed") continue;
+    for (const contributor of mutation.contributors) {
+      if (contributor.kind !== "content" || contributor.destinationKind !== "new-member") continue;
+      const member = projected.get(contributor.destinationId) ?? { metaPaths: [], artifactPaths: [] };
+      if (contributor.artifactRole === "meta") member.metaPaths.push(mutation.path);
+      else member.artifactPaths.push(mutation.path);
+      projected.set(contributor.destinationId, member);
+    }
+  }
+  const members: V3MaterializedMember[] = [];
+  for (const [destinationId, member] of projected) {
+    const metaPaths = [...new Set(member.metaPaths)];
+    const metaPath = metaPaths[0];
+    if (metaPaths.length !== 1 || metaPath === undefined) {
+      return { ok: false, path: metaPaths[0] ?? member.artifactPaths[0] ?? plan.allowedPaths[0] ?? "" };
+    }
+    members.push({
+      destinationId,
+      metaPath,
+      artifactPaths: [...new Set(member.artifactPaths)].sort((left, right) =>
+        Buffer.compare(Buffer.from(left), Buffer.from(right))),
+    });
+  }
+  return {
+    ok: true,
+    members: members.sort((left, right) =>
+      Buffer.compare(Buffer.from(left.destinationId), Buffer.from(right.destinationId))),
+  };
 }
 
 /**
@@ -48,6 +94,10 @@ export async function materializeV3DecomposePlan(
 ): Promise<V3MaterializationResult> {
   const observations = new Map<string, V3PlanCanonicalPathState>();
   const blobs = new Map<string, Uint8Array | null>();
+  const memberProjection = projectMembers(plan);
+  if (!memberProjection.ok) {
+    return { status: "refused", reason: "invalid-member-projection", path: memberProjection.path };
+  }
 
   for (const mutation of plan.mutations) {
     const observed = await io.observe(mutation.path);
@@ -80,11 +130,11 @@ export async function materializeV3DecomposePlan(
       continue;
     }
     try {
-      await io.applyFinal(mutation.path, mutation.after, blobs.get(mutation.path) ?? null);
+      await io.applyAndStageFinal(mutation.path, mutation.after, blobs.get(mutation.path) ?? null);
     } catch {
       return { status: "refused", reason: "apply-failed", path: mutation.path };
     }
     paths.push({ path: mutation.path, disposition: "applied", mutation });
   }
-  return { status: "materialized", paths };
+  return { status: "materialized", paths, members: memberProjection.members };
 }
