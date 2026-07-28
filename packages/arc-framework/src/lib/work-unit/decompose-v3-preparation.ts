@@ -614,8 +614,7 @@ export function parseV3DecomposePreparation(input: unknown): V3DecomposePreparat
     || facts.incomingEdgeInventoryDigest !== v3IncomingEdgeInventoryDigest(map.machine)
     || facts.outgoingEdgeInventoryDigest !== v3OutgoingEdgeInventoryDigest(map.machine)
     || record.receiptId !== v3ReceiptId(map.machine)
-    || facts.allowedPaths.filter((path) =>
-      path === v3DecomposeReceiptPath(record.receiptId)).length !== 1) return null;
+    || !facts.allowedPaths.includes(v3DecomposeReceiptPath(record.receiptId))) return null;
   const topologyFacts = parseV3TopologyFacts(facts.topology.facts);
   const expectedDestinationIds = map.authoring.destinations
     .filter((destination) => destination.kind !== "cohort-coordination")
