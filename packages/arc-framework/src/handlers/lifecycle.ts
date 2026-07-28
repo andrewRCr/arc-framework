@@ -88,6 +88,9 @@ import {
   resolveGitLandedDecompositionHandoff,
 } from "../lib/work-unit/git-landed-decomposition-handoff.js";
 import {
+  cleanupGitLandedDecompositionLocally,
+} from "../lib/work-unit/git-decomposition-local-cleanup.js";
+import {
   executeGitV3DecomposeCommand,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import {
@@ -1982,6 +1985,40 @@ export async function handleTeardown(
       huskedTitle: "Branch worktree husked",
     });
     return;
+  }
+
+  if (input.husk === undefined) {
+    const decomposition = await cleanupGitLandedDecompositionLocally(
+      baseBranch,
+      wuName ?? "",
+      {
+        cwd: base.cwd,
+        exec,
+        readBlob: (oid) => readGitObjectBytes(base.cwd, oid),
+        closeUserWorkspace: async (origin) => {
+          await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: origin });
+        },
+        chdir: (dir) => { process.chdir(dir); locus = dir; },
+      },
+    );
+    if (decomposition.status === "refused") {
+      refuse(decomposition.reason);
+      return;
+    }
+    if (decomposition.status === "cleaned") {
+      p.note([
+        `Work unit:          ${wuName}`,
+        `Source branch:      ${decomposition.source.branch} (${decomposition.source.branchOutcome})`,
+        `Source worktree:    ${decomposition.source.worktreeOutcome}`,
+        `Candidate branch:   ${decomposition.candidate.branch} (${decomposition.candidate.branchOutcome})`,
+        `Candidate worktree: ${decomposition.candidate.worktreeOutcome}`,
+        `Claim retirement: ${decomposition.retirement}`,
+        `Claim registration: ${decomposition.registration}`,
+        "Remote cleanup: not authorized",
+      ].join("\n"), "Decomposition torn down");
+      p.outro("Done.");
+      return;
+    }
   }
 
   const result = await runTeardown(

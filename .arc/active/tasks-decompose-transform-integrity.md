@@ -541,15 +541,10 @@ remain live derivations from metas. The core supplies an exact-base integration 
 _Purpose:_ Prove the complete retirement core at the command, hook, landing, project-projection, publication, and
 local-cleanup boundaries without importing extension-owned matrices.
 
-### `[ ]` **5.1 Exercise the canonical retirement lifecycle**
+### `[x]` **5.1 Exercise the canonical retirement lifecycle**
 
 - _Goal:_ A realistic started work unit reaches a landed, origin-addressable, launch-ready result using only
   machine-produced proof and the installed ARC surface.
-
-- _Note:_ Design coverage: D1-D6. This is acceptance composition, not the implementation home for lower-tier
-  behavior.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
 
     - `[x]` **5.1.a Build the realistic decomposition fixture**
         - Normal initialization now drives a full-protection `stub → start` topology through the installed hook
@@ -559,33 +554,16 @@ local-cleanup boundaries without importing extension-owned matrices.
           source head, and canonical non-TTY preflight is checkout-independent and mutation-free. The persisted
           symmetric three-leaf map edits only public author slots and preserves the machine envelope byte-for-byte.
 
-    - `[ ]` **5.1.b Drive one canonical started retirement**
-        - Exercise candidate occupation, exact tuple/cohort materialization, semantic authoring, the fixture's
-          explicit post-authoring continuation file, and atomic finalization. Prove checkpoint order without
-          fabricating an approval token or claiming automated proof of semantic fidelity; the receipt contains no
-          approval credential.
-        - Before finalization, prove the installed hook chain rejects the prepared candidate commit. Finalize once,
-          assert an immediate no-change retry returns `already-finalized`, then commit normally with a valid ARC
-          message through the commit-relevant installed hooks and push to the local bare remote through
-          `pre-push`.
-        - While prepared and again while committed-unlanded, use only public read-only status and `--handoff`
-          queries from the base checkout. Assert candidate members remain absent, handoff is non-landed, and no
-          query mutates the base or candidate; do not probe with `arc start`.
-        - Assert the candidate projection suppresses the retired origin while the configured-base ROADMAP and
-          predecessor remain unchanged. Land with a real exact-base non-fast-forward Git merge, never by copying
-          files or moving refs, and do not advance the base after landing. Re-render without a supplied overlay and
-          require the same converged project view.
-        - After landing, resolve the public handoff by original slug. Assert one selected ready new leaf, one
-          blocked published new leaf with its exact dependency locus, and one unselected ready new leaf.
-        - Assert the exact managed-path manifest with blob OIDs and modes, no extra paths, paired-spec member
-          metadata, provisional-task non-authority, logical/display anchor, receipt/base/candidate identities, and
-          unchanged source ref/tree.
-        - Assert the live claim's exact generation and binding suppress only its candidate warning while a
-          simultaneous recordless `chore/decompose-*` branch still warns. Exact landing retires the claim to
-          matching `{ kind: landed, receiptId, candidateHead }`; retry is already-retired-matching.
-        - Derive local-only teardown eligibility and claim retirement from the same canonical landing result.
-          Grant no remote cleanup, keep the source branch/worktree until explicit fixture teardown, and finish with
-          no stray worktrees, live claims, refs, or temporary repositories.
+    - `[x]` **5.1.b Drive one canonical started retirement**
+        - The built CLI now carries the authored candidate through prepared-commit refusal, atomic finalization,
+          installed commit/push hooks, exact-base merge, manifest and no-rider proof, and origin-addressed landed
+          handoff with exact selected, blocked, and unselected readiness.
+        - Explicit `arc teardown origin` consumes the same anchor, retires and releases the bound claim
+          idempotently, removes only exact local source/candidate projections, preserves remote refs, and leaves no
+          local worktree or branch residue.
+
+- _Outcome:_ The canonical installed lifecycle proves receipt-backed publication, projection, handoff, and
+  local-only cleanup as one exact full-protection topology without importing lower-tier implementation seams.
 
 ### `[ ]` **5.2 Cover representative core variants without a cross-product**
 
