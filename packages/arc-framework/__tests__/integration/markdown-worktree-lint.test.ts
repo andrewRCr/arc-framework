@@ -64,7 +64,7 @@ describe("worktree Markdown lint", () => {
   it("includes untracked non-ignored Markdown in the worktree selection", async () => {
     await write("docs/new-page.md", "# New page\n");
     const executeLinter = vi.fn<(root: string, args: readonly string[]) => Promise<number>>()
-      .mockResolvedValue(0);
+      .mockResolvedValue(1);
     const result = await runWorktreeMarkdownlint({
       root,
       exec: makeGitExec(root),
@@ -72,6 +72,7 @@ describe("worktree Markdown lint", () => {
       executeLinter,
     });
 
+    expect(result.exitCode).toBe(1);
     expect([...result.paths].sort()).toEqual(["README.md", "docs/guide.md", "docs/new-page.md"].sort());
     expect(executeLinter).toHaveBeenCalledTimes(1);
     const linterArgs = executeLinter.mock.calls[0]?.[1] ?? [];

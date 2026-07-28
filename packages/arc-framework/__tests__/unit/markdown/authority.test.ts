@@ -165,39 +165,43 @@ describe("Markdown authority", () => {
   });
 
   it("enumerates a NUL-safe selected scope for worktree and index views", async () => {
-    const stdout = [
+    const sharedPaths = [
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
       "docs/temp-guide.md",
-      "docs/new-untracked.md",
+    ];
+    const excludedNoise = [
       ".arc/active/temp-draft.md",
       ".arc/completed/2026-q3/old.md",
       "fixtures/node_modules/ignored.md",
       ".venv-tools/ignored.md",
       "README.txt",
       "",
-    ].join("\0");
-    const exec = vi.fn().mockResolvedValue({ stdout });
-
-    const expected = [
-      "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
-      ".arc/system/rules/DEV-RULES.ARC.md",
-      "docs/unusual\nname.md",
-      "docs/temp-guide.md",
-      "docs/new-untracked.md",
     ];
+    const worktreeStdout = [
+      ...sharedPaths,
+      "docs/new-untracked.md",
+      ...excludedNoise,
+    ].join("\0");
+    const indexStdout = [
+      ...sharedPaths,
+      ...excludedNoise,
+    ].join("\0");
+    const exec = vi.fn()
+      .mockResolvedValueOnce({ stdout: worktreeStdout })
+      .mockResolvedValueOnce({ stdout: indexStdout });
+
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
-      .resolves.toEqual(expected);
+      .resolves.toEqual([...sharedPaths, "docs/new-untracked.md"]);
     expect(exec).toHaveBeenCalledWith(
       "git",
       ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
       { cwd: "/repo" },
     );
 
-    exec.mockClear();
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "index" }))
-      .resolves.toEqual(expected);
+      .resolves.toEqual(sharedPaths);
     expect(exec).toHaveBeenCalledWith(
       "git",
       ["ls-files", "--cached", "-z"],
