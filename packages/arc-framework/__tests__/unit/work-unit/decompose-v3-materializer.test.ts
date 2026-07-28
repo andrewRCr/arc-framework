@@ -10,6 +10,7 @@ import type {
   ValidatedDecomposePlan,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
+import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 const encoder = new TextEncoder();
 const beforeBytes = encoder.encode("before\n");
@@ -30,7 +31,13 @@ function plan(): ValidatedDecomposePlan {
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
-    topologyFacts: [],
+    candidateAuthority: {
+      candidatePublication: {
+        logicalAnchor: { kind: "direct-member", slug: "member" },
+        entries: [{ kind: "new-leaf", slug: "member" }],
+      },
+      topology: { facts: [{ kind: "none" }], digest: v3TopologyDigest([{ kind: "none" }]) },
+    },
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
     prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -180,6 +187,7 @@ describe("materializeV3DecomposePlan", () => {
       status: "refused",
       reason: "path-conflict",
       path: ".arc/backlog/ROADMAP.md",
+      appliedPaths: [],
     });
     expect(h.applications).toEqual([]);
   });

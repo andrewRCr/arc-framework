@@ -20,7 +20,8 @@ import {
   type V3PlanPathClaim,
 } from "./decompose-v3-plan.js";
 import type { V3CandidatePublication } from "./decompose-v3-preparation.js";
-import type { V3TopologyAction } from "./decompose-v3-topology.js";
+import { v3TopologyDigest, type V3TopologyFact } from "./decompose-v3-preparation.js";
+import type { V3TopologyAction, V3TopologyTreeState } from "./decompose-v3-topology.js";
 
 export type V3PlannedByteState =
   | { kind: "absent" }
@@ -161,6 +162,16 @@ function state(
     mode: value.mode,
     contentDigest,
   };
+}
+
+function topologyPreparationState(
+  value: V3TopologyTreeState,
+): Exclude<V3TopologyFact, { kind: "none" }>["before"] {
+  if (value.kind === "absent") return value;
+  if (value.objectKind !== "blob" || (value.mode !== "100644" && value.mode !== "100755")) {
+    throw new Error("unsupported-topology-state");
+  }
+  return { kind: "file", mode: value.mode, contentDigest: digestBytes(value.bytes) };
 }
 
 function expectedArtifactRoles(
@@ -543,17 +554,41 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
     return { status: "refused", refusal: { code: "managed-path-set-mismatch" } };
   }
 
+  let topologyFacts: V3TopologyFact[];
+  try {
+    topologyFacts = input.topology.map((action): V3TopologyFact => action.kind === "none"
+      ? action
+      : {
+          kind: action.kind,
+          path: action.path,
+          before: topologyPreparationState(action.before),
+          after: topologyPreparationState(action.after),
+        });
+  } catch {
+    return { status: "refused", refusal: { code: "unsupported-path-state" } };
+  }
+  let observedTopologyDigest: CanonicalDigest;
+  try {
+    observedTopologyDigest = v3TopologyDigest(topologyFacts);
+  } catch {
+    return { status: "refused", refusal: { code: "invalid-plan-operand" } };
+  }
+  if (observedTopologyDigest !== input.topologyDigest) {
+    return { status: "refused", refusal: { code: "invalid-plan-operand" } };
+  }
+
   const result = buildValidatedDecomposePlan({
     preflightId: input.preflightId,
     cutMapDigest: input.cutMapDigest,
     sourceHead: input.sourceHead,
     expectedBaseHead: input.expectedBaseHead,
     candidatePublication: input.candidatePublication,
-    topologyDigest: input.topologyDigest,
+    topology: {
+      facts: topologyFacts,
+      digest: input.topologyDigest,
+    },
     origin: input.origin,
     sourceBranch: input.sourceBranch,
-    topologyFacts: input.topology.map((action) =>
-      action.kind === "none" ? action : { kind: action.kind, path: action.path }),
     claims,
   });
   if (!result.ok) return { status: "refused", refusal: result.refusal };

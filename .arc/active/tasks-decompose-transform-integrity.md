@@ -298,31 +298,14 @@ authority; finalization checks mechanics and persists no approval credential.
         - Direct, nested, backfill, ensure, at-cap append, reuse, no-topology, composed-content, and conflict
           coverage proves reports expose no inferred prose, paths, sequencing, or secondary writes.
 
-    - `[ ]` **3.1.c Execute one plan-bound operation**
-        - After the managed-path materializer and result reporter exist, make one driver operation own occupation,
-          post-occupation revalidation, result mutation, staging, and preparation. Remove any mutation path that
-          re-derives source or result authority.
-        - After the post-occupation gate, consume only the immutable path table, materializer, and reporter from
-          Tasks 3.1.a and 3.1.b; invoke no source, lifecycle, placement, path, dependency, topology, or result
-          resolver.
-        - Persist the plan's preparation-bound candidate publication and constitutive topology unchanged alongside
-          the occupation-produced `candidateOwnership`; do not rederive any of them from live candidate state.
-          Supply the plan's `ProspectiveTransitionOverlay` only to shared structured project composition while
-          rendering the candidate ROADMAP tuple; do not construct or request finalized transition authority.
-        - For partial protection, capture each plan-owned path's separate index and worktree bytes/path
-          state/object kind/mode, reverse writes and staging on failure, and verify restored parity without touching
-          preexisting user state. Leave a named exact candidate and bounded recovery facts on full-protection
-          failure.
-        - Build `test-first` (one behavior at a time):
-            - Managed-path materialization and post-occupation revalidation precede the first write.
-            - Instrumented execution proves every operand comes from the same plan and no authority resolver runs
-              after the gate.
-            - Full preparation binds the exact created claim ID/generation; partial preparation binds
-              not-applicable; both preserve the plan-bound publication and topology exactly.
-            - Checkout, each mutation/staging/preparation boundary, and restoration failure preserve the source and
-              return bounded recovery facts.
-            - Successful partial restoration reproduces exact index/worktree preimages and never rewrites
-              preexisting user state.
+    - `[x]` **3.1.c Execute one plan-bound operation**
+        - Added one operation that sequences occupation, post-occupation revalidation, canonical materialization,
+          reporting, and preparation without exposing any post-gate authority-resolver seam.
+        - The immutable plan now retains exact candidate publication and full constitutive topology facts/digest;
+          preparation consumes that authority directly and combines it only with occupation-produced ownership.
+        - Partial compensation captures distinct index/worktree byte images for every plan path, restores and
+          verifies only paths this invocation changed, while full failures return exact candidate retry/discard
+          facts, including typed checkout residue.
 
     - `[ ]` **3.1.d Add exact candidate discard after execution exists**
         - Extend the closed command-mode union with mutually exclusive

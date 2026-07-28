@@ -12,6 +12,7 @@ import {
   type V3PlannedContentContribution,
 } from "../../../src/lib/work-unit/decompose-v3-plan-composer.js";
 import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 describe("v3 decomposition plan composition", () => {
   const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -70,7 +71,7 @@ describe("v3 decomposition plan composition", () => {
       sourceHead: "source-head",
       expectedBaseHead: "base-head",
       candidatePublication: publication,
-      topologyDigest: canonicalDigest("topology"),
+      topologyDigest: v3TopologyDigest([{ kind: "none" }]),
       origin: "origin",
       sourceBranch: "feat/origin",
       receiptId,
@@ -115,7 +116,7 @@ describe("v3 decomposition plan composition", () => {
           after: file("# Draft: member-a\n\nAllocated body.\n"),
         }),
       ],
-      topology: [],
+      topology: [{ kind: "none" }],
       dependencies: [],
       receiptEvidence: {
         path: receiptPath,
@@ -347,8 +348,19 @@ describe("v3 decomposition plan composition", () => {
     const coordinationSourceId = canonicalDigest("coordination-source");
     const scaffold = file("# Cohort: `origin`\n\n**Purpose:** —\n");
     const allocated = file("# Cohort: `origin`\n\n**Purpose:** Shared concern.\n");
+    const topologyDigest = v3TopologyDigest([{
+      kind: "create",
+      path: coordinationPath,
+      before: absent,
+      after: {
+        kind: "file",
+        mode: "100644",
+        contentDigest: digestBytes(scaffold.bytes),
+      },
+    }]);
     const result = composeV3DecomposePlan({
       ...input,
+      topologyDigest,
       destinations: [
         ...input.destinations,
         { kind: "cohort-coordination", destinationId: "coord", cohort: "origin" },

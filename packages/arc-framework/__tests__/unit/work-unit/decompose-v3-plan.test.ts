@@ -6,7 +6,11 @@ import {
   type V3PlanContributorClaim,
   type V3PlanPathClaim,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
-import { v3PlanId } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
+import {
+  v3PlanId,
+  v3TopologyDigest,
+  type V3TopologyFact,
+} from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 describe("validated v3 decomposition plan path registry", () => {
   const digest = (value: string) => canonicalDigest(value);
@@ -25,10 +29,21 @@ describe("validated v3 decomposition plan path registry", () => {
       logicalAnchor: { kind: "cohort" as const, cohort: "origin" },
       entries: [{ kind: "new-leaf" as const, slug: "member-a" }],
     },
-    topologyDigest: digest("topology"),
+    topology: {
+      facts: [{ kind: "none" as const }],
+      digest: v3TopologyDigest([{ kind: "none" }]),
+    },
     origin: "origin",
     sourceBranch: "plan/origin",
-    topologyFacts: [],
+  };
+  const topology = (
+    kind: Exclude<V3TopologyFact, { kind: "none" }>["kind"],
+    path: string,
+    before: ReturnType<typeof file> | typeof absent,
+    after: ReturnType<typeof file> | typeof absent,
+  ) => {
+    const facts: V3TopologyFact[] = [{ kind, path, before, after }];
+    return { facts, digest: v3TopologyDigest(facts) };
   };
 
   it("builds one UTF-8-sorted mutation per path in canonical contributor order", () => {
@@ -111,7 +126,7 @@ describe("validated v3 decomposition plan path registry", () => {
 
     const result = buildValidatedDecomposePlan({
       ...operands,
-      topologyFacts: [{ kind: "create", path }],
+      topology: topology("create", path, absent, scaffolded),
       claims,
     });
     expect(result.ok).toBe(true);
@@ -138,7 +153,7 @@ describe("validated v3 decomposition plan path registry", () => {
       cutMapDigest: operands.cutMapDigest,
       allowedPathsDigest: result.plan.allowedPathsDigest,
       candidatePublication: operands.candidatePublication,
-      topologyDigest: operands.topologyDigest,
+      topologyDigest: result.plan.candidateAuthority.topology.digest,
     });
     expect(result.plan.planId).toBe(expectedPlanId);
     expect(result.plan.prospectiveOverlay).toEqual({
@@ -158,7 +173,7 @@ describe("validated v3 decomposition plan path registry", () => {
     const path = ".arc/backlog/ROADMAP.md";
     const result = buildValidatedDecomposePlan({
       ...operands,
-      topologyFacts: [{ kind: "create", path }],
+      topology: topology("create", path, absent, file("scaffold")),
       claims: [
         { kind: "exclusive", path, role: "roadmap", base: absent, after: file("roadmap") },
         {

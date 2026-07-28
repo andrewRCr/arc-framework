@@ -13,6 +13,7 @@ import {
 import { decomposeTransientClaimId } from "../../../src/lib/work-unit/decompose-transient-claim.js";
 import type { ValidatedDecomposePlan } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
+import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 function plan(): ValidatedDecomposePlan {
   const planId = canonicalDigest("plan");
@@ -21,7 +22,13 @@ function plan(): ValidatedDecomposePlan {
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
-    topologyFacts: [],
+    candidateAuthority: {
+      candidatePublication: {
+        logicalAnchor: { kind: "direct-member", slug: "member" },
+        entries: [{ kind: "new-leaf", slug: "member" }],
+      },
+      topology: { facts: [{ kind: "none" }], digest: v3TopologyDigest([{ kind: "none" }]) },
+    },
     allowedPaths: [".arc/active/meta-member.md"],
     allowedPathsDigest: canonicalDigest([".arc/active/meta-member.md"]),
     prospectiveOverlay: createProspectiveTransitionOverlay({

@@ -8,6 +8,7 @@ import type {
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import { reportV3DecomposeResult } from "../../../src/lib/work-unit/decompose-v3-result-report.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
+import type { V3TopologyFact } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 const absent = { kind: "absent" as const };
 const final = {
@@ -58,16 +59,32 @@ function contentMutation(path: string): V3ValidatedPathMutation {
 
 function plan(
   mutations: V3ValidatedPathMutation[],
-  topologyFacts: ValidatedDecomposePlan["topologyFacts"],
+  topologyFacts: Array<
+    { kind: "none" }
+    | { kind: "create" | "ensure" | "backfill" | "reuse" | "append"; path: string }
+  >,
 ): ValidatedDecomposePlan {
   const planId = canonicalDigest("plan");
   const allowedPaths = mutations.map(({ path }) => path);
+  const facts: V3TopologyFact[] = topologyFacts.map((fact) => fact.kind === "none"
+    ? fact
+    : {
+        ...fact,
+        before: fact.kind === "ensure" || fact.kind === "reuse" ? final : absent,
+        after: final,
+      });
   return {
     planId,
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
-    topologyFacts,
+    candidateAuthority: {
+      candidatePublication: {
+        logicalAnchor: { kind: "direct-member", slug: "member" },
+        entries: [{ kind: "new-leaf", slug: "member" }],
+      },
+      topology: { facts, digest: canonicalDigest(facts) },
+    },
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
     prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -153,6 +170,7 @@ describe("v3 decomposition result reporting", () => {
       status: "refused",
       reason: "path-conflict",
       path: second.path,
+      appliedPaths: [],
     });
     expect(report).toMatchObject({
       status: "refused",
@@ -161,5 +179,17 @@ describe("v3 decomposition result reporting", () => {
     });
     expect(JSON.stringify(report)).not.toContain("Purpose");
     expect(JSON.stringify(report)).not.toContain("sequencing");
+
+    expect(reportV3DecomposeResult(source, {
+      status: "refused",
+      reason: "apply-failed",
+      path: second.path,
+      appliedPaths: [first.path],
+    })).toMatchObject({
+      status: "refused",
+      paths: [],
+      topology: [],
+      destinations: [],
+    });
   });
 });

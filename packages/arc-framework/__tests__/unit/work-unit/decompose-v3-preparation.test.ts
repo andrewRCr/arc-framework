@@ -304,7 +304,10 @@ describe("v3 decomposition preparation identities", () => {
       cutMapDigest: facts.cutMapDigest,
       sourceHead: preparation.facts.completedMap.machine.source.head,
       expectedBaseHead: preparation.facts.completedMap.machine.resultBase.head,
-      topologyFacts: [],
+      candidateAuthority: {
+        candidatePublication: facts.candidatePublication,
+        topology: facts.topology,
+      },
       allowedPaths: facts.allowedPaths,
       allowedPathsDigest: facts.allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -319,10 +322,6 @@ describe("v3 decomposition preparation identities", () => {
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidateAuthority: {
-        candidatePublication: facts.candidatePublication,
-        topology: facts.topology,
-      },
       plan,
     })).toEqual({ status: "ready", preparation });
 
@@ -330,10 +329,6 @@ describe("v3 decomposition preparation identities", () => {
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidateAuthority: {
-        candidatePublication: facts.candidatePublication,
-        topology: facts.topology,
-      },
       plan: { ...plan, allowedPaths: plan.allowedPaths.slice(1) },
     })).toEqual({ status: "rejected", reason: "plan-binding-mismatch" });
   });

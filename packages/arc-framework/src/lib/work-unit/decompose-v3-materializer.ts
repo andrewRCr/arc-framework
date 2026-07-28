@@ -36,8 +36,11 @@ export type V3MaterializationResult =
         | "missing-final-blob"
         | "final-blob-mismatch"
         | "invalid-member-projection"
+        | "observe-failed"
+        | "blob-read-failed"
         | "apply-failed";
       path: string;
+      appliedPaths: string[];
     };
 
 function statesEqual(
@@ -96,25 +99,50 @@ export async function materializeV3DecomposePlan(
   const blobs = new Map<string, Uint8Array | null>();
   const memberProjection = projectMembers(plan);
   if (!memberProjection.ok) {
-    return { status: "refused", reason: "invalid-member-projection", path: memberProjection.path };
+    return {
+      status: "refused",
+      reason: "invalid-member-projection",
+      path: memberProjection.path,
+      appliedPaths: [],
+    };
   }
 
   for (const mutation of plan.mutations) {
-    const observed = await io.observe(mutation.path);
+    let observed: V3PlanCanonicalPathState;
+    try {
+      observed = await io.observe(mutation.path);
+    } catch {
+      return {
+        status: "refused",
+        reason: "observe-failed",
+        path: mutation.path,
+        appliedPaths: [],
+      };
+    }
     if (!statesEqual(observed, mutation.before) && !statesEqual(observed, mutation.after)) {
-      return { status: "refused", reason: "path-conflict", path: mutation.path };
+      return { status: "refused", reason: "path-conflict", path: mutation.path, appliedPaths: [] };
     }
     observations.set(mutation.path, observed);
     if (mutation.after.kind === "absent") {
       blobs.set(mutation.path, null);
       continue;
     }
-    const bytes = await io.readBlob(mutation.after.contentDigest);
+    let bytes: Uint8Array | null;
+    try {
+      bytes = await io.readBlob(mutation.after.contentDigest);
+    } catch {
+      return {
+        status: "refused",
+        reason: "blob-read-failed",
+        path: mutation.path,
+        appliedPaths: [],
+      };
+    }
     if (bytes === null) {
-      return { status: "refused", reason: "missing-final-blob", path: mutation.path };
+      return { status: "refused", reason: "missing-final-blob", path: mutation.path, appliedPaths: [] };
     }
     if (digestBytes(bytes) !== mutation.after.contentDigest) {
-      return { status: "refused", reason: "final-blob-mismatch", path: mutation.path };
+      return { status: "refused", reason: "final-blob-mismatch", path: mutation.path, appliedPaths: [] };
     }
     blobs.set(mutation.path, bytes);
   }
@@ -123,7 +151,12 @@ export async function materializeV3DecomposePlan(
   for (const mutation of plan.mutations) {
     const observed = observations.get(mutation.path);
     if (observed === undefined) {
-      return { status: "refused", reason: "path-conflict", path: mutation.path };
+      return {
+        status: "refused",
+        reason: "path-conflict",
+        path: mutation.path,
+        appliedPaths: paths.filter(({ disposition }) => disposition === "applied").map(({ path }) => path),
+      };
     }
     if (statesEqual(observed, mutation.after)) {
       paths.push({ path: mutation.path, disposition: "already-applied", mutation });
@@ -132,7 +165,12 @@ export async function materializeV3DecomposePlan(
     try {
       await io.applyAndStageFinal(mutation.path, mutation.after, blobs.get(mutation.path) ?? null);
     } catch {
-      return { status: "refused", reason: "apply-failed", path: mutation.path };
+      return {
+        status: "refused",
+        reason: "apply-failed",
+        path: mutation.path,
+        appliedPaths: paths.filter(({ disposition }) => disposition === "applied").map(({ path }) => path),
+      };
     }
     paths.push({ path: mutation.path, disposition: "applied", mutation });
   }

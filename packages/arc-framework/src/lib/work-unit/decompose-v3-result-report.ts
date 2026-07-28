@@ -58,7 +58,9 @@ function pathDisposition(
   materialized: ReadonlyMap<string, V3MaterializedPath>,
 ): V3ReportedPathDisposition | null {
   if (materialization.status === "refused") {
-    return materialization.path === path ? "refused-conflict" : null;
+    return materialization.reason === "path-conflict" && materialization.path === path
+      ? "refused-conflict"
+      : null;
   }
   return materialized.get(path)?.disposition ?? null;
 }
@@ -103,7 +105,7 @@ export function reportV3DecomposeResult(
   }
 
   const topology: V3ReportedTopologyOutcome[] = [];
-  for (const fact of plan.topologyFacts) {
+  for (const fact of plan.candidateAuthority.topology.facts) {
     if (fact.kind === "none") {
       topology.push({ kind: "topology", action: "none", disposition: "no-write" });
       continue;

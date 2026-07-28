@@ -170,7 +170,6 @@ export interface CreateV3DecomposePreparationInput {
   completedMap: V3DecomposeCutMap;
   sourceArtifactInventory: V3SourceArtifactEntry[];
   candidateOwnership: V3DecomposePreparationFacts["candidateOwnership"];
-  candidateAuthority: V3ProjectedCandidateAuthority;
   plan: ValidatedDecomposePlan;
 }
 
@@ -459,13 +458,13 @@ export function createV3DecomposePreparation(
   input: CreateV3DecomposePreparationInput,
 ): CreateV3DecomposePreparationResult {
   const map = parseV3DecomposeCutMap(input.completedMap);
-  const topologyFacts = parseV3TopologyFacts(input.candidateAuthority.topology.facts);
+  const topologyFacts = parseV3TopologyFacts(input.plan.candidateAuthority.topology.facts);
   const sourceArtifactDigest = v3SourceArtifactDigest(input.sourceArtifactInventory);
   if (map === null || topologyFacts === null || sourceArtifactDigest === null) {
     return { status: "rejected", reason: "invalid-preparation-operand" };
   }
   if (!candidateOwnershipIsBound(input.candidateOwnership)
-    || !candidateAuthorityIsBound(map, input.candidateAuthority)) {
+    || !candidateAuthorityIsBound(map, input.plan.candidateAuthority)) {
     return { status: "rejected", reason: "invalid-preparation-binding" };
   }
   const allowedPathsDigest = v3AllowedPathsDigest(input.plan.allowedPaths);
@@ -475,7 +474,7 @@ export function createV3DecomposePreparation(
     preflightId: map.machine.preflightId,
     cutMapDigest,
     allowedPathsDigest: input.plan.allowedPathsDigest,
-    candidatePublication: input.candidateAuthority.candidatePublication,
+    candidatePublication: input.plan.candidateAuthority.candidatePublication,
     topologyDigest,
   });
   if (allowedPathsDigest === null
@@ -515,7 +514,7 @@ export function createV3DecomposePreparation(
     allowedPaths: input.plan.allowedPaths,
     allowedPathsDigest: input.plan.allowedPathsDigest,
     candidateOwnership: input.candidateOwnership,
-    candidatePublication: input.candidateAuthority.candidatePublication,
+    candidatePublication: input.plan.candidateAuthority.candidatePublication,
     topology: { facts: topologyFacts, digest: topologyDigest },
     prospectiveProjection,
   };
