@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured formalization-ready — register carries a per-row constraint column, three
-  adversarial passes dispositioned
+- **Last Completed:** Spec finalized as a `detailed` RFC (nine design units); register settled at 246 nb after
+  three adversarial passes and a source-verification sweep
 - **Next Task:** [none]
 - **Blockers:** [none]
 
