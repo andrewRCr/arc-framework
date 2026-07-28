@@ -37,24 +37,13 @@ units.
         - Pinned canonical starter/completed bytes and every versioned identity while covering all nested arms,
           preimage perturbations, stored-byte changes, placeholders, tampering, and identity-array drift.
 
-    - `[ ]` **1.1.c Bind prepared evidence and allowed paths**
-        - Define the exact closed `V3DecomposePreparation` version-plus-kind arm in the shared retirement-record
-          namespace. Implement its `facts`, prospective overlay/ROADMAP observation, topology-fact arms, and
-          candidate-publication envelope without extending the generic v1/v2 result record.
-        - Bind preparation to the exact completed map, source/result identities and inventories, unique UTF-8
-          path-sorted `allowedPaths`, `allowedPathsDigest`, logical anchor, ordered candidate publication entries,
-          and constitutive topology facts/digest.
-        - Bind `candidateOwnership` as the exact full-protection
-          claim-ID/generation/branch/opaque-worktree identity or validator-fixed partial-protection not-applicable.
-          Implement the exact `planId` and `preparationId` canonical preimages so later configuration, layout,
-          authoring, or claim-store discovery cannot select a different contract.
-        - Build `test-first` (one behavior at a time):
-            - A byte-exact preparation fixture covers every envelope member and topology/ownership arm.
-            - Every member of the `planId` and `preparationId` preimages changes the appropriate canonical identity;
-              omitted, extra, self-referential, or reordered operands fail fixture equality.
-            - Full claim correlation and partial not-applicable round-trip exactly.
-            - Unknown fields, duplicate/noncanonical paths, candidate-ownership mismatch, and digest mismatch refuse
-              before prepared authority is returned.
+    - `[x]` **1.1.c Bind prepared evidence and allowed paths**
+        - Sealed the distinct v3 preparation namespace arm from one authenticated plan, exact stored-blob inventory,
+          completed map, allowed-path closure, publication, topology, prospective ROADMAP observation, and ownership.
+        - Revalidated canonical topology semantics, publication order, source overlay facts, ROADMAP identity, and
+          full-claim worktree correlation before returning prepared authority.
+        - Byte-pinned partial/no-topology and full/all-topology preparations; exhaustive identity, path, namespace,
+          ownership, publication, overlay, topology, and digest mutations now fail closed.
 
     - `[ ]` **1.1.d Bind finalized receipt and publication identity**
         - Define the closed `V3DecomposeContinuationInput`, exact `V3DecomposeReceipt` version-plus-kind arm,

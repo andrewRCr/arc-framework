@@ -67,6 +67,23 @@ describe("retirement record namespace enumeration", () => {
       .toBe("v3-decomposition-receipt");
   });
 
+  it("fails the namespace closed for v3 version-plus-kind collisions", () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const raw = (candidate: unknown): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(preparation.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content: canonicalize(candidate),
+    });
+
+    expect(validateRetirementRecordEnumeration([
+      raw({ ...preparation, schemaVersion: 2 }),
+    ]).status).toBe("namespace-corrupt");
+    expect(validateRetirementRecordEnumeration([
+      raw({ ...preparation, kind: "decompose-receipt" }),
+    ]).status).toBe("namespace-corrupt");
+  });
+
   it("deduplicates byte-identical canonical and historical records", () => {
     const candidate = receipt("sample");
 

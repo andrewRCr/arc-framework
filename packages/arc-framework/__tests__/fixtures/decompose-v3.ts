@@ -18,6 +18,7 @@ import {
   v3OutgoingEdgeInventoryDigest,
   v3PreflightId,
   v3ReceiptId,
+  v3SourceArtifactDigest,
   v3SourceId,
   v3SourceInventoryDigest,
   type V3DecomposeCutMap,
@@ -117,11 +118,18 @@ export function v3DecompositionEvidenceFixture(): {
       after: file("roadmap after"),
     },
   };
+  const sourceArtifactDigest = v3SourceArtifactDigest([{
+    path: sourceUnit.sourcePath,
+    objectKind: "blob",
+    mode: "100644",
+    contentDigest: sourceUnit.contentDigest,
+  }]);
+  if (sourceArtifactDigest === null) throw new Error("fixture source artifacts must be canonical");
   const facts = {
     preflightId: machine.preflightId,
     completedMap,
     cutMapDigest,
-    sourceArtifactDigest: canonicalDigest("source artifacts"),
+    sourceArtifactDigest,
     sourceInventoryDigest: v3SourceInventoryDigest(machine),
     incomingEdgeInventoryDigest: v3IncomingEdgeInventoryDigest(machine),
     outgoingEdgeInventoryDigest: v3OutgoingEdgeInventoryDigest(machine),
