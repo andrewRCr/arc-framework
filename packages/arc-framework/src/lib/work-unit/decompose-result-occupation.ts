@@ -4,6 +4,7 @@ import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DecomposeTransientClaimStore } from "./decompose-transient-claim-store.js";
 import {
+  decomposeCandidateBranch,
   decomposeTransientClaimId,
   parseDecomposeTransientClaim,
   projectDecomposeTransientCandidateOwnership,
@@ -138,14 +139,10 @@ function pendingCandidateRecovery(claim: DecomposeTransientClaim, path: string) 
   };
 }
 
-function candidateBranch(origin: string): string {
-  return `chore/decompose-${origin}`;
-}
-
 function bindingFor(plan: ValidatedDecomposePlan): DecomposeTransientClaimBinding {
   return {
     origin: plan.prospectiveOverlay.origin,
-    candidateBranch: candidateBranch(plan.prospectiveOverlay.origin),
+    candidateBranch: decomposeCandidateBranch(plan.prospectiveOverlay.origin),
     sourceHead: plan.sourceHead,
     resultBaseHead: plan.expectedBaseHead,
     cutMapDigest: plan.cutMapDigest,

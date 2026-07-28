@@ -177,6 +177,16 @@ export function decomposeTransientClaimId(
   });
 }
 
+/**
+ * Derive the one local candidate branch associated with a decomposition origin.
+ *
+ * @param origin - Canonical source work-unit slug
+ * @returns Deterministic local candidate branch
+ */
+export function decomposeCandidateBranch(origin: string): string {
+  return `chore/decompose-${origin}`;
+}
+
 /** Decode a closed claim and rederive both canonical identities. */
 export function parseDecomposeTransientClaim(input: unknown): DecomposeTransientClaim | null {
   let candidate = input;

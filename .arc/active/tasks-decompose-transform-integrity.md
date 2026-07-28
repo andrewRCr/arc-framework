@@ -434,14 +434,10 @@ orchestration the same canonical transition authority.
 _Design decisions:_ Stable identity and initial continuation persist in the receipt. Display path and readiness
 remain live derivations from metas. The core supplies an exact-base integration anchor that later mobility extends.
 
-### `[ ]` **4.1 Select durable transition authority and exact-base integration anchor**
+### `[x]` **4.1 Select durable transition authority and exact-base integration anchor**
 
 - _Goal:_ Durable project and lifecycle consumers select one canonical finalized transition and expose local
   cleanup only from its exact landed anchor.
-
-- _Note:_ Design coverage: D4, D5.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
 
     - `[x]` **4.1.a Select one overlay from an atomic merge snapshot**
         - Added a synchronous closed-facts selector and Git adapter that pin HEAD, ordered merge parents, configured
@@ -458,28 +454,17 @@ remain live derivations from metas. The core supplies an exact-base integration 
           cross-consumer tests prove the start, handoff, and cleanup paths receive byte-identical authority without
           granting descendant-base or remote cleanup.
 
-    - `[ ]` **4.1.c Gate cleanup through the anchor's claim-retirement arm**
-        - Derive and canonically validate the anchor read-only. For `required`, compare-and-swap retire only its
-          bound `claimId` and generation with terminal `{ kind: landed, receiptId, candidateHead }`; return
-          actionable local cleanup only on `retired` or `already-retired-matching`.
-        - For `not-applicable`, perform no claim CAS and grant cleanup from the exact partial-protection anchor only
-          after proving no matching live or superseded candidate claim exists. Treat `missing-unproven` as a
-          full-required-arm failure, not as a partial-protection prerequisite.
-        - `conflict`, discarded terminal state, concurrent generation, or any unexpected partial matching claim may
-          return non-actionable diagnostics but grant no cleanup eligibility.
-        - After authorized local cleanup succeeds, release the exact terminal generation's worktree registration
-          only when its Git registration, marker, and branch occupation are absent. Preserve terminal registration
-          on failed or incomplete cleanup so restart retains a path-addressable recovery boundary.
-        - Build `test-first` (one behavior at a time):
-            - Exact landing retires one generation and retry is idempotent from matching terminal evidence.
-            - Concurrent/superseded generation, unproven absence, and landed/discarded terminal conflict preserve
-              current ownership and grant no actionable cleanup.
-            - Exact partial landing exposes `not-applicable`, performs no claim read-modify-write, and grants
-              cleanup only when the candidate-claim namespace has no matching live or superseded record.
-            - Validation failure never mutates the claim; claim CAS failure never leaks previously derived
-              actionable authority.
-            - Full-protection cleanup releases only the exact retired registration; failure between retirement,
-              deletion, and release resumes without advancing the generation.
+    - `[x]` **4.1.c Gate cleanup through the anchor's claim-retirement arm**
+        - Added a serialized cleanup gate that correlates the anchor-bound full claim, retires only its exact
+          generation to the matching landed terminal, and exposes actionable cleanup solely after retired or
+          matching-idempotent CAS outcomes.
+        - Partial protection proves the deterministic claim key absent without mutation; cleanup failure or
+          incomplete Git/marker/branch absence preserves the terminal registration, while exact completion releases
+          the same generation idempotently.
+
+- _Outcome:_ Merge recovery, start, landed handoff, and local teardown now share one exact-base authority. Cleanup
+  is local-only and becomes actionable only after its receipt-carried claim arm is satisfied without weakening
+  retained generic retirement policy or importing descendant-base authority.
 
 ### `[ ]` **4.2 Resolve the landed publication handoff**
 
