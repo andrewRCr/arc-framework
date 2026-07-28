@@ -15,29 +15,32 @@ section lands so its result adjusts the ledger before the register's sizing is r
 leaf-binding deletion is **not** here — it is forced by the § Task interlock rephrasing and lands with it in
 Task 3.4.
 
-### `[ ]` **1.1 `DEV-RULES.ARC` § Rule Authority**
+### `[x]` **1.1 `DEV-RULES.ARC` § Rule Authority**
 
 - _Goal:_ An agent meeting an unmarked rule anywhere in the corpus can classify it, and where it classifies as a
   default, discharge it by naming the fact that discharges it.
 
-- _Rationale:_ The section goes **first** among the file's sections, ahead of § Review-Increment Invariant. It
-  governs how every other rule in the file is read, so nothing should precede it.
+    - `[x]` **1.1.a Author the section in the package source**
+        - Landed as the file's first section, between the preamble's `---` and `## Contents`, with the matching
+          `## Contents` entry. Reproduces the amended D1 text byte-for-byte: default-unless-marked presumption,
+          `[configurable]` orthogonality, the three-branch reading, the two-limb backstop with its self-attestation
+          limb, the invariant clause, the discharge protocol, and § Whose call.
+        - Adopter-facing constraints held; the whole-file token assertion in `pr-open-extensions.test.ts` is
+          satisfied — no `GitHub`, `CodeRabbit`, or `review-gate` token added.
 
-    - `[ ]` **1.1.a Author the section in the package source**
-        - `packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md` — Framework file, so the package source is
-          authoritative and `.arc/` receives the sync, never the reverse.
-        - Insertion point is between the preamble's `---` separator and `## Contents`, making it the file's first
-          section.
-        - Reproduce the settled text exactly: the default-unless-marked presumption, the `[configurable]`
-          orthogonality clause, the four-branch reading, the two-limb backstop with its self-attestation limb, the
-          invariant-binds-the-agent clause, the discharge protocol, and § Whose call.
-        - Adopter-facing: no work-unit references, no transitional framing, no forward-pointer to roadmap scope.
-        - A whole-file assertion in `pr-open-extensions.test.ts` forbids `GitHub`, `CodeRabbit`, and `review-gate`
-          anywhere in this file. It binds every line added here.
-        - Add the matching `## Contents` entry — the block is still live until Task 3.2 cuts it.
+    - `[x]` **1.1.b Sync to the project instance and confirm byte-identity**
+        - Both copies verified identical by `diff`; the authored section verified byte-exact against the spec's
+          normative block.
 
-    - `[ ]` **1.1.b Sync to the project instance and confirm byte-identity**
-        - `diff` the two copies; a Framework file that differs after sync is the defect, not an acceptable state.
+- _Outcome:_ The section landed at **31 nb**, not the 46 the spec specified. Task 1.4's five-test pass was pulled
+  forward and run before authoring rather than after, so the text was authored once at its settled size instead of
+  authored-then-cut. Every block carrying a rule returned `constraint → stays`; the 15 nb removed was justification
+  for rules that stayed, which has no demotion destination because nothing summons a rationale. Two spec amendments
+  followed: the reaffirmation clause was **corrected**, not just compressed — as authored it claimed an invariant
+  survives "a host harness's rule that operator reaffirmation is decisive," asserting an override of the operator's
+  instruction that is not this model; and § Whose call was retained against the register's demote prediction, on the
+  cross-owner case rather than the contributor one. Ledger: the `DEV-RULES.ARC` leg now nets roughly −24 nb on day
+  one rather than −9. Determination table in `notes-judgment-authority-model.md`.
 
 ### `[ ]` **1.2 Anchoring ADR**
 
@@ -72,37 +75,35 @@ Task 3.4.
       or lives with someone else.
     - "Protects the integrity of a check" stays bounded inline in § Rule Authority; do not mint it as a term.
 
-### `[ ]` **1.4 Subject § Rule Authority to the register's own five tests**
+### `[x]` **1.4 Subject § Rule Authority to the register's own five tests**
 
 - _Goal:_ The largest single addition to the always-loaded set carries the same recorded constraint determination
   every removal does, so the ledger is audited on the side that grows as well as the side that shrinks.
 
-- _Rationale:_ A +7 nb index debit is held to an explicit determination in Phase 2; a debit six times larger on
-  the same tier does not get admitted on the strength of the goals alone.
+    - `[x]` **1.4.a Run the five tests over each block of the section text**
+        - Ran at bullet granularity ahead of authoring rather than after, so the section was authored once at its
+          settled size. Determination table recorded in `notes-judgment-authority-model.md` beside the register's
+          rows.
+        - Every block carrying a rule returned `constraint → stays`, as predicted. The 15 nb removed was
+          justification for rules that stayed plus one duplicated clause — content with no demotion destination,
+          since nothing summons a rationale.
 
-    - `[ ]` **1.4.a Run the five tests over each block of the section text**
-        - Constraint? → destination → trigger strength → operation-anchoring → pointless-as-routed, in order,
-          stopping at the first test that settles the block.
-        - Apply at **bullet** granularity, not block granularity — the register's own second procedural lesson.
-        - Record the determination column in `notes-judgment-authority-model.md` beside the register's rows.
-        - Most blocks are expected to return `constraint → stays`; the recorded determination is the deliverable,
-          not a hunt for cuts.
+    - `[x]` **1.4.b Settle § Whose call**
+        - **Stays**, narrowed to its resolution rule (3 nb) — against the register's demote prediction. The holder
+          half relocated into the invariant clause, which removed the argument that had protected it; it survives
+          on the constraint test instead, via the cross-owner case: `Owner` is per-WU, so a maintainer-role agent
+          can work a WU owned by someone else and no role-gated surface fires there.
+        - The contributor case alone would not have held it — `AGENT-BRIEF.CONTRIBUTOR` loads deterministically on
+          `arc.role`, and the register already demotes § Contributor commit release to exactly that destination.
+          Nothing demotes, so Task 3.6 gains no row from this block.
 
-    - `[ ]` **1.4.b Settle § Whose call**
-        - The one genuinely open block. Against it: authority resolution rather than a prohibition or mandatory
-          stop, its own text concedes the solo collapse, and the register demotes structurally similar content to
-          `strategy-team-coordination` — a destination Phase 2 builds anyway. For it: its second paragraph names
-          an invariant's **holder**, added specifically to close an authority gap, and it plausibly is a
-          constraint under the first test.
-        - Record the determination and its reasoning; the demotion, if that is the verdict, **executes in
-          Task 3.6** alongside the other trigger-tier rows. Demotion goes only to an explicit trigger, and
-          `strategy-team-coordination`'s entry does not reach that strength until Task 2.2.e.
+    - `[x]` **1.4.c Restate the debit as measured**
+        - Measured at **31 nb**, down from the 46 first authored; Phase 3's and Phase 5's sizing now rests on a
+          settled figure. No pending credit to carry — no block demoted.
 
-    - `[ ]` **1.4.c Restate the debit as measured**
-        - The section's authored size is an upper bound until this task runs; restate it as measured so Phase 3's
-          and Phase 5's sizing rests on a settled figure.
-        - A determination of `demote` carries its credit at Task 3.6, where the row executes — record the pending
-          credit here so the ledger reconciles rather than double-counting.
+- _Outcome:_ The `DEV-RULES.ARC` leg nets roughly −24 nb on day one rather than −9, and growth on the file drops
+  from 11% to 7%. Two spec amendments fell out of the pass beyond the sizing: the reaffirmation clause was
+  corrected rather than compressed, and § Whose call's disposition reversed.
 
 ### `[ ]` **1.5 Marker retrofit**
 

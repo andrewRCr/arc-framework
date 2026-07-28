@@ -127,6 +127,41 @@ trigger) · `stays` (the constraint determination ended it) · `blocked` · `out
 | Contributor commit release                    | 3  | no    | demote                                                                                              | `AGENT-BRIEF.CONTRIBUTOR` — role-conditional load, mechanism 4 in shape               | firm      | 3   |
 | Complex-commits pointer                       | 2  | no    | cut — duplicated in § When to Load Additional Guidance                                              | —                                                                                     | firm      | 2   |
 
+### § Rule Authority — the addition, held to the same procedure
+
+The register audits what leaves the always-loaded set; this table audits what enters it. Same five tests, same
+bullet granularity, run over the authored text before it landed. Authored at 46 nb, settled at **31**.
+
+| Block                              | nb  | C?  | Disposition                                                                                     | Settled at                                             | Δnb |
+| ---------------------------------- | --- | --- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --- |
+| Default-unless-marked presumption  | 2   | yes | keep — the governing rule; scope enumeration reaches methods, workflows, extensions, strategies | T1                                                     | 0   |
+| `[configurable]` orthogonality     | 4→2 | yes | keep the compose clause; cut the restatement                                                    | T1 — misreading it releases a rule permissively        | 2   |
+| Reading lead-in                    | 2   | yes | keep — the procedure's entry                                                                    | T1                                                     | 0   |
+| Branch table                       | 5→4 | yes | merge branches 2 and 4 — same input class, same verdict, same action; cut both glosses          | T1                                                     | 1   |
+| Backstop, both limbs               | 4→3 | yes | keep both limbs; cut "competence never transfers an authorization" as rationale                 | T1 — D1.3 requires limb two overturn the primary test  | 1   |
+| Integrity-of-a-check + enumeration | 3   | yes | keep the enumeration and the prohibition; cut "structural, not topical"                         | T1 — the enumeration already does that work            | 0   |
+| Self-attestation                   | 5→4 | yes | keep both example triplets; compress the framing sentence only                                  | T1 + **D5.1 quiet-failing** — never-cut class          | 1   |
+| Invariant / holder / capability    | 6→4 | yes | **amended, not compressed** — see below; two blocks merged into one                             | T1                                                     | 2   |
+| Discharging a default              | 4→3 | yes | keep the protocol; cut the escape-hatch framing and "disclosure, not obstruction"               | T1 — "and proceed" already carries the non-obstruction | 1   |
+| Whose call — resolution rule       | 5→3 | yes | keep the role × surface read; cut the solo-collapse concession and distributed-roles gloss      | T1 — cross-owner case; see below                       | 2   |
+| Whose call — holder ¶              | 5→0 | yes | relocated into the invariant block                                                              | —                                                      | 5   |
+
+**Nothing demoted, and that is the finding.** Every block carrying a rule returned `constraint → stays`. The 15 nb
+removed was justification for rules that stayed, plus one clause stating the same rule twice — content with no
+demotion destination, because nothing summons a rationale. What earns keeping went to the anchoring ADR.
+
+**The reaffirmation clause was amended.** As authored it said an invariant is not discharged "by a host harness's
+rule that operator reaffirmation is decisive" — asserting that the operator's instruction is overridden, which is
+not this model and overstates the harness rule it names. Corrected: an invariant withholds the authority to
+**decide**, never the capability to act; the holder making the reserved decision is the rule working, not a waiver.
+What reaffirmation cannot do is move that decision to the agent.
+
+**Why § Whose call did not demote.** The register predicted `demote → strategy-team-coordination`, and the holder
+half relocating removed the argument that had protected it. It stays on T1 anyway: `Owner` is per-WU, so a
+maintainer-role agent can work a WU owned by someone else, and an agent about to discharge a default over a surface
+it does not own would not know to go looking. `AGENT-BRIEF.CONTRIBUTOR` covers only the contributor arm — a real
+destination, as § Contributor commit release shows, but not this one.
+
 ### `DEV-RULES.PROJECT` — 348 raw / 267 nonblank lines
 
 | Section                           | nb | C?    | Disposition                                                                                                                                                                                                   | Destination / mechanism                                                       | Tier      | Δnb |

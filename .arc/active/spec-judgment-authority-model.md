@@ -119,16 +119,17 @@ Nine design units. D1–D4 are the constitutional core, D5–D8 the compression,
 The units are the substrate the task list is built from and validated against.
 
 **The ledger, sized on both sides.** The compression pays for the core, so the debit belongs in the accounting
-rather than in the framing. § Rule Authority's authored text (D1) is **46 nb** — an 11% growth on
-`DEV-RULES.ARC`'s 418 nb and the single largest always-loaded addition here — plus D4's three vocabulary
+rather than in the framing. § Rule Authority's settled text (D1) is **31 nb** — a 7% growth on
+`DEV-RULES.ARC`'s 418 nb and still the single largest always-loaded addition here — plus D4's three vocabulary
 definitions and D6's `STRATEGY-INDEX` debit of +7 to +14, less D4.1's deletion. Against that, the canonical credit
-authorable on day one is 55 nb (`ARC` firm 43 + decided 12), so **the `DEV-RULES.ARC` leg nets roughly −9 nb until
-the `authoring` tier (19 nb) and the D6-gated trigger tier (47 nb) land.** The full 144 nb is the endpoint, not
-the near-term state, and the ordering in Sequencing is what gets there. Stating this is the same discipline D6
-applies to a +7 nb index debit; a 46 nb debit left unsized is the larger version of the wash it refuses.
+authorable on day one is 55 nb (`ARC` firm 43 + decided 12), so **the `DEV-RULES.ARC` leg nets roughly −24 nb
+before the `authoring` tier (19 nb) and the D6-gated trigger tier (47 nb) land.** The full 144 nb is the endpoint,
+not the near-term state, and the ordering in Sequencing is what gets there. Stating this is the same discipline D6
+applies to a +7 nb index debit; a debit this size left unsized is the larger version of the wash it refuses.
 
-Sizing the debit is not the same as justifying it, so **D1.6 subjects that 46 nb to the register's own five tests**
-before D7/D8 sizing is relied on. The figure above is therefore an upper bound on D1's debit, not a settled one.
+Sizing the debit is not the same as justifying it, so **D1.6 subjected that text to the register's own five tests**
+before D7/D8 sizing is relied on. The 31 nb figure is the post-pass measurement; the 46 nb first authored was an
+upper bound that the pass reduced.
 
 ### D1 — `DEV-RULES.ARC` § Rule Authority
 
@@ -141,62 +142,45 @@ realizes it, and any change to it is a spec amendment rather than an authoring c
 Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
 unless marked **invariant**. Marked or not, the reading below classifies it.
 
-**`[configurable]` is a different axis.** That marker says the *project* may set a rule's shape; this
-reading says whether the *agent* may set it aside in the moment. They compose rather than compete — a
-configured rule is still a default or an invariant, and configurability is never itself a discharge.
-Whatever shape the project selected is the rule you are reading.
+**`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
+whether the _agent_ may set it aside in the moment. Configurability is never itself a discharge.
 
-**Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern
-does not arise here.
+**Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern does
+not arise here.
 
-- You can name one, and it is yours to establish → the rule is a **default**. Discharge it as below.
-- No fact you could produce would settle it — what is in doubt is you, not the facts → **invariant**.
-- The fact that would settle it is not yours to establish — it lives with someone else and has not been
-  said → **invariant**. Ask for it; do not infer it.
-- You can name nothing → **invariant**. Naming nothing settles nothing.
+- You can name one, and it is yours to establish → **default**. Discharge it as below.
+- The fact is not yours to establish — it lives with someone else and has not been said → **invariant**.
+  Ask for it; do not infer it.
+- You can name nothing, or no fact you could produce would settle it → **invariant**.
 
-**Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or
-when it withholds an *authorization* rather than a *judgment* — a decision reserved to a person because
-it commits them. Competence never transfers an authorization; it does not follow that the capability is
-withheld too.
+**Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or when
+it withholds an _authorization_ rather than a _judgment_ — a decision reserved to a person because it commits
+them.
 
-A rule **protects the integrity of a check** when the agent's own work is what the check examines —
-quality gates, verification, review, and the commit and merge gates that admit work. The test is
-structural, not topical: an agent is never the judge of whether the check on its own output applies.
+A rule **protects the integrity of a check** when the agent's own work is what the check examines — quality
+gates, verification, review, and the commit and merge gates that admit work. An agent is never the judge of
+whether the check on its own output applies.
 
-The same limb settles **self-attestation**. A record the agent authors is not evidence about the agent:
-writing that a gate was met, that a human approved, or that a pass was rigorous attests the agent's own
-output and discharges nothing. Where the attesting party is the party under examination, the claim needs
-a witness the agent does not write — a check that ran, an artifact on disk, a person who spoke. Absent
-one, do not record the claim as satisfied; say what is actually known.
+The same limb settles **self-attestation**. Writing that a gate was met, that a human approved, or that a pass
+was rigorous attests the agent's own output and discharges nothing. The claim needs a witness the agent does
+not write — a check that ran, an artifact on disk, a person who spoke. Absent one, do not record it as
+satisfied; say what is actually known.
 
-**An invariant binds the agent.** It is not discharged by an operator's reaffirmation, and not by a host
-harness's rule that operator reaffirmation is decisive. Reaffirmation settles a default (above); against
-an invariant it licenses nothing, and the conflict surfaces rather than resolving silently.
+**An invariant is not the agent's to discharge.** What it withholds is the authority to decide, never the
+capability to act. Its holder may still make the reserved decision, and their making it is the rule working
+rather than a waiver — an operator authorizing a merge _is_ the merge gate. What no amount of reaffirmation
+does is move that decision to the agent.
 
-What an invariant withholds is the agent's authority to act, never the operation itself. A rule
-reserving a decision to a person is that person's to make, and their making it is the rule working, not
-an exception to it — see **Whose call** below.
+**Discharging a default.** Name the rule and the fact that discharges it, surface it where the developer is
+already reading — the gate or the completion report, never a log — leave it reversible in one turn, and
+proceed. Raise it once: a reaffirmation is a decision, not an invitation to re-raise.
 
-**Discharging a default.** Silent divergence is an escape hatch; stated divergence is judgment. Name the
-rule and the fact that discharges it, surface it where the developer is already reading — the gate or the
-completion report, never a log — leave it reversible in one turn, and proceed. Raise it once: a
-reaffirmation is a decision, not an invitation to re-raise. The obligation is disclosure, not obstruction.
-
-**Whose call.** Authority resolves from two inputs the session already holds — the actor's role and the
-surface the rule governs. No rule declares its own authority. The owner of the governed surface may
-discharge a default over it; a rule governing a surface with no single owner, or governing the project's
-own standards, resolves to the maintainer. Where one person holds every role this is full latitude with
-no special case; where roles are distributed, the same resolution is enforcement.
-
-The same resolution names an invariant's **holder** — the person whose decision it reserves. An
-invariant has no discharge path for the agent, but it always has a holder, and that holder acting is the
-reserved decision being made rather than the rule being waived. Read the two together: the agent asks
-whether it may act, and gets a default it can discharge or an invariant it cannot; the holder asks
-nothing, because the decision was theirs from the start.
+**Whose call.** Authority resolves from the actor's role and the surface the rule governs; no rule declares its
+own authority. The owner of the governed surface may discharge a default over it; a rule governing a surface
+with no single owner, or governing the project's own standards, resolves to the maintainer.
 ```
 
-Four properties the realization must preserve:
+Six properties the realization must preserve:
 
 - **D1.1 — the satisfaction test is primary.** Of the three candidate tests considered, only it forces the
   disclosure as a byproduct: a default cannot be discharged without naming the fact, and the named fact _is_ the
@@ -217,26 +201,38 @@ Four properties the realization must preserve:
   gate that admits work). Without the orthogonality statement a reader gets contradictory answers for the same
   rule, and both D3's retrofit and D9's sweep inherit the ambiguity — so the clause is a precondition for either
   being authorable.
-- **D1.6 — § Rule Authority takes the register's own procedure, at bullet granularity.** This section is 46 nb of
-  new always-loaded content — the largest single addition here, and 11% growth on `DEV-RULES.ARC`. D6 is held to an
-  explicit constraint determination for a +7 nb debit on `STRATEGY-INDEX`; a debit six times larger on the same
-  tier does not get admitted on the strength of the goals alone. Run D5's five tests over each block of the
-  authored text under D5.2's bullet-granularity rule, and record the column beside the register's rows in
-  `notes-judgment-authority-model.md`.
+- **D1.6 — § Rule Authority takes the register's own procedure, at bullet granularity.** The pass ran over the
+  authored text under D5.2's bullet-granularity rule and settled the section at **31 nb**, down from the 46 nb
+  first authored. D6 is held to an explicit constraint determination for a +7 nb debit on `STRATEGY-INDEX`; a debit
+  this size does not get admitted on the strength of the goals alone. The determination column lives beside the
+  register's rows in `notes-judgment-authority-model.md`.
 
-  **Honest prediction: most blocks return `constraint → stays`,** and that is a fine result — the point is the
-  recorded determination, not a hunt for cuts. The one block where the answer is genuinely open is **Whose call**
-  (10 nb). Against it: it is authority _resolution_ rather than a prohibition or a mandatory stop, its own text
-  concedes the collapse ("Where one person holds every role this is full latitude with no special case"), and the
-  register demotes structurally similar content 4 nb away — § Task interlock's team elaboration → the
-  `strategy-team-coordination` entry D6 is upgrading anyway, so the destination is already being built. For it: its
-  second paragraph names an invariant's **holder**, which the draft's third adversarial pass added specifically to
-  close an authority gap, and demoting that reintroduces the gap; and under P1 it plausibly is a constraint, since
-  it tells the agent who may authorize — content a reader does not know to go looking for.
+  **Every block carrying a rule returned `constraint → stays`.** The 15 nb the pass removed was not rule content:
+  it was justification for rules that stayed — why the satisfaction test fails safe, why competence does not
+  transfer authority, why the check test is structural rather than topical — plus one clause stating the same rule
+  twice. Rationale of that kind has no demotion destination because it is not content anyone summons; what earns
+  keeping routes to D2's ADR, and the rest is dropped. The register reads `DEV-RULES.ARC` every session and does
+  not argue its own case there.
 
-  Whichever way it lands, a demotion here obeys the same rules as any other register row: an explicit trigger, P1,
-  and no constraint leaving the always-loaded set. Any block that demotes is a credit against Success Criterion 3's
-  ledger and shrinks D1's 46 nb debit accordingly.
+  **The reaffirmation clause was amended, not compressed.** As first authored it read that an invariant is not
+  discharged "by a host harness's rule that operator reaffirmation is decisive" — a claim that the operator's
+  instruction is overridden, which is not this model. The correction is that an invariant withholds the authority
+  to **decide**, never the capability to act, and its holder making the reserved decision is the rule working
+  rather than a waiver: an operator authorizing a merge _is_ the merge gate. What reaffirmation cannot do is move
+  the decision to the agent. D2 carries the cross-harness rationale, which is where it belongs.
+
+  **§ Whose call stays, narrowed to its resolution rule (3 nb).** The block was the pass's one genuinely open row,
+  and the holder half of it relocated into the invariant clause above — so the "demoting reintroduces the authority
+  gap" argument no longer protects it. It survives on the **constraint test** instead: an agent about to discharge a
+  default over a surface it does not own would not know to go looking for the rule naming whose call it is. The
+  cross-owner case is the live one — `Owner` is per-WU, so a maintainer-role agent can be working a work unit owned
+  by someone else, and no role-gated surface fires there. The contributor case alone would not have held it:
+  `AGENT-BRIEF.CONTRIBUTOR` loads deterministically on `arc.role`, and the register already demotes § Contributor
+  commit release to exactly that destination. `strategy-team-coordination` remains unavailable either way — it does
+  not fire on "about to discharge a default" (D5's fourth test). The solo-collapse concession and the
+  distributed-roles gloss are cut as rationale; the resolution rule itself is retained.
+
+  Any block that later demotes is a credit against Success Criterion 3's ledger and shrinks D1's debit accordingly.
 
 ### D2 — The anchoring ADR
 
@@ -304,8 +300,8 @@ constraints; the constraint column is what closed that.
 
 This unit is **already applied to D7 and D8** — it produced their dispositions during planning, and is recorded
 here so those rows are auditable and so a re-measure after base drift reaches the same verdicts. Those rows carry
-no task of their own. It is **not** yet applied to D1's own 46 nb; D1.6 requires that pass, and it is the one
-execution task this unit carries.
+no task of their own. It is **also applied to D1's own text**; that pass settled the section at 31 nb and is
+recorded under D1.6.
 
 1. **Constraint?** Must the reader have this present because they would not know to look for it — a prohibition, a
    mandatory stop, or a permission governing a path its destination does not fire on? `yes` ends the row: it stays
@@ -600,7 +596,7 @@ doc boundaries — role × governed-surface returned the right authority every t
 findings retired the vocabulary outright: **`policy` is redundant** (a default nobody may override at runtime _is_
 an invariant, so three values collapse to the existing binary), and **the case that would have justified
 `maintainer` resolves without a declaration** (the quality-gate zero-tolerance rule is invariant under backstop
-limb one, and § Whose call still names its holder by the same role × surface read, landing on the maintainer
+limb one, and the role × surface read still names its holder, landing on the maintainer
 because the governed surface is the project's own standards). The declaration is therefore enumeration this work
 unit's own thesis says to drop, and dropping it keeps the solo-collapses-cleanly property. An earlier version also
 claimed `procedure-evolution` P2 forbade the markup; that overread P2, and the retirement rests on the two findings
@@ -786,7 +782,7 @@ compatibility posture applies, so no back-compat aliases are added for the renam
    is operation-anchored rather than workflow-anchored (P3), and does not depend on the agent estimating its own
    state; **no constraint leaves the always-loaded set** (P1); and each demoted line carries a recorded
    constraint-or-not determination, so a violation is visible rather than inferred. That determination covers
-   **D1's own 46 nb** as well as the register's rows (D1.6) — the addition is held to the standard the removals
+   **D1's own text** as well as the register's rows (D1.6) — the addition is held to the standard the removals
    are, or the ledger is only audited on the side that shrinks.
 
 ## Open Questions

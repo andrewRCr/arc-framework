@@ -13,8 +13,53 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 ---
 
+## Rule Authority
+
+Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
+unless marked **invariant**. Marked or not, the reading below classifies it.
+
+**`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
+whether the _agent_ may set it aside in the moment. Configurability is never itself a discharge.
+
+**Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern does
+not arise here.
+
+- You can name one, and it is yours to establish → **default**. Discharge it as below.
+- The fact is not yours to establish — it lives with someone else and has not been said → **invariant**.
+  Ask for it; do not infer it.
+- You can name nothing, or no fact you could produce would settle it → **invariant**.
+
+**Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or when
+it withholds an _authorization_ rather than a _judgment_ — a decision reserved to a person because it commits
+them.
+
+A rule **protects the integrity of a check** when the agent's own work is what the check examines — quality
+gates, verification, review, and the commit and merge gates that admit work. An agent is never the judge of
+whether the check on its own output applies.
+
+The same limb settles **self-attestation**. Writing that a gate was met, that a human approved, or that a pass
+was rigorous attests the agent's own output and discharges nothing. The claim needs a witness the agent does
+not write — a check that ran, an artifact on disk, a person who spoke. Absent one, do not record it as
+satisfied; say what is actually known.
+
+**An invariant is not the agent's to discharge.** What it withholds is the authority to decide, never the
+capability to act. Its holder may still make the reserved decision, and their making it is the rule working
+rather than a waiver — an operator authorizing a merge _is_ the merge gate. What no amount of reaffirmation
+does is move that decision to the agent.
+
+**Discharging a default.** Name the rule and the fact that discharges it, surface it where the developer is
+already reading — the gate or the completion report, never a log — leave it reversible in one turn, and
+proceed. Raise it once: a reaffirmation is a decision, not an invitation to re-raise.
+
+**Whose call.** Authority resolves from the actor's role and the surface the rule governs; no rule declares its
+own authority. The owner of the governed surface may discharge a default over it; a rule governing a surface
+with no single owner, or governing the project's own standards, resolves to the maintainer.
+
+---
+
 ## Contents
 
+- [Rule Authority](#rule-authority) — default unless marked invariant, discharge protocol, whose call
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
 - [Scaled Process, Invariant Discipline](#scaled-process-invariant-discipline) — process scales, discipline does not
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
