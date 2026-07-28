@@ -443,22 +443,12 @@ remain live derivations from metas. The core supplies an exact-base integration 
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
 
-    - `[ ]` **4.1.a Select one overlay from an atomic merge snapshot**
-        - Classify repository operation state and permit operation-parent recovery only for merge. Pin HEAD OID,
-          ordered MERGE_HEAD OIDs, configured-base OID, and an exact index tree OID produced by `write-tree` or an
-          equivalent read-only snapshot.
-        - Build a closed `PinnedMergeValidationFacts` DTO containing exact receipt bytes/provenance, required commit
-          parents, path/object states, and candidate/base facts. Read only from pinned objects, then reread all refs
-          and regenerate the index tree before granting authority; any movement or disappearance fails closed.
-        - Enumerate candidate receipts from the candidate tree and ordered operation parents, deduplicate identical
-          receipt/derivation identities, and accept exactly one distinct candidate only when canonical validation
-          proves its transition derives the pinned candidate tree. Mere receipt presence grants nothing.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary and first-parent-inherited receipt topology select the one deriving candidate.
-            - Same evidence inherited through multiple parents deduplicates, while distinct receipts/derivations,
-              conflicting origins, octopus ambiguity, historical/other-parent-only evidence, and races fail closed.
-            - Rebase, cherry-pick, and revert states receive no inferred operation-parent overlay.
-            - The synchronous selector performs no I/O and adapter failure yields no partial overlay.
+    - `[x]` **4.1.a Select one overlay from an atomic merge snapshot**
+        - Added a synchronous closed-facts selector and Git adapter that pin HEAD, ordered merge parents, configured
+          base, candidate tree, exact changed paths, receipt provenance, and validator inputs before selection.
+        - Complete namespace authentication, exact candidate derivation, ordered-parent deduplication, non-merge
+          isolation, and final marker/ref/index rereads fail closed; ROADMAP recovery writes only from selected
+          validated authority and leaves refused, ambiguous, stale, or failed snapshots untouched.
 
     - `[ ]` **4.1.b Consume the shared exact-base anchor for durable cleanup**
         - Reuse the Task 3.2.a `DecompositionIntegrationAnchor` producer over the pinned landed base facts; do not

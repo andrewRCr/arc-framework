@@ -8,6 +8,9 @@ import {
 } from "../../../src/lib/status/roadmap-conflict-auto-remedy.js";
 import { ROADMAP_PATH } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import type { CanonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import type { GitMergeTransitionOverlayResult } from "../../../src/lib/work-unit/git-merge-transition-overlay.js";
+import { createValidatedTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
 
 function isStagedReceiptList(args: readonly string[]): boolean {
   return args.join("\0") === [
@@ -31,6 +34,10 @@ function assessment(
     roadmapStaged: false,
     ...overrides,
   };
+}
+
+async function absentTransition(): Promise<GitMergeTransitionOverlayResult> {
+  return { status: "absent" };
 }
 
 describe("assessRoadmapConflictAutoRemedy", () => {
@@ -82,6 +89,115 @@ describe("assessRoadmapConflictAutoRemedy", () => {
 });
 
 describe("applyRoadmapConflictAutoRemedy", () => {
+  it("renders through selected finalized transition authority", async () => {
+    const metaPath = ".arc/active/meta-origin.md";
+    const meta = [
+      "# Metadata: origin",
+      "",
+      "- **State:** Active",
+      "- **Owner:** andrew",
+      "- **Branch:** plan/origin",
+      "- **Priority:** P1",
+      "- **Cohort:** [none]",
+      "- **Depends On:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n");
+    let written = "";
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+      if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+      if (args[0] === "worktree") {
+        return {
+          stdout: [
+            "worktree /tmp/origin",
+            `HEAD ${"a".repeat(40)}`,
+            "branch refs/heads/plan/origin",
+          ].join("\n"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "ls-tree" && args.includes("--name-only")) {
+        return { stdout: metaPath, stderr: "" };
+      }
+      if (args.join("\0") === ["show", `plan/origin:${metaPath}`].join("\0")) {
+        return { stdout: meta, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+        return { stdout: "HEAD\n", stderr: "" };
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile: async (_path, content) => {
+          written = content;
+        },
+        baseBranch: "main",
+        renderedRef: "fixed-stamp",
+        resolveTransitionOverlay: async (): Promise<GitMergeTransitionOverlayResult> => ({
+          status: "selected",
+          overlay: createValidatedTransitionOverlay({
+            origin: "origin",
+            sourceBranch: "plan/origin",
+          }),
+          receiptId: `sha256:${"b".repeat(64)}` as CanonicalDigest,
+          provenance: [
+            { kind: "candidate-tree" },
+            { kind: "head", commitOid: "c".repeat(40) },
+          ],
+        }),
+      },
+      { eligible: true, trigger: "merge-staged-roadmap" },
+    );
+
+    expect(result.status).toBe("applied");
+    expect(written).not.toContain("origin");
+  });
+
+  it("does not rewrite ROADMAP when merge transition authority is refused", async () => {
+    const writeFile = vi.fn();
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+      if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+      if (args[0] === "worktree") return { stdout: "", stderr: "" };
+      if (args[0] === "ls-tree") return { stdout: "", stderr: "" };
+      if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+        return { stdout: "fix/example\n", stderr: "" };
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile,
+        resolveTransitionOverlay: async () => ({
+          status: "refused",
+          reason: "namespace-corrupt",
+        }),
+        baseBranch: "main",
+        renderedRef: "fixed-stamp",
+      },
+      { eligible: true, trigger: "merge-staged-roadmap" },
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Merge transition authority was refused: namespace-corrupt",
+    });
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
   it("writes the regenerated ROADMAP and restages it when eligible", async () => {
     const writes: Array<{ path: string; content: string }> = [];
     const gitArgs: string[][] = [];
@@ -107,6 +223,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
         writeFile: async (path, content) => {
           writes.push({ path, content });
         },
+        resolveTransitionOverlay: absentTransition,
         baseBranch: "main",
         renderedRef: "fixed-stamp",
       },
@@ -131,7 +248,12 @@ describe("applyRoadmapConflictAutoRemedy", () => {
     });
 
     const result = await applyRoadmapConflictAutoRemedy(
-      { cwd: "/repo", exec, writeFile },
+      {
+        cwd: "/repo",
+        exec,
+        writeFile,
+        resolveTransitionOverlay: absentTransition,
+      },
       { eligible: false, reason: "wider-conflict" },
     );
 
@@ -160,6 +282,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
         writeFile: async () => {
           throw new Error("disk full");
         },
+        resolveTransitionOverlay: absentTransition,
         baseBranch: "main",
         renderedRef: "fixed-stamp",
       },

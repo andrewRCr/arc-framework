@@ -18,6 +18,8 @@
 import type { GitExec } from "../git/exec.js";
 import { readConfigSettings } from "../config/status-reader.js";
 import { materializeArcPath } from "../layout/index.js";
+import type { GitMergeTransitionOverlayResult } from "../work-unit/git-merge-transition-overlay.js";
+import { transitionOverlayCompositionInput } from "../work-unit/transition-overlay.js";
 
 import {
   ROADMAP_PATH,
@@ -84,6 +86,8 @@ export interface RoadmapConflictAutoRemedyDeps {
   baseBranch?: string;
   /** Optional fixed render stamp for tests. */
   renderedRef?: RenderRoadmapFromIndexOptions["renderedRef"];
+  /** Resolve finalized transition authority from one configured-base merge snapshot. */
+  resolveTransitionOverlay(configuredBaseRef: string): Promise<GitMergeTransitionOverlayResult>;
 }
 
 /**
@@ -151,11 +155,15 @@ export async function applyRoadmapConflictAutoRemedy(
   }
 
   try {
+    const baseBranch = deps.baseBranch ?? await readBaseBranch(deps.cwd);
+    const transition = await deps.resolveTransitionOverlay(configuredBaseRef(baseBranch));
+    const transitionOverlay = transitionOverlayForRoadmap(transition);
     const rendered = await renderRoadmapFromIndexResult({
       cwd: deps.cwd,
       exec: deps.exec,
-      baseBranch: deps.baseBranch ?? (await readBaseBranch(deps.cwd)),
+      baseBranch,
       ...(deps.renderedRef !== undefined ? { renderedRef: deps.renderedRef } : {}),
+      ...(transitionOverlay === undefined ? {} : { transitionOverlay }),
     });
 
     const absolutePath = materializeArcPath(deps.cwd, ROADMAP_PATH);
@@ -172,6 +180,27 @@ export async function applyRoadmapConflictAutoRemedy(
       status: "failed",
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+function configuredBaseRef(baseBranch: string): string {
+  return baseBranch.startsWith("refs/") ? baseBranch : `refs/heads/${baseBranch}`;
+}
+
+function transitionOverlayForRoadmap(
+  result: GitMergeTransitionOverlayResult,
+): RenderRoadmapFromIndexOptions["transitionOverlay"] | undefined {
+  switch (result.status) {
+    case "selected":
+      return transitionOverlayCompositionInput(result.overlay);
+    case "absent":
+      return undefined;
+    case "ambiguous":
+      throw new Error("Merge transition authority is ambiguous");
+    case "stale":
+      throw new Error(`Merge transition authority is stale: ${result.reason}`);
+    case "refused":
+      throw new Error(`Merge transition authority was refused: ${result.reason}`);
   }
 }
 

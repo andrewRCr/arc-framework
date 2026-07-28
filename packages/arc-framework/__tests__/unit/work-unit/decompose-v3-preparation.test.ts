@@ -274,7 +274,7 @@ describe("v3 decomposition preparation identities", () => {
     const { preparation } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(preparation);
     expect(canonicalDigest(bytes))
-      .toBe("sha256:9ea8d77d6a94bc72853a76343b2f06c2adb8bc60f38c59c0a0295f4fe8661787");
+      .toBe("sha256:92eace6b9d81829cb58c08d80bf644c74ac34b441d800cbc3a1ef16f5450a57b");
     expect(parseV3DecomposePreparation(bytes)).toEqual(preparation);
 
     const claimed = structuredClone(preparation);
@@ -290,7 +290,7 @@ describe("v3 decomposition preparation identities", () => {
     expect(parseV3DecomposePreparation(claimed)).toEqual(claimed);
     const claimedBytes = canonicalize(claimed);
     expect(canonicalDigest(claimedBytes))
-      .toBe("sha256:36b4c0e74746ddf7f41349e81bce6768c8c7c4f3ef642f1b44401b30ce21f595");
+      .toBe("sha256:f6798a20e376ea8575782ba00dd1596a64f07376ff4d845c5167c5e8056649e5");
     expect(parseV3DecomposePreparation(claimedBytes)).toEqual(claimed);
     expect(v3CandidatePublication(
       claimed.facts.completedMap,

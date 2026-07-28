@@ -41,6 +41,7 @@ function harness(options: {
     "cohort topology",
     "result 0",
     "result 1",
+    "roadmap before",
     "roadmap after",
   ];
   for (const [index, label] of knownPreimages.entries()) {

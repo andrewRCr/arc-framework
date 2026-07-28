@@ -8,17 +8,19 @@
  * @module
  */
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { readGitObjectBytes } from "../lib/io-context.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
   formatRoadmapConflictAutoRemedyMessage,
 } from "../lib/status/roadmap-conflict-auto-remedy.js";
+import { resolveGitMergeTransitionOverlay } from "../lib/work-unit/git-merge-transition-overlay.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -60,6 +62,15 @@ export async function runRoadmapConflictAutoRemedy(
     writeFile: async (path, content) => {
       await writeFile(path, content, "utf8");
     },
+    resolveTransitionOverlay: async (configuredBaseRef) =>
+      await resolveGitMergeTransitionOverlay(configuredBaseRef, {
+        cwd,
+        exec: rawGitExec,
+        fs: {
+          readFile: async (path) => await readFile(path, "utf8"),
+        },
+        readBlob: async (oid) => await readGitObjectBytes(cwd, oid),
+      }),
   });
 
   const message = formatRoadmapConflictAutoRemedyMessage(result);
