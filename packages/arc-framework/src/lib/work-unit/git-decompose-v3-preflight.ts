@@ -19,7 +19,19 @@ export interface GitV3DecomposePreflightDependencies {
 
 export type GitV3DecomposePreflightResult =
   | V3DecomposePreflightResult
-  | { status: "rejected"; reason: `git-preflight:${string}` };
+  | { status: "rejected"; reason: `git-preflight:${string}`; locus?: string };
+
+class GitV3DecomposePreflightRejection extends Error {
+  readonly reason: `git-preflight:${string}`;
+  readonly locus: string;
+
+  constructor(reason: `git-preflight:${string}`, locus: string) {
+    super(reason);
+    this.name = "GitV3DecomposePreflightRejection";
+    this.reason = reason;
+    this.locus = locus;
+  }
+}
 
 interface TreeEntry {
   mode: string;
@@ -107,7 +119,13 @@ async function readSnapshot(
   for (const meta of metaRecords.filter(({ slug }) => slug === origin)) {
     const location = locationOf(meta.path);
     const profile = planningProfile(origin, meta.record.design);
-    if (location === null || profile === null || meta.record.state === null) continue;
+    if (location === null) continue;
+    if (profile === null || meta.record.state === null) {
+      throw new GitV3DecomposePreflightRejection(
+        "git-preflight:invalid-origin-meta",
+        meta.path,
+      );
+    }
     origins.push({
       path: meta.path,
       origin,
@@ -194,6 +212,13 @@ export async function createGitV3DecomposePreflight(
       localBranches,
     });
   } catch (error) {
+    if (error instanceof GitV3DecomposePreflightRejection) {
+      return {
+        status: "rejected",
+        reason: error.reason,
+        locus: error.locus,
+      };
+    }
     return {
       status: "rejected",
       reason: `git-preflight:${error instanceof Error ? error.message : String(error)}`,
