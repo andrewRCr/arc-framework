@@ -269,7 +269,7 @@ start, then seal only the semantically reviewed candidate.
 _Design decisions:_ The CLI creates structural floors but not semantic prose. The distribution interlock is human
 authority; finalization checks mechanics and persists no approval credential.
 
-### `[ ]` **3.1 Materialize and execute the complete result projection**
+### `[x]` **3.1 Materialize and execute the complete result projection**
 
 - _Goal:_ Every planned member and constitutive coordination path exists in the exact result with explicit
   incompleteness where authoring is still required, and one driver consumes only those materialization contracts.
@@ -307,23 +307,16 @@ authority; finalization checks mechanics and persists no approval credential.
           verifies only paths this invocation changed, while full failures return exact candidate retry/discard
           facts, including typed checkout residue.
 
-    - `[ ]` **3.1.d Add exact candidate discard after execution exists**
-        - Extend the closed command-mode union with mutually exclusive
-          `arc decompose <origin> --discard <cut-map>` parsing and typed `discarded`, `already-discarded`, or
-          `refused` results only after the execute path can create the candidate it targets.
-        - Revalidate source, map, deterministic branch, uncommitted status, and candidate binding before retiring
-          only its exact transient claim ID/generation as discarded. Only `retired` or
-          `already-retired-matching` grants deletion of that transform-created branch/worktree; after exact cleanup,
-          release its matching worktree registration.
-        - Resume an exact retired-but-not-released discard at cleanup. Return `already-discarded` only when the
-          matching discarded terminal and released registration prove completion; an unproven missing candidate or
-          opposite terminal refuses.
-        - Build `test-first` (one behavior at a time):
-            - Exact abandoned candidate discards cleanly and idempotently.
-            - Changed, foreign, committed, finalized, missing, or concurrently moved candidates refuse without
-              deleting data.
-            - Failure after retirement, during cleanup, or before registration release resumes from exact terminal
-              authority without treating absence as proof.
+    - `[x]` **3.1.d Add exact candidate discard after execution exists**
+        - Added the mutually exclusive `--discard <cut-map>` command mode and one injectable exact-generation
+          retire-cleanup-release driver with typed discarded, already-discarded, and refused results.
+        - Live discard requires current source/map authority, deterministic branch/binding, the exact registered
+          candidate, an uncommitted base head, and no finalized or changed projection before terminal CAS.
+        - Matching retired generations resume cleanup/release; only a matching released discarded terminal is
+          already complete, while missing, foreign, committed, changed, moved, or opposite-terminal state refuses.
+
+- _Outcome:_ One immutable plan now owns every result path and preparation fact through exact materialization,
+  bounded partial/full recovery, and safe abandonment of an uncommitted full-protection candidate.
 
 ### `[ ]` **3.2 Preserve workflow maturity through `arc start`**
 

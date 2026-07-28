@@ -323,12 +323,14 @@ export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
   cutMap: z.string().min(1).optional(),
+  discard: z.string().min(1).optional(),
   finalize: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   continuation: z.string().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = [
     value.preflight === true,
     value.cutMap !== undefined,
+    value.discard !== undefined,
     value.finalize !== undefined || value.continuation !== undefined,
   ].filter(Boolean).length;
   if (modes !== 1 || ((value.finalize === undefined) !== (value.continuation === undefined))) {
@@ -340,15 +342,17 @@ type DecomposeCommandInput = z.output<typeof DecomposeCommandInputSchema>;
 type NormalizedDecomposeCommandInput =
   | { origin: string; mode: { kind: "preflight" } }
   | { origin: string; mode: { kind: "execute"; cutMap: string } }
+  | { origin: string; mode: { kind: "discard"; cutMap: string } }
   | {
     origin: string;
     mode: { kind: "finalize-with-continuation"; receiptId: string; continuation: string };
   };
 
-/** Normalize the three syntax arms into one closed command discriminator. */
+/** Normalize the four syntax arms into one closed command discriminator. */
 export function normalizeDecomposeCommandInput(input: DecomposeCommandInput): NormalizedDecomposeCommandInput {
   if (input.preflight === true) return { origin: input.origin, mode: { kind: "preflight" } };
   if (input.cutMap !== undefined) return { origin: input.origin, mode: { kind: "execute", cutMap: input.cutMap } };
+  if (input.discard !== undefined) return { origin: input.origin, mode: { kind: "discard", cutMap: input.discard } };
   if (input.finalize === undefined || input.continuation === undefined) {
     throw new TypeError("Validated decompose input has no complete mode.");
   }
@@ -465,6 +469,7 @@ export const lifecycleCommandInputRegistrations = [
       "operand.origin": "origin",
       "option.preflight": "preflight",
       "option.cut-map": "cutMap",
+      "option.discard": "discard",
       "option.finalize": "finalize",
       "option.continuation": "continuation",
     },
@@ -695,6 +700,8 @@ export interface DecomposeOptions {
   preflight?: true;
   /** Path to the completed canonical v3 map. */
   cutMap?: string;
+  /** Path to the completed canonical v3 map whose exact candidate should be discarded. */
+  discard?: string;
   /** Deterministic prepared receipt ID to finalize. */
   finalize?: string;
   /** Closed continuation input paired with finalize. */

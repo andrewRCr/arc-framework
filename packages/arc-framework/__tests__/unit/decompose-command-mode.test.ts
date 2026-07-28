@@ -19,6 +19,10 @@ describe("DecomposeCommandInputSchema", () => {
       { origin, mode: { kind: "execute", cutMap: "map.json" } },
     ],
     [
+      { origin, discard: "map.json" },
+      { origin, mode: { kind: "discard", cutMap: "map.json" } },
+    ],
+    [
       { origin, finalize: receipt, continuation: "continuation.json" },
       {
         origin,
@@ -44,7 +48,9 @@ describe("DecomposeCommandInputSchema", () => {
     { origin, finalize: receipt, continuation: "continuation.json", handoff: true },
     { origin, preflight: false },
     { origin, cutMap: "" },
-    { origin, discard: "map.json" },
+    { origin, cutMap: "map.json", discard: "map.json" },
+    { origin, preflight: true, discard: "map.json" },
+    { origin, discard: "" },
     { origin, handoff: true },
   ])("refuses partial, conflicting, empty, or false mode evidence: %o", (input) => {
     expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(false);
