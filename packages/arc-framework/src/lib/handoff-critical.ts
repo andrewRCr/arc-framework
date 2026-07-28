@@ -2,10 +2,14 @@
  * Handoff-critical command allowlist for the dev-mode stale-build guard.
  *
  * Decides, for a given CLI command, whether a stale `dist/cli.js` must
- * fail-fast (refuse) rather than warn. Handoff-critical commands drive
- * cross-machine state (`sync`, `user save/push/sync`) or gate work
- * (`release commit/push`, the session-init / session-handoff status probes),
- * so a stale build silently producing wrong answers is unacceptable.
+ * fail-fast (refuse) rather than warn. Refuse for:
+ * - cross-machine state (`sync`, `user save/push/sync`)
+ * - gate work (`release commit/push`, session-init/handoff probes, review unlock)
+ * - **lifecycle mutations** that mint durable branch/record state (`errand open`
+ *   and siblings, `start`) so a stale build never creates a branch then only
+ *   refuses later at `release commit`
+ *
+ * Read-only peers (e.g. `errand check`) stay warn-only.
  *
  * The one exception is the compaction-seed write: it snapshots live git and
  * task-list state for post-compaction recovery and is re-validated when
@@ -33,10 +37,18 @@ export interface HandoffCommand {
 export function isHandoffCritical(cmd: HandoffCommand): boolean {
   const { name, parentName, opts } = cmd;
   if (parentName === "arc" && name === "sync") return true;
+  if (parentName === "arc" && name === "start") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
   if (parentName === "release" && (name === "commit" || name === "push")) return true;
   if (parentName === "review" && name === "unlock") return true;
   if (parentName === "hosted" && (name === "request" || name === "settle")) return true;
+  // Errand mutators mint branches/records; refuse before those land. `check` is advisory.
+  if (
+    parentName === "errand"
+    && (name === "open" || name === "close" || name === "promote" || name === "link" || name === "retire")
+  ) {
+    return true;
+  }
   if (parentName === "arc" && name === "status") {
     // The seed write must emit even against stale dist — a recovery snapshot,
     // revalidated on read, beats no snapshot. Warn, don't refuse.

@@ -243,15 +243,19 @@ Update session state files before ending session:
     ```text
     chore(arc): handoff — <position>
 
-    Last Completed: <prev> → <curr>
-    Next Task: <prev> → <curr>
+    Last Completed: <prev>
+      → <curr>
+    Next Task: <prev>
+      → <curr>
     [State: <value> (changed | unchanged)]
     [Blockers: <delta if changed>]
 
     Context: meta-<wu-name>.md (handoff)
     ```
 
-    `Last Completed` + `Next Task` lines always present; `State` line included only when value
+    `Last Completed` + `Next Task` lines always present; wrap each `prev → curr` pair so the arrow
+    and curr value sit on a continuation line (keeps body lines under
+    `hooks.body_max_line_length` when task titles are long). `State` line included only when value
     changed; `Blockers` line included only when delta exists. Prev-value derived from
     `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from
     staged content.
@@ -259,6 +263,11 @@ Update session state files before ending session:
     **Subject-length guard.** Codified position templates fit under the 72-char hook limit with
     typical WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for
     fallback: trim WU name to its last segment.
+
+    **Body-length guard.** Do not put both full task titles on one `Last Completed` / `Next Task`
+    line — the body template above wraps deliberately. The release wrapper auto-wraps `-m` bodies
+    but preserves `-F` bytes; handoff uses heredoc `-F -`, so the template itself must stay under
+    the line limit.
 
     > [!CAUTION]
     > `commit-interlock` release — commit as `workflowCommit` with the composed message above.
