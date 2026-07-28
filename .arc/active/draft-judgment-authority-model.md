@@ -1003,11 +1003,25 @@ content may move — `strategy-work-organization`, `strategy-work-planning`, `st
 
 **That tier is not free, and its cost lands on an always-loaded surface.** `STRATEGY-INDEX` sits in the same
 tier-1 load set as both rules files, and an explicit-trigger directive is longer than the passive `Consult when:`
-line it replaces — roughly **+1 to +2 nb per entry, so +7 to +14 across the seven**. The trigger tier's net
-always-loaded yield is therefore ~67–74 nb rather than 81. Still strongly positive, and worth stating rather than
-leaving to the reader: the deliverable's claim is a smaller always-loaded set, not two smaller files, and a
-credit taken against one tier-1 file while a debit accrues to another is exactly the accounting that hides a
-wash. Success signal 3 measures the set for this reason.
+line it replaces — roughly **+1 to +2 nb per entry, so +7 to +14 across the seven**. The deliverable's claim is a
+smaller always-loaded set, not two smaller files, and a credit taken against one tier-1 file while a debit accrues
+to another is exactly the accounting that hides a wash. Success signal 3 measures the set for this reason.
+
+**Rewrite convention: condition-only.** The debit is avoidable, because each index entry currently carries a
+description _and_ a `Consult when:` line that largely restates it — `strategy-adr-methodology` reads "When/how to
+write Architecture Decision Records" above "Consult when: writing an ADR, deciding whether a decision warrants
+one." Where the description adds nothing the firing condition does not already carry, the seven rewrites **replace
+both lines with one directive** rather than lengthening the condition beneath a retained description. That takes
+the trigger tier's net always-loaded yield back to roughly its gross 81 nb instead of ~67–74, at no cost to
+trigger strength — the condition is the part that fires.
+
+Two bounds. A description stays where it carries content-shape detail the condition does not (`strategy-work-
+planning`'s spec forms and layered specs, `strategy-quality-gates`' tiered system) — the convention is
+collapse-where-redundant, not strip-descriptions. And it reaches **only the seven entries this work unit rewrites
+anyway**; the same collapse across the index's other entries is real but is not this register's, and routes out.
+The convention is also forward-compatible: `knowledge-architecture`'s generated-index successor composes from
+per-unit `fire:` lines with no description field, so condition-only moves toward that shape rather than creating
+work its arrival would discard.
 
 **Sequencing follows from the canonical / instance split**, not from ownership: the `DEV-RULES.ARC` half ships to
 every project and pays out every session, so it folds; the `DEV-RULES.PROJECT` half is this repo's own file and is
