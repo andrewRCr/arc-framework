@@ -271,7 +271,15 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
     expect(cleanup.status).toBe("eligible");
     if (handoff.status !== "resolved" || cleanup.status !== "eligible") return;
 
-    expect(canonicalize(start.anchor)).toBe(canonicalize(handoff.handoff.integrationAnchor));
     expect(canonicalize(start.anchor)).toBe(canonicalize(cleanup.cleanup.integrationAnchor));
+    expect(handoff.handoff.authority).toMatchObject({
+      configuredBaseHead: start.anchor.currentBaseHead,
+      receiptId: start.anchor.receiptId,
+      preparationId: start.anchor.preparationId,
+      sourceHead: start.anchor.sourceHead,
+      candidateCommitHead: start.anchor.candidateCommitHead,
+      landedCommitHead: start.anchor.landedCommitHead,
+      landedTree: start.anchor.landedTree,
+    });
   });
 });

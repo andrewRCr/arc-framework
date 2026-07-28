@@ -101,8 +101,18 @@ describe("resolveLandedDecompositionHandoff", () => {
 
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") return;
-    expect(canonicalize(result.handoff.integrationAnchor))
-      .toBe(canonicalize(selection.anchor));
+    expect(result.handoff.authority).toEqual({
+      configuredBaseHead: selection.anchor.currentBaseHead,
+      receiptId: selection.anchor.receiptId,
+      preparationId: selection.anchor.preparationId,
+      sourceHead: selection.anchor.sourceHead,
+      candidateCommitHead: selection.anchor.candidateCommitHead,
+      landedCommitHead: selection.anchor.landedCommitHead,
+      landedTree: selection.anchor.landedTree,
+    });
+    expect(canonicalize(selection.anchor.receipt)).toBe(canonicalize(
+      v3DecompositionEvidenceFixture().receipt,
+    ));
   });
 
   it("resolves exact landed authority and keeps immutable selection separate from readiness", () => {
@@ -135,6 +145,9 @@ describe("resolveLandedDecompositionHandoff", () => {
     });
     expect(result.handoff.entries.flatMap((entry) =>
       entry.kind === "new-leaf" ? [entry.slug] : [])).toEqual(["member-a", "member-b"]);
+    expect(Object.keys(result.handoff)).not.toContain("integrationAnchor");
+    expect(canonicalize(result.handoff)).not.toContain('"receipt":');
+    expect(canonicalize(result.handoff)).not.toMatch(/argv|command|resume|frontier/u);
   });
 
   it("preserves selected blocker order and excludes unselected ready leaves", () => {

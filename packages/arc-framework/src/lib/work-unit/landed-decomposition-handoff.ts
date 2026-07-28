@@ -63,6 +63,24 @@ export interface LandedPublicationResolution {
   entries: readonly LandedPublicationResolutionEntry[];
 }
 
+/** Stable live-projection refusal classes exposed by the public handoff. */
+export type LandedPublicationProjectionRefusal =
+  | "tree-read-failed"
+  | "tree-entry-duplicate"
+  | "tree-entry-nonregular"
+  | "project-record-indeterminate"
+  | "project-record-missing"
+  | "project-record-duplicate"
+  | "project-record-rejected"
+  | "project-record-identity"
+  | "destination-missing"
+  | "destination-path-mismatch"
+  | "draft-locator"
+  | "logical-anchor-missing"
+  | "logical-anchor-duplicate"
+  | "logical-anchor-identity"
+  | "logical-anchor-fanout";
+
 export interface LandedDecompositionHandoffInput {
   originalSlug: string;
   snapshot: {
@@ -89,8 +107,6 @@ export interface LandedDecompositionHandoff {
     landedCommitHead: string;
     landedTree: string;
   };
-  /** Exact shared authority also consumed by start and cleanup. */
-  integrationAnchor: DecompositionIntegrationAnchor;
   logicalAnchor: V3CandidatePublication["logicalAnchor"];
   displayAnchor: LandedDecompositionDisplayAnchor;
   entries: readonly LandedDecompositionHandoffEntry[];
@@ -109,12 +125,19 @@ export type LandedDecompositionHandoffResult =
   | { status: "absent" }
   | {
     status: "namespace-corrupt";
-    reason?: Extract<
-      ReturnType<typeof produceDecompositionIntegrationAnchor>,
-      { status: "refused" }
-    >["reason"];
+    reason?:
+      | Extract<
+        ReturnType<typeof produceDecompositionIntegrationAnchor>,
+        { status: "refused" }
+      >["reason"]
+      | "git-read-failed"
+      | "namespace-corrupt";
   }
-  | { status: "projection-mismatch" }
+  | {
+    status: "projection-mismatch";
+    reason?: LandedPublicationProjectionRefusal;
+    locus?: string;
+  }
   | { status: "ambiguous" }
   | { status: "not-landed" }
   | { status: "stale-base" }
@@ -179,7 +202,6 @@ export function composeLandedDecompositionHandoff(
         landedCommitHead: anchor.landedCommitHead,
         landedTree: anchor.landedTree,
       },
-      integrationAnchor: anchor,
       logicalAnchor: publication.logicalAnchor,
       displayAnchor: input.publication.anchor,
       entries: input.publication.entries,
