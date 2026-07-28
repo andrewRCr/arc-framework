@@ -7,7 +7,9 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
+import { revalidateV3DecomposeExecutionPreflight } from "../../src/lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 
@@ -105,5 +107,55 @@ describe("v3 decomposition preflight read-only boundary", () => {
 
     expect(result.status).toBe("ready");
     expect(await repositoryState(repo, sourceWorktree)).toEqual(before);
+    if (result.status !== "ready") return;
+
+    const machine = result.preflight.starterMap.machine;
+    const completedMap = {
+      schemaVersion: 3 as const,
+      machine,
+      authoring: {
+        shape: "symmetric" as const,
+        placement: { kind: "cohort" as const, cohort: "origin" },
+        destinations: [
+          { kind: "new-member" as const, destinationId: "member-a", slug: "member-a", workClass: "Light" as const },
+          { kind: "new-member" as const, destinationId: "member-b", slug: "member-b", workClass: "Light" as const },
+        ],
+        internalEdges: [],
+        sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
+          sourceId,
+          ownership: "destination-owned" as const,
+          disposition: { kind: "drop" as const, reason: "reauthor" },
+        })),
+        incomingDispositions: machine.incomingEdges.map(({ edgeId }) => ({
+          edgeId,
+          disposition: { kind: "drop" as const, reason: "retire dependency" },
+        })),
+        outgoingDispositions: machine.outgoingEdges.map(({ edgeId }) => ({
+          edgeId,
+          disposition: { kind: "drop" as const, reason: "retire dependency" },
+        })),
+      },
+    };
+    const cutMapPath = join(repo, "completed-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(sourceWorktree, "add", ".arc/active/draft-origin.md");
+    await git(sourceWorktree, "commit", "-m", "move source after preflight");
+    const changedBefore = await repositoryState(repo, sourceWorktree);
+
+    const stale = await revalidateV3DecomposeExecutionPreflight({
+      readCutMap: async (path) => new Uint8Array(await readFile(path)),
+      resolvePreflight: (origin) => createGitV3DecomposePreflight({
+        cwd: repo!,
+        exec: io.exec,
+        readBlob: (ref, path) => readGitBlobBytes(repo!, ref, path),
+      }, "main", origin),
+    }, "origin", cutMapPath);
+
+    expect(stale).toEqual({
+      status: "stale",
+      reason: "source-head",
+      locus: "machine.source.head",
+    });
+    expect(await repositoryState(repo, sourceWorktree)).toEqual(changedBefore);
   });
 });

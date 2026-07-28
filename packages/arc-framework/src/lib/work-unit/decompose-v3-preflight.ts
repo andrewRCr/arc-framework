@@ -19,6 +19,7 @@ import {
   v3SourceArtifactDigest,
   v3SourceId,
   type V3DecomposeMachine,
+  type V3DecomposeCutMap,
   type V3DecomposeStarterMap,
   type V3SourceArtifactEntry,
 } from "./decompose-v3-schema.js";
@@ -119,12 +120,29 @@ export type V3DecomposePreflightRevalidationResult =
   | { status: "current"; preflight: V3DecomposePreflight }
   | { status: "stale"; reason: V3DecomposePreflightMismatch; locus?: string };
 
+export type V3DecomposeCutMapBindingResult =
+  | { status: "current"; preflight: V3DecomposePreflight }
+  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus: string };
+
 function compareBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function sameCanonicalValue(left: unknown, right: unknown): boolean {
   return canonicalDigest(left) === canonicalDigest(right);
+}
+
+function firstArrayMismatchLocus(
+  left: readonly unknown[],
+  right: readonly unknown[],
+  locus: string,
+): string {
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    if (index >= left.length || index >= right.length) return `${locus}.${index}`;
+    if (!sameCanonicalValue(left[index], right[index])) return `${locus}.${index}`;
+  }
+  return locus;
 }
 
 function isLocalBranchRef(ref: string): boolean {
@@ -365,6 +383,62 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
       starterMap,
     },
   };
+}
+
+/**
+ * Compare one decoded completed map with a freshly rederived committed source.
+ *
+ * The completed-map decoder owns structure and authoring identity conservation;
+ * this comparison owns the fixed machine-binding order before planning begins.
+ */
+export function revalidateV3DecomposeCutMapBinding(
+  completedMap: V3DecomposeCutMap,
+  currentPreflight: V3DecomposePreflight,
+): V3DecomposeCutMapBindingResult {
+  const currentMap = parseV3DecomposeStarterMap(currentPreflight.starterMap);
+  if (currentMap === null) {
+    return { status: "stale", reason: "starter-map", locus: "machine" };
+  }
+  const prior = completedMap.machine;
+  const current = currentMap.machine;
+  const scalarMismatches = [
+    ["source-logical-branch", "machine.source.logicalBranch", prior.source.logicalBranch, current.source.logicalBranch],
+    ["source-ref", "machine.source.ref", prior.source.ref, current.source.ref],
+    ["source-head", "machine.source.head", prior.source.head, current.source.head],
+    ["result-ref", "machine.resultBase.ref", prior.resultBase.ref, current.resultBase.ref],
+    ["result-head", "machine.resultBase.head", prior.resultBase.head, current.resultBase.head],
+  ] as const;
+  for (const [reason, locus, previous, refreshed] of scalarMismatches) {
+    if (previous !== refreshed) return { status: "stale", reason, locus };
+  }
+  if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
+    return { status: "stale", reason: "planning-profile", locus: "machine.planningProfile" };
+  }
+  if (!sameCanonicalValue(prior.sourceUnits, current.sourceUnits)) {
+    return {
+      status: "stale",
+      reason: "source-units",
+      locus: firstArrayMismatchLocus(prior.sourceUnits, current.sourceUnits, "machine.sourceUnits"),
+    };
+  }
+  if (!sameCanonicalValue(prior.incomingEdges, current.incomingEdges)) {
+    return {
+      status: "stale",
+      reason: "incoming-edges",
+      locus: firstArrayMismatchLocus(prior.incomingEdges, current.incomingEdges, "machine.incomingEdges"),
+    };
+  }
+  if (!sameCanonicalValue(prior.outgoingEdges, current.outgoingEdges)) {
+    return {
+      status: "stale",
+      reason: "outgoing-edges",
+      locus: firstArrayMismatchLocus(prior.outgoingEdges, current.outgoingEdges, "machine.outgoingEdges"),
+    };
+  }
+  if (prior.preflightId !== current.preflightId) {
+    return { status: "stale", reason: "preflight-id", locus: "machine.preflightId" };
+  }
+  return { status: "current", preflight: currentPreflight };
 }
 
 /**

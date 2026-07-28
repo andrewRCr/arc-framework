@@ -77,6 +77,7 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
+import { revalidateV3DecomposeExecutionPreflight } from "../lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
@@ -765,6 +766,33 @@ export async function handleDecompose(
     }
   }
   p.intro("arc decompose");
+  if (input.mode.kind === "execute") {
+    const cwd = resolveArcRoot();
+    if (cwd === null) {
+      refuse("Not inside an ARC project (no .arc/ directory found walking up from cwd).");
+      return;
+    }
+    try {
+      const { settings, warnings } = await readConfigSettings(cwd);
+      for (const warning of warnings) p.log.warn(warning);
+      const io = createUserIOContext(context?.subprocess);
+      const result = await revalidateV3DecomposeExecutionPreflight({
+        readCutMap: async (path) => new Uint8Array(await readFile(path)),
+        resolvePreflight: (selectedOrigin) => createGitV3DecomposePreflight({
+          cwd,
+          exec: io.exec,
+          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+        }, settings["branch.base"], selectedOrigin),
+      }, input.origin, input.mode.cutMap);
+      if (result.status === "stale") {
+        refuse(`${result.reason}: ${result.locus}`);
+        return;
+      }
+    } catch (error) {
+      refuse(error instanceof Error ? error.message : String(error));
+      return;
+    }
+  }
   refuse("unsupported-transition:v3-runtime-not-wired");
 }
 

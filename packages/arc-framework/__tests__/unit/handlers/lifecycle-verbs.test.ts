@@ -56,11 +56,15 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     },
+    warnings: [],
   }),
 }));
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
-vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/tpl" }));
+vi.mock("../../../src/lib/paths.js", () => ({
+  getInternalTemplatePath: () => "/tpl",
+  resolveArcRoot: () => "/repo",
+}));
 
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
@@ -118,6 +122,10 @@ vi.mock("node:fs/promises", () => ({
 const mockParseCutMap = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
   parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
+}));
+const mockRevalidateV3DecomposeExecutionPreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-v3-execution-preflight.js", () => ({
+  revalidateV3DecomposeExecutionPreflight: (...a: unknown[]) => mockRevalidateV3DecomposeExecutionPreflight(...a),
 }));
 const mockRunDecompose = vi.fn();
 const mockRunPreparedDecompose = vi.fn();
@@ -326,6 +334,11 @@ beforeEach(() => {
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
   mockReadFile.mockResolvedValue('{"schemaVersion":1}');
+  mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+    status: "current",
+    completedMap: {},
+    preflight: {},
+  });
   mockParseCutMap.mockReturnValue({
     status: "parsed",
     params: { origin: { slug: "mono", phase: "Planning", location: "active" }, shape: "symmetric", entries: [], internalEdges: [] },
@@ -457,30 +470,44 @@ describe("handleDecompose", () => {
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {
-    mockParseCutMap.mockReturnValue({ status: "rejected", reason: "cut-map requires an `entries` array." });
+    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+      status: "stale",
+      reason: "completed-map",
+      locus: "cut.json",
+    });
 
     await handleDecompose("mono", { cutMap: "cut.json" });
 
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith("completed-map: cut.json");
     expect(process.exitCode).toBe(1);
   });
 
-  it("refuses a missing / unreadable cut-map file before parse or mutation", async () => {
-    mockReadFile.mockRejectedValue(new Error("ENOENT: no such file"));
+  it("refuses a missing / unreadable cut-map file before mutation", async () => {
+    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+      status: "stale",
+      reason: "completed-map",
+      locus: "missing.json",
+    });
 
     await handleDecompose("mono", { cutMap: "missing.json" });
 
-    expect(mockParseCutMap).not.toHaveBeenCalled();
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith("completed-map: missing.json");
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
+    mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+      status: "stale",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+    });
+
     await handleDecompose("other", { cutMap: "cut.json" });
 
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith("completed-map: machine.source.origin");
     expect(process.exitCode).toBe(1);
   });
 

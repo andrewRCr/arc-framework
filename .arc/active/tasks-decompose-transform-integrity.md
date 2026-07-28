@@ -132,14 +132,10 @@ before creating a branch or touching a result path.
 _Design decisions:_ Preflight is read-only canonical JSON. One immutable `ValidatedDecomposePlan` is the sole
 mutation authority; it already contains the operator-approved map and every mechanically derived action.
 
-### `[ ]` **2.1 Emit and revalidate read-only preflight**
+### `[x]` **2.1 Emit and revalidate read-only preflight**
 
 - _Goal:_ The operator receives a deterministic ready-to-author map from one exact committed source without
   changing repository or lifecycle state.
-
-- _Note:_ Design coverage: D2.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
     - `[x]` **2.1.a Resolve one tree-pinned source snapshot**
         - The Git adapter now enumerates only exact local branch refs, resolves the configured base, and pins every
@@ -169,16 +165,18 @@ mutation authority; it already contains the operator-approved map and every mech
           retirement records, and dirty filesystem bytes while ignoring remote-tracking and invocation-checkout
           state.
 
-    - `[ ]` **2.1.d Revalidate the exact preflight binding**
-        - Bind a typed preflight identity/digest into the starter map. Before result planning, atomically re-read the
-          completed canonical map bytes, resolve the source ref, reread the exact source tree, and rederive
-          its planning profile and inventories in that order.
-        - Compare logical branch, qualified ref, head, planning profile, inventory, allocation, and every machine
-          binding before returning any planning input.
-        - Build `test-first` (one behavior at a time):
-            - Source movement, map drift, or evidence drift returns the deterministic first exact mismatch.
-            - Call-order tests prove no partial plan or preparation escapes before every comparison succeeds.
-            - Changed source after preflight creates no branch, preparation, or writable residue.
+    - `[x]` **2.1.d Revalidate the exact preflight binding**
+        - Execution preflight reads completed bytes once, requires byte-canonical closed-map decoding and exact
+          authoring identity conservation, then resolves a fresh tree-pinned source through the same Git adapter.
+        - Machine comparison follows one fixed branch/ref/head/base/profile/source/incoming/outgoing/preflight order
+          and returns the first exact field or array-entry locus; no completed map or refreshed preflight escapes on
+          refusal.
+        - The execute handler now consumes this gate before result planning. Real-Git source movement proves a stale
+          head creates no branch, preparation, worktree, index, record, or dirty-byte change.
+
+- _Outcome:_ Preflight and execute now share one checkout-independent committed-source authority: canonical author
+  input can advance only when its complete machine envelope still matches the freshly rederived source and result
+  base, while every drift path remains locally read-only.
 
 ### `[ ]` **2.2 Build the complete immutable result plan**
 
