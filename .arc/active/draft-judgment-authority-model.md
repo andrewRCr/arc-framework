@@ -196,6 +196,12 @@ A rule **protects the integrity of a check** when the agent's own work is what t
 quality gates, verification, review, and the commit and merge gates that admit work. The test is
 structural, not topical: an agent is never the judge of whether the check on its own output applies.
 
+The same limb settles **self-attestation**. A record the agent authors is not evidence about the agent:
+writing that a gate was met, that a human approved, or that a pass was rigorous attests the agent's own
+output and discharges nothing. Where the attesting party is the party under examination, the claim needs
+a witness the agent does not write — a check that ran, an artifact on disk, a person who spoke. Absent
+one, do not record the claim as satisfied; say what is actually known.
+
 **An invariant binds the agent.** It is not discharged by an operator's reaffirmation, and not by a host
 harness's rule that operator reaffirmation is decisive. Reaffirmation settles a default (above); against
 an invariant it licenses nothing, and the conflict surfaces rather than resolving silently.
@@ -835,7 +841,9 @@ criteria, and the second is load-bearing — the only one that can fail by the m
 
 1. **Derivation.** Each of the six prior enactments, and all three recorded live failures — the typo-invalidated
    review, the `run-errand` merge capability read as withheld, and § Quality gate failure applied to a gate that
-   never ran — resolves from § Rule Authority with no new per-case rule written. If a case still needs its own
+   never ran — resolves from § Rule Authority with no new per-case rule written, as does the **forgeable
+   self-report** shape the corpus had been re-deciding per site: an agent attesting its own rigor is backstop
+   limb one, since the attesting party is the party under examination. If a case still needs its own
    clause, the discriminator does not derive what it claims to. **One case is reserved as the falsifier:**
    autonomous `WORKING-MEMORY` additions must resolve to _propose, do not self-add_ via backstop limb two, and
    must do so **against** the satisfaction test, which returns `default` on its own. A discriminator whose
@@ -878,13 +886,14 @@ discharged.
   and 17 is blocked. Two more P1 violations were found and withdrawn beyond pass one's five, and two compress
   verdicts were retracted as over-broad. Full record in `notes-judgment-authority-model.md`.
 
-- **The forgeable self-report shape, named once.** An agent writing "human approved" into a record it also authors
-  proves nothing, and in a chat harness there is no trace of the approval that is not agent-mediated. This work
-  unit does not depend on solving it — the gate-history application left with `planning-lane-relief` — but it
-  should **name the shape generally**, because the corpus keeps rediscovering it: `review-signal-convergence`
-  rejected two candidate shapes for the `adversarial-review` `withstood` field on exactly this ground, and register
-  cut 5 rejects the quality-signals bullet on it too. Both asked an untrusted party to attest its own rigor.
-  Naming it once is this model's job; solving it for a machine-read classifier is not.
+- **~~The forgeable self-report shape, named once~~** — **closed 2026-07-28.** An agent writing "human approved"
+  into a record it also authors proves nothing, and in a chat harness there is no trace of the approval that is not
+  agent-mediated. The corpus kept re-deciding it per site — `review-signal-convergence` rejected two candidate
+  shapes for the `adversarial-review` `withstood` field on this ground, and register cut 5 rejects the
+  quality-signals bullet on it too. It needed no new rule: **backstop limb one already derives it**, since the
+  attesting party is the party under examination, and § Rule Authority now says so directly. Recorded as a fourth
+  derivation case under § Success signal rather than as content. The machine-read classifier problem is still not
+  this model's to solve; the gate-history application left with `planning-lane-relief`.
 - **Which gate failures should name a fix command** — routed out to `quality-gate-hooks` (see § Scope). The set is
   unenumerated: the markdown gate wants `lint:md:fix` and `format:tables`, the TypeScript gate has no single
   remedy, and a gate whose fix is "read the output" should emit nothing rather than noise. Recorded here only

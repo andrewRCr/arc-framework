@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Adversarial passes one and two resolved; compression half composed against its prior art
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the register's systematic constraint-column pass — the last formalization gate — then
-  decide whether a third adversarial pass is worth its authorization
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
