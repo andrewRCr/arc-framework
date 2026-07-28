@@ -8,8 +8,10 @@
   down, judgment friction up explicitly reserves for human and agent judgment.
 
 - **State:** maturing — the constitutional core is settled and has survived two adversarial passes with only
-  bounded text fixes. The compression half has now been composed against the prior art it originally re-derived,
-  with one tier deferred to the work unit that owns the mechanism it needs.
+  bounded text fixes. The compression half has been composed against the prior art it originally re-derived, with
+  one tier deferred to the work unit that owns the mechanism it needs, and its register now carries a per-row
+  constraint determination with the author's-interest read discharged. No open question gates formalization; a
+  third adversarial pass is the remaining move before the readiness assessment.
 - **Class:** `Heavy` — derivation runs high (a real design must be authored), but the read is _compose_, not
   _invent_: six existing enactments to generalize (see § The pattern). Scale and constitutional blast radius hold
   it there.
@@ -88,7 +90,7 @@ mind and has not been uttered. It is ignorance-guarding by construction, yet it 
 "demonstrably knows" is unreachable in principle, not merely unmet today. So the arm asks whether the ignorance is
 **dischargeable by the agent** (a default) or **structurally undischargeable** (an invariant).
 
-The worked instance is `review-protocol-alignment` concern 8: the `adversarial-review` fire points at the three
+The worked instance is `review-activity-contracts` D7.4: the `adversarial-review` fire points at the three
 planning stages must obtain the developer's agreement before firing even under opt-in at threshold, while the
 verification and integration fire points may autofire once opted in. The rule it derives — **a stop is required
 wherever the completion signal is not fully observable in the artifact** — is exactly this shape. Verification's
@@ -216,6 +218,32 @@ test catches it, and for the right reason: an agent that wants to commit is stru
 whether the commit check applies to it. The backstop's first limb generalizes that. Its second limb carries the
 `run-errand` fix directly, separating a withheld **authorization** (the owner's approval) from a withheld
 **capability** (performing the merge) — the distinction the standing test read straight off.
+
+**Limb two's second worked case, and the better one: writes to the developer's `WORKING-MEMORY`.** The `run-errand`
+case is one where limb two corrects a _reading_; this is one where it corrects the discriminator's own output. An
+agent adding a memory entry can name facts that appear to discharge the concern — the entry is cross-WU, durable,
+and carries a concrete removal trigger — so the satisfaction test alone returns **default**, and the agent
+proceeds. That is wrong, and limb two says why: the write withholds an authorization, because it commits _someone
+else_. `WORKING-MEMORY` is identity-global and always-loaded, so every future session across every work unit pays
+the cost, and the agent adding the entry is not the party who pays.
+
+**The distinguisher, without which the derivation over-fires.** SESSION-NOTES is also agent-written into the
+developer's workspace, and it is not an authorization. What separates them is **bounded cost inside a ceremony**
+versus **unbounded cost outside one**: SESSION-NOTES is per-WU, discarded at integration, and written during the
+human-invoked handoff; a `WORKING-MEMORY` entry is cross-WU, persists until its trigger fires, and in practice
+gets added mid-session. The rule this yields — propose the entry, do not self-add it — is therefore derived rather
+than authored.
+
+**The corpus already says so, in a place nothing summons.** `strategy-session-operations` § Working Memory scopes
+the write to a ceremony outright ("written at session handoff alongside SESSION-NOTES"), and § Handoff makes that
+ceremony human-invoked. So ad-hoc mid-session additions are already non-conforming, not merely ungoverned — the
+constraint simply sits in an on-demand strategy, unreachable by an agent about to write. That is a P1 violation in
+the live corpus of exactly the shape § What can leave exists to prevent, found in a file this register does not
+cover. **Its remedy is not a new rule in `DEV-RULES.ARC`:** the guard belongs in the `WORKING-MEMORY` header, which
+is already in the always-loaded set, so it lands at the fire site of the operation it governs at zero marginal
+load. Restating it in the always-loaded rules would grow the surface this work unit shrinks and duplicate a
+constraint that already exists — P10's first clause, against this work unit. Routed out; the derivation is what
+belongs here.
 
 **Why no per-rule authority vocabulary.** The obvious alternative is each overridable rule declaring an override
 authority — `owner` (the WU/path owner) / `maintainer` / `policy` (nobody at runtime). The substrate exists
@@ -359,15 +387,25 @@ disappearing. The generalizable fix on record: **where a lean operational surfac
 deeper surface's trigger must name the _residual_ question, not the domain.** Pointlessness is a property of the
 position, not of the content.
 
-**Four destination mechanisms exist, and the fourth is the one this register most needed.**
+**Five destination mechanisms exist. The fourth is the one this register most needed; the fifth is the strongest
+and belongs to another work unit.**
 
 1. **Fire-site declaration** — a frontmatter declaration resolved by the CLI at the point of use.
 2. **Explicit-trigger index entry** — a `STRATEGY-INDEX` line authored to P2 strength. A passive entry does not
    qualify; re-authoring one is part of the work rather than a prerequisite outside it.
-3. **Emitted remedy** — the failing gate, hook, or CLI output names its own fix.
+3. **Emitted remedy** — the failing gate, hook, or CLI output names its own fix. **Bounded by what ARC controls:**
+   it can only emit where ARC owns the output stream. A live instance arrived during this work unit's own base
+   reconcile — a `ROADMAP` merge conflict is auto-remedied by the pre-commit githook, but `git merge` reports the
+   conflict several steps earlier and says nothing, so the operator stands at a conflict with no signal that doing
+   nothing is correct. The worse failure is available too: hand-resolving a regenerable projection produces a worse
+   result than the regeneration. Where the failing operation belongs to another tool, the remedy has to arrive from
+   a surface ARC does own (`arc status`, the session probe) — which is a different mechanism, not this one.
 4. **Domain rules** — `DEV-RULES.{DOMAIN}.md`, resolved by the CLI into the session probe's `domainRules` slot and
    loaded on demand when work touches the domain. Built, wired, carrying its own contract check, and **entirely
    unused**: zero such files exist.
+5. **Lifecycle-state keying** — a rules surface conditioned on the session's resolved lifecycle state rather than
+   on its subject matter. Not built, and **not this work unit's to build**; recorded because it is structurally the
+   strongest conditional destination available and the register should not be read as having surveyed only four.
 
 Mechanism 4 changes the register's shape, because it is the only destination that can take a **constraint**. P1
 permits a constraint at the fire site gating the operation it protects, and a domain-conditional rules file loaded
@@ -375,6 +413,36 @@ when that domain is in scope is that fire site. The limit is strict: it holds on
 bounded by the domain that triggers the load, and a universal constraint has no such boundary and stays. The prior
 analysis reaches the same verdict from the other side — "a rule that proves position-conditional is evidence it
 should move to a domain-rules file — a content-placement call."
+
+**Mechanism 5 is distinct from mechanism 4, and stronger, on the axis that matters.** Domain keying conditions on
+subject matter the agent must _notice_ it is touching — an estimate, and the trigger-choice bound below rejects
+triggers that fire on signals the agent estimates badly. Lifecycle state is not estimated: the session probe
+already resolves it (`planning` / `execution` / `integration`), and session-init already branches on it to select
+the stage workflow. The dispatch exists; only a rules surface keyed to it does not. Two consequences follow:
+
+- **It is the only conditional destination that can hold a constraint without weakening it.** P1 forbids demoting
+  constraints because a reader does not know to look for the rule they are about to violate — but a constraint
+  loaded whenever its state is active is never _absent_ when it applies. The probe knows, so the reader need not.
+- **It satisfies P3 better than any workflow destination.** Lifecycle state is a session-scoped fact rather than
+  "you happen to be running this workflow," so it survives the ad-hoc invocation that disqualified
+  `process-task-loop` and `integrate-work-unit` here.
+
+**It nevertheless buys this register almost nothing, and that is the finding.** Probed against the rows the
+constraint column marked as staying, nearly none are lifecycle-bounded: merge authority bites precisely _outside_
+integration (§ Constraint stays, procedure moves); `--no-verify`, rebase and amend scope, and the revert checks
+bite at any commit in every state; the review-increment invariant, implied-approval scope, verify-before-assuming,
+and the documentation-boundary rules fire whenever anything is written. The reason is structural rather than
+lucky — **the compression already selected for universality**, so what survives survives because it is universal.
+That is § Corpus sweep's result reproduced one layer down. A lifecycle split of these files would yield one large
+universal file and three thin ones.
+
+Two things are worth recording for whoever does build it. Its payoff is in the **trigger tier**, not here: that
+tier's whole defect is passive index entries at the 60–75% band, and lifecycle keying replaces a passive entry
+with a deterministic one wherever the destination is lifecycle-correlated. And it carries a **fail-open hazard** —
+`sessionType` is legitimately `null` (orphan state, multiple-candidate defer), so a keyed surface that does not
+load under `null` drops constraints silently. Loading everything on `null` settles it, but the contract must be
+stated rather than assumed. Ownership: `rules-restructure`, which already owns the filename-split axis this would
+compose with; the combinatorics of domain × lifecycle are that work unit's to resolve, not this one's.
 
 **Two further bounds on trigger choice.** `knowledge-evolution` **P3** — anchor triggers to operations, not
 workflows — disqualifies a destination whose trigger fires only inside the workflow hosting the operation, since
@@ -504,10 +572,16 @@ deviation ledger to keep it honest there.
 
 Cuts, ranked:
 
-1. `DEV-RULES.PROJECT` § Code Quality Principles — "DRY, SOLID, KISS, YAGNI". Four acronyms, no
-   project-specificity, nothing actionable. The TypeScript standards beneath it are specific and stay.
-2. `DEV-RULES.ARC` § Task granularity — the numeric thresholds (>3 files, >50 lines). Proxies standing in for "is
-   this one coherent increment"; they cause more bad decompositions than they prevent. Keep the principle.
+1. `DEV-RULES.PROJECT` § Code Quality Principles — **DRY, SOLID, KISS**. No project-specificity, nothing
+   actionable, and inert: the section accreted twice in two days without anyone touching them. **YAGNI stays**,
+   reframed as scope discipline — "don't build what wasn't asked for" is not capability guidance but a
+   scope-authority rule, one agents do violate and one ARC states nowhere else. The TypeScript standards and the
+   pre-public-release compatibility posture beneath it are specific and stay. Cutting the acronyms leaves the
+   heading describing contents it no longer has, so the cut carries a reseat or rename rather than a bare deletion.
+2. `DEV-RULES.ARC` § Task granularity — the **two numeric bullets** (>3 files, >50 lines). Proxies standing in for
+   "is this one coherent increment"; they cause more bad decompositions than they prevent. The two qualitative
+   bullets — multiple interdependent changes, complex debugging or investigation — are what carry the principle and
+   stay. Demotion is unavailable: a `generate-tasks` trigger misses ad-hoc in-session decomposition (P3).
 3. § Quality gate failure — **moved to Rephrasings below.** An earlier reading wrote steps 1–3 off as baseline
    competence; the second live instance in § Face (b) shows they are a conflation of two different failures plus a
    default in the wrong mood, which is a rewrite rather than a cut.
@@ -519,14 +593,19 @@ Cuts, ranked:
     - **Keep** the boundary procedure. Its second step is a mandatory stop, and the only trigger that would
       summon it from a strategy fires on the agent's estimate of its own context pressure — the signal the next
       bullet rejects as unreliable. Demoting it would lose a stop behind a trigger that cannot fire honestly.
-    - **Demote** the boundary taxonomy — the four categories of what counts as a natural boundary — to
-      `strategy-session-operations`, behind that entry's trigger amendment. Decision support for a human
-      judgment call, and nothing about it stops anything.
+    - **Keep one line _out_ of the boundary taxonomy before demoting the rest.** The Structural-boundaries
+      category ends "note the handoff opportunity if significant context has accumulated" — a single agent-facing
+      behavioral instruction, and the one that actually produces the welcome "this is a clean boundary, hand off
+      before X?" report. It is embedded in otherwise human-facing decision support.
+    - **Demote** the four boundary categories to `strategy-session-operations`, behind that entry's trigger
+      amendment. Decision support for a human judgment call, and nothing about it stops anything.
     - **Cut** the "quality signals" bullet outright. It asks the agent to notice "output becoming less precise,
       early-session guidance being missed, re-deriving decisions already established" — self-assessment of one's
       own degradation, which is the forgeable-self-report shape named in § Open questions. An agent reliable
       enough to detect its own drift would not be drifting. Do not ship a rule that depends on a capability this
-      draft argues elsewhere does not exist.
+      draft argues elsewhere does not exist. The maintainer's read took this cut whole rather than narrowed to the
+      introspective clause: with the handoff-opportunity line extracted above, nothing of value depends on it, and
+      always-loaded content that cannot show its keep should be cut and observed for whether it is missed.
     - **Do not replace it with a behavioral rule.** The handoff nudge fires on a signal the agent estimates badly
       (its own utilization) while the harness knows it mechanically; if the nudge is wanted it belongs to
       mechanism 3, not agent introspection. Leaving it unmandated still permits reporting an obvious structural
@@ -569,14 +648,49 @@ Rephrasings:
 - `DEV-RULES.PROJECT` § Selecting what to run is the **exemplar** — named purpose, derivation rule, explicit
   fail-safe ("the deciding is not worth more than the checks cost"). Cite it as the target shape; change nothing.
 
-**Author's-interest caveat.** Cuts 2–5, and roughly ten further compress-in-place verdicts recorded in the notes
-companion, are judgments about what current agents no longer need, made by an interested party — the backstop
-clause calls exactly that structurally suspect. They are candidates for the maintainer's read, not findings, and
-§ Open questions places that read as a gate at spec discovery rather than leaving it as an unowned caveat.
+**Author's-interest caveat, and its resolution.** The cuts above and roughly ten further compress-in-place verdicts
+recorded in the notes companion are judgments about what current agents no longer need, made by an interested
+party — the backstop clause calls exactly that structurally suspect. Two things resolved it:
+
+- **The class splits, and only half of it is a gate.** An outright **cut** removes a rule; a **compress-in-place**
+  verdict leaves the constraint always-loaded and densifies only its prose, so it cannot lose a rule, only an
+  explanation. The gate belongs on the cuts; the compressions are ordinary authoring under the no-detail-loss
+  self-check and review at the capture gate. Bundling the two was what made the caveat look unresolvable.
+- **The read has run** — at draft stage rather than at spec discovery, which is strictly better, since the register
+  it governs is what the remaining formalization work is sized against. All four cuts were taken (three narrowed as
+  recorded above, § Verify before assuming whole), and two compress verdicts were retracted as over-broad:
+  § Surface taxonomy's path lists are the operative content rather than prose around it, and § Write for the
+  reader's examples do the disambiguation work already credited to § No meta-project references. Per-item record
+  in the notes companion.
 
 The register above stays the **named** set; the enumeration's full per-section disposition stays in the notes
 companion. That division is what keeps the surface bounded — a line-level table cannot widen into an audit mandate
 the way a share-of-file percentage can.
+
+### What generalizes past these two files
+
+The tests are reusable and the register is not. Applied in order — constraint determination, then destination,
+then trigger strength, then P3, then pointlessness — they compose into **the first repeatable method the corpus
+has for compressing an always-loaded surface**. Every prior attempt failed the same way, including this document's
+own first two passes: a disposition reached at too coarse a grain. Pass one applied the audience and summoning
+tests without the constraint determination; pass two found the register deciding questions prior art had already
+settled; the maintainer's read found the audience test applied per-section where it needed to run per-bullet. The
+method's value is that it makes those failures visible as columns rather than as findings.
+
+**Pointing it at another surface needs one extension, and the extension is the interesting part.** These two files
+are constraints, so a `no` in the constraint column reliably means demotable. The briefs are not: `AGENT-BRIEF.ARC`
+is orientation, and almost none of it is a prohibition, so a naive application would mark nearly the whole file
+demotable. That is badly wrong — its vocabulary block is the largest single part of it and the **least** demotable
+content in the always-loaded set, because `work unit`, `Class`, `interlock`, and `review increment` are what make
+the rules that stay readable at all. So a third category is required beside constraint and explanatory: **enabling**
+content, which carries no obligation itself but is a precondition for interpreting content that does. Demoting an
+enabling definition silently degrades every rule that uses the term — a failure mode with no gate and no symptom,
+which is why it needs naming before anyone runs this method against a brief.
+
+Two boundary notes for whoever does. `STRATEGY-INDEX` **grows** under this work unit — seven entries re-authored
+from passive lines to explicit-trigger strength are longer, not shorter — so it cannot be compressed until that
+lands. And `QUICK-REFERENCE` is loaded by section rather than whole, so its always-loaded footprint is far smaller
+than its file size and it should be measured at the loaded section, not the file.
 
 ## Forward-compat
 
@@ -662,10 +776,14 @@ Two narrower target classes remain:
 Three checks, each falsifiable by inspection when the work is done. They are the seed of the spec's success
 criteria, and the second is load-bearing — the only one that can fail by the model being too permissive.
 
-1. **Derivation.** Each of the six prior enactments, and both recorded live failures — the typo-invalidated
-   review, the `run-errand` merge capability read as withheld — resolves from § Rule Authority with no new
-   per-case rule written. If a case still needs its own clause, the discriminator does not derive what it claims
-   to.
+1. **Derivation.** Each of the six prior enactments, and all three recorded live failures — the typo-invalidated
+   review, the `run-errand` merge capability read as withheld, and § Quality gate failure applied to a gate that
+   never ran — resolves from § Rule Authority with no new per-case rule written. If a case still needs its own
+   clause, the discriminator does not derive what it claims to. **One case is reserved as the falsifier:**
+   autonomous `WORKING-MEMORY` additions must resolve to _propose, do not self-add_ via backstop limb two, and
+   must do so **against** the satisfaction test, which returns `default` on its own. A discriminator whose
+   backstop cannot overturn its primary test on a case the corpus already decides the other way is not deriving —
+   it is agreeing.
 2. **Safety.** No bias-guard is cut or weakened **in the surfaces the retrofit actually edits** — `DEV-RULES.ARC`'s
    own imperative corpus and `DEV-RULES.PROJECT`, not only the untouched workflows. Scoping this check to
    `integrate-work-unit` and `verify-work-unit` would make it unfalsifiable, since § Corpus sweep already
@@ -679,23 +797,25 @@ criteria, and the second is load-bearing — the only one that can fail by the m
 
 ## Open questions
 
-One gates formalization, and it is the compression half's. The constitutional core carries none.
+None now gates formalization. The constitutional core never carried one; the compression half's has been
+discharged.
 
-- **The register needs its constraint-or-not column before the deliverable is sized** (`needs-design`, owner: this
-  work unit's spec discovery). The re-audit above identified five demotions that P1 forbids, found by attacking
-  the register rather than by applying the tests in order, so the remainder is not yet trustworthy. Two things
-  resolve together: every row gets an explicit constraint determination, and the **author's-interest items** —
-  register cuts 2–5 plus roughly ten compress-in-place verdicts — get the maintainer's read that the caveat calls
-  for. That read is a real gate at spec discovery, not a disposition recorded here; a cut to an always-loaded
-  constitutional file is a design decision, not a variable name.
+- **~~The register needs its constraint-or-not column before the deliverable is sized~~** — **closed 2026-07-28.**
+  Both halves resolved together as the question required. Every row now carries an explicit constraint
+  determination reached _before_ its destination, and the author's-interest items got the maintainer's read the
+  caveat called for — earlier than the spec-discovery gate the question proposed, which is strictly better, since
+  the register is what the remaining work is sized against. Outcome: the register is 261 nb (from 318), of which
+  116 is authorable today, 81 is gated on re-authoring seven passive index entries to explicit-trigger strength,
+  and 17 is blocked. Two more P1 violations were found and withdrawn beyond pass one's five, and two compress
+  verdicts were retracted as over-broad. Full record in `notes-judgment-authority-model.md`.
 
 - **The forgeable self-report shape, named once.** An agent writing "human approved" into a record it also authors
   proves nothing, and in a chat harness there is no trace of the approval that is not agent-mediated. This work
   unit does not depend on solving it — the gate-history application left with `planning-lane-relief` — but it
-  should **name the shape generally**, because the corpus keeps rediscovering it: `review-protocol-alignment`
-  concern 6 rejected two candidate shapes for the `adversarial-review` `withstood` field on exactly this ground,
-  and register cut 5 rejects the quality-signals bullet on it too. Both asked an untrusted party to attest its own
-  rigor. Naming it once is this model's job; solving it for a machine-read classifier is not.
+  should **name the shape generally**, because the corpus keeps rediscovering it: `review-signal-convergence`
+  rejected two candidate shapes for the `adversarial-review` `withstood` field on exactly this ground, and register
+  cut 5 rejects the quality-signals bullet on it too. Both asked an untrusted party to attest its own rigor.
+  Naming it once is this model's job; solving it for a machine-read classifier is not.
 - **Which gate failures should name a fix command** — routed out to `quality-gate-hooks` (see § Scope). The set is
   unenumerated: the markdown gate wants `lint:md:fix` and `format:tables`, the TypeScript gate has no single
   remedy, and a gate whose fix is "read the output" should emit nothing rather than noise. Recorded here only
@@ -727,11 +847,13 @@ One gates formalization, and it is the compression half's. The constitutional co
   and the compression register is scoped accordingly. What remains is a **vocabulary** coupling, not a territorial
   one. Draw it before either authors the section; upstream-versus-siblings does not need settling to proceed,
   since neither is imminent.
-- **`review-protocol-alignment` — downstream consumer, no hard edge.** Four of its judgment-layer concerns are
-  informed by this model: the coarse post-fix review-applicability rule, the missing proposal-time
-  `Post-fix review:` field, the two-stop author-response cycle, and the determinism-versus-judgment posture. It
-  holds them in a later phase deliberately so it is not gated on this upstream. No `Depends On` edge in either
-  direction.
+- **The `review-protocol-alignment` cohort — downstream consumer, no hard edge.** It decomposed into four members
+  on 2026-07-27, so the slug now names the cohort rather than a work unit; the concerns this model informs sit with
+  `review-activity-contracts` (the adversarial fire-point stop rule, D7.4) and `review-signal-convergence` (the
+  `withstood` field's forgeable-self-report rejection). Four judgment-layer concerns remain informed by this model:
+  the coarse post-fix review-applicability rule, the missing proposal-time `Post-fix review:` field, the two-stop
+  author-response cycle, and the determinism-versus-judgment posture. They sit in later phases deliberately so no
+  member is gated on this upstream. No `Depends On` edge in either direction.
 - **Prior owners are all shipped** and cannot absorb this: `review-gate-right-sizing`, `review-architecture`, and
   `review-surface-binding`. Hence its own stub.
 
@@ -764,6 +886,16 @@ relationships are:
   rule-denser file it leaves behind are direct inputs. Record **no `Depends On` edge**; route a coordination note at
   planning close naming the deferred tier and the supplied predicate.
 
+  **A second supplied input: lifecycle-state keying as a fifth destination mechanism** (§ What can leave,
+  mechanism 5). It conditions a rules surface on the probe-resolved lifecycle state rather than on subject matter,
+  which makes it the only conditional destination that can hold a constraint without weakening it, and the only one
+  that satisfies P3 without an operation-anchored trigger being authored by hand. This work unit probed it, found
+  it buys the register almost nothing — the compression already selected for universality, so what stays is
+  universal — and left it unbuilt. `rules-restructure` owns the filename-split axis it would compose with, and the
+  domain × lifecycle combinatorics are that work unit's to resolve. Pass on both the mechanism and its fail-open
+  hazard: `sessionType` is legitimately `null`, so a keyed surface that does not load under `null` drops
+  constraints silently.
+
   One narrower coordination item: that WU's inbound buffer holds a progressive-disclosure rebalance touching
   § Discovered Work Routing and § Holding ≠ execution, which this register also disposes. Git merges the file; the
   risk is uncoordinated redesign of the same prose. Name it in the same note.
@@ -775,12 +907,20 @@ precedence paragraph, a bounded marker retrofit, and a narrow prose sweep. Faces
 constitutional deliverable; face (a) ships as `planning-lane-relief`.
 
 Compression stays in scope, **minus the domain-rules tier**, which is deferred to `rules-restructure` and moved
-nowhere here (see § Composition / Coordination). Its size is not settled — the systematic constraint-column pass
-resolves it — but the derivation establishes the shape: a firm tier of ~34 nb in cuts and verified-redundancy
-demotions, most of the remaining surface behind re-authoring passive index entries to explicit-trigger strength, and
-~41% of the register sitting in an instance file no project inherits. Whatever stays also carries the destination
-edits each demotion lands, one `STRATEGY-INDEX` entry for `strategy-interlock-release-wrappers`, and a one-line
-retarget of `quality-gate-commands`' passthrough.
+nowhere here (see § Composition / Coordination). The constraint-column pass has now settled its size at **261 nb**:
+116 authorable today (55 canonical, 61 instance), 81 gated on re-authoring seven passive index entries to
+explicit-trigger strength, 17 blocked, and the remainder compress-in-place residue. **44% of the register sits in
+an instance file no project inherits**, so the canonical surface — what reaches every project — is the 55 nb plus
+whatever the trigger work releases on the `DEV-RULES.ARC` side. Whatever stays also carries the destination edits
+each demotion lands, one `STRATEGY-INDEX` entry for `strategy-interlock-release-wrappers`, and a one-line retarget
+of `quality-gate-commands`' passthrough.
+
+**The trigger tier is the critical path, not a prerequisite.** At 81 nb it is the register's largest tier and it is
+a single defect with a bounded fix: every `strategy-*` destination reaches its content through a passive
+`Consult when:` line at the 60–75% band. Seven index entries need explicit-trigger rewrites before any of that
+content may move — `strategy-work-organization`, `strategy-work-planning`, `strategy-session-operations`,
+`strategy-workflow-authoring`, `strategy-package-project-sync`, `strategy-adr-methodology`, and a new one for
+`strategy-interlock-release-wrappers`. Sequencing them ahead of the demotions is what makes the tier real.
 
 **Sequencing follows from the canonical / instance split**, not from ownership: the `DEV-RULES.ARC` half ships to
 every project and pays out every session, so it folds; the `DEV-RULES.PROJECT` half is this repo's own file and is
@@ -842,10 +982,29 @@ restage machinery, and it is where `procedure-evolution` P6's precomposed-text q
   trigger re-authoring, ~30 nb of workflow destinations are pointless as routed, ~41% of the register is an
   instance file no project inherits, and `rules-restructure` is recorded as a genuine overlap rather than a
   consumer.
-- **Open:** the register's systematic constraint-column pass, which gates formalization; the
-  `execution-delegation-doctrine` vocabulary coupling.
-- **Next:** run the register's constraint-column pass, the one remaining formalization gate. A third adversarial
-  pass is available above the `Heavy` cap and is best spent after that pass, since the register is what it would
-  attack. Authoring the real `DEV-RULES.ARC` section is downstream of create-spec, not a drafting-stage move.
+  **2026-07-28 — the constraint-column pass, and the base reconcile that preceded it.** Merging 12 base
+  integrations moved two register rows, exactly the decay the notes companion predicted. § Quality gate failure was
+  rewritten upstream into a two-branch rule — **an eighth independent enactment of this model**, landing the
+  register's own middle case for free and leaving as residue only the never-ran distinction and the narrowed
+  invariant. § Code Quality Principles grew by two unrelated commits, neither touching the acronyms the register
+  cuts, which sharpened rather than weakened cut 1: the particular content churns while the generic content sits
+  inert. The pass itself then applied a constraint determination to every row _before_ its destination, closing the
+  work unit's one formalization gate. It found two further P1 violations beyond pass one's five (§ Method and
+  extension loading's `.override` semantics, § Commit control's prefix mapping), established that P3 disqualifies
+  two of five workflow destinations rather than all five, and re-sized the register from 318 nb to 261. The
+  author's-interest caveat resolved by splitting: cuts are a gate, compress-in-place verdicts are not. The
+  maintainer's read then ran at draft stage — all four cuts taken, three narrowed; § Context quality's
+  quality-signals bullet cut whole after a source check showed the welcome handoff-boundary behavior comes from a
+  different bullet, now extracted as a one-line keep; two compress verdicts retracted as over-broad. A second
+  procedural lesson emerged alongside pass one's: the audience test must be applied at bullet granularity, since a
+  section is not the unit either determination operates on. Finally, lifecycle-state keying was probed and recorded
+  as a **fifth destination mechanism** — structurally the strongest, the only one that can hold a constraint
+  without weakening it — then deliberately left unbuilt and routed to `rules-restructure`, because the compression
+  had already selected for universality and almost nothing in the register is lifecycle-bounded.
+- **Open:** the `execution-delegation-doctrine` vocabulary coupling. Nothing gates formalization.
+- **Next:** the third adversarial pass, available above the `Heavy` cap and now worth its authorization — the
+  register it would attack is settled rather than in motion, which is the condition that made deferring it correct.
+  Then assess formalization-readiness. Authoring the real `DEV-RULES.ARC` section is downstream of create-spec, not
+  a drafting-stage move.
 
 ---
