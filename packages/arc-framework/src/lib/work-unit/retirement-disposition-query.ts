@@ -84,14 +84,16 @@ export function queryRetirementDisposition(
   const v3 = v3Candidates[0]?.record.value;
   if (v3 !== undefined) {
     const map = v3.prepared.completedMap;
-    const edge = map.machine.incomingEdges.find(({ dependent }) => dependent === input.dependentSlug);
-    if (edge === undefined) return { status: "unmapped-dependent", evidenceQuality: "tree-only" };
-    const authored = map.authoring.incomingDispositions.find(({ edgeId }) => edgeId === edge.edgeId);
-    if (authored === undefined) return { status: "namespace-corrupt" };
+    const edges = map.machine.incomingEdges.filter(({ dependent }) => dependent === input.dependentSlug);
+    if (edges.length === 0) return { status: "unmapped-dependent", evidenceQuality: "tree-only" };
+    const edge = edges[0];
+    if (edges.length !== 1 || edge === undefined) return { status: "namespace-corrupt" };
+    const authored = map.authoring.incomingDispositions.filter(({ edgeId }) => edgeId === edge.edgeId);
+    if (authored.length !== 1 || authored[0] === undefined) return { status: "namespace-corrupt" };
     return {
       status: "unique",
       evidenceQuality: "tree-only",
-      disposition: authored.disposition,
+      disposition: authored[0].disposition,
     };
   }
 
@@ -113,28 +115,8 @@ export function queryRetirementDisposition(
         evidenceQuality,
         disposition: { kind: "abandoned" },
       };
-    case "decompose": {
-      const mapping = receipt.result.allocation.incomingEdges
-        .find((edge) => edge.dependent === input.dependentSlug);
-      if (mapping === undefined) return { status: "unmapped-dependent", evidenceQuality };
-      return mapping.disposition.kind === "replace"
-        ? {
-            status: "unique",
-            evidenceQuality,
-            disposition: {
-              kind: "replace",
-              replacementTargets: mapping.disposition.replacementTargets,
-            },
-          }
-        : {
-            status: "unique",
-            evidenceQuality,
-            disposition: {
-              kind: "drop",
-              reason: mapping.disposition.reason,
-            },
-          };
-    }
+    case "decompose":
+      return { status: "namespace-corrupt" };
     case "relocate":
       return { status: "absent" };
     default: {

@@ -106,21 +106,13 @@ units.
         - Finalization consumes only the complete canonical authority and performs no receipt replacement for any
           mismatched live fact class.
 
-    - `[ ]` **1.3.c Integrate authenticated v3 authority with shared consumers**
-        - After the canonical decoder and live validator exist, extend complete retirement-record enumeration with
-          explicit v3 preparation and v3 receipt arms alongside the retained generic receipt arm; retain no v1/v2
-          decomposition-preparation arm and keep v3 preparation nonterminal.
-        - Project a canonically decoded v3 receipt's original slug into the existing decompose reference
-          transition. Join canonical incoming machine edges to authored dispositions by `edgeId` for dependent
-          queries with fixed `tree-only` evidence quality. Preserve generic rename/abandon/park behavior and fail
-          closed on missing, duplicate, or inconsistent joins.
-        - Build `test-first` (one behavior at a time):
-            - After the decoder/validator authority boundary is established, a mixed
-              retained-generic-receipt/v3 namespace authenticates completely through the canonical decoder.
-            - V3 preparation is ignored as nonterminal, while a validated v3 receipt supplies reference and
-              dependent-disposition facts.
-            - Malformed or ambiguous cross-arm evidence and invalid disposition joins corrupt/refuse the namespace
-              rather than appearing absent.
+    - `[x]` **1.3.c Integrate authenticated v3 authority with shared consumers**
+        - Complete retirement enumeration now exposes only retained generic receipts, authenticated v3
+          preparations, and authenticated v3 receipts; mixed namespaces validate without reviving legacy
+          decomposition authority, and preparations remain nonterminal.
+        - Reference reconciliation projects the finalized original slug, while dependent queries join one exact
+          machine edge to one authored `edgeId` disposition with fixed `tree-only` evidence. Duplicate, missing,
+          legacy, conflicting, and malformed authority fails closed instead of appearing absent.
 
     - `[ ]` **1.3.d Establish receipt-blind transition overlay composition**
         - Define separate opaque/minimal `ProspectiveTransitionOverlay` and `ValidatedTransitionOverlay` arms over

@@ -9,14 +9,10 @@
  */
 
 import type { CanonicalDigest } from "../canonical/canonical-json.js";
-import { parseDecomposePreparationRecord } from "./decompose-preparation.js";
-import {
-  parseV3DecomposePreparation,
-  type V3DecomposePreparation,
-} from "./decompose-v3-preparation.js";
+import type { V3DecomposePreparation } from "./decompose-v3-preparation.js";
 import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
-import type { DecomposePreparationRecord, RetirementReceipt } from "./retirement-authority.js";
-import { parseRetirementReceiptRecord } from "./retirement-receipt-codec.js";
+import type { RetirementReceipt } from "./retirement-authority.js";
+import { parseRetirementRecord } from "./retirement-receipt-codec.js";
 import { decodeRetirementRecordKey } from "./retirement-record-store.js";
 
 /** One raw record discovered by an adapter, without exposing its storage path. */
@@ -33,7 +29,6 @@ export interface EnumeratedRetirementRecord {
   content: string;
   record:
     | { kind: "receipt"; value: RetirementReceipt }
-    | { kind: "preparation"; value: DecomposePreparationRecord }
     | { kind: "v3-decomposition-preparation"; value: V3DecomposePreparation }
     | { kind: "v3-decomposition-receipt"; value: V3DecomposeReceipt };
 }
@@ -67,18 +62,15 @@ export function validateRetirementRecordEnumeration(
     } catch {
       return { status: "namespace-corrupt" };
     }
-    const decodedReceipt = parseRetirementReceiptRecord(entry.content);
-    const receipt = decodedReceipt?.kind === "retained" ? decodedReceipt.receipt : null;
-    const v3Receipt = decodedReceipt?.kind === "v3-decomposition" ? decodedReceipt.receipt : null;
-    const preparation = decodedReceipt === null ? parseDecomposePreparationRecord(entry.content, id) : null;
-    const v3Preparation = decodedReceipt === null && preparation === null
-      ? parseV3DecomposePreparation(entry.content)
+    const decoded = parseRetirementRecord(entry.content);
+    const receipt = decoded?.kind === "retained" ? decoded.receipt : null;
+    const v3Receipt = decoded?.kind === "v3-decomposition" ? decoded.receipt : null;
+    const v3Preparation = decoded?.kind === "v3-decomposition-preparation"
+      ? decoded.preparation
       : null;
     const record: EnumeratedRetirementRecord | null = receipt !== null && receipt.receiptId === id
       ? { id, content: entry.content, record: { kind: "receipt", value: receipt } }
-      : preparation !== null
-        ? { id, content: entry.content, record: { kind: "preparation", value: preparation } }
-        : v3Preparation !== null && v3Preparation.receiptId === id
+      : v3Preparation !== null && v3Preparation.receiptId === id
           ? {
               id,
               content: entry.content,

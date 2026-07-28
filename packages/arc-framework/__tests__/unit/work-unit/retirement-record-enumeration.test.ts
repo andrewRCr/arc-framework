@@ -78,6 +78,27 @@ describe("retirement record namespace enumeration", () => {
       .toBe("v3-decomposition-receipt");
   });
 
+  it("authenticates mixed retained and v3 namespace arms", () => {
+    const retained = receipt("retained");
+    const { preparation, receipt: finalized } = v3DecompositionEvidenceFixture();
+    const v3Entry = (candidate: typeof preparation | typeof finalized): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(candidate.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content: canonicalize(candidate),
+    });
+
+    const prepared = validateRetirementRecordEnumeration([entry(retained), v3Entry(preparation)]);
+    expect(prepared.status === "valid"
+      ? prepared.records.map(({ record }) => record.kind)
+      : prepared.status).toEqual(["receipt", "v3-decomposition-preparation"]);
+
+    const terminal = validateRetirementRecordEnumeration([entry(retained), v3Entry(finalized)]);
+    expect(terminal.status === "valid"
+      ? terminal.records.map(({ record }) => record.kind)
+      : terminal.status).toEqual(["receipt", "v3-decomposition-receipt"]);
+  });
+
   it("fails the namespace closed for v3 version-plus-kind collisions", () => {
     const { preparation } = v3DecompositionEvidenceFixture();
     const raw = (candidate: unknown): RetirementRecordEnumerationEntry => ({

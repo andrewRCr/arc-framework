@@ -127,8 +127,7 @@ export function enumerateReferenceTransitions(
         });
         break;
       case "decompose":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "decompose" } });
-        break;
+        return { status: "conflict", reason: "namespace-corrupt" };
       case "discard":
         transitions.push({ subject: receipt.subject.name, outcome: { kind: "removed" } });
         break;

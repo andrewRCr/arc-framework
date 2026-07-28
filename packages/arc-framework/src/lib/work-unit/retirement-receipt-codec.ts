@@ -8,6 +8,10 @@ import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
+  parseV3DecomposePreparation,
+  type V3DecomposePreparation,
+} from "./decompose-v3-preparation.js";
+import {
   parseV3DecomposeReceipt,
   type V3DecomposeReceipt,
 } from "./decompose-v3-receipt.js";
@@ -107,13 +111,18 @@ export type ParsedRetirementReceiptRecord =
   | { kind: "retained"; receipt: RetirementReceipt }
   | { kind: "v3-decomposition"; receipt: V3DecomposeReceipt };
 
+/** One authenticated record arm in the complete retirement namespace. */
+export type ParsedRetirementRecord =
+  | ParsedRetirementReceiptRecord
+  | { kind: "v3-decomposition-preparation"; preparation: V3DecomposePreparation };
+
 /**
- * Discriminate and authenticate one canonical receipt without cross-version fallback.
+ * Discriminate and authenticate one canonical retirement record.
  *
- * @param content - Untrusted canonical receipt JSON
- * @returns One complete retained or v3 decomposition receipt, or `null`
+ * @param content - Untrusted canonical record JSON
+ * @returns One complete retained, v3 preparation, or v3 receipt arm
  */
-export function parseRetirementReceiptRecord(content: string): ParsedRetirementReceiptRecord | null {
+export function parseRetirementRecord(content: string): ParsedRetirementRecord | null {
   let candidate: unknown;
   try {
     candidate = JSON.parse(content) as unknown;
@@ -121,13 +130,33 @@ export function parseRetirementReceiptRecord(content: string): ParsedRetirementR
     return null;
   }
   if (canonicalize(candidate) !== content || !isObject(candidate)) return null;
-  if (candidate.schemaVersion === 3 && candidate.kind === "decompose-receipt") {
-    const receipt = parseV3DecomposeReceipt(candidate);
-    return receipt === null ? null : { kind: "v3-decomposition", receipt };
+  if (candidate.schemaVersion === 3) {
+    if (candidate.kind === "prepared-decompose") {
+      const preparation = parseV3DecomposePreparation(candidate);
+      return preparation === null
+        ? null
+        : { kind: "v3-decomposition-preparation", preparation };
+    }
+    if (candidate.kind === "decompose-receipt") {
+      const receipt = parseV3DecomposeReceipt(candidate);
+      return receipt === null ? null : { kind: "v3-decomposition", receipt };
+    }
+    return null;
   }
   if (candidate.schemaVersion !== 1 && candidate.schemaVersion !== 2) return null;
   const receipt = parseRetirementReceipt(content);
   return receipt === null ? null : { kind: "retained", receipt };
+}
+
+/**
+ * Authenticate only terminal receipt arms from the shared namespace.
+ *
+ * @param content - Untrusted canonical record JSON
+ * @returns One retained or v3 decomposition receipt, or `null`
+ */
+export function parseRetirementReceiptRecord(content: string): ParsedRetirementReceiptRecord | null {
+  const record = parseRetirementRecord(content);
+  return record?.kind === "v3-decomposition-preparation" ? null : record;
 }
 
 /**

@@ -5,6 +5,7 @@ import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import { parseCutMap, type DecomposeAllocationMap } from "../../../src/lib/work-unit/decompose-cut-map.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
+  parseRetirementRecord,
   parseRetirementReceipt,
   parseRetirementReceiptRecord,
 } from "../../../src/lib/work-unit/retirement-receipt-codec.js";
@@ -369,5 +370,25 @@ describe("parseRetirementReceiptRecord", () => {
 
     expect(parseRetirementReceiptRecord(canonicalize(tampered))).toBeNull();
     expect(parseRetirementReceiptRecord(canonicalize({ ...receipt, schemaVersion: 2 }))).toBeNull();
+  });
+});
+
+describe("parseRetirementRecord", () => {
+  it("returns only the three closed authenticated namespace arms", () => {
+    const retained = receiptFor();
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementRecord(contentOf(retained))).toEqual({
+      kind: "retained",
+      receipt: retained,
+    });
+    expect(parseRetirementRecord(canonicalize(preparation))).toEqual({
+      kind: "v3-decomposition-preparation",
+      preparation,
+    });
+    expect(parseRetirementRecord(canonicalize(receipt))).toEqual({
+      kind: "v3-decomposition",
+      receipt,
+    });
   });
 });
