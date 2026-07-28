@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  canonicalDigest,
   canonicalize,
 } from "../../../src/lib/canonical/canonical-json.js";
 import {
   produceDecompositionIntegrationAnchor,
   type DecompositionIntegrationFacts,
 } from "../../../src/lib/work-unit/decomposition-integration-anchor.js";
-import { v3PreparationId } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
+import {
+  v3CandidateWorktreeId,
+  v3PreparationId,
+} from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const PREPARED_BASE = "b".repeat(40);
@@ -97,7 +99,7 @@ describe("produceDecompositionIntegrationAnchor", () => {
       claimId: "claim-origin",
       generation: 7,
       candidateBranch: "decompose/origin",
-      candidateWorktree: canonicalDigest("candidate worktree"),
+      candidateWorktree: v3CandidateWorktreeId("claim-origin", 7),
     };
     fixture.receipt.prepared.candidateOwnership = claimed;
     fixture.receipt.preparationId = v3PreparationId({

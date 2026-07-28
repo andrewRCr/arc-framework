@@ -6,8 +6,7 @@ import {
   type V3DecomposePreparation,
 } from "../../src/lib/work-unit/decompose-v3-preparation.js";
 import {
-  v3DestinationDigest,
-  v3TransitionPatchDigest,
+  createV3DecomposeReceipt,
   type V3DecomposeReceipt,
 } from "../../src/lib/work-unit/decompose-v3-receipt.js";
 import {
@@ -167,31 +166,17 @@ export function v3DecompositionEvidenceFixture(): {
     before: absent,
     after: file(`result ${index}`),
   }));
-  const transitionPatch = [...managedPathResults];
   const outputsA = [{ path: resultPaths[0]!, after: managedPathResults[0]!.after }];
   const outputsB = [{ path: resultPaths[1]!, after: managedPathResults[1]!.after }];
-  const digestA = v3DestinationDigest("member-a", outputsA);
-  const digestB = v3DestinationDigest("member-b", outputsB);
-  if (digestA === null || digestB === null) throw new Error("fixture outputs must be canonical");
-  const receipt: V3DecomposeReceipt = {
-    kind: "decompose-receipt",
-    schemaVersion: 3,
-    receiptId,
-    preparationId,
-    prepared: facts,
-    finalized: {
-      destinationDigests: [
-        { destinationId: "member-a", digest: digestA },
-        { destinationId: "member-b", digest: digestB },
-      ],
-      managedPathResults,
-      transitionPatch,
-      transitionPatchDigest: v3TransitionPatchDigest(transitionPatch),
-      publication: {
-        ...candidatePublication,
-        initialContinuation: { kind: "selected", slugs: ["member-a"] },
-      },
-    },
-  };
+  const receipt = createV3DecomposeReceipt(
+    preparation,
+    managedPathResults,
+    [
+      { destinationId: "member-a", outputs: outputsA },
+      { destinationId: "member-b", outputs: outputsB },
+    ],
+    { kind: "selected", slugs: ["member-a"] },
+  );
+  if (receipt === null) throw new Error("fixture receipt must be canonical");
   return { preparation, receipt };
 }

@@ -14,14 +14,10 @@ self-hosting obligations are resolved. Unrelated transition receipts remain in t
 v3 decomposition validator owns authority; nested Markdown remains ordinary Markdown represented as disjoint byte
 units.
 
-### `[ ]` **1.1 Replace development evidence with the closed v3 contracts**
+### `[x]` **1.1 Replace development evidence with the closed v3 contracts**
 
 - _Goal:_ New decomposition transforms and stored decomposition authority have one canonical schema with no
   compatibility branches or partially authored state accepted as complete.
-
-- _Note:_ Design coverage: D1.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
 
     - `[x]` **1.1.a Resolve and clear obsolete decomposition state**
         - Confirmed that the two old decomposition receipts' dependency obligations were already materialized,
@@ -45,31 +41,17 @@ units.
         - Byte-pinned partial/no-topology and full/all-topology preparations; exhaustive identity, path, namespace,
           ownership, publication, overlay, topology, and digest mutations now fail closed.
 
-    - `[ ]` **1.1.d Bind finalized receipt and publication identity**
-        - Define the closed `V3DecomposeContinuationInput`, exact `V3DecomposeReceipt` version-plus-kind arm,
-          path-state, transition-patch, and `DecompositionPublication` shapes. Specify the receipt as a
-          decomposition-specific shared-namespace record, never as a generic v1/v2 result arm.
-        - Restrict continuation input to unique publication-ordered selected slugs or explicit none, with no
-          receipt/object/path/readiness/approval fields.
-        - Give publication entries closed new-leaf and existing-destination arms. Mirror work-unit, draft-block
-          with v3 locator, and managed-document target identities; existing arms are never selection-eligible.
-        - Require `prepared` to equal the preparation `facts` byte-for-byte. Carry preparation-bound ownership,
-          logical anchor, ordered entry set, and constitutive topology unchanged. Implement the exact finalized
-          envelope and per-destination digest preimage; add every non-receipt allowed path's unique sorted
-          `managedPathResults`, the exact changed `transitionPatch` subset/digest, and typed initial continuation.
-          Exclude the receipt path from path results and permit only regular `100644`/`100755` states.
-        - Build `test-first` (one behavior at a time):
-            - One byte-exact receipt fixture covers every prepared/finalized member and publication arm.
-            - Every destination-digest and transition-patch preimage member changes the appropriate digest;
-              destination output ordering and record version-plus-kind discrimination are fixture-pinned.
-            - Candidate ownership, publication, and topology round-trip byte-for-byte from preparation; any
-              finalization-time replacement refuses.
-            - Every existing target arm round-trips with its exact identity and cannot enter continuation.
-            - Changed and unchanged result partitions are disjoint/exhaustive over non-receipt allowed paths;
-              `reuse` remains equal and every patch entry differs.
-            - Unknown fields, noncanonical ordering, malformed continuation/publication, candidate-ownership drift,
-              unsupported modes/object kinds, uncovered/overlapping paths, and digest mismatch refuse before
-              authority is returned.
+    - `[x]` **1.1.d Bind finalized receipt and publication identity**
+        - Sealed finalized receipts from one authenticated preparation, exact per-destination outputs, the complete
+          non-receipt path-state partition, its changed patch, and publication-ordered continuation.
+        - Reauthenticated embedded preparation facts for shared-namespace reads and made ownership, logical anchor,
+          entries, topology, modes, receipt-path exclusion, destination coverage, and patch identity fail closed.
+        - Pinned canonical receipt bytes and every publication/continuation arm; direct finalization tests prove
+          exact compare-and-set replacement and no write under stored or live authority drift.
+
+- _Outcome:_ V1/v2 decomposition evidence no longer grants authority; the v3 map, preparation, and finalized
+  receipt now form one closed, byte-pinned identity chain whose namespace, operands, paths, publication, topology,
+  ownership, and transition partitions are authenticated before use.
 
 ### `[ ]` **1.2 Scan stable disjoint allocation units**
 
