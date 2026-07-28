@@ -450,21 +450,13 @@ remain live derivations from metas. The core supplies an exact-base integration 
           isolation, and final marker/ref/index rereads fail closed; ROADMAP recovery writes only from selected
           validated authority and leaves refused, ambiguous, stale, or failed snapshots untouched.
 
-    - `[ ]` **4.1.b Consume the shared exact-base anchor for durable cleanup**
-        - Reuse the Task 3.2.a `DecompositionIntegrationAnchor` producer over the pinned landed base facts; do not
-          define another anchor shape, landing relation, receipt validator, or history search.
-        - Require byte-equal `preparedBaseHead`, `candidateCommitHead`, `currentBaseHead`, receipt, origin, source
-          head, and `claimRetirement` facts across start, landed handoff, and cleanup consumers. The full arm retains
-          exact claim-ID/generation/branch/opaque-worktree identity; the partial arm remains not-applicable.
-        - Compose decomposition local branch/worktree/user-workspace cleanup eligibility from that anchor.
-          Preserve generic rename/abandon/park policy, authorize no remote cleanup, and leave descendant-base
-          derivation and host/ref enumeration to their child work units.
-        - Build `test-first` (one behavior at a time):
-            - Exact fast-forward and merge landing reuse the earlier producer and yield local-only cleanup
-              eligibility without a second validation path.
-            - Candidate-only, finalized-uncommitted, other-branch, unlanded, base-moved, candidate-moved, invalid,
-              ambiguous, descendant-base-only, and remote-only evidence yield no core cleanup authority.
-            - Start, handoff, and cleanup consumers receive the same anchor bytes for one pinned landing.
+    - `[x]` **4.1.b Consume the shared exact-base anchor for durable cleanup**
+        - Added local cleanup composition that retains the selected anchor and claim-retirement arm unchanged,
+          binds the exact retiring origin/branch/head, and authorizes only local branch, worktree, and user-workspace
+          cleanup.
+        - Landed handoff now composes from that selected anchor; fast-forward, merge, refusal-matrix, and
+          cross-consumer tests prove the start, handoff, and cleanup paths receive byte-identical authority without
+          granting descendant-base or remote cleanup.
 
     - `[ ]` **4.1.c Gate cleanup through the anchor's claim-retirement arm**
         - Derive and canonically validate the anchor read-only. For `required`, compare-and-swap retire only its

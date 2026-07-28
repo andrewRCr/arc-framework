@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  composeLandedDecompositionHandoff,
   resolveLandedDecompositionHandoff,
   type LandedDecompositionHandoffInput,
   type LandedPublicationResolution,
 } from "../../../src/lib/work-unit/landed-decomposition-handoff.js";
+import {
+  produceDecompositionIntegrationAnchor,
+} from "../../../src/lib/work-unit/decomposition-integration-anchor.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const BASE_HEAD = "c".repeat(40);
@@ -79,6 +83,28 @@ function input(
 }
 
 describe("resolveLandedDecompositionHandoff", () => {
+  it("composes from the exact shared anchor without changing its bytes", () => {
+    const candidate = input();
+    const selection = produceDecompositionIntegrationAnchor({
+      ...candidate.snapshot.integration,
+      receipts: [v3DecompositionEvidenceFixture().receipt],
+      currentBaseHead: candidate.snapshot.configuredBaseHead,
+    });
+    expect(selection.status).toBe("resolved");
+    if (selection.status !== "resolved") return;
+
+    const result = composeLandedDecompositionHandoff({
+      originalSlug: "origin",
+      integrationAnchor: selection.anchor,
+      publication: candidate.snapshot.publication,
+    });
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(canonicalize(result.handoff.integrationAnchor))
+      .toBe(canonicalize(selection.anchor));
+  });
+
   it("resolves exact landed authority and keeps immutable selection separate from readiness", () => {
     const result = resolveLandedDecompositionHandoff(input());
 
