@@ -501,15 +501,10 @@ remain live derivations from metas. The core supplies an exact-base integration 
   display/readiness derivations. The library, handler, and downstream launch-planning boundary share the same
   facts-only contract without adding scheduling state or launch execution to the transform.
 
-### `[ ]` **4.3 Publish the verb-driven decomposition workflow**
+### `[x]` **4.3 Publish the verb-driven decomposition workflow**
 
 - _Goal:_ One post-authoring interlock reviews semantic distribution while every deterministic proof and recovery
   choice comes from CLI results.
-
-- _Note:_ Design coverage: D2-D6. The delivery cap audit found that the pure v3 operation and finalizer had no
-  repository-bound production adapters; those vertical seams must exist before the workflow can expose their verbs.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
 
     - `[x]` **4.3.a Bind the immutable result operation to one repository locus**
         - The repository adapter derives the immutable plan from pinned trees, occupies an exact claim-backed
@@ -522,52 +517,24 @@ remain live derivations from metas. The core supplies an exact-base integration 
           and pinned finalization adapters. Canonical results retain plan packets, exact next-action commands, and
           typed recovery authority; handlers only emit adapter-produced facts and remedies.
 
-    - `[ ]` **4.3.c Move the distribution interlock to the authored candidate**
-        - Edit package-source `decompose-work-unit.md` and render its Framework project copy.
-        - Remove the old pre-transform semantic approval. Place exactly one named distribution
-          `workflow-interlock` after every CLI-reported member/existing-home/cohort destination is authored and
-          before the closed continuation input and finalization.
-        - Review actual distributed authority, dependency effects, topology, publication entries, and explicit
-          selected-slugs-or-none continuation. Author only the closed continuation-input file and invoke the exact
-          CLI-reported finalize-with-continuation command; never edit preparation or receipt JSON.
-        - Preserve commit, push, and integration interlocks solely as release controls.
+    - `[x]` **4.3.c Move the distribution interlock to the authored candidate**
+        - The sole semantic interlock now reviews the fully authored result and continuation disposition before the
+          workflow writes only the reported continuation input and invokes the exact reported finalization command.
 
-    - `[ ]` **4.3.d Replace mechanics with verbs and reported remedies**
-        - Dispatch in the spec-defined order: preflight starter map; operator-owned semantic completion; exact
-          prepare/materialize; author every result-packet destination; distribution interlock/continuation
-          selection; typed finalize-with-continuation; protection-mode ship; landed facts-only handoff.
-        - Iterate CLI profile/topology packets containing exact paths, dispositions, and authoring requirements.
-          Remove workflow-side Git topology, schema/JSON/digest/receipt construction, branch/worktree mutation,
-          topology repair/validation, and recovery reconstruction.
-        - Stop on every refusal, display only the CLI-rendered typed status/remedy, and re-enter only at the
-          action-indicated step. Never invent retry/discard/re-preflight/reauthor commands or placeholder facts.
-        - Remove extension-owned extraction, source-thinning, multi-member cohortless, planning-lane, mobility,
-          durable-enumeration, and remote-cleanup arms. Core reports the landed handoff; it does not launch members.
+    - `[x]` **4.3.d Replace mechanics with verbs and reported remedies**
+        - The eight-step workflow consumes ordered CLI packets, statuses, and remedies without constructing Git
+          topology, evidence, recovery commands, extension-owned transforms, or launch behavior.
 
-    - `[ ]` **4.3.e Route release controls by protection mode**
-        - Under partial protection, run the commit interlock and direct configured-base commit only; include no
-          pre-push extension, push, PR, integration interlock, or merge sequence.
-        - Under full protection, use the existing CLI-reported candidate branch without creating/switching/deleting
-          it, then order finalize success, commit interlock/`workflowCommit`, `pre-push-review`, push
-          interlock/`workflowPush`, PR status, integration interlock, and merge.
-        - Route post-landing handoff and exact reported local cleanup/claim outcomes without reconstructing
-          teardown authority.
-        - Build `test-first` (one behavior at a time):
-            - Partial and full render mutually exclusive release sequences.
-            - Full protection preserves extension and release-interlock dominance; partial contains none of its
-              push/PR/merge controls.
-            - No workflow command creates or deletes a Git branch/worktree.
+    - `[x]` **4.3.e Route release controls by protection mode**
+        - Partial protection ends at the direct configured-base commit. Full protection alone carries the reported
+          candidate through commit, pre-push review, push, PR status, integration approval, and policy-selected merge.
 
-    - `[ ]` **4.3.f Verify workflow and package/project parity**
-        - Add a focused decomposition workflow contract test over ordered stable headings/markers, one named
-          distribution interlock, typed continuation/finalization, profile/topology packets, recovery control flow,
-          protection-mode release arms, and facts-only handoff.
-        - Allow only decompose preflight/execute/finalize-with-continuation, exact reported remedies, release
-          routing, full-protection PR control, and landed handoff command families. Separately forbid Git plumbing,
-          handwritten schemas/digests/receipt mechanics, branch/worktree mutation, topology repair/validation, and
-          invented recovery.
-        - Render package source with `npm run render:framework`; verify the focused contract, existing generic
-          release-interlock dominance, framework sync, Markdown lint, and ARC methodology contract checks.
+    - `[x]` **4.3.f Verify workflow and package/project parity**
+        - Focused and generic contracts cover lifecycle order, semantic and release interlocks, exact reported
+          continuation/recovery, forbidden Git mechanics, installed recipe membership, and rendered-copy parity.
+
+- _Outcome:_ The installed workflow exposes the complete repository-bound retirement lifecycle while keeping
+  deterministic authority and recovery in typed CLI results and semantic distribution at one human interlock.
 
 ## **Phase 5:** Real-topology core acceptance
 
