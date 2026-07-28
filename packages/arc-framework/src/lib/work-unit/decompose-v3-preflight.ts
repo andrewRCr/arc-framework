@@ -275,7 +275,7 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
     const meta = observed.meta;
     if (meta.location === "active" && meta.state === "Planning" && meta.branch === branchName(input.sourceBase.ref)) {
       selected = { snapshot: input.sourceBase, meta, kind: "started-planning" };
-    } else if (meta.location === "backlog" && meta.state === "Planned" && meta.branch === null) {
+    } else if (meta.location === "backlog" && meta.state === "Planning" && meta.branch === null) {
       selected = { snapshot: input.sourceBase, meta, kind: "backlog-stub" };
     } else {
       return { status: "rejected", reason: "source-predecessor" };

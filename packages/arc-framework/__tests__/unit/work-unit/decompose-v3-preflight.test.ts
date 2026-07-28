@@ -20,7 +20,7 @@ function input(): V3DecomposePreflightInput {
         path: ".arc/backlog/planned/origin/meta-origin.md",
         origin: "origin",
         location: "backlog",
-        state: "Planned",
+        state: "Planning",
         branch: null,
         planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
       }],
