@@ -45,11 +45,12 @@ canonical WU state remains anchored to `feat/decompose-transform-integrity`. The
    self-deleting cap that publishes only the complete read-only v3 preflight.
 3. `feat/decompose-transform-integrity-delivery-02-plan` — Phase 2 through `bb2fb1c46`, inheriting that cap while
    incomplete v3 mutation and finalization remain dormant.
-4. `feat/decompose-transform-integrity-delivery-03-finalization` — Phase 3 through `4006303c9`, removing the
-   temporary cap only after the finalized-candidate lifecycle is coherent.
+4. `feat/decompose-transform-integrity-delivery-03-finalization` — Phase 3 through `4006303c9`, inheriting the
+   cap while the complete internal candidate operation and finalizer remain unpublished.
 
-Later implementation slices extend the stack from the preceding landed tree. Delivery refs carry no independent
-ARC meta, notes, or lifecycle identity.
+The cap deletes in the first later slice that exposes the complete execute, discard, finalize, landed-handoff, and
+workflow surface. Later implementation slices extend the stack from the preceding landed tree. Delivery refs carry
+no independent ARC meta, notes, or lifecycle identity.
 
 For every slice after the first: merge updated `main` into the delivery branch before retargeting its PR to
 `main`; the merge must move the head so `merge-ok` evaluates the exact new base/head pair. Never carry a green
