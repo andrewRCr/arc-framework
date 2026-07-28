@@ -79,4 +79,45 @@ describe("ROADMAP conflict remedy script", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+  it("preserves non-overlapping ROADMAP changes without surfacing the remedy", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-clean-merge-driver-"));
+    const git = (...args: string[]) => spawnSync("git", args, {
+      cwd,
+      encoding: "utf8",
+    });
+    const roadmapPath = join(cwd, ".arc", "backlog", "ROADMAP.md");
+
+    try {
+      expect(git("init", "-b", "main").status).toBe(0);
+      expect(git("config", "user.name", "ARC Test").status).toBe(0);
+      expect(git("config", "user.email", "arc@example.test").status).toBe(0);
+      expect(git("config", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND).status).toBe(0);
+
+      mkdirSync(join(cwd, ".arc", "backlog"), { recursive: true });
+      writeFileSync(join(cwd, ".gitattributes"), `${ROADMAP_MERGE_ATTRIBUTE}\n`);
+      writeFileSync(roadmapPath, "# Roadmap\n\nalpha\nmiddle\nomega\n");
+      expect(git("add", ".").status).toBe(0);
+      expect(git("commit", "-m", "base").status).toBe(0);
+
+      expect(git("switch", "-c", "incoming").status).toBe(0);
+      writeFileSync(roadmapPath, "# Roadmap\n\nincoming alpha\nmiddle\nomega\n");
+      expect(git("commit", "-am", "incoming").status).toBe(0);
+
+      expect(git("switch", "main").status).toBe(0);
+      writeFileSync(roadmapPath, "# Roadmap\n\nalpha\nmiddle\ncurrent omega\n");
+      expect(git("commit", "-am", "current").status).toBe(0);
+
+      const merge = git("merge", "incoming");
+      expect(merge.status).toBe(0);
+      expect(`${merge.stdout}${merge.stderr}`).not.toContain(
+        "arc hook-remedy-roadmap-conflict",
+      );
+      expect(readFileSync(roadmapPath, "utf8")).toBe(
+        "# Roadmap\n\nincoming alpha\nmiddle\ncurrent omega\n",
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
 });
