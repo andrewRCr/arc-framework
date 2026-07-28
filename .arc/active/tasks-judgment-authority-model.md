@@ -106,7 +106,7 @@ Task 3.4.
   from 11% to 7%. Two spec amendments fell out of the pass beyond the sizing: the reaffirmation clause was
   corrected rather than compressed, and § Whose call's disposition reversed.
 
-### `[ ]` **1.5 Marker retrofit**
+### `[x]` **1.5 Marker retrofit**
 
 - _Goal:_ The rules whose classification their own text cannot settle carry the marker, so no reading has to
   reconstruct it — while the corpus at large stays unannotated and derived.
@@ -118,20 +118,26 @@ Task 3.4.
 - _Note:_ The initial footprint is a prediction, not a budget. Task 4.5 revises it against the sweep rather than
   capping the sweep against it.
 
-    - `[ ]` **1.5.a Mark the invariant interlocks and the bias-guarding nevers**
-        - The marker is `[invariant]`, taking `[configurable]`'s notation and its position on a rule's lead-in —
-          the two are orthogonal axes that compose, and the parallel notation is what carries that.
-        - Four sites in this file: the task interlock, the merge-to-integration rule (which is the
-          integration-interlock — one bullet, not two), `--no-verify`, and amending pushed commits.
-        - Concentrate the vocabulary rather than annotating the corpus — `[configurable]` lives in exactly one
-          file today, and that precedent is the model.
-        - Add the matching preamble reading rule beside the existing `[configurable]` one, pointing at
-          § Rule Authority. A file carrying two markers with a reading rule for only one leaves the reader to
-          guess which of them they have met.
-        - Both copies.
+    - `[x]` **1.5.a Mark the invariant interlocks and the bias-guarding nevers**
+        - Four sites marked in both copies: `### Task interlock`, the merge-to-integration bullet, `--no-verify`,
+          and amending pushed commits. Preamble reading rule added beside the `[configurable]` one, pointing at
+          § Rule Authority.
+        - **Placement convention settled beyond the design's notation fix:** the marker attaches to the lead-in of
+          the _rule_ it classifies, which is not always the bullet's own lead-in. § Amend scope carries a default
+          (same-concern fixups to an unpushed commit) and an invariant (never amend pushed commits) in one bullet;
+          marking the bullet would have classified the default half invariant — wrong, and wrong in the restrictive
+          direction. The prohibition took its own bolded lead-in and the marker sits there.
+        - Marking the § Task interlock heading follows the existing § Test-first assessment precedent, which
+          already carries `[configurable]` in the same position; `§` reference resolution corpus-wide is
+          unaffected.
 
-    - `[ ]` **1.5.b Mark `adr-020`'s invariant floor**
-        - Internal-only surface; no package counterpart.
+    - `[x]` **1.5.b Mark `adr-020`'s invariant floor**
+        - Marked in place; the list item was reflowed to carry the marker on its lead-in without a malformed
+          bold-colon. Internal-only surface, no package counterpart.
+
+- _Outcome:_ Five marker sites total, matching the design's predicted footprint. The one thing the design had not
+  settled was what to do when a single bullet carries both classes — resolved by attaching the marker to the rule's
+  lead-in rather than the bullet's, which keeps the footprint honest without splitting bullets Phase 3 will rework.
 
 ## **Phase 2:** Trigger tier
 

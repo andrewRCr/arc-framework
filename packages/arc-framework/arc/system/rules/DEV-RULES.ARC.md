@@ -9,7 +9,8 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 > Rules marked `[configurable]` follow the project's configured override; see [Configurability
-> Architecture Strategy][config-arch] for the override model.
+> Architecture Strategy][config-arch] for the override model. Rules marked `[invariant]` are not the
+> agent's to set aside; § Rule Authority carries that reading and classifies every unmarked rule.
 
 ---
 
@@ -159,15 +160,15 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
     - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
       captured on the audit umbrella but do not re-route through `arc release push`.
 
-- **Merge to integration / main requires explicit approval** (the integration-interlock). Agents
-  must not infer merge approval from task approval, review completion, passing checks, or general
+- **Merge to integration / main requires explicit approval** · `[invariant]` (the integration-interlock).
+  Agents must not infer merge approval from task approval, review completion, passing checks, or general
   "proceed" language. Integration may happen only when the user explicitly authorizes it.
 
-- **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
+- **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
 
 - **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
   unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
-  new commit. Never amend pushed commits without explicit user request.
+  new commit. **Never amend pushed commits without explicit user request** · `[invariant]`.
 
 - **Rebase scope:** Never rebase or otherwise rewrite a _pushed_ branch to absorb base changes —
   rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
@@ -227,7 +228,7 @@ changes by task; commit shared documentation (task list updates) last.
 
 ## Task Execution
 
-### Task interlock
+### Task interlock · `[invariant]`
 
 Each checkbox in the task list is one _review increment_ — a bounded unit of autonomous execution
 between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
