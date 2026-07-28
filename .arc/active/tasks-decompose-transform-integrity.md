@@ -1,6 +1,8 @@
 # Task List: Decompose Transform Integrity
 
 - **Design:** `spec-decompose-transform-integrity.md`
+- **Delivery:** Ordered append-only slices with compatibility and review seams are recorded in
+  `notes-decompose-transform-integrity.md` § Manual Delivery Stack.
 
 ---
 

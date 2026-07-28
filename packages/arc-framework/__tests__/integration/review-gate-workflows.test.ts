@@ -565,7 +565,6 @@ describe("trusted review-gate workflows", () => {
   it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
-      ["decompose-work-unit.md", "arc decompose"],
       ["integrate-work-unit.md", "arc status {name} --json"],
       ["park-work-unit.md", "arc park"],
       ["resume-work-unit.md", "arc resume"],
@@ -582,7 +581,15 @@ describe("trusted review-gate workflows", () => {
         expect(prefix.lastIndexOf("`integration-interlock`")).toBeGreaterThan(prefix.lastIndexOf(product ?? ""));
       }
     }
-    expect(commandCount).toBe(4);
+    expect(commandCount).toBe(3);
+  });
+
+  it("keeps read-only decomposition outside merge authority", async () => {
+    const decompose = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
+    );
+    expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
+    expect(decompose).not.toContain("`integration-interlock`");
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {

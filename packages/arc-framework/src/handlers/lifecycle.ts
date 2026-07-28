@@ -38,11 +38,10 @@ import {
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { canonicalize, isCanonicalDigest } from "../lib/canonical/canonical-json.js";
-import { contentDigest } from "../lib/canonical/content-digest.js";
+import { canonicalize } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { getArcTemplatePath, getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
+import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -78,26 +77,7 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
-import { revalidateV3DecomposeExecutionPreflight } from "../lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
-import {
-  createInRepoDecomposeRetirementDriver,
-  type InRepoDecomposeRetirementDeps,
-} from "../lib/work-unit/decompose-retirement-driver.js";
-import { renderV3DecomposeFinalizationRecovery } from "../lib/work-unit/decompose-finalization-recovery.js";
-import { resolveProjectReadinessComposition } from "../lib/status/project-view.js";
-import { decomposeReadinessDeps } from "../lib/work-unit/decompose-launch-readiness.js";
-import {
-  buildLiveCohortContext,
-  classifyCohortPath,
-} from "../lib/active/cohort-live-context.js";
-import type { CohortConsistencyInput } from "../lib/active/cohort-consistency.js";
-import type { V3TopologyTreeState } from "../lib/work-unit/decompose-v3-topology.js";
-import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
-import {
-  createIndexProjectViewFs,
-  renderRoadmapFromIndexViewResult,
-} from "../lib/status/roadmap-regeneration-assert.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -282,92 +262,6 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
   };
 }
 
-/** Bind v3 finalization to one pinned candidate/index projection. */
-function v3DecomposeRetirementDeps(
-  base: Pick<VerbBase, "cwd" | "io">,
-): InRepoDecomposeRetirementDeps {
-  return {
-    cwd: base.cwd,
-    exec: base.io.exec,
-    lifecycleFs,
-    readFile: base.io.readFile,
-    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
-    readTopologyValidationInput: async (preparation) => {
-      const candidateTree: Record<
-        string,
-        Exclude<V3TopologyTreeState, { kind: "absent" }>
-      > = {};
-      const metas: CohortConsistencyInput["metas"] = [];
-      const cohortDocs: CohortConsistencyInput["cohortDocs"] = [];
-      const { stdout } = await base.io.exec(
-        "git",
-        ["ls-files", "--stage", "-z", "--", ".arc/active", ".arc/backlog", ".arc/completed"],
-        { cwd: base.cwd },
-      );
-      for (const entry of stdout.split("\0").filter(Boolean)) {
-        const match = /^(100644|100755) [0-9a-f]{40,64} 0\t(.+)$/u.exec(entry);
-        const mode = match?.[1];
-        const path = match?.[2];
-        if ((mode !== "100644" && mode !== "100755") || path === undefined) continue;
-        const classification = classifyCohortPath(path);
-        const topologyPath = preparation.facts.topology.facts.some(
-          (fact) => fact.kind !== "none" && fact.path === path,
-        );
-        if (classification === "other" && !topologyPath) continue;
-        const bytes = await readGitBlobBytes(base.cwd, null, path);
-        if (bytes === null) continue;
-        if (topologyPath) {
-          candidateTree[path] = { kind: "object", objectKind: "blob", mode, bytes };
-        }
-        if (classification !== "other") {
-          const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-          if (classification === "meta") metas.push({ path, content });
-          else cohortDocs.push({ path, content });
-        }
-      }
-      const live = buildLiveCohortContext(
-        metas.map(({ path, content }) => ({ path, content })),
-        cohortDocs.map(({ path }) => path),
-      );
-      return {
-        candidateTree,
-        cohortTemplate: new Uint8Array(await readFile(
-          join(
-            getArcTemplatePath(),
-            "reference",
-            "templates",
-            "arc",
-            "work-unit",
-            "template-cohort.md",
-          ),
-        )),
-        cohortConsistency: {
-          metas,
-          cohortDocs,
-          liveMembersByDir: live.liveMembersByDir,
-          existingCohortDocDirs: live.existingCohortDocDirs,
-        },
-      };
-    },
-    validateProspectiveProjection: async (preparation, overlay) => {
-      const expected = preparation.facts.prospectiveProjection.roadmap.after;
-      if (expected.kind !== "file") return false;
-      const rendered = await renderRoadmapFromIndexViewResult({
-        cwd: base.cwd,
-        exec: base.io.exec,
-        transitionOverlay: transitionOverlayCompositionInput(overlay),
-      });
-      if (rendered.indeterminate) return false;
-      const content = rendered.result.markdown.endsWith("\n")
-        ? rendered.result.markdown
-        : `${rendered.result.markdown}\n`;
-      return contentDigest(new TextEncoder().encode(content)) === expected.contentDigest;
-    },
-  };
-}
-
 /** Surface a transition's success note plus any side-effect advisories. */
 function reportOutcome(label: string, lines: string[], outcome: TransitionOutcome): void {
   p.note(lines.join("\n"), label);
@@ -426,50 +320,8 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
-  preflight: z.literal(true).optional(),
-  cutMap: z.string().min(1).optional(),
-  discard: z.string().min(1).optional(),
-  finalize: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  continuation: z.string().min(1).optional(),
-}).strict().superRefine((value, refinement) => {
-  const modes = [
-    value.preflight === true,
-    value.cutMap !== undefined,
-    value.discard !== undefined,
-    value.finalize !== undefined || value.continuation !== undefined,
-  ].filter(Boolean).length;
-  if (modes !== 1 || ((value.finalize === undefined) !== (value.continuation === undefined))) {
-    refinement.addIssue({ code: "custom", message: "Provide exactly one complete decompose mode." });
-  }
-});
-
-type DecomposeCommandInput = z.output<typeof DecomposeCommandInputSchema>;
-type NormalizedDecomposeCommandInput =
-  | { origin: string; mode: { kind: "preflight" } }
-  | { origin: string; mode: { kind: "execute"; cutMap: string } }
-  | { origin: string; mode: { kind: "discard"; cutMap: string } }
-  | {
-    origin: string;
-    mode: { kind: "finalize-with-continuation"; receiptId: string; continuation: string };
-  };
-
-/** Normalize the four syntax arms into one closed command discriminator. */
-export function normalizeDecomposeCommandInput(input: DecomposeCommandInput): NormalizedDecomposeCommandInput {
-  if (input.preflight === true) return { origin: input.origin, mode: { kind: "preflight" } };
-  if (input.cutMap !== undefined) return { origin: input.origin, mode: { kind: "execute", cutMap: input.cutMap } };
-  if (input.discard !== undefined) return { origin: input.origin, mode: { kind: "discard", cutMap: input.discard } };
-  if (input.finalize === undefined || input.continuation === undefined) {
-    throw new TypeError("Validated decompose input has no complete mode.");
-  }
-  return {
-    origin: input.origin,
-    mode: {
-      kind: "finalize-with-continuation",
-      receiptId: input.finalize,
-      continuation: input.continuation,
-    },
-  };
-}
+  preflight: z.literal(true),
+}).strict();
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -573,10 +425,6 @@ export const lifecycleCommandInputRegistrations = [
     schemaFields: {
       "operand.origin": "origin",
       "option.preflight": "preflight",
-      "option.cut-map": "cutMap",
-      "option.discard": "discard",
-      "option.finalize": "finalize",
-      "option.continuation": "continuation",
     },
   },
   {
@@ -803,14 +651,6 @@ export async function handleStub(
 export interface DecomposeOptions {
   /** Emit one exact machine-derived starter map without mutation. */
   preflight?: true;
-  /** Path to the completed canonical v3 map. */
-  cutMap?: string;
-  /** Path to the completed canonical v3 map whose exact candidate should be discarded. */
-  discard?: string;
-  /** Deterministic prepared receipt ID to finalize. */
-  finalize?: string;
-  /** Closed continuation input paired with finalize. */
-  continuation?: string;
 }
 
 function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
@@ -820,14 +660,12 @@ function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolea
 }
 
 /**
- * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
- * members per a structured cut-map. Deserializes + validates the cut-map file
- * (the boundary `parseCutMap`), refusing a malformed file before any mutation,
- * then runs the deterministic legs (`runDecompose`): batch-scaffold the members,
- * retire the origin through its reserved edge (skipped on the extraction shape),
- * re-point the incoming `Depends On` edges, and regenerate the ROADMAP. The
- * cut-map's judgment (members, distribution, dispositions) is authored upstream;
- * the command never fabricates it.
+ * Emit one canonical read-only v3 decomposition preflight.
+ *
+ * @param origin - Planning source slug to authenticate and inspect.
+ * @param opts - Closed command mode; only preflight is accepted.
+ * @param context - Optional interaction context supplying subprocess execution.
+ * @returns A promise that resolves after emitting the starter map or a refusal.
  */
 export async function handleDecompose(
   origin: string | undefined,
@@ -845,120 +683,34 @@ export async function handleDecompose(
     }
     return;
   }
-  const input = normalizeDecomposeCommandInput(parsed.data);
-  if (input.mode.kind === "preflight") {
-    const cwd = resolveArcRoot();
-    if (cwd === null) {
-      process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+  const cwd = resolveArcRoot();
+  if (cwd === null) {
+    process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    const { settings, warnings } = await readConfigSettings(cwd);
+    for (const warning of warnings) process.stderr.write(`${warning}\n`);
+    const io = createUserIOContext(context?.subprocess);
+    const result = await createGitV3DecomposePreflight({
+      cwd,
+      exec: io.exec,
+      readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+    }, settings["branch.base"], parsed.data.origin);
+    if (result.status === "rejected") {
+      const locus = "locus" in result ? result.locus : undefined;
+      process.stderr.write(
+        `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
+      );
       process.exitCode = 1;
       return;
     }
-    try {
-      const { settings, warnings } = await readConfigSettings(cwd);
-      for (const warning of warnings) process.stderr.write(`${warning}\n`);
-      const io = createUserIOContext(context?.subprocess);
-      const result = await createGitV3DecomposePreflight({
-        cwd,
-        exec: io.exec,
-        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-      }, settings["branch.base"], input.origin);
-      if (result.status === "rejected") {
-        const locus = "locus" in result ? result.locus : undefined;
-        process.stderr.write(
-          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
-        );
-        process.exitCode = 1;
-        return;
-      }
-      process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
-      return;
-    } catch (error) {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      process.exitCode = 1;
-      return;
-    }
+    process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
   }
-  p.intro("arc decompose");
-  if (input.mode.kind === "finalize-with-continuation") {
-    const cwd = resolveArcRoot();
-    if (cwd === null) {
-      refuse("Not inside an ARC project (no .arc/ directory found walking up from cwd).");
-      return;
-    }
-    if (!isCanonicalDigest(input.mode.receiptId)) {
-      refuse("invalid receipt ID");
-      return;
-    }
-    let continuation: unknown;
-    try {
-      const content = await readFile(input.mode.continuation, "utf8");
-      continuation = JSON.parse(content) as unknown;
-    } catch (error) {
-      refuse(`continuation input is unreadable or malformed: ${
-        error instanceof Error ? error.message : String(error)
-      }`);
-      return;
-    }
-    try {
-      const io = createUserIOContext(context?.subprocess);
-      const composition = await resolveProjectReadinessComposition({
-        cwd,
-        fs: createIndexProjectViewFs({ cwd, exec: io.exec }),
-      });
-      const driver = createInRepoDecomposeRetirementDriver(v3DecomposeRetirementDeps({ cwd, io }));
-      const result = await driver.finalizeV3(input.origin, input.mode.receiptId, {
-        continuation,
-        continuationPath: input.mode.continuation,
-        composition,
-        readinessDeps: decomposeReadinessDeps,
-      });
-      if (result.status === "refused") {
-        refuse(`${result.reason}\n${renderV3DecomposeFinalizationRecovery(result.recovery)}`);
-        return;
-      }
-      p.note([
-        `Status:    ${result.status}`,
-        `Receipt:   ${result.receipt.receiptId}`,
-        `Authority: ${result.authorityVersion}`,
-      ].join("\n"), "Decompose finalization");
-      if (retirementCleanupRequired(result.lifecycle)) {
-        p.log.info("Retirement cleanup remains pending until the finalized candidate lands.");
-      }
-      p.outro("Done.");
-      return;
-    } catch (error) {
-      refuse(error instanceof Error ? error.message : String(error));
-      return;
-    }
-  }
-  if (input.mode.kind === "execute") {
-    const cwd = resolveArcRoot();
-    if (cwd === null) {
-      refuse("Not inside an ARC project (no .arc/ directory found walking up from cwd).");
-      return;
-    }
-    try {
-      const { settings, warnings } = await readConfigSettings(cwd);
-      for (const warning of warnings) p.log.warn(warning);
-      const io = createUserIOContext(context?.subprocess);
-      const result = await revalidateV3DecomposeExecutionPreflight({
-        readCutMap: async (path) => new Uint8Array(await readFile(path)),
-        resolvePreflight: (selectedOrigin) => createGitV3DecomposePreflight({
-          cwd,
-          exec: io.exec,
-          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-        }, settings["branch.base"], selectedOrigin),
-      }, input.origin, input.mode.cutMap);
-      if (result.status === "stale") {
-        refuse(`${result.reason}: ${result.locus}`);
-        return;
-      }
-    } catch (error) {
-      refuse(error instanceof Error ? error.message : String(error));
-      return;
-    }
-  }
-  refuse("unsupported-transition:v3-runtime-not-wired");
 }
 
 /** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
