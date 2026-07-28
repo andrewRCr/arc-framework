@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec finalized as a `detailed` RFC (nine design units); register settled at 246 nb after
-  three adversarial passes and a source-verification sweep
+- **Last Completed:** Task list finalized (6 phases, 28 tasks) and activated; two adversarial passes corrected
+  four demotion destinations that reach no project
 - **Next Task:** Task 1.1 — DEV-RULES.ARC § Rule Authority (line ~18)
 - **Blockers:** [none]
 
