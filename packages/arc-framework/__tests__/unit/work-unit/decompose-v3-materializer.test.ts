@@ -158,4 +158,47 @@ describe("materializeV3DecomposePlan", () => {
     });
     expect(mismatched.applications).toEqual([]);
   });
+
+  it("reuses one verified blob for paths with the same content digest", async () => {
+    const h = harness(new Map<string, V3PlanCanonicalPathState>([
+      [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/ROADMAP.md", before],
+    ]));
+    const readBlob = h.io.readBlob;
+    let sharedBlobReads = 0;
+    h.io.readBlob = async (contentDigest) => {
+      if (contentDigest === after.contentDigest && ++sharedBlobReads > 1) {
+        throw new Error("shared final blob was read more than once");
+      }
+      return await readBlob(contentDigest);
+    };
+
+    const result = await materializeV3DecomposePlan(plan(), h.io);
+
+    expect(result.status).toBe("materialized");
+    expect(h.applications.map(({ bytes }) => bytes)).toEqual([afterBytes, afterBytes]);
+  });
+
+  it("reports an apply failure after preserving completed writes", async () => {
+    const h = harness(new Map<string, V3PlanCanonicalPathState>([
+      [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/ROADMAP.md", before],
+    ]));
+    const applyFinal = h.io.applyFinal;
+    h.io.applyFinal = async (path, state, bytes) => {
+      if (path === ".arc/backlog/ROADMAP.md") {
+        throw new Error("apply failed");
+      }
+      await applyFinal(path, state, bytes);
+    };
+
+    expect(await materializeV3DecomposePlan(plan(), h.io)).toEqual({
+      status: "refused",
+      reason: "apply-failed",
+      path: ".arc/backlog/ROADMAP.md",
+    });
+    expect(h.applications.map(({ path }) => path)).toEqual([
+      ".arc/active/meta-member.md",
+    ]);
+  });
 });
