@@ -96,15 +96,15 @@ units.
         - Retained rename, abandon, and park namespaces remain valid while legacy v1/v2 decomposition and all
           version/kind collisions fail the namespace closed.
 
-    - `[ ]` **1.3.b Validate the exact live decomposition**
-        - Consolidate source/allocation inventory, target/dependency binding, result-base preconditions, and
-          mode-aware candidate patch validation behind `validateFinalizedV3Decomposition()`.
-        - Return canonical authority or one closed mismatch with a stable optional source/allocation/path/entry
-          locus and deterministic first-failure behavior.
-        - Build `test-first` (one behavior at a time):
-            - Exact evidence succeeds.
-            - Source, base, target, dependency, path, mode, patch, topology, and publication mismatches remain
-              distinguishable.
+    - `[x]` **1.3.b Validate the exact live decomposition**
+        - Consolidated normalized source artifacts/units, allocations, destination outputs, dependency edges,
+          actual result-base identity, managed path states, derived patch, topology, and publication behind the
+          canonical validator.
+        - Established deterministic first-failure precedence across preparation, receipt, source, allocation,
+          target, dependency, base, ownership, path, mode, patch, topology, and publication mismatches, with stable
+          source, allocation, destination, edge, and path loci.
+        - Finalization consumes only the complete canonical authority and performs no receipt replacement for any
+          mismatched live fact class.
 
     - `[ ]` **1.3.c Integrate authenticated v3 authority with shared consumers**
         - After the canonical decoder and live validator exist, extend complete retirement-record enumeration with

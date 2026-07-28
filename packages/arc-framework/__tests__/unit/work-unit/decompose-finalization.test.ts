@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
   finalizeDecomposeRetirement,
@@ -25,6 +25,9 @@ describe("v3 decomposition finalization boundary", () => {
     writes(): number;
   } {
     const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const machine = preparation.facts.completedMap.machine;
+    const authoring = preparation.facts.completedMap.authoring;
+    const sourceUnit = machine.sourceUnits[0]!;
     let stored = canonicalize(preparation);
     let writeCount = 0;
     return {
@@ -38,10 +41,24 @@ describe("v3 decomposition finalization boundary", () => {
           preparation,
           receipt,
           sourceArtifactDigest: preparation.facts.sourceArtifactDigest,
-          resultBaseHead: preparation.facts.completedMap.machine.resultBase.head,
+          sourceArtifactInventory: [{
+            path: sourceUnit.sourcePath,
+            objectKind: "blob",
+            mode: "100644",
+            contentDigest: sourceUnit.contentDigest,
+          }],
+          sourceUnits: machine.sourceUnits,
+          sourceAllocations: authoring.sourceAllocations,
+          resultBaseHead: machine.resultBase.head,
           candidateOwnership: preparation.facts.candidateOwnership,
+          destinationOutputs: receipt.finalized.destinationDigests.map(
+            ({ destinationId, outputs }) => ({ destinationId, outputs }),
+          ),
+          incomingEdges: machine.incomingEdges,
+          outgoingEdges: machine.outgoingEdges,
           managedPathResults: receipt.finalized.managedPathResults,
-          topologyDigest: preparation.facts.topology.digest,
+          transitionPatch: receipt.finalized.transitionPatch,
+          topology: preparation.facts.topology,
           publication: receipt.finalized.publication,
         }),
         replaceAndStageRecord: async (_receiptId, expected, next) => {
@@ -93,16 +110,44 @@ describe("v3 decomposition finalization boundary", () => {
 
     for (const mutate of [
       (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.sourceUnits = structuredClone(facts.sourceUnits);
+        facts.sourceUnits[0]!.contentDigest = canonicalDigest("changed source unit");
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.sourceAllocations = structuredClone(facts.sourceAllocations);
+        facts.sourceAllocations[0]!.ownership = "cohort-shared";
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.destinationOutputs = structuredClone(facts.destinationOutputs);
+        facts.destinationOutputs[0]!.outputs[0]!.after = { kind: "absent" };
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.incomingEdges = structuredClone(facts.incomingEdges);
+        facts.incomingEdges[0]!.currentTargets = ["other"];
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
         facts.candidateOwnership = { kind: "not-applicable", protection: "full" };
       },
       (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
-        facts.topologyDigest = "sha256:".concat("1".repeat(64));
+        facts.topology = {
+          facts: [{ kind: "none" }],
+          digest: "sha256:".concat("1".repeat(64)),
+        };
       },
       (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
         facts.publication = { kind: "none" };
       },
       (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
         facts.managedPathResults = facts.managedPathResults.slice(1);
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.managedPathResults = structuredClone(facts.managedPathResults);
+        const after = facts.managedPathResults[0]!.after;
+        if (after.kind !== "file") throw new Error("expected file");
+        after.mode = "100755";
+      },
+      (facts: Awaited<ReturnType<V3DecomposeFinalizationContext["readFinalizedFacts"]>>) => {
+        facts.transitionPatch = facts.transitionPatch.slice(1);
       },
     ]) {
       const liveDrift = fixtureContext();

@@ -166,10 +166,10 @@ async function readV3AuthoritySnapshot(
   };
 }
 
-async function readV3SourceArtifactDigest(
+async function readV3SourceArtifactInventory(
   deps: InRepoDecomposeRetirementDeps,
   preparation: V3DecomposePreparation,
-): Promise<CanonicalDigest> {
+): Promise<{ entries: V3SourceArtifactEntry[]; digest: CanonicalDigest }> {
   const machine = preparation.facts.completedMap.machine;
   const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
     .sort(compareUtf8);
@@ -182,7 +182,7 @@ async function readV3SourceArtifactDigest(
   }
   const digest = v3SourceArtifactDigest(entries);
   if (digest === null) throw new Error("source artifact inventory is not canonical");
-  return digest;
+  return { entries, digest };
 }
 
 async function replaceV3Record(
@@ -260,7 +260,10 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             ),
             readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
             readFinalizedFacts: async (prepared, candidate) => {
+              const machine = prepared.facts.completedMap.machine;
+              const authoring = prepared.facts.completedMap.authoring;
               const receiptPath = resolveRetirementRecordRelativePath(candidate.receiptId);
+              const sourceArtifacts = await readV3SourceArtifactInventory(deps, prepared);
               const managedPathResults = await Promise.all(prepared.facts.allowedPaths
                 .filter((path) => path !== receiptPath)
                 .map(async (rawPath) => {
@@ -278,11 +281,20 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               return {
                 preparation: prepared,
                 receipt: candidate,
-                sourceArtifactDigest: await readV3SourceArtifactDigest(deps, prepared),
-                resultBaseHead: prepared.facts.completedMap.machine.resultBase.head,
+                sourceArtifactDigest: sourceArtifacts.digest,
+                sourceArtifactInventory: sourceArtifacts.entries,
+                sourceUnits: machine.sourceUnits,
+                sourceAllocations: authoring.sourceAllocations,
+                resultBaseHead: await resolveV3Ref(deps, machine.resultBase.ref),
                 candidateOwnership: prepared.facts.candidateOwnership,
+                destinationOutputs: candidate.finalized.destinationDigests.map(
+                  ({ destinationId, outputs }) => ({ destinationId, outputs }),
+                ),
+                incomingEdges: machine.incomingEdges,
+                outgoingEdges: machine.outgoingEdges,
                 managedPathResults,
-                topologyDigest: prepared.facts.topology.digest,
+                transitionPatch: candidate.finalized.transitionPatch,
+                topology: prepared.facts.topology,
                 publication: candidate.finalized.publication,
               };
             },
