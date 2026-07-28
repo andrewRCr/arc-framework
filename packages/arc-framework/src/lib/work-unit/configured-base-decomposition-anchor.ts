@@ -151,7 +151,7 @@ async function transitionMatches(
 
 function selectReceipt(
   records: Awaited<ReturnType<typeof enumerateGitRetirementRecords>>,
-  origin: string,
+  matches: (receipt: V3DecomposeReceipt) => boolean,
 ): { status: "selected"; receipt: V3DecomposeReceipt }
   | { status: "absent" }
   | { status: "ambiguous" }
@@ -159,7 +159,7 @@ function selectReceipt(
   if (records.status !== "valid") return { status: "corrupt" };
   const receipts = records.records.flatMap(({ record }) =>
     record.kind === "v3-decomposition-receipt"
-      && record.value.prepared.completedMap.machine.source.origin === origin
+      && matches(record.value)
       ? [record.value]
       : []);
   if (receipts.length === 0) return { status: "absent" };
@@ -199,9 +199,9 @@ function landingFor(base: GitCommit, preparedBase: string): {
 /**
  * Resolve one exact landed decomposition entirely from pinned Git objects, then close the configured-ref race.
  */
-export async function resolveConfiguredBaseDecompositionAnchor(
+async function resolveConfiguredBaseAnchor(
   configuredBaseRef: string,
-  origin: string,
+  matches: (receipt: V3DecomposeReceipt) => boolean,
   deps: ConfiguredBaseDecompositionAnchorDependencies,
 ): Promise<ConfiguredBaseDecompositionAnchorResult> {
   const baseHead = await resolveCommit(deps.exec, configuredBaseRef);
@@ -212,7 +212,7 @@ export async function resolveConfiguredBaseDecompositionAnchor(
   } catch {
     return { status: "refused", reason: "git-read-failed" };
   }
-  const selected = selectReceipt(namespace, origin);
+  const selected = selectReceipt(namespace, matches);
   if (selected.status === "absent") return { status: "absent" };
   if (selected.status === "ambiguous") return { status: "ambiguous" };
   if (selected.status === "corrupt") return { status: "refused", reason: "namespace-corrupt" };
@@ -240,4 +240,44 @@ export async function resolveConfiguredBaseDecompositionAnchor(
     return { status: "stale", reason: "configured-base-raced" };
   }
   return result;
+}
+
+/**
+ * Resolve one landed decomposition selected by its source origin.
+ *
+ * @param configuredBaseRef - Exact configured-base ref or commit
+ * @param origin - Retired origin slug recorded by the receipt
+ * @param deps - Git and byte-preserving object reads
+ * @returns The exact-base anchor or a closed no-authority result
+ */
+export async function resolveConfiguredBaseDecompositionAnchor(
+  configuredBaseRef: string,
+  origin: string,
+  deps: ConfiguredBaseDecompositionAnchorDependencies,
+): Promise<ConfiguredBaseDecompositionAnchorResult> {
+  return resolveConfiguredBaseAnchor(
+    configuredBaseRef,
+    (receipt) => receipt.prepared.completedMap.machine.source.origin === origin,
+    deps,
+  );
+}
+
+/**
+ * Resolve one landed decomposition selected by its canonical receipt identity.
+ *
+ * @param configuredBaseRef - Exact configured-base ref or commit
+ * @param receiptId - Receipt identity carried by a new planning leaf
+ * @param deps - Git and byte-preserving object reads
+ * @returns The exact-base anchor or a closed no-authority result
+ */
+export async function resolveConfiguredBaseDecompositionAnchorByReceiptId(
+  configuredBaseRef: string,
+  receiptId: string,
+  deps: ConfiguredBaseDecompositionAnchorDependencies,
+): Promise<ConfiguredBaseDecompositionAnchorResult> {
+  return resolveConfiguredBaseAnchor(
+    configuredBaseRef,
+    (receipt) => receipt.receiptId === receiptId,
+    deps,
+  );
 }

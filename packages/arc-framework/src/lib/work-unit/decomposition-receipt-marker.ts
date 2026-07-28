@@ -58,3 +58,29 @@ export function validateDecompositionReceiptMarker(
   }
   return marker;
 }
+
+/**
+ * Remove one authenticated optional marker without re-rendering the meta.
+ *
+ * @param content - Canonical managed meta projection
+ * @param expectedReceiptId - Receipt identity the marker must carry
+ * @returns The projection with only the marker line removed
+ */
+export function removeDecompositionReceiptMarker(
+  content: string,
+  expectedReceiptId: CanonicalDigest,
+): string {
+  const marker = readDecompositionReceiptMarker(content);
+  if (marker.status === "refused") {
+    throw new Error(`Cannot remove malformed decomposition receipt marker: ${marker.reason}.`);
+  }
+  if (marker.receiptId !== expectedReceiptId) {
+    throw new Error("Cannot remove decomposition receipt marker: identity does not match.");
+  }
+  const newline = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(newline);
+  const index = lines.findIndex((line) => RECEIPT_MARKER.test(line));
+  if (index === -1) throw new Error("Cannot remove decomposition receipt marker: marker is absent.");
+  lines.splice(index, 1);
+  return lines.join(newline);
+}

@@ -66,6 +66,12 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import type {
+  GitGraduationTransactionResult,
+} from "../lib/work-unit/git-graduation-transaction.js";
+import type {
+  ValidatedGraduationTransaction,
+} from "../lib/work-unit/validated-graduation-transaction.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -239,6 +245,8 @@ interface GraduateBaseParams {
   writeClass?: boolean;
   /** Optional mini-handoff seed for the user workspace open side-effect. */
   sessionNotesSeed?: string;
+  /** Read-only producer that closes every graduation choice before mutation. */
+  prepareTransaction(): Promise<GitGraduationTransactionResult>;
 }
 
 /** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
@@ -348,6 +356,21 @@ export async function runGraduate(
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
+  let transaction: ValidatedGraduationTransaction;
+  try {
+    const prepared = await params.prepareTransaction();
+    if (prepared.status !== "ready") {
+      const detail = prepared.detail === undefined ? "" : ` ${prepared.detail}`;
+      return {
+        status: "rejected",
+        reason: `\`start\` graduation preflight refused at \`${prepared.locus}\` (${prepared.reason}).${detail}`,
+      };
+    }
+    transaction = prepared.transaction;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: "rejected", reason: `could not prepare graduation before mutation: ${message}` };
+  }
   const preflight = await preflightGraduate(
     ctx,
     params.name,
@@ -357,7 +380,7 @@ export async function runGraduate(
   if (preflight !== null) return { status: "rejected", reason: preflight };
 
   if (!params.inPlace) {
-    return runGraduateSpawn(ctx, params, branch);
+    return runGraduateSpawn(ctx, params, branch, transaction);
   }
 
   return runGraduateThroughExecutor(
@@ -365,6 +388,7 @@ export async function runGraduate(
     params,
     branch,
     { mutation: "spawn", inPlace: true, branch, createBranch: true },
+    transaction,
   );
 }
 
@@ -372,6 +396,7 @@ async function runGraduateSpawn(
   ctx: ExecuteTransitionContext,
   params: GraduateSpawnParams,
   branch: string,
+  transaction: ValidatedGraduationTransaction,
 ): Promise<GraduateResult> {
   if (ctx.withCwd === undefined) {
     return {
@@ -418,6 +443,7 @@ async function runGraduateSpawn(
     },
     branch,
     { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
+    transaction,
   );
   if (result.status !== "graduated") return result;
   return {
@@ -474,7 +500,12 @@ async function runGraduateThroughExecutor(
   params: GraduateBaseParams,
   branch: string,
   worktreeOp: ReconcileWorktreeOp,
+  transaction: ValidatedGraduationTransaction,
 ): Promise<GraduateResult> {
+  // Task-specific execution consumes this authority in the atomic port; until
+  // that encoding leg replaces the generic executor, retaining it here prevents
+  // any later preflight rediscovery seam from being introduced.
+  void transaction;
   const inputs: TransitionInputs = {
     toDir: ACTIVE_DIR,
     branchOp: { mutation: "create" },

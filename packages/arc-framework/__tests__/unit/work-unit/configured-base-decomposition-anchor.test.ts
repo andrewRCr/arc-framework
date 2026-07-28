@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalize, digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   resolveConfiguredBaseDecompositionAnchor,
+  resolveConfiguredBaseDecompositionAnchorByReceiptId,
   type ConfiguredBaseDecompositionAnchorDependencies,
 } from "../../../src/lib/work-unit/configured-base-decomposition-anchor.js";
 import { v3DecomposeReceiptPath } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
@@ -191,5 +192,17 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
     expect(second.status).toBe("resolved");
     if (first.status !== "resolved" || second.status !== "resolved") return;
     expect(canonicalize(first.anchor)).toBe(canonicalize(second.anchor));
+  });
+
+  it("selects the same exact landing by canonical receipt identity", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const result = await resolveConfiguredBaseDecompositionAnchorByReceiptId(
+      BASE_REF,
+      receipt.receiptId,
+      harness().deps,
+    );
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.anchor.receiptId).toBe(receipt.receiptId);
   });
 });

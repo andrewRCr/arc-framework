@@ -343,33 +343,11 @@ authority; finalization checks mechanics and persists no approval credential.
         - Encoded task authority separately from file presence: one exact provisional seed is allowed, but marked
           graduation requires `Task List` unset and wrong, missing, multiple, or premature task authority refuses.
 
-    - `[ ]` **3.2.c Resolve one validated graduation transaction before mutation**
-        - Extend the read-only graduate preflight to snapshot the authoritative backlog meta and complete sibling
-          artifact family, including basename, stored bytes/digest, object kind, and mode, before
-          any branch/worktree or artifact mutation.
-        - Apply a fixed decision order: source/meta availability and shape; lifecycle/class; optional decomposition
-          marker and Task 3.2.a anchor/publication; artifact/Design family; Task List authority; recorded workflow
-          validity/agreement; then derivation. Classify workflow as `preserved`, `derived`, or exact typed refusal.
-          Derive only when semantically unset: `generate-tasks` from all-spec authority and `draft-design` from
-          draft or absent authority.
-        - Produce one `ValidatedGraduationTransaction` for spawned and `--here` arms. Bind exact source and
-          destination path states, branch/worktree occupation operands and preimages, index preimage, preserved
-          non-meta bytes/modes, and complete target meta bytes. Apply the existing managed-field reconciliation
-          model read-only and bind its exact ordered `backfilled` list; compose phase/soft-field changes,
-          preserved/derived workflow, an explicitly supplied `--class` replacement or preserved recorded Class,
-          and marker removal before mutation. The omit-when-absent marker is never a backfill. Never defer a target
-          meta choice until after relocation.
-        - Build `test-first` (one behavior at a time):
-            - Recorded draft/single/paired workflows preserve; unset equivalents derive; invalid nonempty values
-              refuse.
-            - A prepared or committed-unlanded receipt, wrong publication kind, or configured-base movement grants
-              no decomposition start policy.
-            - Every refusal precedes branch/worktree creation, directory writes, relocation, staging, and render
-              side effects in both start arms and returns a locus-specific remedy.
-            - Missing managed fields, no-op reconciliation, supplied/unsupplied Class, and marked/unmarked metas
-              produce exact target bytes plus the same `backfilled` list and notice inputs as the current command.
-            - Changing any captured source/destination/branch/worktree/index preimage invalidates the transaction
-              before its first write.
+    - `[x]` **3.2.c Resolve one validated graduation transaction before mutation**
+        - Added a Git-backed, immediately revalidated preflight that binds exact stored artifacts, destinations,
+          branch/worktree/index preimages, planning policy, complete target meta bytes, and ordered reconciliation.
+        - Both start arms now require and retain that transaction before their first mutation; exact drift,
+          unresolved landing authority, tuple/Class mismatch, or occupied preimages refuse at a stable locus.
 
     - `[ ]` **3.2.d Execute graduation through one start-only atomic port**
         - Add a start-only `atomicGraduate` executor port that consumes only

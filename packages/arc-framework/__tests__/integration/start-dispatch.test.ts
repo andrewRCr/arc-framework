@@ -18,19 +18,24 @@ import { promisify } from "node:util";
 
 import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
 import { handleStart } from "../../src/handlers/start.js";
-import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
+import type { ValidatedGraduationTransaction } from "../../src/lib/work-unit/validated-graduation-transaction.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
 
 const IDENTITY = "test-user";
+const PREPARE_TRANSACTION = async () => ({
+  status: "ready" as const,
+  transaction: {} as ValidatedGraduationTransaction,
+});
 
 async function captureProcessOutput(fn: () => Promise<void>): Promise<string> {
   const chunks: string[] = [];
@@ -103,7 +108,21 @@ async function setup(): Promise<Harness> {
 async function commitMeta(repo: string, relDir: string, slug: string, state: string, branch: string): Promise<void> {
   const dir = join(repo, ".arc", relDir);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${slug}.md`), metaFor(slug, state, branch));
+  const planningStub = state === "Planning" && relDir.startsWith("backlog/");
+  await writeFile(
+    join(dir, `meta-${slug}.md`),
+    planningStub
+      ? renderMetaFile(slug, {
+          state: "Planning",
+          owner: IDENTITY,
+          branch: branch === "[none]" ? null : branch,
+          workClass: "Light",
+          design: [`draft-${slug}.md`],
+          currentWorkflow: "create-spec",
+        })
+      : metaFor(slug, state, branch),
+  );
+  if (planningStub) await writeFile(join(dir, `draft-${slug}.md`), "# Draft\n");
   await execFileAsync("git", ["add", "-A"], { cwd: repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", `stub ${slug}`], { cwd: repo });
 }
@@ -418,6 +437,7 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: PREPARE_TRANSACTION,
       },
     );
 
@@ -450,7 +470,7 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const result = await runGraduate(
       buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      { name: "widget", cls: "Light", inPlace: true, prepareTransaction: PREPARE_TRANSACTION },
     );
 
     expect(result.status).toBe("graduated");
@@ -472,7 +492,7 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const result = await runGraduate(
       buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      { name: "widget", cls: "Light", inPlace: true, prepareTransaction: PREPARE_TRANSACTION },
     );
 
     expect(result.status).toBe("rejected");
@@ -503,6 +523,7 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: PREPARE_TRANSACTION,
       },
     );
 

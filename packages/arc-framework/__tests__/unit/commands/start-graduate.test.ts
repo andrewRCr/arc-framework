@@ -20,8 +20,13 @@ import {
   runGraduate,
   type GraduateParams,
 } from "../../../src/commands/start.js";
+import type { ValidatedGraduationTransaction } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
 
 const CWD = "/repo";
+const PREPARE_TRANSACTION = async () => ({
+  status: "ready" as const,
+  transaction: {} as ValidatedGraduationTransaction,
+});
 
 interface MetaSpec {
   slug: string;
@@ -210,6 +215,7 @@ const BASE = {
   locationTemplate: "../{repo}-{branch}",
   repo: "arc-framework",
   spawningIdentity: "andrew",
+  prepareTransaction: PREPARE_TRANSACTION,
 } satisfies Omit<Extract<GraduateParams, { inPlace?: false }>, "cls">;
 
 describe("runGraduate — backlog stub onto its branch", () => {
@@ -270,7 +276,9 @@ describe("runGraduate — backlog stub onto its branch", () => {
       { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Novel" },
     ]);
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Novel", inPlace: true, prepareTransaction: PREPARE_TRANSACTION,
+    });
 
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
@@ -289,7 +297,9 @@ describe("runGraduate — backlog stub onto its branch", () => {
       /* occupancyOk */ false,
     );
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Novel", inPlace: true, prepareTransaction: PREPARE_TRANSACTION,
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -310,6 +320,38 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.reason).toMatch(/class/i);
     // Refusal is total — no relocate, no spawn.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("refuses transaction drift before either start arm can mutate", async () => {
+    for (const params of [
+      { ...BASE, cls: "Light" },
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true as const,
+        prepareTransaction: PREPARE_TRANSACTION,
+      },
+    ]) {
+      const { ctx, calls } = buildCtx([
+        { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+      ]);
+      const result = await runGraduate(ctx, {
+        ...params,
+        prepareTransaction: async () => ({
+          status: "refused",
+          reason: "snapshot-drift",
+          locus: ".arc/backlog/planned/widget",
+          detail: "source bytes changed",
+        }),
+      });
+
+      expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("snapshot-drift") });
+      expect(calls.some((call) =>
+        call.startsWith("worktree:")
+        || call.startsWith("relocate:")
+        || call === "reconcile-meta"
+        || call === "stage-meta")).toBe(false);
+    }
   });
 
   it("persists a caller-supplied Class into the relocated meta (writeClass) and stages it", async () => {
@@ -347,7 +389,13 @@ describe("runGraduate — backlog stub onto its branch", () => {
       /* withClassSeam */ false,
     );
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Light", writeClass: true, inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget",
+      cls: "Light",
+      writeClass: true,
+      inPlace: true,
+      prepareTransaction: PREPARE_TRANSACTION,
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -402,7 +450,9 @@ describe("runGraduate — backlog stub onto its branch", () => {
       },
     ]);
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Light", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Light", inPlace: true, prepareTransaction: PREPARE_TRANSACTION,
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
