@@ -205,31 +205,13 @@ mutation authority; it already contains the operator-approved map and every mech
         - A binary-safe Git adapter uses `merge-base --all` and recursive type-aware tree reads; all remaining
           source-private additions, modifications, and deletions return in one deterministic rider inventory.
 
-    - `[ ]` **2.2.c Plan the logical anchor and constitutive cohort paths**
-        - Add a reusable planner over already-decided placement. Return a closed logical-anchor arm independently
-          from its physical coordination and optional parent paths: cohort document, subcohort document, at-cap
-          origin block, or eligible single-member direct member.
-        - Bind regular-file/absent base bytes, object kind, and mode for every topology path plus an explicit
-          ensure/backfill/create/reuse/append/none action order. Refuse nonregular paths, wrong structural identity,
-          unexpected locations, and conflicting same-origin at-cap provenance.
-        - Use the package-source canonical cohort template/renderer to produce topology structure contributors with
-          `Purpose: —`; do not write them here. Preserve action identity so composed materialization can later report
-          create/ensure/backfill/reuse/append/none without rerunning placement.
-        - Count only new members in the public decomposition map; existing-home entries remain exact
-          publication/edit destinations and never become members. Keep an optional surviving-origin constituent
-          only in a separate internal topology-planner DTO for the extraction child; the core CLI, map,
-          preparation, and receipt codecs never accept it.
-        - Prohibit every multi-member cohortless fan-out in cut-map validation and package-source doctrine, render
-          the project `assess-cohort-fit` copy, and verify parity. At the nesting cap, project the origin-keyed
-          fan-out under the existing parent coordination doc.
-        - Build `test-first` (one behavior at a time):
-            - Standalone cohort, nested cohort, missing parent, at-cap, and eligible single-member cohortless
-              placements produce exact plans.
-            - Public zero/one/many-new-member and one-new-member heterogeneous inputs apply the closed member-count
-              rule without enrolling existing homes; the internal planner separately counts its optional surviving
-              origin.
-            - Every multi-member cohortless result refuses regardless of content ownership; package and project
-              doctrine stay synchronized.
+    - `[x]` **2.2.c Plan the logical anchor and constitutive cohort paths**
+        - Added a pure topology planner that separates the direct-member, cohort, subcohort, and at-cap logical
+          anchors from ordered `none/create/backfill/ensure/reuse/append` path actions and their exact base bytes.
+        - Canonical template rendering emits only the structural identity floor with `Purpose: —`; existing topology
+          must be a matching regular UTF-8 document, and same-origin at-cap provenance is exact and idempotent.
+        - Public cardinality counts only new members, while an extraction-only DTO may add a surviving origin.
+          Multi-member direct placement now refuses in both the v3 codec and synchronized package/project doctrine.
 
     - `[ ]` **2.2.d Project preparation-bound publication and topology**
         - Derive the closed candidate publication from the validated destination and topology plan: one exact

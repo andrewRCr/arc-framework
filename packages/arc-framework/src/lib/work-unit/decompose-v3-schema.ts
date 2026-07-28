@@ -231,6 +231,7 @@ export interface V3DecomposeMapIssue {
     | "machine-identity"
     | "authoring-identity"
     | "authoring-order"
+    | "placement-cardinality"
     | "shape-cardinality";
   path: string;
   message: string;
@@ -512,6 +513,17 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
       message: authoring.shape === "symmetric"
         ? "A symmetric map needs at least two new members and no existing home."
         : "A heterogeneous map needs at least one new member and one existing home.",
+    },
+  };
+  if ((authoring.placement.kind === "direct-member" && newCount !== 1)
+    || (authoring.placement.kind !== "direct-member" && newCount < 2)) return {
+    status: "rejected",
+    issue: {
+      code: "placement-cardinality",
+      path: "authoring.placement",
+      message: authoring.placement.kind === "direct-member"
+        ? "Direct-member placement requires exactly one new member."
+        : "Multiple-member placement requires at least two new members.",
     },
   };
   return { status: "accepted", value: parsed.data };

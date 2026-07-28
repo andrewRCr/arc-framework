@@ -307,6 +307,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
   it("chains same-dependent edits in canonical edge order", () => {
     const input = validInput();
     input.completedMap.authoring.shape = "heterogeneous";
+    input.completedMap.authoring.placement = { kind: "direct-member" };
     input.completedMap.authoring.destinations = [
       {
         kind: "existing-home",
