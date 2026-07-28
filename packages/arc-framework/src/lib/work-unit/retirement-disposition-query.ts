@@ -86,8 +86,9 @@ export function queryRetirementDisposition(
     const map = v3.prepared.completedMap;
     const edges = map.machine.incomingEdges.filter(({ dependent }) => dependent === input.dependentSlug);
     if (edges.length === 0) return { status: "unmapped-dependent", evidenceQuality: "tree-only" };
+    if (edges.length !== 1) return { status: "namespace-corrupt" };
     const edge = edges[0];
-    if (edges.length !== 1 || edge === undefined) return { status: "namespace-corrupt" };
+    if (edge === undefined) return { status: "namespace-corrupt" };
     const authored = map.authoring.incomingDispositions.filter(({ edgeId }) => edgeId === edge.edgeId);
     if (authored.length !== 1 || authored[0] === undefined) return { status: "namespace-corrupt" };
     return {
