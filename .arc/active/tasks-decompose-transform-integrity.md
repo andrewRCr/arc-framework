@@ -141,29 +141,14 @@ mutation authority; it already contains the operator-approved map and every mech
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
-    - `[ ]` **2.1.a Resolve one tree-pinned source snapshot**
-        - Resolve configured `branch.base` as exact local `refs/heads/<base>`. Enumerate only other local branch
-          refs; exclude remote-tracking refs, worktree pseudo-refs, fetch, uncommitted state, and invocation-current
-          fallback.
-        - Qualify a non-base ref only when its tree contains exactly one supported active origin meta with
-          `State: Planning` and `Branch` equal to that ref's short name. One candidate wins as
-          `started-planning`; multiple candidates or paths, self-identity mismatch, and incompatible predecessor
-          state refuse.
-        - When no non-base candidate qualifies, accept the configured base only if its tree has exactly one active
-          Planning meta self-identifying as base or one provisional/planned backlog meta with `Branch` absent or
-          `[none]`; classify the latter as `backlog-stub`. Return logical branch, qualified ref, source kind, head,
-          and origin path.
-        - Build content, metadata, and incoming/outgoing dependency inventories from that one committed source tree.
-          Keep result-base facts separately named.
-        - Build `test-first` (one behavior at a time):
-            - Primary, base, source, unrelated, and detached attached checkouts resolve the same logical
-              branch/ref/head/path and inventories.
-            - Missing/stale base, duplicate paths, divergent self-authenticating refs, branch mismatch, and
-              incompatible base fallback refuse; staged and unstaged source bytes never enter evidence.
-            - Same-head local aliases do not qualify without their own exact Branch self-identity, and remote refs
-              never participate.
-            - Branch-private dependency metadata is read from the source tree rather than composed or working-tree
-              lifecycle state.
+    - `[x]` **2.1.a Resolve one tree-pinned source snapshot**
+        - The Git adapter now enumerates only exact local branch refs, resolves the configured base, and pins every
+          tree and blob read to the enumerated commit OID rather than a moving ref or invocation checkout.
+        - Source selection returns the exact logical branch, qualified ref, kind, head, origin path, stored artifact
+          inventory, and source-tree dependency graph. Self-identifying started branches and active/planned or
+          provisional base predecessors are the only accepted forms.
+        - Checkout-locus, alias, duplicate-path/ref, branch-identity, incompatible-predecessor, missing/stale-base,
+          and uncommitted-state cases now prove deterministic selection or refusal without remote or worktree reads.
 
     - `[ ]` **2.1.b Infer the exact source planning profile**
         - Treat exact source metadata `Design` pointers as authority and require every pointer to resolve in the

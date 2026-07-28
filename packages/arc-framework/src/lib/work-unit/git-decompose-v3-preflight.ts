@@ -79,7 +79,7 @@ async function readSnapshot(
     "-r",
     "-z",
     "--format=%(objectmode) %(objecttype) %(path)",
-    ref,
+    head,
     "--",
     ".arc/active",
     ".arc/backlog/planned",
@@ -94,7 +94,7 @@ async function readSnapshot(
   for (const entry of entries) {
     const slug = slugFromMetaPath(entry.path);
     if (slug === null || entry.kind !== "blob") continue;
-    const bytes = await deps.readBlob(ref, entry.path);
+    const bytes = await deps.readBlob(head, entry.path);
     if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
     metaRecords.push({
       slug,
@@ -129,7 +129,7 @@ async function readSnapshot(
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {
         throw new Error(`unsupported-artifact:${entry.path}`);
       }
-      const bytes = await deps.readBlob(ref, entry.path);
+      const bytes = await deps.readBlob(head, entry.path);
       if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
       sourceArtifacts.push({
         path: entry.path,

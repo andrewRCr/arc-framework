@@ -105,6 +105,7 @@ export type V3DecomposePreflightMismatch =
   | "preflight-id";
 
 export interface V3DecomposePreflight {
+  sourceOriginPath: string;
   sourceArtifactInventory: V3SourceArtifactEntry[];
   sourceArtifactDigest: ReturnType<typeof digestBytes>;
   starterMap: V3DecomposeStarterMap;
@@ -278,7 +279,11 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
     const meta = observed.meta;
     if (meta.location === "active" && meta.state === "Planning" && meta.branch === branchName(input.sourceBase.ref)) {
       selected = { snapshot: input.sourceBase, meta, kind: "started-planning" };
-    } else if (meta.location === "backlog" && meta.state === "Planning" && meta.branch === null) {
+    } else if (
+      meta.location === "backlog"
+      && (meta.state === "Planning" || meta.state === "Provisional")
+      && meta.branch === null
+    ) {
       selected = { snapshot: input.sourceBase, meta, kind: "backlog-stub" };
     } else {
       return { status: "rejected", reason: "source-predecessor" };
@@ -320,6 +325,7 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
   return {
     status: "ready",
     preflight: {
+      sourceOriginPath: selected.meta.path,
       sourceArtifactInventory: artifacts.entries,
       sourceArtifactDigest,
       starterMap,
