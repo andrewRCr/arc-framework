@@ -214,10 +214,21 @@ describe("arc decompose command modes", () => {
         occupation: { path: string };
         preparation: { receiptId: string };
       };
+      next: {
+        kind: "finalize-with-continuation";
+        continuationPath: string;
+        command: string;
+      };
     };
-    const continuationPath = join(repo, "continuation.json");
-    await writeFile(
+    const continuationPath = `${cutMapPath}.continuation.json`;
+    expect(prepared.next).toEqual({
+      kind: "finalize-with-continuation",
       continuationPath,
+      command: `arc decompose origin --finalize ${prepared.operation.preparation.receiptId} `
+        + `--continuation ${continuationPath}`,
+    });
+    await writeFile(
+      prepared.next.continuationPath,
       `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
     );
 
@@ -228,7 +239,7 @@ describe("arc decompose command modes", () => {
         "--finalize",
         prepared.operation.preparation.receiptId,
         "--continuation",
-        continuationPath,
+        prepared.next.continuationPath,
       ],
       prepared.operation.occupation.path,
       { timeout: 60_000 },

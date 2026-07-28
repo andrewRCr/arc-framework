@@ -1,6 +1,7 @@
 /** Repository-bound composition and execution of one immutable v3 decomposition result. */
 
 import { readFile, rm } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { canonicalize } from "../canonical/canonical-json.js";
 import { validateManagedPath } from "../canonical/managed-path.js";
@@ -40,6 +41,12 @@ import {
 } from "./retirement-record-store.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
+import {
+  renderV3DecomposeDiscardCommand,
+  renderV3DecomposeExecuteCommand,
+  renderV3DecomposeFinalizeCommand,
+  renderV3DecomposePreflightCommand,
+} from "./decompose-command-renderer.js";
 
 export interface GitV3DecomposeOperationDependencies extends GitV3RepositoryPlanDependencies {
   spawningIdentity: string;
@@ -73,6 +80,18 @@ export type GitV3DecomposeOperationResult =
       recovery: { kind: "none" };
     }
   | Extract<V3DecomposeOperationResult, { status: "refused" }>;
+
+export type GitV3DecomposeCommandResult =
+  | (Extract<GitV3DecomposeOperationResult, { status: "prepared" }> & {
+      next: {
+        kind: "finalize-with-continuation";
+        continuationPath: string;
+        command: string;
+      };
+    })
+  | (Extract<GitV3DecomposeOperationResult, { status: "refused" }> & {
+      remedy: string;
+    });
 
 function repositoryRefusal(
   result: Extract<GitV3RepositoryPlanResult, { status: "refused" }>,
@@ -336,7 +355,8 @@ export async function executeGitV3DecomposeOperation(
 export async function executeGitV3DecomposeCommand(
   dependencies: GitV3DecomposeOperationDependencies,
   input: GitV3DecomposeCommandInput,
-): Promise<GitV3DecomposeOperationResult> {
+): Promise<GitV3DecomposeCommandResult> {
+  const cutMapPath = resolve(dependencies.cwd, input.cutMapPath);
   const revalidated = await revalidateV3DecomposeExecutionPreflight({
     readCutMap: async (path) => new Uint8Array(await readFile(path)),
     resolvePreflight: async (origin) => {
@@ -355,7 +375,7 @@ export async function executeGitV3DecomposeCommand(
               : {}),
           };
     },
-  }, input.origin, input.cutMapPath);
+  }, input.origin, cutMapPath);
   if (revalidated.status !== "current") {
     return {
       status: "refused",
@@ -363,11 +383,47 @@ export async function executeGitV3DecomposeCommand(
       reason: revalidated.reason,
       locus: revalidated.locus,
       recovery: { kind: "none" },
+      remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
     };
   }
-  return await executeGitV3DecomposeOperation(dependencies, {
+  const result = await executeGitV3DecomposeOperation(dependencies, {
     protection: input.protection,
     baseBranch: input.baseBranch,
     completedMap: revalidated.completedMap,
   });
+  if (result.status === "refused") {
+    let remedy: string;
+    switch (result.recovery.kind) {
+      case "full-candidate":
+        remedy = [
+          `Retry: ${renderV3DecomposeExecuteCommand(input.origin, cutMapPath)}`,
+          `Discard: ${renderV3DecomposeDiscardCommand(input.origin, cutMapPath)}`,
+        ].join("\n");
+        break;
+      case "partial-restoration":
+        remedy = result.recovery.status === "restored"
+          ? `Retry: ${renderV3DecomposeExecuteCommand(input.origin, cutMapPath)}`
+          : `Restore the reported transform-owned paths before retrying: ${
+            result.recovery.affectedPaths.join(", ")
+          }`;
+        break;
+      case "none":
+        remedy = "No recovery command was authorized; resolve the reported refusal before retrying.";
+        break;
+    }
+    return { ...result, remedy };
+  }
+  const continuationPath = `${cutMapPath}.continuation.json`;
+  return {
+    ...result,
+    next: {
+      kind: "finalize-with-continuation",
+      continuationPath,
+      command: renderV3DecomposeFinalizeCommand(
+        input.origin,
+        result.operation.preparation.receiptId,
+        continuationPath,
+      ),
+    },
+  };
 }

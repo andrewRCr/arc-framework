@@ -822,7 +822,7 @@ export async function handleDecompose(
       });
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "prepared") {
-        process.stderr.write(`${result.reason}\n`);
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
         process.exitCode = 1;
       }
       return;
@@ -836,7 +836,7 @@ export async function handleDecompose(
       );
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "discarded" && result.status !== "already-discarded") {
-        process.stderr.write(`${result.reason}\n`);
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
         process.exitCode = 1;
       }
       return;

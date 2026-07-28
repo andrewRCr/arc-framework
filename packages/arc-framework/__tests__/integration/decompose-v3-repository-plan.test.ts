@@ -307,6 +307,7 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "repository-plan",
       reason: "git-preflight:missing-base",
+      remedy: "Re-preflight: arc decompose origin --preflight",
     });
     expect(await claimFiles(repo)).toEqual([]);
   });
@@ -336,6 +337,8 @@ describe("Git v3 repository plan", () => {
 
   it("reports only exact candidate recovery when source authority moves after occupation", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
     let moved = false;
     const driftingExec: GitExec = async (command, args, options) => {
       const result = await dependencies.exec(command, args, options);
@@ -345,14 +348,15 @@ describe("Git v3 repository plan", () => {
       }
       return result;
     };
-    const result = await executeGitV3DecomposeOperation({
+    const result = await executeGitV3DecomposeCommand({
       ...dependencies,
       exec: driftingExec,
       spawningIdentity: "andrew",
     }, {
       protection: "full",
       baseBranch: "main",
-      completedMap,
+      origin: "origin",
+      cutMapPath,
     });
 
     expect(moved).toBe(true);
@@ -369,6 +373,10 @@ describe("Git v3 repository plan", () => {
         retry: { kind: "retry" },
         discard: { kind: "discard", origin: "origin" },
       },
+    });
+    expect(result).toMatchObject({
+      remedy: `Retry: arc decompose origin --execute ${cutMapPath}\n`
+        + `Discard: arc decompose origin --discard ${cutMapPath}`,
     });
     expect(await claimFiles(repo)).toHaveLength(1);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))

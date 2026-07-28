@@ -10,6 +10,12 @@ import type {
   V3DecompositionMismatch,
   V3DecompositionMismatchKind,
 } from "./validate-v3-decomposition.js";
+import {
+  renderV3DecomposeCommandArgument,
+  renderV3DecomposeDiscardCommand,
+  renderV3DecomposeFinalizeCommand,
+  renderV3DecomposePreflightCommand,
+} from "./decompose-command-renderer.js";
 
 export interface V3DecomposeRecoveryFacts {
   finalizeInvocation?: {
@@ -174,12 +180,6 @@ export function mapV3DecomposeFinalizationRecovery(input: {
   }
 }
 
-function shellArgument(value: string): string {
-  return /^[A-Za-z0-9_./:@+-]+$/u.test(value)
-    ? value
-    : `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
 /**
  * Render one already-decided recovery result without reconstructing policy.
  *
@@ -191,20 +191,26 @@ export function renderV3DecomposeFinalizationRecovery(
 ): string {
   switch (recovery.action) {
     case "retry":
-      return `Retry: arc decompose ${shellArgument(recovery.establishedFacts.origin)} `
-        + `--finalize ${recovery.establishedFacts.receiptId} `
-        + `--continuation ${shellArgument(recovery.establishedFacts.continuationPath)}`;
+      return `Retry: ${renderV3DecomposeFinalizeCommand(
+        recovery.establishedFacts.origin,
+        recovery.establishedFacts.receiptId,
+        recovery.establishedFacts.continuationPath,
+      )}`;
     case "discard":
-      return `Discard: arc decompose ${shellArgument(recovery.establishedFacts.origin)} `
-        + `--discard ${shellArgument(recovery.establishedFacts.cutMapPath)}`;
+      return `Discard: ${renderV3DecomposeDiscardCommand(
+        recovery.establishedFacts.origin,
+        recovery.establishedFacts.cutMapPath,
+      )}`;
     case "re-preflight":
-      return `Re-preflight: arc decompose ${
-        shellArgument(recovery.establishedFacts.origin)
-      } --preflight`;
+      return `Re-preflight: ${
+        renderV3DecomposePreflightCommand(recovery.establishedFacts.origin)
+      }`;
     case "reauthor":
       return `Re-author the candidate, then finalize receipt ${
         recovery.establishedFacts.receiptId
-      } with continuation ${shellArgument(recovery.establishedFacts.continuationPath)}.`;
+      } with continuation ${
+        renderV3DecomposeCommandArgument(recovery.establishedFacts.continuationPath)
+      }.`;
     case "guidance":
       return recovery.message;
   }

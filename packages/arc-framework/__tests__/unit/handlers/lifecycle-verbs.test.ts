@@ -444,6 +444,12 @@ beforeEach(() => {
   });
   mockExecuteGitV3DecomposeCommand.mockResolvedValue({
     status: "prepared",
+    next: {
+      kind: "finalize-with-continuation",
+      continuationPath: "/repo/cut-map.json.continuation.json",
+      command: `arc decompose mono --finalize sha256:${"a".repeat(64)} `
+        + "--continuation /repo/cut-map.json.continuation.json",
+    },
     operation: { report: { destinations: ["member"] } },
   });
   mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
@@ -580,12 +586,41 @@ describe("handleDecompose", () => {
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"operation":{"report":{"destinations":["member"]}},"status":"prepared"}\n',
+      `{"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
+      + `--continuation /repo/cut-map.json.continuation.json",`
+      + `"continuationPath":"/repo/cut-map.json.continuation.json",`
+      + `"kind":"finalize-with-continuation"},`
+      + `"operation":{"report":{"destinations":["member"]}},"status":"prepared"}\n`,
     );
     expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const remedy = "ADAPTER-ONLY: retry or discard the exact candidate";
+    mockExecuteGitV3DecomposeCommand.mockResolvedValue({
+      status: "refused",
+      stage: "occupation",
+      reason: "candidate-conflict",
+      recovery: { kind: "none" },
+      remedy,
+    });
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"reason":"candidate-conflict","recovery":{"kind":"none"},`
+      + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
+    );
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it("routes discard only through the exact candidate adapter", async () => {
@@ -608,6 +643,37 @@ describe("handleDecompose", () => {
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("surfaces the discard adapter's precomposed recovery without rebuilding it", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const remedy = "ADAPTER-ONLY: resume terminal candidate cleanup";
+    mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
+      status: "refused",
+      reason: "candidate-cleanup-failed",
+      recovery: {
+        kind: "discard-terminal",
+        claimId: `sha256:${"b".repeat(64)}`,
+        generation: 1,
+        candidateBranch: "chore/decompose-mono",
+        path: "/tmp/candidate",
+      },
+      remedy,
+    });
+
+    await handleDecompose("mono", { discard: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"reason":"candidate-cleanup-failed","recovery":{"candidateBranch":"chore/decompose-mono",`
+      + `"claimId":"sha256:${"b".repeat(64)}","generation":1,"kind":"discard-terminal",`
+      + `"path":"/tmp/candidate"},"remedy":"${remedy}","status":"refused"}\n`,
+    );
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-cleanup-failed\n${remedy}\n`);
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it("routes a complete finalize invocation only through the pinned finalization adapter", async () => {

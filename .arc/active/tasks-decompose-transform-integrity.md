@@ -519,8 +519,8 @@ remain live derivations from metas. The core supplies an exact-base integration 
 
     - `[x]` **4.3.b Expose execute, discard, and finalize through closed command modes**
         - Mutually exclusive command modes now route through repository-bound execute, exact-generation discard,
-          and pinned finalization adapters. Canonical results retain plan packets and typed recovery authority;
-          handlers only emit adapter-produced facts and remedies.
+          and pinned finalization adapters. Canonical results retain plan packets, exact next-action commands, and
+          typed recovery authority; handlers only emit adapter-produced facts and remedies.
 
     - `[ ]` **4.3.c Move the distribution interlock to the authored candidate**
         - Edit package-source `decompose-work-unit.md` and render its Framework project copy.

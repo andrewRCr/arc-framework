@@ -1,7 +1,7 @@
 /** Repository-bound exact-generation discard for one uncommitted decomposition candidate. */
 
 import { lstat, readFile } from "node:fs/promises";
-import { join, normalize } from "node:path";
+import { join, normalize, resolve } from "node:path";
 
 import {
   canonicalize,
@@ -34,9 +34,16 @@ import {
   composeGitV3RepositoryPlan,
   type GitV3RepositoryPlanDependencies,
 } from "./git-decompose-v3-repository-plan.js";
+import { renderV3DecomposeDiscardCommand } from "./decompose-command-renderer.js";
 
 export type GitV3DecomposeCandidateDiscardDependencies =
   GitV3RepositoryPlanDependencies;
+
+export type GitV3DecomposeCandidateDiscardResult =
+  | Exclude<V3DecomposeCandidateDiscardResult, { status: "refused" }>
+  | (Extract<V3DecomposeCandidateDiscardResult, { status: "refused" }> & {
+      remedy: string;
+    });
 
 function bindGitCwd(exec: GitExec, cwd: string): GitExec {
   return async (command, args, options) => await exec(command, args, {
@@ -369,18 +376,27 @@ export async function discardGitV3DecomposeCandidate(
   baseBranch: string,
   origin: string,
   cutMapPath: string,
-): Promise<V3DecomposeCandidateDiscardResult> {
+): Promise<GitV3DecomposeCandidateDiscardResult> {
+  const resolvedCutMapPath = resolve(dependencies.cwd, cutMapPath);
   try {
-    return await discardV3DecomposeCandidate(
+    const result = await discardV3DecomposeCandidate(
       origin,
-      cutMapPath,
+      resolvedCutMapPath,
       await buildDiscardDependencies(dependencies, baseBranch),
     );
+    if (result.status !== "refused") return result;
+    return {
+      ...result,
+      remedy: result.recovery.kind === "discard-terminal"
+        ? `Retry: ${renderV3DecomposeDiscardCommand(origin, resolvedCutMapPath)}`
+        : "No discard recovery command was authorized; resolve the reported refusal before retrying.",
+    };
   } catch (error) {
     return {
       status: "refused",
       reason: error instanceof Error ? error.message : "candidate-discard-unavailable",
       recovery: { kind: "none" },
+      remedy: "No discard recovery command was authorized; resolve the reported refusal before retrying.",
     };
   }
 }
