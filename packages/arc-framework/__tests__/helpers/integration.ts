@@ -42,7 +42,14 @@ const execFileAsync = promisify(execFile);
 /** Create a real GitExec bound to a specific cwd. */
 export function makeGitExec(cwd: string): GitExec {
   return async (cmd, args, options) => {
-    const { stdout, stderr } = await execFileAsync(cmd, args, { cwd, ...options });
+    const indexFile = options?.indexFile;
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
+      cwd: options?.cwd ?? cwd,
+      signal: options?.signal,
+      ...(indexFile === undefined
+        ? {}
+        : { env: { ...process.env, GIT_INDEX_FILE: indexFile } }),
+    });
     return { stdout: stdout.trimEnd(), stderr };
   };
 }

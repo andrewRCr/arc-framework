@@ -32,7 +32,6 @@ import { parseSpecInput } from "../lib/active/spec-input-parser.js";
 import { validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
 import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
-  PLANNING_WORKFLOWS,
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
@@ -59,8 +58,6 @@ import {
 import {
   nodeReconcileWorktreeFs,
   reconcileWorktree,
-  type ReconcileWorktreeOp,
-  type ReconcileWorktreeResult,
 } from "../lib/work-unit/mutators/reconcile-worktree.js";
 import {
   scaffoldIntoWorktree,
@@ -155,9 +152,6 @@ export function resolveStartDispatch(
       };
   }
 }
-
-/** The flat `active/` tier a graduated WU lands in. */
-const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
 
 function projectActiveMetaPath(slugValue: string) {
   return resolveArcPath({
@@ -320,6 +314,11 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 export type GraduateResult =
   | { status: "rejected"; reason: string }
   | {
+      status: "graduation-recovery-required";
+      reason: string;
+      residue: import("../lib/work-unit/atomic-graduation.js").GraduationRecoveryResidue;
+    }
+  | {
       status: "graduated";
       outcome: TransitionOutcome;
       metaPath: string;
@@ -379,78 +378,18 @@ export async function runGraduate(
   );
   if (preflight !== null) return { status: "rejected", reason: preflight };
 
-  if (!params.inPlace) {
-    return runGraduateSpawn(ctx, params, branch, transaction);
-  }
-
-  return runGraduateThroughExecutor(
-    ctx,
-    params,
-    branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true },
-    transaction,
-  );
-}
-
-async function runGraduateSpawn(
-  ctx: ExecuteTransitionContext,
-  params: GraduateSpawnParams,
-  branch: string,
-  transaction: ValidatedGraduationTransaction,
-): Promise<GraduateResult> {
-  if (ctx.withCwd === undefined) {
-    return {
-      status: "rejected",
-      reason: "graduate spawn requires an executor context that can re-bind to the spawned worktree.",
-    };
-  }
-
-  let spawnResult: ReconcileWorktreeResult;
-  try {
-    spawnResult = await ctx.reconcileWorktree({
-      mutation: "spawn",
-      branch,
-      base: params.baseBranch,
-      locationTemplate: params.locationTemplate,
-      repo: params.repo,
-      wuName: params.name,
-      spawningIdentity: params.spawningIdentity,
-      postCreateScript: params.postCreateScript,
-      primaryWorktreePath: params.primaryWorktreePath,
-      registeredHarnessDirs: params.registeredHarnessDirs,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { status: "rejected", reason: `could not spawn the worktree: ${message}` };
-  }
-  if (spawnResult.mutation !== "spawn") {
-    return { status: "rejected", reason: "could not spawn the worktree: unexpected teardown result from spawn leg" };
-  }
-
-  const targetCtx = ctx.withCwd(spawnResult.worktreePath);
-  const result = await runGraduateThroughExecutor(
-    targetCtx,
-    {
-      ...params,
-      sessionNotesSeed:
-        params.sessionNotesSeed
+  return runGraduateThroughExecutor(ctx, {
+    ...params,
+    sessionNotesSeed: params.inPlace
+      ? params.sessionNotesSeed
+      : params.sessionNotesSeed
         ?? buildStartSessionNotesSeed({
           wuName: params.name,
           branch,
           kind: "graduate",
           commit: START_CEREMONY_PENDING_COMMIT,
         }),
-    },
-    branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
-    transaction,
-  );
-  if (result.status !== "graduated") return result;
-  return {
-    ...result,
-    worktreePath: spawnResult.worktreePath,
-    ...(spawnResult.postCreateNotice === undefined ? {} : { postCreateNotice: spawnResult.postCreateNotice }),
-  };
+  }, branch, transaction);
 }
 
 async function preflightGraduate(
@@ -499,56 +438,37 @@ async function runGraduateThroughExecutor(
   ctx: ExecuteTransitionContext,
   params: GraduateBaseParams,
   branch: string,
-  worktreeOp: ReconcileWorktreeOp,
   transaction: ValidatedGraduationTransaction,
 ): Promise<GraduateResult> {
-  // Task-specific execution consumes this authority in the atomic port; until
-  // that encoding leg replaces the generic executor, retaining it here prevents
-  // any later preflight rediscovery seam from being introduced.
-  void transaction;
   const inputs: TransitionInputs = {
-    toDir: ACTIVE_DIR,
-    branchOp: { mutation: "create" },
-    worktreeOp,
+    graduationTransaction: transaction,
     class: params.cls,
+    materializesCurrentCheckout: transaction.occupation.mode === "in-place",
     sessionNotesSeed: params.sessionNotesSeed,
   };
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-
-  // Heal the relocated meta against the code field model — a stub minted before a
-  // field existed graduates missing it; reconcile inserts each absent bullet at its
-  // declared default. Warn-and-backfill: the count surfaces as a ceremony notice.
-  const metaPath = projectActiveMetaPath(params.name);
-  const backfilled =
-    (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
-  // Persist a caller-supplied Class the stub's meta lacked — the same core-table
-  // seam the planning-finalize ceremonies write through. The guard validated the
-  // value upstream; a missing seam is an internal wiring error, not operator-facing.
-  if (params.writeClass === true) {
-    if (ctx.writeClassField === undefined) {
-      return {
-        status: "rejected",
-        reason: "`start --class` requires the executor's Class-write seam (internal wiring error).",
-      };
-    }
-    await ctx.writeClassField(metaPath, params.cls);
+  if (outcome.status === "graduation-recovery-required") {
+    return {
+      status: "graduation-recovery-required",
+      reason: outcome.message,
+      residue: outcome.residue,
+    };
   }
-  // Set the planning-entry stage pointer explicitly, mirroring the fresh scaffold.
-  // The backfill above only *inserts* absent bullets, but every stub-minted meta
-  // already carries a present `Current Workflow: [none]`, so it can't advance the
-  // sentinel — this dedicated write overwrites it. Runs after the backfill so the
-  // bullet is guaranteed present (the write is fail-loud on an absent field), and
-  // is idempotent with the absent-meta case (both target the planning-entry stage).
-  await ctx.writeCurrentWorkflowField(metaPath, PLANNING_WORKFLOWS[0]);
-  await ctx.writeSoftFields(metaPath, { "Next Action": BEGIN_CURRENT_WORKFLOW_SENTINEL });
-  await ctx.stageMeta?.(metaPath);
-  const notice =
-    backfilled.length > 0
-      ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`
-      : null;
-  return { status: "graduated", outcome, metaPath, branch, backfilled, notice };
+  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  const metaPath = projectActiveMetaPath(params.name);
+  const worktreePath = transaction.occupation.operation.worktreePath;
+  const postCreateNotice = outcome.advisories.find((advisory) => advisory.includes("worktree.post_create"));
+  return {
+    status: "graduated",
+    outcome,
+    metaPath,
+    branch,
+    backfilled: [...transaction.reconciliation.backfilled],
+    notice: transaction.reconciliation.notice,
+    ...(transaction.occupation.mode === "spawned" ? { worktreePath } : {}),
+    ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+  };
 }
 
 /** Inputs for {@link runColdStart} — the ambient context the handler resolves. */

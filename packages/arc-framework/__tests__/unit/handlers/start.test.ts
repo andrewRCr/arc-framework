@@ -692,6 +692,26 @@ describe("handleStart — dispatch orchestration", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("renders typed graduation recovery residue and stops before success reporting", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduation-recovery-required",
+      reason: "rollback could not remove the branch",
+      residue: {
+        slug: "widget",
+        branch: "plan/widget",
+        mode: "in-place",
+        failures: [{ stage: "branch", locus: "refs/heads/plan/widget", detail: "ref changed" }],
+      },
+    });
+
+    await handleStart("widget", { here: true, yes: true });
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/rollback could not remove.*refs\/heads\/plan\/widget/is));
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it("fails closed when the base lifecycle snapshot is unreadable", async () => {
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: false, reason: "could not read base lifecycle tree" });
 

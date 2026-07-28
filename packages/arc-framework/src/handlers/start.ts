@@ -69,6 +69,7 @@ import {
 import {
   prepareGitGraduationTransaction,
   type GitGraduationTransactionResult,
+  type PrepareGitGraduationTransactionInput,
 } from "../lib/work-unit/git-graduation-transaction.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
@@ -607,6 +608,7 @@ async function graduate(
   const prepareTransaction = (
     mode: "spawned" | "in-place",
     worktreePath: string,
+    spawn?: PrepareGitGraduationTransactionInput["spawn"],
   ): (() => Promise<GitGraduationTransactionResult>) => async () =>
     prepareGitGraduationTransaction({
       exec: ctx.io.exec,
@@ -651,6 +653,7 @@ async function graduate(
       mode,
       worktreePath,
       classResolution,
+      ...(spawn === undefined ? {} : { spawn }),
     });
 
   // In place (`--here`): no worktree spawned, so the spawn config (base / location
@@ -682,11 +685,16 @@ async function graduate(
           prepareTransaction: prepareTransaction("in-place", ctx.cwd),
         },
       ),
-      (r) => r.status !== "rejected",
+      (r) => r.status === "graduated",
       "Graduation failed.",
     );
     if (result.status === "rejected") {
       p.log.error(result.reason);
+      process.exitCode = 1;
+      return;
+    }
+    if (result.status === "graduation-recovery-required") {
+      p.log.error(`${result.reason}\n${JSON.stringify(result.residue, null, 2)}`);
       process.exitCode = 1;
       return;
     }
@@ -751,14 +759,26 @@ async function graduate(
         repo: config.repo,
         sourceIndex: { cwd: ctx.cwd, fs: ctx.metaFs },
         spawningIdentity: ctx.identity,
-        prepareTransaction: prepareTransaction("spawned", graduationWorktreePath),
+        prepareTransaction: prepareTransaction("spawned", graduationWorktreePath, {
+          locationTemplate: config.locationTemplate,
+          repo: config.repo,
+          spawningIdentity: ctx.identity,
+          postCreateScript: config.postCreateScript,
+          primaryWorktreePath: config.primaryWorktreePath,
+          registeredHarnessDirs: config.registeredHarnessDirs,
+        }),
       },
     ),
-    (r) => r.status !== "rejected",
+    (r) => r.status === "graduated",
     "Graduation failed.",
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);
+    process.exitCode = 1;
+    return;
+  }
+  if (result.status === "graduation-recovery-required") {
+    p.log.error(`${result.reason}\n${JSON.stringify(result.residue, null, 2)}`);
     process.exitCode = 1;
     return;
   }

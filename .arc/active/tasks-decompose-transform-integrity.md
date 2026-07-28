@@ -318,15 +318,10 @@ authority; finalization checks mechanics and persists no approval credential.
 - _Outcome:_ One immutable plan now owns every result path and preparation fact through exact materialization,
   bounded partial/full recovery, and safe abandonment of an uncommitted full-protection candidate.
 
-### `[ ]` **3.2 Preserve workflow maturity through `arc start`**
+### `[x]` **3.2 Preserve workflow maturity through `arc start`**
 
 - _Goal:_ A decomposed member retains valid design-stage authority through graduation without a provisional file
   becoming a finalized task list.
-
-- _Note:_ Design coverage: D3. Launch orchestration belongs to `stub-mint-to-launch`; this task owns the start
-  semantics it consumes.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
     - `[x]` **3.2.a Produce the shared exact-base integration anchor**
         - Added the closed pure anchor producer with canonical v3 authentication, exact fast-forward/two-parent
@@ -349,36 +344,19 @@ authority; finalization checks mechanics and persists no approval credential.
         - Both start arms now require and retain that transaction before their first mutation; exact drift,
           unresolved landing authority, tuple/Class mismatch, or occupied preimages refuse at a stable locus.
 
-    - `[ ]` **3.2.d Execute graduation through one start-only atomic port**
-        - Add a start-only `atomicGraduate` executor port that consumes only
-          `ValidatedGraduationTransaction`. For `start`, replace the generic `setPhase`, per-file
-          `relocateArtifacts`, branch/worktree legs, and post-transition meta/class/workflow/soft-field writes with
-          this single encoding leg for ordinary and decomposition-produced graduates; preserve existing
-          forward-recovery semantics for every other lifecycle verb.
-        - Make the port own branch/worktree occupation, exact artifact relocation, complete target-byte writes,
-          index staging, and reverse-order rollback to every captured preimage. Return success only after exact
-          destination/index parity. A normal application failure must finish rollback before returning failure;
-          incomplete rollback returns typed `graduation-recovery-required` established residue and never Planning
-          authority.
-        - Preserve every non-meta basename, byte, and mode. Target meta bytes change only the planned transition
-          and managed reconciliation fields, preserve Design and unset `Task List`, honor supplied Class, and
-          remove `Decomposition Receipt` in the same transaction. Only ordinary generate-tasks finalization
-          establishes task-list authority after start.
-        - Preserve the existing successful `GraduateResult` surface: return the precomputed `backfilled` list and
-          exact current notice string or `null`. Fully rolled-back failures remain ordinary rejected results; add
-          only a typed recovery-required command-result arm for incomplete rollback and update every handler/caller
-          exhaustively.
-        - Build `test-first` (one behavior at a time):
-            - Focused command tests prove preserved/derived decisions reach the atomic port without a later reset
-              or generic post-transition meta write.
-            - Existing Class-write, managed-field backfill/no-op, `GraduateResult.backfilled`, notice, and handler
-              rendering tests pass through the atomic path for ordinary and decomposition-produced graduates.
-            - Real-filesystem spawned and `--here` cases preserve nontrivial provisional task bytes/mode, Design,
-              and unset Task List while removing the marker and applying only expected meta ceremony changes.
-            - Failure injection at branch, worktree, each move/write, marker/meta, and index-staging boundary
-              restores exact source/destination/index/branch/worktree preimages before refusal.
-            - Rollback-failure injection returns exact non-authoritative residue; source snapshot drift refuses
-              without moving a different artifact set.
+    - `[x]` **3.2.d Execute graduation through one start-only atomic port**
+        - Replaced every generic backlog-start mutation and post-transition meta write with one transaction-only
+          executor port; successful side effects rebind to the occupied worktree while every other lifecycle verb
+          retains its existing forward-recovery path.
+        - The port now owns exact spawned/in-place occupation, provisioning, byte/mode relocation, target writes,
+          alternate-index staging, closed-delta verification, and reverse rollback. Fully restored failures reject;
+          incomplete rollback returns typed, rendered `graduation-recovery-required` residue.
+        - Real-Git coverage pins ordinary and decomposition-produced success plus branch, worktree, partial move,
+          meta/provisioning, staging, source-drift, and rollback-failure boundaries.
+
+- _Outcome:_ Backlog start now carries exact-base and planning authority through one immutable transaction whose
+  successful output preserves workflow maturity and whose failures either prove every captured preimage restored
+  or expose exact non-authoritative recovery residue.
 
 ### `[ ]` **3.3 Validate candidate continuation against shared readiness**
 

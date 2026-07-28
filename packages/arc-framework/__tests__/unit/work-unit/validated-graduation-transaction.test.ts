@@ -62,6 +62,16 @@ function input(options: {
       branch: { kind: "absent", ref: "refs/heads/plan/widget" },
       worktree: { kind: "absent", path: "/repo-widget" },
       indexTree: "b".repeat(40),
+      operation: {
+        kind: "spawned",
+        branch: "plan/widget",
+        base: "a".repeat(40),
+        worktreePath: "/repo-widget",
+        locationTemplate: "../{repo}.{name}",
+        repo: "repo",
+        wuName: "widget",
+        spawningIdentity: "andrew",
+      },
     },
   };
 }

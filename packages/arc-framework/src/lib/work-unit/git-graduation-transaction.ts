@@ -47,6 +47,14 @@ export interface PrepareGitGraduationTransactionInput {
   mode: "spawned" | "in-place";
   worktreePath: string;
   classResolution: GraduationClassResolution;
+  spawn?: {
+    locationTemplate: string;
+    repo: string;
+    spawningIdentity: string;
+    postCreateScript?: string;
+    primaryWorktreePath?: string;
+    registeredHarnessDirs?: string;
+  };
 }
 
 /** Closed Git-backed preflight result. */
@@ -281,6 +289,31 @@ async function capture(
         branch: { kind: "absent", ref: `refs/heads/plan/${request.slug}` },
         worktree,
         indexTree: request.mode === "spawned" ? sourceTree : indexTree,
+        operation: request.mode === "spawned"
+          ? {
+              kind: "spawned",
+              branch: `plan/${request.slug}`,
+              base: sourceHead,
+              worktreePath: requestedWorktree,
+              locationTemplate: request.spawn?.locationTemplate ?? "",
+              repo: request.spawn?.repo ?? "",
+              wuName: request.slug,
+              spawningIdentity: request.spawn?.spawningIdentity ?? "",
+              ...(request.spawn?.postCreateScript === undefined
+                ? {}
+                : { postCreateScript: request.spawn.postCreateScript }),
+              ...(request.spawn?.primaryWorktreePath === undefined
+                ? {}
+                : { primaryWorktreePath: request.spawn.primaryWorktreePath }),
+              ...(request.spawn?.registeredHarnessDirs === undefined
+                ? {}
+                : { registeredHarnessDirs: request.spawn.registeredHarnessDirs }),
+            }
+          : {
+              kind: "in-place",
+              branch: `plan/${request.slug}`,
+              worktreePath: requestedWorktree,
+            },
       },
     },
   };

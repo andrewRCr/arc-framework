@@ -116,6 +116,11 @@ describe("prepareGitGraduationTransaction", () => {
       mode: "spawned",
       worktreePath: "/wt",
       classResolution: { kind: "preserved", value: "Heavy" },
+      spawn: {
+        locationTemplate: "../{repo}.{name}",
+        repo: "repo",
+        spawningIdentity: "andrew",
+      },
     });
 
     expect(result.status).toBe("ready");
@@ -132,6 +137,16 @@ describe("prepareGitGraduationTransaction", () => {
       branch: { kind: "absent", ref: "refs/heads/plan/widget" },
       worktree: { kind: "absent", path: "/wt" },
       indexTree: TREE,
+      operation: {
+        kind: "spawned",
+        branch: "plan/widget",
+        base: HEAD,
+        worktreePath: "/wt",
+        locationTemplate: "../{repo}.{name}",
+        repo: "repo",
+        wuName: "widget",
+        spawningIdentity: "andrew",
+      },
     });
   });
 
@@ -149,6 +164,15 @@ describe("prepareGitGraduationTransaction", () => {
       mode: inPlace ? "in-place" : "spawned",
       worktreePath: inPlace ? "/repo" : "/wt",
       classResolution: { kind: "preserved", value: "Heavy" },
+      ...(inPlace
+        ? {}
+        : {
+            spawn: {
+              locationTemplate: "../{repo}.{name}",
+              repo: "repo",
+              spawningIdentity: "andrew",
+            },
+          }),
       })).resolves.toMatchObject({
         status: "refused",
         reason: "snapshot-drift",

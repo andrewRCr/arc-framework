@@ -38,6 +38,15 @@ export interface GraduationStoredArtifact {
   bytes: Uint8Array;
 }
 
+/** One exact artifact image to install at its active destination. */
+export interface GraduationTargetArtifact {
+  basename: string;
+  targetPath: string;
+  mode: "100644" | "100755";
+  contentDigest: `sha256:${string}`;
+  bytes: Uint8Array;
+}
+
 /** How graduation obtains the resolved work-unit Class. */
 export type GraduationClassResolution =
   | { kind: "preserved"; value: WorkClass }
@@ -52,6 +61,25 @@ export interface GraduationOccupationPreimage {
     | { kind: "absent"; path: string }
     | { kind: "current"; path: string; head: string; branch: string | null };
   indexTree: string;
+  operation:
+    | {
+      kind: "spawned";
+      branch: string;
+      base: string;
+      worktreePath: string;
+      locationTemplate: string;
+      repo: string;
+      wuName: string;
+      spawningIdentity: string;
+      postCreateScript?: string;
+      primaryWorktreePath?: string;
+      registeredHarnessDirs?: string;
+    }
+    | {
+      kind: "in-place";
+      branch: string;
+      worktreePath: string;
+    };
 }
 
 /** Complete normalized inputs for pure graduation transaction construction. */
@@ -83,7 +111,7 @@ export interface ValidatedGraduationTransaction {
     directory: string;
     metaPath: string;
     metaBytes: Uint8Array;
-    artifacts: GraduationStoredArtifact[];
+    artifacts: GraduationTargetArtifact[];
     pathStates: Array<{
       path: string;
       before: V3PlanCanonicalPathState;
@@ -127,7 +155,7 @@ function comparePaths(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
 }
 
-function fileState(artifact: GraduationStoredArtifact): V3PlanCanonicalPathState {
+function fileState(artifact: Pick<GraduationStoredArtifact, "mode" | "bytes">): V3PlanCanonicalPathState {
   return {
     kind: "file",
     mode: artifact.mode,
@@ -139,9 +167,19 @@ function validOccupation(input: PrepareGraduationTransactionInput): boolean {
   const { occupation } = input;
   if (occupation.baseHead === "" || occupation.indexTree === "") return false;
   if (occupation.branch.ref !== `refs/heads/plan/${input.slug}`) return false;
+  if (occupation.operation.branch !== `plan/${input.slug}`) return false;
   return occupation.mode === "spawned"
     ? occupation.worktree.kind === "absent"
-    : occupation.worktree.kind === "current";
+      && occupation.operation.kind === "spawned"
+      && occupation.operation.base === occupation.baseHead
+      && occupation.operation.worktreePath === occupation.worktree.path
+      && occupation.operation.wuName === input.slug
+      && occupation.operation.locationTemplate !== ""
+      && occupation.operation.repo !== ""
+      && occupation.operation.spawningIdentity !== ""
+    : occupation.worktree.kind === "current"
+      && occupation.operation.kind === "in-place"
+      && occupation.operation.worktreePath === occupation.worktree.path;
 }
 
 /**
@@ -271,10 +309,18 @@ export function prepareValidatedGraduationTransaction(
 
   const encoder = new TextEncoder();
   const metaBytes = encoder.encode(targetMeta);
-  const targetArtifacts = sortedArtifacts.map((artifact): GraduationStoredArtifact =>
-    artifact.basename === metaBasename
-      ? { ...artifact, bytes: metaBytes }
-      : { ...artifact, bytes: new Uint8Array(artifact.bytes) });
+  const targetArtifacts = sortedArtifacts.map((artifact): GraduationTargetArtifact => {
+    const bytes = artifact.basename === metaBasename
+      ? metaBytes
+      : new Uint8Array(artifact.bytes);
+    return {
+      basename: artifact.basename,
+      targetPath: artifact.targetPath,
+      mode: artifact.mode,
+      contentDigest: digestBytes(bytes),
+      bytes,
+    };
+  });
   const sourceByTarget = new Map(sortedArtifacts.map((artifact) => [artifact.targetPath, artifact]));
   const targetByPath = new Map(targetArtifacts.map((artifact) => [artifact.targetPath, artifact]));
   const pathStates = expectedTargets.map((path) => {
