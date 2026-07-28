@@ -27,6 +27,15 @@ describe("isHandoffCritical", () => {
     expect(isHandoffCritical(cmd("settle", "hosted"))).toBe(true);
   });
 
+  it("refuses stale dist for lifecycle mutations that mint durable state", () => {
+    expect(isHandoffCritical(cmd("start", "arc"))).toBe(true);
+    expect(isHandoffCritical(cmd("open", "errand"))).toBe(true);
+    expect(isHandoffCritical(cmd("close", "errand"))).toBe(true);
+    expect(isHandoffCritical(cmd("promote", "errand"))).toBe(true);
+    expect(isHandoffCritical(cmd("link", "errand"))).toBe(true);
+    expect(isHandoffCritical(cmd("retire", "errand"))).toBe(true);
+  });
+
   it("refuses stale dist for the session-init / session-handoff status probes", () => {
     expect(isHandoffCritical(cmd("status", "arc", { json: true, sessionInit: true }))).toBe(true);
     expect(isHandoffCritical(cmd("status", "arc", { json: true, sessionHandoff: true }))).toBe(true);
@@ -44,5 +53,6 @@ describe("isHandoffCritical", () => {
     expect(isHandoffCritical(cmd("log", "arc"))).toBe(false);
     expect(isHandoffCritical(cmd("commit", "arc"))).toBe(false); // not `release commit`
     expect(isHandoffCritical(cmd("await", "hosted"))).toBe(false);
+    expect(isHandoffCritical(cmd("check", "errand"))).toBe(false); // advisory only
   });
 });

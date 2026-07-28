@@ -7,6 +7,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Preserve hosted-source priority while PR coordinates are pending**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ pre-PR standard-review resolution with configured order `coderabbit-pr`, `codex-pr`,
+  `delegated-agent` marked both hosted sources ineligible for lacking PR coordinates, then selected the later
+  local source. Source order currently means "first usable now", not "first preferred source whose
+  prerequisites should be satisfied" — starting local preparation before PR creation despite hosted providers
+  configured ahead.
+- _Fold-in:_ distinguish a preferred source awaiting its carrier coordinates from an unavailable or failed
+  source. Pre-PR resolution should request the change-request prerequisite when the leading unattempted source
+  requires it; only an authoritative safe failure should advance to the next configured source. Cover the mixed
+  hosted-plus-local pre-PR case, not only hosted-only configurations.
+
+---
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`

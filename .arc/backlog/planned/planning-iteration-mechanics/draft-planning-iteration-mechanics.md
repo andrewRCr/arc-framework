@@ -19,6 +19,18 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Discharge the adversarial-review cap concern absorbed by convergence design**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
+  (2026-07-27); captured during `review-signal-convergence` draft closeout.
+- _Concern:_ the pending inbound concern about adversarial-review convergence and cap-exhaustion reporting is
+  now owned and settled by `review-signal-convergence` D6.2 (visible `Pass N of M`, hard stop at exhaustion,
+  explicit one-pass override authority). Retaining the same concern here would create split ownership for the
+  review-loop contract.
+- _Fold-in:_ remove or mark the older convergence/cap inbound item **discharged** at the next planning
+  closeout. Preserve unrelated iteration-mechanics scope; do not re-derive the convergence or cap-authority
+  rule.
+
 ### `[ ]` **Fix adversarial-review convergence and make cap exhaustion report**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
@@ -31,6 +43,8 @@
   pass and let the author accept or decline. Include repair-introduced defects as evidence against convergence.
   `wu-rename` required three passes despite a Heavy cap of two; pass two found a repair-introduced blocker and
   pass three found an original blocker missed by both earlier passes.
+- _Status note (2026-07-27 drain):_ supersession candidate — see discharge item above once
+  `review-signal-convergence` D6.2 is treated as authoritative ownership.
 
 ### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
 
