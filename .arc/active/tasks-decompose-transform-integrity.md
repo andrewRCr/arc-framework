@@ -335,29 +335,13 @@ authority; finalization checks mechanics and persists no approval credential.
           from landing topology, verifies exact transition paths/prestates/bytes/tree parity, and rereads the base
           before returning byte-stable shared authority.
 
-    - `[ ]` **3.2.b Validate exact planning tuples**
-        - Keep `checkCurrentWorkflowConsistency()` as the generic pure State/workflow/Design-prefix invariant.
-          Compose it with a new shared planning-tuple validator over parsed metadata, exact artifact
-          basename/state inventory, expected slug, and the closed Phase 2 planning profile.
-        - Select policy only from optional `Decomposition Receipt`: absence retains ordinary planning, including
-          `create-spec`; presence requires a canonical ID and the Task 3.2.a exact-base anchor whose validated
-          publication names this slug as `new-leaf` with the bound profile/artifacts, then admits only exact
-          draft/`draft-design` or single/paired-spec/`generate-tasks` families. Build no start-specific landing
-          relation.
-        - Read the marker through the managed optional-field projection. Require exactly one marker at its canonical
-          position before any receipt lookup; never infer decomposition provenance from an unknown bullet field.
-        - Validate the planned/rendered tuple before scaffold writes and the exact stored tuple before graduation.
-          Define the task-authority matrix explicitly: an optional seed is only `tasks-<slug>.md`, file presence
-          never sets authority, and decomposition-produced graduation requires semantic `Task List` unset.
-        - Build `test-first` (one behavior at a time):
-            - Draft, mature single, mature paired, and optional-seed tuples pass with exact filenames, pointer
-              order, and artifact presence.
-            - Wrong slug, duplicate/reversed/extra pointers, mixed or missing design, invalid nonempty workflow,
-              missing/wrong task file, multiple task companions, or premature task pointer refuses at an exact
-              field/path locus.
-            - Absent marker leaves ordinary `create-spec` valid; malformed, unknown, candidate-only, wrong-entry,
-              or profile-mismatched markers refuse without treating the field as authority.
-            - Canonically landed decomposition-produced `create-spec` refuses.
+    - `[x]` **3.2.b Validate exact planning tuples**
+        - Added a shared pure planning-tuple validator that composes the generic workflow invariant with exact
+          slug/profile design families, complete artifact states, receipt ID/publication binding, and typed loci.
+        - Optional marker parsing now proves canonical placement and identity before lookup; ordinary `create-spec`
+          remains valid, while landed decomposition admits only its exact draft or single/paired-spec workflow.
+        - Encoded task authority separately from file presence: one exact provisional seed is allowed, but marked
+          graduation requires `Task List` unset and wrong, missing, multiple, or premature task authority refuses.
 
     - `[ ]` **3.2.c Resolve one validated graduation transaction before mutation**
         - Extend the read-only graduate preflight to snapshot the authoritative backlog meta and complete sibling
