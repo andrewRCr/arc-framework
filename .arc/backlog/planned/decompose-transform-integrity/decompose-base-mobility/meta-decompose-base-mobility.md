@@ -1,23 +1,23 @@
-# Metadata: review-protocol-alignment
+# Metadata: decompose-base-mobility
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
-- **Cohort:** [none]
-- **Depends On:** [none]
+- **Cohort:** `decompose-transform-integrity`
+- **Depends On:** `decompose-transform-integrity`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-protocol-alignment.md`
+- **Design:** `spec-decompose-base-mobility.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]

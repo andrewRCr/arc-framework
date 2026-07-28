@@ -167,8 +167,11 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    | Closed-unmerged, stale merged head, multiple/conflicting matches | Stop and surface every candidate             |
 
    ```bash
+   # Portable: do not combine --slurp with --jq/--template (gh rejects that pairing).
+   # Pipe to jq; a failed pipe is a stop (never treat as empty).
    gh api --method GET --paginate --slurp \
-     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100"
+     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100" \
+     | jq .
    ```
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a

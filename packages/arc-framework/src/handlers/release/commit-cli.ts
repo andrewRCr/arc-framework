@@ -21,6 +21,10 @@ import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
 import { gitExec } from "../../lib/io-context.js";
 import {
+  formatMissingHooksPathMessage,
+  resolveHooksPathVerdict,
+} from "../../lib/git/hooks-path.js";
+import {
   createExecaGitExec,
   environmentForGitCwd,
   MAX_GIT_OUTPUT_BYTES,
@@ -125,6 +129,27 @@ export async function handleReleaseCommit(
   const cwd = resolveArcRoot(process.cwd());
   if (cwd === null) {
     process.stderr.write(`${ARC_PROJECT_ROOT_ERROR}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Fail closed when core.hooksPath points at a missing directory: Git would
+  // otherwise commit with zero hooks and report success (unprovisioned worktrees).
+  try {
+    const hooksVerdict = await resolveHooksPathVerdict(cwd, async (command, args, opts) => {
+      const { stdout } = await capturedGitExec(command, [...args], { cwd: opts.cwd });
+      return { stdout };
+    });
+    if (hooksVerdict.kind === "missing") {
+      process.stderr.write(formatMissingHooksPathMessage(hooksVerdict, "arc release commit"));
+      process.exitCode = 1;
+      return;
+    }
+  } catch (cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    process.stderr.write(
+      `error: could not resolve core.hooksPath before commit: ${detail}\n`,
+    );
     process.exitCode = 1;
     return;
   }

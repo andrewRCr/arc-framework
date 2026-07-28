@@ -45,10 +45,15 @@
     "husky": "^9.1.7",
     "jsonc-parser": "3.3.1",
     "markdownlint": "0.40.0",
-    "markdownlint-cli2": "0.22.1",
+    "markdownlint-cli2": "0.23.0",
     "tsx": "^4.22.4"
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "overrides": {
+    "markdownlint-cli2": {
+      "js-yaml": "5.2.2"
+    }
   }
 }

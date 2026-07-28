@@ -35,14 +35,17 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
   (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only proof.
 - **Fixtures and naming** — reusable multi-file fixtures live in `__tests__/fixtures/`; prefer inline data for
   simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`).
+- **Prove fail-first after a fix** — when the test is written after the implementation, reconstruct pre-fix
+  source (only the behavior under test; keep exports/signatures the test needs) and re-run. A compile or import
+  error is not a behavioral fail-first proof.
 
 ## testing-standards.default
 
 - Test observable behavior through public interfaces; don't assert on implementation — including **don't assert
   on spy / call args as the outcome** (that verifies wiring, not behavior).
-- **Keep mocked boundaries faithful** — a stub returning what the real dependency never would (including
-  success-shaped where it would error) passes against a fiction; cover response-dependent behavior at a tier
-  that runs the real thing.
+- **Keep mocked boundaries and fixtures faithful** — a stub inventing dependency outcomes, or a hand-built
+  fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture invariants from
+  the producer; cover response-dependent behavior at a tier that runs the real thing.
 - **See it fail first** — a test that has never failed may assert nothing.
 - **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
