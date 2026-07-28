@@ -8,8 +8,9 @@
  * using the existing staged-index renderer (no second projection engine).
  *
  * Wider conflicts (any non-ROADMAP unmerged path or marker-bearing path) stay
- * hard errors for the normal pre-commit checks. Merge-driver install wiring is
- * deliberately out of scope for this interim hook path.
+ * hard errors for the normal pre-commit checks. The scoped merge driver
+ * surfaces this same remedy at conflict time; this module remains the single
+ * regenerate-and-restage implementation.
  *
  * @module
  */
