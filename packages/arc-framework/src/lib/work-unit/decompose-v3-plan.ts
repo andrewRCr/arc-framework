@@ -43,6 +43,7 @@ interface V3PlanContributorBase {
 
 export interface V3PlanTopologyContributor extends V3PlanContributorBase {
   kind: "topology";
+  action: "create" | "ensure" | "backfill" | "reuse" | "append";
   contributorIdentity: string;
 }
 
@@ -96,6 +97,10 @@ export interface BuildValidatedDecomposePlanInput {
   topologyDigest: CanonicalDigest;
   origin: string;
   sourceBranch: string;
+  topologyFacts: Array<
+    | { kind: "none" }
+    | { kind: "create" | "ensure" | "backfill" | "reuse" | "append"; path: string }
+  >;
   claims: readonly V3PlanPathClaim[];
 }
 
@@ -124,6 +129,10 @@ export interface ValidatedDecomposePlan {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
+  topologyFacts: Array<
+    | { kind: "none" }
+    | { kind: "create" | "ensure" | "backfill" | "reuse" | "append"; path: string }
+  >;
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
   prospectiveOverlay: ProspectiveTransitionOverlay;
@@ -264,6 +273,18 @@ export function buildValidatedDecomposePlan(
   input: BuildValidatedDecomposePlanInput,
 ): BuildValidatedDecomposePlanResult {
   if (invalidOperand(input)) return { ok: false, refusal: { code: "invalid-plan-operand" } };
+  const topologyFactKeys = input.topologyFacts.map((fact) =>
+    fact.kind === "none" ? "none" : `${fact.kind}\0${fact.path}`);
+  const topologyClaimKeys = input.claims.flatMap((claim) =>
+    claim.kind === "contributor" && claim.contributor.kind === "topology"
+      ? [`${claim.contributor.action}\0${claim.path}`]
+      : []);
+  if (new Set(topologyFactKeys).size !== topologyFactKeys.length
+    || (topologyFactKeys.includes("none") && topologyFactKeys.length !== 1)
+    || input.topologyFacts.some((fact) => fact.kind !== "none" && !isManagedPath(fact.path))
+    || canonicalDigest([...topologyFactKeys].sort()) !== canonicalDigest([...topologyClaimKeys].sort())) {
+    return { ok: false, refusal: { code: "invalid-plan-operand" } };
+  }
 
   const grouped = new Map<string, NormalizedClaim[]>();
   for (const claim of input.claims) {
@@ -402,6 +423,7 @@ export function buildValidatedDecomposePlan(
       cutMapDigest: input.cutMapDigest,
       sourceHead: input.sourceHead,
       expectedBaseHead: input.expectedBaseHead,
+      topologyFacts: input.topologyFacts,
       allowedPaths,
       allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

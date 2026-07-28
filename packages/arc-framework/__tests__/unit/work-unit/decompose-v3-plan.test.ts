@@ -28,6 +28,7 @@ describe("validated v3 decomposition plan path registry", () => {
     topologyDigest: digest("topology"),
     origin: "origin",
     sourceBranch: "plan/origin",
+    topologyFacts: [],
   };
 
   it("builds one UTF-8-sorted mutation per path in canonical contributor order", () => {
@@ -87,6 +88,7 @@ describe("validated v3 decomposition plan path registry", () => {
         base: absent,
         contributor: {
           kind: "topology",
+          action: "create",
           contributorIdentity: "cohort-scaffold",
           before: absent,
           after: scaffolded,
@@ -107,7 +109,11 @@ describe("validated v3 decomposition plan path registry", () => {
       },
     ];
 
-    const result = buildValidatedDecomposePlan({ ...operands, claims });
+    const result = buildValidatedDecomposePlan({
+      ...operands,
+      topologyFacts: [{ kind: "create", path }],
+      claims,
+    });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -152,6 +158,7 @@ describe("validated v3 decomposition plan path registry", () => {
     const path = ".arc/backlog/ROADMAP.md";
     const result = buildValidatedDecomposePlan({
       ...operands,
+      topologyFacts: [{ kind: "create", path }],
       claims: [
         { kind: "exclusive", path, role: "roadmap", base: absent, after: file("roadmap") },
         {
@@ -160,6 +167,7 @@ describe("validated v3 decomposition plan path registry", () => {
           base: absent,
           contributor: {
             kind: "topology",
+            action: "create",
             contributorIdentity: "scaffold",
             before: absent,
             after: file("scaffold"),

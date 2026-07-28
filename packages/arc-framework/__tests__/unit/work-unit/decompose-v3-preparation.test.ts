@@ -304,6 +304,7 @@ describe("v3 decomposition preparation identities", () => {
       cutMapDigest: facts.cutMapDigest,
       sourceHead: preparation.facts.completedMap.machine.source.head,
       expectedBaseHead: preparation.facts.completedMap.machine.resultBase.head,
+      topologyFacts: [],
       allowedPaths: facts.allowedPaths,
       allowedPathsDigest: facts.allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

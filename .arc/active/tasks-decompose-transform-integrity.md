@@ -289,18 +289,14 @@ authority; finalization checks mechanics and persists no approval credential.
           meta tuples bind exact Design order, unset Task List, entry workflow/Next Action, and prepared receipt;
           existing homes and ordinary metas cannot acquire the marker.
 
-    - `[ ]` **3.1.b Report composed topology and destination outcomes**
-        - Join the materializer's path dispositions back to the immutable contributor provenance. Report each
-          coordination/parent path with its planned topology action and each destination path with its authoring
-          requirement without rerunning placement, templates, content composition, or dependency logic.
-        - Derive `applied | already-applied | refused-conflict` from the one final path result. `reuse` and `none`
-          remain no-write topology facts even when the same composed path carries another contributor.
-        - Build `test-first` (one behavior at a time):
-            - Standalone, nested, missing-parent, at-cap, and single-member cohortless plans report exact parent and
-              child dispositions from applied path results.
-            - A topology structure combined with authored coordination content reports both contributors while
-              exposing one physical mutation.
-            - No report invents Purpose, membership, contracts, sequencing prose, paths, or a second write.
+    - `[x]` **3.1.b Report composed topology and destination outcomes**
+        - The immutable plan now retains closed topology action facts and explicit action kind on each topology
+          contributor, with exact fact/contributor conservation enforced before a plan can exist.
+        - Added a pure reporter that joins applied, already-applied, or exact refused-conflict path results to
+          topology and destination authoring provenance. `none` and `reuse` remain explicit no-write facts even
+          when destination content changes the same physical path.
+        - Direct, nested, backfill, ensure, at-cap append, reuse, no-topology, composed-content, and conflict
+          coverage proves reports expose no inferred prose, paths, sequencing, or secondary writes.
 
     - `[ ]` **3.1.c Execute one plan-bound operation**
         - After the managed-path materializer and result reporter exist, make one driver operation own occupation,

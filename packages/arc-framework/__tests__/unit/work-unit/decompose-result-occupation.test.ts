@@ -21,6 +21,7 @@ function plan(): ValidatedDecomposePlan {
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
+    topologyFacts: [],
     allowedPaths: [".arc/active/meta-member.md"],
     allowedPathsDigest: canonicalDigest([".arc/active/meta-member.md"]),
     prospectiveOverlay: createProspectiveTransitionOverlay({

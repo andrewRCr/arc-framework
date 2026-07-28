@@ -477,6 +477,7 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       base: state(action.before, blobs),
       contributor: {
         kind: "topology",
+        action: action.kind,
         contributorIdentity: `${action.kind}:${action.path}`,
         before: state(action.before, blobs),
         after: state(action.after, blobs),
@@ -551,6 +552,8 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
     topologyDigest: input.topologyDigest,
     origin: input.origin,
     sourceBranch: input.sourceBranch,
+    topologyFacts: input.topology.map((action) =>
+      action.kind === "none" ? action : { kind: action.kind, path: action.path }),
     claims,
   });
   if (!result.ok) return { status: "refused", refusal: result.refusal };

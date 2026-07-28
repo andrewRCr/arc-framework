@@ -30,6 +30,7 @@ function plan(): ValidatedDecomposePlan {
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
+    topologyFacts: [],
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
     prospectiveOverlay: createProspectiveTransitionOverlay({
