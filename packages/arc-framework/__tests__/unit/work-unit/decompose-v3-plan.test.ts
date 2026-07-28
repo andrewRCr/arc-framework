@@ -19,6 +19,8 @@ describe("validated v3 decomposition plan path registry", () => {
   const operands = {
     preflightId: digest("preflight"),
     cutMapDigest: digest("cut-map"),
+    sourceHead: "source-head",
+    expectedBaseHead: "base-head",
     candidatePublication: {
       logicalAnchor: { kind: "cohort" as const, cohort: "origin" },
       entries: [{ kind: "new-leaf" as const, slug: "member-a" }],

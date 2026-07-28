@@ -14,6 +14,7 @@ import {
   acquireDecomposeTransientClaim,
   occupyDecomposeTransientClaim,
   releaseDecomposeTransientWorktree,
+  rollbackDecomposeTransientWorktreeReservation,
   parseDecomposeTransientClaim,
   projectLiveDecomposeCandidateBranches,
   reserveDecomposeTransientWorktree,
@@ -25,6 +26,8 @@ import {
   type DecomposeTransientOccupyResult,
   type DecomposeTransientReleaseEvidence,
   type DecomposeTransientReleaseResult,
+  type DecomposeTransientReservationRollbackEvidence,
+  type DecomposeTransientReservationRollbackResult,
   type DecomposeTransientReserveResult,
   type DecomposeTransientRetireResult,
   type DecomposeTransientTerminal,
@@ -39,6 +42,13 @@ export interface DecomposeTransientClaimStoreDeps {
 }
 
 export interface DecomposeTransientClaimStore {
+  read(
+    claimId: CanonicalDigest,
+  ): Promise<
+    | { status: "found"; claim: DecomposeTransientClaim }
+    | { status: "missing" }
+    | { status: "malformed" }
+  >;
   list(): Promise<{ claims: DecomposeTransientClaim[]; malformed: string[] }>;
   acquire(
     claimId: CanonicalDigest,
@@ -49,6 +59,12 @@ export interface DecomposeTransientClaimStore {
     generation: number,
     path: string,
   ): Promise<DecomposeTransientReserveResult>;
+  rollbackReservation(
+    claimId: CanonicalDigest,
+    generation: number,
+    path: string,
+    evidence: DecomposeTransientReservationRollbackEvidence,
+  ): Promise<DecomposeTransientReservationRollbackResult>;
   occupy(
     claimId: CanonicalDigest,
     generation: number,
@@ -72,6 +88,7 @@ export interface DecomposeTransientClaimStore {
 type PersistableResult =
   | DecomposeTransientAcquireResult
   | DecomposeTransientReserveResult
+  | DecomposeTransientReservationRollbackResult
   | DecomposeTransientOccupyResult
   | DecomposeTransientRetireResult
   | DecomposeTransientReleaseResult;
@@ -83,6 +100,7 @@ function changedClaim(result: PersistableResult): DecomposeTransientClaim | null
     case "occupied":
     case "retired":
     case "released":
+    case "rolled-back":
       return result.claim;
     default:
       return null;
@@ -112,6 +130,12 @@ export function createDecomposeTransientClaimStore(
   });
 
   return {
+    read: (claimId) => deps.withLock(lockPath(claimId), async () => {
+      const current = await deps.read(claimPath(claimId));
+      if (current === null) return { status: "missing" };
+      const claim = parseDecomposeTransientClaim(current);
+      return claim === null ? { status: "malformed" } : { status: "found", claim };
+    }),
     list: async () => {
       const names = (await deps.list(deps.root))
         .filter((name) => name.endsWith(".json"))
@@ -131,6 +155,15 @@ export function createDecomposeTransientClaimStore(
     reserve: (claimId, generation, path) =>
       mutate(claimId, (current) =>
         reserveDecomposeTransientWorktree(current, claimId, generation, path)),
+    rollbackReservation: (claimId, generation, path, evidence) =>
+      mutate(claimId, (current) =>
+        rollbackDecomposeTransientWorktreeReservation(
+          current,
+          claimId,
+          generation,
+          path,
+          evidence,
+        )),
     occupy: (claimId, generation, path, evidence) =>
       mutate(claimId, (current) =>
         occupyDecomposeTransientClaim(current, claimId, generation, path, evidence)),

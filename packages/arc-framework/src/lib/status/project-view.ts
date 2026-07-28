@@ -617,7 +617,7 @@ export async function resolveProjectReadinessComposition(
   const localRefs = await resolveOracleCandidates(
     configuredOracle === undefined
       ? undefined
-      : { ...configuredOracle, parkedSlugs, decompositionClaimCwd: options.cwd },
+      : { ...configuredOracle, parkedSlugs },
     options.prospective === undefined
       ? undefined
       : {

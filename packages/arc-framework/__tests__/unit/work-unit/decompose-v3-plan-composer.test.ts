@@ -65,6 +65,8 @@ describe("v3 decomposition plan composition", () => {
     return {
       preflightId: canonicalDigest("preflight"),
       cutMapDigest: canonicalDigest("cut-map"),
+      sourceHead: "source-head",
+      expectedBaseHead: "base-head",
       candidatePublication: publication,
       topologyDigest: canonicalDigest("topology"),
       origin: "origin",

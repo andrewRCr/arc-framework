@@ -89,6 +89,13 @@ export interface DecomposeTransientReleaseEvidence {
   branchOccupationAbsent: boolean;
 }
 
+export interface DecomposeTransientReservationRollbackEvidence {
+  registrationAbsent: boolean;
+  markerAbsent: boolean;
+  branchAbsent: boolean;
+  pathAbsent: boolean;
+}
+
 type ClaimConflictReason =
   | "absence-unproven"
   | "binding-mismatch"
@@ -134,6 +141,11 @@ export type DecomposeTransientRetireResult =
 export type DecomposeTransientReleaseResult =
   | { status: "released"; claim: DecomposeTransientClaim }
   | { status: "already-released-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
+export type DecomposeTransientReservationRollbackResult =
+  | { status: "rolled-back"; claim: DecomposeTransientClaim }
+  | { status: "already-unregistered-matching"; claim: DecomposeTransientClaim }
   | ClaimConflict;
 
 function registrationMatchesState(claim: DecomposeTransientClaim): boolean {
@@ -316,6 +328,34 @@ export function reserveDecomposeTransientWorktree(
   return {
     status: "reserved",
     claim: { ...exact, registration: { kind: "intended", path } },
+  };
+}
+
+/** Roll back an intended reservation only when every possible observer and mutation is proven absent. */
+export function rollbackDecomposeTransientWorktreeReservation(
+  current: unknown,
+  claimId: CanonicalDigest,
+  generation: number,
+  path: string,
+  evidence: DecomposeTransientReservationRollbackEvidence,
+): DecomposeTransientReservationRollbackResult {
+  if (!HostPathSchema.safeParse(path).success) return { status: "conflict", reason: "invalid-host-path" };
+  const exact = exactClaim(current, claimId, generation);
+  if ("status" in exact) return exact;
+  if (exact.state.kind !== "pending") return { status: "conflict", reason: "invalid-state" };
+  if (exact.registration.kind === "unregistered") {
+    return { status: "already-unregistered-matching", claim: exact };
+  }
+  if (exact.registration.kind !== "intended" || exact.registration.path !== path) {
+    return { status: "conflict", reason: "registration-mismatch" };
+  }
+  if (!evidence.registrationAbsent || !evidence.markerAbsent
+    || !evidence.branchAbsent || !evidence.pathAbsent) {
+    return { status: "conflict", reason: "absence-unproven" };
+  }
+  return {
+    status: "rolled-back",
+    claim: { ...exact, registration: { kind: "unregistered" } },
   };
 }
 

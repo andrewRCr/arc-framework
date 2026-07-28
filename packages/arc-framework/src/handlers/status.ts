@@ -367,6 +367,7 @@ export async function handleStatus(
       },
       oracle: {
         exec,
+        decompositionClaimCwd: cwd,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
         errandSlugByBranch,
@@ -953,6 +954,7 @@ export async function handleStatus(
       fs: lifecycleFs,
       oracle: {
         exec,
+        decompositionClaimCwd: cwd,
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,

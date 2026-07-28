@@ -481,6 +481,9 @@ export function createV3DecomposePreparation(
   if (allowedPathsDigest === null
     || allowedPathsDigest !== input.plan.allowedPathsDigest
     || input.plan.planId !== expectedPlanId
+    || input.plan.cutMapDigest !== cutMapDigest
+    || input.plan.sourceHead !== map.machine.source.head
+    || input.plan.expectedBaseHead !== map.machine.resultBase.head
     || input.plan.prospectiveOverlay.origin !== map.machine.source.origin
     || input.plan.prospectiveOverlay.sourceBranch !== map.machine.source.logicalBranch
     || input.plan.prospectiveOverlay.planId !== expectedPlanId

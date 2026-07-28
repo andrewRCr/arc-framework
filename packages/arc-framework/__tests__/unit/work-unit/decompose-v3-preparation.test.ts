@@ -301,6 +301,9 @@ describe("v3 decomposition preparation identities", () => {
     }];
     const plan = {
       planId: facts.prospectiveProjection.overlay.planId,
+      cutMapDigest: facts.cutMapDigest,
+      sourceHead: preparation.facts.completedMap.machine.source.head,
+      expectedBaseHead: preparation.facts.completedMap.machine.resultBase.head,
       allowedPaths: facts.allowedPaths,
       allowedPathsDigest: facts.allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

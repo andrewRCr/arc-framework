@@ -21,6 +21,9 @@ function plan(): ValidatedDecomposePlan {
   const allowedPaths = [".arc/active/meta-member.md", ".arc/backlog/ROADMAP.md"];
   return {
     planId: canonicalDigest({ plan: 1 }),
+    cutMapDigest: canonicalDigest("cut-map"),
+    sourceHead: "source-head",
+    expectedBaseHead: "base-head",
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
     prospectiveOverlay: createProspectiveTransitionOverlay({

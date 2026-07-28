@@ -84,6 +84,8 @@ export interface V3PlannedExclusivePath {
 export interface V3PlanCompositionInput {
   preflightId: CanonicalDigest;
   cutMapDigest: CanonicalDigest;
+  sourceHead: string;
+  expectedBaseHead: string;
   candidatePublication: V3CandidatePublication;
   topologyDigest: CanonicalDigest;
   origin: string;
@@ -487,6 +489,8 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
   const result = buildValidatedDecomposePlan({
     preflightId: input.preflightId,
     cutMapDigest: input.cutMapDigest,
+    sourceHead: input.sourceHead,
+    expectedBaseHead: input.expectedBaseHead,
     candidatePublication: input.candidatePublication,
     topologyDigest: input.topologyDigest,
     origin: input.origin,

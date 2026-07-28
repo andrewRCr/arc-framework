@@ -242,6 +242,7 @@ async function resolveTransformComposition(
     fs: lifecycleFs,
     oracle: {
       exec: base.io.exec,
+      decompositionClaimCwd: base.cwd,
       baseBranch: settings["branch.base"],
       localOnly: false,
       expandLiveOnly: true,

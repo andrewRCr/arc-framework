@@ -231,14 +231,10 @@ mutation authority; it already contains the operator-approved map and every mech
   content facts into a preparation-bound plan whose complete path authority is unique, ordered, byte-exact, and
   directly consumable without later resolver or contributor writes.
 
-### `[ ]` **2.3 Define exact candidate occupation**
+### `[x]` **2.3 Define exact candidate occupation**
 
 - _Goal:_ The later materialization driver receives one testable occupation seam and exact ownership operand for
   either the plan-bound candidate or the partial-protection base projection.
-
-- _Note:_ Design coverage: D2.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
     - `[x]` **2.3.a Define exact transient candidate ownership**
         - Added one closed repository-common claim machine with content-derived claim/worktree identities, positive
@@ -252,20 +248,18 @@ mutation authority; it already contains the operator-approved map and every mech
           only unambiguous live candidate residue, and surfaces invalid operational records without host-path
           leakage.
 
-    - `[ ]` **2.3.b Implement the result-occupation seam**
-        - Give the in-repository driver one pure/injectable branch-operation seam over protection mode, configured
-          base, and the plan's expected base object. Keep the public execute path unwired until Task 3.1.c composes
-          this seam with the canonical managed-path materializer.
-        - Under full protection create the deterministic candidate only when absent; resume only on its exact
-          source/base/map binding and unique registered worktree projection. Under partial protection require the
-          exact clean relevant base projection.
-        - Resolve branch-exists-unregistered, registered-at-wrong-path, occupied-path, duplicate-registration, and
-          concurrent-creation collisions explicitly. Add no branch-prefix cleanup exemption.
-        - Build `test-first` (one behavior at a time):
-            - Both modes reject base movement before mutation.
-            - Exact resume succeeds; stale or foreign deterministic branches refuse as collisions.
-            - A collision proven before acquire leaves no claim or writable residue; a collision after successful
-              acquire preserves only the exact resumable `pending/unregistered` generation and no writable residue.
+    - `[x]` **2.3.b Implement the result-occupation seam**
+        - Added one injectable occupation driver over protection mode, configured base, and the immutable plan's
+          explicit source, cut-map, and expected-base binding; the public execute path remains unwired.
+        - Full protection creates or resumes only `chore/decompose-<origin>` with one exact claim, registration,
+          head, and marker projection. Partial protection exposes only a clean exact relevant-path base projection.
+        - Base movement and every absent, duplicate, wrong-path, occupied, stale, foreign, marker, and concurrent
+          collision refuse before materialization. Proven mutation-free creation races roll back to the exact
+          pathless pending generation; uncertain races preserve typed recovery-required state.
+
+- _Outcome:_ The immutable plan now carries its exact occupation binding into one protection-aware seam. Full mode
+  yields only claim-backed candidate ownership, partial mode yields only the explicit not-applicable arm, and no
+  path mutation or branch-prefix convention can substitute for exact base, claim, registration, and marker proof.
 
 ## **Phase 3:** Planning authority, topology, and finalization
 

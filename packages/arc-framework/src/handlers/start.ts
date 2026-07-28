@@ -260,6 +260,7 @@ export async function handleStart(
     fs: baseSnapshot.fs,
     oracle: {
       exec: io.exec,
+      decompositionClaimCwd: cwd,
       baseBranch: settings["branch.base"],
       localOnly: false,
       expandLiveOnly: true,

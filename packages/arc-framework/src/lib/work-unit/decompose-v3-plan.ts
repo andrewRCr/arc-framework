@@ -90,6 +90,8 @@ export type V3PlanPathClaim = V3PlanExclusiveClaim | V3PlanContributorClaim;
 export interface BuildValidatedDecomposePlanInput {
   preflightId: CanonicalDigest;
   cutMapDigest: CanonicalDigest;
+  sourceHead: string;
+  expectedBaseHead: string;
   candidatePublication: V3CandidatePublication;
   topologyDigest: CanonicalDigest;
   origin: string;
@@ -119,6 +121,9 @@ export type V3ValidatedPathMutation =
 
 export interface ValidatedDecomposePlan {
   planId: CanonicalDigest;
+  cutMapDigest: CanonicalDigest;
+  sourceHead: string;
+  expectedBaseHead: string;
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
   prospectiveOverlay: ProspectiveTransitionOverlay;
@@ -243,6 +248,8 @@ function invalidOperand(input: BuildValidatedDecomposePlanInput): boolean {
   return !isCanonicalDigest(input.preflightId)
     || !isCanonicalDigest(input.cutMapDigest)
     || !isCanonicalDigest(input.topologyDigest)
+    || !validIdentity(input.sourceHead)
+    || !validIdentity(input.expectedBaseHead)
     || !validIdentity(input.origin)
     || !validIdentity(input.sourceBranch);
 }
@@ -392,6 +399,9 @@ export function buildValidatedDecomposePlan(
     ok: true,
     plan: {
       planId,
+      cutMapDigest: input.cutMapDigest,
+      sourceHead: input.sourceHead,
+      expectedBaseHead: input.expectedBaseHead,
       allowedPaths,
       allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({
