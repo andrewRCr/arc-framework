@@ -524,6 +524,66 @@ describe("v3 decomposition map schema", () => {
     }
   });
 
+  it("refuses every dangling authored destination reference", () => {
+    const cases: Array<{
+      mutate(value: V3DecomposeCutMap): void;
+      path: string;
+    }> = [
+      {
+        mutate: (value) => {
+          value.authoring.sourceAllocations[0]!.disposition = {
+            ...value.authoring.sourceAllocations[0]!.disposition,
+            kind: "target",
+            destinationId: "missing",
+            targetLocator: { artifact: "draft-missing.md", kind: "preamble" },
+          };
+        },
+        path: "authoring.sourceAllocations.0.disposition.destinationId",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.internalEdges[0]!.from = "missing";
+        },
+        path: "authoring.internalEdges.0.from",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.internalEdges[0]!.to = "missing";
+        },
+        path: "authoring.internalEdges.0.to",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.incomingDispositions[0]!.disposition = {
+            kind: "replace",
+            replacementTargets: ["missing"],
+          };
+        },
+        path: "authoring.incomingDispositions.0.disposition.replacementTargets.0",
+      },
+      {
+        mutate: (value) => {
+          value.authoring.outgoingDispositions[0]!.disposition = {
+            kind: "targets",
+            targets: ["missing"],
+          };
+        },
+        path: "authoring.outgoingDispositions.0.disposition.targets.0",
+      },
+    ];
+    for (const candidate of cases) {
+      const value = completed();
+      candidate.mutate(value);
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: candidate.path,
+        },
+      });
+    }
+  });
+
   it("refuses every remaining author slot and every excluded public domain arm", () => {
     const authorSlotMutations: Array<(value: LooseCompletedMap) => void> = [
       (value) => { value.authoring.shape = { status: "author" }; },
