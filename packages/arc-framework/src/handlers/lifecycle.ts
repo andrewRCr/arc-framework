@@ -88,8 +88,8 @@ import { resolveProjectReadinessComposition } from "../lib/status/project-view.j
 import { decomposeReadinessDeps } from "../lib/work-unit/decompose-launch-readiness.js";
 import {
   buildLiveCohortContext,
-  classifyPath as classifyCohortPath,
-} from "../scripts/validate-cohort-consistency.js";
+  classifyCohortPath,
+} from "../lib/active/cohort-live-context.js";
 import type { CohortConsistencyInput } from "../lib/active/cohort-consistency.js";
 import type { V3TopologyTreeState } from "../lib/work-unit/decompose-v3-topology.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";

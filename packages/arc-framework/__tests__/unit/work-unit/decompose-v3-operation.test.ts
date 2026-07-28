@@ -35,24 +35,38 @@ const secondAfter = {
   contentDigest: digestBytes(secondBytes),
 } as const;
 
-function operationFixture(mutationCount = 1) {
+function operationFixture() {
   const { preparation } = v3DecompositionEvidenceFixture();
   const { facts } = preparation;
-  const firstPath = facts.allowedPaths[0]!;
-  const secondPath = facts.allowedPaths[1]!;
+  const firstDestination = facts.destinationOutputPaths[0]!;
+  const secondDestination = facts.destinationOutputPaths[1]!;
+  const firstPath = firstDestination.paths[0]!;
+  const secondPath = secondDestination.paths[0]!;
   const mutation = (
     path: string,
     after: V3PlanCanonicalPathState,
+    destinationId: string,
   ): V3ValidatedPathMutation => ({
-    kind: "exclusive",
+    kind: "composed",
     path,
-    role: "roadmap",
     before: { kind: "absent" },
     after,
+    contributors: [{
+      kind: "content",
+      destinationId,
+      destinationKind: "new-member",
+      artifactRole: "meta",
+      contributorKind: "scaffold",
+      contributorIdentity: `scaffold:${destinationId}`,
+      sourceProjection: [],
+      disposition: "whole-file",
+      before: { kind: "absent" },
+      after,
+    }],
   });
   const mutations = [
-    mutation(firstPath, firstAfter),
-    ...(mutationCount === 1 ? [] : [mutation(secondPath, secondAfter)]),
+    mutation(firstPath, firstAfter, firstDestination.destinationId),
+    mutation(secondPath, secondAfter, secondDestination.destinationId),
   ];
   const plan: ValidatedDecomposePlan = {
     planId: facts.prospectiveProjection.overlay.planId,
@@ -118,12 +132,13 @@ function fullOccupation(): DecomposeResultOccupationResult {
 }
 
 function preimages(plan: ValidatedDecomposePlan): V3PartialPathPreimage[] {
-  return plan.allowedPaths.map((path, index) => ({
+  const firstMutationPath = plan.mutations[0]!.path;
+  return plan.allowedPaths.map((path) => ({
     path,
-    index: index === 0
+    index: path === firstMutationPath
       ? { kind: "object", objectKind: "blob", mode: "100755", bytes: encoder.encode("index") }
       : { kind: "absent" },
-    worktree: index === 0
+    worktree: path === firstMutationPath
       ? { kind: "object", objectKind: "blob", mode: "100644", bytes: encoder.encode("worktree") }
       : { kind: "absent" },
   }));
@@ -241,7 +256,7 @@ describe("executeV3DecomposeOperation", () => {
   });
 
   it("restores only actually changed partial paths from distinct index and worktree preimages", async () => {
-    const fixture = operationFixture(2);
+    const fixture = operationFixture();
     const events: string[] = [];
     const captured = preimages(fixture.plan);
     let restored: readonly V3PartialPathPreimage[] = [];
@@ -280,7 +295,7 @@ describe("executeV3DecomposeOperation", () => {
         restoredPaths: [fixture.firstPath],
       },
     });
-    expect(restored).toEqual([captured[0]]);
+    expect(restored).toEqual([captured.find(({ path }) => path === fixture.firstPath)]);
     expect(restored[0]?.index).not.toEqual(restored[0]?.worktree);
   });
 
@@ -309,7 +324,7 @@ describe("executeV3DecomposeOperation", () => {
       recovery: {
         kind: "partial-restoration",
         status: "failed",
-        affectedPaths: [fixture.firstPath],
+        affectedPaths: [fixture.firstPath, fixture.secondPath],
         path: fixture.firstPath,
       },
     });

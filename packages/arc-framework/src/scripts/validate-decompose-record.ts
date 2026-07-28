@@ -34,7 +34,7 @@ import { validateFinalizedV3Decomposition } from "../lib/work-unit/validate-v3-d
 export const validateDecomposeRecordInputPolicyDeclarations = [{
   commandPath: "hook-validate-decompose-record",
   aliases: [],
-  sites: [1, 2, 3, 4].map((occurrence) => declareInteractionSite(
+  sites: [1, 2, 3, 4, 5, 6].map((occurrence) => declareInteractionSite(
     { file: "scripts/validate-decompose-record.ts", kind: "subprocess", callee: "execFileAsync", occurrence },
     {
       acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
