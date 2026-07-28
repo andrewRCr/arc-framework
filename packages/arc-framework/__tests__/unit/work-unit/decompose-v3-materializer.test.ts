@@ -212,4 +212,50 @@ describe("materializeV3DecomposePlan", () => {
     });
     expect(mismatched.applications).toEqual([]);
   });
+
+  it("reuses one verified blob for paths with the same content digest", async () => {
+    const h = harness(new Map<string, V3PlanCanonicalPathState>([
+      [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
+      [".arc/backlog/ROADMAP.md", before],
+    ]));
+    const readBlob = h.io.readBlob;
+    let sharedBlobReads = 0;
+    h.io.readBlob = async (contentDigest) => {
+      if (contentDigest === after.contentDigest && ++sharedBlobReads > 1) {
+        throw new Error("shared final blob was read more than once");
+      }
+      return await readBlob(contentDigest);
+    };
+
+    const result = await materializeV3DecomposePlan(plan(), h.io);
+
+    expect(result.status).toBe("materialized");
+    expect(h.applications.map(({ bytes }) => bytes)).toEqual([afterBytes, draftBytes, afterBytes]);
+  });
+
+  it("reports only completed writes when applying a later path fails", async () => {
+    const h = harness(new Map<string, V3PlanCanonicalPathState>([
+      [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
+      [".arc/backlog/ROADMAP.md", before],
+    ]));
+    const applyAndStageFinal = h.io.applyAndStageFinal;
+    h.io.applyAndStageFinal = async (path, state, bytes) => {
+      if (path === ".arc/backlog/planned/member/draft-member.md") {
+        throw new Error("apply failed");
+      }
+      await applyAndStageFinal(path, state, bytes);
+    };
+
+    expect(await materializeV3DecomposePlan(plan(), h.io)).toEqual({
+      status: "refused",
+      reason: "apply-failed",
+      path: ".arc/backlog/planned/member/draft-member.md",
+      appliedPaths: [".arc/active/meta-member.md"],
+    });
+    expect(h.applications.map(({ path }) => path)).toEqual([
+      ".arc/active/meta-member.md",
+    ]);
+  });
 });
