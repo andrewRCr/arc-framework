@@ -506,11 +506,37 @@ remain live derivations from metas. The core supplies an exact-base integration 
 - _Goal:_ One post-authoring interlock reviews semantic distribution while every deterministic proof and recovery
   choice comes from CLI results.
 
-- _Note:_ Design coverage: D6.
+- _Note:_ Design coverage: D2-D6. The delivery cap audit found that the pure v3 operation and finalizer had no
+  repository-bound production adapters; those vertical seams must exist before the workflow can expose their verbs.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
 
-    - `[ ]` **4.3.a Move the distribution interlock to the authored candidate**
+    - `[ ]` **4.3.a Bind the immutable result operation to one repository locus**
+        - Add one production adapter that derives the complete `V3PlanCompositionInput` from the revalidated
+          completed map and pinned source/base trees, then composes the immutable plan without caller-authored
+          paths, bytes, topology, retirement, dependency, or ROADMAP operands.
+        - Bind exact full/partial occupation, worktree registration and marker state, materialization, staging,
+          post-occupation revalidation, and partial preimage restoration through existing v3 state machines.
+        - Build `test-first` (one behavior at a time):
+            - Exact partial and full candidates produce the same canonical plan and prepared report.
+            - Source/base/post-occupation drift, path collision, unsupported bytes, branch/worktree conflict, and
+              materialization failure refuse before leaking partial authority.
+            - Partial failure restores exact index/worktree images; full failure reports only exact retry/discard
+              facts for its owned candidate generation.
+
+    - `[ ]` **4.3.b Expose execute, discard, and finalize through closed command modes**
+        - Add mutually exclusive cut-map execute, exact cut-map discard, and receipt-plus-continuation finalization
+          modes beside preflight and landed handoff. Emit canonical typed results and precomposed recovery only.
+        - Bind discard to the exact revalidated plan and claim generation. Bind finalization to the stored
+          preparation, pinned candidate tree, shared readiness composition, topology validation, prospective versus
+          validated project/ROADMAP parity, and the existing recovery renderer.
+        - Build `test-first` (one behavior at a time):
+            - Every valid mode reaches only its production adapter and conflicting or incomplete modes refuse.
+            - Execute reports exact destination/topology packets; discard and finalization expose only
+              provenance-backed retry, reauthorization, re-preflight, reauthor, or prose guidance.
+            - No handler reconstructs a receipt, digest, path, branch, worktree, or recovery operand.
+
+    - `[ ]` **4.3.c Move the distribution interlock to the authored candidate**
         - Edit package-source `decompose-work-unit.md` and render its Framework project copy.
         - Remove the old pre-transform semantic approval. Place exactly one named distribution
           `workflow-interlock` after every CLI-reported member/existing-home/cohort destination is authored and
@@ -520,7 +546,7 @@ remain live derivations from metas. The core supplies an exact-base integration 
           CLI-reported finalize-with-continuation command; never edit preparation or receipt JSON.
         - Preserve commit, push, and integration interlocks solely as release controls.
 
-    - `[ ]` **4.3.b Replace mechanics with verbs and reported remedies**
+    - `[ ]` **4.3.d Replace mechanics with verbs and reported remedies**
         - Dispatch in the spec-defined order: preflight starter map; operator-owned semantic completion; exact
           prepare/materialize; author every result-packet destination; distribution interlock/continuation
           selection; typed finalize-with-continuation; protection-mode ship; landed facts-only handoff.
@@ -532,7 +558,7 @@ remain live derivations from metas. The core supplies an exact-base integration 
         - Remove extension-owned extraction, source-thinning, multi-member cohortless, planning-lane, mobility,
           durable-enumeration, and remote-cleanup arms. Core reports the landed handoff; it does not launch members.
 
-    - `[ ]` **4.3.c Route release controls by protection mode**
+    - `[ ]` **4.3.e Route release controls by protection mode**
         - Under partial protection, run the commit interlock and direct configured-base commit only; include no
           pre-push extension, push, PR, integration interlock, or merge sequence.
         - Under full protection, use the existing CLI-reported candidate branch without creating/switching/deleting
@@ -546,7 +572,7 @@ remain live derivations from metas. The core supplies an exact-base integration 
               push/PR/merge controls.
             - No workflow command creates or deletes a Git branch/worktree.
 
-    - `[ ]` **4.3.d Verify workflow and package/project parity**
+    - `[ ]` **4.3.f Verify workflow and package/project parity**
         - Add a focused decomposition workflow contract test over ordered stable headings/markers, one named
           distribution interlock, typed continuation/finalization, profile/topology packets, recovery control flow,
           protection-mode release arms, and facts-only handoff.

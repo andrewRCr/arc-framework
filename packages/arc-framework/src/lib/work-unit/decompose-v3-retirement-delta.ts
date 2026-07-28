@@ -17,6 +17,7 @@ export interface V3RetirementDeltaInput {
   sourceKind: "started-planning" | "backlog-stub";
   mergeBases: string[];
   predecessorCandidates: string[];
+  predecessorArtifactPaths?: string[];
   originArtifactPaths: string[];
   roadmapPath: string;
   baseTree: V3RetirementTree;
@@ -67,6 +68,7 @@ export type V3RetirementDeltaResult =
     mergeBase: string;
     paths: V3RetirementPathFacts[];
     predecessor: V3RetirementAction;
+    predecessorRetirements: V3RetirementAction[];
     retirements: V3RetirementAction[];
     roadmap: V3RetirementPathFacts;
     riders: V3RetirementRider[];
@@ -155,6 +157,7 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
     ...Object.keys(input.sourceTree),
     ...Object.keys(input.resultTree),
     ...input.originArtifactPaths,
+    ...(input.predecessorArtifactPaths ?? []),
     ...input.predecessorCandidates,
     input.roadmapPath,
   ]);
@@ -183,29 +186,46 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
   if (!statesEqual(predecessorFacts.base, predecessorFacts.result)) {
     return { status: "refused", refusal: { code: "predecessor-changed", path: predecessorPath } };
   }
-  const predecessorShapeRefusal = transitionShapeRefusal(
-    predecessorFacts.base,
-    predecessorFacts.source,
-    predecessorPath,
-  );
-  if (predecessorShapeRefusal !== null) {
-    return { status: "refused", refusal: predecessorShapeRefusal };
+  const predecessorArtifactPaths = input.predecessorArtifactPaths ?? [predecessorPath];
+  if (!predecessorArtifactPaths.includes(predecessorPath)) {
+    return { status: "refused", refusal: { code: "predecessor-missing", path: predecessorPath } };
   }
-  if (!regularFile(predecessorFacts.source)) {
-    return {
-      status: "refused",
-      refusal: { code: "predecessor-absent-from-source", path: predecessorPath },
-    };
+  const predecessorRetirements: V3RetirementAction[] = [];
+  for (const path of predecessorArtifactPaths.slice().sort(compareUtf8)) {
+    const facts = paths.find((entry) => entry.path === path);
+    if (facts === undefined || !regularFile(facts.base) || !regularFile(facts.result)) {
+      return { status: "refused", refusal: { code: "predecessor-missing", path } };
+    }
+    if (!statesEqual(facts.base, facts.result)) {
+      return { status: "refused", refusal: { code: "predecessor-changed", path } };
+    }
+    if (input.sourceKind === "backlog-stub") {
+      const refusal = transitionShapeRefusal(facts.base, facts.source, path);
+      if (refusal !== null) return { status: "refused", refusal };
+      if (!statesEqual(facts.base, facts.source)) {
+        return { status: "refused", refusal: { code: "backlog-predecessor-changed", path } };
+      }
+    }
+    predecessorRetirements.push({ path, before: facts.result, after: ABSENT });
   }
-  if (input.sourceKind === "backlog-stub"
-    && !statesEqual(predecessorFacts.base, predecessorFacts.source)) {
-    return {
-      status: "refused",
-      refusal: { code: "backlog-predecessor-changed", path: predecessorPath },
-    };
+  if (input.sourceKind === "started-planning"
+    && input.originArtifactPaths.includes(predecessorPath)) {
+    const refusal = transitionShapeRefusal(
+      predecessorFacts.base,
+      predecessorFacts.source,
+      predecessorPath,
+    );
+    if (refusal !== null) return { status: "refused", refusal };
+    if (!regularFile(predecessorFacts.source)) {
+      return {
+        status: "refused",
+        refusal: { code: "predecessor-absent-from-source", path: predecessorPath },
+      };
+    }
   }
 
   const originPaths = new Set(input.originArtifactPaths);
+  const predecessorPaths = new Set(predecessorArtifactPaths);
   const retirements: V3RetirementAction[] = [];
   for (const path of input.originArtifactPaths.slice().sort(compareUtf8)) {
     const facts = paths.find((entry) => entry.path === path);
@@ -234,6 +254,7 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
     if (statesEqual(path.base, path.source)
       || statesEqual(path.source, path.result)
       || originPaths.has(path.path)
+      || predecessorPaths.has(path.path)
       || path.path === input.roadmapPath) continue;
     const refusal = transitionShapeRefusal(path.base, path.source, path.path);
     if (refusal !== null) return { status: "refused", refusal };
@@ -248,6 +269,7 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
     mergeBase,
     paths,
     predecessor: { path: predecessorPath, before: predecessorFacts.result, after: ABSENT },
+    predecessorRetirements,
     retirements,
     roadmap,
     riders,
