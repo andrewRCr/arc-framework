@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1e9e1af75`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `99180ca7f`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -49,6 +49,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | knowledge-architecture           | P2       | andrew | —          | —                          |
 | operational-advisory-registers   | P2       | andrew | —          | —                          |
 | operational-state-docs           | P2       | andrew | —          | —                          |
+| plan-segmentation                | P2       | andrew | —          | —                          |
 | workflow-eval-harness            | P2       | andrew | —          | —                          |
 | handoff-optimization             | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening      | P3       | andrew | —          | architecture-remediation   |
@@ -92,19 +93,20 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                  | Cohort                        |
-| ----------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
-| decompose-extraction          | P1       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
-| review-source-authority       | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
-| unit-scoped-review            | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
-| decompose-base-mobility       | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
-| decompose-durable-consumers   | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |
-| instruction-optimization      | P3       | andrew | composable-workflows                                        | agent-context-optimization    |
-| workflow-template-loads       | P3       | andrew | composable-workflows                                        | principle-anchored-core       |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                           | release-readiness             |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                               | —                             |
-| local-mode                    | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                             |
+| Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                        |
+| --------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
+| decompose-extraction              | P1       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
+| review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
+| unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
+| decompose-base-mobility           | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
+| decompose-durable-consumers       | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
+| review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                             |
+| documentation-surface-routing     | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |
+| instruction-optimization          | P3       | andrew | composable-workflows                                        | agent-context-optimization    |
+| workflow-template-loads           | P3       | andrew | composable-workflows                                        | principle-anchored-core       |
+| docs-content-sweep                | P3       | andrew | docs-site-refresh                                           | release-readiness             |
+| comprehension-preservation        | P3       | andrew | execution-delegation-doctrine                               | —                             |
+| local-mode                        | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                             |
 
 ### Depth 2
 

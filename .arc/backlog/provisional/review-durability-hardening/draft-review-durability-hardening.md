@@ -1,5 +1,27 @@
 # Draft: review-durability-hardening
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Separate exact-target invalidation from review-applicability invalidation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-durability-hardening`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ after complete CodeRabbit review and a clean incremental follow-up, a later head changed only one
+  strict unit-test mock (14 added lines; no production code). The agent requested another hosted incremental
+  review solely because the exact review target had moved, despite the errand workflow already permitting prior
+  complete coverage to carry across a narrow non-interacting delta with targeted verification.
+- _Fold-in:_ make the operational distinction explicit wherever new-head review is selected — target movement
+  invalidates an attestation bound to the old SHA, but does not by itself require another evaluator pass. Apply
+  review-applicability judgment first; carry prior complete coverage across demonstrably non-interacting test,
+  record-only, or lifecycle deltas with targeted verification; retrigger only for behavioral, authority,
+  contract, interacting, or uncertain changes. Treat the incident as evidence for the provisional WU's
+  re-review-cost trigger, not as a mandate for the larger durable-ledger design.
+
+---
+
 ## Provenance
 
 Deferred from `review-surface-binding` (RSB) at its create-spec planning close (2026-07-23). RSB shipped an

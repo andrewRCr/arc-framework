@@ -143,8 +143,8 @@ code forward via the evolutionary path requires _explicit decision_ and a _stabi
 requirements, test coverage, doc expectations enumerated before the spike code is considered part of
 implementation.
 
-This default actively prevents "tracer-bullet syndrome" (spike code calcifies into production through inertia)
-and "sunk-cost fallacy" (we built it so we should keep it). The decision is deliberate, not accidental.
+This default actively prevents **spike calcification** (spike code drifts into production through inertia) and
+"sunk-cost fallacy" (we built it so we should keep it). The decision is deliberate, not accidental.
 
 ## Learning capture pipeline
 
@@ -251,7 +251,7 @@ The following failure modes are _actively prevented_ by the design above:
 - **Sunk-cost fallacy** — throwaway-default + explicit stabilization contract for evolve
 - **Scope creep ("just one more spike")** — soft cap + spike-cycle exit conditions tied to empirical questions
   specifically
-- **Tracer-bullet syndrome** — throwaway default prevents accidental calcification
+- **Spike calcification** — throwaway default prevents spike code drifting into production unexamined
 - **Prototype without learning capture** — workflow-interlock pre-report checklist gates on learning being
   captured
 - **Prototype-as-procrastination** — soft cap + visible exit conditions + spike contract forces hypothesis-framing
@@ -273,6 +273,17 @@ The following failure modes are _actively prevented_ by the design above:
   exists. Spike learnings flow INTO `draft-*` rather than competing with it
 - **Session-init planning detection**: the detection signals for active planning extend naturally to detect
   prototype activity (spike commits, populated findings register)
+- **`plan-segmentation`**: adjacent on one risk timeline, not coupled. A spike runs before a design exists and so
+  cannot falsify a spec — it de-risks _inputs_; that work unit's vertical slices run against a settled design and
+  de-risk _composition_. Two consequences hold in both directions: spike code is never built for downstream reuse
+  (that is the calcification pathway this modality's disposition lifecycle exists to prevent), and the anchor term
+  `spike` is not reused for slice work. The flow between them is informational — spike findings tell task
+  generation where composition risk lives. Distinguish both from the Pragmatic Programmer's **tracer bullet**
+  (lean-but-complete code deliberately kept and grown), which is a slice-side concept and never a spike
+  disposition. **Open seam:** a vertical slice generally needs scaffolding for layers it does not yet fully build,
+  and that code is not kept either — so the slice/spike boundary does not reduce to kept-versus-throwaway.
+  Whether this modality's disposition lifecycle should extend to cover that second code kind, or whether
+  `plan-segmentation` owns it, is unsettled in both drafts
 
 ## Scope Estimate
 

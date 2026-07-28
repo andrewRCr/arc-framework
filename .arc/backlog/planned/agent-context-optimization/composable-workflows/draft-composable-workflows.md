@@ -19,6 +19,23 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Bound session-init read groups by aggregate tool-output budget**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-27); captured during `review-checkout-lifecycle` planning while running `arc-session`.
+- _Concern:_ session-init's prescriptive parallel context load issued nine required reads in one tool message;
+  the combined result (~21,400 tokens) exceeded the harness result cap, so required rule content was silently
+  truncated even though every individual read succeeded. A second cap surface beside the draft's existing
+  observation that `session-init.md` itself exceeds common single-read limits.
+- _Fold-in:_ make bounded aggregate output part of D3's `read` / `parallel-group` contract. The compiler should
+  partition required reads into ordered parallel groups whose estimated or declared aggregate size stays below
+  the execution surface's result budget, and define a deterministic continuation when a result reports
+  truncation. Keep membership and document depth orthogonal (`analysis-load-set-scoping`,
+  `strategy-knowledge-evolution` Principle 8, `strategy-procedure-evolution` Principle 1). Fold into existing
+  session-init growth evidence and the worked agenda's planned `parallel-group` data rather than opening another
+  mechanism. `instruction-optimization` consumes the D3 mechanism; `loadset-composition` owns membership, not
+  batching.
+
 ### `[ ]` **Replace residual activation cleanup mechanics with an owning lifecycle verb**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during the

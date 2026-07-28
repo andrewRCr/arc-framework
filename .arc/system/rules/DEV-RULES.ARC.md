@@ -255,10 +255,10 @@ Break down a task into subtasks if it requires:
 
 If quality gates fail after task completion:
 
-1. **Report the failure** with specific details
-2. **Identify suspected causes** and investigation areas
-3. **Ask for guidance** on whether to fix immediately or defer
-4. **Never proceed** to the next task until resolved or the user approves
+- **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
+  auto-fixable lint): fix and re-run immediately; report the correction.
+- **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
+  approved.
 
 ### Test-first assessment · `[configurable]`
 
