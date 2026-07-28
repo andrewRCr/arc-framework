@@ -270,6 +270,19 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "ambiguous" });
   });
 
+  it("preserves the integration-anchor refusal reason", () => {
+    const candidate = input();
+    candidate.snapshot.integration = {
+      ...candidate.snapshot.integration,
+      receiptTransitionTree: "f".repeat(40),
+    };
+
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({
+      status: "namespace-corrupt",
+      reason: "transition-tree",
+    });
+  });
+
   it("distinguishes caller publication drift from stored namespace corruption", () => {
     const candidate = input();
     candidate.snapshot.publication = publication({
