@@ -502,11 +502,16 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         const snapshot = await readV3AuthoritySnapshot(deps, preparation, await currentRecord());
         return await prepareV3DecomposeRetirement(
           {
-            readAuthoritySnapshot: async () => await readV3AuthoritySnapshot(
-              deps,
-              preparation,
-              await currentRecord(),
-            ),
+            readAuthoritySnapshot: async (receiptId) => {
+              if (receiptId !== preparation.receiptId) {
+                throw new Error("v3 decompose preparation receipt binding changed");
+              }
+              return await readV3AuthoritySnapshot(
+                deps,
+                preparation,
+                await readDecomposeRecord(deps, receiptId),
+              );
+            },
             readStagedPaths: async () => await readDecomposeStagedPaths(deps),
             readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
             createRecord: async (recordId, content) => deps.createRecord(recordId, content),
