@@ -68,7 +68,7 @@ what pays for it.
 ## Goals
 
 1. **Derive what is currently enumerated.** A reader classifies any unmarked rule in the corpus — here, in a
-   method, in a workflow, in a strategy — as `invariant` or `default` without a per-domain fiat.
+   method, in a workflow, in an extension, in a strategy — as `invariant` or `default` without a per-domain fiat.
 2. **Grant runtime discharge with a disclosure obligation**, closing the gap between `adr-029`'s accepted authority
    model and the rules surface that is stricter than it.
 3. **Name authority rather than declare it per rule** — who may discharge a default, and who holds an invariant,
@@ -86,6 +86,14 @@ what pays for it.
 - **Any code surface.** Gate-emission work has left the deliverable: its justification was licensing the
   quality-gate demotion, and that demotion turns out to need a method retarget instead. Which gate failures should
   name a fix command routes to `quality-gate-hooks`.
+
+  **One carve-out: `init-recipe.json`.** Three of D6's destinations are absent from the install recipe and
+  therefore reach no project (D6, install reachability). Demoting shipped rules into them would destroy the
+  content rather than relocate it, so correcting the recipe is a precondition for this work unit's own
+  correctness, not an adjacent improvement. Scoped to the destinations this register demotes into — three
+  strategies and one workflow — plus their manifest entries. Other files are absent on the same oversight and are
+  not swept here; the recipe's hand-maintenance, which is what let every one of them happen, is the real fix and
+  is a separate concern.
 - **`DEV-RULES.ARC` § Sub-agent scope** (14 nb) — the one section of either rules file this work unit must not
   touch. `execution-delegation-doctrine` owns its prohibition → conditions rewrite.
 - **The mechanism-4 move of the § Documentation Boundaries family** (~49 nb). No part of it becomes a
@@ -130,8 +138,8 @@ realizes it, and any change to it is a spec amendment rather than an authoring c
 ```markdown
 ## Rule Authority
 
-Every rule ARC states — here, in a method, in a workflow, in a strategy — is a **default** unless marked
-**invariant**. Marked or not, the reading below classifies it.
+Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
+unless marked **invariant**. Marked or not, the reading below classifies it.
 
 **`[configurable]` is a different axis.** That marker says the *project* may set a rule's shape; this
 reading says whether the *agent* may set it aside in the moment. They compose rather than compete — a
@@ -269,6 +277,12 @@ ignorance-guard) are load-bearing terms and each earns a definition in `AGENT-BR
 before use. "Protects the integrity of a check" is bounded inline in D1's section text rather than minted as a
 term.
 
+**The marker D3 applies is `[invariant]`**, taking `[configurable]`'s notation and its position on a rule's
+lead-in. The two markers are orthogonal axes that compose — D1's own clause says so — and visual parallelism is
+what carries that; a second notation would undercut the orthogonality the section states. Fixing the notation
+here rather than at each application site is what keeps D3's initial footprint and D9.4's post-sweep additions
+consistent.
+
 **D4.1 — delete the brief's duplicate leaf-binding.** `AGENT-BRIEF.ARC`'s `Review increment` entry carries
 "Default boundary: one leaf task," duplicating § Task interlock's "One leaf is the _default_ increment boundary."
 D7.2 rephrases that binding to a **floor** plus an explicit boundary parameter, which would leave two
@@ -336,6 +350,23 @@ name, and every such row is settled — so the list and the tier validate each o
 disposition. `strategy-adr-methodology` was in an earlier version of this set and is **not** in it: its only
 motivating row re-derived to compress-in-place (D7.5), which removed the destination.
 
+**Install reachability — the precondition under the trigger work.** An explicit trigger pointing at a file the
+project does not have is worse than the passive line it replaces. `packages/arc-framework/init-recipe.json` is
+the sole authority on what installs (`resolveFileList` builds the install set from it; there is no bulk copy of
+the package tree), and three of the seven destinations are absent from it: `strategy-interlock-release-wrappers`
+and `strategy-workflow-authoring` never install, while `strategy-team-coordination` installs only under
+`team.mode == true`. The shipped index already lists two such files, so the inconsistency is pre-existing and
+cosmetic — but demoting 17 nb of `DEV-RULES.ARC` behind a pointer to a file no project receives converts it into
+content loss for every project, which is `knowledge-evolution` P10 violated more severely than the defect D6
+exists to fix.
+
+The omission is an oversight rather than a decision, so D6 corrects it: the two never-installing destinations are
+added to the recipe, and `strategy-concurrent-work` — the same oversight in a row this register does not touch —
+rides along rather than being left as a known hole. `strategy-team-coordination`'s condition is deliberate and
+stays; the consequence to accept is that § Task interlock's team elaboration becomes unavailable to projects
+running without `team.mode`, which is the right home for team content and the wrong outcome only if that
+elaboration is judged universal.
+
 **Both copies.** `STRATEGY-INDEX` is Configurable, and its `## ARC Framework Strategies` block is identical in
 `packages/arc-framework/arc/reference/strategies/STRATEGY-INDEX.md`. **Five** of the seven live in that shared
 block and are rewritten in **both** copies; `strategy-interlock-release-wrappers` is _added_ to the shared block in
@@ -392,7 +423,9 @@ Rows that carry design weight beyond the accounting:
   § Context quality loses the quality-signals bullet **entirely**, because it asks the agent to detect its own
   degradation and an agent reliable enough to do so would not be drifting; the handoff-boundary behavior that
   bullet appeared to produce actually comes from § Structural boundaries' last clause, which is **extracted as a
-  one-line keep** before the four boundary categories demote. Both tables of contents cut whole (22 nb combined) —
+  one-line keep** before the two remaining boundary categories demote. `Natural session boundaries` lists three
+  categories, not four; with one cut and a clause lifted out, the lead-in loses the list it introduces and needs
+  the same structural resolution D8.2's heading does. Both tables of contents cut whole (22 nb combined) —
   each file loads whole, `§` reference resolution never consults them, so the navigation mechanism a table of
   contents serves is absent for its only reader.
 - **D7.2 — the rephrasings.** § Quality gate failure separates three failures under one heading: a gate that
@@ -489,18 +522,34 @@ so the presumption's blast radius must be checked rather than asserted. The draf
 0 methods and found no counterexample — a spot check that licenses proceeding, not coverage.
 
 - **D9.1 — scope: the full rule-carrying corpus, matching D1's own enumeration.** § Rule Authority claims every
-  unmarked rule "here, in a method, in a workflow, in a strategy," so the sweep covers all three — every workflow,
-  method, and strategy document, excluding the directory `README.md` indexes, which carry no rules. As currently
-  measured: **35 workflows, 25 methods, and 20 strategies** (13 `strategies/arc/`, 7 `strategies/project/`). The
-  criterion is the corpus D1 governs, not the number; counts re-derive at execution because the corpus grows.
+  unmarked rule "here, in a method, in a workflow, in an extension, in a strategy," so the sweep covers all four —
+  every workflow, method, extension, and strategy document, excluding the directory `README.md` indexes, which
+  carry no rules. As currently measured: **36 workflows, 25 methods, 13 extensions, and 20 strategies** (13
+  `strategies/arc/`, 7 `strategies/project/`). The criterion is the corpus D1 governs, not the number; counts
+  re-derive at execution because the corpus grows.
+
+  **The corpus is the shipped set, not the installed one.** § Rule Authority governs every rule ARC _states_, and
+  a document that ships without an instance counterpart states its rules to every project that receives it — so
+  scoping the sweep to what happens to be installed here would make the governed corpus an accident of this
+  repository's configuration. One workflow is currently in that position
+  (`03_configure-external-integration.md`), which is why the workflow count is 36 rather than the 35 the instance
+  carries.
+
+  **Reading rule — the corpus is two-copy, in three relationships.** Most documents are byte-identical Framework
+  files: classify from either copy, and a marker syncs. Five workflows ship as `.template.md` rather than as
+  mirrors, so a marker applied to the instance does **not** reach projects — the shipped artifact is a different
+  document and takes its own edit. And a handful of methods and extensions genuinely diverge between copies at
+  any given time, where classifying from one copy does not settle the other. Re-derive the divergent set at
+  execution rather than carrying its membership forward; it moves.
   Each document is read for imperatives that the default-unless-marked reading would reclassify. Every one found
   either **takes a marker** or is **recorded as an accepted reclassification** with its reasoning. The record lands
   in `notes-judgment-authority-model.md` as a per-document sweep table — the same companion that holds the
   register's row-level dispositions — so Success Criterion 2 has a named artifact to be validated against rather
   than an assertion.
-- **D9.2 — sweep order: methods, then strategies, then workflows.** The method corpus is the priority —
-  `[configurable]` has no presence there at all, so methods have never carried a classification marker of any kind
-  and there is no local precedent for a reader to calibrate against. Strategies rank second on density: they carry
+- **D9.2 — sweep order: methods, then strategies, then workflows, then extensions.** The method corpus is the
+  priority — `[configurable]` has no presence there at all, so methods have never carried a classification marker
+  of any kind and there is no local precedent for a reader to calibrate against. Strategies rank second on
+  density: they carry
   138 `never` / `must not` lines (111 in `strategies/arc/`, 27 in `strategies/project/`) against the methods' 68,
   and the region already holds a **live counterexample candidate** — `strategy-package-project-sync`'s "never
   `cp`" — scoped to Configurable files — reads as `default` under the satisfaction test, since the agent can name
@@ -508,6 +557,9 @@ so the presumption's blast radius must be checked rather than asserted. The draf
   question: the pre-commit error fires only when overrides existed at HEAD, so the discharging fact and the
   enforcement condition may not overlap. It is offered as a candidate to examine, not an established conflict —
   resolving it is sweep work, and whichever way it lands, it is the kind of result Goal 6 exists to surface.
+  Extensions rank last on the same density measure — they carry no `never` / `must not` line at all — but a
+  rule-free surface and an unread one are indistinguishable in the record, so the low expected yield is a reason
+  to sweep them cheaply rather than a reason to omit them.
 - **D9.3 — the sweep names a third content category.** These two rules files are constraints, so a `no` in the
   constraint column reliably means demotable. Orientation surfaces are not: `AGENT-BRIEF.ARC`'s vocabulary block is
   the largest single part of it and the **least** demotable content in the always-loaded set, because `work unit`,
@@ -611,10 +663,12 @@ rule, and the difference decides where each edit is authored and whether any hoo
   counterpart is a _stated step in the task_, not an omission a check will catch. This is the half where drift was
   newly recognized, and it is precisely the half with no mechanical backstop.
 - **Unclassified in the manifest** — `strategy-workflow-authoring`, `strategy-team-coordination`, and
-  `strategy-interlock-release-wrappers` have no manifest entry, so that script's classification lookup returns
-  empty and its `case` falls through with **no check at all**. They are two-copy byte-identical files that behave as
-  Framework, so the same hand obligation as the Configurable class applies to them. Three of D6's six
-  `strategies/arc/*` destinations are in this state.
+  `strategy-interlock-release-wrappers` have no manifest entry, because the manifest is built from the install
+  recipe and these are exactly the files the recipe omits or gates. The script's classification lookup returns
+  empty and its `case` falls through with **no check at all**. They are two-copy byte-identical files that behave
+  as Framework, so until the recipe correction lands the same hand obligation as the Configurable class applies to
+  them. Once it does, they classify as Framework and inherit the counterpart warning and the byte-identity test —
+  which is the second reason to fix the recipe rather than route around it.
 - **No package copy at all** — `strategy-package-project-sync` is a project strategy; that directory ships to
   projects as an empty surface, so its demotion target is instance-only. Some D8 rows are likewise instance-only
   (§ Selecting what to run, § Commit Conventions), but **§ Quality Gates is not** — see D8.1.
@@ -716,11 +770,11 @@ compatibility posture applies, so no back-compat aliases are added for the renam
       `DEV-RULES.ARC`'s own imperative corpus and `DEV-RULES.PROJECT`. The merge-authority enumeration is the
       worked case of a bias-guard the register nearly cut. `integrate-work-unit` and `verify-work-unit` surviving
       unchanged remains the regression floor, but scoping the check to them alone would make it unfalsifiable.
-    - _Governed surface._ Every rule-carrying workflow, method, **and strategy** document (D9.1's corpus — 35, 25,
-      and 20 as currently measured, re-derived at execution) is read for imperatives the default-unless-marked
-      reading would reclassify, and each found either takes a marker or is recorded as an accepted reclassification
-      with its reasoning. The corpus matches D1's own enumeration exactly; a sweep narrower than the presumption
-      would leave this arm asserting what it claims to check.
+    - _Governed surface._ Every rule-carrying workflow, method, extension, **and strategy** document (D9.1's
+      corpus — 36, 25, 13, and 20 as currently measured, re-derived at execution) is read for imperatives the
+      default-unless-marked reading would reclassify, and each found either takes a marker or is recorded as an
+      accepted reclassification with its reasoning. The corpus matches D1's own enumeration exactly; a sweep
+      narrower than the presumption would leave this arm asserting what it claims to check.
 
 3. **Compression.** The **always-loaded set** ends net shorter — measured across every tier-1 surface this work
    unit touches: both rules files, `STRATEGY-INDEX`, _and_ `AGENT-BRIEF.ARC`, which D4 grows with three vocabulary
