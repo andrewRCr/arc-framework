@@ -94,6 +94,12 @@ function isObjectId(value: string): boolean {
   return GIT_OBJECT_ID.test(value);
 }
 
+function objectIdsAreUniform(values: readonly string[]): boolean {
+  const width = values[0]?.length;
+  return width !== undefined
+    && values.every((value) => isObjectId(value) && value.length === width);
+}
+
 function claimRetirement(
   ownership: V3DecomposePreparationFacts["candidateOwnership"],
 ): DecompositionClaimRetirement {
@@ -143,7 +149,7 @@ export function produceDecompositionIntegrationAnchor(
       ? [facts.landing.beforeHead]
       : facts.landing.parents),
   ];
-  if (objectIds.some((value) => !isObjectId(value))) {
+  if (!objectIdsAreUniform(objectIds)) {
     return { status: "refused", reason: "invalid-object-id" };
   }
 
