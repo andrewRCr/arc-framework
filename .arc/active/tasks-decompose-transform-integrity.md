@@ -187,21 +187,15 @@ mutation authority; it already contains the operator-approved map and every mech
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
 
-    - `[ ]` **2.2.a Enforce allocation, ownership, and dependency conservation**
-        - Sequence one closed validation pipeline: decoded-map structure, machine-binding comparison, live exact-set
-          conservation, ownership policy, then projected dependency postconditions. Assign each refusal to one
-          stage and retain a deterministic first-refusal contract with exact source/allocation/path/entry locus.
-        - Validate every scanned source unit exactly once with compatible destination and ownership. Mechanically
-          restrict `cohort-shared` units to cohort coordination; leave the semantic judgment that shared prose is
-          genuinely ownerless to the distribution interlock.
-        - Construct the complete post-transform dependency projection. Prove every live incoming/outgoing edge is
-          covered exactly once, every declared dependent has an authoritative writable path, each disposition
-          changes its expected slot, and no retiring-origin reference remains.
-        - Build `test-first` (one behavior at a time):
-            - Added, omitted, duplicated, changed, or incompatibly owned units refuse at an exact locus.
-            - Missing, stale, unwritable, or origin-reintroducing dependency dispositions refuse rather than being
-              skipped.
-            - Exact allocation and dependency distribution produce one ordered set of planned edits.
+    - `[x]` **2.2.a Enforce allocation, ownership, and dependency conservation**
+        - Added one pure pre-creation pipeline whose fixed decode, machine-binding, live-conservation, ownership,
+          and dependency stages return the first typed refusal with an exact machine, allocation, record, or path
+          locus.
+        - Exact source and live-edge sets now gate destination identity, locator, and ownership compatibility;
+          `cohort-shared` content can target only cohort coordination without encoding semantic prose judgment.
+        - Incoming, outgoing, and internal dependencies produce one edge-ordered edit chain per dependent. Missing,
+          stale, unwritable, unchanged, self-referential, or retiring-origin projections refuse before any mutable
+          authority exists.
 
     - `[ ]` **2.2.b Prove predecessor removal and classify source-private riders**
         - Build a typed three-tree `RetirementDeltaPlan` over the unique source/result merge base, source head, and
