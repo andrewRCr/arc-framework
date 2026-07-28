@@ -15,13 +15,14 @@ import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 import { RETIREMENT_RECORD_NAMESPACE } from "../work-unit/retirement-record-store.js";
-import { parseRetirementReceipt } from "../work-unit/retirement-receipt-codec.js";
+import { parseV3DecomposeReceipt } from "../work-unit/decompose-v3-receipt.js";
 
 import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
   type ProjectReadinessRenderStamp,
+  type ProjectReadinessTransitionOverlay,
   type ProjectReadinessViewResult,
   type ProjectViewDirEntry,
   type ProjectViewFs,
@@ -73,8 +74,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
-  /** Exact retiring oracle identity suppressed by the staged transition. */
-  superseded?: { slug: string; branch: string };
+  /** Optional explicit transition suppression; staged v3 evidence is detected when omitted. */
+  transitionOverlay?: ProjectReadinessTransitionOverlay;
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -179,15 +180,15 @@ export async function renderRoadmapFromIndexViewResult(
   options: RenderRoadmapFromIndexOptions,
 ): Promise<RoadmapIndexViewResult> {
   const fs = createIndexProjectViewFs(options);
-  const [parkedSlugs, currentBranch, errandContext, superseded] = await Promise.all([
+  const [parkedSlugs, currentBranch, errandContext, transitionOverlay] = await Promise.all([
     buildLifecycleIndex({ cwd: options.cwd, fs }).then(listParkedSlugs),
     options.currentBranch === undefined
       ? resolveCurrentBranch(options.exec, options.cwd)
       : Promise.resolve(options.currentBranch),
     resolveProjectErrandOracleContext(options.exec),
-    options.superseded === undefined
+    options.transitionOverlay === undefined
       ? resolveStagedDecomposeSupersession(options.exec, options.cwd)
-      : Promise.resolve(options.superseded),
+      : Promise.resolve(options.transitionOverlay),
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
@@ -204,8 +205,8 @@ export async function renderRoadmapFromIndexViewResult(
       : {
           prospective: {
             currentBranch,
-            ...(superseded === undefined ? {} : { superseded }),
           },
+          ...(transitionOverlay === undefined ? {} : { transitionOverlay }),
         }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
@@ -223,7 +224,7 @@ export async function renderRoadmapFromIndexViewResult(
 async function resolveStagedDecomposeSupersession(
   exec: GitExec,
   cwd: string,
-): Promise<{ slug: string; branch: string } | undefined> {
+): Promise<ProjectReadinessTransitionOverlay | undefined> {
   const { stdout } = await exec("git", [
     "diff",
     "--cached",
@@ -239,19 +240,21 @@ async function resolveStagedDecomposeSupersession(
       /^\.arc\/system\/\.internal\/retirement-receipts\/sha256-[0-9a-f]{64}\.json$/u.test(path));
   const receipts = await Promise.all(recordPaths.map(async (path) => {
     const { stdout: content } = await exec("git", ["show", `:${path}`], { cwd });
-    return parseRetirementReceipt(content);
+    return parseV3DecomposeReceipt(content);
   }));
-  const decompositions = receipts.filter((receipt) =>
-    receipt?.transition === "decompose"
-    && receipt.subject.kind === "work-unit"
-    && receipt.result.kind === "decompose");
+  const decompositions = receipts.filter((receipt) => receipt !== null);
   if (decompositions.length > 1) {
     throw new Error("staged ROADMAP render found multiple finalized decomposition receipts");
   }
   const receipt = decompositions[0];
-  return receipt?.subject.kind === "work-unit"
-    ? { slug: receipt.subject.name, branch: receipt.source.branch }
-    : undefined;
+  return receipt === undefined
+    ? undefined
+    : {
+        kind: "prospective",
+        origin: receipt.prepared.completedMap.machine.source.origin,
+        sourceBranch: receipt.prepared.completedMap.machine.source.logicalBranch,
+        planId: receipt.prepared.prospectiveProjection.overlay.planId,
+      };
 }
 
 async function resolveCurrentBranch(exec: GitExec, cwd: string): Promise<string | null> {

@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { canonicalDigest } from "../lib/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
@@ -200,7 +201,19 @@ export async function runRenameCommand(
             currentBranch,
             ...(plan.oldBranch === null
               ? {}
-              : { superseded: { slug: plan.sourceSlug, branch: plan.oldBranch } }),
+              : {
+                  transitionOverlay: {
+                    kind: "prospective",
+                    origin: plan.sourceSlug,
+                    sourceBranch: plan.oldBranch,
+                    planId: canonicalDigest({
+                      kind: "rename",
+                      origin: plan.sourceSlug,
+                      sourceBranch: plan.oldBranch,
+                      target: plan.targetSlug,
+                    }),
+                  },
+                }),
           });
           return {
             content: result.markdown,

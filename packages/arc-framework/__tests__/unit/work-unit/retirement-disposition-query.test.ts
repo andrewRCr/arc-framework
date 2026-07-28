@@ -10,6 +10,7 @@ import {
 import type {
   RetirementRecordEnumerationResult,
 } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function renameReceipt(
   retiredSubject = "origin",
@@ -165,6 +166,24 @@ function parkReceipt(): RetirementReceipt {
 }
 
 describe("retirement disposition query", () => {
+  it("joins a v3 incoming edge to its exact authored disposition", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const result = queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: receipt.receiptId,
+        content: "",
+        record: { kind: "v3-decomposition-receipt", value: receipt },
+      }],
+    }, { retiredSubject: "origin", dependentSlug: "consumer" });
+
+    expect(result).toEqual({
+      status: "unique",
+      evidenceQuality: "tree-only",
+      disposition: { kind: "replace", replacementTargets: ["member-a"] },
+    });
+  });
+
   it("projects one reachable receipt without exposing storage paths", () => {
     const result = queryRetirementDisposition(
       enumeration(renameReceipt()),

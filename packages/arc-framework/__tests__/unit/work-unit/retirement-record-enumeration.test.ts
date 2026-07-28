@@ -8,6 +8,7 @@ import {
   type RetirementRecordEnumerationEntry,
 } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
 import { encodeRetirementRecordKey } from "../../../src/lib/work-unit/retirement-record-store.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function receipt(name: string): RetirementReceipt {
   const subject = { kind: "work-unit", name } as const;
@@ -49,6 +50,23 @@ function entry(
 }
 
 describe("retirement record namespace enumeration", () => {
+  it("authenticates distinct v3 preparation and finalized receipt arms", () => {
+    const { preparation, receipt: finalized } = v3DecompositionEvidenceFixture();
+    const raw = (content: string): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(preparation.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content,
+    });
+
+    const prepared = validateRetirementRecordEnumeration([raw(canonicalize(preparation))]);
+    expect(prepared.status === "valid" ? prepared.records[0]?.record.kind : prepared.status)
+      .toBe("v3-decomposition-preparation");
+    const receipt = validateRetirementRecordEnumeration([raw(canonicalize(finalized))]);
+    expect(receipt.status === "valid" ? receipt.records[0]?.record.kind : receipt.status)
+      .toBe("v3-decomposition-receipt");
+  });
+
   it("deduplicates byte-identical canonical and historical records", () => {
     const candidate = receipt("sample");
 

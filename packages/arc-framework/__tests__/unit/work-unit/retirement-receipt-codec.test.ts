@@ -88,19 +88,6 @@ describe("parseRetirementReceipt", () => {
         kind: "relocate",
         plannedArtifactDigest: digest("planned"),
       }),
-      receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
-        kind: "decompose",
-        preparationId: digest("preparation"),
-        allocation,
-        cutMapDigest: canonicalDigest(allocation),
-        sourceInventoryDigest: digest("source-inventory"),
-        incomingEdgeInventoryDigest: digest("incoming-inventory"),
-        outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-        targets: [
-          { path: ".arc/backlog/planned/my-cohort/member-a/meta-member-a.md", artifactDigest: digest("target-a") },
-          { path: ".arc/backlog/planned/my-cohort/member-b/meta-member-b.md", artifactDigest: digest("target-b") },
-        ],
-      }),
     ];
 
     for (const receipt of receipts) {
@@ -133,54 +120,41 @@ describe("parseRetirementReceipt", () => {
     expect(parseRetirementReceipt(canonicalize(nonApplicableWorkUnit))).toBeNull();
   });
 
-  it("requires exact embedded composed inventories on v2 decompose receipts", () => {
-    const inventories = {
-      sourceInventory: [],
-      incomingEdgeInventory: [],
-      outgoingEdgeInventory: [],
-      transformedIncomingDependents: [],
-    };
-    const emptyDigest = canonicalDigest([]);
-    const v1 = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
+  it("refuses legacy decomposition receipts without weakening retained receipt versions", () => {
+    const legacy = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
       kind: "decompose",
       preparationId: digest("preparation"),
       allocation,
       cutMapDigest: canonicalDigest(allocation),
-      sourceInventoryDigest: emptyDigest,
-      incomingEdgeInventoryDigest: emptyDigest,
-      outgoingEdgeInventoryDigest: emptyDigest,
-      ...inventories,
+      sourceInventoryDigest: digest("source-inventory"),
+      incomingEdgeInventoryDigest: digest("incoming-inventory"),
+      outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
       targets: [],
     });
-    const v2: RetirementReceipt = {
-      ...v1,
+    if (legacy.result.kind !== "decompose") throw new Error("expected legacy decomposition fixture");
+    const legacyV2: RetirementReceipt = {
+      ...legacy,
       schemaVersion: 2,
       inventoryRead: "reachable",
       receiptId: receiptId({
         schemaVersion: 2,
-        subject: v1.subject,
-        transition: v1.transition,
-        sourceBranch: v1.source.branch,
-        sourceHead: v1.source.head,
+        subject: legacy.subject,
+        transition: legacy.transition,
+        sourceBranch: legacy.source.branch,
+        sourceHead: legacy.source.head,
       }),
+      result: {
+        ...legacy.result,
+        sourceInventory: [],
+        incomingEdgeInventory: [],
+        outgoingEdgeInventory: [],
+        transformedIncomingDependents: [],
+      },
     };
-    expect(parseRetirementReceipt(contentOf(v2))).toEqual(v2);
 
-    const missing = candidate(v2);
-    delete (missing.result as Record<string, unknown>).incomingEdgeInventory;
-    expect(parseRetirementReceipt(canonicalize(missing))).toBeNull();
-
-    const missingPartition = candidate(v2);
-    delete (missingPartition.result as Record<string, unknown>).transformedIncomingDependents;
-    expect(parseRetirementReceipt(canonicalize(missingPartition))).toBeNull();
-
-    const invalidPartition = candidate(v2);
-    (invalidPartition.result as Record<string, unknown>).transformedIncomingDependents = ["unknown"];
-    expect(parseRetirementReceipt(canonicalize(invalidPartition))).toBeNull();
-
-    const drifted = candidate(v2);
-    (drifted.result as Record<string, unknown>).sourceInventoryDigest = digest("wrong");
-    expect(parseRetirementReceipt(canonicalize(drifted))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(legacy))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(legacyV2))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(receiptFor()))).toEqual(receiptFor());
   });
 
   it.each([

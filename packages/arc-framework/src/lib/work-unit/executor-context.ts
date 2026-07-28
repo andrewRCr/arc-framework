@@ -44,6 +44,7 @@ import {
   setMetaFinalizeFields,
   reconcileMetaFields,
 } from "../active/meta-reader.js";
+import { canonicalDigest } from "../canonical/canonical-json.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
@@ -292,7 +293,19 @@ export function buildExecutorContext(
                 currentBranch,
                 ...(inputs.supersededSource === undefined
                   ? {}
-                  : { superseded: inputs.supersededSource }),
+                  : {
+                      transitionOverlay: {
+                        kind: "prospective",
+                        origin: inputs.supersededSource.slug,
+                        sourceBranch: inputs.supersededSource.branch,
+                        planId: canonicalDigest({
+                          kind: "transition",
+                          origin: inputs.supersededSource.slug,
+                          sourceBranch: inputs.supersededSource.branch,
+                          to,
+                        }),
+                      },
+                    }),
               });
               return {
                 content: result.markdown,

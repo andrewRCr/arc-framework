@@ -9,6 +9,7 @@
 
 import type { InventoryRead, RetirementReceipt } from "./retirement-authority.js";
 import type {
+  EnumeratedRetirementRecord,
   RetirementRecordEnumerationResult,
 } from "./retirement-record-enumeration.js";
 
@@ -64,6 +65,10 @@ export function queryRetirementDisposition(
 ): RetirementDispositionQueryResult {
   if (enumeration.status !== "valid") return { status: enumeration.status };
 
+  const v3Candidates = enumeration.records.filter((entry): entry is EnumeratedRetirementRecord & {
+    record: Extract<EnumeratedRetirementRecord["record"], { kind: "v3-decomposition-receipt" }>;
+  } => entry.record.kind === "v3-decomposition-receipt"
+    && entry.record.value.prepared.completedMap.machine.source.origin === input.retiredSubject);
   const candidates: RetirementReceipt[] = [];
   for (const entry of enumeration.records) {
     if (entry.record.kind !== "receipt") continue;
@@ -74,8 +79,21 @@ export function queryRetirementDisposition(
       && receipt.transition !== "park-planning"
     ) candidates.push(receipt);
   }
-  if (candidates.length === 0) return { status: "absent" };
-  if (candidates.length > 1) return { status: "ambiguous" };
+  if (candidates.length + v3Candidates.length === 0) return { status: "absent" };
+  if (candidates.length + v3Candidates.length > 1) return { status: "ambiguous" };
+  const v3 = v3Candidates[0]?.record.value;
+  if (v3 !== undefined) {
+    const map = v3.prepared.completedMap;
+    const edge = map.machine.incomingEdges.find(({ dependent }) => dependent === input.dependentSlug);
+    if (edge === undefined) return { status: "unmapped-dependent", evidenceQuality: "tree-only" };
+    const authored = map.authoring.incomingDispositions.find(({ edgeId }) => edgeId === edge.edgeId);
+    if (authored === undefined) return { status: "namespace-corrupt" };
+    return {
+      status: "unique",
+      evidenceQuality: "tree-only",
+      disposition: authored.disposition,
+    };
+  }
 
   const receipt = candidates[0];
   if (receipt === undefined) return { status: "absent" };

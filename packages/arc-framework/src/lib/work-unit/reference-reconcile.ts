@@ -109,6 +109,13 @@ export function enumerateReferenceTransitions(
   if (enumeration.status !== "valid") return { status: "conflict", reason: enumeration.status };
   const transitions: ReachableReferenceTransition[] = [];
   for (const entry of enumeration.records) {
+    if (entry.record.kind === "v3-decomposition-receipt") {
+      transitions.push({
+        subject: entry.record.value.prepared.completedMap.machine.source.origin,
+        outcome: { kind: "decompose" },
+      });
+      continue;
+    }
     if (entry.record.kind !== "receipt") continue;
     const receipt = entry.record.value;
     if (receipt.subject.kind !== "work-unit") continue;

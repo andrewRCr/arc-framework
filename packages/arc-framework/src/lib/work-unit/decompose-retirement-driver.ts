@@ -1,7 +1,14 @@
 /** Production Git/filesystem binding for two-stage decompose retirement. */
 
 import { atomicWriteFile } from "../fs.js";
-import { canonicalize, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import {
+  canonicalDigest,
+  canonicalize,
+  digestBytes,
+  isCanonicalDigest,
+  type CanonicalDigest,
+} from "../canonical/canonical-json.js";
+import { contentDigest } from "../canonical/content-digest.js";
 import { receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import type { GitExec } from "../git/exec.js";
@@ -14,6 +21,7 @@ import {
 } from "./decompose-preparation.js";
 import {
   finalizeDecomposeRetirement,
+  finalizeV3DecomposeRetirement,
   type DecomposeFinalTarget,
   type DecomposeFinalizationProjection,
 } from "./decompose-finalization.js";
@@ -39,6 +47,13 @@ import type {
   PreparedDecomposeRetirement,
   RetirementReceipt,
 } from "./retirement-authority.js";
+import {
+  prepareV3DecomposeRetirement,
+  type PreparedV3DecomposeRetirement,
+} from "./decompose-preparation.js";
+import { parseV3DecomposePreparation, type V3DecomposePreparation } from "./decompose-v3-preparation.js";
+import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
+import { v3SourceArtifactDigest, type V3SourceArtifactEntry } from "./decompose-v3-schema.js";
 
 /** Exact Git blob reader; `null` reads the current index. */
 export type DecomposeBlobReader = (ref: string | null, path: ManagedPath) => Promise<Uint8Array | null>;
@@ -70,8 +85,20 @@ export type FinalizeDecomposeDriverResult =
     }
   | { status: "refused"; reason: string };
 
+export type PrepareV3DecomposeDriverResult =
+  | { status: "prepared"; preparation: PreparedV3DecomposeRetirement }
+  | { status: "refused"; reason: string };
+
+export type FinalizeV3DecomposeDriverResult =
+  | { status: "recorded"; receipt: V3DecomposeReceipt; authorityVersion: string }
+  | { status: "refused"; reason: string };
+
 /** Production two-stage decompose authority surface consumed by the CLI handler. */
 export interface InRepoDecomposeRetirementDriver {
+  /** Persist a fully planned v3 preparation; legacy maps have no write authority. */
+  prepareV3(preparation: V3DecomposePreparation): Promise<PrepareV3DecomposeDriverResult>;
+  /** Seal a fully materialized v3 receipt through the central validator. */
+  finalizeV3(origin: string, receipt: V3DecomposeReceipt): Promise<FinalizeV3DecomposeDriverResult>;
   prepare(allocation: DecomposeAllocationMap): Promise<PrepareDecomposeDriverResult>;
   revalidate(preparation: PreparedDecomposeRetirement): Promise<
     { status: "valid" } | { status: "refused"; reason: string }
@@ -80,8 +107,196 @@ export interface InRepoDecomposeRetirementDriver {
   finalize(origin: string, receiptId: CanonicalDigest): Promise<FinalizeDecomposeDriverResult>;
 }
 
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+async function readV3PathState(
+  deps: InRepoDecomposeRetirementDeps,
+  ref: string | null,
+  path: ManagedPath,
+): Promise<{ kind: "absent" } | { kind: "file"; mode: "100644" | "100755"; contentDigest: CanonicalDigest }> {
+  const result = ref === null
+    ? await deps.exec("git", ["ls-files", "--stage", "-z", "--", path], { cwd: deps.cwd })
+    : await deps.exec("git", ["ls-tree", "-z", ref, "--", path], { cwd: deps.cwd });
+  if (result.stdout === "") return { kind: "absent" };
+  const entry = result.stdout.split("\0").filter(Boolean);
+  if (entry.length !== 1 || entry[0] === undefined) throw new Error(`ambiguous path state: ${path}`);
+  const match = ref === null
+    ? /^(100644|100755) [0-9a-f]{40,64} 0\t/u.exec(entry[0])
+    : /^(100644|100755) blob [0-9a-f]{40,64}\t/u.exec(entry[0]);
+  const mode = match?.[1];
+  if (mode !== "100644" && mode !== "100755") throw new Error(`unsupported path state: ${path}`);
+  const bytes = await deps.readBlob(ref, path);
+  if (bytes === null) throw new Error(`unreadable path state: ${path}`);
+  return { kind: "file", mode, contentDigest: contentDigest(bytes) };
+}
+
+async function resolveV3Ref(deps: InRepoDecomposeRetirementDeps, ref: string): Promise<string> {
+  const { stdout } = await deps.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd: deps.cwd });
+  const oid = stdout.trim();
+  if (oid === "") throw new Error(`could not resolve commit: ${ref}`);
+  return oid;
+}
+
+async function readV3AuthoritySnapshot(
+  deps: InRepoDecomposeRetirementDeps,
+  preparation: V3DecomposePreparation,
+  recordContent: string | null,
+): Promise<{ authorityVersion: string; recordState: "absent" | "prepared-decompose" }> {
+  const [sourceHead, resultBaseHead] = await Promise.all([
+    resolveV3Ref(deps, preparation.facts.completedMap.machine.source.ref),
+    resolveV3Ref(deps, preparation.facts.completedMap.machine.resultBase.ref),
+  ]);
+  const machine = preparation.facts.completedMap.machine;
+  if (sourceHead !== machine.source.head || resultBaseHead !== machine.resultBase.head) {
+    throw new Error("v3 decompose projection changed");
+  }
+  const recordState = recordContent === null ? "absent" : "prepared-decompose";
+  return {
+    recordState,
+    authorityVersion: canonicalDigest({
+      receiptId: preparation.receiptId,
+      sourceHead,
+      resultBaseHead,
+      sourceArtifactDigest: preparation.facts.sourceArtifactDigest,
+      recordState,
+      recordDigest: recordContent === null ? null : digestBytes(Buffer.from(recordContent, "utf8")),
+    }),
+  };
+}
+
+async function readV3SourceArtifactDigest(
+  deps: InRepoDecomposeRetirementDeps,
+  preparation: V3DecomposePreparation,
+): Promise<CanonicalDigest> {
+  const machine = preparation.facts.completedMap.machine;
+  const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
+    .sort(compareUtf8);
+  const entries: V3SourceArtifactEntry[] = [];
+  for (const rawPath of sourcePaths) {
+    const path = validateManagedPath(rawPath);
+    const state = await readV3PathState(deps, machine.source.head, path);
+    if (state.kind !== "file") throw new Error(`source artifact disappeared: ${path}`);
+    entries.push({ path, objectKind: "blob", mode: state.mode, contentDigest: state.contentDigest });
+  }
+  const digest = v3SourceArtifactDigest(entries);
+  if (digest === null) throw new Error("source artifact inventory is not canonical");
+  return digest;
+}
+
+async function replaceV3Record(
+  deps: InRepoDecomposeRetirementDeps,
+  receiptId: CanonicalDigest,
+  expected: string,
+  next: string,
+): Promise<void> {
+  const path = resolveRetirementRecordPath(deps.cwd, receiptId);
+  const relativePath = resolveRetirementRecordRelativePath(receiptId);
+  if (await deps.readFile(path) !== expected) throw new Error("prepared record changed");
+  const write = deps.atomicWriteFile ?? atomicWriteFile;
+  await write(path, next);
+  try {
+    await stageDecomposePaths(deps, [relativePath]);
+    const staged = await deps.readBlob(null, validateManagedPath(relativePath));
+    if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next) {
+      throw new Error("finalized record is absent from the staged index");
+    }
+  } catch (error) {
+    const rollbackFailure = await restorePreparedRecord(deps, write, path, relativePath, expected);
+    if (rollbackFailure !== null) {
+      throw new Error(
+        `finalized record update failed: ${errorMessage(error)}. Rollback was incomplete: ${rollbackFailure}.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+
 function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetirementDriver {
   return {
+    prepareV3: async (preparation) => {
+      try {
+        const currentRecord = async () => await readDecomposeRecord(deps, preparation.receiptId);
+        const snapshot = await readV3AuthoritySnapshot(deps, preparation, await currentRecord());
+        return await prepareV3DecomposeRetirement(
+          {
+            readAuthoritySnapshot: async () => await readV3AuthoritySnapshot(
+              deps,
+              preparation,
+              await currentRecord(),
+            ),
+            readStagedPaths: async () => await readDecomposeStagedPaths(deps),
+            readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
+            createRecord: async (recordId, content) => deps.createRecord(recordId, content),
+            removeRecord: async (recordId) => deps.removeRecord(recordId),
+            stagePaths: async (paths) => {
+              await stageDecomposePaths(deps, paths);
+            },
+          },
+          preparation,
+          snapshot.authorityVersion,
+        );
+      } catch (error) {
+        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
+      }
+    },
+    finalizeV3: async (origin, receipt) => {
+      try {
+        const stored = await readDecomposeRecord(deps, receipt.receiptId);
+        if (stored === null) return { status: "refused", reason: "evidence-missing" };
+        const preparation = parseV3DecomposePreparation(stored);
+        if (preparation === null || preparation.facts.completedMap.machine.source.origin !== origin) {
+          return { status: "refused", reason: "evidence-mismatch" };
+        }
+        const snapshot = await readV3AuthoritySnapshot(deps, preparation, stored);
+        return await finalizeV3DecomposeRetirement(
+          {
+            readAuthoritySnapshot: async () => await readV3AuthoritySnapshot(
+              deps,
+              preparation,
+              await readDecomposeRecord(deps, receipt.receiptId),
+            ),
+            readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
+            readFinalizedFacts: async (prepared, candidate) => {
+              const receiptPath = resolveRetirementRecordRelativePath(candidate.receiptId);
+              const managedPathResults = await Promise.all(prepared.facts.allowedPaths
+                .filter((path) => path !== receiptPath)
+                .map(async (rawPath) => {
+                  const path = validateManagedPath(rawPath);
+                  return {
+                    path,
+                    before: await readV3PathState(
+                      deps,
+                      prepared.facts.completedMap.machine.resultBase.head,
+                      path,
+                    ),
+                    after: await readV3PathState(deps, null, path),
+                  };
+                }));
+              return {
+                preparation: prepared,
+                receipt: candidate,
+                sourceArtifactDigest: await readV3SourceArtifactDigest(deps, prepared),
+                resultBaseHead: prepared.facts.completedMap.machine.resultBase.head,
+                candidateOwnership: prepared.facts.candidateOwnership,
+                managedPathResults,
+                topologyDigest: prepared.facts.topology.digest,
+                publication: candidate.finalized.publication,
+              };
+            },
+            replaceAndStageRecord: async (recordId, expected, next) => {
+              await replaceV3Record(deps, recordId, expected, next);
+            },
+          },
+          receipt,
+          snapshot.authorityVersion,
+        );
+      } catch (error) {
+        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
+      }
+    },
     prepare: async (allocation) => {
       try {
         const binding = await bindDecomposePreparation(deps, allocation);

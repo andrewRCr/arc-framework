@@ -137,11 +137,10 @@ export async function validateGitRetirementReceiptEvidence(
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   try {
-    const decomposeResultHead = input.evidence.transition === "decompose"
-      ? await resolveReachableReceiptIntroduction(exec, baseRef, input.evidence.receiptId)
-      : null;
-    if (input.evidence.transition === "decompose" && decomposeResultHead === null) return false;
-    const recordRef = input.evidence.transition === "decompose" ? baseRef : input.retiringHead;
+    // Generic retirement receipts deliberately carry no decomposition authority.
+    // A finalized v3 receipt is validated by its dedicated exact-base consumer.
+    if (input.evidence.transition === "decompose") return false;
+    const recordRef = input.retiringHead;
     const receipt = await readEnumeratedReceipt(exec, recordRef, input.evidence.receiptId);
     if (
       receipt === null
@@ -156,7 +155,7 @@ export async function validateGitRetirementReceiptEvidence(
       retiringHead: input.retiringHead,
       resultHead: input.evidence.transition === "abandon"
         ? input.retiringHead
-        : decomposeResultHead ?? baseRef,
+        : baseRef,
     };
     const relation = await validateRetirementReceiptRelation(
       createRelationContext(exec, readBlob),
@@ -199,7 +198,6 @@ async function readReceiptCandidates(
     // A root commit cannot carry a valid direct-transition receipt.
   }
   const baseLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [
-    { transition: "decompose", sourceHead: request.head, ref: baseRef },
     { transition: "abandon", sourceHead: request.head, ref: baseRef },
   ];
   const directLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [];
@@ -238,10 +236,6 @@ async function readReceiptCandidates(
         const record = enumeration.records.find((candidate) => candidate.id === id);
         const receipt = record?.record.kind === "receipt" ? record.record.value : null;
         if (receipt === null || receipt.transition !== lookup.transition) continue;
-        const decomposeResultHead = lookup.transition === "decompose"
-          ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
-          : null;
-        if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
         const unchangedAbandonResultHead = lookup.transition === "abandon"
             && receipt.retiringProjection.kind === "unchanged"
           ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
@@ -255,7 +249,7 @@ async function readReceiptCandidates(
           receipt,
           resultHead: lookup.transition === "abandon"
             ? unchangedAbandonResultHead ?? request.head
-            : decomposeResultHead ?? baseRef,
+            : baseRef,
         });
       }
     }

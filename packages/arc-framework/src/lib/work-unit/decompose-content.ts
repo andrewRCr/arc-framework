@@ -2,6 +2,9 @@
 
 import type { DecomposeContentLocator } from "./decompose-cut-map.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
+import type { z } from "zod";
+
+import type { V3DecomposeLocatorSchema } from "./decompose-v3-schema.js";
 
 export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
@@ -28,6 +31,7 @@ interface SourceLine {
 
 interface HeadingBoundary {
   start: number;
+  level: number;
   headingSource: string;
 }
 
@@ -56,11 +60,14 @@ function sourceLines(content: string): SourceLine[] {
   return lines;
 }
 
-function atxH2Source(line: string): string | null {
-  const match = /^ {0,3}##(?:[ \t]+(.*)|[ \t]*)$/u.exec(line);
+function atxHeadingSource(line: string): { level: number; headingSource: string } | null {
+  const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/u.exec(line);
   if (match === null) return null;
-  const withoutClosing = (match[1] ?? "").replace(/[ \t]+#+[ \t]*$/u, "");
-  return normalizeDecomposeHeadingSource(withoutClosing);
+  const withoutClosing = (match[2] ?? "").replace(/[ \t]+#+[ \t]*$/u, "");
+  return {
+    level: match[1]?.length ?? 1,
+    headingSource: normalizeDecomposeHeadingSource(withoutClosing),
+  };
 }
 
 function isSetextH2Underline(line: string): boolean {
@@ -167,7 +174,7 @@ function closesFence(line: string, fence: { marker: "`" | "~"; length: number })
   return new RegExp(`^ {0,3}${escaped}{${fence.length},}[ \\t]*$`, "u").test(line);
 }
 
-function markdownBoundaries(content: string): HeadingBoundary[] {
+function markdownBoundaries(content: string, allLevels = false): HeadingBoundary[] {
   const lines = sourceLines(content);
   const headings: HeadingBoundary[] = [];
   let fence: { marker: "`" | "~"; length: number } | null = null;
@@ -199,7 +206,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       fence = opened;
       continue;
     }
-    const atx = atxH2Source(line.body);
+    const atx = atxHeadingSource(line.body);
     if (atx !== null) {
       if (container?.kind === "list" && leadingSpaces(line.body) >= container.contentIndent) {
         paragraph = [];
@@ -207,7 +214,9 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       }
       container = null;
       paragraph = [];
-      headings.push({ start: line.start, headingSource: atx });
+      if (allLevels ? atx.level >= 2 : atx.level === 2) {
+        headings.push({ start: line.start, level: atx.level, headingSource: atx.headingSource });
+      }
       continue;
     }
     if (isSetextH2Underline(line.body)) {
@@ -215,6 +224,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       if (first !== undefined) {
         headings.push({
           start: first.start,
+          level: 2,
           headingSource: normalizeDecomposeHeadingSource(paragraph.map((part) => part.body).join("\n")),
         });
       }
@@ -262,6 +272,108 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
     paragraph.push(line);
   }
   return headings;
+}
+
+export type V3DecomposeContentLocator = z.infer<typeof V3DecomposeLocatorSchema>;
+
+/** One exact byte-preserving v3 allocation unit. */
+export interface V3DecomposeContentUnit {
+  locator: V3DecomposeContentLocator;
+  content: string;
+  bytes: Uint8Array;
+}
+
+export type V3DecomposeContentScanResult =
+  | { status: "scanned"; units: V3DecomposeContentUnit[] }
+  | { status: "rejected"; reason: string };
+
+export type V3DecomposeContentResolution =
+  | { status: "resolved"; unit: V3DecomposeContentUnit }
+  | { status: "rejected"; reason: string };
+
+function byteOffset(content: string, offset: number): number {
+  return new TextEncoder().encode(content.slice(0, offset)).length;
+}
+
+/**
+ * Scan one source artifact into disjoint exhaustive v3 byte units.
+ *
+ * Markdown recognizes protected H2-H6 boundaries; other artifacts remain whole.
+ */
+export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3DecomposeContentScanResult {
+  if (!isArtifactBasename(artifact)) {
+    return { status: "rejected", reason: "decompose content artifact must be a slash-free NFC basename." };
+  }
+  const markdown = artifact.toLowerCase().endsWith(".md");
+  let content: string;
+  try {
+    content = new TextDecoder("utf-8", { fatal: markdown, ignoreBOM: true }).decode(bytes);
+  } catch {
+    return { status: "rejected", reason: `Markdown artifact \`${artifact}\` is not valid UTF-8.` };
+  }
+  if (!markdown) {
+    return {
+      status: "scanned",
+      units: [{ locator: { artifact, kind: "whole-file" }, content, bytes: new Uint8Array(bytes) }],
+    };
+  }
+  const headings = markdownBoundaries(content, true);
+  const units: V3DecomposeContentUnit[] = [];
+  const appendUnit = (start: number, end: number, locator: V3DecomposeContentLocator): void => {
+    units.push({
+      locator,
+      content: content.slice(start, end),
+      bytes: bytes.slice(byteOffset(content, start), byteOffset(content, end)),
+    });
+  };
+  if (headings.length === 0) {
+    appendUnit(0, content.length, { artifact, kind: "preamble" });
+    return { status: "scanned", units };
+  }
+  appendUnit(0, headings[0]?.start ?? 0, { artifact, kind: "preamble" });
+  const stack: Array<{ level: number; headingSource: string; occurrence: number }> = [];
+  const occurrences = new Map<string, number>();
+  for (let index = 0; index < headings.length; index++) {
+    const heading = headings[index];
+    if (heading === undefined) continue;
+    while ((stack.at(-1)?.level ?? 0) >= heading.level) stack.pop();
+    const ancestry = stack.map((entry) => ({ ...entry }));
+    const parentKey = ancestry
+      .map(({ level, headingSource, occurrence }) => `${level}:${headingSource}:${occurrence}`)
+      .join("\0");
+    const key = `${parentKey}\0${heading.level}:${heading.headingSource}`;
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    appendUnit(heading.start, headings[index + 1]?.start ?? content.length, {
+      artifact,
+      kind: "section",
+      level: heading.level,
+      headingSource: heading.headingSource,
+      ancestry,
+      occurrence,
+    });
+    stack.push({ level: heading.level, headingSource: heading.headingSource, occurrence });
+  }
+  return { status: "scanned", units };
+}
+
+/** Resolve one complete hierarchy-qualified v3 locator exactly once. */
+export function resolveV3DecomposeContentLocator(
+  units: readonly V3DecomposeContentUnit[],
+  locator: V3DecomposeContentLocator,
+  declaredArtifact: string,
+): V3DecomposeContentResolution {
+  if (!isArtifactBasename(declaredArtifact) || locator.artifact !== declaredArtifact) {
+    return { status: "rejected", reason: "content locator artifact does not match the declared target artifact." };
+  }
+  const encoded = JSON.stringify(locator);
+  const matches = units.filter((candidate) => JSON.stringify(candidate.locator) === encoded);
+  return matches.length === 1 && matches[0] !== undefined
+    ? { status: "resolved", unit: matches[0] }
+    : {
+        status: "rejected",
+        reason: `content locator must resolve exactly once; resolved ${matches.length} times.`,
+      };
 }
 
 function unit(

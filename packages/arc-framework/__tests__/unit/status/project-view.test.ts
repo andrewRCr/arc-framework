@@ -375,13 +375,32 @@ describe("composeProjectReadinessView", () => {
       localRefs: { exec, baseBranch: "main" },
       prospective: {
         currentBranch: newBranch,
-        superseded: { slug: oldSlug, branch: oldBranch },
+      },
+      transitionOverlay: {
+        kind: "prospective",
+        origin: oldSlug,
+        sourceBranch: oldBranch,
+        planId: "plan:test",
       },
     });
 
     expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
     expect(input.records.some((record) => record.slug === newSlug)).toBe(true);
     expect(input.records.some((record) => record.slug === sibling)).toBe(true);
+
+    const validated = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: newBranch },
+      transitionOverlay: {
+        kind: "validated",
+        origin: oldSlug,
+        sourceBranch: oldBranch,
+        receiptId: "receipt:test",
+        preparationId: "preparation:test",
+      },
+    });
+    expect(validated.records.map(({ slug }) => slug)).toEqual(input.records.map(({ slug }) => slug));
   });
 
   it("keeps a genuine live sibling ahead of its completed tree record", async () => {

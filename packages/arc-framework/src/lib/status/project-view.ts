@@ -141,9 +141,29 @@ export interface ProjectReadinessCompositionResult {
 /** Checked-out branch whose staged tree record supersedes its own at-ref candidate. */
 export interface ProjectReadinessProspectiveInput {
   currentBranch: string;
-  /** Exact retiring oracle identity suppressed after its staged replacement/removal is complete. */
-  superseded?: { slug: string; branch: string };
 }
+
+/** Plan-bound candidate-only suppression; never durable transition authority. */
+export interface ProspectiveTransitionOverlay {
+  kind: "prospective";
+  origin: string;
+  sourceBranch: string;
+  planId: string;
+}
+
+/** Receipt-derived suppression created only from validated finalized authority. */
+export interface ValidatedTransitionOverlay {
+  kind: "validated";
+  origin: string;
+  sourceBranch: string;
+  receiptId: string;
+  preparationId: string;
+}
+
+/** Opaque receipt-blind transition suppression consumed by record composition. */
+export type ProjectReadinessTransitionOverlay =
+  | ProspectiveTransitionOverlay
+  | ValidatedTransitionOverlay;
 
 /** In-flight oracle inputs for project-readiness renders. */
 export interface ProjectReadinessOracleOptions {
@@ -182,6 +202,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   oracle?: ProjectReadinessOracleOptions;
   /** Treat this staged tree as authoritative for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
+  /** Optional exact transition suppression, orthogonal to staged-tree precedence. */
+  transitionOverlay?: ProjectReadinessTransitionOverlay;
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -499,6 +521,7 @@ function appendIndeterminateOracleWarning(
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
   prospective?: ProjectReadinessProspectiveInput & { stagedSlugs: ReadonlySet<string> },
+  transitionOverlay?: ProjectReadinessTransitionOverlay,
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
@@ -521,18 +544,19 @@ async function resolveOracleCandidates(
     errandRecordsComplete: options.errandRecordsComplete,
     parkedSlugs: options.parkedSlugs,
   });
-  const entries = prospective === undefined
+  const entries = prospective === undefined && transitionOverlay === undefined
     ? result.entries
     : result.entries.filter((entry) =>
         entry.kind !== "work-unit"
         || !(
           (
-            entry.branch === prospective.currentBranch
+            prospective !== undefined
+            && entry.branch === prospective.currentBranch
             && prospective.stagedSlugs.has(entry.name)
           )
           || (
-            entry.branch === prospective.superseded?.branch
-            && entry.name === prospective.superseded.slug
+            entry.branch === transitionOverlay?.sourceBranch
+            && entry.name === transitionOverlay.origin
           )
         ));
   const candidates = entries
@@ -552,9 +576,9 @@ async function resolveOracleCandidates(
         && prospective.stagedSlugs.has(warningSlug)
       )
       || (
-        prospective?.superseded !== undefined
-        && warning.branch === prospective.superseded.branch
-        && warningSlug === prospective.superseded.slug
+        transitionOverlay !== undefined
+        && warning.branch === transitionOverlay.sourceBranch
+        && warningSlug === transitionOverlay.origin
       )
     ) {
       continue;
@@ -611,6 +635,7 @@ export async function resolveProjectReadinessComposition(
           ...options.prospective,
           stagedSlugs: new Set(treeRecords.map((record) => record.slug)),
         },
+    options.transitionOverlay,
   );
   return {
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),

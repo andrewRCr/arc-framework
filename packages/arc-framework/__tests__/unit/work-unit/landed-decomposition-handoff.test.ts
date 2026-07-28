@@ -1,0 +1,255 @@
+import { describe, expect, it } from "vitest";
+
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import {
+  resolveLandedDecompositionHandoff,
+  type LandedDecompositionHandoffInput,
+  type LandedPublicationResolution,
+} from "../../../src/lib/work-unit/landed-decomposition-handoff.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
+
+const BASE_HEAD = "c".repeat(40);
+const PREPARED_BASE = "b".repeat(40);
+const CANDIDATE_TREE = "d".repeat(40);
+
+function namespaceEntry(content = canonicalize(v3DecompositionEvidenceFixture().receipt)) {
+  const { receipt } = v3DecompositionEvidenceFixture();
+  return {
+    filename: `${receipt.receiptId.replace(":", "-")}.json`,
+    mode: "100644",
+    type: "blob",
+    content,
+  };
+}
+
+function publication(
+  overrides: Partial<LandedPublicationResolution> = {},
+): LandedPublicationResolution {
+  return {
+    anchor: {
+      kind: "cohort",
+      cohort: "origin",
+      displayPath: ".arc/backlog/planned/origin",
+    },
+    entries: [
+      {
+        kind: "new-leaf",
+        slug: "member-a",
+        displayPath: ".arc/backlog/planned/origin/member-a",
+        readiness: { kind: "ready" },
+      },
+      {
+        kind: "new-leaf",
+        slug: "member-b",
+        displayPath: ".arc/backlog/planned/origin/member-b",
+        readiness: {
+          kind: "blocked",
+          blockers: [{ code: "dependency-unshipped", locus: "depends-on: foundation" }],
+        },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function input(
+  overrides: Partial<LandedDecompositionHandoffInput> = {},
+): LandedDecompositionHandoffInput {
+  return {
+    originalSlug: "origin",
+    snapshot: {
+      configuredBaseHead: BASE_HEAD,
+      retirementNamespace: [namespaceEntry()],
+      integration: {
+        preparedBaseHead: PREPARED_BASE,
+        candidateCommit: { head: BASE_HEAD, tree: CANDIDATE_TREE },
+        receiptTransitionTree: CANDIDATE_TREE,
+        landing: {
+          kind: "fast-forward",
+          beforeHead: PREPARED_BASE,
+          resultHead: BASE_HEAD,
+          resultTree: CANDIDATE_TREE,
+        },
+      },
+      publication: publication(),
+    },
+    rereadConfiguredBaseHead: BASE_HEAD,
+    ...overrides,
+  };
+}
+
+describe("resolveLandedDecompositionHandoff", () => {
+  it("resolves exact landed authority and keeps immutable selection separate from readiness", () => {
+    const result = resolveLandedDecompositionHandoff(input());
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.handoff).toMatchObject({
+      kind: "landed-decomposition-handoff",
+      schemaVersion: 1,
+      authority: {
+        configuredBaseHead: BASE_HEAD,
+        receiptId: v3DecompositionEvidenceFixture().receipt.receiptId,
+        preparationId: v3DecompositionEvidenceFixture().receipt.preparationId,
+        landedCommitHead: BASE_HEAD,
+        landedTree: CANDIDATE_TREE,
+      },
+      logicalAnchor: { kind: "cohort", cohort: "origin" },
+      displayAnchor: {
+        kind: "cohort",
+        cohort: "origin",
+        displayPath: ".arc/backlog/planned/origin",
+      },
+      initialContinuation: { kind: "selected", slugs: ["member-a"] },
+      selectedReadiness: [{ slug: "member-a", readiness: { kind: "ready" } }],
+      launchableSelected: [{
+        slug: "member-a",
+        displayPath: ".arc/backlog/planned/origin/member-a",
+      }],
+    });
+    expect(result.handoff.entries.flatMap((entry) =>
+      entry.kind === "new-leaf" ? [entry.slug] : [])).toEqual(["member-a", "member-b"]);
+  });
+
+  it("preserves selected blocker order and excludes unselected ready leaves", () => {
+    const selectedBlocked = input();
+    selectedBlocked.snapshot.publication = publication({
+      entries: [
+        {
+          kind: "new-leaf",
+          slug: "member-a",
+          displayPath: "moved/member-a",
+          readiness: {
+            kind: "blocked",
+            blockers: [
+              { code: "dependency-unshipped", locus: "depends-on: one" },
+              { code: "provider-blocked", locus: "member-a" },
+            ],
+          },
+        },
+        {
+          kind: "new-leaf",
+          slug: "member-b",
+          displayPath: "moved/member-b",
+          readiness: { kind: "ready" },
+        },
+      ],
+    });
+
+    const result = resolveLandedDecompositionHandoff(selectedBlocked);
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.handoff.selectedReadiness).toEqual([{
+      slug: "member-a",
+      readiness: {
+        kind: "blocked",
+        blockers: [
+          { code: "dependency-unshipped", locus: "depends-on: one" },
+          { code: "provider-blocked", locus: "member-a" },
+        ],
+      },
+    }]);
+    expect(result.handoff.launchableSelected).toEqual([]);
+  });
+
+  it("keeps explicit none authoritative even when every new leaf is ready", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    receipt.finalized.publication.initialContinuation = { kind: "none" };
+    const candidate = input();
+    candidate.snapshot.retirementNamespace = [namespaceEntry(canonicalize(receipt))];
+    candidate.snapshot.publication = publication({
+      entries: publication().entries.map((entry) =>
+        entry.kind === "new-leaf"
+          ? { ...entry, readiness: { kind: "ready" as const } }
+          : entry),
+    });
+
+    const result = resolveLandedDecompositionHandoff(candidate);
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.handoff.initialContinuation).toEqual({ kind: "none" });
+    expect(result.handoff.selectedReadiness).toEqual([]);
+    expect(result.handoff.launchableSelected).toEqual([]);
+  });
+
+  it("keeps receipt authority immutable while live display and readiness change", () => {
+    const first = resolveLandedDecompositionHandoff(input());
+    const moved = input();
+    moved.snapshot.publication = publication({
+      anchor: {
+        kind: "cohort",
+        cohort: "origin",
+        displayPath: ".arc/backlog/planned/moved-origin",
+      },
+      entries: [
+        {
+          kind: "new-leaf",
+          slug: "member-a",
+          displayPath: ".arc/backlog/planned/moved-origin/member-a",
+          readiness: {
+            kind: "blocked",
+            blockers: [{ code: "provider-blocked", locus: "member-a" }],
+          },
+        },
+        {
+          kind: "new-leaf",
+          slug: "member-b",
+          displayPath: ".arc/backlog/planned/moved-origin/member-b",
+          readiness: { kind: "ready" },
+        },
+      ],
+    });
+    const second = resolveLandedDecompositionHandoff(moved);
+
+    expect(first.status).toBe("resolved");
+    expect(second.status).toBe("resolved");
+    if (first.status !== "resolved" || second.status !== "resolved") return;
+    expect(second.handoff.authority).toEqual(first.handoff.authority);
+    expect(second.handoff.displayAnchor).not.toBe(first.handoff.displayAnchor);
+    expect(second.handoff.selectedReadiness).not.toEqual(first.handoff.selectedReadiness);
+    expect(second.handoff.initialContinuation).toEqual(first.handoff.initialContinuation);
+  });
+
+  it.each([
+    ["absent", input({ snapshot: { ...input().snapshot, retirementNamespace: [] } }), "absent"],
+    [
+      "namespace-corrupt",
+      input({ snapshot: { ...input().snapshot, retirementNamespace: [namespaceEntry("{}")] } }),
+      "namespace-corrupt",
+    ],
+    [
+      "not-landed",
+      input({
+        snapshot: {
+          ...input().snapshot,
+          integration: { ...input().snapshot.integration, landing: { kind: "not-landed" } },
+        },
+      }),
+      "not-landed",
+    ],
+    ["stale-base", input({ rereadConfiguredBaseHead: "e".repeat(40) }), "stale-base"],
+  ] as const)("returns %s without partial handoff", (_label, candidate, status) => {
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status });
+  });
+
+  it("returns ambiguous when the integration snapshot cannot identify one authority", () => {
+    const candidate = input();
+    candidate.snapshot.integration = {
+      ...candidate.snapshot.integration,
+      landing: { kind: "ambiguous" },
+    };
+
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "ambiguous" });
+  });
+
+  it("fails closed when live publication identity or entry ordering drifts", () => {
+    const candidate = input();
+    candidate.snapshot.publication = publication({
+      entries: [...publication().entries].reverse(),
+    });
+
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "namespace-corrupt" });
+  });
+});

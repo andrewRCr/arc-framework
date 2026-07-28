@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveDecomposeContentLocator,
+  resolveV3DecomposeContentLocator,
   scanDecomposeContent,
+  scanV3DecomposeContent,
 } from "../../../src/lib/work-unit/decompose-content.js";
 
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -240,6 +242,91 @@ describe("scanDecomposeContent", () => {
         reason: expect.stringMatching(/basename/i),
       });
     }
+  });
+});
+
+describe("scanV3DecomposeContent", () => {
+  it("emits disjoint H2-H6 units with hierarchy-qualified locators", () => {
+    const source = "## Parent\nlead\n#### Deep\nbody\n### Child\nbody\n## Parent\nagain\n";
+    const result = scanV3DecomposeContent("draft-sample.md", bytes(source));
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ locator }) => locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "preamble" },
+      {
+        artifact: "draft-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Parent",
+        ancestry: [],
+        occurrence: 0,
+      },
+      {
+        artifact: "draft-sample.md",
+        kind: "section",
+        level: 4,
+        headingSource: "Deep",
+        ancestry: [{ level: 2, headingSource: "Parent", occurrence: 0 }],
+        occurrence: 0,
+      },
+      {
+        artifact: "draft-sample.md",
+        kind: "section",
+        level: 3,
+        headingSource: "Child",
+        ancestry: [{ level: 2, headingSource: "Parent", occurrence: 0 }],
+        occurrence: 0,
+      },
+      {
+        artifact: "draft-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Parent",
+        ancestry: [],
+        occurrence: 1,
+      },
+    ]);
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(bytes(source)));
+  });
+
+  it("preserves UTF-8 BOM and multibyte stored bytes exactly", () => {
+    const source = "\uFEFFpréface\n## Héading\n😀\n";
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("draft-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+  });
+
+  it("resolves identical headings only under their exact parent identity", () => {
+    const result = scanV3DecomposeContent(
+      "draft-sample.md",
+      bytes("## First\n### Same\none\n## Second\n### Same\ntwo\n"),
+    );
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    const target = result.units.at(-1);
+    expect(target).toBeDefined();
+    if (target === undefined) return;
+
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      target.locator,
+      "draft-sample.md",
+    )).toEqual({ status: "resolved", unit: target });
+    if (target.locator.kind !== "section") return;
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      {
+        ...target.locator,
+        ancestry: [{ level: 2, headingSource: "Missing", occurrence: 0 }],
+      },
+      "draft-sample.md",
+    )).toMatchObject({ status: "rejected" });
   });
 });
 

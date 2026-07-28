@@ -1,0 +1,375 @@
+/** Pure compare-and-set machine for one machine-local decomposition candidate claim. */
+
+import { isAbsolute, normalize } from "node:path";
+
+import { z } from "zod";
+
+import {
+  canonicalDigest,
+  canonicalize,
+  isCanonicalDigest,
+  type CanonicalDigest,
+} from "../canonical/canonical-json.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
+
+const DigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
+const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
+const HostPathSchema = z.string().refine(
+  (value) => value !== "" && !value.includes("\0") && isAbsolute(value)
+    && normalize(value) === value && value.normalize("NFC") === value,
+  "must be a canonical absolute host path",
+);
+
+const RegistrationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("unregistered") }),
+  z.strictObject({ kind: z.literal("intended"), path: HostPathSchema }),
+  z.strictObject({ kind: z.literal("registered"), path: HostPathSchema }),
+  z.strictObject({ kind: z.literal("released"), lastPath: HostPathSchema }),
+]);
+
+export const DecomposeTransientClaimSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  kind: z.literal("decomposition-candidate"),
+  claimId: DigestSchema,
+  generation: z.number().int().positive(),
+  origin: SlugSchema.transform((value): string => value),
+  candidateBranch: NonEmptyStringSchema,
+  sourceHead: NonEmptyStringSchema,
+  resultBase: NonEmptyStringSchema,
+  cutMapDigest: DigestSchema,
+  candidateWorktree: DigestSchema,
+  state: z.enum(["pending", "occupied", "landed", "discarded"]),
+  registration: RegistrationSchema,
+});
+
+export type DecomposeTransientClaim = z.infer<typeof DecomposeTransientClaimSchema>;
+export type DecomposeTransientClaimBinding = Pick<
+  DecomposeTransientClaim,
+  "origin" | "candidateBranch" | "sourceHead" | "resultBase" | "cutMapDigest"
+>;
+export type DecomposeTransientTerminal = Extract<
+  DecomposeTransientClaim["state"],
+  "landed" | "discarded"
+>;
+
+export interface DecomposeTransientOccupationEvidence {
+  registrations: Array<{
+    path: string;
+    candidateBranch: string;
+    head: string;
+  }>;
+  branch: {
+    candidateBranch: string;
+    head: string;
+  };
+  marker: {
+    claimId: CanonicalDigest;
+    generation: number;
+    candidateWorktree: CanonicalDigest;
+  };
+}
+
+export interface DecomposeTransientReleaseEvidence {
+  registrationAbsent: boolean;
+  markerAbsent: boolean;
+  branchOccupationAbsent: boolean;
+}
+
+type ClaimConflictReason =
+  | "absence-unproven"
+  | "binding-mismatch"
+  | "branch-not-exact"
+  | "claim-id-mismatch"
+  | "generation-mismatch"
+  | "invalid-host-path"
+  | "invalid-state"
+  | "malformed-claim"
+  | "marker-not-exact"
+  | "registration-mismatch"
+  | "registration-not-exact"
+  | "registration-not-released"
+  | "terminal-mismatch"
+  | "worktree-mismatch";
+
+interface ClaimConflict {
+  status: "conflict";
+  reason: ClaimConflictReason;
+}
+
+export type DecomposeTransientAcquireResult =
+  | { status: "acquired"; claim: DecomposeTransientClaim }
+  | { status: "already-acquired-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
+export type DecomposeTransientReserveResult =
+  | { status: "reserved"; claim: DecomposeTransientClaim }
+  | { status: "already-reserved-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
+export type DecomposeTransientOccupyResult =
+  | { status: "occupied"; claim: DecomposeTransientClaim }
+  | { status: "already-occupied-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
+export type DecomposeTransientRetireResult =
+  | { status: "retired"; claim: DecomposeTransientClaim }
+  | { status: "already-retired-matching"; claim: DecomposeTransientClaim }
+  | { status: "missing-unproven"; reason: "claim-missing" }
+  | ClaimConflict;
+
+export type DecomposeTransientReleaseResult =
+  | { status: "released"; claim: DecomposeTransientClaim }
+  | { status: "already-released-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
+function registrationMatchesState(claim: DecomposeTransientClaim): boolean {
+  if (claim.state === "pending") {
+    return claim.registration.kind === "unregistered" || claim.registration.kind === "intended";
+  }
+  if (claim.state === "occupied") return claim.registration.kind === "registered";
+  return claim.registration.kind === "registered" || claim.registration.kind === "released";
+}
+
+function candidateWorktreeId(claimId: CanonicalDigest, generation: number): CanonicalDigest {
+  return canonicalDigest({
+    schemaVersion: 1,
+    kind: "decomposition-candidate-worktree",
+    claimId,
+    generation,
+  });
+}
+
+/** Derive the repository-common operational key without including any host path. */
+export function decomposeTransientClaimId(
+  binding: Pick<DecomposeTransientClaimBinding, "origin" | "candidateBranch">,
+): CanonicalDigest {
+  return canonicalDigest({
+    schemaVersion: 1,
+    kind: "decomposition-candidate",
+    origin: binding.origin,
+    candidateBranch: binding.candidateBranch,
+  });
+}
+
+/** Decode a closed claim and rederive both canonical identities. */
+export function parseDecomposeTransientClaim(input: unknown): DecomposeTransientClaim | null {
+  let candidate = input;
+  if (typeof input === "string") {
+    try {
+      candidate = JSON.parse(input) as unknown;
+      if (canonicalize(candidate) !== input) return null;
+    } catch {
+      return null;
+    }
+  }
+  const parsed = DecomposeTransientClaimSchema.safeParse(candidate);
+  if (!parsed.success) return null;
+  const claim = parsed.data;
+  if (claim.claimId !== decomposeTransientClaimId(claim)
+    || claim.candidateWorktree !== candidateWorktreeId(claim.claimId, claim.generation)
+    || !registrationMatchesState(claim)) return null;
+  return claim;
+}
+
+function bindingMatches(
+  claim: DecomposeTransientClaim,
+  binding: DecomposeTransientClaimBinding,
+): boolean {
+  return claim.origin === binding.origin
+    && claim.candidateBranch === binding.candidateBranch
+    && claim.sourceHead === binding.sourceHead
+    && claim.resultBase === binding.resultBase
+    && claim.cutMapDigest === binding.cutMapDigest;
+}
+
+function exactClaim(
+  current: unknown,
+  claimId: CanonicalDigest,
+  generation: number,
+): DecomposeTransientClaim | ClaimConflict {
+  const claim = parseDecomposeTransientClaim(current);
+  if (claim === null) return { status: "conflict", reason: "malformed-claim" };
+  if (claim.claimId !== claimId) return { status: "conflict", reason: "claim-id-mismatch" };
+  if (claim.generation !== generation) return { status: "conflict", reason: "generation-mismatch" };
+  return claim;
+}
+
+function validBinding(binding: DecomposeTransientClaimBinding): boolean {
+  return SlugSchema.safeParse(binding.origin).success
+    && NonEmptyStringSchema.safeParse(binding.candidateBranch).success
+    && NonEmptyStringSchema.safeParse(binding.sourceHead).success
+    && NonEmptyStringSchema.safeParse(binding.resultBase).success
+    && isCanonicalDigest(binding.cutMapDigest);
+}
+
+/** Acquire generation one, retry a matching live claim, or advance one released terminal generation. */
+export function acquireDecomposeTransientClaim(
+  current: unknown,
+  claimId: CanonicalDigest,
+  binding: DecomposeTransientClaimBinding,
+): DecomposeTransientAcquireResult {
+  if (!validBinding(binding) || !isCanonicalDigest(claimId)
+    || decomposeTransientClaimId(binding) !== claimId) {
+    return { status: "conflict", reason: "claim-id-mismatch" };
+  }
+
+  let generation = 1;
+  if (current !== null) {
+    const claim = parseDecomposeTransientClaim(current);
+    if (claim === null) return { status: "conflict", reason: "malformed-claim" };
+    if (claim.claimId !== claimId) return { status: "conflict", reason: "claim-id-mismatch" };
+    if (claim.state === "landed" || claim.state === "discarded") {
+      if (claim.registration.kind !== "released") {
+        return { status: "conflict", reason: "registration-not-released" };
+      }
+      generation = claim.generation + 1;
+    } else {
+      if (!bindingMatches(claim, binding)) return { status: "conflict", reason: "binding-mismatch" };
+      return { status: "already-acquired-matching", claim };
+    }
+  }
+
+  const claim: DecomposeTransientClaim = {
+    schemaVersion: 1,
+    kind: "decomposition-candidate",
+    claimId,
+    generation,
+    ...binding,
+    candidateWorktree: candidateWorktreeId(claimId, generation),
+    state: "pending",
+    registration: { kind: "unregistered" },
+  };
+  return { status: "acquired", claim };
+}
+
+/** Persist the adapter-only intended host path before any branch or filesystem mutation. */
+export function reserveDecomposeTransientWorktree(
+  current: unknown,
+  claimId: CanonicalDigest,
+  generation: number,
+  path: string,
+): DecomposeTransientReserveResult {
+  if (!HostPathSchema.safeParse(path).success) return { status: "conflict", reason: "invalid-host-path" };
+  const exact = exactClaim(current, claimId, generation);
+  if ("status" in exact) return exact;
+  if (exact.state !== "pending") return { status: "conflict", reason: "invalid-state" };
+  if (exact.registration.kind === "intended") {
+    return exact.registration.path === path
+      ? { status: "already-reserved-matching", claim: exact }
+      : { status: "conflict", reason: "registration-mismatch" };
+  }
+  if (exact.registration.kind !== "unregistered") {
+    return { status: "conflict", reason: "registration-mismatch" };
+  }
+  return {
+    status: "reserved",
+    claim: { ...exact, registration: { kind: "intended", path } },
+  };
+}
+
+function occupationEvidenceMatches(
+  claim: DecomposeTransientClaim,
+  path: string,
+  evidence: DecomposeTransientOccupationEvidence,
+): ClaimConflictReason | null {
+  if (evidence.registrations.length !== 1) return "registration-not-exact";
+  const [registration] = evidence.registrations;
+  if (registration === undefined) return "registration-not-exact";
+  if (registration.path !== path
+    || registration.candidateBranch !== claim.candidateBranch
+    || registration.head !== claim.resultBase) return "registration-not-exact";
+  if (evidence.branch.candidateBranch !== claim.candidateBranch
+    || evidence.branch.head !== claim.resultBase) return "branch-not-exact";
+  if (evidence.marker.claimId !== claim.claimId
+    || evidence.marker.generation !== claim.generation
+    || evidence.marker.candidateWorktree !== claim.candidateWorktree) return "marker-not-exact";
+  return null;
+}
+
+/** Record occupation only after the adapter proves the exact Git and marker projection. */
+export function occupyDecomposeTransientClaim(
+  current: unknown,
+  claimId: CanonicalDigest,
+  generation: number,
+  path: string,
+  evidence: DecomposeTransientOccupationEvidence,
+): DecomposeTransientOccupyResult {
+  if (!HostPathSchema.safeParse(path).success) return { status: "conflict", reason: "invalid-host-path" };
+  const exact = exactClaim(current, claimId, generation);
+  if ("status" in exact) return exact;
+  const evidenceMismatch = occupationEvidenceMatches(exact, path, evidence);
+  if (evidenceMismatch !== null) return { status: "conflict", reason: evidenceMismatch };
+  if (exact.state === "occupied") {
+    return exact.registration.kind === "registered" && exact.registration.path === path
+      ? { status: "already-occupied-matching", claim: exact }
+      : { status: "conflict", reason: "registration-mismatch" };
+  }
+  if (exact.state !== "pending") return { status: "conflict", reason: "invalid-state" };
+  if (exact.registration.kind !== "intended" || exact.registration.path !== path) {
+    return { status: "conflict", reason: "registration-mismatch" };
+  }
+  return {
+    status: "occupied",
+    claim: {
+      ...exact,
+      state: "occupied",
+      registration: { kind: "registered", path },
+    },
+  };
+}
+
+/** Seal an occupied generation while preserving its registration for cleanup. */
+export function retireDecomposeTransientClaim(
+  current: unknown,
+  claimId: CanonicalDigest,
+  expectedGeneration: number,
+  terminal: DecomposeTransientTerminal,
+): DecomposeTransientRetireResult {
+  if (current === null) return { status: "missing-unproven", reason: "claim-missing" };
+  const exact = exactClaim(current, claimId, expectedGeneration);
+  if ("status" in exact) return exact;
+  if (exact.state === "landed" || exact.state === "discarded") {
+    return exact.state === terminal
+      ? { status: "already-retired-matching", claim: exact }
+      : { status: "conflict", reason: "terminal-mismatch" };
+  }
+  if (exact.state !== "occupied" || exact.registration.kind !== "registered") {
+    return { status: "conflict", reason: "invalid-state" };
+  }
+  return { status: "retired", claim: { ...exact, state: terminal } };
+}
+
+/** Release adapter registration only after exact terminal authority and proven local absence. */
+export function releaseDecomposeTransientWorktree(
+  current: unknown,
+  claimId: CanonicalDigest,
+  generation: number,
+  candidateWorktree: CanonicalDigest,
+  path: string,
+  evidence: DecomposeTransientReleaseEvidence,
+): DecomposeTransientReleaseResult {
+  if (!HostPathSchema.safeParse(path).success) return { status: "conflict", reason: "invalid-host-path" };
+  const exact = exactClaim(current, claimId, generation);
+  if ("status" in exact) return exact;
+  if (exact.candidateWorktree !== candidateWorktree) {
+    return { status: "conflict", reason: "worktree-mismatch" };
+  }
+  if (exact.state !== "landed" && exact.state !== "discarded") {
+    return { status: "conflict", reason: "invalid-state" };
+  }
+  if (exact.registration.kind === "released") {
+    return exact.registration.lastPath === path
+      ? { status: "already-released-matching", claim: exact }
+      : { status: "conflict", reason: "registration-mismatch" };
+  }
+  if (exact.registration.kind !== "registered" || exact.registration.path !== path) {
+    return { status: "conflict", reason: "registration-mismatch" };
+  }
+  if (!evidence.registrationAbsent || !evidence.markerAbsent || !evidence.branchOccupationAbsent) {
+    return { status: "conflict", reason: "absence-unproven" };
+  }
+  return {
+    status: "released",
+    claim: { ...exact, registration: { kind: "released", lastPath: path } },
+  };
+}
