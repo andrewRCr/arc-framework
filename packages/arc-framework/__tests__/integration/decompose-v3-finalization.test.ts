@@ -177,6 +177,7 @@ describe("v3 decompose refresh against real Git", () => {
     const { driver, fixture, repo } = await harness();
     const result = await driver.finalizeV3("origin", fixture.receipt.receiptId, {
       continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
     });
@@ -195,14 +196,15 @@ describe("v3 decompose refresh against real Git", () => {
     const { driver, fixture, repo } = await harness({ raceAfterWrite: true });
     const result = await driver.finalizeV3("origin", fixture.receipt.receiptId, {
       continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
     });
 
     expect(result).toMatchObject({
       status: "refused",
-      reason: "evidence-mismatch",
-      diagnostic: "record-projection-moved",
+      reason: "evidence-mismatch: record-projection-moved",
+      recovery: { action: "retry" },
     });
     expect(await readFile(
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
@@ -217,9 +219,10 @@ describe("v3 decompose refresh against real Git", () => {
 
     expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
       continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
-    })).toEqual({ status: "refused", reason: "v3 decompose staged path set changed" });
+    })).toMatchObject({ status: "refused", reason: "v3 decompose staged path set changed" });
     expect(await readFile(
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
       "utf8",
@@ -232,9 +235,10 @@ describe("v3 decompose refresh against real Git", () => {
 
     expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
       continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
-    })).toEqual({ status: "refused", reason: "v3 decompose index/worktree projection changed" });
+    })).toMatchObject({ status: "refused", reason: "v3 decompose index/worktree projection changed" });
     expect(await readFile(
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
       "utf8",

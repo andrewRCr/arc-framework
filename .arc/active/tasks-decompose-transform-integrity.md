@@ -381,14 +381,10 @@ authority; finalization checks mechanics and persists no approval credential.
 - _Outcome:_ Candidate selection now reduces one lossless project snapshot through the same required readiness
   bundle intended for landed handoff, and only a validated ephemeral choice can join immutable publication facts.
 
-### `[ ]` **3.4 Finalize idempotently and route typed recovery**
+### `[x]` **3.4 Finalize idempotently and route typed recovery**
 
 - _Goal:_ The reviewed uncommitted candidate seals or reseals exactly, and every unsafe state retains a typed
   refusal and direct next action.
-
-- _Note:_ Design coverage: D4.
-
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
     - `[x]` **3.4.a Validate stored topology and incomplete coordination**
         - Added a pure preparation-bound topology validator that confirms stored paths through the existing planner,
@@ -416,16 +412,17 @@ authority; finalization checks mechanics and persists no approval credential.
         - Real-Git coverage proves parent absence, reviewed refresh, foreign and mixed-path refusal, post-check race
           refusal, and exact prior-receipt restoration.
 
-    - `[ ]` **3.4.d Map typed recovery once**
-        - Define a closed `{ action, establishedFacts }` recovery union over `retry`, `discard`, `re-preflight`,
-          `reauthor`, and non-command guidance. Combine canonical mismatch with provenance-tagged command/driver
-          facts; a validator locus alone cannot establish candidate, cut-map pathname, path, or receipt identity.
-        - Make callers render only this result and never reconstruct identities or placeholder commands.
-        - Build `test-first` (one behavior at a time):
-            - Every canonical mismatch maps exhaustively to one action with only its authorized fact arm.
-            - Missing candidate/cut-map/receipt facts downgrade to exact prose guidance rather than fabricated
-              commands.
-            - Handler and workflow render the same recovery result without local policy.
+    - `[x]` **3.4.d Map typed recovery once**
+        - Added one exhaustive recovery mapper over every canonical mismatch plus typed transient, candidate,
+          committed, refresh, and residue causes; each action carries only separately provenance-tagged facts.
+        - Retry, discard, re-preflight, and reauthorization commands or operands downgrade to exact prose guidance
+          when their receipt, continuation, cut-map, origin, or candidate facts are unavailable.
+        - The driver returns the closed recovery result, the handler renders it through the shared renderer, and
+          the workflow contract forbids local operand or policy reconstruction.
+
+- _Outcome:_ Finalization now owns one validator-to-CAS-to-recovery authority chain: success statuses share the
+  same canonical payload, reviewed refresh cannot reopen semantic choice, and every refusal preserves only proven
+  recovery operands.
 
 ## **Phase 4:** Publication, projection, and workflow
 

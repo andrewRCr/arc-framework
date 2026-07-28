@@ -25,9 +25,18 @@ import {
   finalizeV3DecomposeRetirement,
   type DecomposeFinalTarget,
   type DecomposeFinalizationProjection,
+  type V3DecomposeFinalizationTransitionRefusal,
   type V3DecomposeRecordMutationResult,
+  type V3DecomposeRecordMutationRefusal,
+  type V3DecomposeRefreshRefusal,
   type V3DecomposeFinalizationResult,
 } from "./decompose-finalization.js";
+import {
+  mapV3DecomposeFinalizationRecovery,
+  type V3DecomposeFinalizationRecovery,
+  type V3DecomposeFinalizationRecoveryCause,
+  type V3DecomposeRecoveryFacts,
+} from "./decompose-finalization-recovery.js";
 import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
 import { deriveDecomposeInventories } from "./decompose-inventory.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
@@ -116,10 +125,15 @@ export type PrepareV3DecomposeDriverResult =
 
 export type FinalizeV3DecomposeDriverResult =
   | Extract<V3DecomposeFinalizationResult, { status: "recorded" | "already-finalized" | "refreshed" }>
-  | { status: "refused"; reason: string };
+  | {
+    status: "refused";
+    reason: string;
+    recovery: V3DecomposeFinalizationRecovery;
+  };
 
 export interface FinalizeV3DecomposeDriverInput {
   continuation: unknown;
+  continuationPath: string;
   composition: ProjectReadinessCompositionResult;
   readinessDeps: DecomposeReadinessDeps;
 }
@@ -439,6 +453,48 @@ function deriveV3DestinationOutputs(
     : outputs;
 }
 
+function refreshRecoveryCause(
+  refusal: V3DecomposeRefreshRefusal,
+): V3DecomposeFinalizationRecoveryCause {
+  switch (refusal.code) {
+    case "refresh-continuation-changed":
+    case "refresh-nondestination-changed":
+      return { kind: "semantic-reauthorization" };
+    case "refresh-evidence-invalid":
+    case "refresh-mechanical-boundary-changed":
+    case "refresh-path-boundary-changed":
+      return { kind: "mechanical-repreflight" };
+  }
+}
+
+function finalizationRecoveryCause(
+  refusal: V3DecomposeFinalizationTransitionRefusal | V3DecomposeRecordMutationRefusal | undefined,
+): V3DecomposeFinalizationRecoveryCause {
+  if (refusal === undefined) {
+    return {
+      kind: "manual-guidance",
+      message: "Inspect the reported finalization failure; no typed recovery authority was established.",
+    };
+  }
+  switch (refusal.code) {
+    case "validation-mismatch":
+      return { kind: "canonical-mismatch", mismatch: refusal.mismatch };
+    case "candidate-parent-record":
+      return { kind: "committed-candidate" };
+    case "record-state-mismatch":
+    case "refresh-not-authorized":
+      return { kind: "mechanical-repreflight" };
+    case "record-projection-moved":
+    case "record-replacement-failed":
+      return { kind: "transient-finalization" };
+    case "record-rollback-residue":
+      return {
+        kind: "manual-guidance",
+        message: `Receipt rollback left ${refusal.locus} residue: ${refusal.diagnostic}`,
+      };
+  }
+}
+
 function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetirementDriver {
   return {
     prepareV3: async (preparation) => {
@@ -468,10 +524,33 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
       }
     },
     finalizeV3: async (origin, recordId, input) => {
+      const recoveryFacts: V3DecomposeRecoveryFacts = isCanonicalDigest(recordId)
+        ? {
+            finalizeInvocation: {
+              provenance: "finalize-command",
+              origin,
+              receiptId: recordId,
+              continuationPath: input.continuationPath,
+            },
+          }
+        : {};
+      const refused = (
+        reason: string,
+        cause: V3DecomposeFinalizationRecoveryCause,
+      ): FinalizeV3DecomposeDriverResult => ({
+        status: "refused",
+        reason,
+        recovery: mapV3DecomposeFinalizationRecovery({ cause, facts: recoveryFacts }),
+      });
       try {
-        if (!isCanonicalDigest(recordId)) return { status: "refused", reason: "invalid receipt ID" };
+        if (!isCanonicalDigest(recordId)) {
+          return refused("invalid receipt ID", {
+            kind: "manual-guidance",
+            message: "Supply the canonical receipt ID reported by the decomposition operation.",
+          });
+        }
         const stored = await readDecomposeRecord(deps, recordId);
-        if (stored === null) return { status: "refused", reason: "evidence-missing" };
+        if (stored === null) return refused("evidence-missing", { kind: "mechanical-repreflight" });
         const storedReceipt = parseV3DecomposeReceipt(stored);
         const preparation = parseV3DecomposePreparation(stored)
           ?? (storedReceipt === null
@@ -484,7 +563,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
                 facts: storedReceipt.prepared,
               }));
         if (preparation === null || preparation.facts.completedMap.machine.source.origin !== origin) {
-          return { status: "refused", reason: "evidence-mismatch" };
+          return refused("evidence-mismatch", { kind: "mechanical-repreflight" });
         }
         const continuation = validateV3DecomposeContinuation({
           continuation: input.continuation,
@@ -493,29 +572,35 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           deps: input.readinessDeps,
         });
         if (continuation.status === "refused") {
-          return {
-            status: "refused",
-            reason: continuation.issues.map(({ code, locus }) => `${code}: ${locus}`).join("; "),
-          };
+          return refused(
+            continuation.issues.map(({ code, locus }) => `${code}: ${locus}`).join("; "),
+            { kind: "semantic-reauthorization" },
+          );
         }
         const topologyInput = await deps.readTopologyValidationInput?.(preparation);
         if (topologyInput === undefined) {
-          return { status: "refused", reason: "topology-validation-unavailable" };
+          return refused("topology-validation-unavailable", {
+            kind: "manual-guidance",
+            message: "Topology validation is unavailable; repair the finalization environment before retrying.",
+          });
         }
         const topology = validateV3DecomposeTopology({
           preparation,
           ...topologyInput,
         });
         if (topology.status === "refused") {
-          return {
-            status: "refused",
-            reason: topology.issues.map(({ code, path, detail }) =>
+          return refused(
+            topology.issues.map(({ code, path, detail }) =>
               [code, path, detail].filter((value) => value !== undefined).join(": ")).join("; "),
-          };
+            { kind: "semantic-reauthorization" },
+          );
         }
         const validateProspectiveProjection = deps.validateProspectiveProjection;
         if (validateProspectiveProjection === undefined) {
-          return { status: "refused", reason: "prospective-projection-validation-unavailable" };
+          return refused("prospective-projection-validation-unavailable", {
+            kind: "manual-guidance",
+            message: "Prospective project validation is unavailable; repair the finalization environment.",
+          });
         }
         const projectionBefore = await readV3FinalizationProjection(deps, preparation);
         await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
@@ -539,7 +624,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         ]);
         const destinationOutputs = deriveV3DestinationOutputs(preparation, managedPathResults);
         if (destinationOutputs === null) {
-          return { status: "refused", reason: "destination-output-mismatch" };
+          return refused("destination-output-mismatch", { kind: "semantic-reauthorization" });
         }
         const receipt = createV3DecomposeReceipt(
           preparation,
@@ -547,7 +632,9 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           destinationOutputs,
           continuation.publication.initialContinuation,
         );
-        if (receipt === null) return { status: "refused", reason: "receipt-derivation-mismatch" };
+        if (receipt === null) {
+          return refused("receipt-derivation-mismatch", { kind: "mechanical-repreflight" });
+        }
         const expectedStagedPaths = [...new Set([
           receiptPath,
           ...receipt.finalized.transitionPatch.map(({ path }) => path),
@@ -561,12 +648,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               input.continuation,
             );
         if (refresh?.status === "refused") {
-          return { status: "refused", reason: refresh.refusal.code };
+          return refused(refresh.refusal.code, refreshRecoveryCause(refresh.refusal));
         }
         const projectionAfter = await readV3FinalizationProjection(deps, preparation);
         await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
         if (projectionBefore.authorityVersion !== projectionAfter.authorityVersion) {
-          return { status: "refused", reason: "authority-conflict" };
+          return refused("authority-conflict", { kind: "transient-finalization" });
         }
         const machine = preparation.facts.completedMap.machine;
         const authoring = preparation.facts.completedMap.authoring;
@@ -591,7 +678,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           },
           ...(refresh === undefined ? {} : { refresh }),
         };
-        return await finalizeV3DecomposeRetirement(
+        const finalized = await finalizeV3DecomposeRetirement(
           {
             readEvidence: () => Promise.resolve(evidence),
             validateProspectiveProjection: async (prepared, overlay) =>
@@ -611,8 +698,21 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           receipt,
           projectionAfter.authorityVersion,
         );
+        if (finalized.status === "refused") {
+          return refused(
+            finalized.diagnostic === undefined
+              ? finalized.reason
+              : `${finalized.reason}: ${finalized.diagnostic}`,
+            finalizationRecoveryCause(finalized.refusal),
+          );
+        }
+        return finalized;
       } catch (error) {
-        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
+        const reason = error instanceof Error ? error.message : "authority-unavailable";
+        return refused(reason, {
+          kind: "manual-guidance",
+          message: `Finalization could not establish recovery authority: ${reason}`,
+        });
       }
     },
     prepare: async (allocation) => {

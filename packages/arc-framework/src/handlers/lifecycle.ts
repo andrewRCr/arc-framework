@@ -84,6 +84,7 @@ import {
   createInRepoDecomposeRetirementDriver,
   type InRepoDecomposeRetirementDeps,
 } from "../lib/work-unit/decompose-retirement-driver.js";
+import { renderV3DecomposeFinalizationRecovery } from "../lib/work-unit/decompose-finalization-recovery.js";
 import { resolveProjectReadinessComposition } from "../lib/status/project-view.js";
 import { decomposeReadinessDeps } from "../lib/work-unit/decompose-launch-readiness.js";
 import {
@@ -907,11 +908,12 @@ export async function handleDecompose(
       const driver = createInRepoDecomposeRetirementDriver(v3DecomposeRetirementDeps({ cwd, io }));
       const result = await driver.finalizeV3(input.origin, input.mode.receiptId, {
         continuation,
+        continuationPath: input.mode.continuation,
         composition,
         readinessDeps: decomposeReadinessDeps,
       });
       if (result.status === "refused") {
-        refuse(result.reason);
+        refuse(`${result.reason}\n${renderV3DecomposeFinalizationRecovery(result.recovery)}`);
         return;
       }
       p.note([

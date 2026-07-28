@@ -509,6 +509,30 @@ describe("handleDecompose", () => {
     },
   );
 
+  it("renders only the driver's typed v3 recovery result on finalization refusal", async () => {
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    mockFinalizeV3Decompose.mockResolvedValue({
+      status: "refused",
+      reason: "authority-conflict",
+      recovery: {
+        action: "retry",
+        establishedFacts: {
+          provenance: "finalize-command",
+          origin: "mono",
+          receiptId,
+          continuationPath: "continuation.json",
+        },
+      },
+    });
+
+    await handleDecompose("mono", { finalize: receiptId, continuation: "continuation.json" });
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      `authority-conflict\nRetry: arc decompose mono --finalize ${receiptId} `
+      + "--continuation continuation.json",
+    );
+  });
+
   it("refuses a malformed cut-map before any mutation", async () => {
     mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
       status: "stale",

@@ -29,6 +29,7 @@ describe("decompose workflow contract", () => {
     expect(workflow).toContain("### Partial protection");
     expect(workflow).toContain("### Full protection");
     expect(workflow).toContain("Do not construct receipt JSON, digests, branches, worktrees, topology paths");
+    expect(workflow).toContain("render only the typed recovery result");
     expect(workflow).toContain("Do not reconstruct operands or commands");
     expect(workflow).toMatch(/does not launch\s+members/u);
   });
