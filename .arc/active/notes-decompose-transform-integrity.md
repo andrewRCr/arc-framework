@@ -41,10 +41,10 @@ canonical WU state remains anchored to `feat/decompose-transform-integrity`. The
 
 1. `feat/decompose-transform-integrity-delivery-00-planning` — planning and lifecycle artifacts through
    `421f4caaf`.
-2. `feat/decompose-transform-integrity-delivery-01-authority` — Phase 1 through `31ad6078b`, plus the temporary
-   compatibility cap that keeps the established public decomposition lifecycle intact.
+2. `feat/decompose-transform-integrity-delivery-01-authority` — Phase 1 through `31ad6078b`, plus a temporary,
+   self-deleting cap that publishes only the complete read-only v3 preflight.
 3. `feat/decompose-transform-integrity-delivery-02-plan` — Phase 2 through `bb2fb1c46`, inheriting that cap while
-   the v3 mutation runtime remains internal.
+   incomplete v3 mutation and finalization remain dormant.
 4. `feat/decompose-transform-integrity-delivery-03-finalization` — Phase 3 through `4006303c9`, removing the
    temporary cap only after the finalized-candidate lifecycle is coherent.
 
