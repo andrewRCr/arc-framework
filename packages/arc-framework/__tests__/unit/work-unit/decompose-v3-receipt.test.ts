@@ -119,7 +119,7 @@ describe("v3 finalized decomposition evidence", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(receipt);
     expect(bytes).toBe(canonicalize(JSON.parse(bytes)));
-    expect(canonicalDigest(bytes)).toBe("sha256:e92e7aaf5fa8ba83ba4c09f1c78f9e8a746f6484b7e2f60784f5d56482e3efc2");
+    expect(canonicalDigest(bytes)).toBe("sha256:4e0f98d4eb48b85ab7b2678c3484a5dfb3312b160878a4613f46d4e07f622c69");
   });
 
   it("seals exact prepared publication and a disjoint exhaustive path partition", () => {
@@ -251,12 +251,9 @@ describe("v3 finalized decomposition evidence", () => {
 
   it("constructs only the exact prepared envelope and destination output set", () => {
     const { preparation, receipt } = v3DecompositionEvidenceFixture();
-    const destinationOutputs = receipt.finalized.destinationDigests.map(({ destinationId }, index) => ({
+    const destinationOutputs = receipt.finalized.destinationDigests.map(({ destinationId, outputs }) => ({
       destinationId,
-      outputs: [{
-        path: receipt.finalized.managedPathResults[index]!.path,
-        after: receipt.finalized.managedPathResults[index]!.after,
-      }],
+      outputs,
     }));
     expect(createV3DecomposeReceipt(
       preparation,

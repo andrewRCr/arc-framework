@@ -73,7 +73,8 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-function topologyPath(cohort: string): string {
+/** Project one canonical cohort identity to its planned coordination-document path. */
+export function v3CohortDocumentPath(cohort: string): string {
   const raw = cohort.split("/");
   const cohortSegments: [Slug] | [Slug, Slug] = raw.length === 1
     ? [SlugSchema.parse(raw[0])]
@@ -171,7 +172,7 @@ function planCohortPath(
   missingKind: "create" | "backfill",
   presentKind: "reuse" | "ensure",
 ): V3TopologyAction | { refusal: { code: V3TopologyRefusalCode; path?: string } } {
-  const path = topologyPath(cohort);
+  const path = v3CohortDocumentPath(cohort);
   const before = readState(input, path);
   if (before.kind === "absent") {
     const rendered = renderCohort(input, cohort);
@@ -209,7 +210,7 @@ function planAtCap(
   parent: string,
   constituents: string[],
 ): V3TopologyAction | { refusal: { code: V3TopologyRefusalCode; path?: string } } {
-  const path = topologyPath(parent);
+  const path = v3CohortDocumentPath(parent);
   const before = readState(input, path);
   if (before.kind === "absent") return { refusal: { code: "missing-parent", path } };
   const existing = existingText(before, path);
@@ -286,8 +287,8 @@ function planTopology(input: V3InternalTopologyPlanInput): V3TopologyPlanResult 
     if (parent === undefined) {
       return { status: "refused", refusal: { code: "wrong-structural-identity" } };
     }
-    const parentPath = topologyPath(parent);
-    const cohortPath = topologyPath(input.placement.cohort);
+    const parentPath = v3CohortDocumentPath(parent);
+    const cohortPath = v3CohortDocumentPath(input.placement.cohort);
     if (readState(input, parentPath).kind === "absent"
       && readState(input, cohortPath).kind !== "absent") {
       return {

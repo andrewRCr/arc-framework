@@ -3,6 +3,7 @@ import {
   v3CandidatePublication,
   v3PlanId,
   v3PreparationId,
+  v3TopologyDigest,
   type V3DecomposePreparation,
 } from "../../src/lib/work-unit/decompose-v3-preparation.js";
 import {
@@ -86,15 +87,26 @@ export function v3DecompositionEvidenceFixture(): {
     ".arc/backlog/planned/origin/member-a/meta-member-a.md",
     ".arc/backlog/planned/origin/member-b/meta-member-b.md",
   ];
+  const topologyPath = ".arc/backlog/planned/origin/cohort-origin.md";
   const recordPath = `.arc/system/.internal/retirement-receipts/${receiptId.replace(":", "-")}.json`;
-  const allowedPaths = sortByCanonicalBytes([...resultPaths, recordPath]);
+  const allowedPaths = sortByCanonicalBytes([...resultPaths, topologyPath, recordPath]);
   const allowedPathsDigest = v3AllowedPathsDigest(allowedPaths);
   if (allowedPathsDigest === null) throw new Error("fixture paths must be canonical");
   const candidatePublication = v3CandidatePublication(
     completedMap,
     { kind: "cohort", cohort: "origin" },
   );
-  const topology = { facts: [{ kind: "none" as const }], digest: canonicalDigest([{ kind: "none" }]) };
+  const topologyFacts = [{
+    kind: "create" as const,
+    path: topologyPath,
+    before: { kind: "absent" as const },
+    after: {
+      kind: "file" as const,
+      mode: "100644" as const,
+      contentDigest: canonicalDigest("cohort topology"),
+    },
+  }];
+  const topology = { facts: topologyFacts, digest: v3TopologyDigest(topologyFacts) };
   const cutMapDigest = v3CutMapDigest(completedMap);
   const planId = v3PlanId({
     preflightId: machine.preflightId,
@@ -161,13 +173,26 @@ export function v3DecompositionEvidenceFixture(): {
     preparationId,
     facts,
   };
-  const managedPathResults = resultPaths.map((path, index) => ({
-    path,
-    before: absent,
-    after: file(`result ${index}`),
-  }));
-  const outputsA = [{ path: resultPaths[0]!, after: managedPathResults[0]!.after }];
-  const outputsB = [{ path: resultPaths[1]!, after: managedPathResults[1]!.after }];
+  const managedPathResults = [
+    {
+      path: topologyPath,
+      before: absent,
+      after: topologyFacts[0]!.after,
+    },
+    ...resultPaths.map((path, index) => ({
+      path,
+      before: absent,
+      after: file(`result ${index}`),
+    })),
+  ];
+  const outputsA = [{
+    path: resultPaths[0]!,
+    after: managedPathResults.find(({ path }) => path === resultPaths[0])!.after,
+  }];
+  const outputsB = [{
+    path: resultPaths[1]!,
+    after: managedPathResults.find(({ path }) => path === resultPaths[1])!.after,
+  }];
   const receipt = createV3DecomposeReceipt(
     preparation,
     managedPathResults,

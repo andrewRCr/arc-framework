@@ -213,22 +213,13 @@ mutation authority; it already contains the operator-approved map and every mech
         - Public cardinality counts only new members, while an extraction-only DTO may add a surviving origin.
           Multi-member direct placement now refuses in both the v3 codec and synchronized package/project doctrine.
 
-    - `[ ]` **2.2.d Project preparation-bound publication and topology**
-        - Derive the closed candidate publication from the validated destination and topology plan: one exact
-          logical anchor plus every new-leaf and existing-destination entry. Iterate destinations in canonical
-          `destinationId` order, omit `cohort-coordination`, and map every remaining destination to exactly one
-          entry. Project existing work-unit, draft-block/locator, and document-path arms without making them
-          continuation-eligible.
-        - Bind the candidate publication and the constitutive topology facts/digest into the plan/preparation tuple
-          before occupation. Do not include continuation or live readiness, and do not derive either identity from
-          authored candidate bytes.
-        - Build `test-first` (one behavior at a time):
-            - Direct-member, cohort, subcohort, and at-cap plans produce exact canonical publication and topology.
-            - Every existing target arm preserves exact identity and remains selection-ineligible.
-            - Mixed new-leaf/existing/cohort-coordination destinations prove exact filter-and-map ordering; selected
-              slugs preserve the resulting new-leaf subsequence even though new-leaf entries omit destination IDs.
-            - Missing/extra destinations, mismatched kinds, topology drift, or unstable ordering refuses before
-              branch creation.
+    - `[x]` **2.2.d Project preparation-bound publication and topology**
+        - Added one projector that authenticates each placement's exact logical anchor and topology action/path
+          shape, converts raw topology bytes to canonical path facts, and seals their digest with publication.
+        - Publication follows canonical destination-ID order, filters coordination, and preserves every existing
+          work-unit, draft-block/locator, and document identity while keeping continuation new-leaf-only.
+        - Preparation now consumes the combined projected authority and revalidates it on create/decode; missing,
+          extra, mismatched, drifted, or unstable publication/topology operands refuse before occupation.
 
     - `[ ]` **2.2.e Compose one mutation per managed path**
         - From the tree-derived profile and validated allocation, produce content contributors for every new-member

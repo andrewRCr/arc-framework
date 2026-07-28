@@ -261,11 +261,11 @@ describe("v3 decomposition preparation identities", () => {
     }
   });
 
-  it("pins the exact preparation bytes and every ownership/topology arm", () => {
+  it("pins the exact preparation bytes and claimed ownership arm", () => {
     const { preparation } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(preparation);
     expect(canonicalDigest(bytes))
-      .toBe("sha256:87bd8c9a396675cfc2783f7ee5ef75476fa249649ceba9161d0851beaaf26550");
+      .toBe("sha256:716eeb8b025733921b8d16c27a977ef8ca67bf1c85b367bc99f517312118eda5");
     expect(parseV3DecomposePreparation(bytes)).toEqual(preparation);
 
     const claimed = structuredClone(preparation);
@@ -277,25 +277,11 @@ describe("v3 decomposition preparation identities", () => {
       candidateBranch: "decompose/origin",
       candidateWorktree: v3CandidateWorktreeId("claim", 2),
     };
-    claimed.facts.topology.facts = (["create", "ensure", "backfill", "reuse", "append"] as const)
-      .map((kind, index) => {
-        const state = {
-          kind: "file" as const,
-          mode: "100644" as const,
-          contentDigest: digest(`topology-${index}`),
-        };
-        return {
-          kind,
-          path: `${String(index)}.md`,
-          before: kind === "reuse" ? state : { kind: "absent" as const },
-          after: state,
-        };
-      });
     reseal(claimed);
     expect(parseV3DecomposePreparation(claimed)).toEqual(claimed);
     const claimedBytes = canonicalize(claimed);
     expect(canonicalDigest(claimedBytes))
-      .toBe("sha256:aeadd461fbccde32db6919686fc88154e4ade707d55de5f6c3156ffb373340fa");
+      .toBe("sha256:2f67409e0aefa4a033f255fdc0577bab1ab962eef06a441a8ceaa6f1b070ce02");
     expect(parseV3DecomposePreparation(claimedBytes)).toEqual(claimed);
     expect(v3CandidatePublication(
       claimed.facts.completedMap,
@@ -329,8 +315,10 @@ describe("v3 decomposition preparation identities", () => {
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidatePublication: facts.candidatePublication,
-      topologyFacts: facts.topology.facts,
+      candidateAuthority: {
+        candidatePublication: facts.candidatePublication,
+        topology: facts.topology,
+      },
       plan,
     })).toEqual({ status: "ready", preparation });
 
@@ -338,8 +326,10 @@ describe("v3 decomposition preparation identities", () => {
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidatePublication: facts.candidatePublication,
-      topologyFacts: facts.topology.facts,
+      candidateAuthority: {
+        candidatePublication: facts.candidatePublication,
+        topology: facts.topology,
+      },
       plan: { ...plan, allowedPaths: plan.allowedPaths.slice(1) },
     })).toEqual({ status: "rejected", reason: "plan-binding-mismatch" });
   });
