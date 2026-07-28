@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** `generate-tasks` Pass 2 — content fill reviewed
+- **Last Completed:** Planning finalized; work unit activated
 - **Next Task:** Task 1.1.a — Resolve and clear obsolete decomposition state
 - **Blockers:** [none]
 
