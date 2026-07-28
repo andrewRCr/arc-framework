@@ -390,17 +390,10 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
 
-    - `[ ]` **3.4.a Validate stored topology and incomplete coordination**
-        - Validate the preparation-bound canonical logical anchor and constitutive topology facts/digest against
-          candidate paths before the finalization state machine is available. Run the same pure planner only as a
-          validator; configuration or layout drift must not invent new actions or authority.
-        - Compose generic cohort consistency with a decomposition-specific finalization floor that rejects the exact
-          `Purpose: —` scaffold sentinel only for required decomposition coordination paths.
-        - Build `test-first` (one behavior at a time):
-            - Missing docs and `Purpose: —` refuse with exact paths; authored Purpose passes without optional
-              sections.
-            - Layout/config or stored-topology drift returns a typed mismatch instead of new paths.
-            - Existing unrelated cohorts retain generic consistency semantics.
+    - `[x]` **3.4.a Validate stored topology and incomplete coordination**
+        - Added a pure preparation-bound topology validator that confirms stored paths through the existing planner,
+          rejects drift without deriving replacement authority, and layers the exact incomplete-Purpose floor over
+          unchanged generic cohort-consistency diagnostics.
 
     - `[ ]` **3.4.b Return closed finalization statuses from one authority**
         - Make the Git adapter produce one normalized, pinned evidence bundle for the Phase 1 canonical validator.
