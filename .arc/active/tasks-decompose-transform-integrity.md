@@ -197,19 +197,13 @@ mutation authority; it already contains the operator-approved map and every mech
           stale, unwritable, unchanged, self-referential, or retiring-origin projections refuse before any mutable
           authority exists.
 
-    - `[ ]` **2.2.b Prove predecessor removal and classify source-private riders**
-        - Build a typed three-tree `RetirementDeltaPlan` over the unique source/result merge base, source head, and
-          result base. Bind the complete path universe and each path's stored bytes, mode, and object kind; refuse
-          missing or ambiguous merge-base topology.
-        - Distinguish started and backlog-stub predecessor identity before classifying expected origin-artifact
-          evolution, unchanged predecessor removal, derived ROADMAP movement, and paths already identical to the
-          expected result projection. Return every other nonidentical path as a UTF-8 byte-sorted rider inventory
-          with a typed reason.
-        - Build `test-first` (one behavior at a time):
-            - Started and backlog-stub retirement admit only their expected delta.
-            - Missing, changed, absent, or ambiguous predecessor; criss-cross/ambiguous base; and mode/type-only
-              changes refuse before branch creation.
-            - Multiple riders return one complete, deterministically ordered path/reason inventory.
+    - `[x]` **2.2.b Prove predecessor removal and classify source-private riders**
+        - Added a pure three-tree planner that binds the sole merge base and exact stored bytes, modes, and object
+          kinds across the complete UTF-8-ordered path universe.
+        - Started and backlog-stub contracts now produce exact predecessor/origin retirement operands while refusing
+          topology, predecessor, mode, and type drift before mutation.
+        - A binary-safe Git adapter uses `merge-base --all` and recursive type-aware tree reads; all remaining
+          source-private additions, modifications, and deletions return in one deterministic rider inventory.
 
     - `[ ]` **2.2.c Plan the logical anchor and constitutive cohort paths**
         - Add a reusable planner over already-decided placement. Return a closed logical-anchor arm independently
