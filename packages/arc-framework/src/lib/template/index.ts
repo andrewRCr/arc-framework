@@ -20,6 +20,7 @@ export {
   copyWithRendering,
   writeArcManagedBlock,
   writeArcGitignoreBlock,
+  writeArcGitattributesBlock,
   type MkdirFn,
   type ReadFileFn,
   type WriteFileFn,

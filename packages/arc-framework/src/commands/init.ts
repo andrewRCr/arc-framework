@@ -255,6 +255,7 @@ export async function runInit(
     // Git integration (hooks path)
     await configureGitIntegration({
       cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
+      enableRoadmapConflictRemedy: prompts.pm_mode === "arc-in-git",
     });
     const gitignorePath = join(cwd, ".gitignore");
 
