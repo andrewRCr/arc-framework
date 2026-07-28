@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Adversarial passes one and two resolved; compression half composed against its prior art
+- **Last Completed:** Draft captured formalization-ready — register carries a per-row constraint column, three
+  adversarial passes dispositioned
 - **Next Task:** [none]
 - **Blockers:** [none]
 
