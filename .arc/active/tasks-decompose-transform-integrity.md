@@ -574,17 +574,11 @@ local-cleanup boundaries without importing extension-owned matrices.
 
 - **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
 
-    - `[ ]` **5.2.a Combine partial protection, heterogeneous allocation, and cohortless eligibility**
-        - Use one partial-protection retirement with exactly one new leaf plus existing destinations, so the
-          one-new-member cohortless rule is exercised without importing extraction or leaving a surviving origin.
-        - Assert direct exact-base materialization/finalization, no candidate branch/worktree or transient claim,
-          anchor `claimRetirement: { kind: not-applicable, protection: partial }`, no claim CAS, and no push, PR,
-          integration, or remote-cleanup surface.
-        - Apply only exact allocated edits to existing-home artifacts. Assert no existing-home meta scaffold or
-          wholesale re-render, exact dependency disposition, canonical v3 finalization, and a refusal on stale
-          existing-home before-state before any write.
-        - Assert every existing destination publishes its exact typed identity but never enters continuation
-          selection.
+    - `[x]` **5.2.a Combine partial protection, heterogeneous allocation, and cohortless eligibility**
+        - A built-command case now refuses stale existing-home bytes without mutation, then retires one direct
+          member on the exact partial base with targeted document and dependency edits. Canonical finalization,
+          typed existing-destination publication, the not-applicable anchor arm, and the absence of candidate,
+          claim, remote, cohort, or continuation authority for existing homes are proved together.
 
     - `[ ]` **5.2.b Exercise a configured-ref backlog-stub retirement**
         - Run this case under partial protection. Resolve the committed source from its configured ref with no
