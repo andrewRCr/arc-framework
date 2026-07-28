@@ -226,6 +226,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(depStaged["Depends On"]).not.toContain("mono");
   });
 
+  // Disabled: this exercises the retired v2 mutation surface rather than a supported executable contract.
   it.skip("cohortless: scaffolds complete flat siblings and preserves authored dependencies", async () => {
     await writeWu(repo, ".arc/active", "roadmap-tooling", {
       State: "Planning",
@@ -311,6 +312,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(await readFile(join(rendererRoot, "draft-roadmap-renderer.md"), "utf8")).not.toContain("**Cohort:**");
   });
 
+  // Disabled: this exercises the retired v2 mutation surface rather than a supported executable contract.
   it.skip("runs the prepared mutation and receipt-addressed finalization as one durable transition", async () => {
     await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono", Origin: "[internal]" });
     await writeWu(repo, ".arc/active", "dep", { State: "Active", Branch: "feat/dep", "Depends On": "mono" });
@@ -424,6 +426,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(await readFile(targetDraft, "utf8")).toContain("Later unstaged edit.");
   });
 
+  // Disabled: this exercises the retired v2 mutation surface rather than a supported executable contract.
   it.skip("admits an existing-home meta when it receives an outgoing dependency", async () => {
     await writeWu(repo, ".arc/active", "mono", {
       State: "Planning",
