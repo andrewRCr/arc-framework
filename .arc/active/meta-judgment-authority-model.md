@@ -13,13 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.6.a — Demote the weight-versus-character taxonomy; Phase 2 complete, Phase 3 through
-  Task 3.5 plus 3.6.a
-- **Next Task:** Task 3.6.b — § Design before implementation (line ~634)
+- **Last Completed:** Task 3.6 — Trigger tier, the gated demotions; Phases 1–3 complete
+- **Next Task:** Task 4.1 — Sweep the method corpus (line ~765)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.6.b — keep the settle-design-up-front constraint, demote the rationale to
-  `strategy-work-planning`; verify the destination carries it before removing, as every 3.6 demotion has
+- **Next Action:** Begin Task 4.1 — derive the shipped method corpus by comparing both copies, then classify each
+  imperative as marker-or-accepted-reclassification into a per-document table in `notes-judgment-authority-model.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
