@@ -168,7 +168,39 @@ describe("produceDecompositionIntegrationAnchor", () => {
     expect(result).toEqual({ status: "refused", reason: "transition-tree" });
   });
 
-  it("returns ambiguous without selecting among distinct receipt authorities", () => {
+  it("refuses malformed authority before reading its object bindings", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      receipts: ["not receipt authority"],
+    }))).toEqual({ status: "refused", reason: "invalid-authority" });
+  });
+
+  it("refuses malformed or mixed-width object IDs", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: "not-an-object-id",
+    }))).toEqual({ status: "refused", reason: "invalid-object-id" });
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: "f".repeat(64),
+    }))).toEqual({ status: "refused", reason: "invalid-object-id" });
+  });
+
+  it("distinguishes a prepared-base mismatch from later landing checks", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      preparedBaseHead: "f".repeat(40),
+    }))).toEqual({ status: "stale", reason: "prepared-base" });
+  });
+
+  it("refuses a landed tree that diverges from the candidate commit", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      landing: {
+        kind: "fast-forward",
+        beforeHead: PREPARED_BASE,
+        resultHead: CANDIDATE_HEAD,
+        resultTree: "f".repeat(40),
+      },
+    }))).toEqual({ status: "refused", reason: "landing-topology" });
+  });
+
+  it("returns ambiguous when multiple receipt candidates are supplied", () => {
     const fixture = v3DecompositionEvidenceFixture();
     expect(produceDecompositionIntegrationAnchor(facts({
       receipts: [fixture.receipt, structuredClone(fixture.receipt)],

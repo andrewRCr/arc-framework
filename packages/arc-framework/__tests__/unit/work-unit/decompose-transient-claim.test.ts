@@ -208,6 +208,14 @@ describe("decomposition transient claim", () => {
       ...exact,
       registrations: [exact.registrations[0]!, exact.registrations[0]!],
     })).toEqual({ status: "conflict", reason: "registration-not-exact" });
+    expect(occupyDecomposeTransientClaim(reserved.claim, claim.claimId, 1, path, {
+      ...exact,
+      branch: { ...exact.branch, head: "other-head" },
+    })).toEqual({ status: "conflict", reason: "branch-not-exact" });
+    expect(occupyDecomposeTransientClaim(reserved.claim, claim.claimId, 1, path, {
+      ...exact,
+      marker: { ...exact.marker, generation: 2 },
+    })).toEqual({ status: "conflict", reason: "marker-not-exact" });
   });
 
   it("retires and releases with exact-generation CAS and advances only a released terminal", () => {

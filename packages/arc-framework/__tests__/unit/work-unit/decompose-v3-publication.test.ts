@@ -103,6 +103,16 @@ describe("v3 preparation-bound publication projection", () => {
         target: { kind: "work-unit", slug: "existing" },
       },
     ];
+    value.authoring.internalEdges = [];
+    value.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "a-new",
+      targetLocator: { artifact: "draft-alpha.md", kind: "preamble" },
+    };
+    value.authoring.incomingDispositions[0]!.disposition = {
+      kind: "replace",
+      replacementTargets: ["alpha"],
+    };
 
     const result = projectV3CandidateAuthority(value, plan(value));
 
@@ -163,6 +173,16 @@ describe("v3 preparation-bound publication projection", () => {
       },
       { kind: "new-member", destinationId: "d-alpha", slug: "alpha", workClass: "Heavy" },
     ];
+    value.authoring.internalEdges = [{ from: "zeta", to: "alpha" }];
+    value.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "a-zeta",
+      targetLocator: { artifact: "draft-zeta.md", kind: "preamble" },
+    };
+    value.authoring.incomingDispositions[0]!.disposition = {
+      kind: "replace",
+      replacementTargets: ["zeta"],
+    };
 
     const result = projectV3CandidateAuthority(value, plan(value));
 

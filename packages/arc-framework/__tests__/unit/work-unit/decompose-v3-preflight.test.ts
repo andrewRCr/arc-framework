@@ -191,6 +191,11 @@ describe("v3 decomposition preflight", () => {
     expect(initial.status).toBe("ready");
     if (initial.status !== "ready") return;
 
+    expect(revalidateV3DecomposePreflight(initial.preflight, input())).toEqual({
+      status: "current",
+      preflight: initial.preflight,
+    });
+
     const changed = input();
     changed.localBranches[0]!.head = "d".repeat(40);
     changed.resultBase.head = "e".repeat(40);

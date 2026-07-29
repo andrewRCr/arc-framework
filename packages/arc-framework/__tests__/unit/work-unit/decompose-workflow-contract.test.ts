@@ -1,15 +1,14 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const workflow = readFileSync(resolve(
-  process.cwd(),
-  "arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
-), "utf8");
-const projectWorkflow = readFileSync(resolve(
-  process.cwd(),
-  "../../.arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
-), "utf8");
+const workflow = readFileSync(
+  new URL("../../../arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
+  "utf8",
+);
+const projectWorkflow = readFileSync(
+  new URL("../../../../../.arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
+  "utf8",
+);
 
 describe("decompose workflow contract", () => {
   it("documents only the complete read-only command surface", () => {

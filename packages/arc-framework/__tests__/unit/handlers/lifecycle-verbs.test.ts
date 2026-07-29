@@ -389,7 +389,7 @@ beforeEach(() => {
     lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
   mockCreateGitV3DecomposePreflight.mockResolvedValue({
-    status: "accepted",
+    status: "ready",
     preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });

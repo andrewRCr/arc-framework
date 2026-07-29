@@ -12,13 +12,13 @@ const BASE_HEAD = "c".repeat(40);
 const PREPARED_BASE = "b".repeat(40);
 const CANDIDATE_TREE = "d".repeat(40);
 
-function namespaceEntry(content = canonicalize(v3DecompositionEvidenceFixture().receipt)) {
+function namespaceEntry(content?: string) {
   const { receipt } = v3DecompositionEvidenceFixture();
   return {
     filename: `${receipt.receiptId.replace(":", "-")}.json`,
     mode: "100644",
     type: "blob",
-    content,
+    content: content ?? canonicalize(receipt),
   };
 }
 
@@ -207,7 +207,7 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(second.status).toBe("resolved");
     if (first.status !== "resolved" || second.status !== "resolved") return;
     expect(second.handoff.authority).toEqual(first.handoff.authority);
-    expect(second.handoff.displayAnchor).not.toBe(first.handoff.displayAnchor);
+    expect(second.handoff.displayAnchor).not.toEqual(first.handoff.displayAnchor);
     expect(second.handoff.selectedReadiness).not.toEqual(first.handoff.selectedReadiness);
     expect(second.handoff.initialContinuation).toEqual(first.handoff.initialContinuation);
   });
@@ -244,12 +244,25 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "ambiguous" });
   });
 
-  it("fails closed when live publication identity or entry ordering drifts", () => {
+  it("preserves the integration-anchor refusal reason", () => {
+    const candidate = input();
+    candidate.snapshot.integration = {
+      ...candidate.snapshot.integration,
+      receiptTransitionTree: "f".repeat(40),
+    };
+
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({
+      status: "namespace-corrupt",
+      reason: "transition-tree",
+    });
+  });
+
+  it("distinguishes caller publication drift from stored namespace corruption", () => {
     const candidate = input();
     candidate.snapshot.publication = publication({
       entries: [...publication().entries].reverse(),
     });
 
-    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "namespace-corrupt" });
+    expect(resolveLandedDecompositionHandoff(candidate)).toEqual({ status: "projection-mismatch" });
   });
 });

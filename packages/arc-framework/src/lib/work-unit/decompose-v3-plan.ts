@@ -212,8 +212,8 @@ function contributorKey(contributor: V3PlanContributor): readonly string[] {
   return ["2", contributor.edgeId];
 }
 
-function validIdentity(value: string): boolean {
-  return value.trim() !== "" && !value.includes("\0");
+function validIdentity(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }
 
 function contributorIsStructurallyValid(contributor: V3PlanContributor): boolean {
@@ -281,6 +281,7 @@ export function buildValidatedDecomposePlan(
 
   const allowedPaths = sortByCanonicalBytes([...grouped.keys()]);
   const mutations: V3ValidatedPathMutation[] = [];
+  const exclusiveRoleOwners = new Set<V3PlanExclusiveRole>();
   let roadmap: ValidatedDecomposePlan["roadmap"] = null;
 
   for (const path of allowedPaths) {
@@ -313,6 +314,10 @@ export function buildValidatedDecomposePlan(
       if (!modeTransitionIsCompatible(base, after)) {
         return { ok: false, refusal: { code: "incompatible-mode-transition", path } };
       }
+      if (exclusiveRoleOwners.has(exclusiveEntry.claim.role)) {
+        return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+      }
+      exclusiveRoleOwners.add(exclusiveEntry.claim.role);
       const mutation: V3ValidatedExclusiveMutation = {
         kind: "exclusive",
         path,
@@ -329,7 +334,7 @@ export function buildValidatedDecomposePlan(
 
     const contributors = entries.map((entry) => (entry.claim as V3PlanContributorClaim).contributor);
     if (contributors.some((contributor) => !contributorIsStructurallyValid(contributor))) {
-      return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+      return { ok: false, refusal: { code: "invalid-plan-operand", path } };
     }
     contributors.sort((left, right) => compareTuple(contributorKey(left), contributorKey(right)));
 
