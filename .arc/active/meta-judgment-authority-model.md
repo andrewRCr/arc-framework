@@ -13,12 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.6 — Independent read of § Rule Authority; Phase 1 complete (6 tasks, 5 commits)
-- **Next Task:** Task 2.1 — Install the demotion destinations (line ~205)
+- **Last Completed:** Task 3.6.a — Demote the weight-versus-character taxonomy; Phase 2 complete, Phase 3 through
+  Task 3.5 plus 3.6.a
+- **Next Task:** Task 3.6.b — § Design before implementation (line ~634)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — add the missing destinations to `init-recipe.json`, re-checking the task
-  against its design first (authored last, never adversarially attacked)
+- **Next Action:** Begin Task 3.6.b — keep the settle-design-up-front constraint, demote the rationale to
+  `strategy-work-planning`; verify the destination carries it before removing, as every 3.6 demotion has
 
 - **PR URL:** [none]
 - **Completed:** [none]
