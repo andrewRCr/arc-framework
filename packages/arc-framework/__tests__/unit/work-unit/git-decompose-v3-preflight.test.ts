@@ -270,12 +270,11 @@ describe("createGitV3DecomposePreflight", () => {
     });
   });
 
-  it("reports malformed origin state at its committed-tree locus", async () => {
+  it("reports malformed origin lifecycle metadata at its committed-tree locus", async () => {
     const base = "refs/heads/main";
     const baseHead = "a".repeat(40);
     const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
-    const malformed = new TextDecoder()
-      .decode(meta("origin", "Planning", null))
+    const malformed = new TextDecoder().decode(meta("origin", "Planning", null))
       .replace("`Planning`", "[none]");
 
     const result = await createGitV3DecomposePreflight({

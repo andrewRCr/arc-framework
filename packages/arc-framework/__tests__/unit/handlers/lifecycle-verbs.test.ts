@@ -44,6 +44,7 @@ vi.mock("../../../src/lib/io-context.js", () => ({
   },
   prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
+  readGitObjectBytes: vi.fn(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -154,6 +155,11 @@ vi.mock("../../../src/lib/status/project-view.js", async (importOriginal) => ({
 const mockCreateGitV3DecomposePreflight = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
   createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
+}));
+const mockResolveGitLandedDecompositionHandoff = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-landed-decomposition-handoff.js", () => ({
+  resolveGitLandedDecompositionHandoff: (...args: unknown[]) =>
+    mockResolveGitLandedDecompositionHandoff(...args),
 }));
 
 const mockRunPromote = vi.fn();
@@ -416,6 +422,10 @@ beforeEach(() => {
     status: "ready",
     preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
   });
+  mockResolveGitLandedDecompositionHandoff.mockResolvedValue({
+    status: "resolved",
+    handoff: { kind: "landed-decomposition-handoff", schemaVersion: 1 },
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -485,6 +495,52 @@ describe("handleDecompose", () => {
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockStagePreparedResult).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("emits one closed landed-handoff result through the public handler", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { handoff: true });
+
+    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
+      "main",
+      "mono",
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
+    );
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("routes an explicit undefined preflight option to the selected handoff mode", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { preflight: undefined, handoff: true });
+
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
+      "main",
+      "mono",
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
+    );
+  });
+
+  it("emits a closed refusal on stdout and a diagnostic on stderr", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockResolveGitLandedDecompositionHandoff.mockResolvedValue({
+      status: "not-landed",
+    });
+
+    await handleDecompose("mono", { handoff: true });
+
+    expect(stdoutWrite).toHaveBeenCalledWith('{"status":"not-landed"}\n');
+    expect(stderrWrite).toHaveBeenCalledWith("not-landed\n");
+    expect(process.exitCode).toBe(1);
   });
 
   it("refuses an invocation without preflight authority", async () => {

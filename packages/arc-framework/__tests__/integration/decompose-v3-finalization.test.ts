@@ -84,7 +84,9 @@ describe("v3 decompose refresh against real Git", () => {
     const repo = await createTempRepo("arc-v3-finalize-");
     repos.push(repo);
     await mkdir(join(repo, ".arc/active"), { recursive: true });
+    await mkdir(join(repo, ".arc/backlog"), { recursive: true });
     await writeFile(join(repo, ".arc/active/draft-origin.md"), "source unit");
+    await writeFile(join(repo, ".arc/backlog/ROADMAP.md"), "roadmap before");
     await execFileAsync("git", ["add", "-A"], { cwd: repo });
     await execFileAsync("git", ["commit", "-m", "base"], { cwd: repo });
     const head = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
@@ -123,8 +125,10 @@ describe("v3 decompose refresh against real Git", () => {
       throw new Error("fixture requires one topology path");
     }
     const topologyPath = topologyFact.path;
+    const roadmapPath = fixture.preparation.facts.prospectiveProjection.roadmap.path;
     const resultPaths = fixture.preparation.facts.destinationOutputPaths.flatMap(({ paths }) => paths);
     await Promise.all([
+      [roadmapPath, encoder.encode("roadmap after")] as const,
       [topologyPath, topology] as const,
       [resultPaths[0]!, encoder.encode("result 0")] as const,
       [resultPaths[1]!, encoder.encode("result 1")] as const,
@@ -197,6 +201,41 @@ describe("v3 decompose refresh against real Git", () => {
         fixture.receipt.receiptId.replace(":", "-")
       }.json`,
     ], { cwd: repo })).rejects.toThrow();
+  });
+
+  it("refuses a missing authority record without mutating the candidate", async () => {
+    const { driver, fixture, repo } = await harness();
+    await rm(resolveRetirementRecordPath(repo, fixture.receipt.receiptId));
+    const snapshot = async () => ({
+      status: (await execFileAsync(
+        "git",
+        ["status", "--porcelain=v1", "-z"],
+        { cwd: repo },
+      )).stdout,
+      staged: (await execFileAsync(
+        "git",
+        ["diff", "--cached", "--binary", "--no-ext-diff"],
+        { cwd: repo },
+      )).stdout,
+      worktree: (await execFileAsync(
+        "git",
+        ["diff", "--binary", "--no-ext-diff"],
+        { cwd: repo },
+      )).stdout,
+    });
+    const before = await snapshot();
+
+    expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
+      continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
+      composition: composition(),
+      readinessDeps: readyDeps,
+    })).toMatchObject({
+      status: "refused",
+      reason: "evidence-missing",
+      recovery: { action: "re-preflight" },
+    });
+    expect(await snapshot()).toEqual(before);
   });
 
   it("refuses a race after the pre-CAS check and restores the exact prior receipt", async () => {

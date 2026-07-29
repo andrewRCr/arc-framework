@@ -119,7 +119,7 @@ describe("v3 finalized decomposition evidence", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(receipt);
     expect(bytes).toBe(canonicalize(JSON.parse(bytes)));
-    expect(canonicalDigest(bytes)).toBe("sha256:2d9e7a993aa8fc42f7c8fe72e6e8d0b2b1b9f4e83850d9488ca01724902a24d1");
+    expect(canonicalDigest(bytes)).toBe("sha256:226a74a0c7cb387a8c6e580ee401907a102b3953c6ae70da3642aca0e825a846");
   });
 
   it("seals exact prepared publication and a disjoint exhaustive path partition", () => {

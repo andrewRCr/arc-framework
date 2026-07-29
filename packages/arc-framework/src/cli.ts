@@ -292,10 +292,11 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Emit one canonical read-only v3 decomposition preflight")
+  .description("Emit a canonical read-only v3 decomposition preflight or landed handoff")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
+  .option("--handoff", "Emit one canonical facts-only landed handoff")
   .action(withInteractionContext(
-    { machineReadable: (options) => options.preflight === true },
+    { machineReadable: (options) => options.preflight === true || options.handoff === true },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
   ));
 

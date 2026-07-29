@@ -431,6 +431,25 @@ describe("v3 decomposition finalization boundary", () => {
     expect(harness.writes()).toBe(0);
   });
 
+  it("returns no authority when the evidence adapter throws", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.readEvidence = async () => {
+      throw new Error("evidence read failed");
+    };
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: "evidence read failed",
+    });
+    expect(harness.writes()).toBe(0);
+  });
+
   it("propagates typed bounded residue instead of claiming finalization", async () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const harness = fixtureContext();

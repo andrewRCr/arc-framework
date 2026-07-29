@@ -26,6 +26,20 @@ function map(): V3DecomposeCutMap {
   return structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
 }
 
+function retargetDefaultReferences(
+  value: V3DecomposeCutMap,
+  destinationId: string,
+  slug: string,
+): void {
+  const allocation = value.authoring.sourceAllocations[0];
+  const incoming = value.authoring.incomingDispositions[0];
+  if (allocation?.disposition.kind !== "target" || incoming === undefined) {
+    throw new Error("fixture must carry target allocation and incoming replacement");
+  }
+  allocation.disposition.destinationId = destinationId;
+  incoming.disposition = { kind: "replace", replacementTargets: [slug] };
+}
+
 function file(bytes: Uint8Array): Exclude<V3TopologyTreeState, { kind: "absent" }> {
   return { kind: "object", objectKind: "blob", mode: "100644", bytes };
 }
@@ -108,16 +122,7 @@ describe("v3 preparation-bound publication projection", () => {
         target: { kind: "work-unit", slug: "existing" },
       },
     ];
-    value.authoring.internalEdges = [];
-    value.authoring.sourceAllocations[0]!.disposition = {
-      kind: "target",
-      destinationId: "a-new",
-      targetLocator: { artifact: "draft-alpha.md", kind: "preamble" },
-    };
-    value.authoring.incomingDispositions[0]!.disposition = {
-      kind: "replace",
-      replacementTargets: ["alpha"],
-    };
+    retargetDefaultReferences(value, "a-new", "alpha");
 
     const result = projectV3CandidateAuthority(value, plan(value));
 
@@ -178,16 +183,7 @@ describe("v3 preparation-bound publication projection", () => {
       },
       { kind: "new-member", destinationId: "d-alpha", slug: "alpha", workClass: "Heavy" },
     ];
-    value.authoring.internalEdges = [{ from: "zeta", to: "alpha" }];
-    value.authoring.sourceAllocations[0]!.disposition = {
-      kind: "target",
-      destinationId: "a-zeta",
-      targetLocator: { artifact: "draft-zeta.md", kind: "preamble" },
-    };
-    value.authoring.incomingDispositions[0]!.disposition = {
-      kind: "replace",
-      replacementTargets: ["zeta"],
-    };
+    retargetDefaultReferences(value, "a-zeta", "zeta");
 
     const result = projectV3CandidateAuthority(value, plan(value));
 
