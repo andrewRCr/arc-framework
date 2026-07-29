@@ -106,7 +106,18 @@ export function selectMergeTransitionOverlay(
     return { status: "refused", reason: "invalid-snapshot" };
   }
 
-  const selections = new Map<string, Extract<MergeTransitionOverlaySelection, { status: "selected" }>>();
+  const changedReceiptPaths = new Set(facts.candidates.flatMap((candidate) =>
+    candidate.provenance.some(({ kind }) => kind === "candidate-tree")
+      && facts.candidateChangedPaths.includes(candidate.receiptPath)
+      ? [candidate.receiptPath]
+      : []));
+  const substantiveChangedPaths = facts.candidateChangedPaths.filter(
+    (path) => !changedReceiptPaths.has(path),
+  );
+  const selections = new Map<
+    string,
+    Extract<MergeTransitionOverlaySelection, { status: "selected" }>
+  >();
   let invalidAuthority = false;
   for (const candidate of facts.candidates) {
     if (!candidate.provenance.some(({ kind }) => kind === "candidate-tree")) continue;
@@ -132,11 +143,10 @@ export function selectMergeTransitionOverlay(
       invalidAuthority = true;
       continue;
     }
-    const expectedChangedPaths = [
-      ...validation.authority.receipt.finalized.transitionPatch.map(({ path }) => path),
-      expectedReceiptPath,
-    ].sort(compareUtf8);
-    if (canonicalize(facts.candidateChangedPaths) !== canonicalize(expectedChangedPaths)) {
+    const expectedChangedPaths = validation.authority.receipt.finalized.transitionPatch
+      .map(({ path }) => path)
+      .sort(compareUtf8);
+    if (canonicalize(substantiveChangedPaths) !== canonicalize(expectedChangedPaths)) {
       invalidAuthority = true;
       continue;
     }

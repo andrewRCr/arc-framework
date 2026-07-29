@@ -206,7 +206,24 @@ describe("v3 decompose refresh against real Git", () => {
   it("refuses a missing authority record without mutating the candidate", async () => {
     const { driver, fixture, repo } = await harness();
     await rm(resolveRetirementRecordPath(repo, fixture.receipt.receiptId));
-    const before = (await execFileAsync("git", ["status", "--porcelain=v1", "-z"], { cwd: repo })).stdout;
+    const snapshot = async () => ({
+      status: (await execFileAsync(
+        "git",
+        ["status", "--porcelain=v1", "-z"],
+        { cwd: repo },
+      )).stdout,
+      staged: (await execFileAsync(
+        "git",
+        ["diff", "--cached", "--binary", "--no-ext-diff"],
+        { cwd: repo },
+      )).stdout,
+      worktree: (await execFileAsync(
+        "git",
+        ["diff", "--binary", "--no-ext-diff"],
+        { cwd: repo },
+      )).stdout,
+    });
+    const before = await snapshot();
 
     expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
       continuation: fixture.receipt.finalized.publication.initialContinuation,
@@ -218,8 +235,7 @@ describe("v3 decompose refresh against real Git", () => {
       reason: "evidence-missing",
       recovery: { action: "re-preflight" },
     });
-    expect((await execFileAsync("git", ["status", "--porcelain=v1", "-z"], { cwd: repo })).stdout)
-      .toBe(before);
+    expect(await snapshot()).toEqual(before);
   });
 
   it("refuses a race after the pre-CAS check and restores the exact prior receipt", async () => {

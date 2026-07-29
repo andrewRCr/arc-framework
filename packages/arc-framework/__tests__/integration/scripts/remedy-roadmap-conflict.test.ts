@@ -36,7 +36,7 @@ describe("ROADMAP conflict remedy script", () => {
     }
   });
 
-  it("surfaces the regenerate-and-stage remedy when ROADMAP conflicts during merge", () => {
+  it("surfaces and applies the regenerate-and-stage remedy when ROADMAP conflicts during merge", () => {
     const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-merge-driver-"));
     const git = (...args: string[]) => spawnSync("git", args, {
       cwd,
@@ -50,7 +50,9 @@ describe("ROADMAP conflict remedy script", () => {
       expect(git("config", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND).status).toBe(0);
 
       mkdirSync(join(cwd, ".arc", "backlog"), { recursive: true });
+      mkdirSync(join(cwd, ".arc", "system"), { recursive: true });
       writeFileSync(join(cwd, ".gitattributes"), `${ROADMAP_MERGE_ATTRIBUTE}\n`);
+      writeFileSync(join(cwd, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
       writeFileSync(join(cwd, ".arc", "backlog", "ROADMAP.md"), "# Roadmap\n\nbase\n");
       expect(git("add", ".").status).toBe(0);
       expect(git("commit", "-m", "base").status).toBe(0);
@@ -75,6 +77,18 @@ describe("ROADMAP conflict remedy script", () => {
       expect(git("diff", "--name-only", "--diff-filter=U").stdout.trim()).toBe(
         ".arc/backlog/ROADMAP.md",
       );
+
+      const remedy = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
+        cwd,
+        encoding: "utf8",
+      });
+      expect(remedy.status).toBe(0);
+      expect(remedy.stdout).toContain("Auto-remedied ROADMAP-only conflict");
+      expect(git("diff", "--name-only", "--diff-filter=U").stdout).toBe("");
+      expect(readFileSync(
+        join(cwd, ".arc", "backlog", "ROADMAP.md"),
+        "utf8",
+      )).not.toContain("<<<<<<<");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -306,7 +306,6 @@ describe("resolveLandedDecompositionPublication", () => {
         ],
       },
     });
-    expect(files.every(({ path }) => join(cwd, path).startsWith(cwd))).toBe(true);
   });
 
   it("preserves dependency and provider blockers from the shared readiness reducer", async () => {

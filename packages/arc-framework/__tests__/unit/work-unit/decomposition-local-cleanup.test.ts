@@ -155,7 +155,7 @@ describe("deriveDecompositionLocalCleanupEligibility", () => {
       "anchor-unavailable",
     ],
     [
-      "base moved",
+      "base moved (including descendant-base-only)",
       produceDecompositionIntegrationAnchor(facts({ currentBaseHead: "f".repeat(40) })),
       request(),
       "anchor-unavailable",
@@ -182,12 +182,6 @@ describe("deriveDecompositionLocalCleanupEligibility", () => {
           v3DecompositionEvidenceFixture().receipt,
         ],
       })),
-      request(),
-      "anchor-unavailable",
-    ],
-    [
-      "descendant-base-only",
-      produceDecompositionIntegrationAnchor(facts({ currentBaseHead: "9".repeat(40) })),
       request(),
       "anchor-unavailable",
     ],

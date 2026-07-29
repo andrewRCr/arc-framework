@@ -91,6 +91,7 @@ describe("assessRoadmapConflictAutoRemedy", () => {
 describe("applyRoadmapConflictAutoRemedy", () => {
   it("renders through selected finalized transition authority", async () => {
     const metaPath = ".arc/active/meta-origin.md";
+    const siblingPath = ".arc/active/meta-sibling.md";
     const meta = [
       "# Metadata: origin",
       "",
@@ -104,6 +105,9 @@ describe("applyRoadmapConflictAutoRemedy", () => {
       "---",
       "",
     ].join("\n");
+    const siblingMeta = meta
+      .replace("# Metadata: origin", "# Metadata: sibling")
+      .replace("plan/origin", "feat/sibling");
     let written = "";
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
       if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
@@ -115,15 +119,28 @@ describe("applyRoadmapConflictAutoRemedy", () => {
             "worktree /tmp/origin",
             `HEAD ${"a".repeat(40)}`,
             "branch refs/heads/plan/origin",
+            "",
+            "worktree /tmp/sibling",
+            `HEAD ${"b".repeat(40)}`,
+            "branch refs/heads/feat/sibling",
           ].join("\n"),
           stderr: "",
         };
       }
       if (args[0] === "ls-tree" && args.includes("--name-only")) {
-        return { stdout: metaPath, stderr: "" };
+        return {
+          stdout: args.includes("feat/sibling") ? `${siblingPath}\n` : `${metaPath}\n`,
+          stderr: "",
+        };
       }
       if (args.join("\0") === ["show", `plan/origin:${metaPath}`].join("\0")) {
         return { stdout: meta, stderr: "" };
+      }
+      if (args.join("\0") === ["show", `plan/origin:${siblingPath}`].join("\0")) {
+        return { stdout: siblingMeta, stderr: "" };
+      }
+      if (args.join("\0") === ["show", `feat/sibling:${siblingPath}`].join("\0")) {
+        return { stdout: siblingMeta, stderr: "" };
       }
       if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
         return { stdout: "HEAD\n", stderr: "" };
@@ -158,7 +175,78 @@ describe("applyRoadmapConflictAutoRemedy", () => {
     );
 
     expect(result.status).toBe("applied");
-    expect(written).not.toContain("origin");
+    expect(written).toMatch(/\| `Active` \| sibling\s+\|/u);
+    expect(written).not.toMatch(/\| `Active` \| origin\s+\|/u);
+  });
+
+  it("stages the candidate ROADMAP before resolving an unmerged transition overlay", async () => {
+    const head = "a".repeat(40);
+    const incomingRoadmap = "b".repeat(40);
+    const writes: string[] = [];
+    let candidateStaged = false;
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args.join("\0") === ["rev-parse", "--verify", "HEAD^{commit}"].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args.join("\0") === [
+        "rev-parse",
+        "--verify",
+        "refs/heads/main^{commit}",
+      ].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-files" && args.includes("--unmerged")) {
+        return {
+          stdout: [
+            `100644 ${"c".repeat(40)} 1\t${ROADMAP_PATH}`,
+            `100644 ${"d".repeat(40)} 2\t${ROADMAP_PATH}`,
+            `100644 ${incomingRoadmap} 3\t${ROADMAP_PATH}`,
+            "",
+          ].join("\0"),
+          stderr: "",
+        };
+      }
+      if (args.join("\0") === ["show", incomingRoadmap].join("\0")) {
+        return { stdout: "# Candidate roadmap\n", stderr: "" };
+      }
+      if (args[0] === "update-index") {
+        candidateStaged = true;
+        return { stdout: "", stderr: "" };
+      }
+      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+      if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+      if (args[0] === "worktree") return { stdout: "", stderr: "" };
+      if (args[0] === "ls-tree") return { stdout: "", stderr: "" };
+      if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+        return { stdout: "main\n", stderr: "" };
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    const resolveTransitionOverlay = vi.fn(async (): Promise<GitMergeTransitionOverlayResult> => {
+      if (!candidateStaged) throw new Error("transition overlay resolved before ROADMAP was staged");
+      return { status: "absent" };
+    });
+
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile: async (_path, content) => {
+          writes.push(content);
+        },
+        resolveTransitionOverlay,
+        baseBranch: "main",
+        renderedRef: "fixed-stamp",
+      },
+      { eligible: true, trigger: "unmerged-only-roadmap" },
+    );
+
+    expect(result.status).toBe("applied");
+    expect(writes[0]).toBe("# Candidate roadmap\n");
+    expect(writes.at(-1)).not.toBe(writes[0]);
+    expect(resolveTransitionOverlay).toHaveBeenCalledOnce();
   });
 
   it("does not rewrite ROADMAP when merge transition authority is refused", async () => {
@@ -286,7 +374,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
         baseBranch: "main",
         renderedRef: "fixed-stamp",
       },
-      { eligible: true, trigger: "unmerged-only-roadmap" },
+      { eligible: true, trigger: "markers-only-roadmap" },
     );
 
     expect(result).toEqual({ status: "failed", message: "disk full" });

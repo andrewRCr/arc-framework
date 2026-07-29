@@ -713,7 +713,7 @@ export async function handleDecompose(
     const { settings, warnings } = await readConfigSettings(cwd);
     for (const warning of warnings) process.stderr.write(`${warning}\n`);
     const io = createUserIOContext(context?.subprocess);
-    if ("preflight" in parsed.data) {
+    if (parsed.data.preflight === true) {
       const result = await createGitV3DecomposePreflight({
         cwd,
         exec: io.exec,
