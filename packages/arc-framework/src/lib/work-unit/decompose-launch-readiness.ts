@@ -130,9 +130,8 @@ function dependencyCode(state: LifecycleState): DecomposeLaunchBlockerCode {
 
 function dependencyFacts(
   candidate: ProjectReadinessAcceptedCandidate,
-  composition: ProjectReadinessCompositionResult,
+  index: ReturnType<typeof lifecycleIndex>,
 ): DecomposeDependencyFact[] {
-  const index = lifecycleIndex(composition);
   return candidate.record.dependsOn.map((slug) => {
     const query = resolveSlugQuery(index, slug);
     return {
@@ -147,10 +146,11 @@ function dependencyFacts(
 function providerCandidates(
   composition: ProjectReadinessCompositionResult,
 ): DecomposeReadinessCandidate[] {
+  const index = lifecycleIndex(composition);
   return composition.acceptedCandidates.map((candidate) => ({
     slug: candidate.slug,
     record: candidate.record,
-    dependencyFacts: dependencyFacts(candidate, composition),
+    dependencyFacts: dependencyFacts(candidate, index),
   }));
 }
 
