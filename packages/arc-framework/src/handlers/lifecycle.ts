@@ -756,7 +756,7 @@ export async function handleDecompose(
     const { settings, warnings } = await readConfigSettings(cwd);
     for (const warning of warnings) process.stderr.write(`${warning}\n`);
     const io = createUserIOContext(context?.subprocess);
-    if ("preflight" in parsed.data) {
+    if (parsed.data.preflight === true) {
       const result = await createGitV3DecomposePreflight({
         cwd,
         exec: io.exec,
@@ -773,7 +773,7 @@ export async function handleDecompose(
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
       return;
     }
-    if ("handoff" in parsed.data) {
+    if (parsed.data.handoff === true) {
       const result = await resolveGitLandedDecompositionHandoff(
         settings["branch.base"],
         parsed.data.origin,
@@ -2002,7 +2002,19 @@ export async function handleTeardown(
       },
     );
     if (decomposition.status === "refused") {
-      refuse(decomposition.reason);
+      const progress = decomposition.progress;
+      refuse(progress === undefined
+        ? decomposition.reason
+        : [
+            decomposition.reason,
+            "",
+            "Completed cleanup outcomes:",
+            `- Candidate worktree: ${progress.candidate.worktreeOutcome ?? "pending"}`,
+            `- Candidate branch: ${progress.candidate.branchOutcome ?? "pending"}`,
+            `- Source worktree: ${progress.source.worktreeOutcome ?? "pending"}`,
+            `- Source branch: ${progress.source.branchOutcome ?? "pending"}`,
+            `- User workspace: ${progress.userWorkspace}`,
+          ].join("\n"));
       return;
     }
     if (decomposition.status === "cleaned") {

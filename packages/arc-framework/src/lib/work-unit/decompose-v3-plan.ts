@@ -222,8 +222,8 @@ function contributorKey(contributor: V3PlanContributor): readonly string[] {
   return ["2", contributor.edgeId];
 }
 
-function validIdentity(value: string): boolean {
-  return value.trim() !== "" && !value.includes("\0");
+function validIdentity(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }
 
 function contributorIsStructurallyValid(contributor: V3PlanContributor): boolean {
@@ -341,11 +341,10 @@ export function buildValidatedDecomposePlan(
       if (!modeTransitionIsCompatible(base, after)) {
         return { ok: false, refusal: { code: "incompatible-mode-transition", path } };
       }
-      if (exclusiveEntry.claim.role !== "retiring-source"
-        && exclusiveRoleOwners.has(exclusiveEntry.claim.role)) {
-        return { ok: false, refusal: { code: "duplicate-role-owner", path } };
-      }
       if (exclusiveEntry.claim.role !== "retiring-source") {
+        if (exclusiveRoleOwners.has(exclusiveEntry.claim.role)) {
+          return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+        }
         exclusiveRoleOwners.add(exclusiveEntry.claim.role);
       }
       const mutation: V3ValidatedExclusiveMutation = {

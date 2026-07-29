@@ -53,6 +53,9 @@ describe("decompose workflow contract", () => {
     expect(workflow).toContain("profile and topology packets");
     expect(workflow).toContain("next.continuationPath");
     expect(workflow).toContain("next.command");
+    expect(workflow).toContain("discard.command");
+    expect(workflow).toContain("reject");
+    expect(workflow).toContain("abandon");
     expect(workflow).toContain("--finalize");
     expect(workflow).toContain("--continuation");
     expect(workflow).toContain("exact reported command");
@@ -63,12 +66,12 @@ describe("decompose workflow contract", () => {
     const partialStart = workflow.indexOf("### Partial protection");
     const fullStart = workflow.indexOf("### Full protection");
     const handoffStart = workflow.indexOf("## 8. Resolve the landed handoff");
-    const partial = workflow.slice(partialStart, fullStart);
-    const full = workflow.slice(fullStart, handoffStart);
-
     expect(partialStart).toBeGreaterThan(-1);
     expect(fullStart).toBeGreaterThan(partialStart);
     expect(handoffStart).toBeGreaterThan(fullStart);
+
+    const partial = workflow.slice(partialStart, fullStart);
+    const full = workflow.slice(fullStart, handoffStart);
     expect(partial).toContain("`commit-interlock`");
     expect(partial).toContain("`workflowCommit`");
     expect(partial).not.toContain("pre-push-review");

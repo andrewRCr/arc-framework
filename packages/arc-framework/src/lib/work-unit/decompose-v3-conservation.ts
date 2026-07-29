@@ -272,7 +272,10 @@ export function validateV3DecomposeConservation(
     if (live.writablePath === undefined || !isManagedPath(live.writablePath)) {
       return refuse("dependency-projection", "unwritable-dependent", `workUnits.${edge.dependent}.writablePath`);
     }
-    if (!sameTargets(live.dependsOn, edge.currentTargets)) {
+    if (!sameTargets(
+      sortByCanonicalBytes(live.dependsOn),
+      sortByCanonicalBytes(edge.currentTargets),
+    )) {
       return refuse("dependency-projection", "stale-dependent", live.writablePath);
     }
     const originIndex = live.dependsOn.indexOf(decoded.value.machine.source.origin);

@@ -200,17 +200,11 @@ describe("executeV3DecomposeOperation", () => {
   it("uses one plan through occupation, revalidation, materialization, reporting, and preparation", async () => {
     const fixture = operationFixture();
     const events: string[] = [];
-    let forbiddenResolverCalls = 0;
     const deps = dependencies(fixture, partialOccupation(), events, {
       prepare: (input) => {
         expect(input.plan).toBe(fixture.plan);
         events.push("prepare");
         return createV3DecomposePreparation(input);
-      },
-    });
-    Object.assign(deps, {
-      sourceResolver: () => {
-        forbiddenResolverCalls += 1;
       },
     });
 
@@ -223,11 +217,18 @@ describe("executeV3DecomposeOperation", () => {
     }, deps);
 
     expect(result.status).toBe("prepared");
-    expect(forbiddenResolverCalls).toBe(0);
-    expect(events.indexOf("revalidate")).toBeLessThan(
-      events.findIndex((event) => event.startsWith("apply:")),
-    );
-    expect(events.at(-1)).toBe("prepare");
+    expect(events).toEqual([
+      "occupy",
+      "revalidate",
+      "capture",
+      `observe:${fixture.firstPath}`,
+      `blob:${firstAfter.contentDigest}`,
+      `observe:${fixture.secondPath}`,
+      `blob:${secondAfter.contentDigest}`,
+      `apply:${fixture.firstPath}`,
+      `apply:${fixture.secondPath}`,
+      "prepare",
+    ]);
     if (result.status !== "prepared") return;
     expect(result.preparation.facts.candidatePublication)
       .toEqual(fixture.plan.candidateAuthority.candidatePublication);

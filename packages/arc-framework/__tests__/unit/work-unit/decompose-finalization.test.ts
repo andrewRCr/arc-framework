@@ -203,7 +203,7 @@ describe("v3 decomposition finalization boundary", () => {
   it.each([
     [{ kind: "selected", slugs: ["member-b"] }],
     [{ kind: "none" }],
-  ] as const)("refuses a changed selected continuation", (continuation) => {
+  ] as const)("refuses a changed $kind continuation", (continuation) => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const candidate = recreateReceipt(
       receipt.finalized.managedPathResults,
@@ -306,6 +306,57 @@ describe("v3 decomposition finalization boundary", () => {
       expect(actual).toBe(expected);
     },
   );
+
+  it("attributes equal index/worktree content that matches neither authority record to the index", () => {
+    const { facts } = fixtureFacts();
+    const validation = validateFinalizedV3Decomposition(facts);
+    const unrelated = canonicalize(v3DecompositionEvidenceFixture({
+      resultBaseHead: "f".repeat(40),
+    }).preparation);
+
+    expect(resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: unrelated,
+      worktreeRecord: unrelated,
+    })).toEqual({
+      status: "refused",
+      refusal: { code: "record-state-mismatch", locus: "index" },
+    });
+  });
+
+  it("attributes a receipt outside the authorized refresh pair to the index", () => {
+    const { receipt: prior, refined: receipt } = refinedReceipt();
+    const facts = fixtureFacts().facts;
+    facts.receipt = receipt;
+    facts.destinationOutputs = receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({ destinationId, outputs }),
+    );
+    facts.managedPathResults = receipt.finalized.managedPathResults;
+    facts.transitionPatch = receipt.finalized.transitionPatch;
+    facts.publication = receipt.finalized.publication;
+    const validation = validateFinalizedV3Decomposition(facts);
+    const refresh = authorizeV3DecomposeRefresh(
+      prior,
+      receipt,
+      prior.finalized.publication.initialContinuation,
+    );
+    if (refresh.status !== "authorized") throw new Error("fixture refresh must be authorized");
+    const unrelated = canonicalize(v3DecompositionEvidenceFixture({
+      resultBaseHead: "f".repeat(40),
+    }).receipt);
+
+    expect(resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: unrelated,
+      worktreeRecord: unrelated,
+      refresh,
+    })).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-not-authorized", locus: "index" },
+    });
+  });
 
   it.each(["preparation", "receipt", "invalid"] as const)(
     "refuses a committed parent %s before considering index/worktree status",
@@ -414,6 +465,25 @@ describe("v3 decomposition finalization boundary", () => {
         diagnostic: "prior receipt could not be restored in the index",
       },
     });
+  });
+
+  it("returns no authority when the evidence adapter throws", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.readEvidence = async () => {
+      throw new Error("evidence read failed");
+    };
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: "evidence read failed",
+    });
+    expect(harness.writes()).toBe(0);
   });
 
   it("returns no authority and performs no write for stored or live drift", async () => {

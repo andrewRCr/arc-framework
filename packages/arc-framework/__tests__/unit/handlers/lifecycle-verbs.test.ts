@@ -47,19 +47,24 @@ vi.mock("../../../src/lib/io-context.js", () => ({
   readGitObjectBytes: vi.fn(),
 }));
 
+const mockReadConfigSettings = vi.fn();
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
-  readConfigSettings: async () => ({
+  readConfigSettings: (...args: unknown[]) => mockReadConfigSettings(...args),
+}));
+
+function configResult(protection: "full" | "partial" = "partial") {
+  return {
     settings: {
       "team.mode": "false",
       "branch.base": "main",
-      "branch.protection": "partial",
+      "branch.protection": protection,
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     },
     warnings: [],
-  }),
-}));
+  };
+}
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
 vi.mock("../../../src/lib/paths.js", () => ({
@@ -300,6 +305,8 @@ const cleanReconcile = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
+  mockReadFile.mockResolvedValue("{}");
+  mockReadConfigSettings.mockResolvedValue(configResult());
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockBuildLifecycleIndex.mockResolvedValue(new Map([
     ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
@@ -379,6 +386,7 @@ beforeEach(() => {
   });
   mockExecuteGitV3DecomposeCommand.mockResolvedValue({
     status: "prepared",
+    discard: { kind: "not-applicable", protection: "partial" },
     next: {
       kind: "finalize-with-continuation",
       continuationPath: "/repo/cut-map.json.continuation.json",
@@ -487,6 +495,22 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("routes an explicit undefined preflight option to the selected handoff mode", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { preflight: undefined, handoff: true });
+
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
+      "main",
+      "mono",
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
+    );
+  });
+
   it("emits a closed refusal on stdout and a diagnostic on stderr", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
@@ -516,7 +540,8 @@ describe("handleDecompose", () => {
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
+      `{"discard":{"kind":"not-applicable","protection":"partial"},`
+      + `"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
       + `--continuation /repo/cut-map.json.continuation.json",`
       + `"continuationPath":"/repo/cut-map.json.continuation.json",`
       + `"kind":"finalize-with-continuation"},`
@@ -526,6 +551,32 @@ describe("handleDecompose", () => {
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("maps full branch protection into full candidate execution", async () => {
+    mockReadConfigSettings.mockResolvedValue(configResult("full"));
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "full",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
+    );
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+  });
+
+  it("does not select handoff when a programmatic caller supplies it as undefined", async () => {
+    await handleDecompose("mono", { handoff: undefined, execute: "cut-map.json" });
+
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledOnce();
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {

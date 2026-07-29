@@ -174,23 +174,42 @@ function sourceMetaFor(
   return { meta: matches[0] ?? null, reason: null };
 }
 
+/**
+ * Return every design filename accepted by the v3 planning-profile boundary.
+ *
+ * @param origin - Canonical work-unit slug used by the artifact family.
+ * @returns Draft, single-spec, and paired-spec filename identities.
+ */
+export function v3PlanningDesignNames(origin: string): {
+  draft: string;
+  singleSpec: string;
+  pairedSpec: readonly [string, string];
+} {
+  return {
+    draft: `draft-${origin}.md`,
+    singleSpec: `spec-${origin}.md`,
+    pairedSpec: [`spec-${origin}-prd.md`, `spec-${origin}-rfc.md`],
+  };
+}
+
 function inferPlanningProfile(
   meta: V3DecomposeSourceMeta,
   artifacts: readonly V3DecomposeStoredArtifact[],
 ): { profile: PlanningProfile } | { locus: string } {
   const designLocus = `${meta.path}#Design`;
+  const designNames = v3PlanningDesignNames(meta.origin);
   if (meta.design.some((pointer) => posix.basename(pointer) !== pointer)) {
     return { locus: designLocus };
   }
   let profile: PlanningProfile;
-  if (meta.design.length === 1 && meta.design[0] === `draft-${meta.origin}.md`) {
+  if (meta.design.length === 1 && meta.design[0] === designNames.draft) {
     profile = { kind: "draft", sourceDesign: [meta.design[0]] };
-  } else if (meta.design.length === 1 && meta.design[0] === `spec-${meta.origin}.md`) {
+  } else if (meta.design.length === 1 && meta.design[0] === designNames.singleSpec) {
     profile = { kind: "single-spec", sourceDesign: [meta.design[0]] };
   } else if (
     meta.design.length === 2
-    && meta.design[0] === `spec-${meta.origin}-prd.md`
-    && meta.design[1] === `spec-${meta.origin}-rfc.md`
+    && meta.design[0] === designNames.pairedSpec[0]
+    && meta.design[1] === designNames.pairedSpec[1]
   ) {
     profile = { kind: "paired-spec", sourceDesign: [meta.design[0], meta.design[1]] };
   } else {

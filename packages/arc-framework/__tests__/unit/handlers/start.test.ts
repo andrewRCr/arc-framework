@@ -44,6 +44,7 @@ const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
 const mockResolveComposedLifecycleIndex = vi.fn();
 const mockBaseReadFile = vi.fn(async () => "");
+const mockParseMetaRecord = vi.fn(() => ({ workClass: "Light" }));
 const mockBaseFs = {
   readdir: vi.fn(async () => []),
   readFile: mockBaseReadFile,
@@ -94,7 +95,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ workClass: "Light" }),
+  parseMetaRecord: () => mockParseMetaRecord(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -166,6 +167,7 @@ describe("handleStart — dispatch orchestration", () => {
     );
     mockReadFile.mockResolvedValue("");
     mockBaseReadFile.mockResolvedValue("");
+    mockParseMetaRecord.mockReturnValue({ workClass: "Light" });
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
     mockRefreshBase.mockResolvedValue("origin/main");
     mockMkdir.mockResolvedValue(undefined);
@@ -394,6 +396,17 @@ describe("handleStart — dispatch orchestration", () => {
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("conflicts with the meta's recorded Class"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an unresolved meta Class without throwing or preparing graduation", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockParseMetaRecord.mockReturnValue({ workClass: "TBD" });
+
+    await expect(handleStart("widget", {})).resolves.toBeUndefined();
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/resolved Class|Light.*Heavy.*Novel/iu));
     expect(process.exitCode).toBe(1);
   });
 

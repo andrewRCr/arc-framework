@@ -482,6 +482,10 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             stagePaths: async (paths) => {
               await stageDecomposePaths(deps, paths);
             },
+            rollbackPaths: async (paths) => {
+              if (paths.length === 0) return;
+              await deps.exec("git", ["restore", "--staged", "--", ...paths], { cwd: deps.cwd });
+            },
           },
           preparation,
           snapshot.authorityVersion,
@@ -566,11 +570,16 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         if (validateProspectiveProjection === undefined) {
           return refused("prospective-projection-validation-unavailable", {
             kind: "manual-guidance",
-            message: "Prospective project validation is unavailable; repair the finalization environment.",
+            message: "Prospective projection validation is unavailable; repair the finalization environment.",
           });
         }
-        const projectionBefore = await readV3FinalizationProjection(deps, preparation);
-        await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+        let projectionBefore;
+        try {
+          projectionBefore = await readV3FinalizationProjection(deps, preparation);
+          await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+        } catch (error) {
+          return refused(errorMessage(error), { kind: "transient-finalization" });
+        }
         const receiptPath = resolveRetirementRecordRelativePath(recordId);
         const [managedPathResults, sourceArtifacts] = await Promise.all([
           Promise.all(preparation.facts.allowedPaths
@@ -606,7 +615,11 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           receiptPath,
           ...receipt.finalized.transitionPatch.map(({ path }) => path),
         ])].sort(compareUtf8);
-        await requireExactV3StagedPaths(deps, expectedStagedPaths);
+        try {
+          await requireExactV3StagedPaths(deps, expectedStagedPaths);
+        } catch (error) {
+          return refused(errorMessage(error), { kind: "transient-finalization" });
+        }
         const refresh = storedReceipt === null
           ? undefined
           : authorizeV3DecomposeRefresh(
@@ -617,8 +630,13 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         if (refresh?.status === "refused") {
           return refused(refresh.refusal.code, refreshRecoveryCause(refresh.refusal));
         }
-        const projectionAfter = await readV3FinalizationProjection(deps, preparation);
-        await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+        let projectionAfter;
+        try {
+          projectionAfter = await readV3FinalizationProjection(deps, preparation);
+          await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
+        } catch (error) {
+          return refused(errorMessage(error), { kind: "transient-finalization" });
+        }
         if (projectionBefore.authorityVersion !== projectionAfter.authorityVersion) {
           return refused("authority-conflict", { kind: "transient-finalization" });
         }

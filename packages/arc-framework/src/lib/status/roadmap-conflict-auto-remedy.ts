@@ -15,7 +15,11 @@
  * @module
  */
 
-import type { GitExec } from "../git/exec.js";
+import {
+  captureGitIndexState,
+  type GitExec,
+  type GitIndexTransaction,
+} from "../git/exec.js";
 import { readConfigSettings } from "../config/status-reader.js";
 import { materializeArcPath } from "../layout/index.js";
 import type { GitMergeTransitionOverlayResult } from "../work-unit/git-merge-transition-overlay.js";
@@ -37,6 +41,9 @@ const MERGE_LIKE_HEADS = [
 
 /** Conflict-marker line pattern (standard 7-character markers). */
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
+const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const UNMERGED_ENTRY =
+  /^([0-7]{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([123])\t([\s\S]+)$/u;
 
 /** Why an auto-remedy attempt was declined. */
 export type RoadmapConflictAutoRemedySkipReason =
@@ -86,8 +93,13 @@ export interface RoadmapConflictAutoRemedyDeps {
   baseBranch?: string;
   /** Optional fixed render stamp for tests. */
   renderedRef?: RenderRoadmapFromIndexOptions["renderedRef"];
+  /** Optional index transaction seam; production captures the repository index. */
+  captureIndexState?: () => Promise<GitIndexTransaction>;
   /** Resolve finalized transition authority from one configured-base merge snapshot. */
-  resolveTransitionOverlay(configuredBaseRef: string): Promise<GitMergeTransitionOverlayResult>;
+  resolveTransitionOverlay(
+    configuredBaseRef: string,
+    exec: GitExec,
+  ): Promise<GitMergeTransitionOverlayResult>;
 }
 
 /**
@@ -154,13 +166,23 @@ export async function applyRoadmapConflictAutoRemedy(
     return { status: "skipped", reason: eligibility.reason };
   }
 
+  let indexTransaction: GitIndexTransaction | undefined;
   try {
     const baseBranch = deps.baseBranch ?? await readBaseBranch(deps.cwd);
-    const transition = await deps.resolveTransitionOverlay(configuredBaseRef(baseBranch));
+    const baseRef = configuredBaseRef(baseBranch);
+    let exec = deps.exec;
+    if (eligibility.trigger === "unmerged-only-roadmap") {
+      indexTransaction = deps.captureIndexState === undefined
+        ? await captureGitIndexState(deps.exec, deps.cwd)
+        : await deps.captureIndexState();
+      exec = againstIndex(deps.exec, indexTransaction.indexFile);
+      await stageCandidateRoadmap({ ...deps, exec }, baseRef);
+    }
+    const transition = await deps.resolveTransitionOverlay(baseRef, exec);
     const transitionOverlay = transitionOverlayForRoadmap(transition);
     const rendered = await renderRoadmapFromIndexResult({
       cwd: deps.cwd,
-      exec: deps.exec,
+      exec,
       baseBranch,
       ...(deps.renderedRef !== undefined ? { renderedRef: deps.renderedRef } : {}),
       ...(transitionOverlay === undefined ? {} : { transitionOverlay }),
@@ -168,7 +190,8 @@ export async function applyRoadmapConflictAutoRemedy(
 
     const absolutePath = materializeArcPath(deps.cwd, ROADMAP_PATH);
     await deps.writeFile(absolutePath, rendered.content);
-    await deps.exec("git", ["add", "--", ROADMAP_PATH], { cwd: deps.cwd });
+    await exec("git", ["add", "--", ROADMAP_PATH], { cwd: deps.cwd });
+    await indexTransaction?.commit();
 
     return {
       status: "applied",
@@ -176,11 +199,63 @@ export async function applyRoadmapConflictAutoRemedy(
       indeterminate: rendered.indeterminate,
     };
   } catch (err) {
+    try {
+      await indexTransaction?.rollback();
+    } catch (rollbackError) {
+      return {
+        status: "failed",
+        message: [
+          err instanceof Error ? err.message : String(err),
+          "The alternate Git index could not be discarded:",
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+        ].join(" "),
+      };
+    }
     return {
       status: "failed",
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+async function stageCandidateRoadmap(
+  deps: RoadmapConflictAutoRemedyDeps,
+  baseRef: string,
+): Promise<void> {
+  const [{ stdout: head }, { stdout: base }, { stdout: unmerged }] = await Promise.all([
+    deps.exec("git", ["rev-parse", "--verify", "HEAD^{commit}"], { cwd: deps.cwd }),
+    deps.exec("git", ["rev-parse", "--verify", `${baseRef}^{commit}`], { cwd: deps.cwd }),
+    deps.exec("git", ["ls-files", "--unmerged", "-z", "--", ROADMAP_PATH], { cwd: deps.cwd }),
+  ]);
+  const headOid = head.trim();
+  const baseOid = base.trim();
+  if (!GIT_OBJECT_ID.test(headOid) || !GIT_OBJECT_ID.test(baseOid)) {
+    throw new Error("Git returned an invalid merge parent while resolving ROADMAP");
+  }
+  const candidateStage = headOid === baseOid ? "3" : "2";
+  const entries = unmerged.split("\0").filter(Boolean).flatMap((record) => {
+    const match = UNMERGED_ENTRY.exec(record);
+    return match?.[1] === undefined
+      || match[2] === undefined
+      || match[3] === undefined
+      || match[4] !== ROADMAP_PATH
+      ? []
+      : [{ mode: match[1], oid: match[2], stage: match[3] }];
+  });
+  const candidate = entries.find(({ stage }) => stage === candidateStage);
+  if (candidate === undefined) {
+    throw new Error("ROADMAP conflict does not expose the candidate-side merge stage");
+  }
+  await deps.exec(
+    "git",
+    ["update-index", "--add", "--cacheinfo", `${candidate.mode},${candidate.oid},${ROADMAP_PATH}`],
+    { cwd: deps.cwd },
+  );
+}
+
+function againstIndex(exec: GitExec, indexFile: string): GitExec {
+  return async (cmd, args, options) =>
+    await exec(cmd, args, { ...options, indexFile });
 }
 
 function configuredBaseRef(baseBranch: string): string {

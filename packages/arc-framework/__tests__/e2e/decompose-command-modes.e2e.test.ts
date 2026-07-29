@@ -350,10 +350,14 @@ async function writePartialHeterogeneousCutMap(repo: string): Promise<{
   return { cutMapPath, machine: starter.machine };
 }
 
+async function claimDirectory(repo: string): Promise<string> {
+  const commonDir = resolve(repo, await git(repo, ["rev-parse", "--git-common-dir"]));
+  return join(commonDir, "arc", "transient-claims");
+}
+
 async function claimFiles(repo: string): Promise<string[]> {
   try {
-    const commonDir = resolve(repo, await git(repo, ["rev-parse", "--git-common-dir"]));
-    return (await readdir(join(commonDir, "arc", "transient-claims"))).sort();
+    return (await readdir(await claimDirectory(repo))).sort();
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
     throw error;
@@ -422,10 +426,10 @@ describe("arc decompose command modes", () => {
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
     expect(await git(repo, ["worktree", "list", "--porcelain"]))
       .not.toContain("branch refs/heads/chore/decompose-origin");
-    const claims = await readdir(join(repo, ".git", "arc", "transient-claims"));
+    const claims = await claimFiles(repo);
     expect(claims).toHaveLength(1);
     expect(JSON.parse(await readFile(
-      join(repo, ".git", "arc", "transient-claims", claims[0]!),
+      join(await claimDirectory(repo), claims[0]!),
       "utf8",
     ))).toMatchObject({
       state: { kind: "terminal", terminal: { kind: "discarded" } },

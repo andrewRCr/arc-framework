@@ -22,6 +22,9 @@
  */
 
 import type {
+  HandoffPathSet,
+  HandoffSurfacePaths,
+  Probe,
   RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
@@ -73,7 +76,6 @@ import {
   okAsync,
   type ResultAsync,
 } from "../../lib/kernel/index.js";
-
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
 }
@@ -696,10 +698,17 @@ export async function runSessionHandoffStatus(
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
+  // Surface resolution stays inside the composite: rejections become pathSet
+  // probe errors rather than aborting the envelope before other slots resolve.
+  // The options union requires a resolver whenever identity is non-null, so a
+  // successful pathSet never silently nulls identity-global paths for lack of one.
+  const surfacesTask = identity === null
+    ? okAsync(null as HandoffSurfacePaths | null)
+    : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
     user, worktree, dirty, active, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, inboxState,
+    syncInterlock, head, pushability, restateCandidates, inboxState, surfaces,
   ] = await Promise.all([
     shared.user,
     shared.worktree,
@@ -711,6 +720,7 @@ export async function runSessionHandoffStatus(
     pushabilityTask,
     restateCandidatesTask,
     inboxStateTask,
+    surfacesTask,
   ]);
 
   const branch = worktree.isOk() ? worktree.value.branch : null;
@@ -735,6 +745,11 @@ export async function runSessionHandoffStatus(
     })
     : null;
 
+  const pathSet = composeHandoffPathSet({
+    surfaces,
+    activeWuName: handoffActiveWuName,
+  });
+
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
@@ -749,6 +764,43 @@ export async function runSessionHandoffStatus(
     restateCandidates: toProbe(restateCandidates),
     releaseRouting: toProbe(releaseRouting),
     ...(inboxState !== null ? { inboxState: toProbe(inboxState) } : {}),
+    pathSet,
     recommendedSummaryLine,
+  };
+}
+
+/**
+ * Compose the handoff pathSet probe from resolved surfaces + active WU.
+ * Surface resolution failures pass through as `ok: false`; absent surfaces
+ * (identity null only — the options union requires a resolver otherwise)
+ * yield null paths without erroring.
+ */
+function composeHandoffPathSet(options: {
+  surfaces: SessionResult<HandoffSurfacePaths | null>;
+  activeWuName: string | null;
+}): Probe<HandoffPathSet> {
+  if (!options.surfaces.isOk()) {
+    // Map surface-resolution failure into the pathSet probe without widening
+    // the success value type through toProbe's generic.
+    return {
+      ok: false,
+      error: {
+        kind: "runtime",
+        message: options.surfaces.error.message,
+      },
+    };
+  }
+  const surfaces = options.surfaces.value;
+  if (surfaces === null) {
+    return { ok: true, value: { sessionNotes: null, workingMemory: null } };
+  }
+  return {
+    ok: true,
+    value: {
+      sessionNotes: options.activeWuName !== null
+        ? surfaces.sessionNotesPath(options.activeWuName)
+        : null,
+      workingMemory: surfaces.workingMemoryPath,
+    },
   };
 }

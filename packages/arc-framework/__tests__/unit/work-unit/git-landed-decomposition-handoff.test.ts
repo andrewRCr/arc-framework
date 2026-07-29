@@ -35,7 +35,12 @@ function meta(slug: string): string {
   });
 }
 
-function harness(options: { raceAfterProjection?: boolean } = {}): {
+function harness(options: {
+  raceAfterProjection?: boolean;
+  failAfterProjection?: boolean;
+  publicationTree?: "ok" | "throw" | "malformed";
+  mismatchMemberABlob?: boolean;
+} = {}): {
   deps: GitLandedDecompositionHandoffDependencies;
   calls: string[];
 } {
@@ -54,13 +59,14 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
     [RECEIPT_OID, bytes(canonicalize(receipt))],
   ]);
   const oidByDigest = new Map<string, string>();
-  Object.entries(content).forEach(([label, value], index) => {
+  Object.values(content).forEach((value, index) => {
     const oid = `${index + 2}`.repeat(40);
     const valueBytes = bytes(value);
     blobByOid.set(oid, valueBytes);
     oidByDigest.set(digestBytes(valueBytes), oid);
-    expect(label.length).toBeGreaterThan(0);
   });
+  const memberAOid = oidByDigest.get(digestBytes(bytes(content["result 0"])));
+  if (memberAOid === undefined) throw new Error("fixture requires a member-a blob");
   const candidateFiles = receipt.finalized.managedPathResults.flatMap(({ path, after }) => {
     if (after.kind === "absent") return [];
     const oid = oidByDigest.get(after.contentDigest);
@@ -68,7 +74,7 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
     return [{ path, mode: after.mode, type: "blob", oid }];
   });
   const calls: string[] = [];
-  let baseReads = 0;
+  let publicationTreeRead = false;
 
   return {
     calls,
@@ -84,8 +90,10 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
       exec: async (_command, args) => {
         calls.push(args.join(" "));
         if (args[0] === "rev-parse" && args[1] === "--verify") {
-          baseReads += 1;
-          const raced = options.raceAfterProjection && baseReads >= 3;
+          if (options.failAfterProjection === true && publicationTreeRead) {
+            throw new Error("configured base became unreadable");
+          }
+          const raced = options.raceAfterProjection === true && publicationTreeRead;
           return { stdout: `${raced ? "f".repeat(40) : LANDED_HEAD}\n` };
         }
         if (args[0] === "ls-tree" && args.includes(".arc/system/.internal/retirement-receipts")) {
@@ -110,7 +118,10 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
         }
         if (args[0] === "ls-tree" && args[1] === "-z") {
           const ref = args[2];
-          const path = args.at(-1) ?? "";
+          const pathspec = args.at(-1) ?? "";
+          const path = pathspec.startsWith(":(literal)")
+            ? pathspec.slice(":(literal)".length)
+            : pathspec;
           if (path === receiptPath) {
             return ref === PREPARED_BASE
               ? { stdout: "" }
@@ -125,6 +136,15 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
             : { stdout: `${state.mode} blob ${oid}\t${path}\0` };
         }
         if (args[0] === "ls-tree" && args.includes("--full-tree") && args.includes("-r")) {
+          publicationTreeRead = true;
+          if (options.publicationTree === "throw") throw new Error("tree read failed");
+          if (options.publicationTree === "malformed") {
+            return { stdout: "malformed tree entry\0" };
+          }
+          const separator = args.indexOf("--");
+          if (separator < 0 || args.slice(separator + 1).some((path) => !path.startsWith(":(literal)"))) {
+            throw new Error("publication pathspecs must be literal");
+          }
           return {
             stdout: candidateFiles.map(
               ({ mode, type, oid, path }) => `${mode} ${type} ${oid}\t${path}\0`,
@@ -134,6 +154,9 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
         throw new Error(`unexpected git call: ${args.join(" ")}`);
       },
       readBlob: async (oid) => {
+        if (options.mismatchMemberABlob === true && publicationTreeRead && oid === memberAOid) {
+          return bytes(`${content["result 0"]}\nchanged\n`);
+        }
         const value = blobByOid.get(oid);
         if (value === undefined) throw new Error(`missing blob ${oid}`);
         return value;
@@ -168,5 +191,48 @@ describe("resolveGitLandedDecompositionHandoff", () => {
     );
 
     expect(result).toEqual({ status: "stale-base" });
+  });
+
+  it.each(["throw", "malformed"] as const)(
+    "maps a %s publication-tree read to a closed projection refusal",
+    async (publicationTree) => {
+      const result = await resolveGitLandedDecompositionHandoff(
+        BASE_REF,
+        "origin",
+        harness({ publicationTree }).deps,
+      );
+
+      expect(result).toEqual({
+        status: "projection-mismatch",
+        reason: "tree-read-failed",
+      });
+    },
+  );
+
+  it("passes through a digest-mismatched landed publication refusal", async () => {
+    const result = await resolveGitLandedDecompositionHandoff(
+      BASE_REF,
+      "origin",
+      harness({ mismatchMemberABlob: true }).deps,
+    );
+
+    expect(result).toEqual({
+      status: "projection-mismatch",
+      reason: "destination-path-mismatch",
+      locus: ".arc/backlog/planned/origin/member-a/meta-member-a.md",
+    });
+  });
+
+  it("distinguishes a failed final base read from an observed base move", async () => {
+    const result = await resolveGitLandedDecompositionHandoff(
+      BASE_REF,
+      "origin",
+      harness({ failAfterProjection: true }).deps,
+    );
+
+    expect(result).toEqual({
+      status: "namespace-corrupt",
+      reason: "git-read-failed",
+    });
   });
 });

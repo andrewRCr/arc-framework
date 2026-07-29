@@ -189,6 +189,36 @@ describe("resolveLaunchReadiness", () => {
     });
   });
 
+  it("treats an unidentified rejected record as a global indeterminate refusal", () => {
+    const target = candidate("member");
+
+    expect(resolveLaunchReadiness({
+      slug: "member",
+      composition: composition([target], {
+        rejectedRecords: [{
+          slugHint: null,
+          path: "[unknown-meta]",
+          locus: "meta-malformed",
+          reason: "malformed",
+        }],
+        indeterminate: true,
+      }),
+      deps: readyDeps,
+    })).toEqual({
+      kind: "refused",
+      blockers: [
+        {
+          code: "composition-indeterminate",
+          locus: "project-readiness-composition",
+        },
+        {
+          code: "record-malformed",
+          locus: "[unknown-meta]:meta-malformed",
+        },
+      ],
+    });
+  });
+
   it.each([
     [
       "missing",

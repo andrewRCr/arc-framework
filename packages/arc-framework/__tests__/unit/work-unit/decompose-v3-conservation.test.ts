@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/work-unit/decompose-v3-conservation.js";
 import {
   createV3DecomposeStarterMap,
+  v3IncomingEdgeId,
   v3OutgoingEdgeId,
   v3PreflightId,
   v3SourceId,
@@ -70,6 +71,24 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         beforeTargets: ["origin"],
         afterTargets: ["member-a"],
       }],
+    });
+  });
+
+  it("treats live dependency targets as an order-insensitive set", () => {
+    const input = validInput();
+    const currentTargets = ["foundation", "origin"];
+    const edgeId = v3IncomingEdgeId({ dependent: "consumer", currentTargets });
+    input.completedMap.machine.incomingEdges = [{
+      dependent: "consumer",
+      currentTargets,
+      edgeId,
+    }];
+    input.completedMap.authoring.incomingDispositions[0]!.edgeId = edgeId;
+    input.workUnits[0]!.dependsOn = ["origin", "foundation"];
+    rebindCurrentPreflight(input);
+
+    expect(validateV3DecomposeConservation(input)).toMatchObject({
+      status: "validated",
     });
   });
 
@@ -151,7 +170,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         destinationId: "member-a",
         targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
       };
-    }, "authoring.sourceAllocations.0.disposition.targetLocator", "ownership", expect.any(String)],
+    }, "authoring.sourceAllocations.0.disposition.targetLocator", "ownership", "incompatible-allocation-locator"],
   ])("refuses %s at its exact allocation locus", (_name, mutate, locus, stage, reason) => {
     const input = validInput();
     mutate(input);

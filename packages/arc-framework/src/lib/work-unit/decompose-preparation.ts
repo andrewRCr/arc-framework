@@ -19,6 +19,7 @@ export interface V3DecomposePreparationContext {
   createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
   removeRecord(receiptId: CanonicalDigest): Promise<void>;
   stagePaths(paths: readonly string[]): Promise<void>;
+  rollbackPaths(paths: readonly string[]): Promise<void>;
 }
 
 /** Exact v3 preparation plus the authority generation that admitted it. */
@@ -37,6 +38,29 @@ function compareCanonicalStrings(left: string, right: string): number {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+async function refuseV3AfterCleanup(
+  ctx: V3DecomposePreparationContext,
+  preparation: V3DecomposePreparation,
+  recordPath: string,
+  reason: TeardownAuthorizationRefusal,
+): Promise<Extract<V3DecomposePreparationResult, { status: "refused" }>> {
+  let cleanupFailed = false;
+  try {
+    await ctx.rollbackPaths([recordPath]);
+  } catch {
+    return { status: "refused", reason: "authority-unavailable" };
+  }
+  try {
+    await ctx.removeRecord(preparation.receiptId);
+  } catch {
+    cleanupFailed = true;
+  }
+  return {
+    status: "refused",
+    reason: cleanupFailed ? "authority-unavailable" : reason,
+  };
 }
 
 /**
@@ -88,17 +112,35 @@ export async function prepareV3DecomposeRetirement(
     try {
       await ctx.stagePaths([recordPath]);
     } catch {
-      await ctx.removeRecord(preparation.receiptId).catch(() => {});
-      return { status: "refused", reason: "authority-unavailable" };
+      return await refuseV3AfterCleanup(
+        ctx,
+        preparation,
+        recordPath,
+        "authority-unavailable",
+      );
     }
-    const preparedSnapshot = await ctx.readAuthoritySnapshot(preparation.receiptId);
-    if (preparedSnapshot.recordState !== "prepared-decompose") {
-      return { status: "refused", reason: "authority-conflict" };
+    try {
+      const preparedSnapshot = await ctx.readAuthoritySnapshot(preparation.receiptId);
+      if (preparedSnapshot.recordState !== "prepared-decompose") {
+        return await refuseV3AfterCleanup(
+          ctx,
+          preparation,
+          recordPath,
+          "authority-conflict",
+        );
+      }
+      return {
+        status: "prepared",
+        preparation: { preparation, authorityVersion: preparedSnapshot.authorityVersion },
+      };
+    } catch {
+      return await refuseV3AfterCleanup(
+        ctx,
+        preparation,
+        recordPath,
+        "authority-unavailable",
+      );
     }
-    return {
-      status: "prepared",
-      preparation: { preparation, authorityVersion: preparedSnapshot.authorityVersion },
-    };
   } catch {
     return { status: "refused", reason: "authority-unavailable" };
   }

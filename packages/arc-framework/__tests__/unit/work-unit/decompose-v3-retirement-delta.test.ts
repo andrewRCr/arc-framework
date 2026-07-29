@@ -52,6 +52,13 @@ function validInput(): V3RetirementDeltaInput {
 describe("v3 source retirement delta planning", () => {
   it("binds all three trees and returns every source-private rider in UTF-8 order", () => {
     const input = validInput();
+    input.originArtifactPaths.push(".arc/active/draft-origin.md");
+    const bmpPath = ".arc/reference/\uE000.md";
+    const supplementaryPath = ".arc/reference/\u{10000}.md";
+    for (const tree of [input.baseTree, input.sourceTree, input.resultTree]) {
+      tree[bmpPath] = file("same private-use path");
+      tree[supplementaryPath] = file("same supplementary path");
+    }
 
     const result = planV3RetirementDelta(input);
 
@@ -65,15 +72,13 @@ describe("v3 source retirement delta planning", () => {
     });
     expect(result.retirements.map(({ path }) => path)).toEqual([
       ".arc/active/draft-origin.md",
-      ".arc/active/meta-origin.md",
     ]);
     expect(result.riders).toEqual([
       { path: ".arc/reference/rider-a.md", reason: "source-private-added" },
       { path: ".arc/reference/rider-b.md", reason: "source-private-added" },
     ]);
-    expect(result.paths.map(({ path }) => path)).toEqual(
-      [...result.paths.map(({ path }) => path)].sort(),
-    );
+    const orderedPaths = result.paths.map(({ path }) => path);
+    expect(orderedPaths.indexOf(bmpPath)).toBeLessThan(orderedPaths.indexOf(supplementaryPath));
   });
 
   it("accepts an unchanged backlog predecessor family", () => {
@@ -92,7 +97,7 @@ describe("v3 source retirement delta planning", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.riders).toEqual([]);
-    expect(result.retirements).toHaveLength(2);
+    expect(result.retirements).toHaveLength(1);
   });
 
   it("accounts for a started source moved away from its planned predecessor family", () => {
@@ -160,6 +165,23 @@ describe("v3 source retirement delta planning", () => {
     expect(planV3RetirementDelta(input)).toEqual({
       status: "refused",
       refusal: { code, path: ".arc/active/meta-origin.md" },
+    });
+  });
+
+  it.each([
+    ["invalid managed path", (input: V3RetirementDeltaInput) => {
+      input.roadmapPath = "../ROADMAP.md";
+    }, "invalid-tree-path", "../ROADMAP.md"],
+    ["missing origin artifact", (input: V3RetirementDeltaInput) => {
+      delete input.sourceTree[".arc/active/draft-origin.md"];
+    }, "origin-artifact-missing", ".arc/active/draft-origin.md"],
+  ])("refuses an %s", (_name, mutate, code, path) => {
+    const input = validInput();
+    mutate(input);
+
+    expect(planV3RetirementDelta(input)).toEqual({
+      status: "refused",
+      refusal: { code, path },
     });
   });
 

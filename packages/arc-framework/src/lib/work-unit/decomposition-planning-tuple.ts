@@ -13,6 +13,7 @@ import type { V3PlanObservedPathState } from "./decompose-v3-plan.js";
 import type { V3DecomposeMachine } from "./decompose-v3-schema.js";
 import {
   readDecompositionReceiptMarker,
+  type DecompositionReceiptMarkerResult,
 } from "./decomposition-receipt-marker.js";
 import type { DecompositionIntegrationAnchor } from "./decomposition-integration-anchor.js";
 
@@ -63,6 +64,21 @@ type PlanningProfile = V3DecomposeMachine["planningProfile"];
 
 function metaLocus(input: DecompositionPlanningTupleInput, field: string): string {
   return `${posix.basename(input.metaPath)}#${field}`;
+}
+
+function markerRefusalReason(
+  reason: Extract<DecompositionReceiptMarkerResult, { status: "refused" }>["reason"],
+): DecompositionPlanningTupleRefusal {
+  switch (reason) {
+    case "duplicate":
+      return "marker-duplicate";
+    case "misplaced":
+      return "marker-misplaced";
+    case "malformed":
+      return "marker-malformed";
+    case "mismatch":
+      return "receipt-mismatch";
+  }
 }
 
 function expectedProfile(
@@ -206,7 +222,7 @@ export function validateDecompositionPlanningTuple(
   if (marker.status === "refused") {
     return {
       status: "refused",
-      reason: `marker-${marker.reason}` as DecompositionPlanningTupleRefusal,
+      reason: markerRefusalReason(marker.reason),
       locus: metaLocus(input, "Decomposition Receipt"),
     };
   }
