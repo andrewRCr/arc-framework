@@ -61,6 +61,32 @@ unmerged and may be abandoned without rollback.
 Review chunking applies within each attention-heavy delivery. The complete series also receives union-coverage and
 cross-delivery seam review; no local chunk report or earlier stacked-base result grants terminal authority.
 
+### Landing plan
+
+The complete stack has seven slices. Delivery 00 through 04 are published as PRs #382 through #386. Delivery 05 is
+committed locally over 04; delivery 06 is the verified v2-retirement closure over 05. None has landed.
+
+PR #383 received the first hosted code-review pass. Its accepted repairs and nitpick fixes were committed later on
+delivery 04 (`7b3061e90` through `7c878fe9c`) rather than on delivery 01, so #383 still carries requested changes
+and unresolved threads. A dry sequential replay onto 01 found 12 directly applicable commits and 9 that require
+manual reconstruction or splitting against the earlier surface. Do not merge 01 with those fixes stranded above it.
+
+Land the stack as follows:
+
+1. Commit and publish delivery 06, then publish 05 and 06 as draft PRs targeting 04 and 05 respectively. Keep later
+   slices draft and do not request hosted review until their exact updated heads are ready for findings.
+2. Merge current `main` into 00, regenerate its sole conflicting `ROADMAP`, verify, push, and land #382 after a fresh
+   exact-head gate. The planning-only slice receives no hosted code-review pass.
+3. Merge the resulting `main` into 01, manually reconstruct every accepted #383 repair on that slice, verify, push,
+   retarget #383 to `main`, resolve its threads, and request a fresh exact-head review before landing.
+4. For each of 02 through 06 in order, merge current `main` into the slice before retargeting its PR to `main`.
+   Request review only after that head move, address findings while the target is actionable, require a fresh
+   `merge-ok`, and then land the slice.
+5. Expect delivery 04 to reconcile its original review-fix commits against the equivalent repairs already landed
+   through 01. Preserve append-only history and resolve that overlap once; do not rewrite published refs.
+6. After 06 lands, perform a bespoke archive and cleanup closeout. The ordinary single-PR
+   `integrate-work-unit` path does not govern this delivery.
+
 ## Implementation Grounding
 
 - `packages/arc-framework/src/lib/work-unit/composed-lifecycle-index.ts` contains
