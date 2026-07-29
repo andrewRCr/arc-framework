@@ -821,7 +821,7 @@ document that ships without an instance counterpart still states its rules to ev
   constitutional statement, not a link list. First region with no recipe drift — all 13 install. Task 4.5.a's
   footprint is revised from thirty-one to thirty-three.
 
-### `[ ]` **4.5 Reconcile the marker footprint and record the enabling category**
+### `[x]` **4.5 Reconcile the marker footprint and record the enabling category**
 
 - _Goal:_ The marker set follows what the sweep found, and the sweep's one structural finding about content kinds
   is recorded where the work units that need it will reach it.
@@ -881,12 +881,27 @@ document that ships without an instance counterpart still states its rules to ev
           (11 → 18 → 31 → 33) was wrong at the time it was written, which is the argument for re-deriving from the
           region sections rather than carrying a total.
 
-    - `[ ]` **4.5.b Record the enabling content category**
-        - A third category beside constraint and explanatory: **enabling** content carries no obligation itself
-          but is a precondition for interpreting content that does. Demoting an enabling definition silently
-          degrades every rule that uses the term.
-        - Record the derivation only. Applying the compression method to an orientation surface is out of scope —
-          a sibling work unit owns that audit.
+    - `[x]` **4.5.b Record the enabling content category**
+        - _Outcome:_ Recorded in `notes-judgment-authority-model.md` § The enabling content category. The category
+          was named at planning from one file's vocabulary block; the sweep supplies independent evidence under a
+          different name — **accepting reason 4** (definitional rather than obligation) is the same content
+          arriving from the reclassification side. Its distribution carries the finding: 74% of the extension
+          region's accepted rows against 27% of the methods' and 33% of the strategies', moving inversely to
+          reason 3 (craft). That inversion is the discriminator the category needed — craft content is genuinely
+          demotable because a wrong call costs quality and surfaces in the work, while definitional content is not
+          because a wrong call costs the meaning of every rule using the term and surfaces nowhere.
+        - Two results the derivation did not have at planning. Reason 4 is an **upper bound** on enabling content,
+          not a synonym — a schema statement nothing else depends on is definitional without being load-bearing,
+          and the sweep never had to draw that line because a reclassification is safe either way. And
+          `analysis-load-set-scoping`'s demotion precondition already covers this territory from the negative
+          side, where its irrelevance sub-case carries a recorded defect that orientation content is exactly the
+          class it cannot classify; enabling names the positive property that test was trying to detect.
+        - Task 4.4's finding 3 cited "15 of 23" for the extension region's reason-4 share. Recounted against its
+          own table it is **17 of 23** — the finding's direction is strengthened, its count was wrong. Fourth
+          re-derivation this record has needed.
+        - The stub already holds the problem statement from planning close, so nothing was written to it: settling
+          what enabling content _is_ remains `orientation-surface-compression`'s derivation, and editing a sibling
+          WU's tracked draft from an implementation branch is not this task's to do.
 
 ### `[ ]` **4.6 Act on the sweep's non-marker findings**
 

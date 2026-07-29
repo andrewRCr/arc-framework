@@ -1484,3 +1484,79 @@ marker site — recorded because it is the only place in the region where the tw
 is one copy carrying text that cannot execute.
 
 ---
+
+## The enabling content category (Task 4.5.b)
+
+The compression method sorts an always-loaded surface's content two ways: **constraint** (an obligation the reader
+must carry) and **explanatory** (everything else, demotable to an on-demand destination). That split is sound on
+the two rules files it was built against, because they are constraints — `constraint? no` reliably means demotable
+there. It fails on an orientation surface. Applied naively to `AGENT-BRIEF.ARC`, almost nothing is a prohibition,
+so almost the whole file classifies demotable — including the vocabulary block, which is the file's largest single
+part and the **least** demotable content in the always-loaded set, because `work unit`, `Class`, `interlock`, and
+`review increment` are what make the rules that stay readable at all.
+
+So a third category sits beside them: **enabling** content, carrying no obligation itself but a precondition for
+interpreting content that does.
+
+### The corpus evidence — accepting reason 4
+
+The category was named from one file's vocabulary block. The sweep supplies independent evidence, and it arrives
+under a different name: **accepting reason 4** — "definitional, schema, or eligibility statement rather than an
+obligation." Reason 4 is a reclassification code, so every row carrying it is content the sweep judged safe to
+leave unmarked _because it states no duty_. That is the enabling category's own definition arriving from the
+opposite direction.
+
+Its distribution is not uniform, which is what makes it a finding rather than a restatement:
+
+| Region     | Reason 4 | Accepted rows | Share      |
+| ---------- | -------- | ------------- | ---------- |
+| Methods    | 17       | 63            | 27%        |
+| Strategies | 40       | ~122          | 33%        |
+| Workflows  | —        | 635           | unmeasured |
+| Extensions | 17       | 23            | 74%        |
+
+The workflow row is empty because that region's per-document table records marker families only, with no
+accepting-reason breakdown — a gap in the record, not a zero.
+
+**Correction to Task 4.4 finding 3.** That finding cited "15 of this region's 23 accepted rows." Recounted against
+its own table, the figure is **17 of 23**. The direction of the finding is unchanged and in fact strengthened; the
+count was wrong. This is the fourth time a figure carried in this record has needed re-derivation, and the same
+remedy applies — count from the region table, not from the prose that summarized it.
+
+### What the distribution shows
+
+Extension contracts are almost pure definition: they say what an extension may do, when it fires, and what shape
+its output takes. They are also the region with the least craft content — reason 3 fires twice in 23 rows against
+31 of ~122 in strategies. So the two reasons move **against** each other, and that is the discriminator the
+category needs. Craft content is genuinely demotable: a wrong call there costs quality, and the cost surfaces in
+the work. Definitional content is not: a wrong call costs the **meaning** of every rule that uses the term, and
+nothing surfaces at all.
+
+That asymmetry is the whole argument for naming the category. A demoted constraint fails loudly — at the operation
+it guarded, on the first session that reaches it. A demoted enabling definition fails silently and everywhere: the
+rules that depend on the term stay in place, stay readable, and quietly mean less. There is no gate to trip and no
+symptom to notice.
+
+`AGENT-BRIEF.ARC` already carries a live instance. Its `Review increment` entry restates rule content from
+`DEV-RULES.ARC` § Review-Increment Invariant and § Task interlock, and the restatement has gone lossy — the
+deferred-review clause names `on-task-approval` where `process-task-loop` covers `on-task-approval` _and_
+`on-workflow` and names the opt-in syntax. The degradation happened without moving the content anywhere.
+
+### What this derivation does not settle
+
+**Reason 4 is an upper bound on enabling content, not a synonym for it.** A schema statement about a config field
+an agent reads once is definitional without being load-bearing for any other rule. The category needs a test that
+separates a definition other content _depends on_ from one that merely _is_ a definition, and the sweep did not
+have to draw that line — a reclassification is safe either way, so nothing forced the distinction. Applying the
+compression method to an orientation surface is what forces it, and that audit belongs to
+`orientation-surface-compression`.
+
+Two constraints carry into that derivation. The first is the boundary above: enabling versus explanatory-that-
+merely-reads-as-helpful is the unsettled question, and reason 4's rows are the candidate pool to draw it against,
+not the answer. The second is that `analysis-load-set-scoping`'s demotion precondition already covers this
+territory from the negative side — its **irrelevance** sub-case carries a recorded unresolved defect, and
+orientation content is exactly the class that defect cannot classify. Enabling content names the positive property
+whose absence that test was trying to detect. Settling one without reading the other repeats the failure mode
+`WORKING-MEMORY` records for this whole area.
+
+---
