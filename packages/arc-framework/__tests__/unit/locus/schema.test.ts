@@ -1,6 +1,6 @@
 /** Runtime-contract coverage for the locus schema family. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   LocusEnvelopeV1Schema,
@@ -9,6 +9,8 @@ import {
   LocusRecordV1Schema,
   LocusStateV1Schema,
   LocusTimestampSchema,
+  type LocusEnvelopeV1,
+  type LocusStateV1,
 } from "../../../src/lib/locus/schema/index.js";
 
 const timestamp = "2026-07-18T00:00:00.000Z";
@@ -138,6 +140,8 @@ describe("locus public value schemas", () => {
     };
     expect(LocusEnvelopeV1Schema.parse(roster)).not.toHaveProperty("schemaVersion");
     expect(LocusStateV1Schema.parse(state)).not.toHaveProperty("schemaVersion");
+    expectTypeOf<LocusStateV1["roster"]>()
+      .toEqualTypeOf<Extract<LocusEnvelopeV1, { ok: true }>>();
   });
 
   it("distinguishes applied, refused, and operational-error mutations", () => {

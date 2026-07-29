@@ -1,6 +1,6 @@
-/** Exact-generation locus record-store coverage. */
+/** Bounded-read and exclusive-mint locus record-store coverage. */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,8 +10,6 @@ import { deriveLocusRecordId } from "../../../src/lib/locus/path-identity.js";
 import {
   mintLocusRecord,
   readLocusRecord,
-  removeLocusRecord,
-  replaceLocusRecord,
 } from "../../../src/lib/locus/record-store.js";
 import { MAX_LOCUS_JSON_BYTES } from "../../../src/lib/locus/schema/index.js";
 
@@ -61,6 +59,10 @@ describe("locus record store", () => {
     await expect(readLocusRecord({ path, expectedDigest: identity.digest, pathFlavor: "posix" }))
       .resolves.toMatchObject({ kind: "malformed" });
 
+    await writeFile(path, JSON.stringify({ ...record(), schemaVersion: undefined }));
+    await expect(readLocusRecord({ path, expectedDigest: identity.digest, pathFlavor: "posix" }))
+      .resolves.toMatchObject({ kind: "malformed" });
+
     await writeFile(path, JSON.stringify({ ...record(), schemaVersion: 2 }));
     await expect(readLocusRecord({ path, expectedDigest: identity.digest, pathFlavor: "posix" }))
       .resolves.toMatchObject({ kind: "unsupported", schemaVersion: 2 });
@@ -78,7 +80,7 @@ describe("locus record store", () => {
       .resolves.toEqual({ kind: "oversized" });
   });
 
-  it("exclusively mints and compare-bytes replaces a generation", async () => {
+  it("exclusively mints one record generation", async () => {
     const root = await temporaryRoot();
     const path = join(root, `locus-${identity.digest}.json`);
     const first = await mintLocusRecord({ path, record: record() });
@@ -87,29 +89,8 @@ describe("locus record store", () => {
       .resolves.toEqual({ kind: "exists" });
 
     if (first.kind !== "created") throw new Error("fixture mint failed");
-    const replaced = await replaceLocusRecord({
-      path,
-      expectedBytes: first.bytes,
-      record: record("fedcba9876543210fedcba9876543210"),
-    });
-    expect(replaced.kind).toBe("replaced");
-    await expect(replaceLocusRecord({ path, expectedBytes: first.bytes, record: record() }))
-      .resolves.toEqual({ kind: "generation-mismatch" });
-    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
-      lease: { leaseId: "fedcba9876543210fedcba9876543210" },
-    });
-  });
-
-  it("removes only the exact byte generation", async () => {
-    const root = await temporaryRoot();
-    const path = join(root, `locus-${identity.digest}.json`);
-    const minted = await mintLocusRecord({ path, record: record() });
-    if (minted.kind !== "created") throw new Error("fixture mint failed");
-
-    await expect(removeLocusRecord({ path, expectedBytes: Buffer.from("stale") }))
-      .resolves.toEqual({ kind: "generation-mismatch" });
-    await expect(removeLocusRecord({ path, expectedBytes: minted.bytes }))
-      .resolves.toEqual({ kind: "removed" });
+    await expect(readLocusRecord({ path, expectedDigest: identity.digest, pathFlavor: "posix" }))
+      .resolves.toMatchObject({ kind: "valid", record: record(), bytes: first.bytes });
   });
 });
 

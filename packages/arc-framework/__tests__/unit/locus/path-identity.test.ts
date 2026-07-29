@@ -30,6 +30,11 @@ describe("checkout path identity", () => {
     expect(() => normalizeCheckoutPath("/repo", "windows")).toThrow(/Windows/u);
   });
 
+  it("rejects empty and NUL-containing checkout paths", () => {
+    expect(() => normalizeCheckoutPath("", "posix")).toThrow(/empty/u);
+    expect(() => normalizeCheckoutPath("/repo\0worktree", "posix")).toThrow(/NUL/u);
+  });
+
   it("hashes the normalized UTF-8 spelling as lowercase SHA-256", () => {
     const normalized = "/Repo/🚀";
     const expected = createHash("sha256").update(Buffer.from(normalized, "utf8")).digest("hex");

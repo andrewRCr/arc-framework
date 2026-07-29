@@ -1,7 +1,6 @@
-/** Bounded, exact-generation persistence for per-checkout locus records. */
+/** Bounded reads and exclusive creation for per-checkout locus records. */
 
-import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, writeFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 
 import { deriveLocusRecordId, type PathFlavor } from "./path-identity.js";
@@ -20,7 +19,12 @@ export type LocusRecordReadResult =
   | { kind: "oversized" }
   | { kind: "unreadable"; message: string };
 
-/** Read and validate one record without buffering beyond the configured cap. */
+/**
+ * Read and validate one record without buffering beyond the configured cap.
+ *
+ * @param options - Record path, expected path digest, and lexical path flavor.
+ * @returns The exact valid byte generation or a bounded read/validation verdict.
+ */
 export async function readLocusRecord(options: {
   path: string;
   expectedDigest: string;
@@ -39,7 +43,7 @@ export async function readLocusRecord(options: {
   } catch (error) {
     return { kind: "malformed", message: safeMessage(error, "Invalid JSON") };
   }
-  if (isObject(decoded) && decoded.schemaVersion !== 1) {
+  if (isObject(decoded) && Object.hasOwn(decoded, "schemaVersion") && decoded.schemaVersion !== 1) {
     return { kind: "unsupported", schemaVersion: decoded.schemaVersion };
   }
   const parsed = LocusRecordV1Schema.safeParse(decoded);
@@ -57,7 +61,12 @@ export async function readLocusRecord(options: {
   return { kind: "valid", record: parsed.data, bytes: bounded.bytes };
 }
 
-/** Exclusively create a record without replacing any existing generation. */
+/**
+ * Exclusively create a record without replacing any existing generation.
+ *
+ * @param options - Target record path and schema-validated record value.
+ * @returns The created byte generation, or `exists` when the target is occupied.
+ */
 export async function mintLocusRecord(options: {
   path: string;
   record: LocusRecordV1;
@@ -71,53 +80,6 @@ export async function mintLocusRecord(options: {
     if (errorCode(error) === "EEXIST") return { kind: "exists" };
     throw error;
   }
-}
-
-/** Atomically replace a record only while its exact byte generation remains current. */
-export async function replaceLocusRecord(options: {
-  path: string;
-  expectedBytes: Buffer;
-  record: LocusRecordV1;
-}): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
-  let current: Buffer;
-  try {
-    current = await readFile(options.path);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
-    throw error;
-  }
-  if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
-
-  const bytes = serializeRecord(options.path, options.record);
-  const temporaryPath = `${options.path}.tmp-${process.pid}-${randomUUID()}`;
-  try {
-    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
-    const recheck = await readFile(options.path);
-    if (!recheck.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
-    await rename(temporaryPath, options.path);
-    return { kind: "replaced", bytes };
-  } finally {
-    await unlink(temporaryPath).catch((error: unknown) => {
-      if (errorCode(error) !== "ENOENT") throw error;
-    });
-  }
-}
-
-/** Remove a record only while its exact byte generation remains current. */
-export async function removeLocusRecord(options: {
-  path: string;
-  expectedBytes: Buffer;
-}): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }> {
-  let current: Buffer;
-  try {
-    current = await readFile(options.path);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
-    throw error;
-  }
-  if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
-  await unlink(options.path);
-  return { kind: "removed" };
 }
 
 function serializeRecord(path: string, value: LocusRecordV1): Buffer {
@@ -141,9 +103,14 @@ async function boundedRead(path: string): Promise<
   try {
     handle = await open(path, "r");
     const buffer = Buffer.allocUnsafe(MAX_LOCUS_JSON_BYTES + 1);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-    if (bytesRead > MAX_LOCUS_JSON_BYTES) return { kind: "oversized" };
-    return { kind: "bytes", bytes: buffer.subarray(0, bytesRead) };
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > MAX_LOCUS_JSON_BYTES) return { kind: "oversized" };
+    return { kind: "bytes", bytes: buffer.subarray(0, offset) };
   } catch (error) {
     if (errorCode(error) === "ENOENT") return { kind: "absent" };
     return { kind: "unreadable", message: safeMessage(error, "Record read failed") };

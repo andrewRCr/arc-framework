@@ -891,10 +891,17 @@ dispositions to the PR rather than copying them here.
   `locus/selected-generation.ts` and its test move to S9 with their first live consumers.
 - **Finding correction:** E1-F1's stable locus is `errand/identity-record.ts`, not the locus record store; it moves
   from `7.P.a` to S4's transient identity core.
+- **Hosted-review correction:** Expected-byte replace and pop cannot close their compare/act window before S3's
+  record lock exists. S1 therefore stops at bounded generation reads and exclusive mint; S3 owns lock-bound
+  replacement, removal, and contention proof. A rename-as-compare substitute was rejected because recreating the
+  target between rename and restore/commit can still clobber a newer generation.
+- **Exact first-fix measurement:** 1,121 additions plus 49 deletions (1,170 changed lines) across fourteen files
+  against `bb6803b62`.
 - **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
 - **Gate evidence:** The complete local gate set passed at construction head `93eeecea9`; the status-only ledger
   update re-runs the Markdown gates before publication.
-- **State:** Draft PR #396 is ready for whole-target CodeRabbit review after this ledger update lands.
+- **State:** Draft PR #396 is in its first hosted-review fix round; the next exact head requires a fresh
+  whole-target CodeRabbit review.
 
 ### Resume protocol
 

@@ -13,14 +13,20 @@ export interface LocusPathIdentity {
   readonly recordId: `sha256:${string}`;
 }
 
-/** Normalize an absolute checkout spelling without consulting the filesystem. */
+/**
+ * Normalize an absolute checkout spelling without consulting the filesystem.
+ *
+ * @param path - Absolute checkout spelling to normalize.
+ * @param flavor - Lexical path rules to apply.
+ * @returns The normalized spelling used for record identity.
+ */
 export function normalizeCheckoutPath(path: string, flavor: PathFlavor): string {
   if (path.length === 0 || path.length > MAX_LOCUS_PATH_CHARS || path.includes("\0")) {
     throw new Error("Checkout path is empty, oversized, or contains NUL");
   }
 
   if (flavor === "posix") {
-    if (!posix.isAbsolute(path) || /^[A-Za-z]:[\\/]/u.test(path) || path.includes("\\")) {
+    if (!posix.isAbsolute(path) || path.includes("\\")) {
       throw new Error("Checkout path must be an absolute POSIX spelling");
     }
     return removeNonRootTrailingSeparator(posix.normalize(path), "/");
@@ -35,7 +41,13 @@ export function normalizeCheckoutPath(path: string, flavor: PathFlavor): string 
   return removeNonRootTrailingSeparator(normalized, windowsRoot(normalized));
 }
 
-/** Derive the tamper-evident record identity from normalized UTF-8 bytes. */
+/**
+ * Derive the tamper-evident record identity from normalized UTF-8 bytes.
+ *
+ * @param path - Absolute checkout spelling to identify.
+ * @param flavor - Lexical path rules to apply before hashing.
+ * @returns The normalized path, lowercase SHA-256 digest, and prefixed record ID.
+ */
 export function deriveLocusRecordId(path: string, flavor: PathFlavor): LocusPathIdentity {
   const normalizedPath = normalizeCheckoutPath(path, flavor);
   const digest = createHash("sha256").update(Buffer.from(normalizedPath, "utf8")).digest("hex");

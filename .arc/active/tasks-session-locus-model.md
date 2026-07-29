@@ -2110,8 +2110,8 @@ triage before implementing.
 ### `[ ]` **7.P.a S1 — Locus record substrate**
 
 - _Goal:_ The record schema, store, and identity derivation stand alone on the base: a record round-trips through
-  its schema, derives a stable identifier from a flavor-normalized checkout spelling, and persists under
-  generation-safe read, mint, and replace.
+  its schema, derives a stable identifier from a flavor-normalized checkout spelling, and persists through bounded
+  generation reads and exclusive mint.
 
     - `[x]` **7.P.a.i Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
         - All three open operations now require allocation, record and lease IDs, active locus, and session-home
@@ -2134,7 +2134,11 @@ triage before implementing.
 ### `[ ]` **7.P.c S3 — Lock and mutation protocol**
 
 - _Goal:_ Record mutation is serialized by an owned lock, refuses on generation mismatch, and reclaims only
-  proven-dead locks. No inherited corrections.
+  proven-dead locks.
+
+    - `[ ]` **7.P.c.i Bind replacement and pop to the held record lock**
+        - Add replace and remove only with the lock-backed mutation boundary that makes exact-generation safety
+          true, and prove concurrent contenders cannot clobber or delete a newer record generation.
 
 ### `[ ]` **7.P.d S4 — Transient identity core**
 
