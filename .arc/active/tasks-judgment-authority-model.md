@@ -501,12 +501,17 @@ an orphan.
         - **+4 nb, a debit.** The row is `stays`/Δ0; a rephrasing that adds two limbs to an always-loaded section
           costs rather than pays, and the ledger carries it as such.
 
-    - `[ ]` **3.4.b § Review-Increment Invariant**
-        - Restructure the second paragraph's four exempted operations as a list. Paragraph one stays unqualified.
-        - The restructured paragraph is the one under regex assertion: "sole bounded exception … provisional
-          integration candidate", "implementation or finding-driven fix … structured approval gate", and
-          "exact-head integration authorization" must all survive the reflow, and the two copies must stay
-          byte-identical.
+    - `[x]` **3.4.b § Review-Increment Invariant**
+        - Restructured ¶2's four exempted operations as a list — candidate-tail cleanup, archive composition and
+          closeout, lifecycle sweep and readiness regeneration, a typed safe base reconcile. They had been a
+          run-on clause inside the sentence stating the exception, which is the legibility failure the rephrasing
+          tier exists for: the reader had to parse where the enumeration ended before the qualifying rules began.
+          ¶1 stays unqualified.
+        - Read the assertions before editing rather than the task's paraphrase of them. Both regexes span lines
+          (`[\s\S]*`), so a reflow is safe provided the three phrases stay verbatim and in order; all three do,
+          and the copies remain byte-identical. Both prose-asserting tests re-run green (57 assertions).
+        - **+4 nb, a debit.** The row is `stays`/Δ0, and a markdown list costs more lines than the clause it
+          replaces. Bought legibility in a section every session reads.
 
     - `[ ]` **3.4.c § Leave it cleaner**
         - Resolve the contradiction between "always propose placement before acting" and the inline-fix permission

@@ -71,12 +71,18 @@ invocation, wrapped or raw. The release wrapper bypasses the harness's per-invoc
 it does **not** bypass the user's approval gate.
 
 The sole bounded exception assembles a provisional integration candidate after the WU's routed review obligation
-is authoritatively settled. Candidate-tail cleanup, archive composition and closeout, lifecycle sweep/readiness
-regeneration, and a typed safe base reconcile may commit and push before their structured review at the final
-integration interlock. An implementation or finding-driven fix still requires its structured approval gate before
-commit, and no provisional candidate may merge without exact-head integration authorization. A pre-composition
-direction may authorize autonomous advance to that final interlock, but never prospective merge authority over a
-head that does not yet exist.
+is authoritatively settled. Four operations may commit and push before their structured review at the final
+integration interlock:
+
+- candidate-tail cleanup
+- archive composition and closeout
+- lifecycle sweep and readiness regeneration
+- a typed safe base reconcile
+
+An implementation or finding-driven fix still requires its structured approval gate before commit, and no
+provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
+authorize autonomous advance to that final interlock, but never prospective merge authority over a head that does
+not yet exist.
 
 ---
 
