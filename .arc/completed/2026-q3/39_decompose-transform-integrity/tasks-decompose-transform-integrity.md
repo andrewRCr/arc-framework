@@ -278,7 +278,7 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - _Note:_ Design coverage: D3, D5.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
+- **Additional Context:** `notes-decompose-transform-integrity.md` § Planning Authority and Finalization Grounding
 
     - `[x]` **3.1.a Materialize one canonical mutation per managed path**
         - The managed optional `Decomposition Receipt` field now omits on ordinary render/reconcile, preserves one
