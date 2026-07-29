@@ -489,12 +489,17 @@ an orphan.
   verbatim. If one goes red, the fix is the edit, never the assertion — relaxing it retires the invariant it
   exists to protect.
 
-    - `[ ]` **3.4.a § Quality gate failure**
-        - Re-read the section at base first — the two-branch rewrite landed upstream during planning and is
-          already an independent enactment of this model.
-        - Add the missing limb: a gate that **never ran** is not a gate failure. Correct the invocation and re-run
-          — there is nothing to report or decide.
-        - State the narrowed invariant explicitly: a red gate never becomes a green report, and is never bypassed.
+    - `[x]` **3.4.a § Quality gate failure**
+        - Confirmed at base first: the two-branch rewrite had already landed upstream, so the section arrived as
+          an independent enactment of this model and needed the third limb rather than a rewrite.
+        - Added the never-ran limb — a wrong invocation is not a gate failure; correct it and re-run, with
+          nothing to report and nothing to decide. This is the third of the recorded live failures Success
+          Criterion 1 names, and the one the corpus had no rule for.
+        - Stated the narrowed invariant with the file's own marker: **a red gate never becomes a green report,
+          and is never bypassed** · `[invariant]`, closing on § Rule Authority's check-integrity limb — reading
+          what a gate reported, including that it produced no result, is not that judgment.
+        - **+4 nb, a debit.** The row is `stays`/Δ0; a rephrasing that adds two limbs to an always-loaded section
+          costs rather than pays, and the ledger carries it as such.
 
     - `[ ]` **3.4.b § Review-Increment Invariant**
         - Restructure the second paragraph's four exempted operations as a list. Paragraph one stays unqualified.

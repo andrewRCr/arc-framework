@@ -272,10 +272,15 @@ Break down a task into subtasks if it requires:
 
 If quality gates fail after task completion:
 
+- **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to
+  report and nothing to decide.
 - **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
   auto-fixable lint): fix and re-run immediately; report the correction.
 - **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
   approved.
+
+**A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
+reported — including that it produced no result — is not that judgment.
 
 ### Test-first assessment · `[configurable]`
 
