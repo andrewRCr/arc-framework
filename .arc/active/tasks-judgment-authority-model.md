@@ -774,20 +774,20 @@ document that ships without an instance counterpart still states its rules to ev
   not 52. Three methods ship without installing (`init-recipe.json` drift), which puts 5 of the 8 region-local
   markers in files no project currently has.
 
-### `[ ]` **4.2 Sweep the strategy corpus**
+### `[x]` **4.2 Sweep the strategy corpus**
 
 - _Goal:_ The densest rule-carrying region outside the rules files is classified, and the live counterexample
   candidate is resolved rather than left standing.
 
-- _Note:_ `strategy-package-project-sync`'s "never `cp`" — scoped to Configurable files — reads as a `default`
-  under the satisfaction test, since the agent can name and establish "this file carries no project overrides."
-  Whether that is a genuine conflict is the sweep's question: the pre-commit error fires only when overrides
-  existed at HEAD, so the discharging fact and the enforcement condition may not overlap. Examine it; do not
-  assume the conflict.
-
-    - Covers both `strategies/arc/` and `strategies/project/`.
-    - Whichever way the counterexample lands, it is the class of result the falsifiability goal exists to
-      surface — record it either way.
+- _Outcome:_ 21 documents (13 `strategies/arc/`, 7 `strategies/project/`, `STRATEGY-INDEX`; the three directory
+  `README.md` indices excluded on Task 4.1's precedent), 176 imperatives, 51 marker candidates and 125 accepted
+  reclassifications — recorded in `notes-judgment-authority-model.md`. The counterexample is **not** a conflict: the
+  pre-commit check compares HEAD-to-HEAD precisely so it declines to fire when the discharging fact is true, making
+  it a codified discharge-checker and the rule a `default` on reasons 1 and 2 together. The region reclassifies 71%
+  against the methods' 55% — strategies are mostly definitional, which is direct support for Task 4.5.b. Three of
+  Task 4.1's eight region-local markers turn out to have strategy-side parents, and family `N` (shared history is not
+  unilaterally rewritten) surfaces a fourth unmarked constitutional parent; the Task 4.5.a footprint is revised from
+  eleven to eighteen, one item pending Task 4.3.
 
 ### `[ ]` **4.3 Sweep the workflow corpus**
 

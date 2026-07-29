@@ -704,37 +704,37 @@ are not the same set.
 
 Marker families — why the default reading fails:
 
-| Code | Family                                                                                  |
-|------|-----------------------------------------------------------------------------------------|
-| A    | Coverage and the clean result — a partial pass may not report as a complete one         |
-| B    | Evaluator boundary — the reviewing context stays free of author belief                  |
-| C    | An agent-side pass is not evidence; nothing attests its own result                      |
-| D    | Judgment stays with the primary; a finding is advisory until verified against source    |
-| E    | Approval or an explicit authorization precedes mutation                                 |
-| F    | Do not manufacture findings — a clean artifact is reported clean                        |
-| G    | The offer is not skippable; the person decides                                          |
-| H    | Discipline does not scale with `Class`                                                  |
-| I    | Never make a decision that commits someone else                                         |
-| J    | A machine-read identifier is not the agent's to rename                                  |
-| K    | A record of realized work never softens                                                 |
-| L    | No item with a known home rests in a capture surface                                    |
-| M    | A test that cannot fail is not a check                                                  |
+| Code | Family                                                                               |
+| ---- | ------------------------------------------------------------------------------------ |
+| A    | Coverage and the clean result — a partial pass may not report as a complete one      |
+| B    | Evaluator boundary — the reviewing context stays free of author belief               |
+| C    | An agent-side pass is not evidence; nothing attests its own result                   |
+| D    | Judgment stays with the primary; a finding is advisory until verified against source |
+| E    | Approval or an explicit authorization precedes mutation                              |
+| F    | Do not manufacture findings — a clean artifact is reported clean                     |
+| G    | The offer is not skippable; the person decides                                       |
+| H    | Discipline does not scale with `Class`                                               |
+| I    | Never make a decision that commits someone else                                      |
+| J    | A machine-read identifier is not the agent's to rename                               |
+| K    | A record of realized work never softens                                              |
+| L    | No item with a known home rests in a capture surface                                 |
+| M    | A test that cannot fail is not a check                                               |
 
 Accepting reasons — why the reclassification is safe:
 
-| Code | Reason                                                                                  |
-|------|-----------------------------------------------------------------------------------------|
-| 1    | The rule names its own discharging fact                                                 |
-| 2    | A mechanical check already catches the violation                                        |
-| 3    | Craft or technique — a wrong call costs quality, not evidence                           |
-| 4    | Definitional, schema, or eligibility statement rather than an obligation                |
-| 5    | A permission or a restraint on the tool, not a duty on the agent                        |
-| 6    | The discharge is already codified elsewhere in the corpus                               |
+| Code | Reason                                                                   |
+| ---- | ------------------------------------------------------------------------ |
+| 1    | The rule names its own discharging fact                                  |
+| 2    | A mechanical check already catches the violation                         |
+| 3    | Craft or technique — a wrong call costs quality, not evidence            |
+| 4    | Definitional, schema, or eligibility statement rather than an obligation |
+| 5    | A permission or a restraint on the tool, not a duty on the agent         |
+| 6    | The discharge is already codified elsewhere in the corpus                |
 
 ### Per-document sweep
 
 | Document                        | M  | A | Marker candidates (`[invariant]`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Accepted reclassifications (the default stands)                                                                                                                                                                |
-|---------------------------------|----|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------- | -- | - | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `adversarial-review`            | 10 | 5 | must-not-invent findings (F); primary holds judgment (D); reviewer never edits, disposes, or attests its own result (C, E); a verdict cannot read clean with a live `blocker` (A); every later pass is a full rubric re-run (A); no implementer self-verification and no `[x]` markings as evidence (B, C); neutral orientation, `prior-findings` omitted on pass one (B); the fire-point offer is never skippable (G); cap reached with live findings surfaces at the interlock (G); the convergence threshold does not vary by `Class` (H) | the identity contract is self-declared advisory (5); `pass-cap` is not serialized (3); merge by concatenation (3); partition-ability is not bisectability evidence (3); partitioning must not orphan seams (1) |
 | `assess-cohort-fit`             | 0  | 5 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | never encode order in a slug (1); decompose only to WU-warrant (1); the cut is firm at the maturity gate (1); `cohortless` only when every source has a home (1); the method decides, never restructures (4)   |
 | `assess-design-proportionality` | 1  | 3 | return `proportionate` only for the least elaborate credible design (A)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | project or team status is not evidence (4); no non-decision-bearing note tier (5); the adequacy rail rejects lossy simplification (1)                                                                          |
@@ -769,7 +769,7 @@ would put the vocabulary everywhere the restatement went, which is the opposite 
 economical footprint is the parent plus the sites with no parent:
 
 | Family     | Constitutional statement                                                       | Marked today? |
-|------------|--------------------------------------------------------------------------------|---------------|
+| ---------- | ------------------------------------------------------------------------------ | ------------- |
 | A, B, C    | `AGENT-BRIEF.ARC` § Review authority                                           | no            |
 | D          | `DEV-RULES.ARC` § Sub-agent scope (Judgment) + § Review finding mutation guard | no            |
 | E          | `DEV-RULES.ARC` § Review finding mutation guard; § Merge authority for merge   | partly        |
@@ -868,5 +868,236 @@ justifies itself by opacity ("`model-foundation` is opaque"), but bans ordinals 
 self-describing, where the stated concern does not arise. The model classifies it `default` correctly; what it
 surfaced is that the rule is broader than its rationale. No action here — recorded as the kind of result Goal 6
 exists to produce.
+
+---
+
+## Corpus-wide classification sweep — the strategy region (Task 4.2)
+
+Every strategy document read for imperatives the default-unless-marked reading reclassifies. **176 imperatives across
+21 documents: 51 take a marker, 125 stand as accepted reclassifications.** Five documents carry no marker candidate at
+all (`strategy-file-classification`, `STRATEGY-INDEX`, `strategy-package-project-sync`, `strategy-procedure-evolution`,
+`strategy-testing-methodology`).
+
+The headline is the **ratio**, not the volume. The strategy region carries half again as many imperatives as the method
+region (176 vs 115) but reclassifies **71% of them** against the methods' 55%. Strategies are predominantly
+explanatory and definitional — they say what is true and why — while methods are contractual. The discriminator's
+reach is therefore _narrower_ here, not wider, which is the opposite of what Task 4.1's finding 1 would have predicted
+from raw density.
+
+### The corpus, re-derived
+
+21 documents: 13 `strategies/arc/`, 7 `strategies/project/`, plus `STRATEGY-INDEX`. The three directory `README.md`
+indices (`strategies/`, `project/`, `project/style/`) are excluded on Task 4.1's precedent; they were read, and carry
+only eligibility and naming statements (no marker candidate, and no imperative that would survive the exclusion).
+
+Copy relationships, re-derived by comparing rather than by filename:
+
+- **13 byte-identical mirrors** — every `strategies/arc/` document. Classify from either copy; a marker syncs.
+- **1 divergent pair — `STRATEGY-INDEX`**, and it diverges **in text a marker would land in**. The shipped copy carries
+  an illustrative project-strategy block and a `**Maintenance:**` paragraph (an authoring rule for firing conditions);
+  the instance copy replaces both with this project's real entries and has no Maintenance paragraph. One copy does not
+  settle the other here — unlike Task 4.1, where all three divergent method pairs differed only outside marker-bearing
+  text.
+- **7 instance-only documents** — all of `strategies/project/`. The package ships `project/` as an **empty surface**
+  (`README.md` + `style/README.md` only), so these seven state their rules to nobody but this repo.
+
+**Recipe drift: none in this region.** All 13 `strategies/arc/` documents resolve through `init-recipe.json` — 11 in
+the base set, plus `strategy-planning-module` under `pm.mode == arc-in-git` and `strategy-team-coordination` under
+`team.mode == true`. This is the **opposite** of the method region, where 3 of 25 ship without installing, and it
+contradicts the standing `WORKING-MEMORY` note that three `strategies/arc` files are absent from the recipe — that
+reading no longer holds against the merged base. The live blast radius of a strategy marker is therefore the full
+shipped set, minus the two conditional arms.
+
+### Basis codes
+
+Task 4.1's codes carry forward. `A`, `B`, `C`, `E`, `G`, `H`, `I`, `J`, `K` all fire again; `D`, `F`, `L`, and `M` do
+not fire anywhere in this region. Three families are new:
+
+| Code | Family (new in this region)                                                                  |
+| ---- | -------------------------------------------------------------------------------------------- |
+| N    | Shared history and shared state are not unilaterally rewritten                               |
+| O    | A judgment value is its owner's to supply; the agent estimates only where a rule licenses it |
+| P    | Guidance that gates an operation must be reachable where that operation fires                |
+
+Accepting reasons are unchanged from Task 4.1 (1–6).
+
+### Per-document sweep
+
+| Document                                | M | A | Marker candidates (`[invariant]`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Accepted reclassifications (the default stands)                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------- | - | - | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `strategy-adr-methodology`              | 3 | 4 | an accepted decision is final — Context, Decision, and original Consequences are never rewritten (K); never delete a deprecated or superseded ADR (K); an amendment may not change the Decision, re-frame Context, or contradict original consequences (K)                                                                                                                                                                                                                                                                                                                                                                                                                  | a correction must not change meaning, and doubt escalates to Tier 2 (1); numbers are never reused (4); the when-to-write and don't-write-for criteria (4); neutral factual Context tone (3)                                                                                                                                                                                                           |
+| `strategy-concurrent-work`              | 5 | 7 | a pushed branch is append-only — never rebase, amend, or rewrite pushed commits (N); cross-machine resume is always `pull --ff-only` (N); never force-push a shared branch to "win" (N); integration is the single sanctioned rewrite point (N); foreign-owned work is coordinated, not appropriated (I)                                                                                                                                                                                                                                                                                                                                                                    | `git worktree remove`, never `rm -rf` (1); don't relocate a tool-managed worktree (1); confirm the worktree before acting (6); don't archive or remove while `Integrating` (1); pull before writing, serialize entry edits through one locus (1); no safety column on ROADMAP (4); merge from one designated worktree (3)                                                                             |
+| `strategy-configurability-architecture` | 4 | 6 | an extension's fire-point frequency must match the coverage its name promises (A); an adapter resolves and validates carrier content and rejects missing, stale, conflicting, or unverifiable projections (C); the projection is not rubric authority — the digest proves only what was delivered (C); projection content excludes findings, dispositions, evidence admission, and controller state (B)                                                                                                                                                                                                                                                                     | principles are not configurable through any mechanism (4); method contracts are advisory (4); only registry methods declare `active`, malformed falls back to package default (4); criteria for adding a config setting (4); custom extension points sit outside the envelope (5); `override-mode` composition (4)                                                                                    |
+| `strategy-file-classification`          | 0 | 5 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | don't customize Framework files directly (1); the `[Title Case Phrase]` dialect is retired (3); keep the three placeholder syntaxes distinct (3); prefix and ALL-CAPS naming (4); one-shot template uniqueness and the `.template.md` suffix (4)                                                                                                                                                      |
+| `strategy-interlock-release-wrappers`   | 2 | 4 | never claim a shell-wrapped heredoc matches the commit prefix rule — verify with `codex execpolicy check` (C); use heredoc transport only after the resident matcher verifies redirection, else direct prepared-file argv (C)                                                                                                                                                                                                                                                                                                                                                                                                                                               | destructive shapes route through raw `git` (5); off-workflow invocations sit outside the trust shift (4); opt-in is per-developer per-machine (4); `arc sync` handles its own push (4)                                                                                                                                                                                                                |
+| `strategy-planning-module`              | 1 | 5 | `active/` stays flat — no cohort dirs; membership tracks on the meta (J)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | the shared inbox is written only at the between-WUs drain (3); absorbed entries are deleted, not marked (1); codified cohorts only (3); cohort members are state-uniform (4); multi-step work never lands in the shared atomic inbox (4)                                                                                                                                                              |
+| `strategy-quality-gates`                | 3 | 5 | never skip or partially run Tier 3 (A); always run Tier 1 before marking a task complete (A); run at least Tier 1 before committing off-loop work (A)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | if Tier 3 fails, fix before proceeding (6); targeted commands, not full-project scans (3); fix issues while context is fresh (3); don't run the full suite at Tier 2 (4); tier-escalation guidance (5)                                                                                                                                                                                                |
+| `strategy-session-operations`           | 8 | 6 | agent-side review is best-effort — only a required host-side check structurally enforces merge safety (C); every review increment receives explicit human approval (G); merge approval is never inferred from task approval, review completion, passing checks, or "proceed" (E); quality-gate failures hold regardless of mode (A); the approval signal is anchored to a structured prompt, never parsed from arbitrary prose (E); per-task commit release inside a deferred range requires explicit opt-in (E); a retained inbox capture is never the default and never agent-suggested (G); project-level meta files stay maintainer-owned under contributor release (I) | present a cascade-undo plan before destructive rollback (6); worktree-push precedes notes-push (2); when uncertain, prefer T1 (5); probe slot resolvers are non-destructive (4); don't roll back correct local work on a transit failure (1); vague eviction triggers defeat the discipline (3)                                                                                                       |
+| `strategy-task-list-formatting`         | 4 | 6 | criterion text is immutable — never rewritten to match the implementation (K); every criterion is `[x]` or `[~]` with its annotation before archive (A); a `[~]` criterion requires its Superseded note (K); `_Goal:_` is preserved verbatim at completion (K)                                                                                                                                                                                                                                                                                                                                                                                                              | criteria are checked at verification, not implementation or archival (4); operationalize rather than duplicate the PRD's criteria (3); an instruction targeting a shipped file uses the shipped register (1); the verification phase and Success Criteria section are required (4); `Phase X.Y` is a misnomer (2); the formatting and blank-line conventions (2)                                      |
+| `strategy-team-coordination`            | 1 | 5 | ownership transfers as sequential reassignment of `**Owner:**`, never concurrent shared ownership; foreign-owned work is coordinated (I)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | documents must stand alone for an async reader (3); credit pairing with `Co-authored-by:` (4); `user.notes_push` is not auto-updated when `team.mode` toggles after init (1); a WU has a single owner (4); no extension point is needed for assignment (4)                                                                                                                                            |
+| `strategy-work-organization`            | 8 | 9 | `Class` never drops below a realized design-authoring floor (K); a stub's commitment, priority, and `Class` are judgment the tool will not invent (O); discipline is `Class`-invariant (H); a parseable spec exists before task-list generation (A); under full protection no change reaches the base without a branch and review (E); a PR touching any reviewed-lane path is reviewed-lane as a whole (A); the classifier may move a result to reviewed, never the reverse (E); a cross-cutting Errand on an in-flight foreign artifact is coordinated or sequenced (I)                                                                                                   | never a blanket `heavy` stamp (1); the cohort doc carries coordination only (1); membership is derived, never a roster (4); the nesting cap and its no-rescue clause (4); write-once fan-out provenance (1); `main` is the resting state, not a lock (1); a cut is never left un-occupied (2); ROADMAP hand-edits drift from source (2); priority anti-inflation is documentation discipline only (5) |
+| `strategy-work-planning`                | 1 | 6 | the floor never drops — down-switching is bounded by the demand floor and a heavier artifact already produced is never torn down (K)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | capture, ratchet, re-enter rather than patch-and-limp (1); design precedes implementation (6); one spec per WU, layering the sole exception (4); layering is opt-in and non-default (5); Success Criteria are falsifiable at every form (4); the five anti-patterns (3)                                                                                                                               |
+| `strategy-workflow-authoring`           | 2 | 8 | an agent-interpreted marker is an agent-layer guarantee — direct CLI and raw-git paths cannot be structurally intercepted (C); the extension marker still fires on `arc sync` push steps and is placed before the invocation (A)                                                                                                                                                                                                                                                                                                                                                                                                                                            | mark every fire-point whose consumer is the executing session (1); declare by what the workflow may fire (5); destructive flags stay literal (2); declare methods and extensions in frontmatter (2); no duplicated `**Audience:**` callouts (4); prose economy (3); verbs over mechanics (1); don't entangle gate with fire (3)                                                                       |
+| `STRATEGY-INDEX`                        | 0 | 3 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | the ALWAYS-load firing conditions (6); update the index when adding a strategy (3, shipped copy only); author each entry as a directive firing condition (3, shipped copy only)                                                                                                                                                                                                                       |
+| `strategy-knowledge-evolution`          | 1 | 6 | a hard constraint is always-loaded or placed at the gate site firing its operation — never mid-document on-demand, never index-only, never demoted (P)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | author trigger surfaces as directive firing conditions (3); anchor triggers to operations, not workflows (1); no per-artifact tier or loading flags (4); extract on fan-in (3); prefer emitted remedies to reference docs (3); don't grow the always-loaded set casually (3)                                                                                                                          |
+| `strategy-package-project-sync`         | 0 | 6 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | never `cp` a Configurable file between copies (1 + 2 — see § The counterexample); Framework edits flow package → `.arc/` (2); edit the template, not the rendered copy (1); default to package source when uncertain (1); verify with `diff` that only overrides remain (1); dev-only checks live in the husky layer (4)                                                                              |
+| `strategy-pm-composition-evolution`     | 3 | 7 | an unavailable provider must not let ARC silently claim authority, overwrite stale state, or invent success (C); an unknown Self-Check answer preserves the seam and routes the decision — never a silent fix in the consuming WU (I); don't call Level 1 or a free-form extension "integrated" without naming the level (C)                                                                                                                                                                                                                                                                                                                                                | every PM-adjacent fact names one authority (4); map external identity, never derive ARC identity (4); start below bidirectional sync (3); tracker choice stays orthogonal to planning depth (4); typed verbs over adapter prose (3); unsupported mappings must be explicit (1); integration must earn its ceremony (3)                                                                                |
+| `strategy-procedure-evolution`          | 0 | 7 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | prose never evaluates state (3); markup never grows control flow (3); verbs over mechanics (1); schemas are generated (4); evals gate the prose layer (3); emitted text is precomposed CLI-side (3); a load-bearing term is defined once (1)                                                                                                                                                          |
+| `strategy-storage-evolution`            | 1 | 8 | any write to shared or materialized state carries the version it read — no mutation path blind-overwrites (N)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | treat `.arc/` storage as an abstraction (3); records are storage-agnostic (4); external integration stays read-side (4); WU identity stays decoupled from branch identity (4); workflow logic stays mode-agnostic (3); one storage knob (4); avoid axis explosion (3); the store is complete without a service (4)                                                                                    |
+| `strategy-testing-methodology`          | 0 | 6 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | mock at boundaries, never internals (6); keep mocked boundaries faithful (6); test behavior through public interfaces (3); vertical slices (6); meaningful assertions over coverage (3); design for testability (3)                                                                                                                                                                                   |
+| `strategy-user-notes-concurrency`       | 4 | 6 | never fetch directly into a live notes ref or sync-state ref (N); reads must not mutate durable state (N); `--force` is the operator's escape hatch — no automatic, paired, retry, or reconcile path selects it (E); routine retries never reinterpret an unchanged unsafe topology as safe (C)                                                                                                                                                                                                                                                                                                                                                                             | lock-serialize an unguarded read-modify-write (4); use CAS when the mutator can name the state it replaces (4); go lock-free only when a stale plan is safe (1); temp refs carry caller-unique tokens (1); a shared temp ref needs a serialized section (1); compact only when machines are synced (1)                                                                                                |
+
+### The counterexample, resolved
+
+Task 4.2's `_Note:_` asked whether `strategy-package-project-sync`'s "never `cp`" is a genuine conflict — a rule whose
+discharging fact and enforcement condition might not overlap. **It is not a conflict.** They are the same condition
+read from two directions.
+
+The candidate discharging fact is "this file carries no project overrides." The pre-commit check
+(`scripts/check-package-sync.sh`) fires when a Configurable file is staged byte-identical to the package copy **and**
+the two differed at HEAD. Reading the source rather than the strategy's self-description settles it: the check
+compares **HEAD-to-HEAD** for the overrides condition, and its own comment says why — comparing the instance's HEAD
+against the package _working tree_ "conflates 'overrides existed' with 'package was edited in this commit,' producing
+false positives when the framework author legitimately edits both copies of a file that had no project-specific
+override at HEAD." The check declines to fire in exactly the case where the discharge is true. It is a codified
+discharge-checker, not an independent condition.
+
+So the rule is a **default** on both reasons at once: reason 1 (its own text names the discharging fact — "Configurable
+files diverge by design: the package source carries template defaults; the `.arc/` instance carries this project's
+overrides") and reason 2 (a mechanical check catches the violation). The absolute phrasing is emphasis on what the
+document itself calls "the highest-frequency failure mode," not a withheld authority.
+
+Three residuals, recorded because they are the interesting part:
+
+- **The check detects, it does not prevent.** The strategy says so — "the blast already touched the working tree by
+  then." That does not change the classification, but it does mean the discharge has to be established _before_ the
+  copy, not relied on after it.
+- **Reason 2 is partial by the document's own admission.** A `cp` followed by a partial hand-edit leaves the file
+  non-identical and slips the byte-equality signature; the strategy's answer is "discipline > tooling here." Reason 1
+  is load-bearing on its own — the agent can establish the fact with one `diff` of the two copies at HEAD.
+- **A third legitimate non-firing case exists that the strategy doesn't document:** the check exempts a staged blob
+  byte-identical to `MERGE_HEAD`, because a merge stages content that was resolved rather than authored.
+
+This is a clean confirming instance of Task 4.1's finding 6, derived independently and from the opposite direction:
+_a rule backed by a mechanical check is safely a default; a rule that backs a check is an invariant._ "Never `cp`" is
+backed by one. Nothing in the strategy region falsified the model.
+
+### Where each family's constitutional statement sits — and the correction to Task 4.1
+
+Task 4.1 recorded families `J`, `K`, `L`, `M` as having "no constitutional parent," and family `I` as stated nowhere
+but § Rule Authority's own backstop. **The strategy region carries parents for `I`, `K`, and `H`**, and that
+invalidates three of Task 4.1's eight region-local markers:
+
+| Family  | Constitutional statement                                                                                       | Marked today? |
+| ------- | -------------------------------------------------------------------------------------------------------------- | ------------- |
+| A, B, C | `AGENT-BRIEF.ARC` § Review authority (restated at `strategy-session-operations` § Review enforcement boundary) | no            |
+| E       | `DEV-RULES.ARC` § Merge authority; § Review finding mutation guard                                             | partly        |
+| G       | `DEV-RULES.ARC` § Task interlock                                                                               | yes           |
+| H       | `DEV-RULES.ARC` § Scaled Process, Invariant Discipline; `strategy-work-organization` § Escape-hatch guardrails | no            |
+| I       | `strategy-concurrent-work` § Foreign-owned work and the all-owner gate                                         | no            |
+| K       | `strategy-work-organization` § Class Model (Estimating and the ratchet)                                        | no            |
+| N       | `DEV-RULES.ARC` § Commit Discipline — Rebase scope; `strategy-concurrent-work` § Append-only                   | no            |
+| J, O, P | no constitutional parent — see the region-local set below                                                      | n/a           |
+
+**Corrections to Task 4.1's region-local set.** Three of its eight are not region-local:
+
+- #2 `classify-work-unit` (the realized-design ratchet) and #3 `resolve-planning-depth` (the down-switch floor) both
+  restate `strategy-work-organization` § Class Model verbatim — "once a stage has _authored_ design at some depth,
+  `Class` never drops below that floor."
+- #4 `assess-parallel-fit` (foreign-owned overlap) restates `strategy-concurrent-work` § Foreign-owned work verbatim —
+  "reorder and re-home your own work freely; foreign-owned work you coordinate, not appropriate."
+
+Five of Task 4.1's eight survive as genuinely region-local: `branch-format`'s `plan/` prefix (J),
+`assess-draft-readiness`'s three-criterion bar (A), and the three `testing-standards` sites (M).
+
+**The strategy region's own region-local markers** — sites whose rule exists nowhere else:
+
+1. `strategy-adr-methodology` § Amending Accepted ADRs — accepted-decision immutability (K). Covers all three ADR
+   sites; ADRs have no constitutional rule anywhere in the corpus.
+2. `strategy-quality-gates` § Tier 3 — never skip or partially run (A). `DEV-RULES.ARC` § Quality gate failure marks
+   only the _red-gate_ limb; the _completeness_ limb has no marked parent. Extending the marked parent is the better
+   remedy than a new marker here.
+3. `strategy-work-organization` § Stub required fields — judgment values are not fabricated (O).
+4. `strategy-work-organization` § Auto-Merge Lane — a PR touching a reviewed-lane path is reviewed-lane whole, and
+   escalation is one-directional (A, E).
+5. `strategy-session-operations` § USER-INBOX Retain flag — never the default, never agent-suggested (G).
+6. `strategy-task-list-formatting` § Success Criteria — criterion text is immutable (K). **Pending Task 4.3:**
+   `process-task-loop` carries the sibling "Goal is preserved verbatim" rule, so the marker may belong in the workflow
+   region instead. Do not place this one before Task 4.3 reads that file.
+7. `strategy-interlock-release-wrappers` § Per-Harness Reference Implementations — never claim an unverified matcher
+   shape (C).
+8. `strategy-knowledge-evolution` Principle 1 — constraints are placed where their operation fires (P).
+   _Project-internal; does not ship._
+9. `strategy-user-notes-concurrency` — the four shared-state rules (N, N, E, C), collapsible to one marker at the
+   discipline preamble. _Project-internal; does not ship._
+
+**One new unmarked constitutional parent for Phase 3:** `DEV-RULES.ARC` § Commit Discipline — _Rebase scope_ ("Never
+rebase or otherwise rewrite a _pushed_ branch"). Family N has no marked home, even though the adjacent _Amend scope_
+clause is marked `[invariant]`. That joins Task 4.1's three (§ Review authority, § Sub-agent scope's judgment leg,
+§ Scaled Process) and § Discovered Work Routing, which finding 3 already called the sharpest.
+
+**Revised Task 4.5.a footprint.** Task 4.1 proposed eleven. After this region: **four unmarked parents + five
+surviving method-region-local + nine strategy-region-local = eighteen**, with item 6 above pending Task 4.3. Two of the
+nine sit in documents that do not ship.
+
+### Findings
+
+**1. The word `invariant` is the corpus's general-purpose intensifier, and the strategy region adds a fourth sense.**
+Task 4.1's finding 2 recorded a third sense in the methods (_does not vary with `Class`_). The strategies carry that
+one and one more — _a structural fact that holds by construction_ — at more sites than either of `adr-030`'s two:
+
+- **(i) not project-configurable** (`adr-016`'s sense) — `strategy-session-operations` § Linear Interlock Stack, whose
+  Configurability column reads `Invariant` for `task-interlock` and `integration-interlock`.
+- **(ii) not agent-dischargeable** (D1's sense) — `strategy-concurrent-work` § Append-only: "This is the one **hard
+  invariant** in this strategy; everything else here is advisory."
+- **(iii) does not vary with `Class`** — `strategy-work-organization` § Escape-hatch guardrails ("Discipline is
+  `Class`-invariant"), § Spec-Flow Invariants, § Validation contract ("invariant across every form").
+- **(iv) holds by construction** — `strategy-session-operations` § Path-class invariant, § Push-ordering invariant,
+  "co-location … is invariant"; `strategy-work-organization` § Per-Worktree Isolation ("a structural invariant"), the
+  cohort-consistency invariant, § Errand's cut→occupy invariant.
+
+D2's content boundary as specced covers two senses. The methods needed a third; the strategies need a fourth, and
+sense (iv) is the most frequent use of the word in the whole corpus. Whatever D2 settles has to survive a reader who
+has just met `**Path-class invariant.**` two documents earlier.
+
+**2. The model is not merely practised in the corpus — it is _stated_, in D1's own vocabulary, once.**
+`strategy-concurrent-work` opens by classifying its entire contents ("These are **judgment-driven conventions, not
+enforced rules**") and then names the single exception as a "hard invariant … everything else here is advisory." That
+is D1's default/invariant partition, applied to a whole document, predating D1 and referencing nothing. It is the
+strongest existing-practice evidence the sweep has produced — stronger than Task 4.1's finding 4, because it is the
+partition itself rather than an enactment of the discharge protocol. It also means the corpus already has a native
+term for D1's concept, used in that sense at exactly one site out of ten.
+
+**3. The reclassification rate inverts Task 4.1's expectation, and the reason is a content-kind difference.** 71% of
+strategy imperatives reclassify against 55% of method imperatives, despite a higher raw count. Methods are contracts
+an agent executes; strategies mostly _describe_ — taxonomies, enums, render algorithms, tier definitions, worked
+examples — and a definitional statement has nothing for the discriminator to bite on (accepting reason 4 is by far the
+most common in this region). This is direct support for Task 4.5.b's enabling-content category: a large fraction of
+the strategy corpus is neither constraint nor explanation but the _definitions the constraints are written in_.
+
+**4. `STRATEGY-INDEX` is the region's one marker-bearing divergent pair, and the divergence is invisible from either
+copy alone.** The shipped copy's `**Maintenance:**` paragraph — the authoring rule for firing conditions — has no
+instance counterpart, and the instance's real project entries have no shipped counterpart. Task 4.1 could classify
+from one copy because none of its three divergent pairs differed in marker-bearing text; that convenience does not
+hold here, and Task 4.3 should expect it again (five workflows are template-paired by construction).
+
+**5. The most-feared silent-failure rule in the corpus classifies as a default — because it supplies its own
+discriminator.** `strategy-workflow-authoring`'s "mark every fire-point whose consumer is the executing session"
+governs a failure mode with no checker (`WORKING-MEMORY` carries a standing entry about it, and the strategy admits
+"reachability is the author's responsibility until a fire-point validator exists"). It still reads `default`, because
+the rule names the exact fact that discharges it — a CLI verb carrying the content on the workflow's behalf — and that
+fact is the author's to establish. Severity of consequence is not the test; whose fact it is, is. Recorded because it
+is the cleanest case in either region where the two come apart.
+
+**6. Four families that fired in the methods fire nowhere here.** `D` (judgment stays with the primary), `F` (don't
+manufacture findings), `L` (no item with a known home rests in a capture surface), and `M` (test integrity) have no
+strategy-region instance. Each is an _execution-time_ obligation on a running agent; strategies are consulted before
+execution, not during it. The absence is a property of the region's role, not a coverage gap — but it does mean the
+`L` and `M` markers Task 4.1 proposed have no strategy-side reinforcement to lean on.
+
+**7. The base merge left this region untouched, as Task 4.1 predicted.** Finding 7 of the method sweep recorded that
+the strategy region was unmoved across all 100 commits of the merge. Re-derived here against the merged base: no
+strategy document's marker-bearing text differs from what the pre-merge tree carried. The one moving part is the
+recipe reading in § The corpus, re-derived, which improved rather than drifted.
 
 ---
