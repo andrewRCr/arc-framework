@@ -48,6 +48,11 @@ was rigorous attests the agent's own output and discharges nothing. The claim ne
 not write — a check that ran, an artifact on disk, a person who spoke. Absent one, do not record it as
 satisfied; say what is actually known.
 
+The same limb settles **pre-commitment text** — a success criterion, a `_Goal:_`, a task line, an accepted
+decision, a shipped release note: what was written before the work to say what the work must achieve. It is the
+target the outcome is judged against, so **rewriting it to match what was built is never the agent's call** ·
+`[invariant]`. Amend forward, or record the change and what prompted it; never edit the original into agreement.
+
 **An invariant is not the agent's to discharge.** What it withholds is the authority to decide, never the
 capability to act. Its holder may still make the reserved decision, and their making it is the rule working
 rather than a waiver — an operator authorizing a merge _is_ the merge gate. What no amount of reaffirmation

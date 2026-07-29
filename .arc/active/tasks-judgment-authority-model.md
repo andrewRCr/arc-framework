@@ -909,9 +909,9 @@ document that ships without an instance counterpart still states its rules to ev
   either acted on here or held by an existing capture.
 
 - _Rationale:_ The sweep's routable findings were captured at Task 4.3's close under the standing capture protocol,
-  and the inbox owns them. What no surface holds is the work that is this work unit's own: a family with no parent
-  anywhere, an ownership question between two of its own tasks, and one defect that is the ambiguity the work unit
-  exists to remove.
+  and the inbox owns them. What no surface holds is the work that is this work unit's own: two families with no
+  parent anywhere, an ownership question between two of its own tasks, one defect that is the ambiguity the work
+  unit exists to remove, and a placement question the sweep raised and Task 4.5 closed without answering.
 
 - _Scope decision:_ The defect fixed below is the same concern as this work unit — a limb and its heading
   disagreeing about their own force — not a distinct concern riding the change set. The distinct concerns the sweep
@@ -926,24 +926,29 @@ document that ships without an instance counterpart still states its rules to ev
 - **Additional Context:** `notes-judgment-authority-model.md` § Findings — the method, strategy, and workflow
   region sections
 
-    - `[ ]` **4.6.a Write the constitutional statements for the two unparented families**
-        - `K2` — pre-commitment text is not rewritten to match the outcome — has seven instances across all three
-          swept regions and no parent anywhere. The recommended remedy is a constitutional statement rather than
-          seven markers; Phase 3 has closed, so it lands here.
-        - `S` — halt at first failure — is the same shape: seven instances (four extension contracts, plus
-          `init-work-unit` L330 and `run-errand` L126 / L182 / L268) and no parent anywhere. Task 4.4 counted it
-          in Task 4.5.a's footprint while recording that no statement exists to mark; Task 4.5.a.ii routed it here
-          on the ground that authoring a family parent is this subtask's act, not a marking one. Its home is
-          `extensions/README.md`'s loading-model paragraph, which already describes how `.actions` execute.
-        - Check each statement against Success Criterion 1 before writing it: a family parent is not a per-case
-          rule, but the criterion is the test it has to pass.
-        - `S`'s scope needs settling before it is written. Its instances split across two audiences — the
-          extension contracts bind an author populating `.actions`, while the four workflow fire points bind an
-          executing session deciding whether to continue past a failed action. Decide whether one statement covers
-          both or the workflow fire points need their own, rather than assuming the extension index reaches them.
-        - Task 4.5.a settles the unmarked constitutional parents, since it is the task that applies them. This
-          subtask writes the statements that have no parent to mark.
-        - Both copies, in the `[invariant]` notation Task 1.5.a establishes.
+    - `[x]` **4.6.a Write the constitutional statements for the two unparented families**
+        - _Outcome:_ Both statements landed byte-identical in both copies, with the derivation recorded in
+          `notes-judgment-authority-model.md` § The two unparented families' statements. `K2` sits in
+          `DEV-RULES.ARC` § Rule Authority as a **third instance of the check-integrity limb** — pre-commitment
+          text is the target the work is judged against, so rewriting it to match the outcome makes a check pass by
+          moving its target, the same limb that already settles self-attestation approached from the other side.
+          `S` sits in `extensions/README.md`'s loading-model paragraph.
+        - Criterion 1 cleared for both, and the reachability is uneven in a way worth keeping. `K2`'s seven
+          instances reach § Rule Authority by **three different routes** — the two gate sites directly, two more
+          through self-attestation, the ADR rule through the limb reserving decisions that commit someone, and
+          `draft-design` L162 most thinly of all, since what it protects is contributed substance rather than a
+          check. `S` is strong at its five gate instances and thinner at `pre-pr-open` / `post-pr-open`, whose halt
+          rule protects an ordering assumption rather than a check. Three routes to one answer is the argument
+          _for_ a parent, not against one: a reader re-deriving per site gets it right every time and pays every
+          time.
+        - `S`'s audience question resolved to **one statement**, on placement rather than economy. Each of the four
+          workflow fire points already states `halt-on-fail` inline and names its discharge ("fix-and-retry or
+          explicit-invoke bypasses"), so Principle 1 is satisfied at every site an executing session reads. The
+          statement supplies the parent those restatements lacked; it does not need to reach the session, because
+          the session already meets the rule locally. The named bypass is stated as the developer's call — the
+          holder making a reserved decision, not a discharge the agent may take.
+        - Criterion 3 debit recorded, not absorbed: `DEV-RULES.ARC` grows **4 nb**. The `S` statement is free —
+          `extensions/README.md` is not tier-1.
 
     - `[ ]` **4.6.b Resolve `draft-design` L162's force disagreement**
         - "must not silently drop substance" sits under a heading reading "Three leans, never hard gates". The limb
@@ -962,6 +967,45 @@ document that ships without an instance counterpart still states its rules to ev
         - Both indices are Configurable, so neither the byte-identity test nor the counterpart warning covers the
           mirror; check it by hand.
         - Surfaced by Task 4.5.a's re-check of the index-exclusion precedent, not by the sweep proper.
+
+    - `[ ]` **4.6.d Settle whether a separately-loadable reference carries its parent's markers**
+        - Task 4.3's finding 6 left this to Task 4.5, which closed without deciding it: the concentration precedent
+          and `strategy-knowledge-evolution` Principle 1 reach **different** answers for a document loaded on its
+          own, and every other apparent conflict between them dissolved on inspection.
+        - `session-init/probe-envelope.md` is the whole class — the only corpus document a workflow loads by its
+          own instruction rather than through frontmatter. It carries six invariant-force sentences ("renders
+          `recommendedPromptText` verbatim", "never auto-removed", "never `-D`", "never auto-run"), each restating a
+          rule `session-init` owns. Concentration says the marker belongs at the parent, so the reference stays
+          bare. Principle 1 says a hard constraint sits where its operation fires, and the operation fires for a
+          reader who may hold only this file.
+        - Decide the rule, not just this file. A precedent that says "restatements stay bare" has to survive the
+          case where the restatement is the only text in view; one that says "mark the reachable copy" has to say
+          what stops markers spreading to every restatement in the corpus — the failure Task 4.1 rejected 52
+          markers to avoid.
+        - Task 4.5.a.ii left these six unmarked, so the status quo is concentration by default. Ratifying that is a
+          legitimate outcome; leaving it undecided is what this subtask exists to prevent.
+        - **Settled: ratify concentration, and make the reference point at its parent.** The reference stays
+          unmarked — the marker footprint does not spread to restatements — but it must say that classification, not
+          only procedure, lives with the owning workflow. Its opening already carries the seed ("procedural handling
+          remains in the owning workflow"); the fix extends that sentence to authority. This fixes the actual harm —
+          a reader holding one file with no way to tell how hard a rule is — without minting a "might be read alone"
+          test that would readmit the 52-marker footprint Task 4.1 rejected.
+        - **Forward-compat check against `composable-workflows` D3 (the session-agenda compiler).** Two results bear
+          on the decision, and one changes it:
+            - The two artifacts move in opposite directions. `probe-envelope.md` **survives and grows** — D1's
+              schema-out-of-band rule ("no workflow documents an envelope slot's shape inline; it cites the slot
+              name") makes it the durable home for slot semantics, and `instruction-optimization` plans further
+              expansion. `session-init.md` **compiles down** to a ~120–150-line spine. So the pointer must name the
+              owner in a form the agenda preserves — the spine's authority-boundaries concept — never a step or
+              section number the compile dissolves.
+            - **Mechanization is a reclassification trigger, and it applies to at least half these six.** Under the
+              step vocabulary an `offer` structurally cannot auto-execute and a `render` carries precomposed text,
+              so "never auto-run", "never auto-removed", "never `-D`", and "renders … verbatim" stop being
+              instructions an agent obeys and become what the step does. This work unit's own repeated finding — a
+              rule backed by a mechanical check is safely a default; a rule that backs a check is an invariant —
+              then reclassifies them. Marking them `[invariant]` today would be wrong later, not merely misplaced.
+              That is independent support for the pointer over the marker, and the trigger belongs in the record.
+        - Any marker lands in both copies, in the `[invariant]` notation Task 1.5.a establishes.
 
 ## **Phase 5:** Instance register — `DEV-RULES.PROJECT`
 

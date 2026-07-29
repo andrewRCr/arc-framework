@@ -1560,3 +1560,75 @@ whose absence that test was trying to detect. Settling one without reading the o
 `WORKING-MEMORY` records for this whole area.
 
 ---
+
+## The two unparented families' statements (Task 4.6.a)
+
+Two families the sweep found with instances in more than one region and a parent in none. Both take a
+constitutional statement rather than a marker per instance, and both had to clear Success Criterion 1 first.
+
+### The Criterion 1 check
+
+Criterion 1 does not ask whether a statement is useful; it asks whether a reader could reach the same
+classification from § Rule Authority **without** it. Reachable → the statement is ergonomic and permitted.
+Unreachable → the discriminator failed to derive what it claims to, and that is a finding rather than a licence to
+write the rule anyway.
+
+**`K2` is reachable, on the check-integrity backstop.** Pre-commitment text is the target the agent's own work is
+judged against, so rewriting it to match the outcome makes a check pass by moving its target — the limb that
+already settles self-attestation, approached from the other side. The statement is placed as a third instance of
+that limb rather than as a new rule, and says so in its own first clause.
+
+The reachability is not uniform across the seven instances, which is the argument for a parent rather than against
+one. The two gate sites (`verify-work-unit`'s criterion text, `process-task-loop`'s `_Goal:_`) reach the backstop
+directly. `clean-work-unit`'s historical-record rule and `archive-work-unit`'s errata-only rule reach it through
+self-attestation — altering the account of realized work attests it. `strategy-adr-methodology`'s accepted
+decision reaches it through the **other** limb, the one reserving decisions that commit someone. `draft-design`'s
+"must not silently drop substance" is the thinnest: what it protects is the developer's contributed substance, so
+it reaches limb two rather than check integrity. Five instances, three routes. A reader re-deriving per site gets
+the right answer each time and pays for it every time; naming the shape once is what the parent buys.
+
+**`S` is reachable at its gate instances and thin at the rest.** Five of the seven — `pre-activation`,
+`pre-commit-review`, `pre-merge`, `pre-push-review`, `pre-spec-finalization-review` — are gates, so an agent
+deciding a failure does not matter is judging whether a check applies to its own work, which the backstop forbids
+outright. `pre-pr-open` and `post-pr-open` are different: their halt rule protects an ordering assumption rather
+than a check, so the derivation there runs through correctness rather than authority. Recorded rather than papered
+over — the statement's force is strongest exactly where the sweep's own evidence is.
+
+### Where each landed, and the audience question
+
+**`K2` → `DEV-RULES.ARC` § Rule Authority**, immediately after the self-attestation paragraph, because it is the
+same limb and reads as its third instance. Always-loaded, which is a real debit against Criterion 3 and is
+recorded below rather than absorbed.
+
+**`S` → `extensions/README.md`'s loading-model paragraph.** Task 4.5.a.ii routed it here after finding no statement
+existed to mark; this is the write. Its instances split across two audiences — the extension contracts bind an
+author populating `.actions`, while the four workflow fire points (`init-work-unit` L330, `run-errand` L126 / L182
+/ L268) bind an executing session deciding whether to continue past a failure. **One statement covers both**, and
+the reason is placement rather than economy: each fire point already states `halt-on-fail` inline and names its
+discharge ("fix-and-retry or explicit-invoke bypasses"), so `strategy-knowledge-evolution` Principle 1 is
+satisfied at every site an executing session actually reads. The statement supplies the parent those restatements
+lacked; it does not have to reach the session, because the session already meets the rule locally.
+
+The fire points' named bypass is worth stating precisely, and the statement does: resuming past a halt is the
+developer's call. That is not a discharge the agent may take — it is the holder making a reserved decision, which
+§ Rule Authority already frames as the rule working rather than a waiver.
+
+### Consistency with the concentration precedent
+
+Both placements put the marker at the family's parent and leave the restatements unmarked, which is the precedent
+every other marker in this work unit follows. It also settles, by consistency rather than by argument, the choice
+Task 4.3's finding 6 left open — `session-init/probe-envelope.md`'s six invariant-force sentences restate rules
+`session-init` owns, and they stayed unmarked when Task 4.5.a.ii applied the region-local set. Concentration won
+there implicitly; it wins here explicitly. **What remains genuinely open is whether that is right for a
+separately-loadable reference**, where an agent can load the restatement without ever seeing the parent. That is
+the one case where Principle 1 and the concentration precedent do not merely appear to conflict — they reach
+different answers — and no task in this phase holds it.
+
+### Criterion 3 debit
+
+`DEV-RULES.ARC` grows by **4 nb** for the `K2` statement. Per the ledger discipline, this is not netted against
+anything here — Criterion 3 measures the tier-1 full-read set end to end at verification, and this is one more
+entry on the spending side of that measurement, alongside § Rule Authority's own 37 nb and the index leg's +16.
+The `S` statement costs the ledger nothing: `extensions/README.md` is not tier-1.
+
+---

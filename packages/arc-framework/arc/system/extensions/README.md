@@ -12,7 +12,10 @@ behavior to workflows; they do not replace existing steps** · `[invariant]`.
 **Loading model:** Session-init runs a single `grep -l "^active: true" .arc/system/extensions/*.md` to produce
 the **active-extensions list** — the set of extensions with populated `.actions` in the current install.
 Fire-point directives in workflows consult the list by name and skip invocation for extensions not on it.
-Extension bodies load only when a fire-point executes an active extension's `.actions`. Workflow documents
+Extension bodies load only when a fire-point executes an active extension's `.actions`. **An `.actions` sequence
+executes in authored order and halts at the first failure** · `[invariant]` — later actions do not run, and the
+failure surfaces an actionable message to the calling workflow. Resuming past it is the developer's call to make,
+never the agent's to assume. Workflow documents
 declare extension dependencies in frontmatter (`arc.extensions`) — see
 [Workflow Authoring Strategy][workflow-authoring] and
 [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
