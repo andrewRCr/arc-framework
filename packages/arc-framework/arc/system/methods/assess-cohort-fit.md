@@ -111,9 +111,10 @@ The method produces either **"stays one WU"** or the **cut-map**:
 - **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
 - **deliverable boundaries** — what each member independently ships.
 
-`cohortless` means flat planned siblings whose relationships live only in their dependency graph. Select it only
-when every conserved source has a destination-owned home. Ownerless shared coordination requires a cohort-backed
-placement and a `cohort-coordination` destination.
+`cohortless` is the direct-member arm for exactly one newly minted member; any existing or atomic homes remain
+destinations, not members. Every decomposition with more than one new member must select `standalone`,
+`in-cohort`, or `at-cap`, regardless of content ownership. Ownerless shared coordination independently requires a
+cohort-backed placement and a `cohort-coordination` destination.
 
 **Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
 cover the non-symmetric transform shapes — a data-shape the cut-map carries, while _when_ to use them stays this

@@ -56,6 +56,7 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     },
+    warnings: [],
   }),
 }));
 
@@ -121,6 +122,10 @@ vi.mock("node:fs/promises", () => ({
 const mockParseCutMap = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
   parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
+}));
+const mockRevalidateV3DecomposeExecutionPreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-v3-execution-preflight.js", () => ({
+  revalidateV3DecomposeExecutionPreflight: (...a: unknown[]) => mockRevalidateV3DecomposeExecutionPreflight(...a),
 }));
 const mockRunDecompose = vi.fn();
 const mockRunPreparedDecompose = vi.fn();
@@ -334,6 +339,11 @@ beforeEach(() => {
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
   mockReadFile.mockResolvedValue('{"schemaVersion":1}');
+  mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+    status: "current",
+    completedMap: {},
+    preflight: {},
+  });
   mockParseCutMap.mockReturnValue({
     status: "parsed",
     params: { origin: { slug: "mono", phase: "Planning", location: "active" }, shape: "symmetric", entries: [], internalEdges: [] },

@@ -110,13 +110,11 @@ describe("validateFinalizedV3Decomposition", () => {
 
   it("distinguishes path, mode, and patch mismatches at the first affected path", () => {
     const path = exactFacts();
+    const missingPath = path.managedPathResults[0]!.path;
     path.managedPathResults = path.managedPathResults.slice(1);
     expect(validateFinalizedV3Decomposition(path)).toEqual({
       status: "mismatch",
-      mismatch: {
-        kind: "path",
-        locus: ".arc/backlog/planned/origin/member-a/meta-member-a.md",
-      },
+      mismatch: { kind: "path", locus: missingPath },
     });
 
     const mode = exactFacts();
@@ -130,13 +128,11 @@ describe("validateFinalizedV3Decomposition", () => {
     });
 
     const patch = exactFacts();
+    const missingPatchPath = patch.transitionPatch[0]!.path;
     patch.transitionPatch = patch.transitionPatch.slice(1);
     expect(validateFinalizedV3Decomposition(patch)).toEqual({
       status: "mismatch",
-      mismatch: {
-        kind: "patch",
-        locus: ".arc/backlog/planned/origin/member-a/meta-member-a.md",
-      },
+      mismatch: { kind: "patch", locus: missingPatchPath },
     });
   });
 

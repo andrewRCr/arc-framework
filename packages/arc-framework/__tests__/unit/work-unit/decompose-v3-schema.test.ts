@@ -229,6 +229,24 @@ function comprehensiveCompleted(): V3DecomposeCutMap {
   };
 }
 
+function retainOnlyNewA(map: V3DecomposeCutMap): void {
+  map.authoring.destinations = map.authoring.destinations
+    .filter((destination) => destination.kind !== "new-member" || destination.slug === "new-a");
+  map.authoring.internalEdges = map.authoring.internalEdges
+    .filter(({ from, to }) => from !== "new-b" && to !== "new-b");
+  for (const entry of map.authoring.incomingDispositions) {
+    if (entry.disposition.kind === "replace") {
+      entry.disposition.replacementTargets = entry.disposition.replacementTargets
+        .filter((target) => target !== "new-b");
+    }
+  }
+  for (const entry of map.authoring.outgoingDispositions) {
+    if (entry.disposition.kind === "targets") {
+      entry.disposition.targets = entry.disposition.targets.filter((target) => target !== "new-b");
+    }
+  }
+}
+
 interface LooseCompletedMap {
   machine: { source: { kind: unknown } };
   authoring: {
@@ -445,7 +463,6 @@ describe("v3 decomposition map schema", () => {
     }
 
     for (const placement of [
-      { kind: "direct-member" as const },
       { kind: "cohort" as const, cohort: "group" },
       { kind: "subcohort" as const, cohort: "group/nested" },
       { kind: "at-cap" as const, parent: "group/nested" },
@@ -455,6 +472,11 @@ describe("v3 decomposition map schema", () => {
         authoring: { ...complete.authoring, placement },
       })).not.toBeNull();
     }
+
+    const direct = comprehensiveCompleted();
+    direct.authoring.placement = { kind: "direct-member" };
+    retainOnlyNewA(direct);
+    expect(parseV3DecomposeCutMap(direct)).not.toBeNull();
   });
 
   it("enforces shape cardinality and zero-one-many internal-edge replacement", () => {
@@ -489,6 +511,20 @@ describe("v3 decomposition map schema", () => {
       target: { kind: "work-unit", slug: "existing" },
     });
     expect(parseV3DecomposeCutMap(symmetricWithExisting)).toBeNull();
+
+    const multiMemberDirect = completed();
+    multiMemberDirect.authoring.placement = { kind: "direct-member" };
+    expect(decodeV3DecomposeCutMap(multiMemberDirect)).toMatchObject({
+      status: "rejected",
+      issue: { code: "placement-cardinality", path: "authoring.placement" },
+    });
+
+    const singleMemberCohort = comprehensiveCompleted();
+    retainOnlyNewA(singleMemberCohort);
+    expect(decodeV3DecomposeCutMap(singleMemberCohort)).toMatchObject({
+      status: "rejected",
+      issue: { code: "placement-cardinality", path: "authoring.placement" },
+    });
   });
 
   it("refuses missing, extra, and reordered copied machine identities", () => {

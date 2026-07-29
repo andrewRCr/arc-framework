@@ -241,6 +241,7 @@ async function resolveTransformComposition(
     fs: lifecycleFs,
     oracle: {
       exec: base.io.exec,
+      decompositionClaimCwd: base.cwd,
       baseBranch: settings["branch.base"],
       localOnly: false,
       expandLiveOnly: true,
@@ -671,8 +672,17 @@ export async function handleDecompose(
   opts: DecomposeOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  const input = parseLifecycleCommand(DecomposeCommandInputSchema, { origin: origin?.trim(), ...opts });
-  if (input === null) return;
+  const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
+  if (!parsed.success) {
+    const diagnostic = z.prettifyError(parsed.error);
+    if (opts.preflight === true) {
+      process.stderr.write(`${diagnostic}\n`);
+      process.exitCode = 1;
+    } else {
+      refuse(diagnostic);
+    }
+    return;
+  }
   const cwd = resolveArcRoot();
   if (cwd === null) {
     process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
@@ -680,15 +690,19 @@ export async function handleDecompose(
     return;
   }
   try {
-    const { settings } = await readConfigSettings(cwd);
+    const { settings, warnings } = await readConfigSettings(cwd);
+    for (const warning of warnings) process.stderr.write(`${warning}\n`);
     const io = createUserIOContext(context?.subprocess);
     const result = await createGitV3DecomposePreflight({
       cwd,
       exec: io.exec,
       readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-    }, settings["branch.base"], input.origin);
+    }, settings["branch.base"], parsed.data.origin);
     if (result.status === "rejected") {
-      process.stderr.write(`${result.reason}\n`);
+      const locus = "locus" in result ? result.locus : undefined;
+      process.stderr.write(
+        `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
+      );
       process.exitCode = 1;
       return;
     }
@@ -1237,6 +1251,7 @@ async function resolveMaterializeCandidate(
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs }));
   const result = await deriveInFlight({
     exec: base.io.exec,
+    decompositionClaimCwd: base.cwd,
     localOnly: false,
     baseBranch: settings["branch.base"],
     identity: base.identity,

@@ -19,6 +19,8 @@ describe("validated v3 decomposition plan path registry", () => {
   const operands = {
     preflightId: digest("preflight"),
     cutMapDigest: digest("cut-map"),
+    sourceHead: "source-head",
+    expectedBaseHead: "base-head",
     candidatePublication: {
       logicalAnchor: { kind: "cohort" as const, cohort: "origin" },
       entries: [{ kind: "new-leaf" as const, slug: "member-a" }],
@@ -42,6 +44,8 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "dependency",
           edgeId: "edge-b",
+          destinationId: "member-a",
+          dependent: "member-a",
           before: dependencyA,
           after: dependencyB,
         },
@@ -60,8 +64,11 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "content",
           destinationId: "member-a",
+          destinationKind: "new-member",
+          artifactRole: "meta",
           contributorKind: "allocation",
           contributorIdentity: "source-b",
+          sourceProjection: [],
           disposition: "patch",
           before: scaffolded,
           after: allocated,
@@ -92,6 +99,8 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "dependency",
           edgeId: "edge-a",
+          destinationId: "member-a",
+          dependent: "member-a",
           before: allocated,
           after: dependencyA,
         },
@@ -201,8 +210,11 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "content",
           destinationId: "member-a",
+          destinationKind: "new-member",
+          artifactRole: "meta",
           contributorKind: "allocation",
           contributorIdentity: "",
+          sourceProjection: [],
           disposition: "whole-file",
           before: absent,
           after: file("member-a"),
@@ -227,8 +239,11 @@ describe("validated v3 decomposition plan path registry", () => {
       contributor: {
         kind: "content",
         destinationId: "member-a",
+        destinationKind: "new-member",
+        artifactRole: "meta",
         contributorKind: "scaffold",
         contributorIdentity,
+        sourceProjection: [],
         disposition: "whole-file",
         before,
         after,
@@ -262,8 +277,11 @@ describe("validated v3 decomposition plan path registry", () => {
       contributor: {
         kind: "content",
         destinationId: "member-a",
+        destinationKind: "new-member",
+        artifactRole: "meta",
         contributorKind: "allocation",
         contributorIdentity: identity,
+        sourceProjection: [],
         disposition: "patch",
         before,
         after,
@@ -299,8 +317,11 @@ describe("validated v3 decomposition plan path registry", () => {
       contributor: {
         kind: "content",
         destinationId: "member-a",
+        destinationKind: "new-member",
+        artifactRole: "meta",
         contributorKind: "edit",
         contributorIdentity: "meta",
+        sourceProjection: [],
         disposition: "patch",
         before: file("before"),
         after: file("after"),
@@ -336,8 +357,11 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "content",
           destinationId: "member-a",
+          destinationKind: "new-member",
+          artifactRole: "meta",
           contributorKind: "edit",
           contributorIdentity: "meta",
+          sourceProjection: [],
           disposition: "patch",
           before: file("before"),
           after: file("after", "100755"),

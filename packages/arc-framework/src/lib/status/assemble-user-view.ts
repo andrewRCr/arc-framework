@@ -81,6 +81,7 @@ export async function assembleStatusUserView(
 
   const view = await runStatusUserView({
     exec,
+    cwd,
     identity,
     teamMode,
     localOnly,

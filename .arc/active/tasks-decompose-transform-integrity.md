@@ -134,267 +134,134 @@ before creating a branch or touching a result path.
 _Design decisions:_ Preflight is read-only canonical JSON. One immutable `ValidatedDecomposePlan` is the sole
 mutation authority; it already contains the operator-approved map and every mechanically derived action.
 
-### `[ ]` **2.1 Emit and revalidate read-only preflight**
+### `[x]` **2.1 Emit and revalidate read-only preflight**
 
 - _Goal:_ The operator receives a deterministic ready-to-author map from one exact committed source without
   changing repository or lifecycle state.
 
-- _Note:_ Design coverage: D2.
+    - `[x]` **2.1.a Resolve one tree-pinned source snapshot**
+        - The Git adapter now enumerates only exact local branch refs, resolves the configured base, and pins every
+          tree and blob read to the enumerated commit OID rather than a moving ref or invocation checkout.
+        - Source selection returns the exact logical branch, qualified ref, kind, head, origin path, stored artifact
+          inventory, and source-tree dependency graph. Self-identifying started branches and active/planned or
+          provisional base predecessors are the only accepted forms.
+        - Checkout-locus, alias, duplicate-path/ref, branch-identity, incompatible-predecessor, missing/stale-base,
+          and uncommitted-state cases now prove deterministic selection or refusal without remote or worktree reads.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
+    - `[x]` **2.1.b Infer the exact source planning profile**
+        - Preflight now derives draft, conventional single-spec, or the sanctioned slug-paired PRD/RFC profile from
+          raw tree-pinned `Design` and `Task List` metadata; callers cannot supply a profile or artifact scan set.
+        - Every design pointer and any authoritative task pointer must resolve exactly once in the selected source
+          inventory. Mixed, missing, duplicated, wrong-origin, unsanctioned, or task-inconsistent authority refuses
+          at the exact metadata field or artifact path before starter construction.
+        - Invalid self-authenticating source profiles remain selected and fail closed instead of disappearing behind
+          configured-base fallback; an unset task pointer keeps provisional task bytes non-authoritative.
 
-    - `[ ]` **2.1.a Resolve one tree-pinned source snapshot**
-        - Resolve configured `branch.base` as exact local `refs/heads/<base>`. Enumerate only other local branch
-          refs; exclude remote-tracking refs, worktree pseudo-refs, fetch, uncommitted state, and invocation-current
-          fallback.
-        - Qualify a non-base ref only when its tree contains exactly one supported active origin meta with
-          `State: Planning` and `Branch` equal to that ref's short name. One candidate wins as
-          `started-planning`; multiple candidates or paths, self-identity mismatch, and incompatible predecessor
-          state refuse.
-        - When no non-base candidate qualifies, accept the configured base only if its tree has exactly one active
-          Planning meta self-identifying as base or one provisional/planned backlog meta with `Branch` absent or
-          `[none]`; classify the latter as `backlog-stub`. Return logical branch, qualified ref, source kind, head,
-          and origin path.
-        - Build content, metadata, and incoming/outgoing dependency inventories from that one committed source tree.
-          Keep result-base facts separately named.
-        - Build `test-first` (one behavior at a time):
-            - Primary, base, source, unrelated, and detached attached checkouts resolve the same logical
-              branch/ref/head/path and inventories.
-            - Missing/stale base, duplicate paths, divergent self-authenticating refs, branch mismatch, and
-              incompatible base fallback refuse; staged and unstaged source bytes never enter evidence.
-            - Same-head local aliases do not qualify without their own exact Branch self-identity, and remote refs
-              never participate.
-            - Branch-private dependency metadata is read from the source tree rather than composed or working-tree
-              lifecycle state.
+    - `[x]` **2.1.c Expose canonical machine-readable preflight**
+        - Decompose input now normalizes to one closed preflight, execute, or finalize-with-continuation arm; future
+          discard and handoff flags remain outside the registry until their owning tasks extend the discriminator.
+        - Machine mode is selected before interactive rendering. Success writes exactly one canonical starter map
+          containing the inferred profile and `preflightId`; config warnings and every refusal tier write only to
+          stderr, with no partial stdout.
+        - Real-Git coverage proves preflight preserves the complete ref and worktree registries, attached indices,
+          retirement records, and dirty filesystem bytes while ignoring remote-tracking and invocation-checkout
+          state.
 
-    - `[ ]` **2.1.b Infer the exact source planning profile**
-        - Treat exact source metadata `Design` pointers as authority and require every pointer to resolve in the
-          tree-pinned source inventory. Infer draft-only, one conventional finalized spec, or exactly the sanctioned
-          PRD/RFC pair before starter construction; accept no caller-supplied or placeholder profile.
-        - Refuse draft/spec mixtures, extra or duplicated design authority, missing files or pointers,
-          wrong-origin names, unsanctioned spec sets, and inconsistent task-pointer state at the exact metadata or
-          artifact locus.
-        - Build `test-first` (one behavior at a time):
-            - Draft, conventional single-spec, and sanctioned paired-spec sources resolve one closed
-              `PlanningProfile`.
-            - Every mixed, missing, duplicated, or inconsistent authority shape refuses deterministically before
-              starter output.
+    - `[x]` **2.1.d Revalidate the exact preflight binding**
+        - Execution preflight reads completed bytes once, requires byte-canonical closed-map decoding and exact
+          authoring identity conservation, then resolves a fresh tree-pinned source through the same Git adapter.
+        - Machine comparison follows one fixed branch/ref/head/base/profile/source/incoming/outgoing/preflight order
+          and returns the first exact field or array-entry locus; no completed map or refreshed preflight escapes on
+          refusal.
+        - The execute handler now consumes this gate before result planning. Real-Git source movement proves a stale
+          head creates no branch, preparation, worktree, index, record, or dirty-byte change.
 
-    - `[ ]` **2.1.c Expose canonical machine-readable preflight**
-        - Redesign decompose input as a closed command-mode union and add the `preflight` arm through the CLI
-          registry and lifecycle boundary. Select machine mode before any interactive intro or renderer output.
-          Establish execute and finalize-with-continuation as the other base arms; later discard and handoff tasks
-          extend the same discriminator.
-        - Emit one atomic canonical starter-map JSON write on stdout after success, including the tree-derived
-          `planningProfile` in its machine envelope and `preflightId`. Send every warning and diagnostic, including
-          schema, project-root, config, source-resolution, and profile failures, to stderr; emit no partial stdout
-          on nonzero refusal.
-        - Keep preflight locally read-only: forbid fetch and mutating Git verbs and preserve the full ref namespace,
-          worktree registrations/heads, every attached index/worktree, record namespace, and filesystem residue.
-        - Build `test-first` (one behavior at a time):
-            - The base mode schema accepts exactly one of preflight, execute cut-map, or
-              finalize-with-continuation and rejects pairwise, partial-finalize, all-mode, and no-mode combinations.
-            - Success stdout is byte-exact canonical JSON with no interactive prefix or suffix; every refusal tier
-              leaves stdout empty and diagnostics on stderr.
-            - Success and refusal leave all repository, checkout, lifecycle, and filesystem observations unchanged.
+- _Outcome:_ Preflight and execute now share one checkout-independent committed-source authority: canonical author
+  input can advance only when its complete machine envelope still matches the freshly rederived source and result
+  base, while every drift path remains locally read-only.
 
-    - `[ ]` **2.1.d Revalidate the exact preflight binding**
-        - Bind a typed preflight identity/digest into the starter map. Before result planning, atomically re-read the
-          completed canonical map bytes, resolve the source ref, reread the exact source tree, and rederive
-          its planning profile and inventories in that order.
-        - Compare logical branch, qualified ref, head, planning profile, inventory, allocation, and every machine
-          binding before returning any planning input.
-        - Build `test-first` (one behavior at a time):
-            - Source movement, map drift, or evidence drift returns the deterministic first exact mismatch.
-            - Call-order tests prove no partial plan or preparation escapes before every comparison succeeds.
-            - Changed source after preflight creates no branch, preparation, or writable residue.
-
-### `[ ]` **2.2 Build the complete immutable result plan**
+### `[x]` **2.2 Build the complete immutable result plan**
 
 - _Goal:_ Every pre-creation refusal and every permitted write is represented once in the plan consumed by the
   driver.
 
-- _Note:_ Design coverage: D2, D3, D5.
+    - `[x]` **2.2.a Enforce allocation, ownership, and dependency conservation**
+        - Added one pure pre-creation pipeline whose fixed decode, machine-binding, live-conservation, ownership,
+          and dependency stages return the first typed refusal with an exact machine, allocation, record, or path
+          locus.
+        - Exact source and live-edge sets now gate destination identity, locator, and ownership compatibility;
+          `cohort-shared` content can target only cohort coordination without encoding semantic prose judgment.
+        - Incoming, outgoing, and internal dependencies produce one edge-ordered edit chain per dependent. Missing,
+          stale, unwritable, unchanged, self-referential, or retiring-origin projections refuse before any mutable
+          authority exists.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
+    - `[x]` **2.2.b Prove predecessor removal and classify source-private riders**
+        - Added a pure three-tree planner that binds the sole merge base and exact stored bytes, modes, and object
+          kinds across the complete UTF-8-ordered path universe.
+        - Started and backlog-stub contracts now produce exact predecessor/origin retirement operands while refusing
+          topology, predecessor, mode, and type drift before mutation.
+        - A binary-safe Git adapter uses `merge-base --all` and recursive type-aware tree reads; all remaining
+          source-private additions, modifications, and deletions return in one deterministic rider inventory.
 
-    - `[ ]` **2.2.a Enforce allocation, ownership, and dependency conservation**
-        - Sequence one closed validation pipeline: decoded-map structure, machine-binding comparison, live exact-set
-          conservation, ownership policy, then projected dependency postconditions. Assign each refusal to one
-          stage and retain a deterministic first-refusal contract with exact source/allocation/path/entry locus.
-        - Validate every scanned source unit exactly once with compatible destination and ownership. Mechanically
-          restrict `cohort-shared` units to cohort coordination; leave the semantic judgment that shared prose is
-          genuinely ownerless to the distribution interlock.
-        - Construct the complete post-transform dependency projection. Prove every live incoming/outgoing edge is
-          covered exactly once, every declared dependent has an authoritative writable path, each disposition
-          changes its expected slot, and no retiring-origin reference remains.
-        - Build `test-first` (one behavior at a time):
-            - Added, omitted, duplicated, changed, or incompatibly owned units refuse at an exact locus.
-            - Missing, stale, unwritable, or origin-reintroducing dependency dispositions refuse rather than being
-              skipped.
-            - Exact allocation and dependency distribution produce one ordered set of planned edits.
+    - `[x]` **2.2.c Plan the logical anchor and constitutive cohort paths**
+        - Added a pure topology planner that separates the direct-member, cohort, subcohort, and at-cap logical
+          anchors from ordered `none/create/backfill/ensure/reuse/append` path actions and their exact base bytes.
+        - Canonical template rendering emits only the structural identity floor with `Purpose: —`; existing topology
+          must be a matching regular UTF-8 document, and same-origin at-cap provenance is exact and idempotent.
+        - Public cardinality counts only new members, while an extraction-only DTO may add a surviving origin.
+          Multi-member direct placement now refuses in both the v3 codec and synchronized package/project doctrine.
 
-    - `[ ]` **2.2.b Prove predecessor removal and classify source-private riders**
-        - Build a typed three-tree `RetirementDeltaPlan` over the unique source/result merge base, source head, and
-          result base. Bind the complete path universe and each path's stored bytes, mode, and object kind; refuse
-          missing or ambiguous merge-base topology.
-        - Distinguish started and backlog-stub predecessor identity before classifying expected origin-artifact
-          evolution, unchanged predecessor removal, derived ROADMAP movement, and paths already identical to the
-          expected result projection. Return every other nonidentical path as a UTF-8 byte-sorted rider inventory
-          with a typed reason.
-        - Build `test-first` (one behavior at a time):
-            - Started and backlog-stub retirement admit only their expected delta.
-            - Missing, changed, absent, or ambiguous predecessor; criss-cross/ambiguous base; and mode/type-only
-              changes refuse before branch creation.
-            - Multiple riders return one complete, deterministically ordered path/reason inventory.
+    - `[x]` **2.2.d Project preparation-bound publication and topology**
+        - Added one projector that authenticates each placement's exact logical anchor and topology action/path
+          shape, converts raw topology bytes to canonical path facts, and seals their digest with publication.
+        - Publication follows canonical destination-ID order, filters coordination, and preserves every existing
+          work-unit, draft-block/locator, and document identity while keeping continuation new-leaf-only.
+        - Preparation now consumes the combined projected authority and revalidates it on create/decode; missing,
+          extra, mismatched, drifted, or unstable publication/topology operands refuse before occupation.
 
-    - `[ ]` **2.2.c Plan the logical anchor and constitutive cohort paths**
-        - Add a reusable planner over already-decided placement. Return a closed logical-anchor arm independently
-          from its physical coordination and optional parent paths: cohort document, subcohort document, at-cap
-          origin block, or eligible single-member direct member.
-        - Bind regular-file/absent base bytes, object kind, and mode for every topology path plus an explicit
-          ensure/backfill/create/reuse/append/none action order. Refuse nonregular paths, wrong structural identity,
-          unexpected locations, and conflicting same-origin at-cap provenance.
-        - Use the package-source canonical cohort template/renderer to produce topology structure contributors with
-          `Purpose: —`; do not write them here. Preserve action identity so composed materialization can later report
-          create/ensure/backfill/reuse/append/none without rerunning placement.
-        - Count only new members in the public decomposition map; existing-home entries remain exact
-          publication/edit destinations and never become members. Keep an optional surviving-origin constituent
-          only in a separate internal topology-planner DTO for the extraction child; the core CLI, map,
-          preparation, and receipt codecs never accept it.
-        - Prohibit every multi-member cohortless fan-out in cut-map validation and package-source doctrine, render
-          the project `assess-cohort-fit` copy, and verify parity. At the nesting cap, project the origin-keyed
-          fan-out under the existing parent coordination doc.
-        - Build `test-first` (one behavior at a time):
-            - Standalone cohort, nested cohort, missing parent, at-cap, and eligible single-member cohortless
-              placements produce exact plans.
-            - Public zero/one/many-new-member and one-new-member heterogeneous inputs apply the closed member-count
-              rule without enrolling existing homes; the internal planner separately counts its optional surviving
-              origin.
-            - Every multi-member cohortless result refuses regardless of content ownership; package and project
-              doctrine stay synchronized.
+    - `[x]` **2.2.e Compose one mutation per managed path**
+        - Added a typed byte-level composer that binds every profile artifact, optional provisional task,
+          allocation projection, topology action, dependency edit, retirement, ROADMAP update, and evidence write
+          into the canonical registry before exposing a plan.
+        - The registry now retains destination, artifact, source-projection, dependent, and edge identity, enforces
+          semantic contributor order and exact prestates, and returns one UTF-8-ordered final mutation plus
+          content-addressed bytes per path.
+        - New-leaf metas render the prepared receipt marker exactly once; existing homes and ordinary rendering
+          omit it. Profile, path-set, role, writer, object, mode, collision, and continuity violations fail closed.
 
-    - `[ ]` **2.2.d Project preparation-bound publication and topology**
-        - Derive the closed candidate publication from the validated destination and topology plan: one exact
-          logical anchor plus every new-leaf and existing-destination entry. Iterate destinations in canonical
-          `destinationId` order, omit `cohort-coordination`, and map every remaining destination to exactly one
-          entry. Project existing work-unit, draft-block/locator, and document-path arms without making them
-          continuation-eligible.
-        - Bind the candidate publication and the constitutive topology facts/digest into the plan/preparation tuple
-          before occupation. Do not include continuation or live readiness, and do not derive either identity from
-          authored candidate bytes.
-        - Build `test-first` (one behavior at a time):
-            - Direct-member, cohort, subcohort, and at-cap plans produce exact canonical publication and topology.
-            - Every existing target arm preserves exact identity and remains selection-ineligible.
-            - Mixed new-leaf/existing/cohort-coordination destinations prove exact filter-and-map ordering; selected
-              slugs preserve the resulting new-leaf subsequence even though new-leaf entries omit destination IDs.
-            - Missing/extra destinations, mismatched kinds, topology drift, or unstable ordering refuses before
-              branch creation.
+- _Outcome:_ One read-only pipeline now carries tree-pinned conservation, retirement, topology, publication, and
+  content facts into a preparation-bound plan whose complete path authority is unique, ordered, byte-exact, and
+  directly consumable without later resolver or contributor writes.
 
-    - `[ ]` **2.2.e Compose one mutation per managed path**
-        - From the tree-derived profile and validated allocation, produce content contributors for every new-member
-          artifact, optional provisional task, existing-home edit, and dependency edit. Bind destination
-          ID/kind, managed path, artifact role, canonical source IDs/content projection, object kind/mode, and
-          mutation disposition.
-        - Build one canonical path registry over destination/content, dependency, topology, predecessor/source
-          retirement, ROADMAP, and evidence roles. Receipt/evidence, retiring source/predecessor, and ROADMAP paths
-          are exclusive. Every other path has one base prestate and contributors ordered as topology structure,
-          content by `(destinationId, contributorKind, contributorIdentity)`, then dependency transforms by
-          `edgeId`; scaffold identity is artifact role, allocation identity is `(sourceId, targetLocator)`, and
-          each contributor consumes the prior exact after-state.
-        - Refuse multiple whole-file owners, duplicate/incompatible roles, unsupported types or modes, an
-          inapplicable contributor, or any exclusive-role collision before branch creation. Derive unique
-          UTF-8-sorted `allowedPaths` from the registry; with the already-projected publication/topology, compute
-          `planId`, its `ProspectiveTransitionOverlay`, and the exclusive ROADMAP after-state, then close every
-          valid path to one final bytes/mode mutation. Later materialization receives only this table.
-        - Give each new-leaf meta contribution the stable prepared `receiptId` in optional
-          `Decomposition Receipt`; omit the field from ordinary templates and every existing-home contribution.
-        - Build `test-first` (one behavior at a time):
-            - Valid profiles and optional task seeds produce deterministic one-entry-per-path mutations, allowed
-              paths, plan identity, prospective overlay, and ROADMAP result.
-            - A cohort topology scaffold plus allocated coordination content composes in order; an existing-home
-              meta content edit plus one or several dependency dispositions composes once in canonical edge order.
-            - Duplicate whole-file writers, topology/content order mismatch, receipt/predecessor/ROADMAP collision,
-              unwritable homes, extra paths, symlinks, submodules, unexpected modes, and ambiguous content refuse
-              before branch creation.
-
-### `[ ]` **2.3 Define exact candidate occupation**
+### `[x]` **2.3 Define exact candidate occupation**
 
 - _Goal:_ The later materialization driver receives one testable occupation seam and exact ownership operand for
   either the plan-bound candidate or the partial-protection base projection.
 
-- _Note:_ Design coverage: D2.
+    - `[x]` **2.3.a Define exact transient candidate ownership**
+        - Added one closed repository-common claim machine with content-derived claim/worktree identities, positive
+          generations, pathless pending recovery, adapter-only path registration, and exact acquire, reserve,
+          occupy, retire, release, and terminal retry semantics.
+        - Added per-claim locking and atomic persistence. Canonical filename/record mismatches, malformed state,
+          stale generations, duplicate branch claims, incomplete occupation evidence, and unproven cleanup all fail
+          closed; write-failure and concurrency coverage proves preserved resumability without lost updates.
+        - Worktree markers and preparation ownership now carry only the claim/generation/branch/opaque-worktree
+          tuple. In-flight, status/session, and cleanup derivation loads exact common-directory claims, suppresses
+          only unambiguous live candidate residue, and surfaces invalid operational records without host-path
+          leakage.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 2 Grounding
+    - `[x]` **2.3.b Implement the result-occupation seam**
+        - Added one injectable occupation driver over protection mode, configured base, and the immutable plan's
+          explicit source, cut-map, and expected-base binding; the public execute path remains unwired.
+        - Full protection creates or resumes only `chore/decompose-<origin>` with one exact claim, registration,
+          head, and marker projection. Partial protection exposes only a clean exact relevant-path base projection.
+        - Base movement and every absent, duplicate, wrong-path, occupied, stale, foreign, marker, and concurrent
+          collision refuse before materialization. Proven mutation-free creation races roll back to the exact
+          pathless pending generation; uncertain races preserve typed recovery-required state.
 
-    - `[ ]` **2.3.a Define exact transient candidate ownership**
-        - Store each operational claim at
-          `<git-common-dir>/arc/transient-claims/<claimId>.json`, where `claimId` is the canonical digest of
-          `{ schemaVersion: 1, kind: "decomposition-candidate", origin, candidateBranch }`. The closed record binds
-          that key and a positive monotonic generation to origin, branch, source head, result base, cut-map digest,
-          deterministic opaque worktree identity, adapter-only registration, and pending/occupied/terminal state
-          without carrying semantic approval. Derive `candidateWorktree` from
-          `{ schemaVersion: 1, kind: "decomposition-candidate-worktree", claimId, generation }`.
-        - Give the machine-local registration one closed
-          `unregistered | intended{path} | registered{path} | released{lastPath}` arm. Keep canonical absolute host
-          paths solely in this operational mapping; exclude them from claim/worktree identity,
-          `candidateOwnership`, preparation, and receipts.
-        - Serialize each key with a repository-common lock and atomic replacement. Keep exactly the latest
-          generation: retain a landed/discarded terminal until the next successful acquire advances it, then make
-          every retry against the old generation a conflict.
-        - Implement `acquire(claimId, binding)`, `reserveWorktree(claimId, generation, path)`,
-          `occupy(claimId, generation, path)`, `retire(claimId, expectedGeneration, terminal)`, and
-          `releaseWorktree(claimId, generation, candidateWorktree, path)`. Persist `intended` before branch or
-          filesystem mutation. `occupy` requires that path's exact Git registration, candidate branch/head, and ARC
-          marker carrying claim ID/generation/worktree identity before atomically recording
-          `registered/occupied`. Retire preserves the registration for cleanup; release requires matching terminal
-          authority plus absent Git registration/marker/branch occupation before recording `released`.
-          Exact retries are idempotent; acquire advances only a released terminal and retire returns
-          `retired | already-retired-matching | conflict | missing-unproven`.
-        - Treat exact `pending/unregistered` as a valid pathless post-acquire recovery state. An exact retry may
-          reserve it but may inspect no path; preserve it after post-acquire failure unless an exact-generation
-          rollback compare-and-swap proves no reservation, branch, worktree, marker, or observer can exist.
-        - Integrate exact live claims with in-flight, status/session residue, and cleanup readers. Missing,
-          malformed, mismatched, foreign, or superseded claims grant no occupation or deletion authority.
-        - Define crash-safe ordering and rollback across pending claim persistence, intended-path reservation,
-          branch creation, worktree registration/marker creation, occupation completion, post-occupation
-          validation, terminal retirement, local cleanup, and registration release. On restart, only an exact
-          `intended` mapping may inspect or complete the reserved path; foreign bytes, branch/head, Git
-          registration, or marker state refuses without adoption.
-        - Expose the created full-protection claim-ID/generation/branch/opaque-worktree identity as the exact
-          `candidateOwnership` value later copied into preparation; keep host filesystem paths in the local claim
-          adapter and outside claim/receipt identity. Partial protection produces only its explicit not-applicable
-          value.
-        - Build `test-first` (one behavior at a time):
-            - An exact live generation suppresses only its candidate's residue warning.
-            - Every malformed, missing, mismatched, or superseded generation fails closed.
-            - Different claim IDs proceed independently; concurrent acquire/reserve/occupy/retire/release calls on
-              one key serialize without lost updates.
-            - Worktree identity is stable across path changes and restart, while no absolute path enters
-              preparation/receipt bytes; zero, duplicate, stale, foreign, or malformed registrations fail closed.
-            - A matching terminal retries idempotently, a safe new acquire replaces it with generation plus one,
-              only after exact registration release, and every older retry then conflicts.
-            - Failure/crash injection at every reserve/create/register/mark/occupy/retire/cleanup/release boundary
-              leaves either one pathless resumable exact `pending/unregistered` generation, one path-addressable
-              resumable exact claim/candidate, typed recovery-required residue, or no branch, worktree, or claim
-              residue.
-            - Exact terminal retry is idempotent; landed/discarded mismatch, concurrent generation, and unproven
-              absence fail closed.
-
-    - `[ ]` **2.3.b Implement the result-occupation seam**
-        - Give the in-repository driver one pure/injectable branch-operation seam over protection mode, configured
-          base, and the plan's expected base object. Keep the public execute path unwired until Task 3.1.c composes
-          this seam with the canonical managed-path materializer.
-        - Under full protection create the deterministic candidate only when absent; resume only on its exact
-          source/base/map binding and unique registered worktree projection. Under partial protection require the
-          exact clean relevant base projection.
-        - Resolve branch-exists-unregistered, registered-at-wrong-path, occupied-path, duplicate-registration, and
-          concurrent-creation collisions explicitly. Add no branch-prefix cleanup exemption.
-        - Build `test-first` (one behavior at a time):
-            - Both modes reject base movement before mutation.
-            - Exact resume succeeds; stale or foreign deterministic branches refuse as collisions.
-            - A collision proven before acquire leaves no claim or writable residue; a collision after successful
-              acquire preserves only the exact resumable `pending/unregistered` generation and no writable residue.
+- _Outcome:_ The immutable plan now carries its exact occupation binding into one protection-aware seam. Full mode
+  yields only claim-backed candidate ownership, partial mode yields only the explicit not-applicable arm, and no
+  path mutation or branch-prefix convention can substitute for exact base, claim, registration, and marker proof.
 
 ## **Phase 3:** Planning authority, topology, and finalization
 

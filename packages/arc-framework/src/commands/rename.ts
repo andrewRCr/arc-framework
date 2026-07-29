@@ -98,6 +98,7 @@ export async function runRenameCommand(
         fs: lifecycleFs,
         oracle: {
           exec,
+          decompositionClaimCwd: command.cwd,
           baseBranch: command.baseBranch,
           localOnly: false,
           expandLiveOnly: true,

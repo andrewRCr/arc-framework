@@ -23,7 +23,6 @@ describe("DecomposeCommandInputSchema", () => {
       handoff: true,
     },
     { origin, preflight: false },
-    { origin, handoff: false },
     { origin, cutMap: "" },
   ])("refuses partial, conflicting, empty, or false mode evidence: %o", (input) => {
     expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(false);

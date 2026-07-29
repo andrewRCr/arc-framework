@@ -22,14 +22,14 @@ function input(): V3DecomposePreflightInput {
         location: "backlog",
         state: "Planning",
         branch: null,
-        planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
+        design: ["draft-origin.md"],
+        taskList: null,
       }],
       sourceArtifacts: [{
         path: ".arc/backlog/planned/origin/draft-origin.md",
         objectKind: "blob",
         mode: "100644",
         bytes: bytes("# Draft\n\n## One\n"),
-        allocatable: true,
       }],
       incomingEdges: [],
       outgoingEdges: [],
@@ -44,14 +44,14 @@ function input(): V3DecomposePreflightInput {
         location: "active",
         state: "Planning",
         branch: "plan/origin",
-        planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
+        design: ["draft-origin.md"],
+        taskList: null,
       }],
       sourceArtifacts: [{
         path: ".arc/active/draft-origin.md",
         objectKind: "blob",
         mode: "100644",
         bytes: bytes("# Draft\n\n## One\n"),
-        allocatable: true,
       }],
       incomingEdges: [{ dependent: "consumer", currentTargets: ["origin"] }],
       outgoingEdges: [{ prerequisite: "foundation" }],
@@ -77,6 +77,7 @@ describe("v3 decomposition preflight", () => {
       resultBase: { ref: "refs/heads/main", head: "b".repeat(40) },
       planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
     });
+    expect(result.preflight.sourceOriginPath).toBe(".arc/active/meta-origin.md");
     expect(result.preflight.starterMap.machine.sourceUnits).toHaveLength(2);
     expect(result.preflight.starterMap.authoring.sourceAllocations).toHaveLength(2);
     expect(result.preflight.sourceArtifactInventory).toEqual([expect.objectContaining({
@@ -98,6 +99,39 @@ describe("v3 decomposition preflight", () => {
       logicalBranch: "main",
       head: "a".repeat(40),
     });
+    expect(result.preflight.sourceOriginPath).toBe(
+      ".arc/backlog/planned/origin/meta-origin.md",
+    );
+
+    const provisional = input();
+    provisional.localBranches = [];
+    provisional.sourceBase.origins[0]!.state = "Provisional";
+    expect(createV3DecomposePreflight(provisional)).toMatchObject({
+      status: "ready",
+      preflight: {
+        starterMap: {
+          machine: { source: { kind: "backlog-stub", logicalBranch: "main" } },
+        },
+      },
+    });
+
+    const activeBase = input();
+    activeBase.localBranches = [];
+    activeBase.sourceBase.origins = [{
+      ...activeBase.sourceBase.origins[0]!,
+      path: ".arc/active/meta-origin.md",
+      location: "active",
+      branch: "main",
+    }];
+    activeBase.sourceBase.sourceArtifacts[0]!.path = ".arc/active/draft-origin.md";
+    expect(createV3DecomposePreflight(activeBase)).toMatchObject({
+      status: "ready",
+      preflight: {
+        starterMap: {
+          machine: { source: { kind: "started-planning", logicalBranch: "main" } },
+        },
+      },
+    });
   });
 
   it("returns deterministic source-selection refusals without choosing by ref order", () => {
@@ -113,6 +147,43 @@ describe("v3 decomposition preflight", () => {
     expect(createV3DecomposePreflight(mismatched)).toEqual({
       status: "rejected",
       reason: "source-self-identity",
+    });
+
+    const duplicatePath = input();
+    duplicatePath.localBranches[0]!.origins = [
+      ...duplicatePath.localBranches[0]!.origins,
+      structuredClone(duplicatePath.localBranches[0]!.origins[0]!),
+    ];
+    expect(createV3DecomposePreflight(duplicatePath)).toEqual({
+      status: "rejected",
+      reason: "source-origin-duplicate",
+    });
+
+    const incompatibleBase = input();
+    incompatibleBase.localBranches = [];
+    incompatibleBase.sourceBase.origins[0]!.state = "Active";
+    expect(createV3DecomposePreflight(incompatibleBase)).toEqual({
+      status: "rejected",
+      reason: "source-predecessor",
+    });
+
+    const sameHeadAlias = input();
+    const aliasWithoutIdentity = structuredClone(sameHeadAlias.localBranches[0]!);
+    aliasWithoutIdentity.ref = "refs/heads/plan/alias";
+    sameHeadAlias.localBranches = [...sameHeadAlias.localBranches, aliasWithoutIdentity];
+    expect(createV3DecomposePreflight(sameHeadAlias)).toEqual({
+      status: "rejected",
+      reason: "source-self-identity",
+    });
+
+    const duplicatedRef = input();
+    duplicatedRef.localBranches = [
+      ...duplicatedRef.localBranches,
+      structuredClone(duplicatedRef.localBranches[0]!),
+    ];
+    expect(createV3DecomposePreflight(duplicatedRef)).toEqual({
+      status: "rejected",
+      reason: "source-candidate-duplicate",
     });
   });
 

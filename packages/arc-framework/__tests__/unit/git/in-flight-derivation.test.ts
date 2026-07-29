@@ -1,5 +1,10 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, it, expect, vi } from "vitest";
 
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import {
   deriveInFlight,
   renderInFlightWarning,
@@ -7,6 +12,10 @@ import {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
+import {
+  acquireDecomposeTransientClaim,
+  decomposeTransientClaimId,
+} from "../../../src/lib/work-unit/decompose-transient-claim.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -62,6 +71,7 @@ function makeExec(opts: {
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
   metas?: Record<string, string>;
   transientMetaReadFailures?: Record<string, number>;
+  commonDir?: string;
 }): GitExec {
   const worktrees = opts.worktrees ?? [];
   const worktreeSnapshots = opts.worktreeSnapshots ?? null;
@@ -76,6 +86,9 @@ function makeExec(opts: {
   let refReadCount = 0;
   let worktreeReadCount = 0;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (args[0] === "rev-parse" && args[1] === "--git-common-dir" && opts.commonDir !== undefined) {
+      return { stdout: `${opts.commonDir}\n`, stderr: "" };
+    }
     if (args[0] === "for-each-ref") {
       if (opts.refError) throw new Error("fatal: cannot list refs");
       if (refSnapshots !== null) {
@@ -543,6 +556,66 @@ describe("deriveInFlight", () => {
         branch: "chore/merged-errand",
       }),
     ]);
+  });
+
+  it("suppresses residue only for an exact validated decomposition candidate branch", async () => {
+    const exec = makeExec({});
+    const result = await deriveInFlight({
+      exec,
+      branches: ["chore/decompose-origin", "chore/foreign"],
+      identity: null,
+      teamMode: false,
+      decompositionCandidateBranches: new Set(["chore/decompose-origin"]),
+    });
+    expect(result.residue).toEqual([{
+      branch: "chore/foreign",
+      slug: "foreign",
+      reason: "no-record-or-meta",
+    }]);
+    expect(result.warnings.map(({ branch }) => branch)).toEqual(["chore/foreign"]);
+  });
+
+  it("loads exact repository-common claims and surfaces malformed records without granting them authority", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-in-flight-claim-"));
+    const commonDir = join(cwd, ".git");
+    const claimRoot = join(commonDir, "arc", "transient-claims");
+    await mkdir(claimRoot, { recursive: true });
+    try {
+      const binding = {
+        origin: "origin",
+        candidateBranch: "chore/decompose-origin",
+        sourceHead: "source",
+        resultBaseHead: "base",
+        cutMapDigest: decomposeTransientClaimId({
+          origin: "map-origin",
+          candidateBranch: "chore/map",
+        }),
+      };
+      const claimId = decomposeTransientClaimId(binding);
+      const acquired = acquireDecomposeTransientClaim(null, claimId, binding);
+      if (acquired.status !== "acquired") throw new Error("expected acquisition");
+      const reserved = {
+        ...acquired.claim,
+        registration: { kind: "intended" as const, path: join(cwd, "candidate") },
+      };
+      await writeFile(join(claimRoot, `${claimId}.json`), canonicalize(reserved));
+      await writeFile(join(claimRoot, "malformed.json"), "{broken");
+
+      const result = await deriveInFlight({
+        exec: makeExec({ commonDir }),
+        branches: ["chore/decompose-origin", "chore/foreign"],
+        identity: null,
+        teamMode: false,
+        decompositionClaimCwd: cwd,
+      });
+      expect(result.residue.map(({ branch }) => branch)).toEqual(["chore/foreign"]);
+      expect(result.warnings).toContainEqual({
+        code: "decomposition-claim-invalid",
+        rendered: "Malformed decomposition candidate claim: malformed.json",
+      });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it("surfaces an errand record whose branch no longer exists", async () => {

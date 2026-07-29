@@ -9,12 +9,13 @@ import {
   type V3DecomposeSourceMeta,
   type V3DecomposeStoredArtifact,
   type V3DecomposeTreeSnapshot,
+  v3PlanningDesignNames,
 } from "./decompose-v3-preflight.js";
 
 export interface GitV3DecomposePreflightDependencies {
   cwd: string;
   exec: GitExec;
-  readBlob(ref: string, path: string): Promise<Uint8Array | null>;
+  readBlob(commit: string, path: string): Promise<Uint8Array | null>;
 }
 
 export type GitV3DecomposePreflightResult =
@@ -62,23 +63,6 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
   return null;
 }
 
-function planningProfile(
-  origin: string,
-  design: readonly string[],
-): V3DecomposeSourceMeta["planningProfile"] | null {
-  const names = design.map((value) => posix.basename(value));
-  if (names.length === 1 && names[0] === `draft-${origin}.md`) {
-    return { kind: "draft", sourceDesign: [names[0]] };
-  }
-  if (names.length === 1 && names[0]?.endsWith(`-${origin}.md`) === true) {
-    return { kind: "single-spec", sourceDesign: [names[0]] };
-  }
-  if (names.length === 2 && names.every((name) => name.endsWith(`-${origin}.md`))) {
-    return { kind: "paired-spec", sourceDesign: [names[0] ?? "", names[1] ?? ""] };
-  }
-  return null;
-}
-
 async function readSnapshot(
   deps: GitV3DecomposePreflightDependencies,
   ref: string,
@@ -91,7 +75,7 @@ async function readSnapshot(
     "-r",
     "-z",
     "--format=%(objectmode) %(objecttype) %(path)",
-    ref,
+    head,
     "--",
     ".arc/active",
     ".arc/backlog/planned",
@@ -106,7 +90,7 @@ async function readSnapshot(
   for (const entry of entries) {
     const slug = slugFromMetaPath(entry.path);
     if (slug === null || entry.kind !== "blob") continue;
-    const bytes = await deps.readBlob(ref, entry.path);
+    const bytes = await deps.readBlob(head, entry.path);
     if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
     metaRecords.push({
       slug,
@@ -118,9 +102,8 @@ async function readSnapshot(
   const origins: V3DecomposeSourceMeta[] = [];
   for (const meta of metaRecords.filter(({ slug }) => slug === origin)) {
     const location = locationOf(meta.path);
-    const profile = planningProfile(origin, meta.record.design);
     if (location === null) continue;
-    if (profile === null || meta.record.state === null) {
+    if (meta.record.state === null) {
       throw new GitV3DecomposePreflightRejection(
         "git-preflight:invalid-origin-meta",
         meta.path,
@@ -132,29 +115,33 @@ async function readSnapshot(
       location,
       state: meta.record.state,
       branch: meta.record.branch,
-      planningProfile: profile,
+      design: meta.record.design,
+      taskList: meta.record.taskList,
     });
   }
 
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
   const matcher = artifactMatcher(origin);
-  const designNames = new Set(sourceMeta?.planningProfile.sourceDesign ?? []);
+  const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
-      if (posix.dirname(entry.path) !== sourceDir || !matcher.test(posix.basename(entry.path))) continue;
+      const name = posix.basename(entry.path);
+      if (
+        posix.dirname(entry.path) !== sourceDir
+        || (!matcher.test(name) && !layeredDesignNames.has(name))
+      ) continue;
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {
         throw new Error(`unsupported-artifact:${entry.path}`);
       }
-      const bytes = await deps.readBlob(ref, entry.path);
+      const bytes = await deps.readBlob(head, entry.path);
       if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
       sourceArtifacts.push({
         path: entry.path,
         objectKind: "blob",
         mode: entry.mode,
         bytes,
-        allocatable: designNames.has(posix.basename(entry.path)),
       });
     }
   }

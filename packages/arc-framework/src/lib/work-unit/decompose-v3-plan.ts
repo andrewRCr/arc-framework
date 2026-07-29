@@ -49,14 +49,19 @@ export interface V3PlanTopologyContributor extends V3PlanContributorBase {
 export interface V3PlanContentContributor extends V3PlanContributorBase {
   kind: "content";
   destinationId: string;
+  destinationKind: "new-member" | "existing-home" | "cohort-coordination";
+  artifactRole: string;
   contributorKind: string;
   contributorIdentity: string;
+  sourceProjection: Array<{ sourceId: string; targetLocator: unknown }>;
   disposition: "whole-file" | "patch";
 }
 
 export interface V3PlanDependencyContributor extends V3PlanContributorBase {
   kind: "dependency";
   edgeId: string;
+  destinationId: string | null;
+  dependent: string;
 }
 
 export type V3PlanContributor =
@@ -85,6 +90,8 @@ export type V3PlanPathClaim = V3PlanExclusiveClaim | V3PlanContributorClaim;
 export interface BuildValidatedDecomposePlanInput {
   preflightId: CanonicalDigest;
   cutMapDigest: CanonicalDigest;
+  sourceHead: string;
+  expectedBaseHead: string;
   candidatePublication: V3CandidatePublication;
   topologyDigest: CanonicalDigest;
   origin: string;
@@ -114,6 +121,9 @@ export type V3ValidatedPathMutation =
 
 export interface ValidatedDecomposePlan {
   planId: CanonicalDigest;
+  cutMapDigest: CanonicalDigest;
+  sourceHead: string;
+  expectedBaseHead: string;
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
   prospectiveOverlay: ProspectiveTransitionOverlay;
@@ -185,9 +195,16 @@ function contributorIdentity(contributor: V3PlanContributor): string {
 function contributorKey(contributor: V3PlanContributor): readonly string[] {
   if (contributor.kind === "topology") return ["0", contributor.contributorIdentity];
   if (contributor.kind === "content") {
+    const kindOrder: Record<string, string> = {
+      scaffold: "0",
+      "provisional-task": "0",
+      allocation: "1",
+      "existing-home-edit": "1",
+    };
     return [
       "1",
       contributor.destinationId,
+      kindOrder[contributor.contributorKind] ?? contributor.contributorKind,
       contributor.contributorKind,
       contributor.contributorIdentity,
     ];
@@ -195,16 +212,24 @@ function contributorKey(contributor: V3PlanContributor): readonly string[] {
   return ["2", contributor.edgeId];
 }
 
-function validIdentity(value: string): boolean {
-  return value.trim() !== "" && !value.includes("\0");
+function validIdentity(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }
 
 function contributorIsStructurallyValid(contributor: V3PlanContributor): boolean {
   if (contributor.kind === "topology") return validIdentity(contributor.contributorIdentity);
-  if (contributor.kind === "dependency") return validIdentity(contributor.edgeId);
+  if (contributor.kind === "dependency") {
+    return validIdentity(contributor.edgeId)
+      && validIdentity(contributor.dependent)
+      && (contributor.destinationId === null || validIdentity(contributor.destinationId));
+  }
   return validIdentity(contributor.destinationId)
+    && validIdentity(contributor.destinationKind)
+    && validIdentity(contributor.artifactRole)
     && validIdentity(contributor.contributorKind)
-    && validIdentity(contributor.contributorIdentity);
+    && validIdentity(contributor.contributorIdentity)
+    && contributor.sourceProjection.every(({ sourceId, targetLocator }) =>
+      validIdentity(sourceId) && typeof targetLocator === "object" && targetLocator !== null);
 }
 
 function modeTransitionIsCompatible(
@@ -223,6 +248,8 @@ function invalidOperand(input: BuildValidatedDecomposePlanInput): boolean {
   return !isCanonicalDigest(input.preflightId)
     || !isCanonicalDigest(input.cutMapDigest)
     || !isCanonicalDigest(input.topologyDigest)
+    || !validIdentity(input.sourceHead)
+    || !validIdentity(input.expectedBaseHead)
     || !validIdentity(input.origin)
     || !validIdentity(input.sourceBranch);
 }
@@ -315,6 +342,9 @@ export function buildValidatedDecomposePlan(
     if (new Set(roleKeys).size !== roleKeys.length) {
       return { ok: false, refusal: { code: "duplicate-role-owner", path } };
     }
+    if (contributors.filter(({ kind }) => kind === "topology").length > 1) {
+      return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+    }
     if (contributors.filter(
       (contributor) => contributor.kind === "content" && contributor.disposition === "whole-file",
     ).length > 1) {
@@ -374,6 +404,9 @@ export function buildValidatedDecomposePlan(
     ok: true,
     plan: {
       planId,
+      cutMapDigest: input.cutMapDigest,
+      sourceHead: input.sourceHead,
+      expectedBaseHead: input.expectedBaseHead,
       allowedPaths,
       allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

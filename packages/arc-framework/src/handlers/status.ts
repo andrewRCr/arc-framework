@@ -367,6 +367,7 @@ export async function handleStatus(
       },
       oracle: {
         exec,
+        decompositionClaimCwd: cwd,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
         errandSlugByBranch,
@@ -569,6 +570,7 @@ export async function handleStatus(
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
         const result = await deriveInFlight({
           exec,
+          decompositionClaimCwd: cwd,
           localOnly: false,
           baseBranch: resolved.settings["branch.base"],
           identity,
@@ -970,6 +972,7 @@ export async function handleStatus(
       fs: lifecycleFs,
       oracle: {
         exec,
+        decompositionClaimCwd: cwd,
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
