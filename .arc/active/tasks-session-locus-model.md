@@ -2073,19 +2073,25 @@ complete; what remains before the carve is below.
 
 ## **Phase 7.P:** Proportionate Delivery
 
-_Purpose:_ Deliver this work unit as a stack of independently reviewable pull requests rather than one 43,747-line
-change set. Each task below is one pull request, in dependency order.
+_Purpose:_ Deliver this work unit as rolling, independently reviewable pull requests rather than one 43,747-line
+change set. Each task below is one pull request; it lands coherently on `main` before its successor begins.
 
 _Design decisions:_ The cut follows the module import graph, which carries no cycles across the 72 new modules and
 resolves into thirteen concern-coherent slices. Corrections land **in the slice that owns their stable locus**
 rather than in a preceding remediation phase — a slice that ships a defect its own review would find defeats the
-point of splitting the delivery. Slices stack: each branch targets its predecessor, and the host retargets to the
-base as each merges. Measurements, the seam inventory, and the ordering proof live in
-`notes-session-locus-model.md` § Proportionate delivery cut.
+point of splitting the delivery. Only one delivery branch is live: each slice cuts from the `main` containing its
+landed predecessor, and its review owns that predecessor-successor seam. Measurements, the seam inventory, the
+ordering proof, the status ledger, and the manual runbook live in `notes-session-locus-model.md`
+§ Delivery topology and sequence.
 
-_Per-slice procedure_ — stated once, followed by every task below: port the slice's owned paths from the archived
-origin tip, apply its inherited corrections, reconcile the command-surface and methodology contract tests against
-the surface actually shipped at that stop, run Tier 2 gates, then open the pull request against its predecessor.
+_Per-slice procedure_ — stated once, followed by every task below: measure an exact donor manifest and target
+roughly 5,000 changed lines; port the completed baseline; implement the slice's remaining corrections; reconcile
+shared tests, command inventories, package/project copies, and documentation against the surface at that stop; run
+the complete project gates; then open one pull request directly against current `main`. CodeRabbit performs the
+hosted review, with hosted Codex as the coverage fallback. Verify and repair findings on the owning slice, require
+approval plus all real checks at the exact head, and use an explicitly authorized admin merge commit only to bypass
+the sliced path's unavailable `arc-cleared` context. Do not invoke `integrate-work-unit`; begin the successor only
+after the landing is verified and recorded by the runbook.
 
 _Inherited placement:_ subtasks carrying a finding ID were re-homed from `7.E.e`, `7.E.f`, `7.E.g`, or `7.E.h`.
 Placement for the `7.E.g` and `7.E.h` members derives from those parents' recorded Goals, not from the finding

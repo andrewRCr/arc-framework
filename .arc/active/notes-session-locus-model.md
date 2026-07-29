@@ -290,6 +290,9 @@ edit plus a removed `as LocusStateV1` cast.
 
 ## Decomposition into a delivery stack (2026-07-25)
 
+> **Historical analysis.** The ownership carve and construction proof below remain evidence; their three-work-unit
+> and standing-stack execution instructions are superseded by § Delivery topology and sequence.
+
 The branch stands at 195 commits and +48,254 / −3,587 across 366 files — 21,789 source lines, 21,213 test lines,
 83 new source modules. Standing question ahead of the remaining Phase 7.E work: is that volume proportionate to
 the design intent, and is the remediation set evidence of doubling down on a scoping mistake? Answered by a
@@ -560,6 +563,9 @@ mainline nor survive the reconcile — it would be discarded and redone. Re-rend
 against the reconciled meta set; the skipped manual trigger is bounded and the next ceremony-wired regen sweeps
 it back into agreement either way.
 
+**Resolution:** the base reconcile completed. The operative rolling runbook now regenerates `ROADMAP` in each
+slice that changes a render field rather than deferring it across the delivery.
+
 ### Execution state and sequencing (2026-07-25)
 
 The plan's three first actions were: settle `7.G.a`, size the test entanglement, prove the carve.
@@ -739,34 +745,54 @@ lines that ride with whichever slice changes their subject. Only the first two t
 
 ### Delivery shape
 
-Stacked pull requests under one work unit, not thirteen work units. Serialized work units would multiply the
-lifecycle ceremony by thirteen for no review benefit; stacking keeps one work unit and one integration boundary
-while giving each slice its own review target. The known friction is that the lifecycle's integration ceremony
-assumes one merge per work unit — that gap is `chunked-delivery`'s, and running this stack by hand generates its
-requirements from a real delivery rather than a speculative design.
+Rolling bottom-up deliveries under one work unit, not thirteen work units and not thirteen simultaneously live
+branches. Each slice is one review and merge unit. It lands on `main` before its successor is cut, so a stalled
+delivery leaves the base at the last independently coherent capability and review fixes never need reconstructing
+from a higher branch in a deep stack.
+
+This keeps one work-unit identity while giving every slice its own exact hosted-review target. The successor's
+review owns the seam from the already-landed predecessor into its new capability; cumulative full gates prove the
+tree at every stop. The lifecycle's ordinary integration ceremony still assumes one pull request per work unit, so
+this delivery is hand-run and closes bespoke rather than invoking `integrate-work-unit`.
 
 The origin branch stays unmerged as the development record, and the archive tag keeps all 195 commits and their
 SHA-keyed notes reachable.
 
 ## Delivery topology and sequence (2026-07-26)
 
-The runbook that preceded this one replaced the canonical branch with the carve head. That is superseded: the work
-delivers as thirteen stacked pull requests, so there is no single successor branch to install and no destructive
-handover. This section is the operative record — the earlier carve-execution runbook stands only as history.
+**Revised 2026-07-29 from the live `decompose-transform-integrity` delivery.** This is the operative record. It
+supersedes both the earlier three-work-unit carve and the thirteen-branch standing stack; those sections remain
+only as the evidence trail that produced the cut.
 
 ### What each ref is, and what becomes of it
 
-| Ref                                            | Role                          | Fate                                          |
-| ---------------------------------------------- | ----------------------------- | --------------------------------------------- |
-| `feat/session-locus-model`                     | 195-commit development record | Retained, pushed, never merged or checked out |
-| `archive/session-locus-model-origin-f774446c0` | Frozen origin tip             | Pushed; deepest content fallback              |
-| `archive/session-locus-model-donor-fa3c10f0e`  | Proven-green carve head       | Pushed; **content donor for every slice**     |
-| `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Removable once the stack is built             |
-| `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Switches onto each slice branch in turn       |
+| Ref                                            | Role                          | Fate                                                 |
+| ---------------------------------------------- | ----------------------------- | ---------------------------------------------------- |
+| `feat/session-locus-model`                     | 195-commit development record | Retained and pushed; never merged                    |
+| `archive/session-locus-model-origin-f774446c0` | Frozen origin tip             | Pushed; deepest content fallback                     |
+| `archive/session-locus-model-donor-fa3c10f0e`  | Proven-green carve head       | Pushed; **content donor for every slice**            |
+| `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Removable after S1's exact manifest is proved        |
+| `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Stays here and switches to each current slice branch |
 
 The donor is the carve head rather than the origin tip: the transient-lifecycle and claimed-sweep de-wiring and the
 seam fixes are already applied and proven there, and every slice is a subset of it. Planning artifacts come from
 the branch tip instead — the carve head predates the delivery restructure.
+
+### Delivery invariants
+
+- **One live delivery slice.** Prepare scratch content ahead when useful, but do not publish or review a successor
+  before its predecessor lands. There is no standing thirteen-branch cascade to propagate fixes through.
+- **One coherent base stop.** Every merged slice leaves `main` green and semantically usable without unpublished
+  successors. Dormant internal substrate is acceptable; a partial public contract is not.
+- **Stable-locus fixes.** Port the completed donor baseline, then implement each remaining `7.P` correction in the
+  slice that owns its stable code or documentation locus. Never finish residual implementation on the frozen
+  development record.
+- **Exact target evidence.** Gate and review the actual `main...slice` diff after the last base merge. A retarget,
+  base merge, or content change invalidates any clean claim that does not cover the new exact head.
+- **Append-only publication.** Never rebase or force-push a published slice. Merge current `main` into it, let the
+  changed head re-gate and re-review, then land it with a merge commit.
+- **No ordinary integration workflow.** Do not invoke `integrate-work-unit` or assume `arc review unlock` can clear
+  these disposable delivery PRs. The final work-unit closeout is bespoke.
 
 ### Slice branches
 
@@ -789,42 +815,130 @@ anything else, and a positional name communicates nothing about the change.
 | S12   | `feat/session-locus-wiring`         | `7.P.l` |
 | S13   | `feat/locus-surface-reconciliation` | `7.P.m` |
 
+### Durable status ledger
+
+The ledger records durable intent and the last reconciled fact, not live GitHub state. Git and GitHub remain
+authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
+ledger in the next safe pre-review commit.
+
+| Slice | Status                   | PR | Landed on `main` |
+| ----- | ------------------------ | -- | ---------------- |
+| S1    | queued; prepare manifest | —  | —                |
+| S2    | blocked by S1            | —  | —                |
+| S3    | blocked by S2            | —  | —                |
+| S4    | blocked by S3            | —  | —                |
+| S5    | blocked by S4            | —  | —                |
+| S6    | blocked by S5            | —  | —                |
+| S7    | blocked by S6            | —  | —                |
+| S8    | blocked by S7            | —  | —                |
+| S9    | blocked by S8            | —  | —                |
+| S10   | blocked by S9            | —  | —                |
+| S11   | blocked by S10           | —  | —                |
+| S12   | blocked by S11           | —  | —                |
+| S13   | blocked by S12           | —  | —                |
+
+**Current external gate:** S1 manifest preparation may proceed now, but the canonical S1 branch, planning-artifact
+activation, pull request, and hosted review wait until `decompose-transform-integrity` delivery 05 (PR #392),
+delivery 06 (PR #393), and their bespoke closeout have landed. Its remaining implementation paths do not overlap
+S1's record substrate; its closeout does overlap the active-artifact and `ROADMAP` control plane.
+
+**Update discipline:**
+
+1. At slice entry, reconcile the predecessor row from GitHub and record its PR plus landed merge commit.
+2. Before the first hosted review, record the current slice's exact manifest, measured diff, PR, and reviewed head
+   immediately below the table. That edit is part of the review target.
+3. Do not mutate an approved head merely to record approval or merge. GitHub carries those facts until the
+   successor's entry commit, or the bespoke closeout for S13, reconciles them into this ledger.
+4. At handoff, SESSION-NOTES carries the exact live cursor — current branch, PR, head, review/fix round, checks, and
+   next command. It supplements this tracked ledger rather than replacing it.
+
+**Per-slice evidence entries:** none yet. Add one compact subsection per slice at entry; retain it after landing.
+Record the manifest boundary, `main` base, additions plus deletions, gate head, PR, hosted-review result, accepted
+head, and merge commit. Link bulky finding dispositions to the PR rather than copying them here.
+
+### Resume protocol
+
+Every fresh session or long-pause resume follows the same read-only reconciliation before editing:
+
+1. Read the ledger and the current slice's evidence entry.
+2. Fetch `origin`, inspect the local slice head and `origin/main`, and resolve the named PR's live base, head, state,
+   checks, and review status.
+3. Treat Git/GitHub as authority when prose lags. Stop on an unexplained head, target, or merge mismatch.
+4. Reconcile stale ledger facts in the next pre-review commit; never change a clean reviewed head only for status.
+5. Continue from exactly one state: manifest preparation, construction, local gates, hosted review, finding repair,
+   merge-ready, or landed reconciliation.
+
 ### The planning artifacts travel with every slice
 
 Not a preference — session initialization resolves the active work unit from `meta-session-locus-model.md` **in the
-working tree**, and the checkout sits on whichever slice branch is under construction. So `meta-*`, `tasks-*`, and
-`notes-*` exist on every slice branch, each slice inheriting its predecessor's state.
+working tree**, and the checkout sits on the one slice branch under construction. So `meta-*`, `tasks-*`, and
+`notes-*` travel with every slice. S1 activates them from the development record; each successor inherits their
+landed state from `main`.
 
 The consequence is deliberate: once the first slice merges, the base carries an `Active` meta for a work unit that
 is not finished, and each later merge updates it. Progress becomes visible on the base rather than invisible until
 a single terminal merge. Archival moves the artifacts out after the last slice.
 
 **The meta's `Branch` field tracks the slice under construction**, updated at each cut. A slice boundary is the
-ceremony boundary that authorizes the write. The alternative — leaving it pinned to the origin branch — produces a
-shadowed-meta advisory on every commit for the duration, and a standing warning teaches the reader to ignore a
-surface that may later mean something real.
+ceremony boundary that authorizes the write. Between a merge and its successor's first commit, `main` may still
+name the just-landed branch; the next slice advances it before ordinary work resumes.
 
-### Sequence
+The current meta still names the drained errand batch as a blocker. The gate is satisfied and this runbook
+supersedes it; ARC's meta timing rule defers that field update to the next handoff or slice-entry ceremony.
 
-1. Push the archive and donor tags. **Done** — both verified on the remote.
-2. Let the in-flight errand batch drain, then fetch the base fresh.
-3. Cut S1 from the fresh base: planning artifacts from the branch tip, code from the donor tag. **Re-run the full
-   gates against that base** — the carve proof was green against `c6443e34a`, which the base has since passed.
-4. Switch the work-unit checkout onto the S1 branch, preserving its path-bound role and session workspace.
-5. Build the stack bottom-up, one slice per pull request, each targeting its predecessor.
-6. The two child stubs and the re-pointed `locus-generation-binding` dependency land in **S13** — they are needed on
-   the base only before the transient-lifecycle deliverable starts, which is after the whole stack merges. Early
-   slices stay pure code.
-7. Remove the scratch worktree. The donor tag preserves its content.
+### Slice-size gate
 
-### Base drift during the stack
+The table in § Proportionate delivery cut proves source and directly attributed tests but estimates distributed
+wiring, cross-cutting tests, and documentation. Before publishing each slice:
 
-Waiting for a quiet base is not a strategy — the stack outlives any quiet window. Absorb drift instead, and absorb
-it **by merging, never by rebasing**: rewriting a pushed branch orphans the SHA-keyed notes and forces a
-force-push. Merge the base into the bottom of the stack and let it flow down.
+1. Build an exact owned-path and owned-hunk manifest from `archive/session-locus-model-donor-fa3c10f0e`.
+2. Include the slice's remaining `7.P` implementation corrections and every test/documentation adjustment required
+   for that stop to tell the truth.
+3. Measure the final pull-request diff against current `main` as additions plus deletions.
+4. Target roughly 5,000 changed lines. Above approximately 5,500, stop and either split at a coherent internal
+   boundary or record an explicit exception explaining why a smaller independently useful stop does not exist.
 
-Landing other work while nothing is cut is therefore free, and expensive once thirteen branches exist. Four
-surfaces collide if touched concurrently:
+S4 and S9 deserve early scrutiny because their already-attributed source plus tests sit closest to the ceiling.
+The cut topology is reusable; its size promise is not accepted from estimates alone.
+
+### Per-slice runbook
+
+1. **Reconcile entry.** Require the predecessor landed, fetch current `main`, reconcile the preceding ledger row,
+   and confirm no other slice branch is live. Scratch preparation may precede this step; canonical construction may
+   not.
+2. **Cut the canonical branch.** Create the named slice branch from current `main`. For S1, activate the planning
+   artifacts from `feat/session-locus-model`, regenerate `ROADMAP`, and switch the managed WU checkout only after
+   the DTI closeout gate above. For successors, advance the inherited meta and ledger at slice entry.
+3. **Construct one coherent stop.** Port only the slice manifest from the donor, apply its remaining `7.P`
+   corrections, and reconcile shared tests, command inventories, package/project copies, and documentation against
+   the surface that actually exists at this stop.
+4. **Measure and gate.** Apply the size gate, then run the complete project gate set against the cumulative tree.
+   A prior donor or predecessor green never transfers across a new base or new slice.
+5. **Publish one PR to `main`.** Push append-only, open the pull request directly against `main`, record its exact
+   base/head and gate evidence, and wait for required CI plus `merge-ok`.
+6. **Run hosted review.** CodeRabbit is primary; hosted Codex is the fallback when CodeRabbit is unavailable,
+   partial, ambiguous, or cannot establish whole-target coverage. The initial request occurs only after the exact
+   target is ready. Incremental CodeRabbit fix reviews compose with that initial pass only while the reviewed base
+   and earlier bytes remain tree-identical; any coverage doubt falls back to a fresh whole-target hosted review.
+7. **Repair findings on the owning slice.** Verify every finding against source, present the complete disposition
+   set for approval, then apply accepted fixes here. Re-run the affected full gates, push, and require hosted
+   approval at the new exact head. Never strand a lower-slice repair in a successor; if discovered after landing,
+   pause and ship a focused corrective PR before proceeding.
+8. **Authorize and land.** Confirm hosted approval at the exact head and every real required check green. The
+   `arc-cleared` context cannot be produced by this sliced path, so—only after explicit integration approval—use an
+   admin merge commit to bypass that one known lifecycle clearance gap. Admin capability does not waive any other
+   check, review, or approval.
+9. **Verify and advance.** Fetch `main`, verify the PR's merge commit and expected tree landed, delete or retain the
+   slice branch per the recorded cleanup decision, then cut only its immediate successor. The successor entry
+   records the completed evidence.
+
+### Base drift during delivery
+
+Waiting for a quiet base is not a strategy. The one-live-slice rule contains drift to one branch: merge current
+`main` into that slice, never rebase a published branch, then re-run the size reading, full gates, and hosted review
+against the changed exact head. Drift after approval invalidates merge-ready state.
+
+Four surfaces still deserve explicit collision checks:
 
 - `backlog/planned/errand-transient-lifecycle/**` and `backlog/planned/claimed-sweep-verbs/**` — the child stubs.
 - `backlog/planned/locus-generation-binding/**` — its dependency edge was re-pointed, and it inherits the cut
@@ -832,4 +946,22 @@ surfaces collide if touched concurrently:
 - `session-init.md` — S13 rewrites the signal-leaf spine.
 - Build and tooling configuration — it reaches every quality check, so a change there re-gates every slice.
 
-`ROADMAP` re-render stays deferred until the base settles; both sides regenerate it, so let it converge once.
+The two child stubs and the re-pointed `locus-generation-binding` dependency land in **S13**. They are needed on the
+base only before the later transient-lifecycle delivery begins. `ROADMAP` regenerates whenever the current slice
+changes a render field; it is no longer deferred across the whole delivery.
+
+### Terminal closeout
+
+Before S13 enters hosted review, expand this subsection against then-current project state into an exact closeout
+checklist. At minimum it must:
+
+1. Reconcile all thirteen ledger rows to merged PRs and exact `main` commits.
+2. Prove every predecessor-successor seam was reviewed on the successor and the cumulative final tree passes the
+   complete project gates.
+3. Land S13's documented-surface truth, child stubs, and dependency re-pointing before any follow-on WU starts.
+4. Run a separate bespoke tracked closeout that archives the active artifacts, regenerates `ROADMAP`, and records
+   completion without invoking `integrate-work-unit`.
+5. Review and merge any closeout PR under the same exact-head/check discipline, then clean the managed checkout,
+   delivery branches, and scratch worktree only after the archival state is authoritative.
+
+No earlier approval grants prospective authority for a slice merge or the final closeout.
