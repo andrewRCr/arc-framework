@@ -566,29 +566,36 @@ an orphan.
   in each case the surviving text is shorter in what it _obliges the reader to derive_, whatever it cost in
   lines.
 
-### `[ ]` **3.5 Authoring tier — compress in place**
+### `[x]` **3.5 Authoring tier — compress in place**
 
 - _Goal:_ The prose around a constraint densifies while the constraint itself stays always-loaded and intact.
 
-- _Note:_ No detail loss. Two compressions were retracted during planning on exactly this ground and stay
-  retracted: § Write for the reader keeps **both** reader-hostile examples, and § No meta-project references keeps
-  its examples — in both cases the examples do real disambiguation work.
+    - `[x]` **3.5.a § Documentation Boundaries family**
+        - § No meta-project references 14 → 12; § Artifact relocatability 4 → 3; § `.arc/` artifact references
+          10 → 9; § Write for the reader 14 → 11; § Commit and PR surface language 7 → 6.
+        - Most of the yield was **re-wrapping**, not rewriting. These sections were set at ~100 characters against
+          a 120 target, which `DEV-RULES.PROJECT` names as the more common failure than overflow. No rule text
+          moved.
+        - The one real deduplication: § Artifact relocatability repeated the movable-artifact list verbatim from
+          the section it introduces. Dropped there, kept where the rules are.
+        - § Write for the reader's parenthetical enumeration of workflow-continuity examples went — the
+          communication-artifact expansion this subtask names, and the only sanctioned example loss. Both
+          reader-hostile examples stay, as the retraction requires.
 
-- **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
-  `DEV-RULES.ARC` table, the `authoring` rows and their Δ targets
+    - `[x]` **3.5.b § Commit Discipline authoring items**
+        - Amend scope 3 → 3; meta-file timing and commit shape 9 → 7. In-place bullet edits, no citation sweep.
+        - Commit shape re-centred on the staging-area test, which is the operative rule; the timing bullet's
+          ceremony enumeration densified without losing a case.
+        - **Both bullets' examples were cut and then restored.** "(typo, lint, missing file from the same logical
+          change)" and "(file moves, spec save, archival)" disambiguate _same-concern_ and _concurrent ceremony
+          content_ — the same class the planning retractions protected, and same-concern is precisely the
+          distinction Task 3.4.c exists because agents get wrong. Compressing them here would have undercut that.
 
-    - `[ ]` **3.5.a § Documentation Boundaries family**
-        - § No meta-project references in code — compress; nothing would summon the examples, so they stay.
-        - § Artifact relocatability — compress; it is a rationale preamble to the section below it.
-        - § `.arc/` artifact references — keep both rules; compress.
-        - § Write for the reader — compress the communication-artifact expansion only.
-        - § Commit and PR surface language — compress.
-
-    - `[ ]` **3.5.b § Commit Discipline authoring items**
-        - Amend scope — compress.
-        - Meta-file timing and commit shape — compress.
-        - Both are bullets inside § Commit control, not headings of their own, so these are in-place bullet edits
-          and neither carries a citation sweep.
+- _Outcome:_ **12 nb against a modeled 19 — the shortfall is the no-detail-loss guard, not under-execution.** The
+  tier's Δ targets were estimated before that constraint was applied to each row; applying it removes about a
+  third of the tier. Every section reached the densest form that keeps its rules and its disambiguating examples,
+  and two example sets were restored after measurement showed the compression had bought lines by taking them.
+  Fourth Δ correction of the phase, and the first traceable to a stated constraint rather than to arithmetic.
 
 ### `[ ]` **3.6 Trigger tier — the gated demotions**
 

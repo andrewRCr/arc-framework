@@ -154,9 +154,9 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 
 - **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
 
-- **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
-  unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
-  new commit. **Never amend pushed commits without explicit user request** · `[invariant]`.
+- **Amend scope:** `git commit --amend` only for same-concern fixups to the most recent unpushed commit (typo,
+  lint, missing file from the same logical change); anything else is a new commit. **Never amend pushed commits
+  without explicit user request** · `[invariant]`.
 
 - **Rebase scope:** Never rebase or otherwise rewrite a _pushed_ branch to absorb base changes —
   rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
@@ -173,17 +173,14 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
-- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly
-  instructs the write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a
-  meta update. A commit's authority to touch the meta comes from the ceremony workflow it runs, not
-  from an enumerated list; task-completion code commits never touch the meta file, and nothing writes
-  it mid-stage.
+- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly instructs the
+  write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a meta update. A commit's
+  authority to touch the meta comes from the ceremony workflow it runs, not from an enumerated list;
+  task-completion code commits never touch it, and nothing writes it mid-stage.
 
-- **Meta-file commit shape:** Meta-file edits ride with concurrent ceremony content (file
-  moves, spec save, archival) — bundle into the ceremony commit. When the
-  meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
-  staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
-  Never bundled with code commits (already enforced by meta-file timing above).
+- **Meta-file commit shape:** The staging area is the test — concurrent ceremony content staged (file moves, spec
+  save, archival) → bundle the meta edit into that commit; meta edit alone → a dedicated `chore(arc):` commit.
+  Never bundled with code commits, which meta-file timing already forbids.
 
 ### Merge authority
 
@@ -461,67 +458,59 @@ When a loaded method carries a populated `.override`, follow its `override-mode`
 
 ### No meta-project references in code
 
-Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs
-(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or
-workflows that organize the work (ARC's own — `the test-first method`,
-`prepare-commits workflow` — or your project's analogues), or `.arc/` documentation paths in
-code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to
-comments, docstrings (including file-level), identifiers, test names, and prose.
+Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs (`B5`), requirement
+IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or workflows that organize the work (ARC's own
+— `the test-first method`, `prepare-commits workflow` — or your project's analogues), or `.arc/` documentation
+paths in code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to comments,
+docstrings (including file-level), identifiers, test names, and prose.
 
-Meta-commentary vs. substantive reference: citations that justify the code by appeal to
-process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
-`per the test-first method's batching-judgment clause` — are a form of documentation coupling,
-binding code to a document on its own evolution schedule. Replace them with what the code
-does; route process rationale to a planning artifact (specs, drafts, task lists, meta files,
-ADRs, work-unit notes, commit `Context:` footers). Substantive references —
-test names describing behavior, comments on non-obvious invariants — stay.
+Meta-commentary vs. substantive reference: citations that justify the code by appeal to process artifacts — `per
+the team's TDD playbook`, `implements the spec from RFC-042`, `per the test-first method's batching-judgment
+clause` — couple code to a document on its own evolution schedule. Replace them with what the code does; route
+process rationale to a planning artifact (specs, drafts, task lists, meta files, ADRs, work-unit notes, commit
+`Context:` footers). Substantive references — test names describing behavior, comments on non-obvious invariants —
+stay.
 
 ### Artifact relocatability
 
-Movable `.arc/` artifacts — a WU's `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions, plus `cohort-*` —
-relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`), and every such move is a pure `git mv`
-with no content edit. That holds only if artifacts carry position-independent references — the rule below.
+Movable `.arc/` artifacts relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`) by pure
+`git mv` with no content edit — which holds only if they carry position-independent references, the rule below.
 
 ### `.arc/` artifact references
 
-Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` —
-are project-internal: shipped or published content cannot reference them at all. Two rules keep internal
-references stable across relocation:
+Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` — are
+project-internal: shipped or published content cannot reference them at all. Two rules keep internal references
+stable across relocation:
 
 - **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
-- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's own path
-  changes when it relocates, so any relative link it carries would break. Relative paths are legal only in
-  non-moving docs.
+- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's path changes
+  when it relocates, so any relative link would break. Relative paths are legal only in non-moving docs.
 
 Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
 
 ### Write for the reader, not the author
 
-When removing or restructuring content, don't leave notes explaining what was removed or where
-it went — future readers have no context for the old state. Document what _is_, not what _was_.
-Historical context belongs in commit messages and task list completion notes, not in the living
-document.
+When removing or restructuring content, don't leave notes explaining what was removed or where it went — future
+readers have no context for the old state. Document what _is_, not what _was_. Historical context belongs in
+commit messages and task list completion notes, not in the living document.
 
-**Also applies to communication artifacts** — PR descriptions, notes files, and documentation
-handoffs describe what the artifact delivers, not the author's workflow continuity. Workflow
-continuity (post-merge activation, next actions, session boundaries, file-retirement metadata
-tied to specific commits) belongs in the active WU's `meta-{name}.md` and SESSION-NOTES,
-not in the artifact body.
+**Also applies to communication artifacts** — PR descriptions, notes files, and documentation handoffs describe
+what the artifact delivers, not the author's workflow continuity, which belongs in the active WU's
+`meta-{name}.md` and SESSION-NOTES.
 
 **Examples of reader-hostile patterns:**
 
 - "Previously this section covered X, which has moved to Y" (reader never saw X here)
-- "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
-  workflow state, not reader-relevant for reviewing the change
+- "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side workflow state, not
+  reader-relevant for reviewing the change
 
 ### Commit and PR surface language
 
-Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge:
-backticked artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a
-load-bearing term (a `Class` value, a named internal procedure) is not. Traceability — task IDs,
-phases, lifecycle action — routes to the `Context:` footer; the prose carries the change.
-Illustrative, not exhaustive.
+Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge: backticked
+artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a load-bearing term (a
+`Class` value, a named internal procedure) is not. Traceability — task IDs, phases, lifecycle action — routes to
+the `Context:` footer; the prose carries the change. Illustrative, not exhaustive.
 
 ---
 
