@@ -53,14 +53,9 @@ function markedInput(
     workflow?: string | null;
     taskList?: string | null;
     seed?: string | null;
-    anchor?: DecompositionIntegrationAnchor | null;
   } = {},
 ): DecompositionPlanningTupleInput {
-  const anchor = options.anchor === undefined ? resolvedAnchor() : options.anchor;
-  if (anchor === null) {
-    const fallback = resolvedAnchor();
-    return markedInput(profile, { ...options, anchor: fallback });
-  }
+  const anchor = resolvedAnchor();
   const design = options.design ?? (
     profile === "draft"
       ? [`draft-${MEMBER}.md`]

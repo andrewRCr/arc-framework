@@ -596,6 +596,14 @@ async function graduate(
       return;
     }
   }
+  if (validateClass(cls) === "[TBD]") {
+    p.log.error(
+      `cannot start \`${wuName}\` because its Class is unresolved `
+      + "(expected `Light` | `Heavy` | `Novel`; supply `--class`).",
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   const sourceDirectory = dirname(ctx.metaPath).split("\\").join("/");
   const location = sourceDirectory.includes("/provisional/")

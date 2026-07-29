@@ -533,11 +533,20 @@ describe("runGraduate — backlog stub onto its branch", () => {
       },
     ]);
 
-    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+    let prepareCalls = 0;
+    const result = await runGraduate(ctx, {
+      ...BASE,
+      cls: "Light",
+      prepareTransaction: async () => {
+        prepareCalls += 1;
+        return await PREPARE_TRANSACTION();
+      },
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toContain("closing `---`");
+    expect(prepareCalls).toBe(0);
     expect(
       calls.some(
         (c) =>
