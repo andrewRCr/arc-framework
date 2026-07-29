@@ -764,6 +764,11 @@ SHA-keyed notes reachable.
 supersedes both the earlier three-work-unit carve and the thirteen-branch standing stack; those sections remain
 only as the evidence trail that produced the cut.
 
+S1 manifest preparation found one necessary pre-slice: the four active planning artifacts add 4,919 lines before
+the derived `ROADMAP` hunk, so carrying them inside S1 would break the size gate before any implementation landed.
+As in `decompose-transform-integrity` delivery 00, one planning-baseline pull request (S0) establishes the control
+plane first; the thirteen implementation slices then remain code-review-sized.
+
 ### What each ref is, and what becomes of it
 
 | Ref                                            | Role                          | Fate                                                 |
@@ -771,7 +776,7 @@ only as the evidence trail that produced the cut.
 | `feat/session-locus-model`                     | 195-commit development record | Retained and pushed; never merged                    |
 | `archive/session-locus-model-origin-f774446c0` | Frozen origin tip             | Pushed; deepest content fallback                     |
 | `archive/session-locus-model-donor-fa3c10f0e`  | Proven-green carve head       | Pushed; **content donor for every slice**            |
-| `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Removable after S1's exact manifest is proved        |
+| `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Retain through S1 construction, then remove          |
 | `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Stays here and switches to each current slice branch |
 
 The donor is the carve head rather than the origin tip: the transient-lifecycle and claimed-sweep de-wiring and the
@@ -801,6 +806,7 @@ anything else, and a positional name communicates nothing about the change.
 
 | Slice | Branch                              | Task    |
 | ----- | ----------------------------------- | ------- |
+| S0    | `feat/session-locus-delivery-plan`  | `7.P.0` |
 | S1    | `feat/locus-record-substrate`       | `7.P.a` |
 | S2    | `feat/locus-process-inspection`     | `7.P.b` |
 | S3    | `feat/locus-mutation-protocol`      | `7.P.c` |
@@ -821,26 +827,28 @@ The ledger records durable intent and the last reconciled fact, not live GitHub 
 authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
 ledger in the next safe pre-review commit.
 
-| Slice | Status                   | PR | Landed on `main` |
-| ----- | ------------------------ | -- | ---------------- |
-| S1    | queued; prepare manifest | —  | —                |
-| S2    | blocked by S1            | —  | —                |
-| S3    | blocked by S2            | —  | —                |
-| S4    | blocked by S3            | —  | —                |
-| S5    | blocked by S4            | —  | —                |
-| S6    | blocked by S5            | —  | —                |
-| S7    | blocked by S6            | —  | —                |
-| S8    | blocked by S7            | —  | —                |
-| S9    | blocked by S8            | —  | —                |
-| S10   | blocked by S9            | —  | —                |
-| S11   | blocked by S10           | —  | —                |
-| S12   | blocked by S11           | —  | —                |
-| S13   | blocked by S12           | —  | —                |
+| Slice | Status                            | PR | Landed on `main` |
+| ----- | --------------------------------- | -- | ---------------- |
+| S0    | manifest prepared; blocked by DTI | —  | —                |
+| S1    | manifest prepared; blocked by S0  | —  | —                |
+| S2    | blocked by S1                     | —  | —                |
+| S3    | blocked by S2                     | —  | —                |
+| S4    | blocked by S3                     | —  | —                |
+| S5    | blocked by S4                     | —  | —                |
+| S6    | blocked by S5                     | —  | —                |
+| S7    | blocked by S6                     | —  | —                |
+| S8    | blocked by S7                     | —  | —                |
+| S9    | blocked by S8                     | —  | —                |
+| S10   | blocked by S9                     | —  | —                |
+| S11   | blocked by S10                    | —  | —                |
+| S12   | blocked by S11                    | —  | —                |
+| S13   | blocked by S12                    | —  | —                |
 
-**Current external gate:** S1 manifest preparation may proceed now, but the canonical S1 branch, planning-artifact
+**Current external gate:** S1 manifest preparation may proceed now, but the canonical S0 branch, planning-artifact
 activation, pull request, and hosted review wait until `decompose-transform-integrity` delivery 05 (PR #392),
-delivery 06 (PR #393), and their bespoke closeout have landed. Its remaining implementation paths do not overlap
-S1's record substrate; its closeout does overlap the active-artifact and `ROADMAP` control plane.
+delivery 06 (PR #393), and their bespoke closeout have landed. S1 then waits for S0. DTI's remaining implementation
+paths do not overlap S1's record substrate; its closeout does overlap the active-artifact and `ROADMAP` control
+plane.
 
 **Update discipline:**
 
@@ -852,9 +860,33 @@ S1's record substrate; its closeout does overlap the active-artifact and `ROADMA
 4. At handoff, SESSION-NOTES carries the exact live cursor — current branch, PR, head, review/fix round, checks, and
    next command. It supplements this tracked ledger rather than replacing it.
 
-**Per-slice evidence entries:** none yet. Add one compact subsection per slice at entry; retain it after landing.
-Record the manifest boundary, `main` base, additions plus deletions, gate head, PR, hosted-review result, accepted
-head, and merge commit. Link bulky finding dispositions to the PR rather than copying them here.
+Add one compact subsection per slice at entry; retain it after landing. Record the manifest boundary, `main` base,
+additions plus deletions, gate head, PR, hosted-review result, accepted head, and merge commit. Link bulky finding
+dispositions to the PR rather than copying them here.
+
+#### S0 planning baseline — prepared, not cut
+
+- **Manifest:** whole-file additions of `meta-session-locus-model.md`, `notes-session-locus-model.md`,
+  `spec-session-locus-model.md`, and `tasks-session-locus-model.md`, plus the generated `ROADMAP` hunk.
+- **Current-base measurement:** 4,919 additions at `origin/main` `62504727c` before `ROADMAP`; the final derived
+  hunk is regenerated and remeasured after the DTI closeout rather than carried from this provisional base.
+- **State:** branch and PR absent; external gate closed.
+
+#### S1 locus record substrate — manifest prepared, not cut
+
+- **Donor/base proof:** `archive/session-locus-model-donor-fa3c10f0e` ported onto detached `origin/main`
+  `62504727c`; the eleven-file baseline is 1,062 additions and its 16 focused tests pass.
+- **Whole-file manifest:** `locus/schema/{identity,index,limits,mutation,record,state}.ts`,
+  `locus/path-identity.ts`, `locus/record-store.ts`, and the matching `locus/{schema,path-identity,record-store}`
+  unit tests.
+- **Owned residual hunks:** `limits.ts`, `mutation.ts`, and `schema.test.ts` own `7.P.a.i`; the final diff remains
+  to be measured after that slice-local implementation and the post-S0 base advance.
+- **Proved exclusions:** `locus/errors.ts` and `locus/registry.ts` plus their tests are dropped as unwired;
+  the `session-envelope/registry.ts` composition hunk and matching test hunk do not enter S1.
+  `locus/selected-generation.ts` and its test move to S9 with their first live consumers.
+- **Finding correction:** E1-F1's stable locus is `errand/identity-record.ts`, not the locus record store; it moves
+  from `7.P.a` to S4's transient identity core.
+- **State:** branch and PR absent; blocked by S0.
 
 ### Resume protocol
 
@@ -871,17 +903,17 @@ Every fresh session or long-pause resume follows the same read-only reconciliati
 ### The planning artifacts travel with every slice
 
 Not a preference — session initialization resolves the active work unit from `meta-session-locus-model.md` **in the
-working tree**, and the checkout sits on the one slice branch under construction. So `meta-*`, `tasks-*`, and
-`notes-*` travel with every slice. S1 activates them from the development record; each successor inherits their
-landed state from `main`.
+working tree**, and the checkout sits on the one delivery branch under construction. So `meta-*`, `tasks-*`, and
+`notes-*` travel with every slice. S0 activates them from the development record; every implementation slice
+inherits their landed state from `main`.
 
 The consequence is deliberate: once the first slice merges, the base carries an `Active` meta for a work unit that
 is not finished, and each later merge updates it. Progress becomes visible on the base rather than invisible until
 a single terminal merge. Archival moves the artifacts out after the last slice.
 
-**The meta's `Branch` field tracks the slice under construction**, updated at each cut. A slice boundary is the
-ceremony boundary that authorizes the write. Between a merge and its successor's first commit, `main` may still
-name the just-landed branch; the next slice advances it before ordinary work resumes.
+**The meta's `Branch` field tracks the delivery under construction**, updated at each cut. A delivery boundary is
+the ceremony boundary that authorizes the write. Between a merge and its successor's first commit, `main` may
+still name the just-landed branch; the next slice advances it before ordinary work resumes.
 
 The current meta still names the drained errand batch as a blocker. The gate is satisfied and this runbook
 supersedes it; ARC's meta timing rule defers that field update to the next handoff or slice-entry ceremony.
@@ -898,17 +930,19 @@ wiring, cross-cutting tests, and documentation. Before publishing each slice:
 4. Target roughly 5,000 changed lines. Above approximately 5,500, stop and either split at a coherent internal
    boundary or record an explicit exception explaining why a smaller independently useful stop does not exist.
 
-S4 and S9 deserve early scrutiny because their already-attributed source plus tests sit closest to the ceiling.
-The cut topology is reusable; its size promise is not accepted from estimates alone.
+S4 and S9 deserve early scrutiny because their already-attributed source plus tests sit closest to the ceiling;
+S4 now owns E1-F1 and S9 now owns the 75-line selected-generation source/test pair. The cut topology is reusable;
+its size promise is not accepted from estimates alone.
 
 ### Per-slice runbook
 
 1. **Reconcile entry.** Require the predecessor landed, fetch current `main`, reconcile the preceding ledger row,
    and confirm no other slice branch is live. Scratch preparation may precede this step; canonical construction may
    not.
-2. **Cut the canonical branch.** Create the named slice branch from current `main`. For S1, activate the planning
-   artifacts from `feat/session-locus-model`, regenerate `ROADMAP`, and switch the managed WU checkout only after
-   the DTI closeout gate above. For successors, advance the inherited meta and ledger at slice entry.
+2. **Cut the canonical branch.** Create the named branch from current `main`. S0 activates the planning artifacts
+   from `feat/session-locus-model`, regenerates `ROADMAP`, and switches the managed WU checkout only after the DTI
+   closeout gate above. S1 cuts only after S0 lands; every implementation slice advances the inherited meta and
+   ledger at entry.
 3. **Construct one coherent stop.** Port only the slice manifest from the donor, apply its remaining `7.P`
    corrections, and reconcile shared tests, command inventories, package/project copies, and documentation against
    the surface that actually exists at this stop.
@@ -955,7 +989,7 @@ changes a render field; it is no longer deferred across the whole delivery.
 Before S13 enters hosted review, expand this subsection against then-current project state into an exact closeout
 checklist. At minimum it must:
 
-1. Reconcile all thirteen ledger rows to merged PRs and exact `main` commits.
+1. Reconcile all fourteen ledger rows to merged PRs and exact `main` commits.
 2. Prove every predecessor-successor seam was reviewed on the successor and the cumulative final tree passes the
    complete project gates.
 3. Land S13's documented-surface truth, child stubs, and dependency re-pointing before any follow-on WU starts.

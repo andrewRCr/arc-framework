@@ -1664,7 +1664,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   reference matches the shipped Errand signature, and a fresh installation receives both entry skills.
 
 - _Outcome:_ Decomposed across Phase `7.P` by stable locus — the decomposition this task always owed, now against
-  targets small enough to hold at once. `E1-F1` → `7.P.a.iii`; `W2-F1` → `7.P.j.i`; `E5-F1` and `B-F1` →
+  targets small enough to hold at once. `E1-F1` → `7.P.d.i`; `W2-F1` → `7.P.j.i`; `E5-F1` and `B-F1` →
   `7.P.h.ii`; `E5-F2` → `7.P.i.i`; `S1-F1` → `7.P.k.ii`; `M1-F2` and the `arc-errand` half of `D-F1` →
   `7.P.m.ii`. `P1-F3`, `P1-F4`, and the `arc-housekeep` half of `D-F1` leave this work unit with the claimed-sweep
   deliverable. Placement is derived from this Goal rather than from the finding records; each slice re-verifies its
@@ -2073,16 +2073,18 @@ complete; what remains before the carve is below.
 
 ## **Phase 7.P:** Proportionate Delivery
 
-_Purpose:_ Deliver this work unit as rolling, independently reviewable pull requests rather than one 43,747-line
-change set. Each task below is one pull request; it lands coherently on `main` before its successor begins.
+_Purpose:_ Deliver this work unit as one planning baseline plus thirteen rolling, independently reviewable
+implementation pull requests rather than one 43,747-line change set. Each task below is one pull request; it lands
+coherently on `main` before its successor begins.
 
-_Design decisions:_ The cut follows the module import graph, which carries no cycles across the 72 new modules and
-resolves into thirteen concern-coherent slices. Corrections land **in the slice that owns their stable locus**
-rather than in a preceding remediation phase — a slice that ships a defect its own review would find defeats the
-point of splitting the delivery. Only one delivery branch is live: each slice cuts from the `main` containing its
-landed predecessor, and its review owns that predecessor-successor seam. Measurements, the seam inventory, the
-ordering proof, the status ledger, and the manual runbook live in `notes-session-locus-model.md`
-§ Delivery topology and sequence.
+_Design decisions:_ S0 establishes the planning control plane separately because the four active artifacts alone
+add 4,919 lines before `ROADMAP`. The implementation cut follows the module import graph, which carries no cycles
+across the 72 new modules and resolves into thirteen concern-coherent slices. Corrections land **in the slice that
+owns their stable locus** rather than in a preceding remediation phase — a slice that ships a defect its own review
+would find defeats the point of splitting the delivery. Only one delivery branch is live: each slice cuts from the
+`main` containing its landed predecessor, and its review owns that predecessor-successor seam. Measurements, the
+seam inventory, the ordering proof, the status ledger, and the manual runbook live in
+`notes-session-locus-model.md` § Delivery topology and sequence.
 
 _Per-slice procedure_ — stated once, followed by every task below: measure an exact donor manifest and target
 roughly 5,000 changed lines; port the completed baseline; implement the slice's remaining corrections; reconcile
@@ -2098,6 +2100,11 @@ Placement for the `7.E.g` and `7.E.h` members derives from those parents' record
 records — each slice re-verifies its own members against `notes-session-locus-model.md` § Chunked-review finding
 triage before implementing.
 
+### `[ ]` **7.P.0 S0 — Establish the planning baseline**
+
+- _Goal:_ Land the active meta, spec, task list, notes, and derived `ROADMAP` state as one reviewed control-plane
+  change below the slice-size ceiling, so S1 can remain an independently reviewable implementation capability.
+
 ### `[ ]` **7.P.a S1 — Locus record substrate**
 
 - _Goal:_ The record schema, store, and identity derivation stand alone on the base: a record round-trips through
@@ -2112,15 +2119,12 @@ triage before implementing.
           persisted-record contract that specifies canonical UTC. Require `Z` form, or normalize before persistence.
         - Cover one negative case per missing coordinate and the offset boundary on both arms.
 
-    - `[ ]` **7.P.a.ii Settle whether the locus error surface is live**
-        - No source file imports `locus/errors.ts` and the package publishes no barrel, yet `7.E.e.i` deliberately
-          rewrote it to infer `LocusErrorCode` from the mutation schema. Decide it with the schema work in hand:
-          give the thrown-error surface a consumer, or drop the module with its test.
+    - `[ ]` **7.P.a.ii Drop the unwired error and registry surfaces**
+        - No source file imports `locus/errors.ts` and the package publishes no barrel. Drop the module and its
+          test rather than shipping a test-only error surface.
         - `locus/registry.ts` and its sole importer `session-envelope/registry.ts` form a dead chain reachable from
-          no entry point. Drop both unless the kernel composition is wanted by a named consumer.
-
-    - `[ ]` **7.P.a.iii Keep previously accepted legacy records readable** — E1-F1
-        - Re-verify against the finding record before implementing.
+          no entry point. Leave the existing session-envelope registry unchanged and omit the locus registry plus
+          its tests.
 
 ### `[ ]` **7.P.b S2 — Process and platform inspection**
 
@@ -2140,7 +2144,12 @@ triage before implementing.
 ### `[ ]` **7.P.d S4 — Transient identity core**
 
 - _Goal:_ The v3 transient identity state machine — claims, transitions, transactional writes, and change-request
-  lifecycle — stands on the record substrate. No inherited corrections.
+  lifecycle — stands on the record substrate.
+
+    - `[ ]` **7.P.d.i Keep previously accepted legacy records readable** — E1-F1
+        - Preserve the exact v1/v2 decoder domain that the base codec accepted, or project it compatibly, while
+          keeping new v3 writes strict. Cover formerly accepted slug, branch, timestamp, and unbounded-intent
+          values at `errand/identity-record.ts`.
 
 ### `[ ]` **7.P.e S5 — Reconciliation**
 
@@ -2186,7 +2195,8 @@ triage before implementing.
 ### `[ ]` **7.P.i S9 — Errand close, promote, abandon, settle**
 
 - _Goal:_ Every Errand terminal proves an exact merged change request against the local head, reaps refs, drops the
-  originating capture, and retires the identity with its lease.
+  originating capture, and retires the identity with its lease. The selected-generation helper lands here with
+  the abandon drivers that consume it.
 
     - `[ ]` **7.P.i.i Reach the retained close path for remote-only legacy Errands** — E5-F2
         - Re-verify against the finding record before implementing.
