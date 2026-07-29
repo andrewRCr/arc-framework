@@ -311,7 +311,9 @@ The behavioral floor for everything below — what to do with a concern the mome
 via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
 _same-concern_ cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
 
-**Always propose placement to the user before acting** — the agent suggests, the user decides.
+**Propose placement before acting** — the agent suggests, the user decides. A deterministic same-concern
+cleanup inside the change already under review discharges that: fix it and name the correction in the
+completion report, rather than spending a turn to ask.
 
 ### Route by urgency × isolation
 

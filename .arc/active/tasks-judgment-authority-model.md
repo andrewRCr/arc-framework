@@ -513,17 +513,19 @@ an orphan.
         - **+4 nb, a debit.** The row is `stays`/Δ0, and a markdown list costs more lines than the clause it
           replaces. Bought legibility in a section every session reads.
 
-    - `[ ]` **3.4.c § Leave it cleaner**
-        - Resolve the contradiction between "always propose placement before acting" and the inline-fix permission
-          two lines above it: a same-concern cleanup in a file already under edit is a discharged default.
-        - **Field evidence from Phase 1, worth writing the rephrasing against.** Two same-concern mechanical fixes
-          during Task 1.4 — reverting a table-formatter regression on an untouched row, and correcting nested
-          backticks that tripped MD038 — were fixed and reported without a proposal turn. Both were correct under
-          § Quality gate failure's deterministic-same-concern branch and both violated "always propose placement,"
-          which is the over-firing this row exists to fix. The rephrasing should make that class explicitly
-          dischargeable rather than leaving the two rules to disagree.
-        - § Quality gate failure's first branch is the shape to match — it already states the judgment split this
-          row needs, so the rephrasing is an alignment rather than a new rule.
+    - `[x]` **3.4.c § Leave it cleaner**
+        - "Always propose placement to the user before acting" → "Propose placement before acting", with the
+          discharge stated in the same breath: a deterministic same-concern cleanup inside the change already
+          under review is fixed and named in the completion report rather than costing a turn to ask.
+        - Sited on the rule it discharges rather than on the permission two lines above, so the reader meets the
+          default and its release together — the shape § Rule Authority prescribes (name the rule, name the fact,
+          surface it where the developer is already reading, leave it reversible).
+        - The vocabulary now matches § Quality gate failure's first branch — "deterministic", "same-concern",
+          "report the correction" — so the two rules read as one judgment applied twice rather than two rules that
+          disagreed. That disagreement was live: both Phase 1 field cases were simultaneously correct under one
+          rule and in violation of the other.
+        - "Always" dropped deliberately: a default that cannot be discharged is an invariant, and this one is not.
+        - **+2 nb.**
 
     - `[ ]` **3.4.d § Commit control — reseat merge authority**
         - Move the merge-authority block out of commit control into a new `### Merge authority` subsection under
