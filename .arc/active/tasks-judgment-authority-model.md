@@ -631,8 +631,26 @@ an orphan.
           D5 test 5 applied to an in-file pointer rather than an index entry. What remains is a pure statement of
           the invariant floor, which is the constraint the row exists to keep. 10 nb → 6, Δ4.
 
-    - `[ ]` **3.6.b § Design before implementation**
-        - Keep the settle-all-settle-able-design-up-front constraint; demote the rationale.
+    - `[x]` **3.6.b § Design before implementation**
+        - Constraint kept, compressed to one sentence: settle all settle-able design up front in the spec, never
+          during implementation, never a conscious deferral, never less because `Class` is light, with
+          genuinely-emergent design questions routed back to the spec rather than into code or notes. 10 nb → 4,
+          Δ6 against a modeled 7 — the qualifier "genuinely-emergent" and the "or notes" arm both do real work
+          and were not squeezed to reach 3.
+        - **No write owed.** `strategy-work-planning` § The Planning Pipeline already carries the artifact-role
+          model in the same words — the spec defines intent, the task list decomposes execution, the code
+          realizes intent, design upfront rather than during implementation — and § Depth floats carries the
+          derivation-signal-routes-back-to-the-spec re-entry. `strategy-work-organization` § Class Model's
+          derivation-axis **Floor** carries the `Class` half in fuller form: only spec-worthy design counts, and
+          a choice resolved during implementation is not derivation — which is both "a lighter `Class` means the
+          design was more determinate coming in" and the implementation-detail latitude the demoted sentence
+          reassured about. Verified before removing. Fifth of six rows to owe its destination nothing.
+        - The meta `**Design:**` clause went with the model rather than staying as a keep. Its canonical home is
+          `strategy-work-organization` § Artifact fields, and the field is self-describing on the always-loaded
+          meta file — an always-loaded gloss on a pointer the reader is already looking at.
+        - No in-file pointer added, and the heading stays: `STRATEGY-INDEX`'s Task 2.2.b entry is the summoner,
+          and `generate-tasks`'s inbound `§ Design before implementation` citation in both copies leans on the
+          settle-up-front constraint, which survives — so nothing to sweep.
 
     - `[ ]` **3.6.c § Session state control**
         - Keep the write-trigger constraint; demote the file model and portability.

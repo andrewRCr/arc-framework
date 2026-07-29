@@ -219,16 +219,9 @@ stop, implied permission, deferred review), load the [process-task-loop workflow
 
 ### Design before implementation (spec-directed work)
 
-ARC is spec-directed: design decisions are settled upfront in the spec (`spec-*.md`), not during
-implementation. The task list (`tasks-*.md`) decomposes that design into actionable steps; the code realizes
-it. The meta file's `**Design:**` field carries the pointer, making the spec the recurring, self-describing
-upstream of the work.
-
-Settle **all settle-able design up front** — best reasonable effort, never a conscious deferral — and route any
-genuinely-emergent design question back to the spec rather than accumulating design debt in code or notes. This
-holds identically at every `Class`: a lighter `Class` means the design was _more determinate coming in_, not
-that more design may be left open. A lighter process is never license to defer design — the
-implementation-detail latitude ARC already grants is unchanged.
+Settle **all settle-able design up front** in the spec — never during implementation, never a conscious
+deferral, never less because `Class` is light — and route genuinely-emergent design questions back to the
+spec rather than accumulating design debt in code or notes.
 
 ### Sub-agent scope
 
