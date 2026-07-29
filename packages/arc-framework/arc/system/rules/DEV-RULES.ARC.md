@@ -265,8 +265,6 @@ constraint applies regardless of who reviewed the change or where the findings a
 
 Break down a task into subtasks if it requires:
 
-- More than 3 files to be modified
-- More than 50 lines of core logic changes
 - Multiple interdependent changes
 - Complex debugging or investigation
 
@@ -415,11 +413,7 @@ handoff.
 
 ### Verify before assuming
 
-**When uncertain about implementation details, file locations, or existing content:**
-
-1. **Search first** — verify from source (Grep, Glob, Read)
-2. **Ask clarifying questions** — when the request is understood but design decisions need input
-3. **Stop and ask** — if still unclear after searching
+**When uncertain about implementation details, file locations, or existing content:** stop and ask.
 
 **Never generate or assume:**
 

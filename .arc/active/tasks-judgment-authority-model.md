@@ -445,24 +445,30 @@ an orphan.
           Task 2.2 — a residual-scoped entry now states which question the load answers, which is what made the
           instruction necessary when entries named only a domain.
 
-### `[ ]` **3.3 Decided tier — the settled cuts**
+### `[x]` **3.3 Decided tier — the settled cuts**
 
 - _Goal:_ The two canonical cuts land as narrowed, removing proxy guidance while every qualitative signal and
   every prohibition stays.
 
-- _Rationale:_ Both cuts survive the loud-versus-quiet test because what leaves is a capability proxy the model
-  has outgrown, while the guard that fails quietly stays. Demotion is unavailable for either — no trigger reaches
-  ad-hoc in-session decomposition.
+    - `[x]` **3.3.a § Task granularity**
+        - Cut the two numeric bullets (>3 files, >50 lines); kept both qualitative ones. 6 nb → 4.
+        - **Δ2, against a recorded Δ5 that was impossible rather than stale.** The section totals 6 nb — heading,
+          lead-in, four bullets — so a disposition keeping the heading and two bullets can only reach Δ2; Δ5 would
+          leave the heading alone. Corrected in the register: `decided` 12 → 9, canonical total 145 → 142.
 
-- **Additional Context:** `notes-judgment-authority-model.md` § The judgment tier, discharged
+    - `[x]` **3.3.b § Verify before assuming**
+        - Cut the search-first and ask-clarifying steps; folded the surviving "stop and ask" into the lead-in,
+          since a numbered list of one is not a list. 14 nb → 11, Δ3 as modeled.
+        - The prohibition list stays whole — it is the guard, and the cut steps were its procedure. "Stop and
+          ask" also drops "if still unclear after searching", which lost its antecedent when step 1 went.
+        - § Clarifying questions improve outcomes stays: it is the standing encouragement, not the cut procedure,
+          and it survives the removal of the step that shared its subject.
 
-    - `[ ]` **3.3.a § Task granularity**
-        - Cut the two numeric bullets; keep the two qualitative ones. The proxies are what misfire; the
-          qualitative signals carry the principle.
-
-    - `[ ]` **3.3.b § Verify before assuming**
-        - Cut the search-first and ask-clarifying steps. The "stop and ask" step and the "Never generate or
-          assume" list stay — the prohibition is the guard, and step 1 is its procedural twin.
+- _Outcome:_ 5 nb, not the modeled 8 — and the whole gap is one row's arithmetic, not under-execution. This is the
+  third row-level discrepancy in Phase 3 and the first that is internally inconsistent rather than merely drifted,
+  which sharpens Task 3.1's finding: the enumeration's **dispositions** have held without exception, while its
+  **Δ figures** have now been wrong in three of the eleven rows executed. Tier totals remain the sounder unit —
+  `firm` landed at exactly its recorded 44 with four of six rows individually off.
 
 ### `[ ]` **3.4 Rephrasings under § Rule Authority**
 

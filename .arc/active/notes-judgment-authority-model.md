@@ -83,7 +83,7 @@ trigger) · `stays` (the constraint determination ended it) · `blocked` · `out
 | Design before implementation               | 10 | mixed | keep the settle-up-front constraint; demote the rationale                                                                                                                                                     | `strategy-work-planning` — passive index entry                                                                       | trigger           | 7    |
 | Sub-agent scope                            | 14 | —     | out of scope                                                                                                                                                                                                  | `execution-delegation-doctrine` owns the prohibition → conditions rewrite                                            | out of scope      | 0    |
 | Review finding mutation guard              | 4  | yes   | keep verbatim — bias-guard                                                                                                                                                                                    | —                                                                                                                    | stays             | 0    |
-| Task granularity                           | 6  | no    | cut the two numeric bullets (>3 files, >50 lines); keep the two qualitative ones                                                                                                                              | register cut 2 — the proxies release, the signals stay; demotion fails P3 (ad-hoc decomposition)                     | decided           | 5    |
+| Task granularity                           | 6  | no    | cut the two numeric bullets (>3 files, >50 lines); keep the two qualitative ones                                                                                                                              | register cut 2 — the proxies release, the signals stay; demotion fails P3 (ad-hoc decomposition)                     | decided           | 2    |
 | Quality gate failure                       | 6  | yes   | re-derived against base: the two-branch rewrite landed upstream; add the never-ran distinction and state the invariant                                                                                        | draft § Rephrasings, narrowed — see § Base drift                                                                     | stays             | 0    |
 | Test-first assessment                      | 4  | mixed | compress to the obligation plus the method pointer                                                                                                                                                            | method declaration (mechanism 1) — fires                                                                             | firm              | 2    |
 | Discovered Work Routing — core invariant   | 6  | yes   | keep                                                                                                                                                                                                          | —                                                                                                                    | stays             | 1    |
@@ -221,21 +221,24 @@ destination, as § Contributor commit release shows, but not this one.
 
 | File                                                 | firm   | decided | authoring | trigger | blocked | residue | Total Δnb |
 | ---------------------------------------------------- | ------ | ------- | --------- | ------- | ------- | ------- | --------- |
-| `DEV-RULES.ARC` (canonical — ships)                  | 44     | 12      | 19        | 47      | 15      | 8       | 145       |
+| `DEV-RULES.ARC` (canonical — ships)                  | 44     | 9       | 19        | 47      | 15      | 8       | 142       |
 | `DEV-RULES.PROJECT` (instance — template mirrors it) | 54     | 7       | 17        | 18      | 0       | 6       | 102       |
-| **Both**                                             | **98** | **19**  | **36**    | **65**  | **15**  | **14**  | **247**   |
+| **Both**                                             | **98** | **16**  | **36**    | **65**  | **15**  | **14**  | **244**   |
 
 Canonical `firm` and the totals carry Task 3.1's re-measurement (§ Contents 11 → 12); see § Execution
-re-measurement against base.
+re-measurement against base. Canonical `decided` carries Task 3.3's correction — § Task granularity's Δ5 was
+arithmetically impossible against its own disposition (the section is 6 nb, and keeping the heading plus the two
+qualitative bullets leaves 4), so the row is Δ2.
 
 Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below, then 247 at
-Task 3.1's re-measurement. The `P3` tier carries no Δ — its one row (Prefix mapping) was withdrawn rather than
-deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across **seven** index entries.
+Task 3.1's re-measurement, then 244 at Task 3.3's. The `P3` tier carries no Δ — its one row (Prefix mapping) was
+withdrawn rather than deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across **seven** index
+entries.
 
-**`firm` + `decided` is what may be authored against today: 117 nb**, of which 56 is canonical `DEV-RULES.ARC`
+**`firm` + `decided` is what may be authored against today: 114 nb**, of which 53 is canonical `DEV-RULES.ARC`
 and 61 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
-tiers; the re-measurement is the first to touch `firm`, and it adds rather than removes. The instance share across
-the whole register is 102 / 247 ≈ **41%**.
+tiers; execution is the first to touch `firm` and `decided`, adding 1 to the former and removing 3 from the
+latter. The instance share across the whole register is 102 / 244 ≈ **42%**.
 
 ### Execution re-measurement against base (Task 3.1)
 

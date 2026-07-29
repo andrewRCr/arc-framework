@@ -435,12 +435,12 @@ into an open audit mandate. The spec carries the tier accounting and the rows th
 | Tier                            | `ARC` | `PROJECT` | What gates it                                                            |
 | ------------------------------- | ----- | --------- | ------------------------------------------------------------------------ |
 | **Firm**                        | 44    | 54        | Nothing — cuts and verified-redundancy demotions whose mechanism fires.  |
-| **Decided**                     | 12    | 7         | Settled author's-interest cuts (the maintainer's read has run).          |
+| **Decided**                     | 9     | 7         | Settled author's-interest cuts (the maintainer's read has run).          |
 | **Authoring**                   | 19    | 17        | Ordinary review — compress-in-place; the constraint stays always-loaded. |
 | **Behind trigger re-authoring** | 47    | 18        | D6.                                                                      |
 | **Blocked**                     | 15    | —         | § When to Load Additional Guidance; no summoning mechanism exists.       |
 | **Compress residue**            | 8     | 6         | Nothing.                                                                 |
-| **Total**                       | 145   | 102       | **247 nb**; 117 authorable today (56 canonical, 61 instance).            |
+| **Total**                       | 142   | 102       | **244 nb**; 114 authorable today (53 canonical, 61 instance).            |
 
 Task 3.1's re-measurement moved one row and one denominator. § Contents is 12 nb — § Rule Authority added a
 table-of-contents line — taking canonical `firm` to 44. And the recorded denominators counted each file's trailing
@@ -448,6 +448,14 @@ link block: the canonical file is **398 nb** of content, not 418, and the instan
 the fourth instance of the error D7.5 and D7.6 caught per-row; the lesson they drew was never applied to the file
 totals. The register's share of each file is correspondingly larger than recorded. Row-level, the enumeration
 holds: thirty-two of thirty-three canonical rows reproduce their `nb` exactly under a mechanical re-derivation.
+
+Execution has since corrected one Δ. § Task granularity recorded Δ5 against a 6 nb section whose disposition keeps
+the heading and two of four bullets — leaving 4, so the row is **Δ2**, and the figure was impossible against its
+own disposition rather than merely stale. `decided` is 9, and the canonical register 142. Two further rows measured
+differently than recorded (§ Contents 12, contributor release 4); the second sits in the itemized § Commit control
+sub-table, which is bullet-level and so outside the reach of a per-heading re-derivation. Tier totals have proved
+sounder than the row Δs beneath them — `firm` executed at exactly its recorded 44 while four of its six rows
+missed individually.
 
 `PROJECT` authoring is 17 rather than 14 because D7.5's re-derivation moved 3 nb out of the trigger tier into it —
 the register total is unchanged by that move, but D6's gated surface shrinks. The `firm` + `decided` tier is
