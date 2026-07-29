@@ -968,44 +968,27 @@ document that ships without an instance counterpart still states its rules to ev
           mirror; check it by hand.
         - Surfaced by Task 4.5.a's re-check of the index-exclusion precedent, not by the sweep proper.
 
-    - `[ ]` **4.6.d Settle whether a separately-loadable reference carries its parent's markers**
-        - Task 4.3's finding 6 left this to Task 4.5, which closed without deciding it: the concentration precedent
-          and `strategy-knowledge-evolution` Principle 1 reach **different** answers for a document loaded on its
-          own, and every other apparent conflict between them dissolved on inspection.
-        - `session-init/probe-envelope.md` is the whole class — the only corpus document a workflow loads by its
-          own instruction rather than through frontmatter. It carries six invariant-force sentences ("renders
-          `recommendedPromptText` verbatim", "never auto-removed", "never `-D`", "never auto-run"), each restating a
-          rule `session-init` owns. Concentration says the marker belongs at the parent, so the reference stays
-          bare. Principle 1 says a hard constraint sits where its operation fires, and the operation fires for a
-          reader who may hold only this file.
-        - Decide the rule, not just this file. A precedent that says "restatements stay bare" has to survive the
-          case where the restatement is the only text in view; one that says "mark the reachable copy" has to say
-          what stops markers spreading to every restatement in the corpus — the failure Task 4.1 rejected 52
-          markers to avoid.
-        - Task 4.5.a.ii left these six unmarked, so the status quo is concentration by default. Ratifying that is a
-          legitimate outcome; leaving it undecided is what this subtask exists to prevent.
-        - **Settled: ratify concentration, and make the reference point at its parent.** The reference stays
-          unmarked — the marker footprint does not spread to restatements — but it must say that classification, not
-          only procedure, lives with the owning workflow. Its opening already carries the seed ("procedural handling
-          remains in the owning workflow"); the fix extends that sentence to authority. This fixes the actual harm —
-          a reader holding one file with no way to tell how hard a rule is — without minting a "might be read alone"
-          test that would readmit the 52-marker footprint Task 4.1 rejected.
-        - **Forward-compat check against `composable-workflows` D3 (the session-agenda compiler).** Two results bear
-          on the decision, and one changes it:
-            - The two artifacts move in opposite directions. `probe-envelope.md` **survives and grows** — D1's
-              schema-out-of-band rule ("no workflow documents an envelope slot's shape inline; it cites the slot
-              name") makes it the durable home for slot semantics, and `instruction-optimization` plans further
-              expansion. `session-init.md` **compiles down** to a ~120–150-line spine. So the pointer must name the
-              owner in a form the agenda preserves — the spine's authority-boundaries concept — never a step or
-              section number the compile dissolves.
-            - **Mechanization is a reclassification trigger, and it applies to at least half these six.** Under the
-              step vocabulary an `offer` structurally cannot auto-execute and a `render` carries precomposed text,
-              so "never auto-run", "never auto-removed", "never `-D`", and "renders … verbatim" stop being
-              instructions an agent obeys and become what the step does. This work unit's own repeated finding — a
-              rule backed by a mechanical check is safely a default; a rule that backs a check is an invariant —
-              then reclassifies them. Marking them `[invariant]` today would be wrong later, not merely misplaced.
-              That is independent support for the pointer over the marker, and the trigger belongs in the record.
-        - Any marker lands in both copies, in the `[invariant]` notation Task 1.5.a establishes.
+    - `[x]` **4.6.d Settle whether a separately-loadable reference carries its parent's markers**
+        - _Outcome:_ **Concentration ratified, with the reference pointing at its parent.**
+          `session-init/probe-envelope.md` stays unmarked, and its opening now says that **classification** lives
+          with the owning workflow, not only procedure — the seed was already there ("procedural handling remains
+          in the owning workflow"), so one sentence extended rather than a rule added. This fixes the harm Task
+          4.3's finding 6 identified (a reader holding one file meets an obligation with no way to tell how hard it
+          is) without minting a "mark the copy someone might read alone" test, which nearly every restatement in
+          the corpus would satisfy and which would readmit the 52-marker footprint Task 4.1 rejected. Derivation in
+          `notes-judgment-authority-model.md` § The separately-loadable reference.
+        - The forward-compat check against `composable-workflows` D3 changed the implementation and then supported
+          the decision from an unrelated direction. It **inverted the durability assumption**: D1's
+          schema-out-of-band rule makes `probe-envelope.md` the growing, durable home for slot semantics while
+          `session-init.md` compiles to a ~120–150-line spine, so the pointer names **authority boundaries** — a
+          section the spine estimate retains — never a step or section number the compile dissolves. And it found
+          that **mechanization reclassifies at least four of the six**: an `offer` step structurally cannot
+          auto-execute and a `render` carries precomposed text, so this work unit's own repeated finding (a rule
+          backed by a mechanical check is safely a default) turns them into defaults. Marking them today would have
+          been wrong later, not merely misplaced.
+        - The reclassification trigger generalizes past these six — any rule moving from prose to mechanism carries
+          the same latent drift. Captured to `composable-workflows` rather than resolved here: whether it is a
+          one-time pass at D3 or a standing obligation is that work unit's call.
 
 ## **Phase 5:** Instance register — `DEV-RULES.PROJECT`
 

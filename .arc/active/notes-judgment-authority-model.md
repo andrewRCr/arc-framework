@@ -1632,3 +1632,51 @@ entry on the spending side of that measurement, alongside § Rule Authority's ow
 The `S` statement costs the ledger nothing: `extensions/README.md` is not tier-1.
 
 ---
+
+## The separately-loadable reference (Task 4.6.d)
+
+Task 4.3's finding 6 recorded the one place where the concentration precedent and
+`strategy-knowledge-evolution` Principle 1 reach genuinely different answers, and left the choice to Task 4.5,
+which closed without making it. `session-init/probe-envelope.md` is the whole class — the only corpus document a
+workflow loads by its own instruction rather than through frontmatter. Its six invariant-force sentences each
+restate a rule `session-init` owns. Concentration leaves it bare; Principle 1 says the constraint belongs where its
+operation fires, and the operation fires for a reader who may hold only this file.
+
+### Decided: concentration ratified, with the reference pointing at its parent
+
+The reference stays unmarked, and its opening now says that **classification** lives with the owning workflow, not
+only procedure. The seed was already there — "procedural handling remains in the owning workflow" — so the change
+extends one sentence rather than adding a rule.
+
+What this buys: the reader holding one file learns that an obligation they meet here is a restatement whose force
+is settled elsewhere, which is the actual harm finding 6 identified. What it avoids: a "mark the copy someone might
+read alone" test. Nearly every restatement in the corpus is readable alone if you try, so that test readmits the
+52-marker footprint Task 4.1 rejected — and it would spread the notation exactly where D3's concentration
+precedent says it must not go.
+
+### The forward-compat check changed the implementation
+
+Checked against `composable-workflows` D3, the session-agenda compiler, because it is the work unit that
+restructures both artifacts. Two results, and the first inverted an assumption this decision had been resting on.
+
+**The two artifacts move in opposite directions.** The intuition was that `session-init.md` is the durable parent
+and the reference its fragile satellite. It is the reverse. D1's schema-out-of-band rule — "no workflow documents
+an envelope slot's shape inline; it cites the slot name" — makes `probe-envelope.md` the durable home for slot
+semantics, and `instruction-optimization` plans further expansion of it. `session-init.md` compiles down to a
+~120–150-line spine. So a pointer naming a step or section number would name a locus the compile dissolves; the
+pointer names **authority boundaries**, which is a section the spine estimate explicitly retains.
+
+**Mechanization is a reclassification trigger, and it reaches at least four of the six.** Under the step
+vocabulary an `offer` structurally cannot auto-execute and a `render` carries CLI-precomposed text, so "never
+auto-run", "never auto-removed", "never `-D`", and "renders … verbatim" stop being instructions an agent obeys and
+become what the step does. This work unit's own most-repeated finding — a rule backed by a mechanical check is
+safely a default, a rule that backs a check is an invariant, confirmed independently in all three swept regions —
+then reclassifies them. **Marking them today would be wrong later, not merely misplaced.**
+
+That is the more interesting half of the check, because it reaches the same conclusion as the concentration
+argument from an unrelated direction: the pointer survives mechanization, a marker does not. The trigger itself
+generalizes past these six — any rule moving from prose to mechanism has the same latent drift — and is captured
+to `composable-workflows` rather than resolved here, since deciding whether it is a one-time pass or a standing
+obligation is that work unit's call.
+
+---
