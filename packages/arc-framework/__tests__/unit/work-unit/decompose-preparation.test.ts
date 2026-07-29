@@ -62,6 +62,9 @@ describe("v3 decomposition preparation persistence", () => {
     const readAuthoritySnapshot = vi.fn()
       .mockResolvedValueOnce({ authorityVersion: "initial", recordState: "absent" })
       .mockRejectedValueOnce(new Error("post-create authority read failed"));
+    const rollbackPaths = vi.fn(async () => {
+      throw new Error("staged rollback failed");
+    });
 
     const result = await prepareV3DecomposeRetirement({
       readAuthoritySnapshot,
@@ -76,12 +79,11 @@ describe("v3 decomposition preparation persistence", () => {
       stagePaths: async (paths) => {
         staged.push(...paths);
       },
-      rollbackPaths: async () => {
-        throw new Error("staged rollback failed");
-      },
+      rollbackPaths,
     }, preparation, "initial");
 
     expect(result).toEqual({ status: "refused", reason: "authority-unavailable" });
+    expect(rollbackPaths).toHaveBeenCalledExactlyOnceWith([recordPath]);
     expect(recordExists).toBe(true);
     expect(staged).toEqual([recordPath]);
   });
