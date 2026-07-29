@@ -61,8 +61,9 @@ arc decompose <origin> --execute <completed-map>
 ```
 
 On success, retain the complete result, including its plan packet, profile and topology packets, protection arm,
-candidate facts when applicable, and `next` action. The command owns occupation, mutation, staging, preparation,
-and restoration.
+candidate facts when applicable, `discard` disposition, and `next` action. A full candidate reports the exact
+`discard.command`; partial protection reports discard as not applicable. The command owns occupation, mutation,
+staging, preparation, and restoration.
 
 On refusal, stop and surface only its typed status and remedy. Run retry or discard only when the result supplies
 the exact command; prose guidance and mismatch loci are never command operands.
@@ -89,6 +90,9 @@ edits.
 This is the sole semantic distribution approval. It creates no token, signature, or evidence field. Commit, push,
 and integration interlocks are release controls only.
 
+If approval rejects the distribution, run the retained exact `discard.command` when the result reports one, then
+stop. When discard is not applicable, leave the staged partial result unchanged and surface that disposition.
+
 ## 6. Finalize with explicit continuation
 
 Write only the approved closed continuation input to the exact `next.continuationPath` reported by execute. Invoke
@@ -102,6 +106,9 @@ the typed status and remedy, stop, and follow its indicated re-entry:
 - re-preflight returns to Step 1;
 - reauthor returns to Step 4 without changing mechanical bindings;
 - prose-only guidance remains prose.
+
+If direction after a finalization stop is to abandon a full candidate, run only the exact `discard.command` retained
+from execute. Never derive it from the refusal, candidate facts, or mismatch loci.
 
 ## 7. Release through the reported protection arm
 

@@ -69,11 +69,30 @@ export interface GitDecompositionLocalCleanupCompleted {
   remote: { kind: "not-authorized" };
 }
 
+/** Observable outcomes retained when local cleanup stops after mutation begins. */
+export interface GitDecompositionLocalCleanupProgress {
+  source: {
+    branch: string;
+    branchOutcome: DecompositionLocalProjectionCleanup["branchOutcome"] | null;
+    worktreeOutcome: DecompositionLocalProjectionCleanup["worktreeOutcome"] | null;
+  };
+  candidate: {
+    branch: string;
+    branchOutcome: DecompositionLocalProjectionCleanup["branchOutcome"] | null;
+    worktreeOutcome: DecompositionLocalProjectionCleanup["worktreeOutcome"] | null;
+  };
+  userWorkspace: "pending" | "closed";
+}
+
 /** Closed public result for decomposition-aware teardown dispatch. */
 export type GitDecompositionLocalCleanupResult =
   | GitDecompositionLocalCleanupCompleted
   | { status: "not-decomposition" }
-  | { status: "refused"; reason: string };
+  | {
+      status: "refused";
+      reason: string;
+      progress?: GitDecompositionLocalCleanupProgress;
+    };
 
 async function resolveLocalRef(
   deps: GitDecompositionLocalCleanupDependencies,
@@ -433,20 +452,38 @@ export async function cleanupGitLandedDecompositionLocally(
     };
   }
 
+  const progress: GitDecompositionLocalCleanupProgress = {
+    candidate: {
+      branch: candidateBranch,
+      branchOutcome: null,
+      worktreeOutcome: null,
+    },
+    source: {
+      branch: sourceBranch,
+      branchOutcome: null,
+      worktreeOutcome: null,
+    },
+    userWorkspace: "pending",
+  };
   try {
     const candidateWorktreeOutcome = await removeProjectionWorktree(deps, candidate.worktree);
+    progress.candidate.worktreeOutcome = candidateWorktreeOutcome;
     const candidateBranchOutcome = await deleteExactLocalBranch(
       deps,
       candidateBranch,
       selection.anchor.candidateCommitHead,
     );
+    progress.candidate.branchOutcome = candidateBranchOutcome;
     const sourceWorktreeOutcome = await removeProjectionWorktree(deps, source.worktree);
+    progress.source.worktreeOutcome = sourceWorktreeOutcome;
     const sourceBranchOutcome = await deleteExactLocalBranch(
       deps,
       sourceBranch,
       selection.anchor.sourceHead,
     );
+    progress.source.branchOutcome = sourceBranchOutcome;
     await deps.closeUserWorkspace(origin);
+    progress.userWorkspace = "closed";
 
     const evidence = await candidateReleaseEvidence(
       deps,
@@ -468,6 +505,7 @@ export async function cleanupGitLandedDecompositionLocally(
         reason: release.status === "preserved"
           ? `decomposition claim registration was preserved (${release.reason})`
           : "decomposition claim registration could not be released",
+        progress,
       };
     }
     return {
@@ -497,6 +535,7 @@ export async function cleanupGitLandedDecompositionLocally(
     return {
       status: "refused",
       reason: error instanceof Error ? error.message : String(error),
+      progress,
     };
   }
 }

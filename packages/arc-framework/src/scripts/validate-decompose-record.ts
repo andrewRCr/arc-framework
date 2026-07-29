@@ -726,6 +726,7 @@ export async function runDecomposeRecordValidation(): Promise<void> {
           const result = await execFileAsync(command, args, {
             cwd: options?.cwd,
             encoding: "utf8",
+            maxBuffer: 20 * 1024 * 1024,
           });
           return { stdout: result.stdout, stderr: result.stderr };
         },
@@ -767,9 +768,19 @@ export async function runDecomposeRecordValidation(): Promise<void> {
 }
 
 const modulePath = fileURLToPath(import.meta.url);
+function realPathOrNull(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
 const invokedPath = process.argv[1];
+const resolvedModulePath = realPathOrNull(modulePath);
 if (invokedPath !== undefined
-  && realpathSync(modulePath) === realpathSync(invokedPath)
+  && resolvedModulePath !== null
+  && resolvedModulePath === realPathOrNull(invokedPath)
   && basename(modulePath).startsWith("validate-decompose-record.")) {
   void runDecomposeRecordValidation().catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import {
   resolveConfiguredBaseDecompositionAnchor,
 } from "../../src/lib/work-unit/configured-base-decomposition-anchor.js";
@@ -20,6 +21,9 @@ import {
   executeGitV3DecomposeOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
+import {
+  cleanupGitLandedDecompositionLocally,
+} from "../../src/lib/work-unit/git-decomposition-local-cleanup.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -382,6 +386,30 @@ describe("Git v3 repository plan", () => {
       .toBe(`${appliedPaths.join("\n")}\n`);
   });
 
+  it("reports the exact discard command for a successfully prepared full candidate", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+
+    const prepared = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(prepared, JSON.stringify(prepared)).toMatchObject({
+      status: "prepared",
+      discard: {
+        kind: "discard-candidate",
+        command: `arc decompose origin --discard ${cutMapPath}`,
+      },
+    });
+  });
+
   it("refuses moved source or base authority before claiming a candidate", async () => {
     for (const movedRef of ["plan/origin", "main"]) {
       const { repo, completedMap, dependencies } = await startedRepository();
@@ -669,6 +697,78 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("retains completed local cleanup outcomes when post-mutation evidence fails", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const prepared = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(prepared.status, JSON.stringify(prepared)).toBe("prepared");
+    if (prepared.status !== "prepared"
+      || prepared.operation.occupation.protection !== "full") return;
+    const candidate = prepared.operation.occupation.path;
+    const continuationPath = join(repo, "continuation.json");
+    await writeFile(
+      continuationPath,
+      `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
+    );
+    const finalized = await finalizeGitV3DecomposeOperation({
+      ...dependencies,
+      cwd: candidate,
+      readBlob: async (ref, path) => await readBlob(candidate, ref, path),
+    }, {
+      baseBranch: "main",
+      origin: "origin",
+      receiptId: prepared.operation.preparation.receiptId,
+      continuationPath,
+    });
+    expect(finalized.status, JSON.stringify(finalized)).toBe("recorded");
+    await git(candidate, ["commit", "-m", "finalize candidate"]);
+    await git(repo, ["merge", "--no-ff", "chore/decompose-origin", "-m", "land candidate"]);
+    const exec: GitExec = async (command, args, options) =>
+      await dependencies.exec(command, args, { ...options, cwd: options?.cwd ?? repo });
+    const landed = await resolveConfiguredBaseDecompositionAnchor("main", "origin", {
+      exec,
+      readBlob: dependencies.readObject,
+    });
+    expect(landed.status, JSON.stringify(landed)).toBe("resolved");
+
+    let scanCount = 0;
+    const result = await cleanupGitLandedDecompositionLocally("main", "origin", {
+      cwd: repo,
+      exec,
+      readBlob: dependencies.readObject,
+      closeUserWorkspace: async () => undefined,
+      scanWorktrees: async () => {
+        scanCount += 1;
+        if (scanCount === 1) return await scanRegisteredWorktrees(exec);
+        throw new Error("post-mutation worktree scan failed");
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-mutation worktree scan failed",
+      progress: {
+        candidate: {
+          branch: "chore/decompose-origin",
+          branchOutcome: "deleted",
+          worktreeOutcome: "removed",
+        },
+        source: {
+          branch: "plan/origin",
+          branchOutcome: "deleted",
+          worktreeOutcome: "already-absent",
+        },
+        userWorkspace: "closed",
+      },
+    });
+  });
+
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {
     const {
       repo,
@@ -701,6 +801,7 @@ describe("Git v3 repository plan", () => {
 
     expect(prepared, JSON.stringify(prepared)).toMatchObject({
       status: "prepared",
+      discard: { kind: "not-applicable", protection: "partial" },
       operation: {
         occupation: {
           status: "occupied",

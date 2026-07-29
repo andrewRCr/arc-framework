@@ -444,6 +444,7 @@ beforeEach(() => {
   });
   mockExecuteGitV3DecomposeCommand.mockResolvedValue({
     status: "prepared",
+    discard: { kind: "not-applicable", protection: "partial" },
     next: {
       kind: "finalize-with-continuation",
       continuationPath: "/repo/cut-map.json.continuation.json",
@@ -602,7 +603,8 @@ describe("handleDecompose", () => {
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
+      `{"discard":{"kind":"not-applicable","protection":"partial"},`
+      + `"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
       + `--continuation /repo/cut-map.json.continuation.json",`
       + `"continuationPath":"/repo/cut-map.json.continuation.json",`
       + `"kind":"finalize-with-continuation"},`
@@ -612,6 +614,13 @@ describe("handleDecompose", () => {
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("does not select handoff when a programmatic caller supplies it as undefined", async () => {
+    await handleDecompose("mono", { handoff: undefined, execute: "cut-map.json" });
+
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledOnce();
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {

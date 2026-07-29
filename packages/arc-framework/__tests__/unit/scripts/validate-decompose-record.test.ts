@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
@@ -168,6 +168,19 @@ function validateRename(options: RenameFixtureOptions = {}): string[] {
 }
 
 describe("validateDecomposeCommitGate", () => {
+  it("treats a nonexistent process entrypoint as a non-entrypoint import", async () => {
+    const invokedPath = process.argv[1];
+    process.argv[1] = "/nonexistent/arc/validate-decompose-record.js";
+    vi.resetModules();
+    try {
+      await expect(import("../../../src/scripts/validate-decompose-record.js"))
+        .resolves.toBeDefined();
+    } finally {
+      if (invokedPath === undefined) process.argv.splice(1, 1);
+      else process.argv[1] = invokedPath;
+    }
+  });
+
   it("accepts one exact canonical v3 receipt addition through live validation", () => {
     const taskArtifact = {
       path: ".arc/active/tasks-origin.md",

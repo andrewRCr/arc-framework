@@ -83,6 +83,15 @@ export type GitV3DecomposeOperationResult =
 
 export type GitV3DecomposeCommandResult =
   | (Extract<GitV3DecomposeOperationResult, { status: "prepared" }> & {
+      discard:
+        | {
+            kind: "discard-candidate";
+            command: string;
+          }
+        | {
+            kind: "not-applicable";
+            protection: "partial";
+          };
       next: {
         kind: "finalize-with-continuation";
         continuationPath: string;
@@ -416,6 +425,12 @@ export async function executeGitV3DecomposeCommand(
   const continuationPath = `${cutMapPath}.continuation.json`;
   return {
     ...result,
+    discard: result.operation.occupation.protection === "full"
+      ? {
+          kind: "discard-candidate",
+          command: renderV3DecomposeDiscardCommand(input.origin, cutMapPath),
+        }
+      : { kind: "not-applicable", protection: "partial" },
     next: {
       kind: "finalize-with-continuation",
       continuationPath,

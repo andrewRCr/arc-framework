@@ -13,7 +13,9 @@ import {
 } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
 
 const encoder = new TextEncoder();
-const cohortTemplate = readFileSync("arc/reference/templates/arc/work-unit/template-cohort.md");
+const cohortTemplate = readFileSync(
+  new URL("../../../arc/reference/templates/arc/work-unit/template-cohort.md", import.meta.url),
+);
 
 function file(content: string) {
   return {
@@ -207,7 +209,7 @@ describe("v3 repository plan projection", () => {
     if (result.status !== "composed") return;
     expect(result.plan.sourceHead).toBe(input.sourceHead);
     expect(result.plan.expectedBaseHead).toBe(input.resultBaseHead);
-    expect(result.plan.allowedPaths).toEqual([
+    const concreteAllowedPaths = [
       ".arc/active/draft-origin.md",
       ".arc/active/meta-origin.md",
       ".arc/backlog/ROADMAP.md",
@@ -216,10 +218,13 @@ describe("v3 repository plan projection", () => {
       ".arc/backlog/planned/origin/draft-origin.md",
       ".arc/backlog/planned/origin/meta-origin.md",
       ".arc/reference/shared.txt",
+    ].sort((left, right) => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")));
+    expect(result.plan.allowedPaths).toEqual([
+      ...concreteAllowedPaths,
       expect.stringMatching(
         /^\.arc\/system\/\.internal\/retirement-receipts\/sha256-[a-f0-9]{64}\.json$/u,
       ),
-    ].sort());
+    ]);
     expect(result.plan.candidateAuthority.candidatePublication).toEqual({
       logicalAnchor: { kind: "direct-member", slug: "member" },
       entries: [

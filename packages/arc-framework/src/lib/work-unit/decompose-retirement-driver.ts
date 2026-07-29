@@ -528,6 +528,10 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             stagePaths: async (paths) => {
               await stageDecomposePaths(deps, paths);
             },
+            rollbackPaths: async (paths) => {
+              if (paths.length === 0) return;
+              await deps.exec("git", ["restore", "--staged", "--", ...paths], { cwd: deps.cwd });
+            },
           },
           preparation,
           snapshot.authorityVersion,
