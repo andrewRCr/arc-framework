@@ -128,7 +128,8 @@ usual.
    ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
    before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
    alternatives and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The
-   developer formulates _with_ the agent; the agent does not produce a finished design for sign-off.
+   developer formulates _with_ the agent; **the agent does not produce a finished design for sign-off** ·
+   `[invariant]`.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
    re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
    decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for

@@ -550,11 +550,11 @@ parked one — keeping them typographically distinct keeps that divergence legib
 
 Creating a backlog stub (`arc stub`) is the lifecycle's create edge — it mints a WU's `meta-{name}.md` directly at a
 backlog rung, with no ceremony. "No ceremony" is not "no inputs": the command **requires the judgment values
-supplied** and fabricates none. A stub names its **commitment** (`provisional` or `planned` — the readiness rung) and
-its **priority**; a `planned` stub additionally carries a resolved `**Class:**` — the same forcing point the
-[readiness ladder](#readiness-ladder) names (`[TBD]` is legal only in `provisional`). `Origin`, `Design`, and `Cohort`
-are optional. The command owns the mechanics (path, meta scaffold, ROADMAP regen); the commitment, priority, and
-`Class` calls are judgment it will not invent.
+supplied** · `[invariant]` and fabricates none. A stub names its **commitment** (`provisional` or `planned` — the
+readiness rung) and its **priority**; a `planned` stub additionally carries a resolved `**Class:**` — the same
+forcing point the [readiness ladder](#readiness-ladder) names (`[TBD]` is legal only in `provisional`). `Origin`,
+`Design`, and `Cohort` are optional. The command owns the mechanics (path, meta scaffold, ROADMAP regen); the
+commitment, priority, and `Class` calls are judgment it will not invent.
 
 ---
 
@@ -1160,8 +1160,8 @@ Two lanes, by what the PR touches — classified by artifact **prefix**, not by 
   is reviewed; the between-WUs drain's own disciplined flush is the carve-out below); and all code. Always
   requires owner review before merge.
 
-A PR that touches any reviewed-lane path is reviewed-lane as a whole — the lanes never split a single PR. Keep
-grooming PRs path-pure to stay on the auto-merge lane.
+**A PR that touches any reviewed-lane path is reviewed-lane as a whole** · `[invariant]` — the lanes never split a
+single PR. Keep grooming PRs path-pure to stay on the auto-merge lane.
 
 The lane classifies by **content type, not concurrency**: it decides whether a change needs a human to read it,
 not whether two branches edit the same artifact at once. Concurrent edits to a shared record — a multi-owner
@@ -1243,10 +1243,11 @@ the classification as doctrine plus manual review discipline.
 
 Code-owners patterns are a path-ownership approximation: they cannot express the canonical filename grammar,
 rename/copy identity, or Git type/mode changes. ARC-managed workflows therefore rerun the canonical exact-base/head
-classifier immediately before arming native auto-merge and permit arming only on literal `planning`; a confidently
-recognized human-only review condition may still move that result to reviewed, never the reverse. Without the
-optional ARC merge guard this is procedural enforcement at the integration interlock. When `arc-cleared` is
-installed and required, its planning writer makes the same exact classification structural at the host.
+classifier immediately before arming native auto-merge and permit arming only on literal `planning`.
+**Escalation is one-directional** · `[invariant]` — a confidently recognized human-only review condition may move
+that result to reviewed, never the reverse. Without the optional ARC merge guard this is procedural enforcement at
+the integration interlock. When `arc-cleared` is installed and required, its planning writer makes the same exact
+classification structural at the host.
 
 **Solo repositories.** Condition 2 is a two-party primitive — a sole maintainer cannot approve their own PR, so
 requiring code-owner review would block every reviewed-lane PR. A solo repo instead requires only the stable

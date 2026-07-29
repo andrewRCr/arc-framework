@@ -148,8 +148,8 @@ Out of Scope — the principle catalog is the project's vision contract.
 
 On either, halt and surface the specific conflict — user direction needed before save.
 
-**On pass — cite the principle by name.** Not "checked, passes" — "checked against the _Configurability_
-principle — passes".
+**On pass — cite the principle by name** · `[invariant]`. Not "checked, passes" — "checked against the
+_Configurability_ principle — passes".
 
 ## TECHNICAL-OVERVIEW alignment check (conditional)
 
@@ -165,8 +165,8 @@ The companion downstream condition ("TECHNICAL-OVERVIEW edited since the spec wa
 [`activate-work-unit.md`][activate-work-unit] and [`integrate-work-unit.md`][integrate-work-unit], not here — at
 create-spec time the spec hasn't been approved yet.
 
-**On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture Components —
-passes".
+**On pass — cite the section by name** · `[invariant]`. Not "checked, passes" — "checked against § 2 Architecture
+Components — passes".
 
 ## Write and save the spec
 
@@ -248,7 +248,7 @@ adversarial-review:
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
 > spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
 > spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
-> authorize the irreversible finalize actions below.
+> authorize the irreversible finalize actions below · `[invariant]`.
 
 Once the spec is approved as correct, finalize the work unit. The remaining steps are irreversible, so they take
 a second, separate approval:

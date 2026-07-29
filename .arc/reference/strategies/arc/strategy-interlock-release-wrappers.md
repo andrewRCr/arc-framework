@@ -162,7 +162,8 @@ against the existing `permissions.allow` array.
 Codex matches direct command argv; it does not split a shell script containing redirection for
 inner-prefix matching. Commit through direct prepared-file argv —
 `arc release commit -F <message-file>` — and verify that shape with `codex execpolicy check` against
-the installed rules. Never claim a shell-wrapped heredoc matches the commit prefix rule.
+the installed rules.
+**Never claim a shell-wrapped heredoc matches the commit prefix rule** · `[invariant]`.
 
 For any harness, use the quoted-heredoc transport with a verified non-colliding delimiter only after its resident
 matcher verifies redirection; otherwise use direct prepared-file argv. The push shape is the argument-free

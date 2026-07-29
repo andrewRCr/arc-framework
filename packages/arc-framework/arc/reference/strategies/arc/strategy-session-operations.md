@@ -864,8 +864,8 @@ field and stamps the date lives with that skill; this surface documents the gram
 **Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
 **retain** a `## Errand` capture in place rather than route or flush it — to hold it privately until
 vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
-agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
-`_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
+agent-suggested** · `[invariant]`: it is an explicit per-entry choice at the drain's confirmation gate, set by a
+managed `_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
 same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
 entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
 session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still

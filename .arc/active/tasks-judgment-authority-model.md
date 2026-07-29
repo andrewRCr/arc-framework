@@ -826,13 +826,7 @@ document that ships without an instance counterpart still states its rules to ev
 - _Goal:_ The marker set follows what the sweep found, and the sweep's one structural finding about content kinds
   is recorded where the work units that need it will reach it.
 
-    - `[ ]` **4.5.a Reconcile the marker footprint against the sweep**
-        - Task 1.5's roughly-five was a prediction. A materially larger marked set is a finding about the
-          discriminator's reach, recorded as such — the footprint follows the sweep rather than capping it.
-        - Reconcile before applying. The running total double-counts two sites the sweep itself argues against
-          marking — the `K2` gate sites, whose recommended remedy is the constitutional statement Task 4.6.a
-          writes, and `strategy-quality-gates` § Tier 3, which the strategy region recommends folding into
-          § Quality gate failure's existing marker instead.
+    - `[x]` **4.5.a Reconcile the marker footprint against the sweep**
         - Split by tier, not by convenience: the constitutional parents change text every session loads and earn
           their own review boundary; the region-local sites do not.
 
@@ -848,13 +842,44 @@ document that ships without an instance counterpart still states its rules to ev
               prose surgery § Amend scope took: it carried an invariant and a permission in one bullet, so the
               permission now leads and the marker attaches to the bolded prohibition.
 
-        - `[ ]` **4.5.a.ii Mark the region-local sites**
-            - Twenty-five sites in the on-demand corpus: five method, seven strategy, eleven workflow, two
-              extension. Both copies, in the `[invariant]` notation Task 1.5.a establishes.
-            - Expect § Rebase scope's shape again — a bullet carrying a default and an invariant together takes
-              the marker on the rule's lead-in, never the bullet's.
-            - Re-derive each file's copy relationship by comparing the copies before editing; the template-paired
-              and divergent sets do not follow filename.
+        - `[x]` **4.5.a.ii Mark the region-local sites**
+            - _Outcome:_ Twenty-four recorded sites landed as **twenty-eight marker loci** across seventeen files —
+              five method, eight strategy, fourteen workflow, one extension. The gap is the three sites the record
+              already wrote as pairs (`create-spec` L151 + L168, `setup-release-wrapper` L363 + L198,
+              `setup-arc-clearance` L52 + L73) plus § Auto-Merge Lane, whose one entry carries two distinct rules
+              (lane-wholeness and escalation directionality). Each member of a pair is independently reachable at
+              its own gate, so `strategy-knowledge-evolution` Principle 1's placement doctrine puts a marker at
+              each rather than one at the family's statement.
+            - The recorded twenty-fifth site is not one. Family `S` (halt at first failure) has no statement in
+              `extensions/README.md` to mark — Task 4.4 said so and still counted it here, which is the arithmetic
+              defect this task's own entry warned about in a different form. Authoring a parent for an unparented
+              family is Task 4.6.a's shape, not a marking act, and it must clear Success Criterion 1 first; `S`
+              moves there rather than riding this increment.
+            - Copy relationships re-derived by comparison, not filename: sixteen of the seventeen are
+              byte-identical mirrors, `testing-standards` diverges only inside its project `.override` block (all
+              three of its markers sit in `.default`), and the two project strategies
+              (`strategy-knowledge-evolution`, `strategy-user-notes-concurrency`) have no package counterpart. No
+              template-paired file appeared in this set.
+            - Three sites needed prose surgery before the marker could attach, all in the § Amend scope shape
+              Task 4.5.a.i met: `branch-format`'s line said "The `plan/` prefix is invariant" in `adr-016`'s
+              **not project-configurable** sense, which Task 4.1 finding 2 flagged as the one site where a
+              `[invariant]` marker would land beside the word meaning something else — reworded to "not
+              overridable", the remedy that finding named, since `adr-030` declined to rename either sense;
+              § Auto-Merge Lane's escalation rule was a semicolon clause with no lead-in of its own; and
+              `strategy-interlock-release-wrappers`' heredoc prohibition had none either.
+            - One placement is judgment beyond the record: `strategy-user-notes-concurrency` has no § Disciplines
+              preamble to carry the collapsed four-rule marker, so it attaches to the file's opening statement of
+              the same obligation rather than authoring one.
+
+        - _Outcome:_ Thirty-one marked sites — seven constitutional parents plus twenty-four region-local — down
+          from the sweep's running thirty-three. Three items left the marker footprint rather than being marked:
+          `strategy-quality-gates` § Tier 3 folds into § Quality gate failure's existing marker, and the `K2` gate
+          sites and family `S` both need a constitutional statement authored at Task 4.6.a before anything can be
+          marked. Against Task 1.5's predicted five that is a sixfold miss, and the shape of the miss is the
+          finding: the seven parents are where the prediction was nearly right, and the twenty-four are
+          restatement density the prediction had no way to see. Every count the record carried in between
+          (11 → 18 → 31 → 33) was wrong at the time it was written, which is the argument for re-deriving from the
+          region sections rather than carrying a total.
 
     - `[ ]` **4.5.b Record the enabling content category**
         - A third category beside constraint and explanatory: **enabling** content carries no obligation itself
@@ -886,14 +911,23 @@ document that ships without an instance counterpart still states its rules to ev
 - **Additional Context:** `notes-judgment-authority-model.md` § Findings — the method, strategy, and workflow
   region sections
 
-    - `[ ]` **4.6.a Write the `K2` constitutional statement**
+    - `[ ]` **4.6.a Write the constitutional statements for the two unparented families**
         - `K2` — pre-commitment text is not rewritten to match the outcome — has seven instances across all three
           swept regions and no parent anywhere. The recommended remedy is a constitutional statement rather than
           seven markers; Phase 3 has closed, so it lands here.
-        - Check the statement against Success Criterion 1 before writing it: a family parent is not a per-case
+        - `S` — halt at first failure — is the same shape: seven instances (four extension contracts, plus
+          `init-work-unit` L330 and `run-errand` L126 / L182 / L268) and no parent anywhere. Task 4.4 counted it
+          in Task 4.5.a's footprint while recording that no statement exists to mark; Task 4.5.a.ii routed it here
+          on the ground that authoring a family parent is this subtask's act, not a marking one. Its home is
+          `extensions/README.md`'s loading-model paragraph, which already describes how `.actions` execute.
+        - Check each statement against Success Criterion 1 before writing it: a family parent is not a per-case
           rule, but the criterion is the test it has to pass.
+        - `S`'s scope needs settling before it is written. Its instances split across two audiences — the
+          extension contracts bind an author populating `.actions`, while the four workflow fire points bind an
+          executing session deciding whether to continue past a failed action. Decide whether one statement covers
+          both or the workflow fire points need their own, rather than assuming the extension index reaches them.
         - Task 4.5.a settles the unmarked constitutional parents, since it is the task that applies them. This
-          subtask writes the one statement that has no parent to mark.
+          subtask writes the statements that have no parent to mark.
         - Both copies, in the `[invariant]` notation Task 1.5.a establishes.
 
     - `[ ]` **4.6.b Resolve `draft-design` L162's force disagreement**

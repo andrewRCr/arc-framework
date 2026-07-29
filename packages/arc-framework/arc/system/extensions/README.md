@@ -6,8 +6,8 @@ do) and an `active` gate — workflows check the gate at the fire point and skip
 **How extensions work:** Each preset extension defines a contract and starts empty (`active: false`). To add
 behavior, populate the extension's `.actions` section with your team's actions and set `active: true`.
 Session-init enumerates files where `active: true` into the active-extensions list; fire-point directives
-consult the list by name and execute `.actions` for listed extensions, skipping the rest. Extensions add
-behavior to workflows; they do not replace existing steps.
+consult the list by name and execute `.actions` for listed extensions, skipping the rest. **Extensions add
+behavior to workflows; they do not replace existing steps** · `[invariant]`.
 
 **Loading model:** Session-init runs a single `grep -l "^active: true" .arc/system/extensions/*.md` to produce
 the **active-extensions list** — the set of extensions with populated `.actions` in the current install.

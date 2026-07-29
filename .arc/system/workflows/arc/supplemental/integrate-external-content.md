@@ -20,7 +20,8 @@ Determine what you're working with:
 - **External file** — a file to import (shared by someone, downloaded, etc.)
 - **Link or concept** — a description, documentation page, or idea to evaluate
 
-For external files, read the content first. For links or concepts, gather enough context to classify.
+**For external files, read the content first** · `[invariant]`. For links or concepts, gather enough context to
+classify.
 
 ## Step 2: Classify the Content
 

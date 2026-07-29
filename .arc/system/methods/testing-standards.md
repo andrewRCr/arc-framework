@@ -42,11 +42,11 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
 ## testing-standards.default
 
 - Test observable behavior through public interfaces; don't assert on implementation — including **don't assert
-  on spy / call args as the outcome** (that verifies wiring, not behavior).
-- **Keep mocked boundaries and fixtures faithful** — a stub inventing dependency outcomes, or a hand-built
-  fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture invariants from
-  the producer; cover response-dependent behavior at a tier that runs the real thing.
-- **See it fail first** — a test that has never failed may assert nothing.
+  on spy / call args as the outcome** · `[invariant]` (that verifies wiring, not behavior).
+- **Keep mocked boundaries and fixtures faithful** · `[invariant]` — a stub inventing dependency outcomes, or a
+  hand-built fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture
+  invariants from the producer; cover response-dependent behavior at a tier that runs the real thing.
+- **See it fail first** · `[invariant]` — a test that has never failed may assert nothing.
 - **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
   test your dependencies.
