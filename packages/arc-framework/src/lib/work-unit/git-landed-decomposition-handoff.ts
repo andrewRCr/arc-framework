@@ -35,6 +35,7 @@ interface GitTreeEntry {
 }
 
 const TREE_ENTRY_PATTERN = /^([0-7]{6}) ([^ ]+) ([0-9a-f]+)\t(.+)$/u;
+const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const LIFECYCLE_ROOTS = [
   ".arc/active",
   ".arc/backlog/planned",
@@ -101,7 +102,7 @@ async function readPublicationFiles(
     ...[...outputPaths].filter(
       (path) => !LIFECYCLE_ROOTS.some((root) => within(root, path)),
     ),
-  ])];
+  ])].map((path) => `:(literal)${path}`);
   let entries: GitTreeEntry[] | null;
   try {
     const { stdout } = await deps.exec(
@@ -133,7 +134,8 @@ async function readPublicationFiles(
 async function resolveCommit(exec: GitExec, cwd: string, ref: string): Promise<string | null> {
   try {
     const { stdout } = await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd });
-    return stdout.trim() || null;
+    const oid = stdout.trim();
+    return GIT_OBJECT_ID.test(oid) ? oid : null;
   } catch {
     return null;
   }
@@ -177,8 +179,11 @@ export async function resolveGitLandedDecompositionHandoff(
     readiness: deps.readiness,
   });
   if (projection.status !== "resolved") return projection;
-  if (await resolveCommit(deps.exec, deps.cwd, configuredBaseRef)
-    !== selected.anchor.currentBaseHead) {
+  const currentBaseHead = await resolveCommit(deps.exec, deps.cwd, configuredBaseRef);
+  if (currentBaseHead === null) {
+    return { status: "namespace-corrupt", reason: "git-read-failed" };
+  }
+  if (currentBaseHead !== selected.anchor.currentBaseHead) {
     return { status: "stale-base" };
   }
   return composeLandedDecompositionHandoff({

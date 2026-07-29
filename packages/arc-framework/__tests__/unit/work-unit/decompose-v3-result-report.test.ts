@@ -177,6 +177,7 @@ describe("v3 decomposition result reporting", () => {
       paths: [{ path: second.path, disposition: "refused-conflict" }],
       destinations: [{ path: second.path, disposition: "refused-conflict" }],
     });
+    // Reports expose only durable result facts, never authoring prose from the source artifacts.
     expect(JSON.stringify(report)).not.toContain("Purpose");
     expect(JSON.stringify(report)).not.toContain("sequencing");
 

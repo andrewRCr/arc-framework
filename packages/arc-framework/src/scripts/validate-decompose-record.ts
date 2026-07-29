@@ -524,45 +524,55 @@ function pathStateKey(ref: string | null, path: string): string {
 }
 
 async function gitNormalizedPathState(
+  cwd: string,
   ref: string | null,
   path: string,
 ): Promise<V3ManagedPathResult["before"]> {
   const args = ref === null
     ? ["ls-files", "--stage", "-z", "--", `:(literal)${path}`]
     : ["ls-tree", "-z", ref, "--", `:(literal)${path}`];
-  const { stdout } = await execFileAsync("git", args, { encoding: "utf8" });
+  const { stdout } = await execFileAsync("git", args, { cwd, encoding: "utf8" });
   if (stdout === "") return { kind: "absent" };
   const entries = stdout.split("\0").filter(Boolean);
-  const match = entries.length === 1
-    ? (ref === null
-        ? /^(100644|100755) [0-9a-f]{40,64} 0\t/u.exec(entries[0] ?? "")
-        : /^(100644|100755) blob [0-9a-f]{40,64}\t/u.exec(entries[0] ?? ""))
-    : null;
-  const mode = match?.[1];
-  if (mode !== "100644" && mode !== "100755") {
+  if (entries.length !== 1) {
+    throw new Error(`malformed v3 decompose path state: ${path}`);
+  }
+  const entry = entries[0] ?? "";
+  const match = ref === null
+    ? /^([0-7]{6}) ([0-9a-f]{40,64}) ([0-3])\t(.+)$/u.exec(entry)
+    : /^([0-7]{6}) ([^ ]+) ([0-9a-f]{40,64})\t(.+)$/u.exec(entry);
+  if (match === null || match[4] !== path) {
+    throw new Error(`malformed v3 decompose path state: ${path}`);
+  }
+  const mode = match[1];
+  const objectKindOrStage = match[2];
+  const stage = ref === null ? match[3] : "0";
+  if ((mode !== "100644" && mode !== "100755")
+    || (ref !== null && objectKindOrStage !== "blob")
+    || stage !== "0") {
     throw new Error(`unsupported v3 decompose path state: ${path}`);
   }
-  const bytes = await readGitBlobBytes(process.cwd(), ref, path);
+  const bytes = await readGitBlobBytes(cwd, ref, path);
   if (bytes === null) throw new Error(`unreadable v3 decompose path state: ${path}`);
   return { kind: "file", mode, contentDigest: contentDigest(bytes) };
 }
 
-async function resolveCommit(ref: string): Promise<string> {
+async function resolveCommit(cwd: string, ref: string): Promise<string> {
   const { stdout } = await execFileAsync(
     "git",
     ["rev-parse", "--verify", `${ref}^{commit}`],
-    { encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   );
   const oid = stdout.trim();
   if (!/^[0-9a-f]{40,64}$/u.test(oid)) throw new Error(`cannot resolve v3 decompose ref: ${ref}`);
   return oid;
 }
 
-async function gitParentBytes(ref: string, path: string): Promise<Uint8Array | null> {
+async function gitParentBytes(cwd: string, ref: string, path: string): Promise<Uint8Array | null> {
   const { stdout: entryOutput } = await execFileAsync(
     "git",
     ["ls-tree", `--format=%(objecttype) %(objectname)`, ref, "--", `:(literal)${path}`],
-    { encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   );
   const entries = entryOutput.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
   if (entries.length === 0) return null;
@@ -571,16 +581,16 @@ async function gitParentBytes(ref: string, path: string): Promise<Uint8Array | n
   const { stdout } = await execFileAsync(
     "git",
     ["cat-file", "blob", match[1]],
-    { encoding: "buffer", maxBuffer: 10 * 1024 * 1024 },
+    { cwd, encoding: "buffer", maxBuffer: 10 * 1024 * 1024 },
   );
   return new Uint8Array(stdout);
 }
 
-async function readMergeHeads(): Promise<string[]> {
+async function readMergeHeads(cwd: string): Promise<string[]> {
   const { stdout } = await execFileAsync(
     "git",
     ["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"],
-    { encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   );
   let content: string;
   try {
@@ -596,14 +606,80 @@ async function readMergeHeads(): Promise<string[]> {
   return heads;
 }
 
+export type V3CommitGateEvidenceSnapshot =
+  | {
+      status: "available";
+      resolvedRefs: ReadonlyMap<string, string>;
+      pathStates: ReadonlyMap<string, V3ManagedPathResult["before"]>;
+      sourceArtifactInventories: ReadonlyMap<string, readonly V3SourceArtifactEntry[]>;
+    }
+  | { status: "unavailable" };
+
+/**
+ * Prefetch every v3 validator dependency without allowing adapter failures to bypass the typed gate.
+ *
+ * @param receipts - Canonical staged v3 receipts requiring validation
+ * @param deps - Exact ref and path-state readers
+ * @returns A complete immutable snapshot, or typed unavailability
+ */
+export async function collectV3CommitGateEvidence(
+  receipts: readonly V3DecomposeReceipt[],
+  deps: {
+    resolveRef(ref: string): Promise<string>;
+    readPathState(ref: string | null, path: string): Promise<V3ManagedPathResult["before"]>;
+    readSourceArtifactInventory(
+      receipt: V3DecomposeReceipt,
+    ): Promise<readonly V3SourceArtifactEntry[]>;
+  },
+): Promise<V3CommitGateEvidenceSnapshot> {
+  const resolvedRefs = new Map<string, string>();
+  const pathStates = new Map<string, V3ManagedPathResult["before"]>();
+  const sourceArtifactInventories = new Map<string, readonly V3SourceArtifactEntry[]>();
+  try {
+    for (const receipt of receipts) {
+      const machine = receipt.prepared.completedMap.machine;
+      for (const ref of [machine.source.ref, machine.resultBase.ref]) {
+        if (!resolvedRefs.has(ref)) resolvedRefs.set(ref, await deps.resolveRef(ref));
+      }
+      if (!sourceArtifactInventories.has(receipt.receiptId)) {
+        sourceArtifactInventories.set(
+          receipt.receiptId,
+          await deps.readSourceArtifactInventory(receipt),
+        );
+      }
+      const requests = [
+        ...receipt.finalized.managedPathResults.flatMap(({ path }) => [
+          [machine.resultBase.head, path] as const,
+          [null, path] as const,
+        ]),
+      ];
+      for (const [ref, path] of requests) {
+        const key = pathStateKey(ref, path);
+        if (!pathStates.has(key)) {
+          pathStates.set(key, await deps.readPathState(ref, path));
+        }
+      }
+    }
+  } catch {
+    return { status: "unavailable" };
+  }
+  return {
+    status: "available",
+    resolvedRefs,
+    pathStates,
+    sourceArtifactInventories,
+  };
+}
+
 /** Validate the current index and set a failing exit code on refusal. */
 export async function runDecomposeRecordValidation(): Promise<void> {
-  const mergeHeads = await readMergeHeads();
+  const cwd = process.cwd();
+  const mergeHeads = await readMergeHeads(cwd);
   const mergeInProgress = mergeHeads.length > 0;
   const { stdout } = await execFileAsync(
     "git",
     ["diff", "--cached", "--name-status", "--no-renames", "-z"],
-    { encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   );
   const changes = parseStagedPathChanges(stdout);
   const cachedIndex = new Map<string, Uint8Array>();
@@ -611,23 +687,21 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   const cachedParents = new Map<string, Array<Uint8Array | null>>();
   for (const change of changes) {
     if (change.status !== "D") {
-      const value = await readGitBlobBytes(process.cwd(), null, change.path);
+      const value = await readGitBlobBytes(cwd, null, change.path);
       if (value !== null) cachedIndex.set(change.path, value);
     }
-    const head = await readGitBlobBytes(process.cwd(), "HEAD", change.path);
+    const head = await readGitBlobBytes(cwd, "HEAD", change.path);
     if (head !== null) cachedHead.set(change.path, head);
     if (mergeInProgress) {
       const parents = await Promise.all(
-        ["HEAD", ...mergeHeads].map(async (parent) => await gitParentBytes(parent, change.path)),
+        ["HEAD", ...mergeHeads].map(async (parent) => await gitParentBytes(cwd, parent, change.path)),
       );
       cachedParents.set(change.path, parents);
       const firstParent = parents[0];
       if (firstParent !== null && firstParent !== undefined) cachedHead.set(change.path, firstParent);
     }
   }
-  const resolvedRefs = new Map<string, string>();
-  const pathStates = new Map<string, V3ManagedPathResult["before"]>();
-  const sourceArtifactInventories = new Map<string, readonly V3SourceArtifactEntry[]>();
+  const receipts: V3DecomposeReceipt[] = [];
   for (const change of changes) {
     if (!RECORD_PATTERN.test(change.path)) continue;
     const bytes = cachedIndex.get(change.path);
@@ -639,48 +713,52 @@ export async function runDecomposeRecordValidation(): Promise<void> {
       receipt = null;
     }
     if (receipt === null) continue;
-    const machine = receipt.prepared.completedMap.machine;
-    for (const ref of [machine.source.ref, machine.resultBase.ref]) {
-      if (!resolvedRefs.has(ref)) resolvedRefs.set(ref, await resolveCommit(ref));
-    }
-    const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
-      cwd: process.cwd(),
-      exec: async (command, args, options) => {
-        const result = await execFileAsync(command, args, {
-          cwd: options?.cwd,
-          encoding: "utf8",
-        });
-        return { stdout: result.stdout, stderr: result.stderr };
-      },
-      readBlob: async (ref, path) => await readGitBlobBytes(process.cwd(), ref, path),
-    }, machine.source.ref, machine.source.head, machine.source.origin);
-    sourceArtifactInventories.set(receipt.receiptId, sourceSnapshot.sourceArtifacts.map((artifact) => ({
-      path: artifact.path,
-      objectKind: artifact.objectKind,
-      mode: artifact.mode,
-      contentDigest: contentDigest(artifact.bytes),
-    })));
-    const requests = [
-      ...receipt.finalized.managedPathResults.flatMap(({ path }) => [
-        [machine.resultBase.head, path] as const,
-        [null, path] as const,
-      ]),
-    ];
-    for (const [ref, path] of requests) {
-      const key = pathStateKey(ref, path);
-      if (!pathStates.has(key)) pathStates.set(key, await gitNormalizedPathState(ref, path));
-    }
+    receipts.push(receipt);
   }
+  const evidence = await collectV3CommitGateEvidence(receipts, {
+    resolveRef: async (ref) => await resolveCommit(cwd, ref),
+    readPathState: async (ref, path) => await gitNormalizedPathState(cwd, ref, path),
+    readSourceArtifactInventory: async (receipt) => {
+      const machine = receipt.prepared.completedMap.machine;
+      const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
+        cwd,
+        exec: async (command, args, options) => {
+          const result = await execFileAsync(command, args, {
+            cwd: options?.cwd,
+            encoding: "utf8",
+          });
+          return { stdout: result.stdout, stderr: result.stderr };
+        },
+        readBlob: async (ref, path) => await readGitBlobBytes(cwd, ref, path),
+      }, machine.source.ref, machine.source.head, machine.source.origin);
+      return sourceSnapshot.sourceArtifacts.map((artifact) => ({
+        path: artifact.path,
+        objectKind: artifact.objectKind,
+        mode: artifact.mode,
+        contentDigest: contentDigest(artifact.bytes),
+      }));
+    },
+  });
   const errors = validateDecomposeCommitGate({
     changes,
     mergeInProgress,
     readIndexBytes: (path) => cachedIndex.get(path) ?? null,
     readHeadBytes: (path) => cachedHead.get(path) ?? null,
     readParentBytes: (path) => cachedParents.get(path) ?? [],
-    resolveRef: (ref) => resolvedRefs.get(ref) ?? null,
-    readPathState: (ref, path) => pathStates.get(pathStateKey(ref, path)) ?? { kind: "absent" },
-    readSourceArtifactInventory: (preparation) =>
-      sourceArtifactInventories.get(preparation.receiptId) ?? null,
+    ...(evidence.status === "unavailable"
+      ? {}
+      : {
+          resolveRef: (ref: string) => evidence.resolvedRefs.get(ref) ?? null,
+          readPathState: (ref: string | null, path: string) => {
+            const state = evidence.pathStates.get(pathStateKey(ref, path));
+            if (state === undefined) {
+              throw new Error(`v3 decompose evidence snapshot omitted ${ref ?? "index"}:${path}`);
+            }
+            return state;
+          },
+          readSourceArtifactInventory: (preparation: V3DecomposePreparation) =>
+            evidence.sourceArtifactInventories.get(preparation.receiptId) ?? null,
+        }),
   });
   if (errors.length > 0) {
     for (const error of errors) process.stderr.write(`${error}\n`);

@@ -9,6 +9,7 @@ import {
   resolveRetirementRecordRelativePath,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
+  collectV3CommitGateEvidence,
   parseStagedPathChanges,
   validateDecomposeCommitGate,
   type DecomposeCommitGateInput,
@@ -249,7 +250,7 @@ describe("validateDecomposeCommitGate", () => {
       readIndexBytes: (path) => path === recordPath
         ? bytes(canonicalize({ kind: "decompose-receipt", schemaVersion: 3 }))
         : null,
-    })).not.toEqual([]);
+    })).toContainEqual(expect.stringMatching(/v3 decompose retirement record is malformed/iu));
 
     const ownershipDrift = structuredClone(receipt);
     ownershipDrift.prepared.candidateOwnership = {
@@ -263,14 +264,14 @@ describe("validateDecomposeCommitGate", () => {
     expect(validateDecomposeCommitGate({
       ...base,
       readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(ownershipDrift)) : null,
-    })).not.toEqual([]);
+    })).toContainEqual(expect.stringMatching(/retirement record is malformed|ownership/iu));
 
     const pathDrift = structuredClone(receipt);
     pathDrift.finalized.managedPathResults = pathDrift.finalized.managedPathResults.slice(1);
     expect(validateDecomposeCommitGate({
       ...base,
       readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(pathDrift)) : null,
-    })).not.toEqual([]);
+    })).toContainEqual(expect.stringMatching(/v3 decompose retirement record is malformed/iu));
   });
 
   it("covers a rename only when its target lifecycle metadata is a staged addition", () => {
@@ -618,4 +619,42 @@ describe("parseStagedPathChanges", () => {
   ])("rejects %s records instead of omitting them", (_label, output) => {
     expect(() => parseStagedPathChanges(output)).toThrow(/malformed|unsupported/iu);
   });
+});
+
+describe("collectV3CommitGateEvidence", () => {
+  it.each(["ref", "path", "source"] as const)(
+    "converts a failed %s read into typed gate evidence unavailability",
+    async (failure) => {
+      const { receipt } = v3DecompositionEvidenceFixture();
+      const evidence = await collectV3CommitGateEvidence([receipt], {
+        resolveRef: async () => {
+          if (failure === "ref") throw new Error("rev-parse failed");
+          return receipt.prepared.completedMap.machine.source.head;
+        },
+        readPathState: async () => {
+          if (failure === "path") throw new Error("ls-tree failed");
+          return { kind: "absent" };
+        },
+        readSourceArtifactInventory: async () => {
+          if (failure === "source") throw new Error("source inventory failed");
+          return [];
+        },
+      });
+      expect(evidence).toEqual({ status: "unavailable" });
+
+      const recordPath = resolveRetirementRecordRelativePath(receipt.receiptId);
+      const changes: StagedPathChange[] = [
+        { status: "A", path: recordPath },
+        ...receipt.finalized.transitionPatch.map(({ path, before, after }) => ({
+          status: before.kind === "absent" ? "A" as const : after.kind === "absent" ? "D" as const : "M" as const,
+          path,
+        })),
+      ];
+      expect(validateDecomposeCommitGate({
+        changes,
+        readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(receipt)) : bytes("staged"),
+        readHeadBytes: () => null,
+      })).toContainEqual(expect.stringMatching(/canonical validation evidence is unavailable/iu));
+    },
+  );
 });

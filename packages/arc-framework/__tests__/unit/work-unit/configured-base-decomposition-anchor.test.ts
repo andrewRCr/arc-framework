@@ -19,11 +19,12 @@ const PREPARED_BASE = "b".repeat(40);
 const CANDIDATE_HEAD = "c".repeat(40);
 const CANDIDATE_TREE = "d".repeat(40);
 const MERGE_HEAD = "e".repeat(40);
+const DESCENDANT_HEAD = "6".repeat(40);
 const BASE_REF = "refs/heads/main";
 const RECORD_OID = "1".repeat(40);
 
 function harness(options: {
-  landing?: "fast-forward" | "merge" | "unlanded";
+  landing?: "fast-forward" | "merge" | "unlanded" | "descendant" | "prepared-only" | "candidate-only";
   baseReread?: string;
   namespace?: "receipt" | "absent" | "corrupt";
   wrongCandidateTree?: boolean;
@@ -37,7 +38,13 @@ function harness(options: {
   const receipt = fixture.receipt;
   const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
   const landing = options.landing ?? "fast-forward";
-  const baseHead = landing === "merge" ? MERGE_HEAD : CANDIDATE_HEAD;
+  const baseHead = landing === "merge"
+    ? MERGE_HEAD
+    : landing === "descendant"
+      ? DESCENDANT_HEAD
+      : landing === "prepared-only" || landing === "candidate-only"
+        ? PREPARED_BASE
+        : CANDIDATE_HEAD;
   const candidateTree = options.wrongCandidateTree ? "f".repeat(40) : CANDIDATE_TREE;
   const calls: string[] = [];
   let baseRefReads = 0;
@@ -72,12 +79,17 @@ function harness(options: {
           };
         }
         if (args[0] === "ls-tree" && args.includes(".arc/system/.internal/retirement-receipts")) {
-          if (options.namespace === "absent") return { stdout: "" };
+          if (options.namespace === "absent"
+            || landing === "prepared-only"
+            || landing === "candidate-only") return { stdout: "" };
           if (options.namespace === "corrupt") return { stdout: "bad\0" };
           return { stdout: namespaceLine };
         }
         if (args[0] === "show") return { stdout: canonicalize(receipt) };
         if (args[0] === "rev-list") {
+          if (landing === "descendant") {
+            return { stdout: `${DESCENDANT_HEAD} ${CANDIDATE_HEAD}\n` };
+          }
           if (landing === "unlanded") {
             return { stdout: `${CANDIDATE_HEAD} ${"a".repeat(40)}\n` };
           }
@@ -101,7 +113,8 @@ function harness(options: {
         }
         if (args[0] === "ls-tree" && args[1] === "-z") {
           const ref = args[2];
-          const path = args.at(-1) ?? "";
+          const rawPath = args.at(-1) ?? "";
+          const path = rawPath.startsWith(":(literal)") ? rawPath.slice(":(literal)".length) : rawPath;
           if (path === receiptPath) {
             return ref === PREPARED_BASE && !options.receiptPreexisting
               ? { stdout: "" }
@@ -137,16 +150,32 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
       expect(result.anchor.landing.kind).toBe(landing);
       expect(result.anchor.candidateCommitHead).toBe(CANDIDATE_HEAD);
       expect(result.anchor.currentBaseHead).toBe(landing === "merge" ? MERGE_HEAD : CANDIDATE_HEAD);
+      expect(h.calls).toContain(
+        `ls-tree -z ${CANDIDATE_HEAD} -- :(literal)${
+          v3DecomposeReceiptPath(result.anchor.receiptId)
+        }`,
+      );
       expect(h.calls.at(-1)).toBe(`rev-parse --verify ${BASE_REF}^{commit}`);
     },
   );
 
-  it("returns no authority for prepared-only, candidate-only, other-origin, or unlanded evidence", async () => {
+  it("returns absent for prepared-only configured-base evidence", async () => {
     expect(await resolveConfiguredBaseDecompositionAnchor(
       BASE_REF,
       "origin",
-      harness({ namespace: "absent" }).deps,
+      harness({ landing: "prepared-only" }).deps,
     )).toEqual({ status: "absent" });
+  });
+
+  it("does not inspect an unlanded candidate branch when configured-base evidence is absent", async () => {
+    expect(await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      harness({ landing: "candidate-only" }).deps,
+    )).toEqual({ status: "absent" });
+  });
+
+  it("returns no authority for another origin or a committed-unlanded receipt", async () => {
     expect(await resolveConfiguredBaseDecompositionAnchor(
       BASE_REF,
       "other-origin",
@@ -159,12 +188,15 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
     )).toEqual({ status: "not-landed" });
   });
 
-  it("refuses descendant, candidate-tree, transition-path, receipt-prestate, namespace, and configured-ref races", async () => {
+  it("does not extend exact-base authority across a descendant configured base", async () => {
     expect(await resolveConfiguredBaseDecompositionAnchor(
       BASE_REF,
       "origin",
-      harness({ landing: "unlanded" }).deps,
+      harness({ landing: "descendant" }).deps,
     )).toEqual({ status: "not-landed" });
+  });
+
+  it("refuses candidate-tree, transition-path, receipt-prestate, namespace, and configured-ref races", async () => {
     expect(await resolveConfiguredBaseDecompositionAnchor(
       BASE_REF,
       "origin",

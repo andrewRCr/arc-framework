@@ -158,7 +158,7 @@ describe("prepareValidatedGraduationTransaction", () => {
     expect(meta.taskList).toBeNull();
   });
 
-  it("refuses source, destination, class, and tuple mismatches before producing authority", () => {
+  it("refuses destination, planning-tuple, and class mismatches before producing authority", () => {
     const wrongDestination = input();
     wrongDestination.destinations[0] = {
       path: `${TARGET}/meta-widget.md`,
@@ -193,6 +193,34 @@ describe("prepareValidatedGraduationTransaction", () => {
       status: "refused",
       reason: "class-mismatch",
       locus: "meta-widget.md#Class",
+    });
+  });
+
+  it("returns the remaining source, meta, and occupation refusal arms at stable loci", () => {
+    const sourceShape = input();
+    sourceShape.artifacts[0]!.oid = "not-an-object-id";
+    expect(prepareValidatedGraduationTransaction(sourceShape)).toMatchObject({
+      status: "refused",
+      reason: "source-shape",
+      locus: `${ROOT}/meta-widget.md`,
+    });
+
+    const metaShape = input();
+    const metaArtifact = metaShape.artifacts[0]!;
+    const malformedMeta = new TextDecoder().decode(metaArtifact.bytes).replace(/\n---\n$/u, "\n");
+    metaShape.artifacts[0] = artifact("meta-widget.md", malformedMeta);
+    expect(prepareValidatedGraduationTransaction(metaShape)).toMatchObject({
+      status: "refused",
+      reason: "meta-shape",
+      locus: `${ROOT}/meta-widget.md`,
+    });
+
+    const occupation = input();
+    occupation.occupation.branch.ref = "refs/heads/plan/other";
+    expect(prepareValidatedGraduationTransaction(occupation)).toMatchObject({
+      status: "refused",
+      reason: "occupation-preimage",
+      locus: "plan/widget",
     });
   });
 });

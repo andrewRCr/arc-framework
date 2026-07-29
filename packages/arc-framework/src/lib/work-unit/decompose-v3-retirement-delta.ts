@@ -82,7 +82,11 @@ function compareUtf8(left: string, right: string): number {
 }
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  return left.length === right.length
+    && Buffer.compare(
+      Buffer.from(left.buffer, left.byteOffset, left.byteLength),
+      Buffer.from(right.buffer, right.byteOffset, right.byteLength),
+    ) === 0;
 }
 
 function statesEqual(left: V3RetirementTreeState, right: V3RetirementTreeState): boolean {
@@ -226,8 +230,9 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
 
   const originPaths = new Set(input.originArtifactPaths);
   const predecessorPaths = new Set(predecessorArtifactPaths);
+  const retirementPaths = [...originPaths].filter((path) => !predecessorPaths.has(path));
   const retirements: V3RetirementAction[] = [];
-  for (const path of input.originArtifactPaths.slice().sort(compareUtf8)) {
+  for (const path of retirementPaths.sort(compareUtf8)) {
     const facts = paths.find((entry) => entry.path === path);
     if (facts === undefined || !regularFile(facts.source)) {
       return { status: "refused", refusal: { code: "origin-artifact-missing", path } };

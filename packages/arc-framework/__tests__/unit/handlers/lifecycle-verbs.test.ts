@@ -557,6 +557,22 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("routes an explicit undefined preflight option to the selected handoff mode", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { preflight: undefined, handoff: true });
+
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
+      "main",
+      "mono",
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
+    );
+  });
+
   it("emits a closed refusal on stdout and a diagnostic on stderr", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);

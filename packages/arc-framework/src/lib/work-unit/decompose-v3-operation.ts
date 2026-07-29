@@ -247,8 +247,10 @@ export async function executeV3DecomposeOperation(
   }
 
   let partialPreimages: V3PartialPathPreimage[] = [];
+  let partialRecovery: V3PartialRecoveryIO | undefined;
   if (occupation.protection === "partial") {
-    if (dependencies.partialRecovery === undefined) {
+    partialRecovery = dependencies.partialRecovery;
+    if (partialRecovery === undefined) {
       return {
         status: "refused",
         stage: "partial-capture",
@@ -257,7 +259,7 @@ export async function executeV3DecomposeOperation(
       };
     }
     try {
-      partialPreimages = await dependencies.partialRecovery.capture(input.plan.allowedPaths);
+      partialPreimages = await partialRecovery.capture(input.plan.allowedPaths);
     } catch {
       return {
         status: "refused",
@@ -279,13 +281,17 @@ export async function executeV3DecomposeOperation(
   const materialization = await materializeV3DecomposePlan(input.plan, dependencies.materializer);
   const report = reportV3DecomposeResult(input.plan, materialization);
   if (materialization.status === "refused") {
-    const recovery = occupation.protection === "partial"
-      ? await restorePartial(
-          partialPreimages,
-          materialization.appliedPaths,
-          dependencies.partialRecovery as V3PartialRecoveryIO,
-        )
-      : fullRecovery(input.plan, occupation);
+    let recovery;
+    if (occupation.protection === "partial") {
+      if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
+      recovery = await restorePartial(
+        partialPreimages,
+        materialization.appliedPaths,
+        partialRecovery,
+      );
+    } else {
+      recovery = fullRecovery(input.plan, occupation);
+    }
     return {
       status: "refused",
       stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
@@ -313,13 +319,13 @@ export async function executeV3DecomposeOperation(
     const mutatedPaths = materialization.paths
       .filter(({ disposition }) => disposition === "applied")
       .map(({ path }) => path);
-    const recovery = occupation.protection === "partial"
-      ? await restorePartial(
-          partialPreimages,
-          mutatedPaths,
-          dependencies.partialRecovery as V3PartialRecoveryIO,
-        )
-      : fullRecovery(input.plan, occupation);
+    let recovery;
+    if (occupation.protection === "partial") {
+      if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
+      recovery = await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
+    } else {
+      recovery = fullRecovery(input.plan, occupation);
+    }
     return {
       status: "refused",
       stage: recovery.kind === "partial-restoration" && recovery.status === "failed"

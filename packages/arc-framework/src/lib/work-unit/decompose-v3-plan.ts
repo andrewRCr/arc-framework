@@ -222,8 +222,8 @@ function contributorKey(contributor: V3PlanContributor): readonly string[] {
   return ["2", contributor.edgeId];
 }
 
-function validIdentity(value: string): boolean {
-  return value.trim() !== "" && !value.includes("\0");
+function validIdentity(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }
 
 function contributorIsStructurallyValid(contributor: V3PlanContributor): boolean {

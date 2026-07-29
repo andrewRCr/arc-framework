@@ -179,6 +179,19 @@ describe("selectMergeTransitionOverlay", () => {
     });
   });
 
+  it("refuses authority when the candidate contains an unrelated substantive change", () => {
+    const { snapshot } = exactSnapshot();
+    snapshot.candidateChangedPaths = [
+      ...snapshot.candidateChangedPaths,
+      "unrelated.txt",
+    ].sort();
+
+    expect(selectMergeTransitionOverlay(snapshot)).toEqual({
+      status: "refused",
+      reason: "invalid-authority",
+    });
+  });
+
   it("ignores inherited historical receipts that do not derive the candidate tree", () => {
     const { snapshot, receipt } = exactSnapshot();
     const current = snapshot.candidates[0]!;
@@ -205,9 +218,9 @@ describe("selectMergeTransitionOverlay", () => {
     });
   });
 
-  it("refuses a candidate delta containing two distinct receipt derivations", () => {
+  it("reports ambiguity when a candidate delta contains two distinct receipt derivations", () => {
     const { snapshot } = exactSnapshot();
-    const competingFacts = exactFacts({ origin: "other-origin" });
+    const competingFacts = exactFacts({ sourceHead: "e".repeat(40) });
     const competingReceipt = competingFacts.receipt as ReturnType<
       typeof v3DecompositionEvidenceFixture
     >["receipt"];
@@ -230,9 +243,6 @@ describe("selectMergeTransitionOverlay", () => {
       },
     ];
 
-    expect(selectMergeTransitionOverlay(snapshot)).toEqual({
-      status: "refused",
-      reason: "invalid-authority",
-    });
+    expect(selectMergeTransitionOverlay(snapshot)).toEqual({ status: "ambiguous" });
   });
 });

@@ -66,7 +66,7 @@ async function readCommit(exec: GitExec, head: string): Promise<GitCommit | null
 
 async function readTreeEntry(exec: GitExec, ref: string, path: string): Promise<GitTreeEntry | null | false> {
   try {
-    const { stdout } = await exec("git", ["ls-tree", "-z", ref, "--", path]);
+    const { stdout } = await exec("git", ["ls-tree", "-z", ref, "--", `:(literal)${path}`]);
     if (stdout === "") return null;
     const records = stdout.split("\0").filter(Boolean);
     if (records.length !== 1) return false;
