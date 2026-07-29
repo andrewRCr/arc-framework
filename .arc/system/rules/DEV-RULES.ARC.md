@@ -99,11 +99,10 @@ quality gates hold identically across the whole range, from a single-concern Err
 
 ### Commit control
 
-**Concept.** Interlocks gate (stop, await direction). Fire sites release (execute the gated
-operation). Each fire pairs with a specific interlock — `taskCommit` releases commit-interlock at
-task-interlock approval; `workflowCommit` releases commit-interlock at workflow-interlock approval;
-`workflowPush` releases push-interlock at workflow-interlock approval. Class tags name the fire-site
-type; routing (wrapper or raw) follows § Workflow class-tag routing.
+**Concept.** Interlocks gate (stop, await direction); fire sites release (execute the gated operation).
+Each fire pairs with one interlock — `taskCommit` releases commit-interlock at task-interlock approval;
+`workflowCommit` and `workflowPush` release commit- and push-interlock at workflow-interlock approval.
+Class tags name the fire-site type; routing follows § Workflow class-tag routing.
 
 - **Commit and push triggering** · `[configurable]`: follow `arc.commitInterlock` and `arc.pushInterlock`,
   both defaulting to `manual` — explicit approval before each commit, explicit invocation for each push.
@@ -119,32 +118,21 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
       `Proceed` when `manual`; `Commit and proceed` when `on-task-approval` or `on-workflow`.
       `pushInterlock` selects the analogous push prefix when a push fire is in scope.
 
-- **Release-wrapper invocation** · `[configurable]`:
-    - `arc release commit` / `arc release push` are an authorized invocation path. The wrapper validates
-      interlock state and writes a per-invocation audit entry regardless of opt-in.
-    - With `arc.releaseOptedIn: true` plus the corresponding harness allowlist entries, the wrapper
-      additionally bypasses the per-invocation harness prompt — the canonical shape for commit/push under
-      workflow guidance when active. Default: `arc.releaseOptedIn: false`.
-    - Wrappers fire at codified trigger points only — `taskCommit` at task approval under release-mode
-      interlocks, `workflowCommit` / `workflowPush` at workflow ceremony fire-sites. Off-workflow commits
-      (manual fixups, exploratory edits, anything not emitted by a workflow) use raw `git` even when
-      opt-in is on.
+- **Release-wrapper invocation** · `[configurable]`: off-workflow commits — manual fixups, exploratory edits,
+  anything not emitted by a workflow — use raw `git` even when `arc.releaseOptedIn` is on.
 
 - **Workflow class-tag routing** · `[configurable]`:
-    - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``,
-      `` `workflowCommit` ``, `` `workflowPush` ``). At fire time, look up
-      `releaseRouting.value.<class>` from the session-init envelope: `wrapper` invokes
-      `arc release commit` / `arc release push` (workflow supplies the message body in a `text`
-      codeblock or push args inline); `raw` (default; also on probe failure, missing tag, or
-      unrecognized class) invokes raw `git`.
-    - Class authorization (when `wrapper` resolves): `taskCommit` requires `arc.releaseOptedIn` AND
-      `arc.commitInterlock ∈ {on-task-approval, on-workflow}`; `workflowCommit` requires
-      `arc.releaseOptedIn` AND `arc.commitInterlock: on-workflow`; `workflowPush` requires
-      `arc.releaseOptedIn` AND `arc.pushInterlock: on-workflow`.
-    - Destructive flags (`--delete`, `--force`, `--force-with-lease`) stay literal — never
-      class-tagged; the wrapper refuses them by design.
-    - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
-      captured on the audit umbrella but do not re-route through `arc release push`.
+    - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``, `` `workflowCommit` ``,
+      `` `workflowPush` ``). At fire time, look up `releaseRouting.value.<class>` in the session-init envelope:
+      `wrapper` invokes `arc release commit` / `arc release push` (the workflow supplies the message body in a
+      `text` codeblock, or push args inline); `raw` invokes raw `git`, and is the default on probe failure, a
+      missing tag, or an unrecognized class.
+    - Class authorization, when `wrapper` resolves: all three require `arc.releaseOptedIn`, plus
+      `arc.commitInterlock ∈ {on-task-approval, on-workflow}` for `taskCommit`, `arc.commitInterlock:
+      on-workflow` for `workflowCommit`, and `arc.pushInterlock: on-workflow` for `workflowPush`.
+    - Destructive flags (`--delete`, `--force`, `--force-with-lease`) stay literal — never class-tagged; the
+      wrapper refuses them by design.
+    - `arc sync` handles its own internal push and does not re-route through `arc release push`.
 
 - **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
 

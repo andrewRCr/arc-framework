@@ -597,20 +597,10 @@ an orphan.
   and two example sets were restored after measurement showed the compression had bought lines by taking them.
   Fourth Δ correction of the phase, and the first traceable to a stated constraint rather than to arithmetic.
 
-### `[ ]` **3.6 Trigger tier — the gated demotions**
+### `[x]` **3.6 Trigger tier — the gated demotions**
 
 - _Goal:_ The largest tier leaves the always-loaded set for destinations whose triggers now fire, with the
   constraint half of every mixed row staying behind.
-
-- _Note:_ Blocked until Phase 2 completes — each destination below reaches its content through the index entry
-  re-authored there.
-
-- _Note:_ `strategy-interlock-release-wrappers` comes under the package-counterpart check once Task 2.1 lands;
-  confirm that rather than assuming it. `strategy-team-coordination` does not and will not — it is outside this
-  repository's manifest by the team-mode condition — so it stays a by-hand surface in both copies.
-
-- **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
-  `DEV-RULES.ARC` table and the itemized § Commit control table, the `trigger` rows
 
     - `[x]` **3.6.a § Scaled Process, Invariant Discipline**
         - Invariant-floor paragraph kept intact; the `Class`-versus-Work-Character taxonomy demoted, and the
@@ -705,18 +695,49 @@ an orphan.
           pointers: the `STRATEGY-INDEX` entry fires on authoring a loading tier, interlock, recovery, or
           handoff step, and a session-length question is none of those — so no summoner covers it.
 
-    - `[ ]` **3.6.e § Commit control — the wrapper and routing mechanics**
-        - Demote the interlocks-gate / fire-sites-release concept, the wrapper mechanics, and the class-tag
-          routing mechanics.
-        - Keep off-workflow-uses-raw-`git`, destructive-flags-stay-literal, and the class-authorization
-          preconditions.
-        - Close by sweeping inbound `§ Commit control` citations across both copies.
+    - `[x]` **3.6.e § Commit control — the wrapper and routing mechanics**
+        - **Two of the three demotions withdrawn; the third executed.** Only the wrapper mechanics left, and the
+          bullet reduces to the keep — off-workflow commits use raw `git` even under opt-in. Measured 29 nb → 17
+          across the three items: concept 5 → 4, release-wrapper 10 → 2, class-tag routing 14 → 11. Δ12 against
+          a modeled 17.
+        - **The withdrawal ground: Task 2.2.f's index entry contradicts this row.** It fires on _deciding whether
+          to adopt_ the wrappers and explicitly cedes routine invocation and class-tag routing back to
+          `DEV-RULES.ARC` § Commit Discipline. A workflow fire site is not an adoption decision, so demoting the
+          routing mechanics or the gate/release concept there would file per-fire-site lookups behind a trigger
+          that never fires when they are needed. Nothing else carries them: `strategy-session-operations`
+          § Vocabulary defines _interlock_ and the release / engage / hold verbs but has no fire-site concept,
+          and no file anywhere carries the tag convention, the `releaseRouting.value.<class>` lookup, or
+          raw-as-default. Fourth and fifth demotions withdrawn as unreachable rather than as constraints.
+        - **The one executed demotion owed nothing.** `strategy-interlock-release-wrappers` § Overview,
+          § Value Layers, and § Scope: Triggered Commits Only already carry validation, per-invocation audit,
+          the opt-in prompt bypass, and the codified-trigger binding in fuller form — and § Scope closes by
+          ceding the rule itself back to `DEV-RULES.ARC`, which is why the off-workflow keep belongs here.
+        - **What stays was streamlined instead.** The concept's three interlock pairings fold to two clauses;
+          class authorization factors `arc.releaseOptedIn` out of three parallel conditions; the `arc sync`
+          carve-out drops its audit-umbrella clause, which described mechanics this row demoted.
+        - **The citation sweep found nothing to sweep, which is corroboration.** The one live inbound reference,
+          `arc-commit`'s SKILL pointing at § Commit Discipline → Commit control for class-tag routing, stays
+          correct precisely because the routing demotion was withdrawn — it would have broken under the row as
+          written.
+        - **All three recorded nb are one low** (4/9/13 against a measured 5/10/14), exactly as predicted: the
+          itemized sub-table is bullet-level, so Task 3.1's heading-level re-derivation never reached it.
+        - Captured to `USER-INBOX § Work Unit`, `WU_Target: composable-workflows`: the withdrawn content wants a
+          fragment loaded on the enabling config, which is reachability a strategy trigger cannot express.
 
-    - `[ ]` **3.6.f § Rule Authority — § Whose call, if Task 1.4.b determined `demote`**
-        - Conditional on that determination; a `stays` verdict makes this subtask a no-op to be struck.
-        - Destination is `strategy-team-coordination`, reachable from Task 2.2.e.
-        - Carries the credit Task 1.4.c recorded as pending, closing the ledger entry rather than opening a
-          second one.
+    - `[~]` **3.6.f § Rule Authority — § Whose call, if Task 1.4.b determined `demote`**
+        - Struck. Task 1.4.b settled **stays**, narrowing § Whose call to its resolution rule on the cross-owner
+          case — `Owner` is per-WU, so a maintainer-role agent can work someone else's WU and no role-gated
+          surface fires there. The `strategy-team-coordination` demotion this row was conditional on never
+          arose, and Task 1.4.c already recorded no pending credit to close.
+
+- _Outcome:_ The tier's premise held asymmetrically. Five of six destinations already carried their content in
+  fuller form and owed no write — but the two exceptions were the informative ones. § Context quality's demotion
+  **repaired** a destination that had been instructing readers to judge whether a "natural boundary" had arrived
+  while never defining one; § Commit control's routing demotion had to be **withdrawn**, because Phase 2's own
+  index entry cedes that content back to the rules file and its trigger fires on adoption rather than at a fire
+  site. Reachability failed in the one place the register assumed it strongest. Two rows were then settled by
+  structure rather than disposition: § Session state control dissolved into § Handoff once its restated half
+  went, and 3.6.f was struck on a Phase 1 determination that had already reversed it.
 
 ## **Phase 4:** Corpus-wide classification sweep
 
