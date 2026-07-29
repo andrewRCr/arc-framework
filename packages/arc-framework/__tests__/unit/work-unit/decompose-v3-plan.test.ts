@@ -201,11 +201,8 @@ describe("validated v3 decomposition plan path registry", () => {
         contributor: {
           kind: "content",
           destinationId: "member-a",
-          destinationKind: "new-member",
-          artifactRole: "meta",
           contributorKind: "allocation",
           contributorIdentity: "",
-          sourceProjection: [],
           disposition: "whole-file",
           before: absent,
           after: file("member-a"),
