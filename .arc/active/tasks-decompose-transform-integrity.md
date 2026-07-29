@@ -618,7 +618,7 @@ local-cleanup boundaries without importing extension-owned matrices.
 ### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown/ARC contract lint, TypeScript/shell lint, source/test typechecking, build, and full
-  Vitest matrix — all passed (8,329 passed, 1 skipped).
+  Vitest matrix — all passed (8,373 passed, 1 skipped).
 - _Success criteria:_ 43 criteria met; two adversarial verification passes converged after the v3-only retirement
   and final shipped-reference corrections.
 
