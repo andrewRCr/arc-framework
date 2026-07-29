@@ -762,18 +762,17 @@ and the divergent set by **comparing the copies**, never by filename — the `.t
 template-paired files and not others — and take the **shipped** set as the corpus, not the installed one: a
 document that ships without an instance counterpart still states its rules to every project.
 
-### `[ ]` **4.1 Sweep the method corpus**
+### `[x]` **4.1 Sweep the method corpus**
 
 - _Goal:_ The region with no classification precedent at all is the first to have its imperatives classified,
   and each result is recorded with its reasoning rather than left implicit.
 
-- _Approach:_ Per document, read for imperatives the default-unless-marked reading would reclassify. Each one
-  found either **takes a marker** or is **recorded as an accepted reclassification** with the reasoning that
-  accepted it. There is no third outcome.
-
-    - Exclude the directory `README.md` indexes — they carry no rules.
-    - Re-derive the document count at execution; the criterion is the corpus, not the number.
-    - Record as a per-document sweep table in `notes-judgment-authority-model.md`.
+- _Outcome:_ 25 documents (`README.md` excluded), 115 imperatives, 52 marker candidates and 63 accepted
+  reclassifications — recorded as a per-document table plus family and accepting-reason codes in
+  `notes-judgment-authority-model.md`. 44 of the 52 restate one of six rules the always-loaded set already carries,
+  so the proposed footprint for Task 4.5.a is **eleven** — three unmarked parents plus eight region-local sites —
+  not 52. Three methods ship without installing (`init-recipe.json` drift), which puts 5 of the 8 region-local
+  markers in files no project currently has.
 
 ### `[ ]` **4.2 Sweep the strategy corpus**
 

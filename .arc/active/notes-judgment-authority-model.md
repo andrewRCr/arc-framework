@@ -675,3 +675,181 @@ The condensed resolution record, for the question task generation asks most ofte
   rather than per section.
 
 ---
+
+## Corpus-wide classification sweep — the method region (Task 4.1)
+
+Every method document read for imperatives the default-unless-marked reading reclassifies. **115 imperatives across
+25 documents: 52 take a marker, 63 stand as accepted reclassifications.** Six documents carry no marker candidate at
+all (`assess-cohort-fit`, `commit-footer`, `commit-format`, `session-state`, `spec-review`, `test-first`).
+
+### The corpus, re-derived
+
+25 documents, excluding the directory `README.md` index. The shipped and installed sets are the same 25 files here —
+no method ships without an instance counterpart — but the two copies stand in two relationships, both re-derived by
+comparing them rather than by filename:
+
+- **22 byte-identical mirrors.** Classify from either copy; a marker syncs.
+- **3 divergent pairs** — `adversarial-review` (table-pipe padding only), `frontline-review` (`active: false`
+  shipped, `true` here), `testing-standards` (an `extend` override populated in the instance). None of the three
+  diverges in text a marker would land in, so classifying from one copy settled both **this time**; the set moves, so
+  re-derive it rather than carrying this membership into Task 4.2.
+
+**Three of the 25 ship but install nowhere.** `assess-parallel-fit`, `branch-format`, and `testing-standards` are
+absent from `init-recipe.json`, which is the sole authority on what a project receives. They are still in the corpus —
+the source of truth states their rules, and the recipe drift is the defect — but **5 of the 8 region-local markers
+below land in files no project currently has**, so the sweep's coverage claim and the presumption's live blast radius
+are not the same set.
+
+### Basis codes
+
+Marker families — why the default reading fails:
+
+| Code | Family                                                                                  |
+|------|-----------------------------------------------------------------------------------------|
+| A    | Coverage and the clean result — a partial pass may not report as a complete one         |
+| B    | Evaluator boundary — the reviewing context stays free of author belief                  |
+| C    | An agent-side pass is not evidence; nothing attests its own result                      |
+| D    | Judgment stays with the primary; a finding is advisory until verified against source    |
+| E    | Approval or an explicit authorization precedes mutation                                 |
+| F    | Do not manufacture findings — a clean artifact is reported clean                        |
+| G    | The offer is not skippable; the person decides                                          |
+| H    | Discipline does not scale with `Class`                                                  |
+| I    | Never make a decision that commits someone else                                         |
+| J    | A machine-read identifier is not the agent's to rename                                  |
+| K    | A record of realized work never softens                                                 |
+| L    | No item with a known home rests in a capture surface                                    |
+| M    | A test that cannot fail is not a check                                                  |
+
+Accepting reasons — why the reclassification is safe:
+
+| Code | Reason                                                                                  |
+|------|-----------------------------------------------------------------------------------------|
+| 1    | The rule names its own discharging fact                                                 |
+| 2    | A mechanical check already catches the violation                                        |
+| 3    | Craft or technique — a wrong call costs quality, not evidence                           |
+| 4    | Definitional, schema, or eligibility statement rather than an obligation                |
+| 5    | A permission or a restraint on the tool, not a duty on the agent                        |
+| 6    | The discharge is already codified elsewhere in the corpus                               |
+
+### Per-document sweep
+
+| Document                        | M  | A | Marker candidates (`[invariant]`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Accepted reclassifications (the default stands)                                                                                                                                                                |
+|---------------------------------|----|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `adversarial-review`            | 10 | 5 | must-not-invent findings (F); primary holds judgment (D); reviewer never edits, disposes, or attests its own result (C, E); a verdict cannot read clean with a live `blocker` (A); every later pass is a full rubric re-run (A); no implementer self-verification and no `[x]` markings as evidence (B, C); neutral orientation, `prior-findings` omitted on pass one (B); the fire-point offer is never skippable (G); cap reached with live findings surfaces at the interlock (G); the convergence threshold does not vary by `Class` (H) | the identity contract is self-declared advisory (5); `pass-cap` is not serialized (3); merge by concatenation (3); partition-ability is not bisectability evidence (3); partitioning must not orphan seams (1) |
+| `assess-cohort-fit`             | 0  | 5 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | never encode order in a slug (1); decompose only to WU-warrant (1); the cut is firm at the maturity gate (1); `cohortless` only when every source has a home (1); the method decides, never restructures (4)   |
+| `assess-design-proportionality` | 1  | 3 | return `proportionate` only for the least elaborate credible design (A)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | project or team status is not evidence (4); no non-decision-bearing note tier (5); the adequacy rail rejects lossy simplification (1)                                                                          |
+| `assess-draft-readiness`        | 1  | 1 | ready only when all three criteria clear, at a bar identical at every depth (A)                                                                                                                                                                                                                                                                                                                                                                                                                                                              | read for the inbound buffer, do not drain it (4)                                                                                                                                                               |
+| `assess-parallel-fit`           | 1  | 4 | foreign-owned overlap coordinates — you cannot unilaterally reorder work you do not own (I)                                                                                                                                                                                                                                                                                                                                                                                                                                                  | advisory, never gating (5); never Purpose-only, never a heavyweight all-candidate pass (3); describe the board, do not judge the operator (3); the design-load read never moves the posture (4)                |
+| `branch-format`                 | 1  | 3 | the `plan/` prefix is not overridable — it is machine-read by `State: Planning` and session-init (J)                                                                                                                                                                                                                                                                                                                                                                                                                                         | kebab-case and charset (2); ARC warns but never refuses a foreign branch (5); a populated override is authoritative (6)                                                                                        |
+| `classify-work-unit`            | 1  | 3 | `Class` never drops below a realized design-authoring floor (K)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | never a blanket `Heavy` stamp (1); `[TBD]` legal only in `backlog/provisional/` (2); volume and preference do not drive `Class` (4)                                                                            |
+| `commit-footer`                 | 0  | 3 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | every commit carries the footer (2); grep-searchable format (4); the last `Context:` trailer governs (4)                                                                                                       |
+| `commit-format`                 | 0  | 4 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | never write `Phase X.Y` (2); reserve `(arc)` (1); file-backed message submission (1); verify the heredoc delimiter (1)                                                                                         |
+| `design-audit`                  | 2  | 2 | read-only — the audit never edits the artifact (E); severity is the reviewer's claim, disposition stays the primary's (D)                                                                                                                                                                                                                                                                                                                                                                                                                    | route a break back into the design loop (1); map into the enum, never extend it (4)                                                                                                                            |
+| `frontline-review`              | 5  | 0 | cannot satisfy an obligation, produce satisfying evidence, or authorize mutation (C); exclude author conclusions and self-verification claims (B); clean only after complete coverage (A); return the report without editing, approving, closing, or attesting (C, E); chunked mode runs only through a curated-scope carrier, and no partial report completes the pass (A)                                                                                                                                                                  | —                                                                                                                                                                                                              |
+| `implementation-audit`          | 1  | 1 | return clean only after every dimension across the full change (A)                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | replacing the rubric requires a complete-lens override (4)                                                                                                                                                     |
+| `issue-triage`                  | 1  | 2 | never defer to completion notes or session notes (L)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | minor fixes without asking (5); major asks for direction (1)                                                                                                                                                   |
+| `quality-gate-commands`         | 1  | 1 | the gate command set does not scale with `Class` (H)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | project commands must exit zero on pass (4)                                                                                                                                                                    |
+| `resolve-planning-depth`        | 2  | 3 | down-switching never falls below the realized demand floor (K); the re-entry valve is offered at an interlock, never an automatic detector (G)                                                                                                                                                                                                                                                                                                                                                                                               | a produced artifact is never torn down (1); capture, ratchet, re-enter — never patch-and-limp (1); the `Class` write defers to the ceremony commit (6)                                                         |
+| `review-chunking`               | 3  | 2 | require union coverage — an uncovered region is not implicitly reviewed (A); do not treat size alone as proof the pass is bounded (C); partial chunk reports carry no standalone authority (C)                                                                                                                                                                                                                                                                                                                                               | the malformed-boundary definition (4); tripwires select attention only (5)                                                                                                                                     |
+| `review-response`               | 4  | 3 | `awaiting-approval` does not mutate the target (E); `ready-to-fix` requires the exact unconsumed authorization (E); approval plus an agent-authored explanation manufactures no host capability (C); past-tense finding actions are settlement evidence, not approval state (C)                                                                                                                                                                                                                                                              | follow the planner state, do not combine transitions (3); never create a roll-up comment (5); at most one fix increment per cycle (4)                                                                          |
+| `review-triage`                 | 4  | 1 | verify every finding with the primary's own judgment, never on reviewer authority (D); approve the complete disposition set before any fix, with no early individual fix (E); never begin a fix from prose assent (E); record-only never overrides a carrier-native blocking state (C)                                                                                                                                                                                                                                                       | `nit` is valid only with `minor` (4)                                                                                                                                                                           |
+| `self-review`                   | 3  | 1 | not independent evidence and cannot satisfy a review requirement (C); do not reinterpret the preflight as independent evidence (C); process findings through `review-triage` — approval before fixes (D, E)                                                                                                                                                                                                                                                                                                                                  | run Tier 3 on modified files (6)                                                                                                                                                                               |
+| `session-state`                 | 0  | 1 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | state must be recoverable by a new session (1)                                                                                                                                                                 |
+| `spec-review`                   | 0  | 3 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | never paper over a design-reopening finding (1); the Novel overlay recommends, never gates (5); the bar is invariant, the distance scales (4)                                                                  |
+| `standard-review`               | 6  | 2 | review the complete exact change set, not a sample or the latest fix (A); a non-author evaluator, with author conclusions and self-verification excluded (B); a specialization cannot omit a baseline dimension (A); unavailable, partial, ambiguous, or failed review is never clean (A); satisfying evidence only after an authorized attestor revalidates (E); missing, stale, or unverifiable carrier content is non-satisfying (C)                                                                                                      | hosted and whole-target-only carriers are ineligible for chunked mode (4); the typed baseline is rubric authority (4)                                                                                          |
+| `task-audit`                    | 2  | 2 | read-only — do not implement fixes; the caller decides (E); if the audit is clean, say so — do not manufacture concerns (F)                                                                                                                                                                                                                                                                                                                                                                                                                  | give carry-as-context findings a durable home (1); map into the enum, never extend it (4)                                                                                                                      |
+| `test-first`                    | 0  | 2 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | the requires-test-first list (1); if unsure, default to test-first (5)                                                                                                                                         |
+| `testing-standards`             | 3  | 6 | see it fail first — a test that has never failed may assert nothing (M); do not assert on spy or call args as the outcome (M); keep mocked boundaries and fixtures faithful (M)                                                                                                                                                                                                                                                                                                                                                              | mock at boundaries, never internals (1); keep tests isolated (3); one behavior at a time (6); cover error and boundary paths (3); meaningful assertions over coverage targets (3); design for testability (3)  |
+
+### Where each family's constitutional statement already sits
+
+The 52 sites are not 52 independent rules. They collapse onto thirteen families, and **44 of the 52 restate a rule
+the always-loaded set already carries** — the method text is the local instance, not the authority. Marking all 52
+would put the vocabulary everywhere the restatement went, which is the opposite of D3's concentration precedent. The
+economical footprint is the parent plus the sites with no parent:
+
+| Family     | Constitutional statement                                                       | Marked today? |
+|------------|--------------------------------------------------------------------------------|---------------|
+| A, B, C    | `AGENT-BRIEF.ARC` § Review authority                                           | no            |
+| D          | `DEV-RULES.ARC` § Sub-agent scope (Judgment) + § Review finding mutation guard | no            |
+| E          | `DEV-RULES.ARC` § Review finding mutation guard; § Merge authority for merge   | partly        |
+| F, G       | `DEV-RULES.ARC` § Task interlock                                               | yes           |
+| H          | `DEV-RULES.ARC` § Scaled Process, Invariant Discipline                         | no            |
+| I          | § Rule Authority's own backstop limb two — no separate rule states it          | n/a           |
+| J, K, L, M | no constitutional parent — see the region-local set below                      | n/a           |
+
+**The eight region-local markers** — sites whose rule exists nowhere else, so the marker has to land in the method:
+
+1. `branch-format` — the `plan/` prefix (J).
+2. `classify-work-unit` — the realized-design ratchet (K).
+3. `resolve-planning-depth` — the down-switch floor (K); may ride 2's marker through the cross-reference it already
+   carries.
+4. `assess-parallel-fit` — foreign-owned overlap (I).
+5. `assess-draft-readiness` — the three-criterion bar (A), the only planning-stage gate in the set.
+6. `testing-standards` — see it fail first (M).
+7. `testing-standards` — do not assert on spy or call args as the outcome (M).
+8. `testing-standards` — keep mocked boundaries and fixtures faithful (M).
+
+### Findings
+
+**1. D3's "roughly five markers" is invalidated for the method region alone, but the remedy is not 52 markers.**
+D9.4 anticipated this: the footprint follows the sweep. What the sweep actually shows is that the discriminator's
+reach is wide and the corpus's **restatement density** is high — the same six rules are re-stated across the review
+methods because each method must be readable standalone. Recommended footprint for Task 4.5.a: **three unmarked
+parents** (§ Review authority, § Sub-agent scope's judgment leg, § Scaled Process, Invariant Discipline) plus the
+**eight region-local sites** — eleven, not 52. The full 52 stay recorded here so the claim is auditable.
+
+**2. `invariant` is already in the method corpus in a third sense, unmarked, at five sites.** D2's ADR reconciles two
+senses — `adr-016`'s _not project-configurable_ and D1's _not agent-dischargeable_. The methods carry a third:
+**does not vary with `Class`**.
+
+- `quality-gate-commands` — "**`Class`-invariant.** The gate command set does not scale with a work unit's `Class`"
+- `classify-work-unit` — "what stays invariant at every value is execution _discipline_"
+- `spec-review` — "the bar is invariant (coherent + grounded); the distance scales"
+- `adversarial-review` — the same idea without the word: "the convergence threshold does not vary by `Class`"
+- `branch-format` — "The `plan/` prefix is invariant", which is `adr-016`'s sense, and is **the one site where a
+  `[invariant]` marker would land in the same paragraph as the word used to mean something else**
+
+`DEV-RULES.ARC` § Scaled Process, Invariant Discipline names the third sense in its own heading. D2's content
+boundary as specced covers two senses; it needs the third, or `branch-format`'s line needs rewording to
+"not overridable" before a marker goes near it.
+
+**3. Three unmarked parents are the sweep's real Phase 3 / Phase 5 output.** § Review finding mutation guard,
+§ Sub-agent scope's judgment leg, and § Scaled Process, Invariant Discipline each govern a family the method region
+restates repeatedly, and each currently reads as a default. § Discovered Work Routing is a fourth and the sharpest:
+it calls its own rule "**The core invariant**" in bold prose and carries no marker, so the reader gets the word
+without the classification. `issue-triage`'s never-defer line (L) is that rule's method-side instance.
+
+**4. The model is already practised inside the method corpus — three further enactments.** All three predate D1 and
+none references it:
+
+- `process-task-loop` § Batching judgment discharges `testing-standards`' "one behavior at a time": batch when the
+  behaviors are coupled, and "note the rationale briefly in your completion report to the user — not in task list
+  completion notes. This makes the decision visible during review." That is D1's discharge protocol verbatim —
+  name the fact, surface it where the developer is already reading, never a log.
+- `task-audit`'s durable-home rule authors its own discharging fact: "**Sole exception:** an audit scoped to a single
+  task the auditing agent is about to implement directly."
+- `DEV-RULES.PROJECT` § Selecting what to run discharges `self-review`'s Tier-3 instruction over an unchanged tree —
+  and pairs the discharge with a mandatory disclosure: "a skip that goes unrecorded reads as coverage nobody
+  actually has."
+
+**5. The check-integrity limb reaches further than its illustration.** D1 illustrates it with "quality gates,
+verification, review, and the commit and merge gates that admit work." `assess-draft-readiness`'s three-criterion bar
+is none of those — it is a **planning-stage** gate — yet it classifies invariant on the same limb, and the method has
+already pre-empted the obvious discharge ("The bar is identical at every planning depth"). The illustration is
+non-exhaustive by its own terms, so this is reach rather than a defect; recorded because Task 4.2's strategies will
+meet more of it.
+
+**6. A discriminator the sweep produced that D1 does not state:** _a rule backed by a mechanical check is safely a
+default; a rule that backs a check is an invariant._ `commit-format`'s "Never write `Phase X.Y`" names the hook that
+blocks it in the same sentence and reclassifies harmlessly (reason 2); `standard-review`'s clean rule is what a check
+would have to trust and cannot be reclassified. Not acted on — D1 is settled — but it is the cleanest single line the
+region produced, and it belongs in the record before Task 4.2 re-derives it.
+
+**7. One rule reaches past its own stated concern.** `assess-cohort-fit`'s "**Never encode order in the slug**"
+justifies itself by opacity ("`model-foundation` is opaque"), but bans ordinals on a slug that is _already_
+self-describing, where the stated concern does not arise. The model classifies it `default` correctly; what it
+surfaced is that the rule is broader than its rationale. No action here — recorded as the kind of result Goal 6
+exists to produce.
+
+---
