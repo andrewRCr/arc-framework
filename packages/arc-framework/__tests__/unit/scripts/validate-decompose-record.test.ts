@@ -9,10 +9,13 @@ import {
   resolveRetirementRecordRelativePath,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
+  collectV3CommitGateEvidence,
   parseStagedPathChanges,
   validateDecomposeCommitGate,
+  type DecomposeCommitGateInput,
   type StagedPathChange,
 } from "../../../src/scripts/validate-decompose-record.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const bytes = (value: string) => new TextEncoder().encode(value);
 const decomposeSubject = { kind: "work-unit" as const, name: "origin" };
@@ -165,6 +168,97 @@ function validateRename(options: RenameFixtureOptions = {}): string[] {
 }
 
 describe("validateDecomposeCommitGate", () => {
+  it("accepts one exact canonical v3 receipt addition through live validation", () => {
+    const { preparation, receipt: v3Receipt } = v3DecompositionEvidenceFixture();
+    const v3RecordPath = resolveRetirementRecordRelativePath(v3Receipt.receiptId);
+    const changes: StagedPathChange[] = [
+      { status: "A", path: v3RecordPath },
+      ...v3Receipt.finalized.transitionPatch.map(({ path, before, after }) => ({
+        status: before.kind === "absent" ? "A" as const : after.kind === "absent" ? "D" as const : "M" as const,
+        path,
+      })),
+    ];
+    const machine = preparation.facts.completedMap.machine;
+    const sourcePath = machine.sourceUnits[0]!.sourcePath;
+
+    const input = {
+      changes,
+      readIndexBytes: (path) => path === v3RecordPath ? bytes(canonicalize(v3Receipt)) : null,
+      readHeadBytes: () => null,
+      resolveRef: (ref) => ref === machine.source.ref
+        ? machine.source.head
+        : ref === machine.resultBase.ref ? machine.resultBase.head : null,
+      readPathState: (ref, path) => {
+        if (ref === machine.source.head && path === sourcePath) {
+          return {
+            kind: "file",
+            mode: "100644",
+            contentDigest: machine.sourceUnits[0]!.contentDigest,
+          };
+        }
+        const result = v3Receipt.finalized.managedPathResults.find((candidate) => candidate.path === path);
+        if (result === undefined) return { kind: "absent" };
+        return ref === machine.resultBase.head ? result.before : ref === null ? result.after : { kind: "absent" };
+      },
+    } satisfies DecomposeCommitGateInput;
+    expect(validateDecomposeCommitGate(input)).toEqual([]);
+    expect(validateDecomposeCommitGate({
+      ...input,
+      changes: [...changes, { status: "A", path: ".arc/reference/rider.md" }],
+    })).toContainEqual(expect.stringMatching(/exact.*write set|rider/iu));
+  });
+
+  it("rejects amended, multiple, malformed, ownership-drifted, and path-drifted v3 evidence", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const recordPath = resolveRetirementRecordRelativePath(receipt.receiptId);
+    const receiptBytes = bytes(canonicalize(receipt));
+    const base: DecomposeCommitGateInput = {
+      changes: [{ status: "A", path: recordPath }],
+      readIndexBytes: (path) => path === recordPath ? receiptBytes : null,
+      readHeadBytes: () => null,
+    };
+
+    expect(validateDecomposeCommitGate({
+      ...base,
+      changes: [{ status: "M", path: recordPath }],
+    })).toContainEqual(expect.stringMatching(/amended|already exists/iu));
+
+    const secondPath = `.arc/system/.internal/retirement-receipts/sha256-${"f".repeat(64)}.json`;
+    expect(validateDecomposeCommitGate({
+      ...base,
+      changes: [{ status: "A", path: recordPath }, { status: "A", path: secondPath }],
+      readIndexBytes: (path) => path === recordPath || path === secondPath ? receiptBytes : null,
+    })).toContainEqual(expect.stringMatching(/exactly one/iu));
+
+    expect(validateDecomposeCommitGate({
+      ...base,
+      readIndexBytes: (path) => path === recordPath
+        ? bytes(canonicalize({ kind: "decompose-receipt", schemaVersion: 3 }))
+        : null,
+    })).toContainEqual(expect.stringMatching(/v3 decompose retirement record is malformed/iu));
+
+    const ownershipDrift = structuredClone(receipt);
+    ownershipDrift.prepared.candidateOwnership = {
+      kind: "claimed",
+      protection: "full",
+      claimId: "foreign",
+      generation: 1,
+      candidateBranch: "decompose/foreign",
+      candidateWorktree: `sha256:${"e".repeat(64)}`,
+    };
+    expect(validateDecomposeCommitGate({
+      ...base,
+      readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(ownershipDrift)) : null,
+    })).toContainEqual(expect.stringMatching(/retirement record is malformed|ownership/iu));
+
+    const pathDrift = structuredClone(receipt);
+    pathDrift.finalized.managedPathResults = pathDrift.finalized.managedPathResults.slice(1);
+    expect(validateDecomposeCommitGate({
+      ...base,
+      readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(pathDrift)) : null,
+    })).toContainEqual(expect.stringMatching(/v3 decompose retirement record is malformed/iu));
+  });
+
   it("covers a rename only when its target lifecycle metadata is a staged addition", () => {
     expect(validateRename()).toEqual([]);
     expect(validateRename({ targetPaths: [".arc/active/spec-renamed-origin.md"] }))
@@ -510,4 +604,38 @@ describe("parseStagedPathChanges", () => {
   ])("rejects %s records instead of omitting them", (_label, output) => {
     expect(() => parseStagedPathChanges(output)).toThrow(/malformed|unsupported/iu);
   });
+});
+
+describe("collectV3CommitGateEvidence", () => {
+  it.each(["ref", "path"] as const)(
+    "converts a failed %s read into typed gate evidence unavailability",
+    async (failure) => {
+      const { receipt } = v3DecompositionEvidenceFixture();
+      const evidence = await collectV3CommitGateEvidence([receipt], {
+        resolveRef: async () => {
+          if (failure === "ref") throw new Error("rev-parse failed");
+          return receipt.prepared.completedMap.machine.source.head;
+        },
+        readPathState: async () => {
+          if (failure === "path") throw new Error("ls-tree failed");
+          return { kind: "absent" };
+        },
+      });
+      expect(evidence).toEqual({ status: "unavailable" });
+
+      const recordPath = resolveRetirementRecordRelativePath(receipt.receiptId);
+      const changes: StagedPathChange[] = [
+        { status: "A", path: recordPath },
+        ...receipt.finalized.transitionPatch.map(({ path, before, after }) => ({
+          status: before.kind === "absent" ? "A" as const : after.kind === "absent" ? "D" as const : "M" as const,
+          path,
+        })),
+      ];
+      expect(validateDecomposeCommitGate({
+        changes,
+        readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(receipt)) : bytes("staged"),
+        readHeadBytes: () => null,
+      })).toContainEqual(expect.stringMatching(/canonical validation evidence is unavailable/iu));
+    },
+  );
 });

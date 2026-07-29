@@ -20,8 +20,69 @@ import {
   runGraduate,
   type GraduateParams,
 } from "../../../src/commands/start.js";
+import type { ValidatedGraduationTransaction } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
 
 const CWD = "/repo";
+function transaction(mode: "spawned" | "in-place" = "spawned"): ValidatedGraduationTransaction {
+  return {
+    kind: "validated-graduation-transaction",
+    schemaVersion: 1,
+    slug: "widget",
+    branch: "plan/widget",
+    source: {
+      location: "planned",
+      directory: ".arc/backlog/planned/widget",
+      metaPath: ".arc/backlog/planned/widget/meta-widget.md",
+      artifacts: [],
+    },
+    target: {
+      directory: ".arc/active",
+      metaPath: ".arc/active/meta-widget.md",
+      metaBytes: new Uint8Array(),
+      artifacts: [],
+      pathStates: [],
+    },
+    policy: {
+      provenance: "ordinary",
+      profile: { kind: "draft", sourceDesign: ["draft-widget.md"] },
+      taskAuthority: "none",
+      workflow: { kind: "preserved", value: "draft-design" },
+      class: { kind: "preserved", value: "Light" },
+      decompositionReceiptRemoved: false,
+    },
+    reconciliation: { backfilled: [], notice: null },
+    occupation: {
+      mode,
+      baseHead: "a".repeat(40),
+      branch: { kind: "absent", ref: "refs/heads/plan/widget" },
+      worktree: mode === "spawned"
+        ? { kind: "absent", path: "/repo/../wt" }
+        : { kind: "current", path: CWD, head: "a".repeat(40), branch: "main" },
+      indexTree: "b".repeat(40),
+      operation: mode === "spawned"
+        ? {
+            kind: "spawned",
+            branch: "plan/widget",
+            base: "a".repeat(40),
+            worktreePath: "/repo/../wt",
+            locationTemplate: "../{repo}-{branch}",
+            repo: "arc-framework",
+            wuName: "widget",
+            spawningIdentity: "andrew",
+          }
+        : { kind: "in-place", branch: "plan/widget", worktreePath: CWD },
+    },
+  };
+}
+
+const PREPARE_TRANSACTION = async () => ({
+  status: "ready" as const,
+  transaction: transaction(),
+});
+const PREPARE_IN_PLACE_TRANSACTION = async () => ({
+  status: "ready" as const,
+  transaction: transaction("in-place"),
+});
 
 interface MetaSpec {
   slug: string;
@@ -119,6 +180,7 @@ interface Harness {
   stagedMetas: string[];
   worktreeOps: unknown[];
   classWrites: ClassWrite[];
+  atomicTransactions: ValidatedGraduationTransaction[];
 }
 
 function buildCtx(
@@ -134,6 +196,7 @@ function buildCtx(
   const stagedMetas: string[] = [];
   const worktreeOps: unknown[] = [];
   const classWrites: ClassWrite[] = [];
+  const atomicTransactions: ValidatedGraduationTransaction[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -165,6 +228,15 @@ function buildCtx(
       return op.mutation === "spawn"
         ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
+    },
+    atomicGraduate: async (graduation) => {
+      calls.push("atomic-graduate");
+      atomicTransactions.push(graduation);
+      return {
+        status: "applied",
+        worktreePath: graduation.occupation.operation.worktreePath,
+        postCreateNotice: null,
+      };
     },
     writeBranchField: async () => {},
     ...(withClassSeam
@@ -201,7 +273,17 @@ function buildCtx(
   });
   const ctx = makeCtx(CWD);
 
-  return { ctx, calls, reconcileCalls, stageWrites, softWrites, stagedMetas, worktreeOps, classWrites };
+  return {
+    ctx,
+    calls,
+    reconcileCalls,
+    stageWrites,
+    softWrites,
+    stagedMetas,
+    worktreeOps,
+    classWrites,
+    atomicTransactions,
+  };
 }
 
 const BASE = {
@@ -210,6 +292,7 @@ const BASE = {
   locationTemplate: "../{repo}-{branch}",
   repo: "arc-framework",
   spawningIdentity: "andrew",
+  prepareTransaction: PREPARE_TRANSACTION,
 } satisfies Omit<Extract<GraduateParams, { inPlace?: false }>, "cls">;
 
 describe("runGraduate — backlog stub onto its branch", () => {
@@ -220,7 +303,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
     );
   });
 
-  it("relocates a provisional stub to active/ and spawns its plan/ branch", async () => {
+  it("sends a provisional stub through one atomic graduation port", async () => {
     const { ctx, calls } = buildCtx([
       { slug: "widget", tier: "backlog/provisional", subdir: "widget", state: "Planning", cls: "Light" },
     ]);
@@ -235,11 +318,8 @@ describe("runGraduate — backlog stub onto its branch", () => {
       expect(result.outcome.verb).toBe("start");
       expect(result.outcome.to).toEqual({ phase: "Planning", location: "active" });
     }
-    expect(calls).toContain("relocate:.arc/backlog/provisional/widget->.arc/active");
-    expect(calls).toContain("worktree:spawn");
-    expect(calls).toContain("worktree:spawn:in-place");
-    expect(calls).toContain("relocate-cwd:/repo/../wt");
-    expect(calls.indexOf("worktree:spawn")).toBeLessThan(calls.indexOf("relocate-cwd:/repo/../wt"));
+    expect(calls).toContain("atomic-graduate");
+    expect(calls.some((call) => call.startsWith("relocate:") || call.startsWith("worktree:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("session-seed:") && c.includes("meta-widget.md"))).toBe(true);
   });
 
@@ -251,18 +331,29 @@ describe("runGraduate — backlog stub onto its branch", () => {
     const result = await runGraduate(ctx, { ...BASE, cls: "Heavy" });
 
     expect(result.status).toBe("graduated");
-    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+    expect(calls).toContain("atomic-graduate");
   });
 
   it("threads the configured post-create script into spawned graduate worktrees", async () => {
-    const { ctx, worktreeOps } = buildCtx([
+    const { ctx, atomicTransactions } = buildCtx([
       { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
     ]);
 
-    const result = await runGraduate(ctx, { ...BASE, cls: "Light", postCreateScript: "npm run setup:worktree" });
+    const configured = transaction();
+    if (configured.occupation.operation.kind !== "spawned") throw new Error("fixture mode");
+    configured.occupation.operation.postCreateScript = "npm run setup:worktree";
+    const result = await runGraduate(ctx, {
+      ...BASE,
+      cls: "Light",
+      postCreateScript: "npm run setup:worktree",
+      prepareTransaction: async () => ({ status: "ready", transaction: configured }),
+    });
 
     expect(result.status).toBe("graduated");
-    expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
+    expect(atomicTransactions[0]?.occupation.operation).toMatchObject({
+      kind: "spawned",
+      postCreateScript: "npm run setup:worktree",
+    });
   });
 
   it("graduates in place (no worktree spawned) when inPlace is set", async () => {
@@ -270,17 +361,16 @@ describe("runGraduate — backlog stub onto its branch", () => {
       { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Novel" },
     ]);
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Novel", inPlace: true, prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+    });
 
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
     expect(result.branch).toBe("plan/widget");
     expect(result.metaPath).toBe(".arc/active/meta-widget.md");
-    // Relocate + in-place worktree placement (checkout -b) fire; no fresh worktree is spawned.
-    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
-    expect(calls).toContain(`relocate-cwd:${CWD}`);
-    expect(calls).toContain("worktree:spawn:in-place");
-    expect(calls).not.toContain("worktree:spawn");
+    expect(calls).toContain("atomic-graduate");
+    expect(calls.some((call) => call.startsWith("relocate:") || call.startsWith("worktree:"))).toBe(false);
   });
 
   it("refuses an in-place graduate into a checkout that already holds an active WU", async () => {
@@ -289,7 +379,9 @@ describe("runGraduate — backlog stub onto its branch", () => {
       /* occupancyOk */ false,
     );
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Novel", inPlace: true, prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -312,20 +404,88 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
   });
 
-  it("persists a caller-supplied Class into the relocated meta (writeClass) and stages it", async () => {
+  it("refuses transaction drift before either start arm can mutate", async () => {
+    for (const params of [
+      { ...BASE, cls: "Light" },
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true as const,
+        prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+      },
+    ]) {
+      const { ctx, calls } = buildCtx([
+        { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+      ]);
+      const result = await runGraduate(ctx, {
+        ...params,
+        prepareTransaction: async () => ({
+          status: "refused",
+          reason: "snapshot-drift",
+          locus: ".arc/backlog/planned/widget",
+          detail: "source bytes changed",
+        }),
+      });
+
+      expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("snapshot-drift") });
+      expect(calls.some((call) =>
+        call.startsWith("worktree:")
+        || call.startsWith("relocate:")
+        || call === "reconcile-meta"
+        || call === "stage-meta")).toBe(false);
+    }
+  });
+
+  it("returns typed recovery residue without firing successful side effects", async () => {
+    const { ctx, calls } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+    ]);
+    ctx.atomicGraduate = async () => ({
+      status: "graduation-recovery-required",
+      reason: "rollback could not remove the branch",
+      residue: {
+        slug: "widget",
+        branch: "plan/widget",
+        mode: "in-place",
+        failures: [{ stage: "branch", locus: "refs/heads/plan/widget", detail: "ref changed" }],
+      },
+    });
+
+    const result = await runGraduate(ctx, {
+      name: "widget",
+      cls: "Light",
+      inPlace: true,
+      prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+    });
+
+    expect(result).toMatchObject({
+      status: "graduation-recovery-required",
+      residue: {
+        failures: [expect.objectContaining({ stage: "branch" })],
+      },
+    });
+    expect(calls.some((call) => call.startsWith("side:"))).toBe(false);
+  });
+
+  it("carries caller-supplied Class inside the transaction without a later Class write", async () => {
     const { ctx, calls, classWrites, stagedMetas } = buildCtx([
       { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "[TBD]" },
     ]);
 
     // The `--class` path: the stub's meta is still `[TBD]`, the caller resolved it.
-    const result = await runGraduate(ctx, { ...BASE, cls: "Light", writeClass: true });
+    const supplied = transaction();
+    supplied.policy.class = { kind: "supplied", value: "Light" };
+    const result = await runGraduate(ctx, {
+      ...BASE,
+      cls: "Light",
+      writeClass: true,
+      prepareTransaction: async () => ({ status: "ready", transaction: supplied }),
+    });
 
     expect(result.status).toBe("graduated");
-    expect(classWrites).toEqual([{ metaPath: ".arc/active/meta-widget.md", value: "Light" }]);
-    // The Class write lands before the final post-transition staging, so the
-    // ceremony commit carries it (the transition legs stage earlier passes too).
-    expect(calls.indexOf("class-write")).toBeLessThan(calls.lastIndexOf("stage-meta"));
-    expect(stagedMetas).toContain(".arc/active/meta-widget.md");
+    expect(classWrites).toEqual([]);
+    expect(stagedMetas).toEqual([]);
+    expect(calls).toContain("atomic-graduate");
   });
 
   it("performs no Class write when writeClass is not set", async () => {
@@ -339,7 +499,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(classWrites).toEqual([]);
   });
 
-  it("rejects writeClass when the executor lacks the Class-write seam (wiring error)", async () => {
+  it("does not require the generic Class-write seam for a supplied Class", async () => {
     const { ctx, calls, classWrites } = buildCtx(
       [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "[TBD]" }],
       /* occupancyOk */ true,
@@ -347,18 +507,18 @@ describe("runGraduate — backlog stub onto its branch", () => {
       /* withClassSeam */ false,
     );
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Light", writeClass: true, inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget",
+      cls: "Light",
+      writeClass: true,
+      inPlace: true,
+      prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+    });
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/Class-write seam/i);
+    expect(result.status).toBe("graduated");
     expect(classWrites).toEqual([]);
-    // The refusal fires post-transition: relocate, worktree placement, and the
-    // meta reconcile have already run — the wiring error rejects the ceremony's
-    // Class write, it does not roll the transition back.
-    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
-    expect(calls).toContain("worktree:spawn:in-place");
-    expect(calls).toContain("reconcile-meta");
+    expect(calls).toContain("atomic-graduate");
+    expect(calls).not.toContain("reconcile-meta");
   });
 
   it("rejects an old-shape meta before spawning or relocating", async () => {
@@ -373,11 +533,20 @@ describe("runGraduate — backlog stub onto its branch", () => {
       },
     ]);
 
-    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+    let prepareCalls = 0;
+    const result = await runGraduate(ctx, {
+      ...BASE,
+      cls: "Light",
+      prepareTransaction: async () => {
+        prepareCalls += 1;
+        return await PREPARE_TRANSACTION();
+      },
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toContain("closing `---`");
+    expect(prepareCalls).toBe(0);
     expect(
       calls.some(
         (c) =>
@@ -402,7 +571,9 @@ describe("runGraduate — backlog stub onto its branch", () => {
       },
     ]);
 
-    const result = await runGraduate(ctx, { name: "widget", cls: "Light", inPlace: true });
+    const result = await runGraduate(ctx, {
+      name: "widget", cls: "Light", inPlace: true, prepareTransaction: PREPARE_IN_PLACE_TRANSACTION,
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -410,22 +581,27 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(calls.some((c) => c.startsWith("worktree:") || c.startsWith("relocate:"))).toBe(false);
   });
 
-  it("forward-reconciles the relocated meta with the planning-entry pointer and surfaces the count notice", async () => {
+  it("returns the transaction's precomputed backfill surface without post-application reconcile", async () => {
     const { ctx, reconcileCalls } = buildCtx(
       [{ slug: "widget", tier: "backlog/provisional", subdir: "widget", state: "Planning", cls: "Light" }],
       /* occupancyOk */ true,
       /* reconcileBackfill */ ["Current Workflow", "Origin"],
     );
 
-    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+    const prepared = transaction();
+    prepared.reconciliation = {
+      backfilled: ["Current Workflow", "Origin"],
+      notice: "Backfilled 2 meta field(s) against the code field model: Current Workflow, Origin.",
+    };
+    const result = await runGraduate(ctx, {
+      ...BASE,
+      cls: "Light",
+      prepareTransaction: async () => ({ status: "ready", transaction: prepared }),
+    });
 
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
-    // The reconcile runs against the relocated `active/` meta, carrying the
-    // planning-entry `Current Workflow` value (not the template's `[none]`).
-    expect(reconcileCalls).toHaveLength(1);
-    expect(reconcileCalls[0]!.metaPath).toBe(".arc/active/meta-widget.md");
-    expect(reconcileCalls[0]!.overrides).toEqual({ "Current Workflow": "draft-design" });
+    expect(reconcileCalls).toHaveLength(0);
     expect(result.backfilled).toEqual(["Current Workflow", "Origin"]);
     expect(result.notice).toMatch(/[Bb]ackfilled 2 .*field/);
   });
@@ -445,7 +621,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.notice).toBeNull();
   });
 
-  it("sets the planning-entry stage pointer even when reconcile no-ops on a present `[none]`", async () => {
+  it("performs no generic planning-stage write after the atomic port applies", async () => {
     // The bug this guards: a stub-minted meta carries a present `Current Workflow:
     // [none]`, so the insert-absent-only reconcile can't advance it — `backfilled`
     // is empty, yet the dedicated stage write must still set the planning entry.
@@ -460,14 +636,12 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
     expect(result.backfilled).toEqual([]);
-    expect(stageWrites).toEqual([{ metaPath: ".arc/active/meta-widget.md", stage: "draft-design" }]);
-    // Ordering is load-bearing: the stage write is fail-loud on an absent bullet, so
-    // it must run *after* the reconcile inserts a missing field (pre-field meta case).
-    expect(calls.indexOf("reconcile-meta")).toBeLessThan(calls.indexOf("stage-write"));
+    expect(stageWrites).toEqual([]);
+    expect(calls).not.toContain("reconcile-meta");
   });
 
-  it("resets Next Action to the begin-current-workflow sentinel for shell-complete start", async () => {
-    const { ctx, calls, softWrites } = buildCtx(
+  it("performs no generic soft-field write after the atomic port applies", async () => {
+    const { ctx, softWrites } = buildCtx(
       [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
       /* occupancyOk */ true,
       /* reconcileBackfill */ [],
@@ -477,14 +651,10 @@ describe("runGraduate — backlog stub onto its branch", () => {
 
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
-    expect(softWrites).toContainEqual({
-      metaPath: ".arc/active/meta-widget.md",
-      updates: { "Next Action": "[begin current workflow]" },
-    });
-    expect(calls.indexOf("stage-write")).toBeLessThan(calls.indexOf("soft:Next Action"));
+    expect(softWrites).toEqual([]);
   });
 
-  it("stages the post-transition planning pointer rewrites", async () => {
+  it("performs no generic post-transition meta staging", async () => {
     const { ctx, calls, stagedMetas } = buildCtx(
       [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
       /* occupancyOk */ true,
@@ -495,7 +665,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
 
     expect(result.status).toBe("graduated");
     if (result.status !== "graduated") return;
-    expect(stagedMetas).toEqual([".arc/active/meta-widget.md", ".arc/active/meta-widget.md"]);
-    expect(calls.indexOf("soft:Next Action")).toBeLessThan(calls.lastIndexOf("stage-meta"));
+    expect(stagedMetas).toEqual([]);
+    expect(calls).toContain("atomic-graduate");
   });
 });

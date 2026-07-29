@@ -46,6 +46,7 @@ describe("v3 decomposition preparation identities", () => {
       candidateOwnership: facts.candidateOwnership,
       candidatePublication: facts.candidatePublication,
       topologyDigest: facts.topology.digest,
+      destinationOutputPaths: facts.destinationOutputPaths,
       prospectiveProjection: facts.prospectiveProjection,
     });
   }
@@ -99,6 +100,7 @@ describe("v3 decomposition preparation identities", () => {
       },
       candidatePublication: publication,
       topologyDigest: plan.topologyDigest,
+      destinationOutputPaths: [{ destinationId: "member-a", paths: [".arc/active/meta-member-a.md"] }],
       prospectiveProjection: {
         overlay: { origin: "sample", sourceBranch: "plan/sample", planId },
         roadmap: {
@@ -138,6 +140,13 @@ describe("v3 decomposition preparation identities", () => {
         },
       },
       { ...preparation, topologyDigest: digest("other-topology") },
+      {
+        ...preparation,
+        destinationOutputPaths: [{
+          destinationId: "member-a",
+          paths: [".arc/backlog/planned/member-a/meta-member-a.md"],
+        }],
+      },
       {
         ...preparation,
         prospectiveProjection: {
@@ -265,7 +274,7 @@ describe("v3 decomposition preparation identities", () => {
     const { preparation } = v3DecompositionEvidenceFixture();
     const bytes = canonicalize(preparation);
     expect(canonicalDigest(bytes))
-      .toBe("sha256:716eeb8b025733921b8d16c27a977ef8ca67bf1c85b367bc99f517312118eda5");
+      .toBe("sha256:9ea8d77d6a94bc72853a76343b2f06c2adb8bc60f38c59c0a0295f4fe8661787");
     expect(parseV3DecomposePreparation(bytes)).toEqual(preparation);
 
     const claimed = structuredClone(preparation);
@@ -281,7 +290,7 @@ describe("v3 decomposition preparation identities", () => {
     expect(parseV3DecomposePreparation(claimed)).toEqual(claimed);
     const claimedBytes = canonicalize(claimed);
     expect(canonicalDigest(claimedBytes))
-      .toBe("sha256:2f67409e0aefa4a033f255fdc0577bab1ab962eef06a441a8ceaa6f1b070ce02");
+      .toBe("sha256:36b4c0e74746ddf7f41349e81bce6768c8c7c4f3ef642f1b44401b30ce21f595");
     expect(parseV3DecomposePreparation(claimedBytes)).toEqual(claimed);
     expect(v3CandidatePublication(
       claimed.facts.completedMap,
@@ -290,7 +299,7 @@ describe("v3 decomposition preparation identities", () => {
   });
 
   it("constructs preparation only from one exact validated plan binding", () => {
-    const { preparation } = v3DecompositionEvidenceFixture();
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
     const { facts } = preparation;
     const sourceUnit = facts.completedMap.machine.sourceUnits[0]!;
     const sourceArtifactInventory = [{
@@ -304,6 +313,10 @@ describe("v3 decomposition preparation identities", () => {
       cutMapDigest: facts.cutMapDigest,
       sourceHead: preparation.facts.completedMap.machine.source.head,
       expectedBaseHead: preparation.facts.completedMap.machine.resultBase.head,
+      candidateAuthority: {
+        candidatePublication: facts.candidatePublication,
+        topology: facts.topology,
+      },
       allowedPaths: facts.allowedPaths,
       allowedPathsDigest: facts.allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -312,16 +325,33 @@ describe("v3 decomposition preparation identities", () => {
         planId: facts.prospectiveProjection.overlay.planId,
       }),
       roadmap: facts.prospectiveProjection.roadmap,
-      mutations: [],
+      mutations: facts.destinationOutputPaths.map(({ destinationId, paths }) => {
+        const path = paths[0]!;
+        const result = receipt.finalized.managedPathResults.find((entry) => entry.path === path)!;
+        return {
+          kind: "composed" as const,
+          path,
+          before: result.before,
+          after: result.after,
+          contributors: [{
+            kind: "content" as const,
+            destinationId,
+            destinationKind: "new-member" as const,
+            artifactRole: "meta",
+            contributorKind: "scaffold",
+            contributorIdentity: `scaffold:${destinationId}`,
+            sourceProjection: [],
+            disposition: "whole-file" as const,
+            before: result.before,
+            after: result.after,
+          }],
+        };
+      }),
     };
     expect(createV3DecomposePreparation({
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidateAuthority: {
-        candidatePublication: facts.candidatePublication,
-        topology: facts.topology,
-      },
       plan,
     })).toEqual({ status: "ready", preparation });
 
@@ -329,10 +359,6 @@ describe("v3 decomposition preparation identities", () => {
       completedMap: facts.completedMap,
       sourceArtifactInventory,
       candidateOwnership: facts.candidateOwnership,
-      candidateAuthority: {
-        candidatePublication: facts.candidatePublication,
-        topology: facts.topology,
-      },
       plan: { ...plan, allowedPaths: plan.allowedPaths.slice(1) },
     })).toEqual({ status: "rejected", reason: "plan-binding-mismatch" });
   });

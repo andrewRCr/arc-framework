@@ -10,6 +10,8 @@ import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
+import type { V3DecomposeFinalizationResult } from "./decompose-finalization.js";
+import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type {
   DecomposeIncomingEdgeInventoryEntry,
   DecomposeOutgoingEdgeInventoryEntry,
@@ -227,6 +229,11 @@ export interface RetirementAuthorityPort {
     | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
     | { status: "refused"; reason: TeardownAuthorizationRefusal }
   >;
+
+  finalizeV3Decompose(
+    receipt: V3DecomposeReceipt,
+    expectedAuthorityVersion: string,
+  ): Promise<V3DecomposeFinalizationResult>;
 
   authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision>;
 

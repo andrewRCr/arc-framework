@@ -250,16 +250,24 @@ export function parseV3DecomposeReceipt(
   const expectedDestinationIds = receipt.prepared.completedMap.authoring.destinations
     .filter(({ kind }) => kind !== "cohort-coordination")
     .map(({ destinationId }) => destinationId);
+  const expectedDestinationOutputPaths = receipt.prepared.destinationOutputPaths;
   if (!ordered(receipt.finalized.destinationDigests.map(({ destinationId }) => destinationId))
     || canonicalize(receipt.finalized.destinationDigests.map(({ destinationId }) => destinationId))
       !== canonicalize(expectedDestinationIds)
-    || receipt.finalized.destinationDigests.some(({ destinationId, outputs, digest }) =>
+    || receipt.finalized.destinationDigests.some(({ destinationId, outputs, digest }) => {
+      const expectedPaths = expectedDestinationOutputPaths.find(
+        (entry) => entry.destinationId === destinationId,
+      )?.paths;
+      return expectedPaths === undefined
+      || canonicalize(outputs.map(({ path }) => path)) !== canonicalize(expectedPaths)
+      || (
       !ordered(outputs.map(({ path }) => path))
       || outputs.some((output) => {
         const result = receipt.finalized.managedPathResults.find(({ path }) => path === output.path);
         return result === undefined || canonicalize(result.after) !== canonicalize(output.after);
       })
-      || v3DestinationDigest(destinationId, outputs) !== digest)
+      || v3DestinationDigest(destinationId, outputs) !== digest);
+    })
     || !ordered(resultPaths)
     || !ordered(patchPaths)
     || canonicalize(allowed) !== canonicalize(resultPaths)

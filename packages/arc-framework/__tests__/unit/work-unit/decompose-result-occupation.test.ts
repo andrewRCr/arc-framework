@@ -13,6 +13,7 @@ import {
 import { decomposeTransientClaimId } from "../../../src/lib/work-unit/decompose-transient-claim.js";
 import type { ValidatedDecomposePlan } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
+import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 function plan(): ValidatedDecomposePlan {
   const planId = canonicalDigest("plan");
@@ -21,6 +22,13 @@ function plan(): ValidatedDecomposePlan {
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
+    candidateAuthority: {
+      candidatePublication: {
+        logicalAnchor: { kind: "direct-member", slug: "member" },
+        entries: [{ kind: "new-leaf", slug: "member" }],
+      },
+      topology: { facts: [{ kind: "none" }], digest: v3TopologyDigest([{ kind: "none" }]) },
+    },
     allowedPaths: [".arc/active/meta-member.md"],
     allowedPathsDigest: canonicalDigest([".arc/active/meta-member.md"]),
     prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -207,18 +215,52 @@ describe("decomposition result occupation", () => {
       lost.adapter,
     )).status).toBe("occupied");
     lost.setObservation({ branchHead: null, registrations: [] });
-    expect(await occupyDecomposeResult(
+    const lostRefusal = await occupyDecomposeResult(
       { protection: "full", configuredBase: "main", plan: plan() },
       lost.adapter,
-    )).toEqual({ status: "refused", reason: "recovery-required" });
+    );
+    const [lostClaim] = (await lost.claims.list()).claims;
+    if (lostClaim === undefined) throw new Error("expected the occupied recovery claim");
+    expect(lostRefusal).toEqual({
+      status: "refused",
+      reason: "recovery-required",
+      recovery: {
+        path: "/repo/worktrees/decompose-origin",
+        candidateOwnership: {
+          kind: "claimed",
+          protection: "full",
+          claimId: lostClaim.claimId,
+          generation: lostClaim.generation,
+          candidateBranch: lostClaim.binding.candidateBranch,
+          candidateWorktree: lostClaim.candidateWorktree,
+        },
+      },
+    });
 
     const unproven = harness({
       ensureCandidate: async () => ({ status: "collision", noMutation: false }),
     });
-    expect(await occupyDecomposeResult(
+    const refusal = await occupyDecomposeResult(
       { protection: "full", configuredBase: "main", plan: plan() },
       unproven.adapter,
-    )).toEqual({ status: "refused", reason: "recovery-required" });
+    );
+    const [claim] = (await unproven.claims.list()).claims;
+    if (claim === undefined) throw new Error("expected the pending recovery claim");
+    expect(refusal).toEqual({
+      status: "refused",
+      reason: "recovery-required",
+      recovery: {
+        path: "/repo/worktrees/decompose-origin",
+        candidateOwnership: {
+          kind: "claimed",
+          protection: "full",
+          claimId: claim.claimId,
+          generation: claim.generation,
+          candidateBranch: claim.binding.candidateBranch,
+          candidateWorktree: claim.candidateWorktree,
+        },
+      },
+    });
   });
 
   it("refuses a stale source binding and duplicate or occupied registrations", async () => {

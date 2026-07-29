@@ -1356,6 +1356,17 @@ describe("Decomposition Receipt field — omit-when-absent identity", () => {
     expect(reconciled.content).toBe(content);
     expect(reconciled.backfilled).not.toContain("Decomposition Receipt");
   });
+
+  it("preserves one explicitly supplied marker during managed reconciliation", () => {
+    const content = renderMetaFile("foo", {
+      state: "Planning",
+      owner: "andrew",
+      decompositionReceipt: receiptId,
+    });
+    const reconciled = reconcileMetaFields(content);
+    expect(reconciled.content).toBe(content);
+    expect(parseMetaRecord(reconciled.content).decompositionReceipt).toBe(receiptId);
+  });
 });
 
 describe("Current Workflow field — planning-stage pointer", () => {

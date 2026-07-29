@@ -165,6 +165,16 @@ function candidateWorktreeId(claimId: CanonicalDigest, generation: number): Cano
   });
 }
 
+/**
+ * Derive the one repository-common candidate branch for an origin.
+ *
+ * @param origin - Canonical decomposition origin slug
+ * @returns The transient candidate branch name
+ */
+export function decomposeCandidateBranch(origin: string): string {
+  return `chore/decompose-${origin}`;
+}
+
 /** Derive the repository-common operational key without including any host path. */
 export function decomposeTransientClaimId(
   binding: Pick<DecomposeTransientClaimBinding, "origin" | "candidateBranch">,

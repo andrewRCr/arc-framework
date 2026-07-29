@@ -4,6 +4,7 @@ import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DecomposeTransientClaimStore } from "./decompose-transient-claim-store.js";
 import {
+  decomposeCandidateBranch,
   decomposeTransientClaimId,
   projectDecomposeTransientCandidateOwnership,
   type DecomposeTransientClaim,
@@ -108,16 +109,40 @@ export type DecomposeResultOccupationResult =
       path: string;
       candidateOwnership: NonNullable<ReturnType<typeof projectDecomposeTransientCandidateOwnership>>;
     }
-  | { status: "refused"; reason: DecomposeResultOccupationRefusal };
+  | {
+      status: "refused";
+      reason: DecomposeResultOccupationRefusal;
+      recovery?: {
+        path: string;
+        candidateOwnership: {
+          kind: "claimed";
+          protection: "full";
+          claimId: CanonicalDigest;
+          generation: number;
+          candidateBranch: string;
+          candidateWorktree: CanonicalDigest;
+        };
+      };
+    };
 
-function candidateBranch(origin: string): string {
-  return `chore/decompose-${origin}`;
+function pendingCandidateRecovery(claim: DecomposeTransientClaim, path: string) {
+  return {
+    path,
+    candidateOwnership: {
+      kind: "claimed" as const,
+      protection: "full" as const,
+      claimId: claim.claimId,
+      generation: claim.generation,
+      candidateBranch: claim.binding.candidateBranch,
+      candidateWorktree: claim.candidateWorktree,
+    },
+  };
 }
 
 function bindingFor(plan: ValidatedDecomposePlan): DecomposeTransientClaimBinding {
   return {
     origin: plan.prospectiveOverlay.origin,
-    candidateBranch: candidateBranch(plan.prospectiveOverlay.origin),
+    candidateBranch: decomposeCandidateBranch(plan.prospectiveOverlay.origin),
     sourceHead: plan.sourceHead,
     resultBaseHead: plan.expectedBaseHead,
     cutMapDigest: plan.cutMapDigest,
@@ -268,7 +293,13 @@ export async function occupyDecomposeResult(
       return { status: "refused", reason: "branch-exists-unregistered" };
     }
   } else if (storedClaim?.state.kind === "occupied") {
-    return { status: "refused", reason: "recovery-required" };
+    return storedClaim.registration.kind === "registered"
+      ? {
+          status: "refused",
+          reason: "recovery-required",
+          recovery: pendingCandidateRecovery(storedClaim, storedClaim.registration.path),
+        }
+      : { status: "refused", reason: "claim-conflict" };
   }
 
   const acquired = await adapter.claims.acquire(claimId, binding);
@@ -333,13 +364,25 @@ export async function occupyDecomposeResult(
         return { status: "refused", reason: "concurrent-creation" };
       }
     }
-    return { status: "refused", reason: "recovery-required" };
+    return {
+      status: "refused",
+      reason: "recovery-required",
+      recovery: pendingCandidateRecovery(claim, path),
+    };
   }
 
   const refusal = validateObservation(claim, created.observation);
-  if (refusal !== null) return { status: "refused", reason: refusal };
+  if (refusal !== null) {
+    return { status: "refused", reason: refusal, recovery: pendingCandidateRecovery(claim, path) };
+  }
   const evidence = occupationEvidence(created.observation, claim);
-  if (evidence === null) return { status: "refused", reason: "recovery-required" };
+  if (evidence === null) {
+    return {
+      status: "refused",
+      reason: "recovery-required",
+      recovery: pendingCandidateRecovery(claim, path),
+    };
+  }
   const occupied = await adapter.claims.occupy(
     claimId,
     claim.generation,
@@ -347,7 +390,11 @@ export async function occupyDecomposeResult(
     evidence,
   );
   if (occupied.status !== "occupied" && occupied.status !== "already-occupied-matching") {
-    return { status: "refused", reason: "recovery-required" };
+    return {
+      status: "refused",
+      reason: "recovery-required",
+      recovery: pendingCandidateRecovery(claim, path),
+    };
   }
   const ownership = projectDecomposeTransientCandidateOwnership(occupied.claim);
   return ownership === null

@@ -13,8 +13,13 @@ import {
 } from "./transition-overlay.js";
 import {
   V3PathStateSchema,
+  V3CandidatePublicationSchema,
+  parseV3TopologyFacts,
   v3PlanId,
+  v3TopologyDigest,
   type V3CandidatePublication,
+  type V3ProjectedCandidateAuthority,
+  type V3TopologyFact,
 } from "./decompose-v3-preparation.js";
 
 export type V3PlanFileState = {
@@ -43,6 +48,7 @@ interface V3PlanContributorBase {
 
 export interface V3PlanTopologyContributor extends V3PlanContributorBase {
   kind: "topology";
+  action: "create" | "ensure" | "backfill" | "reuse" | "append";
   contributorIdentity: string;
 }
 
@@ -93,7 +99,10 @@ export interface BuildValidatedDecomposePlanInput {
   sourceHead: string;
   expectedBaseHead: string;
   candidatePublication: V3CandidatePublication;
-  topologyDigest: CanonicalDigest;
+  topology: {
+    facts: V3TopologyFact[];
+    digest: CanonicalDigest;
+  };
   origin: string;
   sourceBranch: string;
   claims: readonly V3PlanPathClaim[];
@@ -124,6 +133,7 @@ export interface ValidatedDecomposePlan {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
+  candidateAuthority: V3ProjectedCandidateAuthority;
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
   prospectiveOverlay: ProspectiveTransitionOverlay;
@@ -245,9 +255,13 @@ interface NormalizedClaim {
 }
 
 function invalidOperand(input: BuildValidatedDecomposePlanInput): boolean {
+  const topologyFacts = parseV3TopologyFacts(input.topology.facts);
   return !isCanonicalDigest(input.preflightId)
     || !isCanonicalDigest(input.cutMapDigest)
-    || !isCanonicalDigest(input.topologyDigest)
+    || !isCanonicalDigest(input.topology.digest)
+    || topologyFacts === null
+    || input.topology.digest !== v3TopologyDigest(topologyFacts)
+    || !V3CandidatePublicationSchema.safeParse(input.candidatePublication).success
     || !validIdentity(input.sourceHead)
     || !validIdentity(input.expectedBaseHead)
     || !validIdentity(input.origin)
@@ -264,6 +278,19 @@ export function buildValidatedDecomposePlan(
   input: BuildValidatedDecomposePlanInput,
 ): BuildValidatedDecomposePlanResult {
   if (invalidOperand(input)) return { ok: false, refusal: { code: "invalid-plan-operand" } };
+  const topologyFactKeys = input.topology.facts.flatMap((fact) =>
+    fact.kind === "none" ? [] : [`${fact.kind}\0${fact.path}`]);
+  const topologyClaimKeys = input.claims.flatMap((claim) =>
+    claim.kind === "contributor" && claim.contributor.kind === "topology"
+      ? [`${claim.contributor.action}\0${claim.path}`]
+      : []);
+  if (new Set(topologyFactKeys).size !== topologyFactKeys.length
+    || (input.topology.facts.some(({ kind }) => kind === "none")
+      && input.topology.facts.length !== 1)
+    || input.topology.facts.some((fact) => fact.kind !== "none" && !isManagedPath(fact.path))
+    || canonicalDigest([...topologyFactKeys].sort()) !== canonicalDigest([...topologyClaimKeys].sort())) {
+    return { ok: false, refusal: { code: "invalid-plan-operand" } };
+  }
 
   const grouped = new Map<string, NormalizedClaim[]>();
   for (const claim of input.claims) {
@@ -398,7 +425,7 @@ export function buildValidatedDecomposePlan(
     cutMapDigest: input.cutMapDigest,
     allowedPathsDigest,
     candidatePublication: input.candidatePublication,
-    topologyDigest: input.topologyDigest,
+    topologyDigest: input.topology.digest,
   });
   return {
     ok: true,
@@ -407,6 +434,10 @@ export function buildValidatedDecomposePlan(
       cutMapDigest: input.cutMapDigest,
       sourceHead: input.sourceHead,
       expectedBaseHead: input.expectedBaseHead,
+      candidateAuthority: {
+        candidatePublication: structuredClone(input.candidatePublication),
+        topology: structuredClone(input.topology),
+      },
       allowedPaths,
       allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

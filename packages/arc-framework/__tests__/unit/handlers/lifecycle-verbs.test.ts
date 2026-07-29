@@ -136,12 +136,19 @@ vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
 const mockPrepareDecompose = vi.fn();
 const mockStagePreparedResult = vi.fn();
 const mockFinalizeDecompose = vi.fn();
+const mockFinalizeV3Decompose = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
   createInRepoDecomposeRetirementDriver: () => ({
+    finalizeV3: (...a: unknown[]) => mockFinalizeV3Decompose(...a),
     prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
     stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
     finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
   }),
+}));
+const mockResolveProjectReadinessComposition = vi.fn();
+vi.mock("../../../src/lib/status/project-view.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/status/project-view.js")>(),
+  resolveProjectReadinessComposition: (...a: unknown[]) => mockResolveProjectReadinessComposition(...a),
 }));
 
 const mockCreateGitV3DecomposePreflight = vi.fn();
@@ -386,6 +393,23 @@ beforeEach(() => {
     status: "recorded",
     receipt: { receiptId: `sha256:${"a".repeat(64)}` },
     authorityVersion: "finalized-version",
+    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
+  });
+  mockResolveProjectReadinessComposition.mockResolvedValue({
+    acceptedCandidates: [],
+    rejectedRecords: [],
+    records: [],
+    treeRecords: [],
+    derivationWarnings: [],
+    sourceWarnings: [],
+    indeterminate: false,
+    view: { title: "Project", records: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false },
+  });
+  mockFinalizeV3Decompose.mockResolvedValue({
+    status: "recorded",
+    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+    authorityVersion: "finalized-version",
+    transitionOverlay: {},
     lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
   mockCreateGitV3DecomposePreflight.mockResolvedValue({

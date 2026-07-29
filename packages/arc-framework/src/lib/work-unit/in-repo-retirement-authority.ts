@@ -23,8 +23,11 @@ import {
 } from "./decompose-preparation.js";
 import {
   finalizeDecomposeRetirement,
+  finalizeV3DecomposeRetirement,
   type DecomposeFinalizationContext,
+  type V3DecomposeFinalizationContext,
 } from "./decompose-finalization.js";
+import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type {
   DecomposeAllocationMap,
   DecomposePreparationLocator,
@@ -42,6 +45,7 @@ export interface InRepoRetirementAuthorityContext {
   authorization: RetirementAuthorizationContext;
   decompose: DecomposePreparationContext;
   decomposeFinalization: DecomposeFinalizationContext;
+  v3DecomposeFinalization: V3DecomposeFinalizationContext;
 }
 
 /** Current Git/filesystem-backed retirement authority. */
@@ -73,6 +77,17 @@ export class InRepoRetirementAuthority implements RetirementAuthorityPort {
     expectedAuthorityVersion: string,
   ) {
     return await finalizeDecomposeRetirement(this.#ctx.decomposeFinalization, locator, expectedAuthorityVersion);
+  }
+
+  async finalizeV3Decompose(
+    receipt: V3DecomposeReceipt,
+    expectedAuthorityVersion: string,
+  ) {
+    return await finalizeV3DecomposeRetirement(
+      this.#ctx.v3DecomposeFinalization,
+      receipt,
+      expectedAuthorityVersion,
+    );
   }
 
   async authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision> {

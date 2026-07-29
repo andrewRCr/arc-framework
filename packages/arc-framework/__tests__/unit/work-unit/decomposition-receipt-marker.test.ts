@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import type { CanonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  removeDecompositionReceiptMarker,
+  readDecompositionReceiptMarker,
   validateDecompositionReceiptMarker,
 } from "../../../src/lib/work-unit/decomposition-receipt-marker.js";
 
@@ -21,6 +23,23 @@ function preparedMeta(): string {
 }
 
 describe("validateDecompositionReceiptMarker", () => {
+  it("reads ordinary absence or one canonical marker before receipt lookup", () => {
+    expect(readDecompositionReceiptMarker(ordinaryMeta())).toEqual({
+      status: "valid",
+      receiptId: null,
+    });
+    expect(readDecompositionReceiptMarker(preparedMeta())).toEqual({
+      status: "valid",
+      receiptId: RECEIPT_ID,
+    });
+    expect(readDecompositionReceiptMarker(
+      ordinaryMeta().replace("- **Review Rubric:** [none]", "- **Review Rubric:** [none]\n- **Decomposition Receipt:**"),
+    )).toEqual({ status: "refused", reason: "malformed" });
+    expect(readDecompositionReceiptMarker(
+      ordinaryMeta().replace("- **Review Rubric:** [none]", "- **Review Rubric:** [none]\n- **Unmanaged Receipt:** opaque"),
+    )).toEqual({ status: "valid", receiptId: null });
+  });
+
   it("accepts omission only for an ordinary meta tuple", () => {
     expect(validateDecompositionReceiptMarker(ordinaryMeta(), null)).toEqual({
       status: "valid",
@@ -37,6 +56,14 @@ describe("validateDecompositionReceiptMarker", () => {
       status: "valid",
       receiptId: RECEIPT_ID,
     });
+  });
+
+  it("removes only the exact canonical marker while preserving the surrounding projection", () => {
+    const prepared = preparedMeta();
+    const removed = removeDecompositionReceiptMarker(prepared, RECEIPT_ID);
+    expect(removed).toBe(ordinaryMeta());
+    expect(() => removeDecompositionReceiptMarker(prepared, `sha256:${"b".repeat(64)}`))
+      .toThrow(/does not match/u);
   });
 
   it("refuses duplicate, misplaced, malformed, and mismatched markers", () => {

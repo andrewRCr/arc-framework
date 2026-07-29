@@ -116,6 +116,10 @@ const ProspectiveProjectionSchema = z.strictObject({
     after: V3PathStateSchema,
   }),
 });
+const DestinationOutputPathsSchema = z.strictObject({
+  destinationId: NonEmptyStringSchema,
+  paths: z.array(ManagedPathSchema).min(1),
+});
 const PlanIdentityInputSchema = z.strictObject({
   preflightId: DigestSchema,
   cutMapDigest: DigestSchema,
@@ -136,6 +140,7 @@ const PreparationIdentityInputSchema = z.strictObject({
   candidateOwnership: CandidateOwnershipSchema,
   candidatePublication: V3CandidatePublicationSchema,
   topologyDigest: DigestSchema,
+  destinationOutputPaths: z.array(DestinationOutputPathsSchema),
   prospectiveProjection: ProspectiveProjectionSchema,
 });
 export const V3DecomposePreparationFactsSchema = z.strictObject({
@@ -151,6 +156,7 @@ export const V3DecomposePreparationFactsSchema = z.strictObject({
   candidateOwnership: CandidateOwnershipSchema,
   candidatePublication: V3CandidatePublicationSchema,
   topology: z.strictObject({ facts: z.array(TopologyFactSchema), digest: DigestSchema }),
+  destinationOutputPaths: z.array(DestinationOutputPathsSchema),
   prospectiveProjection: ProspectiveProjectionSchema,
 });
 export const V3DecomposePreparationSchema = z.strictObject({
@@ -170,7 +176,6 @@ export interface CreateV3DecomposePreparationInput {
   completedMap: V3DecomposeCutMap;
   sourceArtifactInventory: V3SourceArtifactEntry[];
   candidateOwnership: V3DecomposePreparationFacts["candidateOwnership"];
-  candidateAuthority: V3ProjectedCandidateAuthority;
   plan: ValidatedDecomposePlan;
 }
 
@@ -242,10 +247,38 @@ export function v3PreparationId(input: {
   candidateOwnership: V3DecomposePreparationFacts["candidateOwnership"];
   candidatePublication: V3CandidatePublication;
   topologyDigest: CanonicalDigest;
+  destinationOutputPaths: V3DecomposePreparationFacts["destinationOutputPaths"];
   prospectiveProjection: V3DecomposePreparationFacts["prospectiveProjection"];
 }): CanonicalDigest {
   const preimage = PreparationIdentityInputSchema.parse(input);
   return canonicalDigest({ schemaVersion: 3, ...preimage });
+}
+
+function destinationOutputPaths(
+  map: V3DecomposeCutMap,
+  plan: ValidatedDecomposePlan,
+): V3DecomposePreparationFacts["destinationOutputPaths"] | null {
+  const owners = new Map<string, Set<string>>();
+  for (const mutation of plan.mutations) {
+    if (mutation.kind !== "composed") continue;
+    for (const contributor of mutation.contributors) {
+      if (contributor.kind !== "content" || contributor.destinationKind === "cohort-coordination") continue;
+      const paths = owners.get(contributor.destinationId) ?? new Set<string>();
+      paths.add(mutation.path);
+      owners.set(contributor.destinationId, paths);
+    }
+  }
+  const expected = map.authoring.destinations.filter(
+    (destination) => destination.kind !== "cohort-coordination",
+  );
+  const projected = expected.map(({ destinationId }) => ({
+    destinationId,
+    paths: sortByCanonicalBytes([...(owners.get(destinationId) ?? [])]),
+  }));
+  return projected.some(({ paths }) => paths.length === 0)
+    || owners.size !== expected.length
+    ? null
+    : projected;
 }
 
 /** Decode one canonical topology fact set. */
@@ -459,26 +492,28 @@ export function createV3DecomposePreparation(
   input: CreateV3DecomposePreparationInput,
 ): CreateV3DecomposePreparationResult {
   const map = parseV3DecomposeCutMap(input.completedMap);
-  const topologyFacts = parseV3TopologyFacts(input.candidateAuthority.topology.facts);
+  const topologyFacts = parseV3TopologyFacts(input.plan.candidateAuthority.topology.facts);
   const sourceArtifactDigest = v3SourceArtifactDigest(input.sourceArtifactInventory);
   if (map === null || topologyFacts === null || sourceArtifactDigest === null) {
     return { status: "rejected", reason: "invalid-preparation-operand" };
   }
   if (!candidateOwnershipIsBound(input.candidateOwnership)
-    || !candidateAuthorityIsBound(map, input.candidateAuthority)) {
+    || !candidateAuthorityIsBound(map, input.plan.candidateAuthority)) {
     return { status: "rejected", reason: "invalid-preparation-binding" };
   }
   const allowedPathsDigest = v3AllowedPathsDigest(input.plan.allowedPaths);
   const topologyDigest = v3TopologyDigest(topologyFacts);
+  const outputPaths = destinationOutputPaths(map, input.plan);
   const cutMapDigest = v3CutMapDigest(map);
   const expectedPlanId = v3PlanId({
     preflightId: map.machine.preflightId,
     cutMapDigest,
     allowedPathsDigest: input.plan.allowedPathsDigest,
-    candidatePublication: input.candidateAuthority.candidatePublication,
+    candidatePublication: input.plan.candidateAuthority.candidatePublication,
     topologyDigest,
   });
   if (allowedPathsDigest === null
+    || outputPaths === null
     || allowedPathsDigest !== input.plan.allowedPathsDigest
     || input.plan.planId !== expectedPlanId
     || input.plan.cutMapDigest !== cutMapDigest
@@ -515,8 +550,9 @@ export function createV3DecomposePreparation(
     allowedPaths: input.plan.allowedPaths,
     allowedPathsDigest: input.plan.allowedPathsDigest,
     candidateOwnership: input.candidateOwnership,
-    candidatePublication: input.candidateAuthority.candidatePublication,
+    candidatePublication: input.plan.candidateAuthority.candidatePublication,
     topology: { facts: topologyFacts, digest: topologyDigest },
+    destinationOutputPaths: outputPaths,
     prospectiveProjection,
   };
   const preparationId = v3PreparationId({
@@ -532,6 +568,7 @@ export function createV3DecomposePreparation(
     candidateOwnership: facts.candidateOwnership,
     candidatePublication: facts.candidatePublication,
     topologyDigest,
+    destinationOutputPaths: facts.destinationOutputPaths,
     prospectiveProjection,
   });
   return {
@@ -579,7 +616,18 @@ export function parseV3DecomposePreparation(input: unknown): V3DecomposePreparat
     || record.receiptId !== v3ReceiptId(map.machine)
     || !facts.allowedPaths.includes(v3DecomposeReceiptPath(record.receiptId))) return null;
   const topologyFacts = parseV3TopologyFacts(facts.topology.facts);
+  const expectedDestinationIds = map.authoring.destinations
+    .filter((destination) => destination.kind !== "cohort-coordination")
+    .map(({ destinationId }) => destinationId);
+  const outputPathsValid = ordered(facts.destinationOutputPaths.map(({ destinationId }) => destinationId))
+    && canonicalize(facts.destinationOutputPaths.map(({ destinationId }) => destinationId))
+      === canonicalize(expectedDestinationIds)
+    && facts.destinationOutputPaths.every(({ paths }) =>
+      ordered(paths)
+      && paths.every((path) =>
+        path !== v3DecomposeReceiptPath(record.receiptId) && facts.allowedPaths.includes(path)));
   if (topologyFacts === null
+    || !outputPathsValid
     || !candidateOwnershipIsBound(facts.candidateOwnership)
     || !candidateAuthorityIsBound(map, {
       candidatePublication: facts.candidatePublication,
@@ -611,6 +659,7 @@ export function parseV3DecomposePreparation(input: unknown): V3DecomposePreparat
     candidateOwnership: facts.candidateOwnership,
     candidatePublication: facts.candidatePublication,
     topologyDigest,
+    destinationOutputPaths: facts.destinationOutputPaths,
     prospectiveProjection: facts.prospectiveProjection,
   });
   return record.preparationId === expected ? record : null;

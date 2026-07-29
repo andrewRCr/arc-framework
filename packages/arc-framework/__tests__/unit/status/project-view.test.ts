@@ -10,6 +10,7 @@ import {
   composeProjectReadinessViewResult,
   depsOnlyReadinessProvider,
   mergeProjectReadinessRecords,
+  resolveProjectReadinessComposition,
   resolveProjectReadinessViewInput,
   type ProjectReadinessProvider,
   type ProjectReadinessRecordCandidate,
@@ -173,6 +174,75 @@ describe("composeProjectReadinessView", () => {
 
     expect(view).toContain("kept");
     expect(view).not.toContain("vanished");
+  });
+
+  it("retains an unreadable project record as typed composition evidence", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const activeDir = join(root, ".arc", "active");
+    await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
+    await symlink(join(activeDir, "already-gone.md"), join(activeDir, "meta-vanished.md"), "file");
+
+    const composition = await resolveProjectReadinessComposition({ cwd: root });
+
+    expect(composition.rejectedRecords).toEqual([{
+      slugHint: "vanished",
+      path: join(activeDir, "meta-vanished.md"),
+      locus: "read",
+      reason: "unreadable",
+    }]);
+  });
+
+  it("retains duplicate accepted candidates before ordinary view merging", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const activePath = join(root, ".arc", "active", "meta-duplicate.md");
+    const plannedPath = join(root, ".arc", "backlog", "planned", "duplicate", "meta-duplicate.md");
+    await writeMeta(activePath, meta("duplicate", "Active"));
+    await writeMeta(plannedPath, meta("duplicate", "Planning"));
+
+    const composition = await resolveProjectReadinessComposition({ cwd: root });
+
+    expect(composition.acceptedCandidates.map(({ slug, path, lifecycleLocation }) => ({
+      slug,
+      path,
+      lifecycleLocation,
+    }))).toEqual([
+      { slug: "duplicate", path: activePath, lifecycleLocation: "active" },
+      { slug: "duplicate", path: plannedPath, lifecycleLocation: "planned" },
+    ]);
+    expect(composition.records).toHaveLength(1);
+  });
+
+  it("retains malformed and unsupported-lifecycle records before view reduction", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const plannedDir = join(root, ".arc", "backlog", "planned");
+    const malformedPath = join(plannedDir, "malformed", "meta-malformed.md");
+    const unsupportedPath = join(plannedDir, "paused", "meta-paused.md");
+    await writeMeta(
+      malformedPath,
+      meta("malformed", "Planning").replace(
+        "| `Planning` | `andrew` | [none] | `Heavy` | `P3` |",
+        "| `Planning` | `andrew` |",
+      ),
+    );
+    await writeMeta(unsupportedPath, meta("paused", "Paused"));
+
+    const composition = await resolveProjectReadinessComposition({ cwd: root });
+
+    expect(composition.rejectedRecords).toEqual([
+      {
+        slugHint: "malformed",
+        path: malformedPath,
+        locus: "meta",
+        reason: "malformed",
+      },
+      {
+        slugHint: "paused",
+        path: unsupportedPath,
+        locus: "State",
+        reason: "unsupported-lifecycle",
+      },
+    ]);
+    expect(composition.view.records).toEqual([]);
   });
 
   it("renders from injected records without reading the filesystem", () => {
@@ -578,6 +648,34 @@ describe("composeProjectReadinessView", () => {
     expect(result.markdown).not.toContain("## Warnings");
     expect(result.markdown).not.toContain("unrecognized State");
     expect(result.markdown).not.toContain("bad-state |");
+  });
+
+  it("retains an unsupported at-ref lifecycle candidate as rejected evidence", async () => {
+    const exec = makeInFlightExec({
+      worktrees: [{ path: "/repo", branch: "feat/bad-state" }],
+      metas: {
+        "feat/bad-state:.arc/active/meta-bad-state.md": oracleMeta({
+          branch: "feat/bad-state",
+          state: "Paused",
+        }),
+      },
+    });
+
+    const composition = await resolveProjectReadinessComposition({
+      cwd: "/repo",
+      fs: { readdir: async () => [], readFile: async () => "" },
+      localRefs: { exec, baseBranch: "main" },
+    });
+
+    expect(composition.acceptedCandidates).toEqual([]);
+    expect(composition.rejectedRecords).toEqual([
+      expect.objectContaining({
+        slugHint: "bad-state",
+        path: "feat/bad-state:.arc/active/meta-bad-state.md",
+        locus: "state-unrecognized",
+        reason: "unsupported-lifecycle",
+      }),
+    ]);
   });
 
   it("marks the resolver input indeterminate when local refs move mid-derivation", async () => {

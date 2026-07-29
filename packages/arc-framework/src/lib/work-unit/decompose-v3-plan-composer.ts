@@ -7,7 +7,11 @@ import {
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
-import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  renderMetaFile,
+  type MetaRenderOverrides,
+} from "../active/meta-reader.js";
 import type { V3DecomposeCutMap, V3DecomposeMachine } from "./decompose-v3-schema.js";
 import {
   buildValidatedDecomposePlan,
@@ -16,7 +20,8 @@ import {
   type V3PlanPathClaim,
 } from "./decompose-v3-plan.js";
 import type { V3CandidatePublication } from "./decompose-v3-preparation.js";
-import type { V3TopologyAction } from "./decompose-v3-topology.js";
+import { v3TopologyDigest, type V3TopologyFact } from "./decompose-v3-preparation.js";
+import type { V3TopologyAction, V3TopologyTreeState } from "./decompose-v3-topology.js";
 
 export type V3PlannedByteState =
   | { kind: "absent" }
@@ -118,6 +123,7 @@ export type V3PlanCompositionRefusalCode =
   | "dependency-projection-mismatch"
   | "receipt-marker-missing"
   | "receipt-marker-forbidden"
+  | "profile-meta-mismatch"
   | "managed-path-set-mismatch"
   | "unsupported-path-state"
   | "incompatible-base-prestate"
@@ -158,6 +164,16 @@ function state(
   };
 }
 
+function topologyPreparationState(
+  value: V3TopologyTreeState,
+): Exclude<V3TopologyFact, { kind: "none" }>["before"] {
+  if (value.kind === "absent") return value;
+  if (value.objectKind !== "blob" || (value.mode !== "100644" && value.mode !== "100755")) {
+    throw new Error("unsupported-topology-state");
+  }
+  return { kind: "file", mode: value.mode, contentDigest: digestBytes(value.bytes) };
+}
+
 function expectedArtifactRoles(
   profile: V3DecomposeMachine["planningProfile"],
 ): V3ContentArtifactRole[] {
@@ -182,6 +198,41 @@ function contentIdentity(contribution: V3PlannedContentContribution): string {
     return projection === undefined ? "" : canonicalDigest(projection);
   }
   return contribution.artifactRole;
+}
+
+function artifactBasename(path: string): string {
+  return path.split("/").at(-1) ?? "";
+}
+
+function validNewMemberProfileMeta(
+  input: V3PlanCompositionInput,
+  destinationId: string,
+): boolean {
+  const contributions = input.content.filter((entry) =>
+    entry.destinationId === destinationId && entry.destinationKind === "new-member");
+  const meta = contributions.filter(({ artifactRole }) => artifactRole === "meta");
+  if (meta.length !== 1 || meta[0]?.after.kind !== "object"
+    || meta[0].after.objectKind !== "blob") return false;
+  let record;
+  try {
+    record = parseMetaRecord(decoder.decode(meta[0].after.bytes));
+  } catch {
+    return false;
+  }
+  const roles = expectedArtifactRoles(input.planningProfile).filter((role) => role !== "meta");
+  const design = roles.map((role) => {
+    const paths = [...new Set(
+      contributions.filter((entry) => entry.artifactRole === role).map(({ path }) => path),
+    )];
+    return paths.length === 1 ? artifactBasename(paths[0] ?? "") : "";
+  });
+  const workflow = input.planningProfile.kind === "draft" ? "draft-design" : "generate-tasks";
+  return design.every((path) => path !== "")
+    && canonicalDigest(record.design) === canonicalDigest(design)
+    && record.state === "Planning"
+    && record.taskList === null
+    && record.currentWorkflow === workflow
+    && record.nextAction === `Begin ${workflow}`;
 }
 
 function destinationRoleIsApplicable(contribution: V3PlannedContentContribution): boolean {
@@ -396,6 +447,18 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       }
     }
   }
+  for (const destination of input.destinations) {
+    if (destination.kind === "new-member"
+      && !validNewMemberProfileMeta(input, destination.destinationId)) {
+      return {
+        status: "refused",
+        refusal: {
+          code: "profile-meta-mismatch",
+          destinationId: destination.destinationId,
+        },
+      };
+    }
+  }
   for (const dependency of input.dependencies) {
     if (!isCanonicalDigest(dependency.edgeId)
       || dependency.dependent.trim() === ""
@@ -421,6 +484,7 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       base: state(action.before, blobs),
       contributor: {
         kind: "topology",
+        action: action.kind,
         contributorIdentity: `${action.kind}:${action.path}`,
         before: state(action.before, blobs),
         after: state(action.after, blobs),
@@ -486,13 +550,39 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
     return { status: "refused", refusal: { code: "managed-path-set-mismatch" } };
   }
 
+  let topologyFacts: V3TopologyFact[];
+  try {
+    topologyFacts = input.topology.map((action): V3TopologyFact => action.kind === "none"
+      ? action
+      : {
+          kind: action.kind,
+          path: action.path,
+          before: topologyPreparationState(action.before),
+          after: topologyPreparationState(action.after),
+        });
+  } catch {
+    return { status: "refused", refusal: { code: "unsupported-path-state" } };
+  }
+  let observedTopologyDigest: CanonicalDigest;
+  try {
+    observedTopologyDigest = v3TopologyDigest(topologyFacts);
+  } catch {
+    return { status: "refused", refusal: { code: "invalid-plan-operand" } };
+  }
+  if (observedTopologyDigest !== input.topologyDigest) {
+    return { status: "refused", refusal: { code: "invalid-plan-operand" } };
+  }
+
   const result = buildValidatedDecomposePlan({
     preflightId: input.preflightId,
     cutMapDigest: input.cutMapDigest,
     sourceHead: input.sourceHead,
     expectedBaseHead: input.expectedBaseHead,
     candidatePublication: input.candidatePublication,
-    topologyDigest: input.topologyDigest,
+    topology: {
+      facts: topologyFacts,
+      digest: input.topologyDigest,
+    },
     origin: input.origin,
     sourceBranch: input.sourceBranch,
     claims,
