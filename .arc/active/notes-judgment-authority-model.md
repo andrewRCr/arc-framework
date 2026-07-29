@@ -1101,3 +1101,259 @@ strategy document's marker-bearing text differs from what the pre-merge tree car
 recipe reading in § The corpus, re-derived, which improved rather than drifted.
 
 ---
+
+## Corpus-wide classification sweep — the workflow region (Task 4.3)
+
+Every workflow document read for imperatives the default-unless-marked reading reclassifies. **855 imperatives across
+36 documents: 220 take a marker, 635 stand as accepted reclassifications.** Six documents carry no marker candidate at
+all (`probe-envelope`, `prepare-commits`, `add-agent`, `promote-work-unit`, `02_define-project`,
+`03_configure-external-integration`).
+
+The region is the largest by every measure — 36 documents, 8,830 lines, 855 imperatives against the strategies' 176
+and the methods' 115 — and it reclassifies **74%**, statistically indistinguishable from the strategies' 71% and far
+above the methods' 55%. **The reclassification rate is not what varies across regions; the density of gate sites is.**
+Workflows are mostly craft, dispatch tables, and rendering templates (accepting reasons 3, 4, and 5 dominate exactly
+as they did in the strategies), punctuated by concentrated invariant clusters wherever a workflow touches a merge, an
+approval, a published record, or the operator's own permission machinery.
+
+### The corpus, re-derived
+
+36 documents, excluding the `workflows/project/README.md` directory index on Task 4.1's precedent. **Both premises
+Task 4.3 inherited needed correction**, and comparing copies rather than trusting filenames is what corrected them:
+
+- **31 byte-identical pairs.** Classify from either copy; a marker syncs.
+- **2 divergent pairs**, both template-paired: `initial-setup/02_define-project` and
+  `session-lifecycle/session-init`. Both diverge **only** in `<!-- arc:if -->` conditional-render markup and the
+  non-`arc-in-git` arms the instance does not render, so the shipped copy is a strict **superset**. Task 4.2's
+  `STRATEGY-INDEX` problem — where each copy carried marker-bearing text the other lacked — does **not** recur.
+  Classifying from the shipped copy settles both.
+- **1 shipped-only** — `initial-setup/03_configure-external-integration.md`. Still exactly one, as the task entry
+  predicted, but a different kind of one: it is **conditional-install** under `pm.mode == external`, not orphaned.
+
+**The `.template.md` suffix predicts nothing.** Five documents carry it; three of those five (`generate-tasks`,
+`process-task-loop`, `session-handoff`) are byte-identical to their rendered instance, while the two that diverge do
+so only in conditional markup. Task 4.1's rule — re-derive the relationship by comparing, never by filename — held,
+and the expected "five template-paired files need their own edit" complication did not materialize as a
+classification problem. It remains an **edit-application** problem: a marker still has to be written into both copies.
+
+**Recipe drift: 8 of 36 — the worst-drifted region by a wide margin.** `setup-release-wrapper`, `deactivate-`,
+`decompose-`, `park-`, `promote-`, `reopen-`, `resume-work-unit`, and `in-flight-scope-check` ship but appear nowhere
+in `init-recipe.json`, so no project installs them. Methods drifted 3 of 25; strategies 0 of 13. Seven of the eight
+are the work-unit lifecycle's own transition workflows — meaning a project that installs ARC receives `activate`,
+`archive`, `integrate`, and `init` but not `park`, `resume`, `promote`, `reopen`, or `deactivate`.
+
+### Basis codes
+
+Tasks 4.1–4.2's codes carry forward. `A`, `C`, `E`, `G`, `H`, `I`, `J`, `K`, `L`, `M`, `N`, `O`, `P` all fire; `B`,
+`D`, and `F` fire rarely (three sites each). One family is new, and one existing family needs rewording:
+
+| Code | Family (new in this region)                                                  |
+| ---- | ---------------------------------------------------------------------------- |
+| Q    | Content that will govern future agent behavior is read before it is wired in |
+
+`Q`'s sole instance is `integrate-external-content` L23 ("For external files, read the content first"). Nothing
+discharges it except compliance: wiring unread text into a method, extension, or strategy installs instructions the
+agent will later obey without any party having seen them. No existing family reaches it — `C` concerns attesting
+one's own result; `Q` concerns admitting someone else's.
+
+**Family `O` is worded too narrowly.** Two independent readers reached for a _new_ family to cover "follow the
+driver's typed `state` / `nextAction`, never reconstruct it from workflow prose" (`integrate-work-unit` L104,
+`run-errand` L137, `session-recover` L30, `session-handoff` L613). `O` currently reads "a **judgment** value is its
+owner's to supply" — these are machine-owned _state_ values. Two independent reaches for a new family is evidence the
+boundary is wrong. Task 4.5 should broaden `O` to "a value is its owner's to supply — whether that owner is a person
+or a typed producer — and the agent substitutes neither an estimate nor a paraphrase," rather than mint a family.
+
+Accepting reasons are unchanged from Task 4.1 (1–6).
+
+### The interlock-block collapse
+
+Two blocks recur near-verbatim across the region and are counted **once**, not per document:
+
+- The `commit-interlock` / `push-interlock` / `integration-interlock` / `workflow-interlock` CAUTION blocks appear in
+  11 documents. They are _fire sites_ for rules stated in `DEV-RULES.ARC` (§ Task interlock and § Merge authority,
+  both marked; § Review-Increment Invariant, unmarked). Every per-document instance is accepting reason 6.
+- The `#pre-push-review` extension block appears verbatim in 6 documents — one `P` rule.
+
+Without this collapse the region's marker count roughly doubles. It was the single largest source of over-counting,
+and two independent readers flagged it unprompted.
+
+### Per-document sweep
+
+| Document                          | M  | A  | Marker character (families)                                                  |
+| --------------------------------- | -- | -- | ---------------------------------------------------------------------------- |
+| `integrate-work-unit`             | 25 | 21 | A, C, E, M, N, I, B, O — the densest document in the entire corpus           |
+| `session-init`                    | 20 | 71 | A, C, E, G, O, J, N, D, F, I                                                 |
+| `generate-tasks`                  | 16 | 35 | A, C, E, G, H, I, J, L, M                                                    |
+| `drain-inbox`                     | 13 | 29 | A, E, G, I, L, N, O                                                          |
+| `create-spec`                     | 13 | 28 | A, C, E, G, H, L, M                                                          |
+| `setup-release-wrapper`           | 12 | 24 | C, E, G, I, K, M, N, O                                                       |
+| `session-handoff`                 | 11 | 50 | A, C, G, I, L, M, N, O, P                                                    |
+| `session-recover`                 | 10 | 13 | A, C, D, F, O, P                                                             |
+| `setup-arc-clearance`             | 10 | 4  | A, C, E, I, J, M, N — highest marker density per line                        |
+| `run-errand`                      | 9  | 42 | A, C, E, F, G, H, I, N                                                       |
+| `setup-merge-gate`                | 9  | 10 | A, C, E, I, J, M, N, O                                                       |
+| `draft-design`                    | 9  | 24 | A, C, E, G, H, I, K, L, O                                                    |
+| `init-work-unit`                  | 8  | 27 | C, D, G, H, I, L, O                                                          |
+| `01_verify-and-configure`         | 8  | 20 | C, E, G, N, O                                                                |
+| `verify-work-unit`                | 7  | 7  | A, B, C, G, K, L, M                                                          |
+| `verify-arc-integrity`            | 5  | 5  | A, C, E, F, G, O                                                             |
+| `integrate-external-content`      | 5  | 10 | A, C, E, G, M, P, **Q**                                                      |
+| `process-task-loop`               | 4  | 14 | A, E, G, K                                                                   |
+| `decompose-work-unit` _(interim)_ | 4  | 5  | A, C, E, I, M, O                                                             |
+| `activate-work-unit`              | 3  | 13 | I, K, O                                                                      |
+| `deactivate-work-unit`            | 3  | 16 | E, G, I, N                                                                   |
+| `resume-work-unit`                | 3  | 16 | C, E, G, N                                                                   |
+| `archive-work-unit`               | 2  | 9  | A, C, K                                                                      |
+| `clean-work-unit`                 | 2  | 15 | C, K                                                                         |
+| `park-work-unit`                  | 2  | 14 | C, G, O                                                                      |
+| `reopen-work-unit`                | 2  | 9  | C, I                                                                         |
+| `in-flight-scope-check`           | 2  | 6  | A, G                                                                         |
+| `maintain-project-docs`           | 1  | 13 | C, M                                                                         |
+| `session-loop`                    | 1  | 6  | C                                                                            |
+| `session-init.contributor`        | 1  | 11 | A                                                                            |
+| `probe-envelope`                  | 0  | 12 | — restates session-init's rules; see finding 6                               |
+| `prepare-commits`                 | 0  | 14 | — see finding 5                                                              |
+| `add-agent`                       | 0  | 6  | —                                                                            |
+| `promote-work-unit`               | 0  | 11 | — nothing is realized at this rung, so the ratchet is `classify-work-unit`'s |
+| `02_define-project`               | 0  | 15 | — user-directed prompts and template pointers                                |
+| `03_configure-external`           | 0  | 10 | — same                                                                       |
+
+### Where the region's markers sit — and the correction to family `K`
+
+Most of the 220 collapse onto families with parents established in Tasks 4.1–4.2. What is new:
+
+**One new unmarked constitutional parent: `DEV-RULES.ARC` § Review-Increment Invariant.** A section whose _heading_
+asserts invariance, carrying no marker, while its narrower task-scoped instance (§ Task interlock) **is** marked. It
+is the parent of the region's most-restated rule — approval precedes commit — and is directly cited by
+`integrate-work-unit` L241, `run-errand` L74, and `process-task-loop` L286. This is the same pathology as
+§ Discovered Work Routing's "The core invariant" (Task 4.1 finding 3) and § Scaled Process, Invariant Discipline, and
+it joins them plus § Commit Discipline — Rebase scope (Task 4.2). **Five unmarked parents, and every one of them
+names its own invariance in prose.**
+
+**Family `K` is two families, and the second has no parent anywhere.** Tasks 4.1 and 4.2 both recorded `K` as one
+family parented at `strategy-work-organization` § Class Model. It is two:
+
+- **`K1` — the realized-demand ratchet.** `Class` never drops below a realized design-authoring floor. Parent:
+  `strategy-work-organization` § Class Model. Instances: `classify-work-unit`, `resolve-planning-depth`,
+  `activate-work-unit` L88, `init-work-unit` L203, `draft-design` L63, `create-spec` L53.
+- **`K2` — pre-commitment text is not rewritten to match the outcome.** **No parent in any region.** Seven instances
+  across all three swept regions: `verify-work-unit` L40 (criterion text), `process-task-loop` L72 (`_Goal:_`),
+  `clean-work-unit` L54 ("task lines are historical records — NEVER modify"), `draft-design` L162 (consolidation
+  "must not silently drop substance"), `archive-work-unit` L128 (post-`Shipped` Release Notes are errata only),
+  `strategy-adr-methodology` (accepted Decision / Context / original Consequences), `strategy-task-list-formatting`
+  L369. It is the largest unparented family the sweep has produced, and the recommended remedy is a constitutional
+  statement rather than seven markers.
+
+**The region-local set** — sites whose rule exists nowhere else in the corpus:
+
+1. `integrate-external-content` L23 — external content read before it is wired in (`Q`).
+2. `create-spec` L151 + L168 — **"Not 'checked, passes' — 'checked against the _Configurability_ principle —
+   passes'"** (`C`). The disclosure _form_ of the discharge protocol, stated nowhere else.
+3. `create-spec` L251 — "This approval means the spec is correct; it does **not** authorize the irreversible finalize
+   actions" (`E`). A scope-of-authorization rule with no parent.
+4. `draft-design` L131 — "the agent does not produce a finished design for sign-off" (`I`).
+5. `session-recover` L16 — run the audit "**even if your remaining context feels sufficient**" (`C`).
+6. `maintain-project-docs` L92 — "Have AI read both sections and confirm no ambiguity" (`M`).
+7. `setup-merge-gate` L136 — verify a mode-only change classifies `reviewed` and is **not** armed (`M`).
+8. `setup-release-wrapper` L162 — "The invocation must NOT be a nested CLI subprocess" (`M`).
+9. `setup-release-wrapper` L363 + L198 — "Agents do not write the marker file directly" (`C`/`K`).
+10. `setup-arc-clearance` L52 + L73 — the working tree is the agent's own output, and a person's statement that they
+    configured it is not the check (`C`).
+11. `run-errand` L246 — "Never infer the exemption from absent or malformed WU state" (`A`).
+12. `verify-work-unit` L40 + `process-task-loop` L72 — the `K2` gate sites (see § The criterion question below).
+
+**Revised Task 4.5.a footprint.** Task 4.2 proposed eighteen with one item pending. After this region: **six unmarked
+parents + five surviving method-region-local + eight strategy-region-local + twelve workflow-region-local =
+thirty-one**, plus a recommended constitutional statement for `K2`. Eight of the twelve workflow-region-local sites
+sit in documents that install nowhere.
+
+### The criterion question — Task 4.2's pending item #6, resolved
+
+Task 4.2 held its marker #6 (`strategy-task-list-formatting` § Success Criteria — "criterion text is immutable")
+pending Task 4.3's read of `process-task-loop`, on the theory that the sibling "`_Goal:_` is preserved verbatim" rule
+might move the marker into the workflow region.
+
+**The corpus carries three instances of the rule, not two, and the answer is neither option.** The strategy states it
+mid-paragraph in an _authoring-time_ formatting section; `verify-work-unit` L40 states it as its own bolded paragraph
+in Step 2, immediately before the marking act; `process-task-loop` L72 states the `_Goal:_` sibling at the `[x]` step.
+
+**The marker lands at the two workflow gate sites.** The corpus's own placement doctrine decides it —
+`strategy-knowledge-evolution` Principle 1 (`P`, Task 4.2's region-local marker #8): a hard constraint is
+always-loaded or placed at the gate site firing its operation, never mid-document on-demand. The operation this rule
+gates is the marking act. `STRATEGY-INDEX` fires `strategy-task-list-formatting` "when creating or restructuring task
+lists" — a verifying session never loads it, so a marker there is unreachable at the moment it binds. The strategy
+keeps the statement as authoring context; it is the restatement, and the workflow sites are the parents. Both sites
+are then instances of `K2` above, which is why the recommended remedy is a constitutional statement covering all
+seven rather than a marker at each.
+
+### Findings
+
+**1. The reclassification rate is stable across regions; gate density is what varies.** Methods 55%, strategies 71%,
+workflows 74%. Task 4.1's finding 1 predicted the discriminator's reach would widen with density and Task 4.2 found
+the opposite; this region settles it. Procedural volume does not raise the invariant rate — workflows are
+overwhelmingly craft, dispatch tables, and rendering templates (reasons 3/4/5 dominate, as in the strategies). What
+the workflow region contributes is not a higher _proportion_ of invariants but four times the raw _count_, because it
+is where the corpus's gate sites physically live. The practical consequence for Task 4.5: the marker footprint tracks
+gate sites, not document count or line count.
+
+**2. Every unmarked constitutional parent names its own invariance in prose.** § Review-Increment Invariant (new
+here), § Scaled Process, Invariant Discipline, § Discovered Work Routing's "The core invariant", § Commit Discipline —
+Rebase scope, and `AGENT-BRIEF.ARC` § Review authority. Four of the five put the word _invariant_ in a heading or in
+bold and then carry no marker, while narrower instances beside them (§ Task interlock, § Merge authority, the amend
+clause) are marked. A reader learning the notation from the marked sites would conclude these five are defaults. This
+is now the sweep's most-repeated structural result and it is a Phase 3 / Phase 5 obligation, not a Task 4.5.a one.
+
+**3. The corpus states the sweep's own discriminator about itself, twice, from opposite directions.**
+`archive-work-unit` L128 marks post-`Shipped` Release Notes edits errata-only and adds "**No mechanical enforcement;
+convention only**" — a rule that knows it backs nothing and is backed by nothing. `session-handoff` L297 requires the
+handoff anchor be taken from the probe's `head.value.hash`, and SESSION-NOTES is gitignored, so no check can ever
+catch a wrong one. Task 4.1's finding 6 (_a rule backed by a mechanical check is safely a default; a rule that backs a
+check is an invariant_) has now been confirmed independently in all three regions, and this region adds the
+degenerate case the earlier two did not produce: rules that are neither backed by nor backing a check, where the
+classification rests entirely on whose fact discharges it.
+
+**4. Family `M` lives outside testing, and its clearest instances are in setup workflows.** Task 4.1 found `M` only
+in `testing-standards`; Task 4.2 found it nowhere. This region has six instances, and three are pure: `setup-merge-gate`
+L136 requires verifying that a mode-only change classifies `reviewed` and is **not** armed — _the negative test that
+proves the gate can fail_; `setup-release-wrapper` L162 forbids running the verification as a nested CLI subprocess,
+because a nested invocation cannot observe the permission boundary the test exists to exercise;
+`maintain-project-docs` L92 instructs "Have AI read both sections and confirm no ambiguity" — a verification whose
+witness is the agent being tested. The last is a defect in the document, not merely a marker site.
+
+**5. `prepare-commits` commits with no class tag, and the reason is an unresolved classification.** It contains zero
+occurrences of `interlock`, `approval`, `approve`, `await`, or `permission`, and neither does the `arc-commit` skill
+that owns it; it stages and commits at § 6. This is **not** a family-`P` violation — § Review-Increment Invariant is
+always-loaded, and Principle 1 is satisfied by "always-loaded **or** at the gate site." What is true is that this is
+the only committing workflow in the region whose commit step carries no class tag, so per § Workflow class-tag
+routing it silently defaults to raw `git` and never reaches the release wrapper. Whether that is correct turns on a
+question the document does not answer: is the complex-commit path **workflow-emitted** (like its eleven siblings) or
+**off-workflow** (§ Release-wrapper invocation: "anything not emitted by a workflow — use raw `git`")? It is literally
+a workflow, invoked by a skill, committing work that spans sessions — yet its untagged step behaves as off-workflow.
+The finding is the unresolved classification at the one site where the two readings diverge mechanically.
+
+**6. A separately-loadable reference carries invariant text with no marker and no parent in view.**
+`session-init/probe-envelope.md` is loaded on demand, by session-init's own instruction, and contains six
+invariant-force sentences ("renders `recommendedPromptText` verbatim", "never auto-removed", "never `-D`", "never
+auto-run"). Each restates a rule owned by `session-init`, so the concentration precedent puts the marker there, not
+here — but an agent that loads only the reference meets the obligation with neither the marker nor its parent in
+view. This is the first instance the sweep has found where the concentration precedent and family `P` pull in
+opposite directions, and Task 4.5 has to choose.
+
+**7. Three live defects surfaced, none of them this work unit's to fix.** Recorded for routing, not action:
+
+- `park-work-unit` L78 links to `decompose-work-unit.md#the-park-exit-block`; that heading does not exist. The CLI
+  transformation removed the section and left the cross-reference. `lint:arc:section-refs` did not catch it.
+- `01_verify-and-configure` gives two different Codex event sets for the same install: Path 1 (L191) says
+  `PostToolUse`; Path 2 (L311) says `PostCompact(manual|auto)`. The shipped recipe
+  (`harness-hooks/codex-cli/hooks.json`) contains `PostToolUse`, so the guided-manual arm instructs a wrong install.
+- `draft-design` L162 files "must not silently drop substance" under a heading reading "Three leans, never hard
+  gates" — the limb and its heading disagree about their own force, which is precisely the ambiguity D1 exists to
+  remove.
+
+**8. `decompose-work-unit` was classified as interim and must be re-run.** Task 4.1 finding 7 flagged it as
+mid-transformation; that is still true — only slices 01–03 of `decompose-transform-integrity` have landed. Its four
+markers are recorded against a 39-line preflight stub whose park-exit choreography is the section finding 7 reports
+as missing. Re-run this document's inventory once the remaining slices land; nothing else in the region is
+mid-transformation.
+
+---

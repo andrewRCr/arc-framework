@@ -789,16 +789,22 @@ document that ships without an instance counterpart still states its rules to ev
   unilaterally rewritten) surfaces a fourth unmarked constitutional parent; the Task 4.5.a footprint is revised from
   eleven to eighteen, one item pending Task 4.3.
 
-### `[ ]` **4.3 Sweep the workflow corpus**
+### `[x]` **4.3 Sweep the workflow corpus**
 
 - _Goal:_ The largest region of the governed corpus is classified on the same terms as the rest.
 
-    - The highest raw imperative density in the corpus; expect the largest finding volume here.
-    - The only region where the shipped and installed sets differ — one workflow ships with no instance
-      counterpart. Sweep the shipped set; re-derive which files are in that position rather than assuming it is
-      still exactly one.
-    - Five workflows are template-paired rather than mirrored. A finding in one of those lands in the shipped
-      template, not only in the instance.
+- _Outcome:_ 36 documents (`project/README.md` excluded on Task 4.1's precedent), 855 imperatives, 220 marker
+  candidates and 635 accepted reclassifications — recorded in `notes-judgment-authority-model.md`. The region
+  reclassifies 74% against the strategies' 71% and the methods' 55%, which settles the open question from Task 4.1's
+  finding 1: the rate is stable and it is **gate density**, not imperative volume, that varies. Both inherited
+  premises needed correction — the `.template.md` suffix predicts nothing (three of five template-paired files are
+  byte-identical to their instance, and the two that diverge do so only in conditional markup, making the shipped
+  copy a strict superset), and the one instance-less workflow is conditional-install rather than orphaned. Recipe
+  drift is worst here: 8 of 36 ship but install nowhere, seven of them the WU lifecycle's own transition workflows.
+  Family `K` splits into `K1` (the realized-demand ratchet, parented) and `K2` (pre-commitment text is not rewritten
+  to match the outcome) — seven instances across all three regions with no parent anywhere, the largest unparented
+  family the sweep has found. One new family `Q`, one wording defect in `O`, one new unmarked constitutional parent
+  (§ Review-Increment Invariant), and the Task 4.5.a footprint is revised from eighteen to thirty-one.
 
 ### `[ ]` **4.4 Sweep the extension corpus**
 
