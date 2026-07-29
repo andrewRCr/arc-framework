@@ -846,7 +846,17 @@ blocks it in the same sentence and reclassifies harmlessly (reason 2); `standard
 would have to trust and cannot be reclassified. Not acted on — D1 is settled — but it is the cleanest single line the
 region produced, and it belongs in the record before Task 4.2 re-derives it.
 
-**7. One rule reaches past its own stated concern.** `assess-cohort-fit`'s "**Never encode order in the slug**"
+**7. The base merge moved one row, and it moved the accepting reason rather than the verdict.** The sweep first ran
+100 commits behind base. Merging brought one change into the method region: `assess-cohort-fit`'s `cohortless` rule
+was rewritten from "select it only when every conserved source has a destination-owned home" — a condition with a
+nameable discharging fact — to a cardinality constraint on the cut-map, "every decomposition with more than one new
+member must select `standalone`, `in-cohort`, or `at-cap`, **regardless of content ownership**." The closing clause
+deletes the discharge on purpose. The verdict is unchanged (`default` either way) but the reason moves from 1 to 4,
+and the row is now recorded against the merged text. Nothing else in the region moved; the strategy region — Task
+4.2's corpus — was untouched by all 100 commits, while `decompose-work-unit.md` lost ~790 lines, so Task 4.3 would
+have swept text that no longer exists had the merge waited.
+
+**8. One rule reaches past its own stated concern.** `assess-cohort-fit`'s "**Never encode order in the slug**"
 justifies itself by opacity ("`model-foundation` is opaque"), but bans ordinals on a slug that is _already_
 self-describing, where the stated concern does not arise. The model classifies it `default` correctly; what it
 surfaced is that the rule is broader than its rationale. No action here — recorded as the kind of result Goal 6
