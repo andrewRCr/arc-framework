@@ -67,7 +67,7 @@ the system.
 
 1. Identify which method in [`system/methods/`][arc-methods] this content replaces
    (e.g., `commit-format`, `self-review`, `session-state`)
-2. Read the method's **contract** — your override should satisfy the same invariant
+2. Read the method's **contract** — the invariant your override must satisfy, unchecked but not optional
 3. Adapt the content to fit the override format:
     - Populate the `## {method-name}.override` section with the new implementation
     - Toggle `override-active: true` in the method's frontmatter

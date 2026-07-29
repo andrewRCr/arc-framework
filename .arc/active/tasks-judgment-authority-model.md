@@ -903,7 +903,7 @@ document that ships without an instance counterpart still states its rules to ev
           what enabling content _is_ remains `orientation-surface-compression`'s derivation, and editing a sibling
           WU's tracked draft from an implementation branch is not this task's to do.
 
-### `[ ]` **4.6 Act on the sweep's non-marker findings**
+### `[x]` **4.6 Act on the sweep's non-marker findings**
 
 - _Goal:_ The sweep's output beyond the marker footprint is resolved rather than recorded and left, with each item
   either acted on here or held by an existing capture.
@@ -972,16 +972,30 @@ document that ships without an instance counterpart still states its rules to ev
           — the parent forbids rewriting a target to match what was built, this guards accidental loss during a
           rewrite. `K2` has six instances, not seven; the three-routes conclusion is unaffected.
 
-    - `[ ]` **4.6.c Reconcile the two configuration surfaces' opposite postures**
-        - `methods/README.md`: "Contracts are advisory: your override should satisfy the same invariant as the
-          default." `extensions/README.md`: core behavior "is **non-negotiable** — this extension adds to it, not
-          replaces it." Two sibling configuration surfaces answer the same question — may a project's
-          configuration replace core behavior? — in opposite directions.
-        - Same concern as this work unit: a rule whose force its own text leaves unsettled. Settle which posture
-          governs, or state why the two mechanisms genuinely differ, rather than reconciling the wording alone.
-        - Both indices are Configurable, so neither the byte-identity test nor the counterpart warning covers the
-          mirror; check it by hand.
-        - Surfaced by Task 4.5.a's re-check of the index-exclusion precedent, not by the sweep proper.
+    - `[x]` **4.6.c Reconcile the two configuration surfaces' opposite postures**
+        - _Outcome:_ **They never conflicted, and neither posture governs the other** — the mechanisms answer
+          different questions. A method override substitutes a _how_ inside a fixed _what_ (the contract), while an
+          extension _adds_ at a declared fire point and implements no contract, so it has nothing to substitute.
+          Substitution-within-a-contract and addition-at-a-point do not overlap. Derivation in
+          `notes-judgment-authority-model.md` § The two configuration surfaces.
+        - The appearance of conflict was a **lossy restatement, and the authoritative source was already right**.
+          `strategy-configurability-architecture` § Mechanism makes two separate claims — the contract is the
+          invariant both default and override **must** satisfy, and (a distinct sentence about enforcement)
+          contracts are not mechanically enforced. `methods/README.md` collapsed them and lost the distinction
+          twice: `must` became `should`, and `advisory` attached to the _contract_ rather than the _enforcement_.
+          Since "advisory" means non-binding in ARC's vocabulary, the compressed sentence asserted the opposite of
+          its own source — the unenforced-equals-optional confusion this work unit exists to remove.
+        - Fixed at both lossy sites, which separate force from enforcement: `methods/README.md`, and
+          `integrate-external-content` L70, which carried the same phrase with the same `should` and is the same
+          concern rather than a rider. `extensions/README.md` needed no edit — accurate, bounded to its own
+          mechanism, and now carrying the family `R` parent Task 4.6.a wrote. Both mirrors verified by hand, as
+          Configurable files require.
+        - **No marker on either fix**, deliberately: both statements sit on the _configurability_ axis, and marking
+          a project-facing obligation `[invariant]` would blur the two axes § Rule Authority spent its budget
+          separating.
+        - Second recorded instance of a high-traffic surface's restatement going lossy in place against its source,
+          after `AGENT-BRIEF.ARC`'s `Review increment` entry. Same silent-degradation shape as Task 4.5.b's
+          enabling-content failure mode; noted, not yet mechanized.
 
     - `[x]` **4.6.d Settle whether a separately-loadable reference carries its parent's markers**
         - _Outcome:_ **Concentration ratified, with the reference pointing at its parent.**

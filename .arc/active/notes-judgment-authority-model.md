@@ -1722,3 +1722,61 @@ loss during a rewrite. Different failure, adjacent shape.
 
 The correction does not weaken Task 4.6.a's conclusion — three routes across six instances is still the argument
 for a parent — but the record should not carry a seventh instance the family does not own.
+
+---
+
+## The two configuration surfaces (Task 4.6.c)
+
+`methods/README.md` said "Contracts are advisory: your override should satisfy the same invariant as the default."
+`extensions/README.md` says core behavior "is **non-negotiable** — this extension adds to it, not replaces it."
+Read together, two sibling configuration surfaces appeared to answer one question — may a project's configuration
+replace core behavior? — in opposite directions.
+
+### They do not conflict; the apparent conflict was manufactured by a lossy restatement
+
+The two mechanisms answer **different** questions.
+
+- A **method** is a pluggable _how_ inside a fixed _what_. The contract states what must be accomplished, the
+  default states how ARC does it, and a project may substitute its own how. What is replaceable is the
+  implementation; the contract is not.
+- An **extension** is an _addition_ at a declared fire point. It implements no contract, so it has nothing to
+  substitute — the workflow's own steps are not its to remove.
+
+Substitution-within-a-contract and addition-at-a-point do not overlap, so neither posture governs the other and
+there was never a question of picking one.
+
+**What produced the appearance of conflict is a lossy compression, and the authoritative source was already
+right.** `strategy-configurability-architecture` § Mechanism makes two separate claims: the contract is "the
+invariant that both the default and any override **must** satisfy," and — as a distinct sentence about
+enforcement, not force — "Contracts are advisory, not mechanically enforced." The README collapsed both into one
+clause and lost the distinction twice over: `must` became `should`, and `advisory` attached itself to the
+_contract_ instead of to the _enforcement_. In ARC's vocabulary "advisory" means non-binding, so the compressed
+sentence reads as "the contract does not bind you" — the exact opposite of the strategy it restates, and precisely
+the unenforced-equals-optional confusion this work unit exists to remove.
+
+### The fix, and a third site
+
+Both lossy sites now separate force from enforcement:
+
+- `methods/README.md` — an override replaces _how_, never _what_; the contract is the invariant both satisfy;
+  nothing mechanically enforces that, "which leaves it unchecked rather than optional."
+- `integrate-external-content` L70 carried the same phrase with the same `should`, and is the same concern rather
+  than a rider, so it took the same correction in the same pass.
+
+`extensions/README.md` is unchanged and needed no edit — its statement is accurate, bounded to its own mechanism,
+and now carries the family `R` parent Task 4.6.a wrote. `adr-005` states the distinction correctly already and is
+an accepted decision record besides.
+
+**No marker on either fix.** Both statements sit on the _configurability_ axis — what a project may set — and
+§ Rule Authority is explicit that this is a different axis from dischargeability and that configurability is never
+itself a discharge. A `[invariant]` marker on a project-facing obligation would blur exactly the two axes the
+register spent its budget separating. Recorded as a deliberate call rather than an omission.
+
+### The pattern this is the second instance of
+
+An always-loaded or high-traffic surface restating a rule from its authoritative source, and the restatement
+going lossy without moving. The first is `AGENT-BRIEF.ARC`'s `Review increment` entry, whose deferred-review
+clause names `on-task-approval` where `process-task-loop` covers `on-task-approval` _and_ `on-workflow`. Both
+degraded in place, silently, with no gate and no symptom — which is the enabling-content failure mode from Task
+4.5.b arriving in a second guise. Two instances is not yet a pattern worth a mechanism, but the shape is now
+recorded twice, and `orientation-surface-compression` inherits the first one.
