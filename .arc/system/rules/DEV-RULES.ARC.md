@@ -211,23 +211,17 @@ changes by task; commit shared documentation (task list updates) last.
 
 ### Task interlock · `[invariant]`
 
-Each checkbox in the task list is one _review increment_ — a bounded unit of autonomous execution
-between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
-this default boundary: the increment closes with a structured approval gate before the agent advances or
-commits, and that gate is the task-interlock — stop after reporting completion, surface verification
-status, and await explicit user approval. Deferred review is a bounded convenience gated by user
-approval, not an autonomy mode.
+The review increment's boundary is a parameter, and **one leaf task is its floor**. The
+[Review-Increment Invariant](#review-increment-invariant) applies at whatever boundary is in force: the
+increment closes with a structured approval gate before the agent advances or commits, and that gate is the
+task-interlock — stop after reporting completion, surface verification status, and await explicit user
+approval. Deferred review is a bounded convenience gated by user approval, not an autonomy mode.
 
-One leaf is the _default_ increment boundary, not the only legal one: when a parent's subtasks are
-tightly coupled — landing as one atomic commit, or individually incoherent mid-sequence — the agent may
-**propose** reviewing the parent as one increment (agent proposes, user approves; one gate, never
-self-invoked). That is correct _scoping_ of the invariant, not an exception — the default stays per-leaf
-and is never silently widened. Signals and procedure: [process-task-loop][process-task-loop] § Deferred
-review.
-
-A work unit's review increments all run under its single owner — cross-person parallelism is multiple work
-units, not multiple developers within one. See [Team Coordination Strategy][team-coordination] for
-cross-person coordination conventions.
+Widening the parameter is the user's call. When a parent's subtasks are tightly coupled — landing as one
+atomic commit, or individually incoherent mid-sequence — the agent may **propose** reviewing the parent as
+one increment (agent proposes, user approves; one gate, never self-invoked). That is correct _scoping_ of the
+invariant, not an exception: the floor never moves on the agent's own authority. Signals and procedure:
+[process-task-loop][process-task-loop] § Deferred review.
 
 **For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
 stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
@@ -572,5 +566,4 @@ Load these documents when you reach the relevant work — not during session ini
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [contributor-briefing]: ../../reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md
-[team-coordination]: ../../reference/strategies/arc/strategy-team-coordination.md
 [session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md

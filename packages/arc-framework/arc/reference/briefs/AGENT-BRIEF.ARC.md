@@ -76,7 +76,7 @@ Precise meanings — assume the technical sense.
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
 - **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
-  commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
+  commit invocation, wrapped or raw. Applies
   universally — task list work, off-task / incidental, workflow stages.
   **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
   or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock

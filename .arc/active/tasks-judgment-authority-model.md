@@ -544,18 +544,29 @@ an orphan.
           ADR (a historical record, not a live pointer) and another work unit's notes companion.
         - **+1 nb** — the heading, less the bullet's list indent.
 
-    - `[ ]` **3.4.e § Task interlock**
-        - Rephrase the leaf binding to a **floor** plus an explicit boundary parameter; the deferred-review
-          signals stay.
-        - Demote the team elaboration to `strategy-team-coordination` (entry re-authored in Task 2.2.e).
+    - `[x]` **3.4.e § Task interlock**
+        - Reparametrized: "each checkbox is one review increment" → the boundary is a **parameter** whose
+          **floor** is one leaf task, with the invariant applying "at whatever boundary is in force". The old
+          text bound the increment to the leaf and then spent a paragraph explaining that it was not really
+          bound — the widening clause read as an exception to the sentence above it. Stating the floor first
+          makes the proposal mechanism ordinary rather than a carve-out.
+        - "The floor never moves on the agent's own authority" replaces "the default stays per-leaf and is never
+          silently widened" — same rule, stated as the authority question § Rule Authority already answers.
+        - Team elaboration demoted. **No write owed:** `strategy-team-coordination` § Ownership already carries
+          it in fuller form — WU-granularity ownership ("a WU's tasks all belong to its one owner") and
+          cross-person parallelism as multiple single-owner WUs, plus the self/foreign asymmetry the rules file
+          never had. Verified before removing.
+        - 18 nb → 13, Δ5 against a modeled 4. The `[team-coordination]` link definition was left orphaned by the
+          demotion and dropped from both copies.
 
-    - `[ ]` **3.4.f `AGENT-BRIEF.ARC` — delete the duplicate leaf-binding**
-        - The `Review increment` entry's "Default boundary: one leaf task" would otherwise disagree with the
-          reparametrized binding in 3.4.e.
-        - The discharge is **deletion, not synchronization** — both surfaces are always-loaded full-read, so
-          removing the copy removes a copy and not the rule, and it retires the synchronization burden
-          permanently.
-        - Both copies.
+    - `[x]` **3.4.f `AGENT-BRIEF.ARC` — delete the duplicate leaf-binding**
+        - "Default boundary: one leaf task" removed from the `Review increment` entry in both copies. Left in
+          place it would have contradicted 3.4.e outright — a `default` where the rules file now states a
+          `floor`, which are different claims about whether the agent may move it.
+        - Deletion rather than synchronization, as specified: both surfaces are always-loaded full-read, so the
+          copy carried no reach the original lacked, and removing it retires the synchronization burden instead
+          of renewing it. The brief's remaining deferred-review clause is untouched — its own drift is
+          `orientation-surface-compression`'s, already routed.
 
 ### `[ ]` **3.5 Authoring tier — compress in place**
 
