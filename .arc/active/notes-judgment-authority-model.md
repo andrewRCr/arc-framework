@@ -1357,3 +1357,130 @@ as missing. Re-run this document's inventory once the remaining slices land; not
 mid-transformation.
 
 ---
+
+## Corpus-wide classification sweep — the extension region (Task 4.4)
+
+Every extension document read for imperatives the default-unless-marked reading reclassifies. **39 imperatives across
+13 documents: 16 take a marker, 23 stand as accepted reclassifications.** One document carries no marker candidate at
+all (`post-context-load`). The region's expected yield was the lowest of the four and its raw counts are — but its
+_rate_ is not, and the two families it produces are both unparented.
+
+### The corpus, re-derived
+
+13 documents, excluding the directory `README.md` index on Task 4.1's precedent — a decision this region turns out to
+contradict, recorded as finding 2 below. 311 lines total, the smallest region by an order of magnitude. The two
+copies stand in two relationships:
+
+- **11 byte-identical mirrors.** Classify from either copy; a marker syncs.
+- **2 divergent pairs** — `post-pr-open` and `pre-merge`. In both, the instance's `.actions` carries a numbered
+  "Future project actions" placeholder where the shipped copy carries `[No extension configured]`, and that
+  placeholder restates the halt-on-fail contract inside an action that never fires (`active: false`). The shipped set
+  is the corpus, so those two lines are **not** counted; the contract blocks above them are identical in both copies
+  and are where every imperative in both documents sits.
+
+**No recipe drift — the first region with none.** All 13 plus the `README.md` are listed in `init-recipe.json`, so
+every marker this region proposes reaches every project. Methods had 3 non-installing documents and workflows 8; the
+extension region has zero, which makes its blast radius and its coverage claim the same set for the first time.
+
+**Every extension in the region is inert.** All 13 carry `active: false`, and 11 carry a literal
+`[No extension configured]`. The region's imperatives are therefore contracts binding _content that does not exist
+yet_ — see finding 1.
+
+### Basis codes
+
+Tasks 4.1–4.3's codes carry forward. `E`, `G`, and `O` fire; `A` fires once, folded into a compound. `B`, `C`, `D`,
+`F`, `H`, `I`, `J`, `K`, `L`, `M`, `N`, `P`, `Q` do not fire anywhere in this region. Two families are new, and both
+are characteristic of the region rather than incidental to it:
+
+| Code | Family (new in this region)                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------ |
+| R    | A configured extension supplements the core procedure; it never replaces it                      |
+| S    | An action sequence halts at its first failure; later actions do not run on an unmet precondition |
+
+Accepting reasons are unchanged from Task 4.1 (1–6).
+
+### Per-document sweep
+
+| Document                       | M | A | Marker candidates (`[invariant]`)                                                                                           | Accepted reclassifications (the default stands)                                                                                            |
+| ------------------------------ | - | - | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `post-context-load`            | 0 | 1 | —                                                                                                                           | use for team documents, external tool state, environment checks (4)                                                                        |
+| `post-pr-open`                 | 2 | 3 | does not infer branch or work-unit state (O); execute in authored order and halt before later actions on failure (S)        | callers supply opaque coordinates, host adapters validate (4); idempotent across create and re-entry (5); platform-neutral cardinality (4) |
+| `post-task-completion`         | 1 | 1 | the core `[x]` marking and description update are non-negotiable — the extension adds to them, never replaces them (R)      | use for tracker updates, notifications, ceremony steps (4)                                                                                 |
+| `post-task-quality`            | 2 | 1 | runs in addition to Tier 1, not instead of it (R); the agent does not mark the task complete if any check fails (gate)      | must return a clear pass/fail signal (4)                                                                                                   |
+| `post-unit-quality`            | 1 | 1 | supplements Tier 2 rather than replacing it (R)                                                                             | must return a clear pass/fail signal (4)                                                                                                   |
+| `post-work-unit-activate`      | 1 | 1 | the built-in absorption write and ROADMAP regen are the only PM artifact updates (R)                                        | when `active: false` the workflow proceeds naturally (4)                                                                                   |
+| `post-work-unit-archive`       | 1 | 1 | the built-in ROADMAP regen is the only PM artifact update (R)                                                               | when `active: false` the workflow proceeds naturally (4)                                                                                   |
+| `pre-activation`               | 1 | 2 | halt-on-fail stops the workflow and awaits user direction, with bypass only on user signal (S, G)                           | fires once per activation (4); use for plan-quality and alignment verification (4)                                                         |
+| `pre-commit-review`            | 1 | 2 | sequential execution with halt-on-fail (S)                                                                                  | the extension-vs-hook layer boundary (4); keep mechanical per-file checks in git hooks (3)                                                 |
+| `pre-merge`                    | 2 | 2 | sequential execution with halt-on-fail (S); no commit or push between the settled checkpoint and merge authorization (E, A) | actions read-only, idempotent, or retry-safe (5); fire after settlement and after any head update (4)                                      |
+| `pre-pr-open`                  | 2 | 3 | does not infer branch or work-unit state (O); execute in authored order and halt before later actions on failure (S)        | callers supply opaque coordinates (4); retry-safe because creation can fail after they run (5); platform-neutral cardinality (4)           |
+| `pre-push-review`              | 1 | 3 | sequential execution with halt-on-fail (S)                                                                                  | `.actions` should stay lightweight at push frequency (3); reserved-for-future, empty by default (4); use for last-mile push checks (4)     |
+| `pre-spec-finalization-review` | 1 | 2 | sequential execution with halt-on-fail (S)                                                                                  | the self-review alone governs until a team activates this (4); the named cadences are precedents, ARC enforces none (5)                    |
+
+### The collapse
+
+The 16 candidates are five rules, not sixteen:
+
+| Rule                                | Instances | Parent                                                                       |
+| ----------------------------------- | --------- | ---------------------------------------------------------------------------- |
+| `S` — halt at first failure         | 7         | **none anywhere in the corpus**                                              |
+| `R` — supplement, never replace     | 5         | `extensions/README.md` L10 — inside the excluded index                       |
+| `O` — does not infer supplied state | 2         | no constitutional parent; a marker sits in the strategy region (Task 4.2 #3) |
+| the gate rule                       | 1         | `DEV-RULES.ARC` § Quality gate failure — **marked**                          |
+| exact-head before merge (`E`, `A`)  | 1         | `DEV-RULES.ARC` § Review-Increment Invariant — unmarked, already in the five |
+
+`S` is the sharper of the two new families. Its only statements outside `extensions/` are **workflow fire-point
+restatements** — `init-work-unit` L330, `run-errand` L126 / L182 / L268 — which Task 4.3 did not flag, so the family
+is the second the sweep has found with instances in more than one region and a parent in none. Unlike `K2`, the
+restatements are not merely textual: each fire point is the site where an agent decides whether to continue past a
+failed action, which is the moment the rule binds.
+
+### Where the region's markers sit
+
+Both new families are region-local, and both resolve to the same place — the `README.md` this sweep excluded:
+
+1. `README.md` L10, "Extensions add behavior to workflows; they do not replace existing steps" — the existing parent
+   for `R`, needing only the marker. Covers all five instances.
+2. `README.md` — no `S` statement exists to mark. The loading-model paragraph is where one belongs, since it already
+   describes how `.actions` execute. Authoring it is a write, not a retrofit.
+
+**Revised Task 4.5.a footprint.** Task 4.3 proposed thirty-one. After this region: **thirty-three** — the same
+thirty-one plus an `R` marker and an authored-then-marked `S` statement, both in `extensions/README.md`. No document
+in the region takes a marker of its own; every instance restates one of the five rules above. Both additions install
+everywhere, unlike eight of Task 4.3's twelve.
+
+### Findings
+
+**1. The region's rules bind content that does not exist.** All 13 extensions are `active: false` with empty
+`.actions`, so every imperative here governs actions an adopter has not yet authored. The classification is unchanged
+by that — a contract that will bind future content is exactly the case `Q` was minted for in Task 4.3, one step
+earlier in the same pipeline — but it makes the region the only one where the marked text and the governed text are
+written by different parties at different times. The practical consequence for Task 4.5.a: a marker here is read at
+_authoring_ time by someone extending ARC, not at execution time by an agent, which is the first audience shift the
+sweep has encountered and is worth stating wherever the notation is documented.
+
+**2. Task 4.1's `README.md` exclusion is a defect, and this region is where it bites.** The precedent was set against
+three directory indices that were pure link lists. `extensions/README.md` is not: it carries the loading model, the
+`active: true` gate semantics, and the region's only constitutional statement — "Extensions add behavior to
+workflows; they do not replace existing steps." Excluding it meant the sweep classified five restatements of a rule
+whose parent it had declined to read. The exclusion did not change any verdict, and the other three indices remain
+correctly excluded; what it changed is where the marker lands. Re-check the strategy and method `README.md` files for
+the same shape before Task 4.5.a treats the precedent as settled.
+
+**3. The reclassification rate does not stabilize.** Methods 55%, strategies 71%, workflows 74%, extensions 59%.
+Task 4.3's finding 1 read the 71/74 pair as evidence of a stable rate with gate density as the only variable; four
+points do not support that. What actually tracks the rate is the proportion of **craft** content (reason 3), which is
+the reason that dominates in strategies and workflows and is nearly absent here — this region produced two instances
+of reason 3 in 23 accepted reclassifications. Contract text is definitional or binding with little in between, so
+its rate sits with the methods. Task 4.5.b's enabling category is the right home for this: definitional-but-load-
+bearing text is precisely what neither `constraint` nor `explanatory` captures, and it is 15 of this region's 23
+accepted rows.
+
+**4. The two divergent pairs restate a contract inside an inert action.** `post-pr-open` and `pre-merge` carry, in the
+instance only, a numbered action whose body repeats the halt-on-fail rule stated four lines above it in the same
+file. It is unreachable (`active: false`), it is not in the shipped copy, and if an adopter ever populated `.actions`
+they would be appending after a placeholder that already claims to be action 1. Not this work unit's to fix and not a
+marker site — recorded because it is the only place in the region where the two copies disagree, and the disagreement
+is one copy carrying text that cannot execute.
+
+---

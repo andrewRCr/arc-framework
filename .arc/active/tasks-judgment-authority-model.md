@@ -806,13 +806,20 @@ document that ships without an instance counterpart still states its rules to ev
   family the sweep has found. One new family `Q`, one wording defect in `O`, one new unmarked constitutional parent
   (§ Review-Increment Invariant), and the Task 4.5.a footprint is revised from eighteen to thirty-one.
 
-### `[ ]` **4.4 Sweep the extension corpus**
+### `[x]` **4.4 Sweep the extension corpus**
 
 - _Goal:_ The region the presumption's own enumeration nearly omitted is swept, so a low expected yield is a
   measured result rather than an assumption.
 
-    - Lowest expected yield of the four — no `never` / `must not` line appears in the region at all.
-    - Absence of those keywords is not absence of imperatives; read for the obligation, not the vocabulary.
+- _Outcome:_ 13 documents (`README.md` excluded on Task 4.1's precedent), 39 imperatives, 16 marker candidates and
+  23 accepted reclassifications — recorded in `notes-judgment-authority-model.md`. The low expected yield holds in
+  raw counts but not in rate: 59% against the workflows' 74%, which breaks Task 4.3's stable-rate reading and
+  identifies craft content, not gate density, as what actually tracks it. The 16 collapse to five rules, and the two
+  new families are both unparented — `S` (halt at first failure, seven instances, restated at four workflow fire
+  points Task 4.3 passed over) and `R` (supplement, never replace, five instances). Both resolve to
+  `extensions/README.md`, which makes Task 4.1's index exclusion a defect: it carries the region's only
+  constitutional statement, not a link list. First region with no recipe drift — all 13 install. Task 4.5.a's
+  footprint is revised from thirty-one to thirty-three.
 
 ### `[ ]` **4.5 Reconcile the marker footprint and record the enabling category**
 
