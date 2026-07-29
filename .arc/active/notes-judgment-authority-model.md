@@ -1583,8 +1583,9 @@ one. The two gate sites (`verify-work-unit`'s criterion text, `process-task-loop
 directly. `clean-work-unit`'s historical-record rule and `archive-work-unit`'s errata-only rule reach it through
 self-attestation — altering the account of realized work attests it. `strategy-adr-methodology`'s accepted
 decision reaches it through the **other** limb, the one reserving decisions that commit someone. `draft-design`'s
-"must not silently drop substance" is the thinnest: what it protects is the developer's contributed substance, so
-it reaches limb two rather than check integrity. Five instances, three routes. A reader re-deriving per site gets
+"must not silently drop substance" was counted here as the thinnest instance and **is not one at all** — see
+§ `draft-design` L162's force disagreement, which resolves it as a default on reason 1. Five instances, three
+routes. A reader re-deriving per site gets
 the right answer each time and pays for it every time; naming the shape once is what the parent buys.
 
 **`S` is reachable at its gate instances and thin at the rest.** Five of the seven — `pre-activation`,
@@ -1680,3 +1681,44 @@ to `composable-workflows` rather than resolved here, since deciding whether it i
 obligation is that work unit's call.
 
 ---
+
+## `draft-design` L162's force disagreement (Task 4.6.b)
+
+"A coherence rewrite must not silently drop substance" sat as the third of three bullets under a heading reading
+"Three leans, never hard gates." The limb reads absolute; the heading says nothing here is. The sweep recorded it
+as a live defect and as a `K2` instance.
+
+### The heading was right, and the marker candidate was wrong
+
+The three bullets are not the same kind — the first two govern **whether and when** to consolidate, the third
+governs **what a consolidation may cost** — and the obvious fix was to split the third out and mark it
+`[invariant]`. That fix is wrong, and the reason is in the rule's own text.
+
+It says "preserves each settled decision and **surviving** detail," and the section's premise is that a long draft
+"accretes superseded sketch beside current design." So removing superseded material is what a consolidation is
+_for_. The discharging fact — this layer was superseded by that one — is recorded by the loop itself ("amend the
+draft as each open decision settles"), which makes it a fact the agent **reads** rather than invents. Under
+§ Rule Authority that is dischargeable, so the rule is a **default**, and the heading's "never hard gates"
+classifies it correctly.
+
+The load-bearing word is _silently_. The failure is substance disappearing unremarked, not substance being
+removed. So the defect was never the heading and never the force — it was that the discharge went unstated, which
+left "must not" reading as absolute and put it in apparent conflict with its own heading. The fix states the
+discharge: drop superseded sketch deliberately and name what went. The title moves from "No detail loss" — which
+over-claims, and is half of what made the limb read absolute — to "No silent detail loss."
+
+**This is an accepted reclassification on reason 1** (the rule names its own discharging fact), reached only after
+the fact was stated. Before the fix the rule did not name it, which is why the sweep read it as a marker
+candidate: at the time, correctly.
+
+### Correction to Task 4.6.a's Criterion 1 record
+
+§ The two unparented families' statements lists this site as `K2`'s thinnest instance, reaching backstop limb two
+because "what it protects is the developer's contributed substance." That is superseded. Disclosure is precisely
+what keeps it out of limb two — a named drop leaves the decision with the developer, so nothing is being decided
+on their behalf. `K2`'s reachability rests on six instances, not seven, and the family's parent does not cover
+this site: the parent forbids rewriting a target **to match what was built**, while this rule guards accidental
+loss during a rewrite. Different failure, adjacent shape.
+
+The correction does not weaken Task 4.6.a's conclusion — three routes across six instances is still the argument
+for a parent — but the record should not carry a seventh instance the family does not own.

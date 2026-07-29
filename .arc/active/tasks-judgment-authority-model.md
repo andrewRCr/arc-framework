@@ -950,12 +950,27 @@ document that ships without an instance counterpart still states its rules to ev
         - Criterion 3 debit recorded, not absorbed: `DEV-RULES.ARC` grows **4 nb**. The `S` statement is free —
           `extensions/README.md` is not tier-1.
 
-    - `[ ]` **4.6.b Resolve `draft-design` L162's force disagreement**
-        - "must not silently drop substance" sits under a heading reading "Three leans, never hard gates". The limb
-          and its heading disagree about their own force, which is the ambiguity this work unit exists to remove.
-        - Settle which reading governs before editing either — the heading may be what is wrong.
-        - Doc-only. Apply in both copies where the file mirrors; re-derive the relationship by comparing the
-          copies, per the phase's reading rule.
+    - `[x]` **4.6.b Resolve `draft-design` L162's force disagreement**
+        - _Outcome:_ **The heading governs, and the marker candidate was wrong.** The rule preserves each settled
+          decision and _surviving_ detail, in a section whose premise is that a long draft accretes superseded
+          sketch — so removing superseded material is what a consolidation is _for_, and the discharging fact
+          (this layer was superseded by that one) is recorded by the loop rather than invented by the agent. That
+          makes it dischargeable, hence a **default**, and "never hard gates" classifies it correctly. Both copies;
+          derivation in `notes-judgment-authority-model.md` § `draft-design` L162's force disagreement.
+        - The defect was neither the heading nor the force but the **unstated discharge**: bare "must not" reads
+          absolute, which is what put the limb in apparent conflict with its own heading. The fix names the
+          discharge — drop superseded sketch deliberately and say what went — and retitles the bullet from "No
+          detail loss", which over-claimed, to "No silent detail loss". The load-bearing word was always
+          _silently_. An accepted reclassification on reason 1, available only once the fact was stated; the sweep
+          read it as a marker candidate correctly, given the text at the time.
+        - Splitting the bullet out of the three-lean list and marking it `[invariant]` was the first approach and
+          is rejected in the record — the kind-mismatch between the bullets (whether-to-consolidate versus
+          what-it-may-cost) is real but does not imply a force mismatch, and marking it would have made a
+          dischargeable rule undischargeable.
+        - Corrects Task 4.6.a's Criterion 1 record, which listed this site as `K2`'s thinnest instance reaching
+          backstop limb two. Disclosure is what keeps it out of limb two, and the family's parent does not cover it
+          — the parent forbids rewriting a target to match what was built, this guards accidental loss during a
+          rewrite. `K2` has six instances, not seven; the three-routes conclusion is unaffected.
 
     - `[ ]` **4.6.c Reconcile the two configuration surfaces' opposite postures**
         - `methods/README.md`: "Contracts are advisory: your override should satisfy the same invariant as the
