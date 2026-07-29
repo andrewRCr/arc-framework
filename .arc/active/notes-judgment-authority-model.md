@@ -221,17 +221,63 @@ destination, as § Contributor commit release shows, but not this one.
 
 | File                                                 | firm   | decided | authoring | trigger | blocked | residue | Total Δnb |
 | ---------------------------------------------------- | ------ | ------- | --------- | ------- | ------- | ------- | --------- |
-| `DEV-RULES.ARC` (canonical — ships)                  | 43     | 12      | 19        | 47      | 15      | 8       | 144       |
+| `DEV-RULES.ARC` (canonical — ships)                  | 44     | 12      | 19        | 47      | 15      | 8       | 145       |
 | `DEV-RULES.PROJECT` (instance — template mirrors it) | 54     | 7       | 17        | 18      | 0       | 6       | 102       |
-| **Both**                                             | **97** | **19**  | **36**    | **65**  | **15**  | **14**  | **246**   |
+| **Both**                                             | **98** | **19**  | **36**    | **65**  | **15**  | **14**  | **247**   |
 
-Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below. The `P3` tier
-carries no Δ — its one row (Prefix mapping) was withdrawn rather than deferred. The `trigger` tier is what D6
-gates, and it is now 65 nb across **seven** index entries.
+Canonical `firm` and the totals carry Task 3.1's re-measurement (§ Contents 11 → 12); see § Execution
+re-measurement against base.
 
-**`firm` + `decided` is what may be authored against today: 116 nb**, of which 55 is canonical `DEV-RULES.ARC`
-and 61 is the instance file — unaffected by every correction so far, which land in the `trigger`, `authoring`, and
-`blocked` tiers. The instance share across the whole register is 102 / 246 ≈ **41%**.
+Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below, then 247 at
+Task 3.1's re-measurement. The `P3` tier carries no Δ — its one row (Prefix mapping) was withdrawn rather than
+deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across **seven** index entries.
+
+**`firm` + `decided` is what may be authored against today: 117 nb**, of which 56 is canonical `DEV-RULES.ARC`
+and 61 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
+tiers; the re-measurement is the first to touch `firm`, and it adds rather than removes. The instance share across
+the whole register is 102 / 247 ≈ **41%**.
+
+### Execution re-measurement against base (Task 3.1)
+
+Re-derived mechanically per heading, with the trailing link block excluded by construction — scanning stops at the
+final `---` whose remainder is nothing but link definitions. Baseline is `7fd6e34e1^`, the commit before
+§ Rule Authority entered the file.
+
+**The row-level enumeration holds.** Thirty-two of the thirty-three canonical rows reproduce their recorded `nb`
+exactly against a mechanical count. The enumeration was measured by hand and survives an independent derivation;
+its dispositions execute as written.
+
+**One row drifted, and it is the register's own doing.** § Contents is **12 nb, not 11** — § Rule Authority added
+a table-of-contents line. It is a `firm`-tier cut, so `ARC` firm goes 43 → 44 and the canonical register total
+144 → **145**. No disposition changes.
+
+**The denominator carried the trailing-link-block error, a fourth instance.** The register records
+`DEV-RULES.ARC` as 418 nonblank, which is the **full-file** count — 398 of content plus a 20-line trailing link
+block. D7.5 and D7.6 caught this error per-row and drew the lesson explicitly ("a mechanical per-heading count
+must exclude the trailing link block by construction"), but the file total was never re-derived under the rule.
+Corrected: the canonical register is **145 nb of 398**, and `DEV-RULES.PROJECT` is **102 nb of 255**, not of 267.
+The register's share of each file is therefore larger than recorded — 36% canonical rather than 34% — which
+strengthens the compression case rather than weakening it.
+
+**§ Rule Authority costs more than the ledger carries.** In-file it measures **37 nb** against a recorded 31. Five
+of the difference is real growth: `007a6180b` closed the gaps an independent read found, and the act-scoped
+backstop clause is the largest of them. The remaining ~1 nb is a measurement-boundary difference — the recorded 31
+measured the authored text, this count includes the section's trailing `---` separator. Either way the D1 debit is
+understated by 5–6 nb and the ledger owes the correction.
+
+**The index leg overran its model.** `STRATEGY-INDEX` (instance) went 62 → **77 nb** across Phase 2, against D6's
+modeled `+7 to +14`. Two causes, both structural rather than accidental: the new
+`strategy-interlock-release-wrappers` entry has no line to replace, and a residual-scoped condition is
+unavoidably longer than a bare directive because it names both the residual question **and** the surface holding
+the common case. The scoping is what makes the entry worth its slot, so the overrun is the right trade — but it is
+a real debit against Criterion 3's net measurement and is recorded as such, not absorbed. Measured against the
+planning-era baseline of 61 the delta is +16; the maintenance errand that collapsed restating descriptions was
+itself net +1, so almost the whole movement is this work unit's.
+
+**Ledger position entering Phase 3.** Debits landed: § Rule Authority 37, the § Contents line 1,
+`STRATEGY-INDEX` 15 — roughly **53 nb up**, against 145 nb of canonical credit and 102 instance still to land.
+This is the state the spec predicted ("the full 144 nb is the endpoint, not the near-term state"), now measured
+rather than projected.
 
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 

@@ -119,17 +119,19 @@ Nine design units. D1–D4 are the constitutional core, D5–D8 the compression,
 The units are the substrate the task list is built from and validated against.
 
 **The ledger, sized on both sides.** The compression pays for the core, so the debit belongs in the accounting
-rather than in the framing. § Rule Authority's settled text (D1) is **31 nb** — a 7% growth on
-`DEV-RULES.ARC`'s 418 nb and still the single largest always-loaded addition here — plus D4's three vocabulary
-definitions and D6's `STRATEGY-INDEX` debit of +7 to +14, less D4.1's deletion. Against that, the canonical credit
-authorable on day one is 55 nb (`ARC` firm 43 + decided 12), so **the `DEV-RULES.ARC` leg nets roughly −24 nb
-before the `authoring` tier (19 nb) and the D6-gated trigger tier (47 nb) land.** The full 144 nb is the endpoint,
-not the near-term state, and the ordering in Sequencing is what gets there. Stating this is the same discipline D6
-applies to a +7 nb index debit; a debit this size left unsized is the larger version of the wash it refuses.
+rather than in the framing. § Rule Authority's settled text (D1) is **37 nb as it stands** — a 9% growth on
+`DEV-RULES.ARC`'s 398 nb of content and still the single largest always-loaded addition here — plus D4's three
+vocabulary definitions and D6's measured `STRATEGY-INDEX` debit of +15, less D4.1's deletion. Against that, the
+canonical credit authorable on day one is 56 nb (`ARC` firm 44 + decided 12), so **the `DEV-RULES.ARC` leg nets
+roughly −19 nb before the `authoring` tier (19 nb) and the D6-gated trigger tier (47 nb) land.** The full 145 nb is
+the endpoint, not the near-term state, and the ordering in Sequencing is what gets there. Stating this is the same
+discipline D6 applies to its own index debit — measured at +15 against a +7 to +14 model, and charged rather than
+absorbed; a debit this size left unsized is the larger version of the wash it refuses.
 
 Sizing the debit is not the same as justifying it, so **D1.6 subjected that text to the register's own five tests**
-before D7/D8 sizing is relied on. The 31 nb figure is the post-pass measurement; the 46 nb first authored was an
-upper bound that the pass reduced.
+before D7/D8 sizing is relied on. The 46 nb first authored was an upper bound that the pass reduced to 31; the
+independent read that followed added 5 nb back — the act-scoped backstop clause and the other gap closures — and
+the section's own `---` separator accounts for the remaining unit against the in-file measurement.
 
 ### D1 — `DEV-RULES.ARC` § Rule Authority
 
@@ -388,12 +390,16 @@ form this unit removes. D6 updates that footer to describe the condition-only co
 guidance that contradicts the index above it.
 
 **Rewrite convention: condition-only.** `STRATEGY-INDEX` sits in the same always-loaded tier as both rules files,
-and an explicit-trigger directive is longer than the passive line it replaces — roughly +1 to +2 nb per entry, +7
-to +14 across the seven. A credit taken against one tier-1 file while a debit accrues to another is exactly the
-accounting that hides a wash. Each entry currently carries a description _and_ a `Consult when:` line that largely
-restates it. Where the description adds nothing the condition does not already carry, the rewrite **replaces both
-lines with one directive** rather than lengthening the condition beneath a retained description, taking the tier's
-net yield back to roughly its gross.
+and an explicit-trigger directive is longer than the passive line it replaces — modeled at roughly +1 to +2 nb per
+entry, +7 to +14 across the seven. **Measured at execution: +15** (instance 62 → 77), above the modeled ceiling.
+Two structural causes, neither accidental: the new `strategy-interlock-release-wrappers` entry has no line to
+replace, and a residual-scoped condition must name both the residual question and the surface holding the common
+case, so it runs longer than a bare directive. The scoping is what earns the entry its slot, so the overrun is the
+right trade — but it is charged to Criterion 3's net, not absorbed into it. A credit taken against one tier-1 file
+while a debit accrues to another is exactly the accounting that hides a wash. Each entry carried a description
+_and_ a `Consult when:` line that largely restated it. Where the description adds nothing the condition does not
+already carry, the rewrite **replaces both lines with one directive** rather than lengthening the condition
+beneath a retained description, taking the tier's net yield back to roughly its gross.
 
 Two bounds. A description stays where it carries content-shape detail the condition does not
 (`strategy-work-planning`'s spec forms and layered specs, `strategy-quality-gates`' tiered system) — the convention
@@ -420,7 +426,7 @@ fires in the common case cannot land behind a condition that deliberately exclud
 rows routed to such an entry must be re-checked against what its trigger actually reaches, not merely against the
 destination file.
 
-### D7 — Canonical register: `DEV-RULES.ARC` (144 nb of 418)
+### D7 — Canonical register: `DEV-RULES.ARC` (145 nb of 398)
 
 Per-section dispositions are enumerated in `notes-judgment-authority-model.md`, which is the authoritative row-level
 record. The register is the **named** set; keeping the line-level table out of the spec is what stops it widening
@@ -428,13 +434,20 @@ into an open audit mandate. The spec carries the tier accounting and the rows th
 
 | Tier                            | `ARC` | `PROJECT` | What gates it                                                            |
 | ------------------------------- | ----- | --------- | ------------------------------------------------------------------------ |
-| **Firm**                        | 43    | 54        | Nothing — cuts and verified-redundancy demotions whose mechanism fires.  |
+| **Firm**                        | 44    | 54        | Nothing — cuts and verified-redundancy demotions whose mechanism fires.  |
 | **Decided**                     | 12    | 7         | Settled author's-interest cuts (the maintainer's read has run).          |
 | **Authoring**                   | 19    | 17        | Ordinary review — compress-in-place; the constraint stays always-loaded. |
 | **Behind trigger re-authoring** | 47    | 18        | D6.                                                                      |
 | **Blocked**                     | 15    | —         | § When to Load Additional Guidance; no summoning mechanism exists.       |
 | **Compress residue**            | 8     | 6         | Nothing.                                                                 |
-| **Total**                       | 144   | 102       | **246 nb**; 116 authorable today (55 canonical, 61 instance).            |
+| **Total**                       | 145   | 102       | **247 nb**; 117 authorable today (56 canonical, 61 instance).            |
+
+Task 3.1's re-measurement moved one row and one denominator. § Contents is 12 nb — § Rule Authority added a
+table-of-contents line — taking canonical `firm` to 44. And the recorded denominators counted each file's trailing
+link block: the canonical file is **398 nb** of content, not 418, and the instance file **255**, not 267. That is
+the fourth instance of the error D7.5 and D7.6 caught per-row; the lesson they drew was never applied to the file
+totals. The register's share of each file is correspondingly larger than recorded. Row-level, the enumeration
+holds: thirty-two of thirty-three canonical rows reproduce their `nb` exactly under a mechanical re-derivation.
 
 `PROJECT` authoring is 17 rather than 14 because D7.5's re-derivation moved 3 nb out of the trigger tier into it —
 the register total is unchanged by that move, but D6's gated surface shrinks. The `firm` + `decided` tier is
@@ -490,7 +503,7 @@ Rows that carry design weight beyond the accounting:
   disposition does not. `ARC` 146 → 144, register 248 → 246. The lesson the register should carry: a mechanical
   per-heading count must exclude the trailing link block by construction, not by remembering to.
 
-### D8 — Instance register: `DEV-RULES.PROJECT` (102 nb of 267) — trailing chunk
+### D8 — Instance register: `DEV-RULES.PROJECT` (102 nb of 255) — trailing chunk
 
 Delivered as a distinct trailing boundary. `DEV-RULES.ARC` is a Framework file whose package source and project
 instance are byte-identical, so its 144 nb reach every project. `DEV-RULES.PROJECT` is different in kind: it ships

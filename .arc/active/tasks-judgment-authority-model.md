@@ -347,18 +347,32 @@ of a link-reference definition prunes that definition in the same increment, in 
 convention puts the trailing link block outside every row, so no Δ accounts for it, and MD053 reds the gate on
 an orphan.
 
-### `[ ]` **3.1 Re-measure the canonical register against base**
+### `[x]` **3.1 Re-measure the canonical register against base**
 
 - _Goal:_ Every disposition below executes against the file as it stands, not as it was measured during planning.
 
-- _Rationale:_ Two register rows already moved under base drift during drafting. Section identity and disposition
-  are the record; counts are derived and decay.
+    - Re-derived per-heading mechanically against baseline `7fd6e34e1^`, with the trailing link block excluded by
+      construction — scanning stops at the final `---` whose remainder is only link definitions.
+    - **Thirty-two of thirty-three canonical rows reproduce their recorded `nb` exactly.** The hand enumeration
+      survives an independent derivation; its dispositions execute as written, and no disposition changes.
+    - **One row drifted:** § Contents is 12 nb, not 11 — § Rule Authority added a table-of-contents line. A
+      `firm`-tier cut, so canonical firm 43 → 44 and the register total 144 → 145 (both files 246 → 247).
+    - **The denominators counted each file's trailing link block** — the fourth instance of the error D7.5 and
+      D7.6 caught per-row and drew the lesson from without applying it to the totals. Canonical is 145 nb of
+      **398**, not of 418; instance is 102 nb of **255**, not of 267. The register's share of each file is larger
+      than recorded, which strengthens the compression case.
+    - **§ Rule Authority folded in at 37 nb against a recorded 31** — 5 nb of real growth from the independent
+      read's gap closures, ~1 nb of measurement boundary (the section's own `---`). The D1 debit was understated;
+      the ledger now carries it, and the canonical leg nets −19 rather than −24 before the later tiers land.
+    - **Index leg re-measured** (the errand shifted its baseline): `STRATEGY-INDEX` 62 → 77, so +15 against D6's
+      modeled +7 to +14. Charged to Criterion 3's net rather than absorbed.
+    - `DEV-RULES.PROJECT` is unchanged at content level; Phase 5 inherits the corrected 255 denominator.
 
-    - Re-derive per-heading nonblank counts mechanically from the heading structure.
-    - Exclude the file's trailing link block **by construction** — stop at the next heading or the final `---`,
-      whichever comes first. Counting it in is the error this register made three times.
-    - Confirm each tier's total and record any row whose disposition the drift changes.
-    - Fold in the measured size of § Rule Authority from Task 1.4.c.
+- _Outcome:_ The re-measurement's own finding is that the enumeration was sound and the **accounting around it**
+  was not: every correction landed in a total, a denominator, or a debit — never in a row. Both files' totals had
+  the same trailing-link-block error the register had already diagnosed twice at row level and generalized in
+  prose, which is the failure mode this work unit exists to name — a rule stated and not applied to the case that
+  did not look like its example.
 
 ### `[ ]` **3.2 Firm tier — cuts and verified-redundancy demotions**
 
