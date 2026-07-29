@@ -66,8 +66,8 @@ holder is not you, propose rather than discharge.
 
 ## Review-Increment Invariant
 
-Every review increment closes with a structured approval gate that precedes any commit
-invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
+**Every review increment closes with a structured approval gate that precedes any commit invocation, wrapped or
+raw** · `[invariant]`. The release wrapper bypasses the harness's per-invocation prompt;
 it does **not** bypass the user's approval gate.
 
 The sole bounded exception assembles a provisional integration candidate after the WU's routed review obligation
@@ -89,9 +89,10 @@ not yet exist.
 ## Scaled Process, Invariant Discipline
 
 A work unit's weight (its `Class`) scales the process around it — how much design is authored in planning, and
-how much review and integration ceremony it warrants. What never scales is execution discipline: the
-[review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
-quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
+how much review and integration ceremony it warrants. **What never scales is execution discipline** ·
+`[invariant]`: the [review-increment invariant](#review-increment-invariant), the interlocks that gate review and
+merge, and the quality gates hold identically across the whole range, from a single-concern Errand to a novel work
+unit.
 
 ---
 
@@ -140,10 +141,10 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
   lint, missing file from the same logical change); anything else is a new commit. **Never amend pushed commits
   without explicit user request** · `[invariant]`.
 
-- **Rebase scope:** Never rebase or otherwise rewrite a _pushed_ branch to absorb base changes —
-  rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
-  in instead (append-only — see the [concurrent-work strategy][concurrent-work] § Append-only until
-  integration). Rewriting _unpushed_ commits is fine.
+- **Rebase scope:** Rewriting _unpushed_ commits is fine. **Never rebase or otherwise rewrite a _pushed_ branch to
+  absorb base changes** · `[invariant]` — rewriting published commits orphans the SHA-keyed git notes and forces a
+  force-push. Merge the base in instead (append-only — see the [concurrent-work strategy][concurrent-work]
+  § Append-only until integration).
 
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
@@ -221,7 +222,7 @@ delegates: the human's formative involvement in changes, and judgment staying wi
 - **Execution** — work that lands in the increment: stays with the primary while per-increment
   co-development is in force; delegable only under an explicit, user-approved relaxation — never
   inferred, never self-invoked.
-- **Judgment** — validation against ground truth, break-out detection, gates, commits: never
+- **Judgment** · `[invariant]` — validation against ground truth, break-out detection, gates, commits: never
   delegates, under any mode.
 
 **Harness-conditional clause** (stated once here; callsites reference it, never restate it): use a
@@ -231,9 +232,9 @@ manual fresh-session pass; never a primary-context self-pass presented as indepe
 
 ### Review finding mutation guard
 
-Verify every review finding against source with your own judgment; reviewer or delegated output remains advisory.
-Present the complete proposed disposition set and obtain approval before applying any finding-driven fix. This
-constraint applies regardless of who reviewed the change or where the findings arrived.
+**Verify every review finding against source with your own judgment** · `[invariant]`; reviewer or delegated output
+remains advisory. Present the complete proposed disposition set and obtain approval before applying any
+finding-driven fix. This constraint applies regardless of who reviewed the change or where the findings arrived.
 
 ### Task granularity
 
@@ -269,7 +270,7 @@ take responsibility for it. Never silently drop an observation that should be fi
 
 **The core invariant.** A work unit's stub/draft is the single authoritative source for its domain concerns;
 capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
-item with a known home may rest in a capture surface.**
+item with a known home may rest in a capture surface** · `[invariant]`.
 
 ### Leave it cleaner
 

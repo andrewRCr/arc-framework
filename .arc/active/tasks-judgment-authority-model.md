@@ -829,7 +829,32 @@ document that ships without an instance counterpart still states its rules to ev
     - `[ ]` **4.5.a Reconcile the marker footprint against the sweep**
         - Task 1.5's roughly-five was a prediction. A materially larger marked set is a finding about the
           discriminator's reach, recorded as such — the footprint follows the sweep rather than capping it.
-        - Apply any additional markers in both copies, in the `[invariant]` notation Task 1.5.a establishes.
+        - Reconcile before applying. The running total double-counts two sites the sweep itself argues against
+          marking — the `K2` gate sites, whose recommended remedy is the constitutional statement Task 4.6.a
+          writes, and `strategy-quality-gates` § Tier 3, which the strategy region recommends folding into
+          § Quality gate failure's existing marker instead.
+        - Split by tier, not by convenience: the constitutional parents change text every session loads and earn
+          their own review boundary; the region-local sites do not.
+
+        - `[x]` **4.5.a.i Mark the unmarked constitutional parents**
+            - Settled here rather than at Task 4.6.a — this is the task that applies them, so ownership resolves
+              before they land, not after.
+            - _Outcome:_ Seven markers in both copies, byte-identical. The record's "six" folded § Sub-agent
+              scope's judgment leg and § Review finding mutation guard into one family row; they are separate
+              sections, both unmarked, so the footprint is thirty-two rather than thirty-one. Every marker sits on
+              the rule's lead-in rather than the section heading — marking `## Review-Increment Invariant` would
+              have broken the in-file anchor DEV-RULES.ARC links twice and put 162 inbound `§` citations at risk,
+              and Task 1.5.a's convention already prefers the rule's lead-in. § Rebase scope needed the same
+              prose surgery § Amend scope took: it carried an invariant and a permission in one bullet, so the
+              permission now leads and the marker attaches to the bolded prohibition.
+
+        - `[ ]` **4.5.a.ii Mark the region-local sites**
+            - Twenty-five sites in the on-demand corpus: five method, seven strategy, eleven workflow, two
+              extension. Both copies, in the `[invariant]` notation Task 1.5.a establishes.
+            - Expect § Rebase scope's shape again — a bullet carrying a default and an invariant together takes
+              the marker on the rule's lead-in, never the bullet's.
+            - Re-derive each file's copy relationship by comparing the copies before editing; the template-paired
+              and divergent sets do not follow filename.
 
     - `[ ]` **4.5.b Record the enabling content category**
         - A third category beside constraint and explanatory: **enabling** content carries no obligation itself
@@ -861,15 +886,14 @@ document that ships without an instance counterpart still states its rules to ev
 - **Additional Context:** `notes-judgment-authority-model.md` § Findings — the method, strategy, and workflow
   region sections
 
-    - `[ ]` **4.6.a Settle the `K2` remedy and the unmarked-parent ownership**
+    - `[ ]` **4.6.a Write the `K2` constitutional statement**
         - `K2` — pre-commitment text is not rewritten to match the outcome — has seven instances across all three
           swept regions and no parent anywhere. The recommended remedy is a constitutional statement rather than
           seven markers; Phase 3 has closed, so it lands here.
         - Check the statement against Success Criterion 1 before writing it: a family parent is not a per-case
           rule, but the criterion is the test it has to pass.
-        - The five unmarked constitutional parents are counted inside Task 4.5.a's thirty-one and simultaneously
-          assigned to Phase 3 / Phase 5 by the workflow region's finding 2. Settle which task carries them so the
-          marker is applied once, not twice or never.
+        - Task 4.5.a settles the unmarked constitutional parents, since it is the task that applies them. This
+          subtask writes the one statement that has no parent to mark.
         - Both copies, in the `[invariant]` notation Task 1.5.a establishes.
 
     - `[ ]` **4.6.b Resolve `draft-design` L162's force disagreement**
@@ -878,6 +902,17 @@ document that ships without an instance counterpart still states its rules to ev
         - Settle which reading governs before editing either — the heading may be what is wrong.
         - Doc-only. Apply in both copies where the file mirrors; re-derive the relationship by comparing the
           copies, per the phase's reading rule.
+
+    - `[ ]` **4.6.c Reconcile the two configuration surfaces' opposite postures**
+        - `methods/README.md`: "Contracts are advisory: your override should satisfy the same invariant as the
+          default." `extensions/README.md`: core behavior "is **non-negotiable** — this extension adds to it, not
+          replaces it." Two sibling configuration surfaces answer the same question — may a project's
+          configuration replace core behavior? — in opposite directions.
+        - Same concern as this work unit: a rule whose force its own text leaves unsettled. Settle which posture
+          governs, or state why the two mechanisms genuinely differ, rather than reconciling the wording alone.
+        - Both indices are Configurable, so neither the byte-identity test nor the counterpart warning covers the
+          mirror; check it by hand.
+        - Surfaced by Task 4.5.a's re-check of the index-exclusion precedent, not by the sweep proper.
 
 ## **Phase 5:** Instance register — `DEV-RULES.PROJECT`
 
