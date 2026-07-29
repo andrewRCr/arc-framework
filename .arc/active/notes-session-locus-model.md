@@ -897,11 +897,17 @@ dispositions to the PR rather than copying them here.
   target between rename and restore/commit can still clobber a newer generation.
 - **Exact first-fix measurement:** 1,121 additions plus 49 deletions (1,170 changed lines) across fourteen files
   against `bb6803b62`.
+- **Second hosted-review correction:** Exclusive mint stages complete private bytes beside the destination and
+  publishes through an atomic no-clobber hard link, so readers never observe an incomplete final record and failed
+  writes cannot occupy its path.
+- **Exact second-fix measurement:** 1,271 additions plus 49 deletions (1,320 changed lines) across fourteen files
+  against `bb6803b62`.
 - **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
-- **Gate evidence:** The complete local gate set passed at construction head `93eeecea9`; the status-only ledger
-  update re-runs the Markdown gates before publication.
-- **State:** Draft PR #396 is in its first hosted-review fix round; the next exact head requires a fresh
-  whole-target CodeRabbit review.
+- **Gate evidence:** The complete local gate set passed on the second-fix tree after the focused mint-concurrency
+  regressions proved both failure modes against the pre-fix behavior.
+- **State:** Draft PR #396 is in its second hosted-review fix round. The base and previously reviewed bytes remain
+  tree-identical, so the next exact head requires another incremental CodeRabbit review; the initial full review
+  plus both incremental ranges retain complete exact-target coverage.
 
 ### Resume protocol
 

@@ -1,7 +1,8 @@
 /** Bounded reads and exclusive creation for per-checkout locus records. */
 
-import { mkdir, open, writeFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { link, mkdir, open, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 import { deriveLocusRecordId, type PathFlavor } from "./path-identity.js";
 import {
@@ -18,6 +19,25 @@ export type LocusRecordReadResult =
   | { kind: "digest-mismatch" }
   | { kind: "oversized" }
   | { kind: "unreadable"; message: string };
+
+/** Filesystem and entropy boundaries used to mint a locus record. */
+export interface LocusRecordMintContext {
+  mkdir: (path: string, options: { recursive: true }) => Promise<string | undefined>;
+  writeFile: (
+    path: string,
+    bytes: Uint8Array,
+    options: { flag: "wx"; mode: number },
+  ) => Promise<void>;
+  link: (existingPath: string, newPath: string) => Promise<void>;
+  unlink: (path: string) => Promise<void>;
+  randomId: () => string;
+}
+
+/** Exclusively creates one locus-record generation. */
+export type LocusRecordMinter = (options: {
+  path: string;
+  record: LocusRecordV1;
+}) => Promise<{ kind: "created"; bytes: Buffer } | { kind: "exists" }>;
 
 /**
  * Read and validate one record without buffering beyond the configured cap.
@@ -62,24 +82,60 @@ export async function readLocusRecord(options: {
 }
 
 /**
- * Exclusively create a record without replacing any existing generation.
+ * Create an exclusive locus-record minter over explicit system boundaries.
+ *
+ * @param context - Filesystem operations and collision-resistant identifier source.
+ * @returns A minter that atomically publishes complete record generations.
+ */
+export function createLocusRecordMinter(context: LocusRecordMintContext): LocusRecordMinter {
+  return async (options) => {
+    const bytes = serializeRecord(options.path, options.record);
+    const directory = dirname(options.path);
+    const temporaryPath = join(
+      directory,
+      `.${basename(options.path)}.${context.randomId()}.tmp`,
+    );
+    await context.mkdir(directory, { recursive: true });
+
+    try {
+      await context.writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") {
+        await context.unlink(temporaryPath).catch(() => undefined);
+      }
+      throw error;
+    }
+
+    try {
+      await context.link(temporaryPath, options.path);
+      return { kind: "created", bytes };
+    } catch (error) {
+      if (errorCode(error) === "EEXIST") return { kind: "exists" };
+      throw error;
+    } finally {
+      await context.unlink(temporaryPath).catch(() => undefined);
+    }
+  };
+}
+
+const nodeLocusRecordMinter = createLocusRecordMinter({
+  mkdir,
+  writeFile,
+  link,
+  unlink,
+  randomId: randomUUID,
+});
+
+/**
+ * Exclusively publish a complete record without replacing an existing generation.
  *
  * @param options - Target record path and schema-validated record value.
  * @returns The created byte generation, or `exists` when the target is occupied.
  */
-export async function mintLocusRecord(options: {
-  path: string;
-  record: LocusRecordV1;
-}): Promise<{ kind: "created"; bytes: Buffer } | { kind: "exists" }> {
-  const bytes = serializeRecord(options.path, options.record);
-  await mkdir(dirname(options.path), { recursive: true });
-  try {
-    await writeFile(options.path, bytes, { flag: "wx", mode: 0o600 });
-    return { kind: "created", bytes };
-  } catch (error) {
-    if (errorCode(error) === "EEXIST") return { kind: "exists" };
-    throw error;
-  }
+export async function mintLocusRecord(
+  options: Parameters<LocusRecordMinter>[0],
+): ReturnType<LocusRecordMinter> {
+  return nodeLocusRecordMinter(options);
 }
 
 function serializeRecord(path: string, value: LocusRecordV1): Buffer {
