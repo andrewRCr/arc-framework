@@ -847,7 +847,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: DEFAULT_PROMPTS,
+      prompts: { ...DEFAULT_PROMPTS, pm_mode: "arc-in-git" },
       identityResult: "andrew",
     });
 
@@ -868,16 +868,22 @@ describe("runInit", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
-    // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
+    // arc-in-git projects track ROADMAP through the conflict-surfacing driver.
     const gitattributesWrite = writeCalls.find(
       (c) => c[0] === "/project/.gitattributes",
     );
-    expect(gitattributesWrite).toBeUndefined();
+    expect(gitattributesWrite).toBeDefined();
+    expect(gitattributesWrite![1]).toContain(
+      ".arc/backlog/ROADMAP.md merge=arc-roadmap",
+    );
 
     const mergeDriverCall = execCalls.find(
-      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+      (c) => c[1]?.includes("merge.arc-roadmap.driver"),
     );
-    expect(mergeDriverCall).toBeUndefined();
+    expect(mergeDriverCall).toBeDefined();
+    expect(mergeDriverCall![1].join(" ")).toContain(
+      "arc hook-remedy-roadmap-conflict",
+    );
   });
 
   // --- init lock ---

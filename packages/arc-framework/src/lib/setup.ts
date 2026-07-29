@@ -6,7 +6,7 @@
  * sequence.
  */
 
-import { ensureDir } from "./template/index.js";
+import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { detectHookManager } from "./hook-manager.js";
 import { integrateHooks } from "./hook-integration.js";
 import { join } from "node:path";
@@ -21,7 +21,25 @@ export interface GitIntegrationOptions {
   readFile: ReadFileFn;
   writeFile: WriteFileFn;
   access: AccessFn;
+  /** Track the derived ROADMAP merge-driver attribute for arc-in-git projects. */
+  enableRoadmapConflictRemedy?: boolean;
 }
+
+/** Attribute and local driver name for the derived ROADMAP conflict surface. */
+export const ROADMAP_MERGE_ATTRIBUTE = ".arc/backlog/ROADMAP.md merge=arc-roadmap";
+export const ROADMAP_MERGE_DRIVER_NAME = "ARC ROADMAP conflict remedy";
+export const ROADMAP_MERGE_DRIVER_COMMAND = [
+  "git merge-file %A %O %B",
+  "status=$?",
+  "if [ \"$status\" -ne 0 ]; then printf '%s\\n' 'ROADMAP conflict: if this is the only unresolved path, run \"arc hook-remedy-roadmap-conflict\" after Git finishes to regenerate and stage it.' >&2; fi",
+  "exit \"$status\"",
+].join("; ");
+
+/** I/O needed to install the local ROADMAP driver and optional tracked attribute. */
+export type RoadmapConflictRemedySetupOptions = Pick<
+  GitIntegrationOptions,
+  "cwd" | "exec" | "readFile" | "writeFile"
+>;
 
 /**
  * Configure git integration for an ARC project.
@@ -35,13 +53,43 @@ export interface GitIntegrationOptions {
 export async function configureGitIntegration(
   options: GitIntegrationOptions,
 ): Promise<void> {
-  const { cwd, exec, readFile, writeFile, access } = options;
+  const { cwd, exec, readFile, writeFile, access, enableRoadmapConflictRemedy = false } = options;
 
   const hookManager = await detectHookManager(cwd, access);
   if (hookManager) {
     await integrateHooks(hookManager, readFile, writeFile);
   } else {
     await exec("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"]);
+  }
+
+  await configureRoadmapConflictRemedy(
+    { cwd, exec, readFile, writeFile },
+    enableRoadmapConflictRemedy,
+  );
+}
+
+/**
+ * Install the repository-local ROADMAP merge driver and, for arc-in-git,
+ * track its scoped attribute.
+ *
+ * @param options - Repository and injectable I/O
+ * @param enableAttribute - Whether the project owns a tracked ROADMAP
+ */
+export async function configureRoadmapConflictRemedy(
+  options: RoadmapConflictRemedySetupOptions,
+  enableAttribute: boolean,
+): Promise<void> {
+  const { cwd, exec, readFile, writeFile } = options;
+  await exec("git", ["config", "--local", "merge.arc-roadmap.name", ROADMAP_MERGE_DRIVER_NAME]);
+  await exec("git", ["config", "--local", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND]);
+
+  if (enableAttribute) {
+    await writeArcGitattributesBlock(
+      join(cwd, ".gitattributes"),
+      [ROADMAP_MERGE_ATTRIBUTE],
+      readFile,
+      writeFile,
+    );
   }
 }
 

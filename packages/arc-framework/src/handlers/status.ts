@@ -474,7 +474,25 @@ export async function handleStatus(
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
-    const result = await runSessionHandoffStatus({ identity, role, probes });
+    // Do not await userSurfacesFor here: a rejection would abort the composite
+    // before safeProbe handling. Resolution runs inside runSessionHandoffStatus
+    // under safeProbe("pathSet", …) so failures stay slot-wise in the envelope.
+    // Discriminated options: resolver required iff identity is non-null.
+    const result = identity === null
+      ? await runSessionHandoffStatus({ identity: null, role, probes })
+      : await runSessionHandoffStatus({
+        identity,
+        role,
+        probes,
+        resolveHandoffSurfaces: async () => {
+          const surfaces = await userSurfacesFor(identity);
+          return {
+            workingMemoryPath: surfaces.workingMemoryPath,
+            sessionNotesPath: (workUnitName: string) =>
+              surfaces.sessionNotesPath(SlugSchema.parse(workUnitName)),
+          };
+        },
+      });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
