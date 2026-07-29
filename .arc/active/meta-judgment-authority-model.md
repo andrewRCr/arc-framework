@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.3 — Sweep the workflow corpus (220 marker candidates / 635 accepted across 36 documents)
-- **Next Task:** Task 4.4 — Sweep the extension corpus (line ~809)
+- **Last Completed:** Task 4.5.a.i — Mark the unmarked constitutional parents (seven markers, both copies)
+- **Next Task:** Task 4.5.a.ii — Mark the region-local sites (line ~851)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.4 — sweep the shipped extension set on Task 4.1's terms; read for the obligation
-  rather than the `never` / `must not` vocabulary, which does not appear in the region at all
+- **Next Action:** Begin Task 4.5.a.ii — apply the 25 region-local markers in both copies; expect § Rebase scope's
+  default-and-invariant-in-one-bullet shape again, and compare the copies per file before editing
 
 - **PR URL:** [none]
 - **Completed:** [none]
