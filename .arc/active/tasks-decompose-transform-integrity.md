@@ -593,91 +593,116 @@ local-cleanup boundaries without importing extension-owned matrices.
   installation behavior without duplicating the canonical full-protection lifecycle or importing extraction,
   base-mobility, planning-lane, durable-consumer, or live-remote-cleanup matrices.
 
+### `[x]` **5.R Retire the residual v2 decomposition surface**
+
+- _Goal:_ Decomposition ships one v3 authoring and authority path, with no callable v2/extraction compatibility
+  surface or stale workflow dependency left behind.
+
+    - `[x]` **5.R.a Prove the v3-only authority boundary**
+        - Added a source-boundary contract that rejects legacy v2 modules, authority entrypoints, executor symbols,
+          and stale method terms while preserving the generic receipt behavior owned by rename, abandon, and park.
+
+    - `[x]` **5.R.b Remove legacy authoring, execution, and authority adapters**
+        - Deleted the standalone v2 codec, executor, inventory, placement, and verb surfaces; narrowed shared
+          transition adapters to retained generic behavior; and removed tests owned only by the retired path.
+
+    - `[x]` **5.R.c Repair shipped methodology seams**
+        - Recast cohort assessment around v3 authoring, removed the park workflow's deleted choreography reference,
+          and synchronized the implemented `--execute` command across the shipped quick-reference pair.
+
+- _Outcome:_ Decomposition now exposes one v3-only authoring and authority chain across production, tests, and
+  shipped methodology while rename, abandon, and park retain their generic transition behavior.
+
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown/ARC contract lint, TypeScript/shell lint, source/test typechecking, build, and full
+  Vitest matrix — all passed (8,373 passed, 1 skipped).
+- _Success criteria:_ 43 criteria met; two adversarial verification passes converged after the v3-only retirement
+  and final shipped-reference corrections.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` V3 is the only decomposition authoring and authority schema; old decomposition records and
+- `[x]` V3 is the only decomposition authoring and authority schema; old decomposition records and
   decomposition-specific legacy machinery are gone after their self-hosting obligations are resolved.
-- `[ ]` Preflight binds one exact committed source, emits canonical JSON only on stdout, and changes no repository
+- `[x]` Preflight binds one exact committed source, emits canonical JSON only on stdout, and changes no repository
   state.
-- `[ ]` Source selection uses only self-authenticating local branch refs or the exact configured-base predecessor;
+- `[x]` Source selection uses only self-authenticating local branch refs or the exact configured-base predecessor;
   checkout, remote refs, aliases, and ref order cannot change or ambiguously choose the source.
-- `[ ]` Starter and completed maps share one exact machine envelope; scalar, collection, source-allocation, and
+- `[x]` Starter and completed maps share one exact machine envelope; scalar, collection, source-allocation, and
   dependency-disposition author slots cannot alter machine identity.
-- `[ ]` Preflight derives the planning profile from the pinned source before starter emission and rederives it with
+- `[x]` Preflight derives the planning profile from the pinned source before starter emission and rederives it with
   every other machine field before completed-map authority.
-- `[ ]` Every v3 nested wire record, preparation/receipt envelope, ordering rule, and canonical digest preimage is
+- `[x]` Every v3 nested wire record, preparation/receipt envelope, ordering rule, and canonical digest preimage is
   closed and byte-fixtured under a decomposition-specific version-plus-kind namespace arm.
-- `[ ]` Source-artifact and source/incoming/outgoing inventory digests have explicit versioned preimages over exact
+- `[x]` Source-artifact and source/incoming/outgoing inventory digests have explicit versioned preimages over exact
   stored mode/bytes or canonical machine arrays.
-- `[ ]` Public v3 authoring admits only started-planning/backlog-stub symmetric or heterogeneous retirement;
+- `[x]` Public v3 authoring admits only started-planning/backlog-stub symmetric or heterogeneous retirement;
   extraction and surviving-origin topology remain outside the core codecs.
-- `[ ]` Preparation and receipts bind one immutable candidate-ownership arm, so landing cannot infer protection or
+- `[x]` Preparation and receipts bind one immutable candidate-ownership arm, so landing cannot infer protection or
   claim generation from current configuration.
-- `[ ]` Full-protection occupation uses the exact repository-common claim key/store, atomic generation CAS, and
+- `[x]` Full-protection occupation uses the exact repository-common claim key/store, atomic generation CAS, and
   latest-terminal retention bound; missing, malformed, or superseded records fail closed.
-- `[ ]` Candidate worktree identity is deterministic from claim/generation and its crash-recoverable
+- `[x]` Candidate worktree identity is deterministic from claim/generation and its crash-recoverable
   intended/registered/released path mapping remains machine-local and absent from preparation/receipt identity.
-- `[ ]` A post-acquire `pending/unregistered` generation is resumable without path authority; crash and collision
+- `[x]` A post-acquire `pending/unregistered` generation is resumable without path authority; crash and collision
   handling preserve it unless guarded rollback proves no observer or mutation can exist.
-- `[ ]` Preparation binds the exact candidate publication and constitutive topology before execution; authoring and
+- `[x]` Preparation binds the exact candidate publication and constitutive topology before execution; authoring and
   finalization validate but never re-project them.
-- `[ ]` One canonical path registry rejects exclusive-role collisions and composes valid
+- `[x]` One canonical path registry rejects exclusive-role collisions and composes valid
   topology/content/dependency overlap into one final per-path mutation before occupation.
-- `[ ]` Managed path results cover every non-receipt allowed path exactly once; transition patches are precisely
+- `[x]` Managed path results cover every non-receipt allowed path exactly once; transition patches are precisely
   the changed subset and unchanged reuse paths remain explicit.
-- `[ ]` Markdown inventory is byte-exhaustive and non-overlapping from preamble through H2-H6.
-- `[ ]` Allocation, ownership, dependency, profile, topology, predecessor, rider, path-state, and mode violations
+- `[x]` Markdown inventory is byte-exhaustive and non-overlapping from preamble through H2-H6.
+- `[x]` Allocation, ownership, dependency, profile, topology, predecessor, rider, path-state, and mode violations
   refuse before candidate creation.
-- `[ ]` Full and partial protection create, resume, recover, and discard only the exact validated result.
-- `[ ]` Every decomposition has an origin-addressable logical anchor; multi-member cohortless fan-out refuses.
-- `[ ]` Cohort topology contributes only planned composed edits, preserves existing docs outside authorized content
+- `[x]` Full and partial protection create, resume, recover, and discard only the exact validated result.
+- `[x]` Every decomposition has an origin-addressable logical anchor; multi-member cohortless fan-out refuses.
+- `[x]` Cohort topology contributes only planned composed edits, preserves existing docs outside authorized content
   composition, reports exact paths, appends provenance once, and blocks finalization until Purpose floors are
   authored.
-- `[ ]` Draft/single/paired members preserve planning maturity and provisional tasks remain non-authoritative.
-- `[ ]` One exact-base anchor producer precedes start and is reused byte-for-byte by start, landed handoff, and
+- `[x]` Draft/single/paired members preserve planning maturity and provisional tasks remain non-authoritative.
+- `[x]` One exact-base anchor producer precedes start and is reused byte-for-byte by start, landed handoff, and
   cleanup for both fast-forward and merge landing.
-- `[ ]` New leaves alone carry an exact optional decomposition-receipt marker; `arc start` validates its landed
+- `[x]` New leaves alone carry an exact optional decomposition-receipt marker; `arc start` validates its landed
   publication, preserves or derives workflow semantics, and removes it only in the successful atomic ceremony;
   ordinary rendering and reconciliation never emit or backfill the field.
-- `[ ]` Start consumes one validated atomic graduation transaction that owns branch/worktree, artifact, meta, and
+- `[x]` Start consumes one validated atomic graduation transaction that owns branch/worktree, artifact, meta, and
   index mutation/rollback without changing other lifecycle verbs' forward-recovery contract.
-- `[ ]` Atomic start preserves supplied Class, managed-field reconciliation, backfill notices, and the existing
+- `[x]` Atomic start preserves supplied Class, managed-field reconciliation, backfill notices, and the existing
   successful `GraduateResult` surface without post-transaction meta writes.
-- `[ ]` Finalization is idempotent and refreshes only approved fully staged uncommitted destination refinement
+- `[x]` Finalization is idempotent and refreshes only approved fully staged uncommitted destination refinement
   while preserving byte-identical `initialContinuation`.
-- `[ ]` Commit validation, project projection, merge recovery, and exact-base integration anchors consume the same
+- `[x]` Commit validation, project projection, merge recovery, and exact-base integration anchors consume the same
   canonical v3 authority.
-- `[ ]` Shared record enumeration, reference reconciliation, and dependent-disposition queries explicitly consume
+- `[x]` Shared record enumeration, reference reconciliation, and dependent-disposition queries explicitly consume
   v3 preparation/receipt arms while retained generic transition behavior remains unchanged.
-- `[ ]` Final receipts store exact publication entries and typed continuation while live display and readiness stay
+- `[x]` Final receipts store exact publication entries and typed continuation while live display and readiness stay
   derived.
-- `[ ]` Publication entries follow canonical destination-ID order after coordination filtering, and continuation
+- `[x]` Publication entries follow canonical destination-ID order after coordination filtering, and continuation
   preserves the resulting new-leaf subsequence.
-- `[ ]` Candidate continuation and landed handoff reuse `resolveLaunchReadiness()` with identical lifecycle,
+- `[x]` Candidate continuation and landed handoff reuse `resolveLaunchReadiness()` with identical lifecycle,
   shipped-only dependency, and configured-provider semantics; absent or invalid records fail closed.
-- `[ ]` Readiness consumes one lossless pinned composition with accepted and rejected record facts, and both paths
+- `[x]` Readiness consumes one lossless pinned composition with accepted and rejected record facts, and both paths
   receive the same required typed provider through the shared decomposition dependency bundle; production adapts
   the existing batch provider without changing its public interface.
-- `[ ]` Work-unit, draft-block, and document existing destinations publish exact typed identities and are never
+- `[x]` Work-unit, draft-block, and document existing destinations publish exact typed identities and are never
   continuation-eligible.
-- `[ ]` Finalization consumes one closed continuation file and seals it atomically without an approval credential.
-- `[ ]` Plan-derived candidate projection and receipt-validated project authority produce an exact parity-checked
+- `[x]` Finalization consumes one closed continuation file and seals it atomically without an approval credential.
+- `[x]` Plan-derived candidate projection and receipt-validated project authority produce an exact parity-checked
   ROADMAP without circular finalization authority.
-- `[ ]` The public landed-handoff command is read-only, refuses candidate-time authority, and returns only typed
+- `[x]` The public landed-handoff command is read-only, refuses candidate-time authority, and returns only typed
   base-rooted facts.
-- `[ ]` Full-protection candidates use exact transient ownership claims, never branch-prefix exemptions, and leave
+- `[x]` Full-protection candidates use exact transient ownership claims, never branch-prefix exemptions, and leave
   no live-claim residue after landing or discard.
-- `[ ]` Partial-protection anchors encode claim retirement as not applicable and grant cleanup without claim CAS
+- `[x]` Partial-protection anchors encode claim retirement as not applicable and grant cleanup without claim CAS
   only when no unexpected matching claim exists.
-- `[ ]` The shipped workflow has one semantic distribution interlock and no operator-authored proof mechanics.
-- `[ ]` Real-topology acceptance uses normal initialization, installed hooks, exact-base landing, publication
+- `[x]` The shipped workflow has one semantic distribution interlock and no operator-authored proof mechanics.
+- `[x]` Real-topology acceptance uses normal initialization, installed hooks, exact-base landing, publication
   handoff, and receipt-backed local cleanup eligibility.
-- `[ ]` Ordinary installs remain reviewed and default-off from planning-lane automation.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` Ordinary installs remain reviewed and default-off from planning-lane automation.
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration

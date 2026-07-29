@@ -17,7 +17,8 @@
 - **Next Task:** Task 1.1.a — Resolve and clear obsolete decomposition state
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Resolve and clear obsolete decomposition state
+- **Next Action:** Follow `notes-decompose-transform-integrity.md` § Manual Delivery Stack — publish 05–06, then
+  land 00–06 in order
 
 - **PR URL:** [none]
 - **Completed:** [none]

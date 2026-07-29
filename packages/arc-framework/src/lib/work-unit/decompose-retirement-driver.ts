@@ -9,22 +9,11 @@ import {
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
 import { contentDigest } from "../canonical/content-digest.js";
-import { receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import type { GitExec } from "../git/exec.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
-import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
-import type { ComposedLifecycleIndexResult } from "./composed-lifecycle-index.js";
-import {
-  parseDecomposePreparationRecord,
-  prepareDecomposeRetirement,
-} from "./decompose-preparation.js";
 import {
   authorizeV3DecomposeRefresh,
-  finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
-  type DecomposeFinalTarget,
-  type DecomposeFinalizationProjection,
   type V3DecomposeFinalizationTransitionRefusal,
   type V3DecomposeRecordMutationResult,
   type V3DecomposeRecordMutationRefusal,
@@ -37,28 +26,15 @@ import {
   type V3DecomposeFinalizationRecoveryCause,
   type V3DecomposeRecoveryFacts,
 } from "./decompose-finalization-recovery.js";
-import type { RetirementLifecycleResult } from "./retirement-lifecycle-result.js";
-import { deriveDecomposeInventories } from "./decompose-inventory.js";
-import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
-import { partitionTransformDependents } from "./transform-coordination.js";
 import {
-  bindDecomposePreparation,
-  destinationArtifactPath,
-  readDecomposeAuthorityVersion,
   readDecomposeRecord,
-  readDecomposeStagedPatch,
   readDecomposeStagedPaths,
-  readDecomposeTargetGroup,
   stageDecomposePaths,
 } from "./decompose-retirement-projection.js";
 import {
   resolveRetirementRecordPath,
   resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
-import type {
-  PreparedDecomposeRetirement,
-  RetirementReceipt,
-} from "./retirement-authority.js";
 import {
   prepareV3DecomposeRetirement,
   type PreparedV3DecomposeRetirement,
@@ -89,7 +65,6 @@ export type DecomposeBlobReader = (ref: string | null, path: ManagedPath) => Pro
 export interface InRepoDecomposeRetirementDeps {
   cwd: string;
   exec: GitExec;
-  lifecycleFs: LifecycleIndexFs;
   readFile(path: string): Promise<string>;
   readBlob: DecomposeBlobReader;
   createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
@@ -102,22 +77,7 @@ export interface InRepoDecomposeRetirementDeps {
     preparation: V3DecomposePreparation,
     overlay: ValidatedTransitionOverlay,
   ) => Promise<boolean>;
-  /** Remote-aware lifecycle truth shared by preparation, mutation, and finalization. */
-  composed?: ComposedLifecycleIndexResult;
 }
-
-export type PrepareDecomposeDriverResult =
-  | { status: "prepared"; preparation: PreparedDecomposeRetirement }
-  | { status: "refused"; reason: string };
-
-export type FinalizeDecomposeDriverResult =
-  | {
-      status: "recorded";
-      receipt: RetirementReceipt;
-      authorityVersion: string;
-      lifecycle: RetirementLifecycleResult;
-    }
-  | { status: "refused"; reason: string };
 
 export type PrepareV3DecomposeDriverResult =
   | { status: "prepared"; preparation: PreparedV3DecomposeRetirement }
@@ -141,7 +101,7 @@ export interface FinalizeV3DecomposeDriverInput {
 
 /** Production two-stage decompose authority surface consumed by the CLI handler. */
 export interface InRepoDecomposeRetirementDriver {
-  /** Persist a fully planned v3 preparation; legacy maps have no write authority. */
+  /** Persist a fully planned v3 preparation. */
   prepareV3(preparation: V3DecomposePreparation): Promise<PrepareV3DecomposeDriverResult>;
   /** Seal a fully materialized v3 receipt through the central validator. */
   finalizeV3(
@@ -149,12 +109,6 @@ export interface InRepoDecomposeRetirementDriver {
     receiptId: CanonicalDigest,
     input: FinalizeV3DecomposeDriverInput,
   ): Promise<FinalizeV3DecomposeDriverResult>;
-  prepare(allocation: DecomposeAllocationMap): Promise<PrepareDecomposeDriverResult>;
-  revalidate(preparation: PreparedDecomposeRetirement): Promise<
-    { status: "valid" } | { status: "refused"; reason: string }
-  >;
-  stagePreparedResult(preparation: PreparedDecomposeRetirement): Promise<void>;
-  finalize(origin: string, receiptId: CanonicalDigest): Promise<FinalizeDecomposeDriverResult>;
 }
 
 function compareUtf8(left: string, right: string): number {
@@ -714,13 +668,13 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             readEvidence: () => Promise.resolve(evidence),
             validateProspectiveProjection: async (prepared, overlay) =>
               await validateProspectiveProjection(prepared, overlay),
-            replaceAndStageRecord: async (recordId, expected, next) => {
+            replaceAndStageRecord: async (targetRecordId, expected, next) => {
               return await replaceV3Record(
                 deps,
                 preparation,
                 projectionAfter,
                 expectedStagedPaths,
-                recordId,
+                targetRecordId,
                 expected,
                 next,
               );
@@ -753,263 +707,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         });
       }
     },
-    prepare: async (allocation) => {
-      try {
-        const binding = await bindDecomposePreparation(deps, allocation);
-        const id = receiptId({
-          schemaVersion: 2,
-          subject: binding.scope.subject,
-          transition: "decompose",
-          sourceBranch: binding.scope.source.branch,
-          sourceHead: binding.scope.source.head,
-        });
-        const currentRecord = async () => await readDecomposeRecord(deps, id);
-        const snapshot = await readDecomposeAuthorityVersion(
-          deps,
-          binding.scope,
-          await currentRecord(),
-          binding.sourceArtifactDigest,
-          binding.inventories,
-        );
-        const transformedIncomingDependents = prepareTimeTransformedDependents(
-          deps,
-          allocation.origin.slug,
-          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
-          binding.allowedPaths,
-        );
-        return await prepareDecomposeRetirement(
-          {
-            readAuthoritySnapshot: async () => await readDecomposeAuthorityVersion(
-              deps,
-              binding.scope,
-              await currentRecord(),
-              binding.sourceArtifactDigest,
-              binding.inventories,
-            ),
-            readProjection: () => Promise.resolve({
-              sourceArtifactDigest: binding.sourceArtifactDigest,
-              inventories: binding.inventories,
-              allowedPaths: binding.allowedPaths,
-              inventoryRead: binding.inventoryRead,
-              transformedIncomingDependents,
-            }),
-            readStagedPaths: async () => await readDecomposeStagedPaths(deps),
-            readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
-            createRecord: (recordId, content) => deps.createRecord(recordId, content),
-            removeRecord: (recordId) => deps.removeRecord(recordId),
-            stagePaths: (paths) => stageDecomposePaths(deps, paths),
-          },
-          binding.scope,
-          allocation,
-          snapshot.authorityVersion,
-        );
-      } catch (error) {
-        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
-      }
-    },
-    revalidate: async (preparation) => {
-      try {
-        const id = preparation.locator.receiptId;
-        const stored = await readDecomposeRecord(deps, id);
-        if (stored === null) return { status: "refused", reason: "evidence-missing" };
-        const record = parseDecomposePreparationRecord(stored, id);
-        if (record === null
-          || canonicalize(record) !== canonicalize(preparation.record)
-          || canonicalize(record.locator) !== canonicalize(preparation.locator)) {
-          return { status: "refused", reason: "evidence-mismatch" };
-        }
-        const binding = await bindDecomposePreparation(deps, record.allocation);
-        const transformedIncomingDependents = prepareTimeTransformedDependents(
-          deps,
-          record.allocation.origin.slug,
-          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
-          binding.allowedPaths,
-        );
-        if (canonicalize(binding.scope) !== canonicalize(record.locator.scope)
-          || binding.sourceArtifactDigest !== record.sourceArtifactDigest
-          || canonicalize(binding.inventories) !== canonicalize({
-            sourceInventory: record.sourceInventory,
-            incomingEdgeInventory: record.incomingEdgeInventory,
-            outgoingEdgeInventory: record.outgoingEdgeInventory,
-          })
-          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)
-          || (record.schemaVersion === 2
-            && canonicalize(transformedIncomingDependents)
-              !== canonicalize(record.transformedIncomingDependents))) {
-          return { status: "refused", reason: "authority-conflict" };
-        }
-        const snapshot = await readDecomposeAuthorityVersion(
-          deps,
-          binding.scope,
-          stored,
-          binding.sourceArtifactDigest,
-          binding.inventories,
-        );
-        if (snapshot.recordState !== "prepared-decompose"
-          || snapshot.authorityVersion !== preparation.authorityVersion) {
-          return { status: "refused", reason: "authority-conflict" };
-        }
-        const recordPath = resolveRetirementRecordRelativePath(id);
-        const stagedPaths = await readDecomposeStagedPaths(deps);
-        const admitted = new Set([recordPath, ...record.allowedPaths]);
-        if (!stagedPaths.includes(recordPath) || stagedPaths.some((path) => !admitted.has(path))) {
-          return { status: "refused", reason: "authority-conflict" };
-        }
-        return { status: "valid" };
-      } catch (error) {
-        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
-      }
-    },
-    stagePreparedResult: async (preparation) => {
-      await stageDecomposePaths(deps, [
-        resolveRetirementRecordRelativePath(preparation.locator.receiptId),
-        ...preparation.record.allowedPaths,
-      ]);
-    },
-    finalize: async (origin, id) => {
-      try {
-        if (!isCanonicalDigest(id)) return { status: "refused", reason: "invalid receipt ID" };
-        const stored = await readDecomposeRecord(deps, id);
-        if (stored === null) return { status: "refused", reason: "evidence-missing" };
-        const record = parseDecomposePreparationRecord(stored, id);
-        if (record === null) return { status: "refused", reason: "evidence-mismatch" };
-        if (record.locator.scope.subject.kind !== "work-unit" || record.locator.scope.subject.name !== origin) {
-          return { status: "refused", reason: "evidence-mismatch" };
-        }
-        const inventories = {
-          sourceInventory: record.sourceInventory,
-          incomingEdgeInventory: record.incomingEdgeInventory,
-          outgoingEdgeInventory: record.outgoingEdgeInventory,
-        };
-        const snapshot = await readDecomposeAuthorityVersion(
-          deps,
-          record.locator.scope,
-          stored,
-          record.sourceArtifactDigest,
-          inventories,
-        );
-        const index = deps.composed?.index
-          ?? await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
-        let currentInventories = inventories;
-        if (deps.composed !== undefined) {
-          const sourcePaths = [...new Set(record.sourceInventory.map((source) => source.sourcePath))];
-          const sourceArtifacts = await Promise.all(sourcePaths.map(async (sourcePath) => {
-            const path = validateManagedPath(sourcePath);
-            const bytes = await deps.readBlob(record.locator.scope.source.head, path);
-            if (bytes === null) throw new Error(`source artifact disappeared: ${sourcePath}`);
-            return { path, bytes };
-          }));
-          const freshInventory = deriveDecomposeInventories({
-            originSlug: origin,
-            sourceArtifacts,
-            lifecycleIndex: index,
-          });
-          if (freshInventory.status === "rejected") {
-            return { status: "refused", reason: freshInventory.reason };
-          }
-          currentInventories = freshInventory.inventories;
-        }
-        const entries = new Map(record.allocation.entries.map((entry) => [entry.destinationId, entry]));
-        const transformedDependents = record.schemaVersion === 2
-          ? record.transformedIncomingDependents
-          : record.incomingEdgeInventory.map((edge) => edge.dependent);
-        const projection = async (): Promise<DecomposeFinalizationProjection> => {
-          const patch = await readDecomposeStagedPatch(deps, resolveRetirementRecordRelativePath(id));
-          const targets = (await Promise.all(
-            record.allocation.entries.map((entry) => readDecomposeTargetGroup(deps, index, entry)),
-          )).filter((target): target is DecomposeFinalTarget => target !== null);
-          return {
-            sourceArtifactDigest: record.sourceArtifactDigest,
-            inventories: currentInventories,
-            stagedPaths: patch.paths,
-            transitionPatch: patch.operations,
-            targets,
-            inventoryRead: deps.composed?.readQuality ?? "tree-only",
-            transformedIncomingDependents: [...transformedDependents],
-          };
-        };
-        const finalized = await finalizeDecomposeRetirement(
-          {
-            readAuthoritySnapshot: async () => await readDecomposeAuthorityVersion(
-              deps,
-              record.locator.scope,
-              await readDecomposeRecord(deps, id),
-              record.sourceArtifactDigest,
-              inventories,
-            ),
-            readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
-            readProjection: projection,
-            readTargetArtifact: async (destinationId, artifact) => {
-              const entry = entries.get(destinationId);
-              if (entry === undefined) return null;
-              const path = destinationArtifactPath(index, record.allocation, entry, artifact);
-              return path === null ? null : await deps.readBlob(null, path);
-            },
-            readDependsOn: async (slug) => {
-              const entry = index.get(slug);
-              if (entry === undefined) return null;
-              const bytes = await deps.readBlob(null, validateManagedPath(entry.path));
-              if (bytes === null) return null;
-              return parseMetaRecord(new TextDecoder().decode(bytes)).dependsOn;
-            },
-            replaceAndStageRecord: async (recordId, expected, next, paths) => {
-              const path = resolveRetirementRecordPath(deps.cwd, recordId);
-              const relativePath = resolveRetirementRecordRelativePath(recordId);
-              if (!paths.includes(relativePath)) throw new Error("prepared record is not staged");
-              if (await deps.readFile(path) !== expected) throw new Error("prepared record changed");
-              const write = deps.atomicWriteFile ?? atomicWriteFile;
-              await write(path, next);
-              try {
-                // The transition paths were already hashed from the index. Stage only
-                // the replacement record so later working-tree edits cannot alter the
-                // patch authorized by the finalized receipt.
-                await stageDecomposePaths(deps, [relativePath]);
-                const staged = await deps.readBlob(null, validateManagedPath(relativePath));
-                if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next) {
-                  throw new Error("finalized record is absent from the staged index");
-                }
-              } catch (error) {
-                const rollbackFailure = await restorePreparedRecord(deps, write, path, relativePath, expected);
-                if (rollbackFailure !== null) {
-                  throw new Error(
-                    `finalized record update failed: ${errorMessage(error)}. `
-                    + `Rollback was incomplete: ${rollbackFailure.diagnostic}.`,
-                    { cause: error },
-                  );
-                }
-                throw error;
-              }
-            },
-          },
-          record.locator,
-          snapshot.authorityVersion,
-        );
-        if (finalized.status === "refused" && finalized.diagnostic !== undefined) {
-          return { status: "refused", reason: `${finalized.reason}: ${finalized.diagnostic}` };
-        }
-        return finalized;
-      } catch (error) {
-        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
-      }
-    },
   };
-}
-
-function prepareTimeTransformedDependents(
-  deps: InRepoDecomposeRetirementDeps,
-  origin: string,
-  incomingDependents: readonly string[],
-  allowedPaths: readonly string[],
-): string[] {
-  const dependents = deps.composed === undefined
-    ? incomingDependents
-    : partitionTransformDependents(deps.composed, origin).flatMap((partition) =>
-        partition.authority === "shared-visible"
-          && partition.writablePath !== undefined
-          && allowedPaths.includes(partition.writablePath)
-          ? [partition.dependent]
-          : []);
-  return [...dependents].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
 }
 
 async function restorePreparedRecord(

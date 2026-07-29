@@ -33,7 +33,6 @@ import {
 import type { PreparedV3DecomposeRetirement } from "./decompose-preparation.js";
 import {
   createGitV3DecomposeOperationIO,
-  nodeV3DecomposeLifecycleFs,
 } from "./git-decompose-v3-operation-io.js";
 import {
   resolveRetirementRecordPath,
@@ -182,7 +181,6 @@ async function persistPreparation(
     const driver = createInRepoDecomposeRetirementDriver({
       cwd: targetCwd,
       exec: dependencies.exec,
-      lifecycleFs: nodeV3DecomposeLifecycleFs,
       readFile: async (path) => await readFile(path, "utf8"),
       readBlob: async (ref, path) =>
         await readGitBlobBytes(targetCwd, ref, validateManagedPath(path)),

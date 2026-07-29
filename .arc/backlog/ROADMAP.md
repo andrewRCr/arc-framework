@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `d72542acc`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `da2c2e362`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a

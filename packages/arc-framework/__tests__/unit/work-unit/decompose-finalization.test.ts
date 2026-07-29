@@ -4,7 +4,6 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
   authorizeV3DecomposeRefresh,
-  finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
   resolveV3DecomposeFinalizationTransition,
   type V3DecomposeFinalizationContext,
@@ -15,16 +14,6 @@ import {
   type V3ManagedPathResult,
 } from "../../../src/lib/work-unit/decompose-v3-receipt.js";
 import { validateFinalizedV3Decomposition } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
-
-describe("retired v1/v2 decomposition finalization boundary", () => {
-  it("refuses legacy evidence instead of emitting a generic receipt", async () => {
-    expect(await finalizeDecomposeRetirement(
-      {} as never,
-      {} as never,
-      "legacy-authority",
-    )).toEqual({ status: "refused", reason: "unsupported-transition" });
-  });
-});
 
 describe("v3 decomposition finalization boundary", () => {
   type EvidenceFacts = Awaited<

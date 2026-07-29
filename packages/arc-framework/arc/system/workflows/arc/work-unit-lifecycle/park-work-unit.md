@@ -75,8 +75,7 @@ and emits a ROADMAP regen advisory. For **park@Active** it also preserves the br
 worktree in-verb (refusing on uncommitted work). For **park@Planning** the `plan/<name>` branch + worktree teardown
 is **out-of-band** — a post-action `arc teardown --force` (Step 4 below), not an in-verb leg, since firing it on the
 verb's own staged relocate would trip the clean guard and, in-place, target the un-removable primary worktree. The
-relocate choreography is shared with [`decompose-work-unit`][decompose] § [The park-exit
-block](decompose-work-unit.md#the-park-exit-block); `park` drives it through the verb rather than re-spelling it.
+park verb owns this relocate choreography.
 
 ### 4) Ship per protection mode
 
@@ -153,7 +152,8 @@ on a parked unit routes to `resume`.
 - [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
 - [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
   reverses it.
-- [`decompose-work-unit`][decompose] — shares the single-source park-exit relocate + teardown choreography.
+- [`decompose-work-unit`][decompose] — planning-source transform sibling; unlike park, it retires the supported
+  origin into authored destinations.
 - [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); park is the resumable alternative.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit; contrast with this resumable pause.
 

@@ -50,7 +50,6 @@ import {
   type GitV3RepositoryPlanDependencies,
 } from "./git-decompose-v3-repository-plan.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
-import { nodeV3DecomposeLifecycleFs } from "./git-decompose-v3-operation-io.js";
 import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
@@ -404,7 +403,6 @@ export async function finalizeGitV3DecomposeOperation(
     const driver = createInRepoDecomposeRetirementDriver({
       cwd: dependencies.cwd,
       exec: dependencies.exec,
-      lifecycleFs: nodeV3DecomposeLifecycleFs,
       readFile: async (path) => await readFile(path, "utf8"),
       readBlob: async (ref, path) =>
         await readGitBlobBytes(dependencies.cwd, ref, validateManagedPath(path)),

@@ -116,8 +116,6 @@ export function queryRetirementDisposition(
         evidenceQuality,
         disposition: { kind: "abandoned" },
       };
-    case "decompose":
-      return { status: "namespace-corrupt" };
     case "relocate":
       return { status: "absent" };
     default: {

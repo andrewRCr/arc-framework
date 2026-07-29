@@ -1,24 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  parseDecomposePreparationRecord,
-  prepareDecomposeRetirement,
-  prepareV3DecomposeRetirement,
-} from "../../../src/lib/work-unit/decompose-preparation.js";
+import { prepareV3DecomposeRetirement } from "../../../src/lib/work-unit/decompose-preparation.js";
 import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
-
-describe("retired v1/v2 decomposition preparation boundary", () => {
-  it("refuses legacy evidence instead of manufacturing v3 authority", async () => {
-    expect(parseDecomposePreparationRecord("{}")).toBeNull();
-    expect(await prepareDecomposeRetirement(
-      {} as never,
-      {} as never,
-      {} as never,
-      "legacy-authority",
-    )).toEqual({ status: "refused", reason: "unsupported-transition" });
-  });
-});
 
 describe("v3 decomposition preparation persistence", () => {
   it("rolls back a newly staged record when post-create authority verification fails", async () => {

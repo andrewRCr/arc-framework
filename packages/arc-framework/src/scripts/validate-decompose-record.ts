@@ -160,7 +160,7 @@ function receiptCoveredRetirements(
     try {
       const receipt = parseRetirementReceipt(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       if (receipt?.subject.kind !== "work-unit"
-        || (receipt.transition !== "abandon" && receipt.transition !== "decompose" && receipt.transition !== "rename")
+        || (receipt.transition !== "abandon" && receipt.transition !== "rename")
         || decodeRetirementRecordKey(pathMatch[1]) !== receipt.receiptId
         || receipt.receiptId !== receiptId({
           schemaVersion: receipt.schemaVersion,

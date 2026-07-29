@@ -6,7 +6,7 @@ import { assessReapSafety, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
-import { canonicalDigest, canonicalize, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
   deleteOperation,
@@ -15,23 +15,7 @@ import {
   type PatchOperation,
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
-import { artifactGroupDigest, preparationId, receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
-import { SlugSchema, type Slug } from "../kernel/index.js";
-import { resolveArcPath } from "../layout/index.js";
-import { scanDecomposeContent, resolveDecomposeContentLocator } from "./decompose-content.js";
-import {
-  retirementAllocationRefusal,
-  type DecomposeAllocationEntry,
-  type DecomposeAllocationMap,
-} from "./decompose-cut-map.js";
-import {
-  decomposeInventoryDigests,
-  deriveDecomposeInventories,
-  verifyDecomposeInventoryCoverage,
-  type DecomposeInventories,
-  type DecomposeSourceArtifact,
-} from "./decompose-inventory.js";
-import { replaceDependencySlot } from "./decompose-sweep.js";
+import { artifactGroupDigest, receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import { enumerateGitRetirementRecords } from "./git-retirement-record-enumeration.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
@@ -338,8 +322,6 @@ async function validateReceiptResult(
         receipt,
         projection,
       );
-    case "decompose":
-      return await validateDecomposeResult(exec, receipt, projection, readBlob);
     case "rename":
       return "unsupported-transition";
   }
@@ -367,230 +349,6 @@ async function validateAbandonResult(
     return "evidence-mismatch";
   }
   return resultArtifacts.length === 0 && !resultIndex.has(name) ? null : "projection-mismatch";
-}
-
-async function validateDecomposeResult(
-  exec: GitExec,
-  receipt: RetirementReceipt,
-  projection: { retiringHead: string; resultHead: string },
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<TeardownAuthorizationRefusal | null> {
-  if (receipt.result.kind !== "decompose" || receipt.retiringProjection.kind !== "unchanged") {
-    return "evidence-mismatch";
-  }
-  const name = receipt.subject.kind === "work-unit" ? receipt.subject.name : "";
-  const allocation = receipt.result.allocation;
-  if (retirementAllocationRefusal(allocation) !== null) {
-    return "conservation-unproven";
-  }
-  const parents = await readCommitParents(exec, projection.resultHead);
-  const allocationParent = parents.length === 1 ? parents[0] : undefined;
-  if (allocationParent === undefined) return "evidence-mismatch";
-
-  const [sourceArtifacts, sourceIndex, resultIndex] = await Promise.all([
-    readAllSubjectArtifacts(exec, receipt.source.head, name, readBlob),
-    readLifecycleIndex(exec, receipt.source.head),
-    readLifecycleIndex(exec, projection.resultHead),
-  ]);
-  if (sourceArtifacts.length === 0 || artifactGroupDigest(toArtifactEntries(sourceArtifacts)) !== receipt.source.artifactDigest) {
-    return "evidence-mismatch";
-  }
-  const derivedInventories = deriveDecomposeInventories({
-    originSlug: name,
-    sourceArtifacts: sourceArtifacts.map((artifact): DecomposeSourceArtifact => ({
-      path: artifact.path,
-      bytes: artifact.bytes,
-    })),
-    lifecycleIndex: sourceIndex,
-  });
-  if (derivedInventories.status === "rejected") return "conservation-unproven";
-  let inventories = derivedInventories.inventories;
-  let transformedIncomingDependents: readonly string[] | null = null;
-  if (receipt.schemaVersion === 2) {
-    if (receipt.result.sourceInventory === undefined
-      || receipt.result.incomingEdgeInventory === undefined
-      || receipt.result.outgoingEdgeInventory === undefined
-      || receipt.result.transformedIncomingDependents === undefined
-      || canonicalize(receipt.result.sourceInventory)
-        !== canonicalize(derivedInventories.inventories.sourceInventory)
-      || canonicalize(receipt.result.outgoingEdgeInventory)
-        !== canonicalize(derivedInventories.inventories.outgoingEdgeInventory)) {
-      return "conservation-unproven";
-    }
-    inventories = {
-      sourceInventory: derivedInventories.inventories.sourceInventory,
-      incomingEdgeInventory: receipt.result.incomingEdgeInventory,
-      outgoingEdgeInventory: receipt.result.outgoingEdgeInventory,
-    };
-    transformedIncomingDependents = receipt.result.transformedIncomingDependents;
-    const incomingDependents = new Set(inventories.incomingEdgeInventory.map((edge) => edge.dependent));
-    if (new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
-      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))) {
-      return "conservation-unproven";
-    }
-  }
-  const digests = decomposeInventoryDigests(inventories);
-  if (
-    canonicalDigest(allocation) !== receipt.result.cutMapDigest
-    || digests.sourceInventoryDigest !== receipt.result.sourceInventoryDigest
-    || digests.incomingEdgeInventoryDigest !== receipt.result.incomingEdgeInventoryDigest
-    || digests.outgoingEdgeInventoryDigest !== receipt.result.outgoingEdgeInventoryDigest
-    || verifyDecomposeInventoryCoverage(allocation, inventories).status !== "covered"
-    || preparationId({
-      receiptId: receipt.receiptId,
-      baseHead: allocationParent,
-      sourceInventoryDigest: receipt.result.sourceInventoryDigest,
-      incomingEdgeInventoryDigest: receipt.result.incomingEdgeInventoryDigest,
-      outgoingEdgeInventoryDigest: receipt.result.outgoingEdgeInventoryDigest,
-      cutMapDigest: receipt.result.cutMapDigest,
-    }) !== receipt.result.preparationId
-  ) return "conservation-unproven";
-  if (resultIndex.has(name)) return "projection-mismatch";
-
-  const targetFacts = await readDecomposeTargetFacts(exec, projection.resultHead, allocation, resultIndex, readBlob);
-  if (targetFacts === null || canonicalize(targetFacts.targets) !== canonicalize(receipt.result.targets)) {
-    return "conservation-unproven";
-  }
-  if (!await sourceAllocationsResolve(projection.resultHead, allocation, targetFacts.paths, readBlob)) {
-    return "conservation-unproven";
-  }
-  if (!dependencyAllocationMatches(allocation, inventories, resultIndex, transformedIncomingDependents)) {
-    return "conservation-unproven";
-  }
-  return null;
-}
-
-interface TargetFacts {
-  targets: Array<{ path: string; artifactDigest: CanonicalDigest }>;
-  paths: Map<string, Map<string, ManagedPath>>;
-}
-
-async function readDecomposeTargetFacts(
-  exec: GitExec,
-  ref: string,
-  allocation: DecomposeAllocationMap,
-  index: LifecycleIndex,
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<TargetFacts | null> {
-  const targets: TargetFacts["targets"] = [];
-  const paths = new Map<string, Map<string, ManagedPath>>();
-  for (const entry of allocation.entries) {
-    if (entry.kind === "surviving-origin") return null;
-    const resolved = await readAllocationTarget(exec, ref, entry, index, readBlob);
-    if (resolved === null) return null;
-    targets.push({ path: resolved.root, artifactDigest: artifactGroupDigest(toArtifactEntries(resolved.artifacts)) });
-    paths.set(entry.destinationId, new Map(resolved.artifacts.map((artifact) => [posix.basename(artifact.path), artifact.path])));
-  }
-  targets.sort((left, right) => compareBytes(left.path, right.path));
-  return { targets, paths };
-}
-
-async function readAllocationTarget(
-  exec: GitExec,
-  ref: string,
-  entry: DecomposeAllocationEntry,
-  index: LifecycleIndex,
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<{ root: string; artifacts: StoredArtifact[] } | null> {
-  if (entry.kind === "surviving-origin") return null;
-  if (entry.kind === "new-member") {
-    const indexed = index.get(entry.slug);
-    if (indexed === undefined) return null;
-    const root = posix.dirname(indexed.path);
-    return { root, artifacts: await readArtifactGroup(exec, ref, root, entry.slug, readBlob) };
-  }
-  if (entry.kind === "existing-home") {
-    if (entry.target.kind === "document") {
-      const path = validateManagedPath(entry.target.path);
-      const bytes = await readBytesAt(ref, path, readBlob);
-      return bytes === null ? null : { root: path, artifacts: [{ path, bytes }] };
-    }
-    const indexed = index.get(entry.target.slug);
-    if (indexed === undefined) return null;
-    const root = posix.dirname(indexed.path);
-    return { root, artifacts: await readArtifactGroup(exec, ref, root, entry.target.slug, readBlob) };
-  }
-  const segments = entry.cohort.split("/").map((segment) => SlugSchema.parse(segment));
-  let cohort: [Slug] | [Slug, Slug];
-  if (segments.length === 1 && segments[0] !== undefined) cohort = [segments[0]];
-  else if (segments.length === 2 && segments[0] !== undefined && segments[1] !== undefined) {
-    cohort = [segments[0], segments[1]];
-  } else {
-    throw new Error(`invalid cohort coordinate: ${entry.cohort}`);
-  }
-  const path = resolveArcPath({
-    kind: "cohort-document",
-    placement: { kind: "planned" },
-    cohort,
-  });
-  const bytes = await readBytesAt(ref, path, readBlob);
-  return bytes === null ? null : { root: posix.dirname(path), artifacts: [{ path, bytes }] };
-}
-
-async function sourceAllocationsResolve(
-  ref: string,
-  allocation: DecomposeAllocationMap,
-  paths: ReadonlyMap<string, ReadonlyMap<string, ManagedPath>>,
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<boolean> {
-  for (const source of allocation.sourceAllocations) {
-    if (source.disposition.kind === "drop") continue;
-    const locator = source.disposition.targetLocator;
-    const path = paths.get(source.disposition.destinationId)?.get(locator.artifact);
-    if (path === undefined) return false;
-    const bytes = await readBytesAt(ref, path, readBlob);
-    if (bytes === null) return false;
-    const scan = scanDecomposeContent(locator.artifact, bytes);
-    if (scan.status === "rejected"
-      || resolveDecomposeContentLocator(scan.units, locator, locator.artifact).status !== "resolved") return false;
-  }
-  return true;
-}
-
-function dependencyAllocationMatches(
-  allocation: DecomposeAllocationMap,
-  inventories: DecomposeInventories,
-  resultIndex: LifecycleIndex,
-  transformedIncomingDependents: readonly string[] | null,
-): boolean {
-  const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
-    allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
-  );
-  const transformed = transformedIncomingDependents === null
-    ? null
-    : new Set(transformedIncomingDependents);
-  for (const edge of inventories.incomingEdgeInventory) {
-    if (transformed !== null && !transformed.has(edge.dependent)) continue;
-    const disposition = incoming.get(edge.dependent);
-    if (disposition === undefined) return false;
-    const replacements = disposition.kind === "replace" ? disposition.replacementTargets : [];
-    const expected = replaceDependencySlot(edge.currentTargets, allocation.origin.slug, replacements);
-    const dependent = resultIndex.get(edge.dependent);
-    if (dependent === undefined || canonicalize(dependent.dependsOn) !== canonicalize(expected)) return false;
-  }
-
-  const recipients = allocation.entries.flatMap((entry) => {
-    if (entry.kind === "new-member") return [entry.slug];
-    if (entry.kind === "existing-home" && entry.target.kind === "work-unit") return [entry.target.slug];
-    return [];
-  });
-  for (const edge of allocation.outgoingEdges) {
-    const expected = edge.disposition.kind === "targets" ? [...edge.disposition.targets].sort(compareBytes) : [];
-    const actual = recipients.filter((slug) => resultIndex.get(slug)?.dependsOn.includes(edge.prerequisite) === true)
-      .sort(compareBytes);
-    if (canonicalize(actual) !== canonicalize(expected)) return false;
-  }
-  for (const entry of allocation.entries) {
-    if (entry.kind !== "new-member") continue;
-    const expected = allocation.outgoingEdges
-      .filter((edge) => edge.disposition.kind === "targets" && edge.disposition.targets.includes(entry.slug))
-      .map((edge) => edge.prerequisite);
-    for (const edge of allocation.internalEdges) {
-      if (edge.from === entry.slug && !expected.includes(edge.to)) expected.push(edge.to);
-    }
-    if (canonicalize(resultIndex.get(entry.slug)?.dependsOn ?? null) !== canonicalize(expected)) return false;
-  }
-  return true;
 }
 
 interface StoredArtifact {

@@ -4,7 +4,7 @@ import {
   canonicalize,
   isCanonicalDigest,
 } from "../canonical/canonical-json.js";
-import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
+import { receiptId } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
@@ -195,7 +195,7 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
         && parsed.authorization !== "identity-renamed")) {
       return null;
     }
-    const transition: RetirementTransition = parsed.transition;
+    const transition: RetirementReceipt["transition"] = parsed.transition;
     const expectedReceiptId = receiptId({
       schemaVersion,
       subject,

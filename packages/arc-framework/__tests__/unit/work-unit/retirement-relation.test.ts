@@ -7,10 +7,7 @@ import {
   type PatchOperation,
 } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
-import type {
-  DecomposeAllocationMap,
-  RetirementReceipt,
-} from "../../../src/lib/work-unit/retirement-authority.js";
+import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   validateRetirementReceiptRelation,
   type RetirementRelationContext,
@@ -45,18 +42,10 @@ function unchangedReceipt(operations: readonly PatchOperation[]): RetirementRece
   return {
     ...directReceipt(operations),
     receiptId: contentDigest(new TextEncoder().encode("unchanged-receipt")),
-    transition: "decompose",
+    transition: "park-planning",
     retiringProjection: { kind: "unchanged" },
-    result: {
-      kind: "decompose",
-      preparationId: contentDigest(new TextEncoder().encode("preparation")),
-      allocation: { schemaVersion: 2 } as DecomposeAllocationMap,
-      cutMapDigest: contentDigest(new TextEncoder().encode("cut-map")),
-      sourceInventoryDigest: contentDigest(new TextEncoder().encode("source-inventory")),
-      incomingEdgeInventoryDigest: contentDigest(new TextEncoder().encode("incoming-inventory")),
-      outgoingEdgeInventoryDigest: contentDigest(new TextEncoder().encode("outgoing-inventory")),
-      targets: [],
-    },
+    authorization: "planning-relocated",
+    result: { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) },
   };
 }
 

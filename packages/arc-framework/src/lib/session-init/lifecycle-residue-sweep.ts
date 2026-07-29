@@ -14,7 +14,6 @@ import type { GitExec } from "../git/exec.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { enumerateGitRetirementRecords } from "../work-unit/git-retirement-record-enumeration.js";
 import {
-  deriveDecomposeSuccessorCandidates,
   projectSuccessorReadiness,
   type RetirementLifecycleResult,
 } from "../work-unit/retirement-lifecycle-result.js";
@@ -239,9 +238,6 @@ export async function runLandedRetirementSweep(
       });
       continue;
     }
-    const successorCandidates = receipt.result.kind === "decompose"
-      ? deriveDecomposeSuccessorCandidates(receipt.result.allocation)
-      : [];
     const pending = { status: "pending" } as const;
     retirements.push({
       status: "actionable",
@@ -259,7 +255,7 @@ export async function runLandedRetirementSweep(
           worktree: pending,
           userWorkspace: pending,
         },
-        successorReadiness: projectSuccessorReadiness(successorCandidates, true),
+        successorReadiness: projectSuccessorReadiness([], true),
       },
       teardown: {
         argv: ["arc", "teardown", slug],
@@ -276,14 +272,8 @@ async function refusalConcernsCurrentRetirement(
   receipts: readonly LandedRetirementReceipt[],
 ): Promise<boolean> {
   const branchReceipts = receipts.filter((receipt) => receipt.source.branch === candidate.branch);
-  if (branchReceipts.some((receipt) =>
-    receipt.transition === "decompose" && receipt.source.head === candidate.head
-  )) {
-    return true;
-  }
-
   const abandonReceipts = branchReceipts.filter((receipt) =>
-    receipt.transition === "abandon" && receipt.source.head !== candidate.head
+    receipt.source.head !== candidate.head
   );
   if (abandonReceipts.length === 0) return false;
 
@@ -323,10 +313,8 @@ function matchingRetirementReceipts(
 }
 
 type LandedRetirementReceipt = RetirementReceipt & {
-  transition: "abandon" | "decompose";
-  result:
-    | Extract<RetirementReceipt["result"], { kind: "discard" }>
-    | Extract<RetirementReceipt["result"], { kind: "decompose" }>;
+  transition: "abandon";
+  result: Extract<RetirementReceipt["result"], { kind: "discard" }>;
 };
 
 function isLandedRetirementReceipt(
@@ -335,8 +323,8 @@ function isLandedRetirementReceipt(
 ): receipt is LandedRetirementReceipt {
   return receipt.subject.kind === "work-unit"
     && receipt.subject.name === slug
-    && (receipt.transition === "abandon" || receipt.transition === "decompose")
-    && (receipt.result.kind === "discard" || receipt.result.kind === "decompose");
+    && receipt.transition === "abandon"
+    && receipt.result.kind === "discard";
 }
 
 async function fetchAuthorityBase(exec: GitExec, remote: string, baseBranch: string): Promise<boolean> {
