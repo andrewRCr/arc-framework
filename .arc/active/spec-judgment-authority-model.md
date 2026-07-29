@@ -400,6 +400,26 @@ Two bounds. A description stays where it carries content-shape detail the condit
 is collapse-where-redundant, not strip-descriptions. And it reaches **only the seven entries this work unit
 rewrites anyway**; the same collapse across the index's other entries routes out.
 
+**Scoping the trigger — D5's tests 4 and 5 are authoring obligations here, not only row verdicts.** D5 presents
+its five tests as applied per register row, which settles _whether and where_ a rule may move. Two of them also
+constrain the trigger text itself, and this is the unit that writes it: **test 4** requires the condition anchor to
+the operation rather than a workflow, and to avoid any signal the agent estimates badly; **test 5** requires that
+where a lean operational surface already covers the common case, the entry name the **residual** question rather
+than the domain. Directive form satisfies neither on its own — an entry can name its operation in the prescribed
+shape and still fire on the 95% a method or workflow already serves, which relocates the read instead of removing
+it. Per `analysis-load-set-scoping`, that failure is _pointless_, not _unsafe_: it does not endanger the demoted
+content, it just buys nothing for the tier-1 debit it charges. Apply both tests to each entry after authoring it.
+
+The index already carries two entries in the residual form, both landed for exactly this defect —
+`strategy-quality-gates` ("routine per-task and per-unit gate runs are covered by the `quality-gate-commands`
+method") and `project/strategy-testing-methodology` ("the `test-first` / `testing-standards` methods don't settle
+it"). They are the worked pattern; an entry whose leaner surface exists and goes unnamed has not been scoped.
+
+**A consequence for D7 and D8.** A residual-scoped trigger licenses demoting only _residual_ content. A rule that
+fires in the common case cannot land behind a condition that deliberately excludes the common case — the register
+rows routed to such an entry must be re-checked against what its trigger actually reaches, not merely against the
+destination file.
+
 ### D7 — Canonical register: `DEV-RULES.ARC` (144 nb of 418)
 
 Per-section dispositions are enumerated in `notes-judgment-authority-model.md`, which is the authoritative row-level
@@ -744,6 +764,37 @@ must classify. **No `Depends On` edge in any of the three cases.**
 edge; the gate-versus-granularity rephrasing in D7.2 is forward-compatible with `unit-scoped-review`'s
 parametrization by construction.
 
+**Knowledge-evolution forward-compat check.** Four of the strategy's five Self-Check conditions apply — placement
+of guidance content, always-loaded context, trigger / index / description surfaces, and marginally loading
+mechanisms. The pass runs clean on **P1** (D5 test 1 is P1, and it is what closed pass one's five wrongly-demoted
+constraints), **P3** (D5 test 4), **P4** (no per-artifact tier or loading flag is introduced — which is also what
+rules out splitting `STRATEGY-INDEX` into always-load and reference-load groups, a declared loading tier wearing a
+heading), **P6** (the register demotes into existing files and mints no unit), **P7** (emitted remedy is a
+first-class destination in D5 test 2), and **P8** (no document is sharded). **P10** is the best-integrated
+principle here — the sizing ledger holds the addition to the same accounting as the removals — with one live
+correction: D6's `+7 to +14` index debit was modeled against entries carrying a description _and_ a `Consult when:`
+line, and a maintenance errand has since banked the description-drop credit into the baseline, so the re-measure
+owes the index leg as well as the register.
+
+Two findings carry:
+
+- **The scoping gate was unwired.** Test 5 reached neither the unit that authors trigger text (D6), nor the
+  execution shape derived from it, nor Success Criterion 3 — while tests 1 through 4 each reach the design in
+  several places. An over-firing trigger therefore satisfied every stated obligation, and four shipped before the
+  gap was found. D6 now carries both tests as authoring obligations and Criterion 3 checks the fifth; the entries
+  are re-scoped against it.
+- **Routing both content kinds through the index is an accepted deviation.** The target model resolves
+  operational reference to mechanically-evaluated fire-site triggers and reserves the firing-condition index for
+  emergent-relevance doctrine; P5 says the same of new on-demand loading. This work unit routes both through
+  `STRATEGY-INDEX`, because no fire-site mechanism for knowledge units ships. Recorded as an accepted deviation
+  rather than an oversight: the target-model split is `knowledge-architecture`'s to author and
+  `loadset-composition`'s to seat, and residual scoping is the closest interim approximation — it makes the index
+  behave as two kinds without declaring two kinds. **No `Depends On` edge**; nothing here blocks on either.
+
+One item routes rather than resolving here: **P9** asks that knowledge content be audience-tagged where the
+team-versus-agent distinction exists, and D5.2 sends human-facing demoted content to `strategies/` untagged. It is
+a projection concern the register does not otherwise touch — carried to `knowledge-architecture` at planning close.
+
 **User-facing impact.** Adopters who sync will see a shorter, rule-denser `DEV-RULES.ARC` with one new section and
 a small marker vocabulary. Nothing they configure changes, and no migration is required; the pre-public-release
 compatibility posture applies, so no back-compat aliases are added for the renamed or reseated sections.
@@ -794,6 +845,13 @@ compatibility posture applies, so no back-compat aliases are added for the renam
    constraint-or-not determination, so a violation is visible rather than inferred. That determination covers
    **D1's own text** as well as the register's rows (D1.6) — the addition is held to the standard the removals
    are, or the ledger is only audited on the side that shrinks.
+
+   **And the summoner is scoped, not merely present (D5 test 5).** For every entry this work unit authors or
+   rewrites, either no lean operational surface covers the common case, or the entry names the residual question
+   and identifies the surface holding the rest. An entry failing this is not a compression: it charges the tier-1
+   debit and relocates the read instead of removing it, so counting it toward the net figure would certify a wash
+   as a credit. Falsifiable per entry — name the leaner surface, or show none exists. The same bound reaches the
+   register rows routed behind such an entry, which may carry only what the scoped trigger actually reaches.
 
 ## Open Questions
 
