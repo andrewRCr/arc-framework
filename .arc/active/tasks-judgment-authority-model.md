@@ -470,24 +470,10 @@ an orphan.
   **Δ figures** have now been wrong in three of the eleven rows executed. Tier totals remain the sounder unit —
   `firm` landed at exactly its recorded 44 with four of six rows individually off.
 
-### `[ ]` **3.4 Rephrasings under § Rule Authority**
+### `[x]` **3.4 Rephrasings under § Rule Authority**
 
 - _Goal:_ Four sections that had been re-deciding the authority question locally read off § Rule Authority
   instead, and the brief stops duplicating a binding whose shape changes here.
-
-- _Rationale:_ Restating a derivable conclusion in a high-traffic rule's own text is permitted and expected — a
-  rule whose application depends on the reader supplying the derivation is applied inconsistently. The test is
-  reachability: could a reader reach the same answer from § Rule Authority without the restatement?
-
-- _Note:_ Tier accounting — § Task interlock's team-elaboration demotion is trigger-tier work executed here
-  rather than in Task 3.6, because its rephrasing is what forces subtask 3.4.f.
-
-- _Note:_ Two integration tests assert this file's prose directly, and neither test name suggests it.
-  `review-gate-workflows.test.ts` requires the two copies byte-identical and matches three phrases inside
-  § Review-Increment Invariant ¶2; `pr-open-extensions.test.ts` matches three phrases from § Review finding
-  mutation guard and forbids `GitHub` / `CodeRabbit` / `review-gate` file-wide. Preserve the asserted phrases
-  verbatim. If one goes red, the fix is the edit, never the assertion — relaxing it retires the invariant it
-  exists to protect.
 
     - `[x]` **3.4.a § Quality gate failure**
         - Confirmed at base first: the two-branch rewrite had already landed upstream, so the section arrived as
@@ -567,6 +553,18 @@ an orphan.
           copy carried no reach the original lacked, and removing it retires the synchronization burden instead
           of renewing it. The brief's remaining deferred-review clause is untouched — its own drift is
           `orientation-surface-compression`'s, already routed.
+
+- _Outcome:_ **The rephrasing tier spends: +11 nb across six subtasks**, where the register scored every row
+  `stays`/Δ0 on the assumption that restating a rule is length-neutral. It is not — three of the four rewrites
+  added a limb, a list, or a discharge clause that the prose had been leaving to the reader to infer, and each
+  is the reason the row was in the register. Only the two demotions (3.4.e, 3.4.f) returned anything. Recorded
+  as a cost rather than absorbed, because Criterion 3 measures the set directly and would surface it anyway.
+- _Outcome:_ Every rewrite here replaced a **locally re-decided authority question** with a reading off
+  § Rule Authority — the never-ran limb closing on the check-integrity backstop, the proposal rule carrying its
+  own discharge, the merge block marked `[invariant]` under a heading that names it, the leaf binding restated
+  as a floor the agent may not move. That is Criterion 1's derivation claim executed rather than asserted, and
+  in each case the surviving text is shorter in what it _obliges the reader to derive_, whatever it cost in
+  lines.
 
 ### `[ ]` **3.5 Authoring tier — compress in place**
 

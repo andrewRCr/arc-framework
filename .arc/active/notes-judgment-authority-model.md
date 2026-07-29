@@ -277,10 +277,28 @@ a real debit against Criterion 3's net measurement and is recorded as such, not 
 planning-era baseline of 61 the delta is +16; the maintenance errand that collapsed restating descriptions was
 itself net +1, so almost the whole movement is this work unit's.
 
-**Ledger position entering Phase 3.** Debits landed: § Rule Authority 37, the § Contents line 1,
-`STRATEGY-INDEX` 15 — roughly **53 nb up**, against 145 nb of canonical credit and 102 instance still to land.
-This is the state the spec predicted ("the full 144 nb is the endpoint, not the near-term state"), now measured
-rather than projected.
+**Ledger position — measure the set, do not sum the deltas.** Criterion 3 measures the tier-1 full-read set, so
+the ledger is that set measured end to end, never a running total of per-row Δs. Summing deltas understated the
+debit twice during execution: it tracked `DEV-RULES.ARC` from its post-§ Rule Authority peak rather than from
+base, so paying back the section's own cost read as credit, and it omitted `AGENT-BRIEF.ARC` entirely, where D4's
+vocabulary definitions had already landed.
+
+Measured against `7fd6e34e1^` (content-only, trailing link blocks excluded):
+
+| Tier-1 surface        | base    | now     | Δ       |
+| --------------------- | ------- | ------- | ------- |
+| `DEV-RULES.ARC`       | 398     | 394     | −4      |
+| `DEV-RULES.PROJECT`   | 255     | 255     | 0       |
+| `STRATEGY-INDEX`      | 61      | 77      | +16     |
+| `AGENT-BRIEF.ARC`     | 84      | 95      | +11     |
+| `AGENT-BRIEF.PROJECT` | 29      | 29      | 0       |
+| **Total**             | **827** | **850** | **+23** |
+
+**The set is +23 nb through Task 3.4** — the constitutional half has spent and the compression has not yet been
+collected. Against it: the `authoring` tier (19), the D6-gated `trigger` tier (47), and Phase 5's instance
+register (102). The canonical file has already returned below its own baseline while carrying a 37 nb addition,
+which is the leg that was in doubt. Re-measure this table at each phase close rather than carrying a running
+figure forward.
 
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
