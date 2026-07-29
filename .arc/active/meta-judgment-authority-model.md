@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.5.a.i — Mark the unmarked constitutional parents (seven markers, both copies)
-- **Next Task:** Task 4.5.a.ii — Mark the region-local sites (line ~851)
+- **Last Completed:** Phase 4 complete — Task 4.6.c reconciled the two configuration surfaces
+- **Next Task:** Task 5.1 — Re-measure the instance register against base (line ~1043)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.5.a.ii — apply the 25 region-local markers in both copies; expect § Rebase scope's
-  default-and-invariant-in-one-bullet shape again, and compare the copies per file before editing
+- **Next Action:** Begin Phase 5 — the `DEV-RULES.PROJECT` instance register; base is freshly reconciled at
+  `69eea63d4` (clean, 0 behind), so re-measure against it rather than any carried figure
 
 - **PR URL:** [none]
 - **Completed:** [none]
