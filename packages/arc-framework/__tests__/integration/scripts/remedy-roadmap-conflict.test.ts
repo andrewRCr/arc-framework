@@ -101,8 +101,6 @@ describe("ROADMAP conflict remedy script", () => {
         "diff",
         "--cached",
         "--name-only",
-        "--",
-        ".arc/backlog/ROADMAP.md",
       ).stdout.trim()).toBe(".arc/backlog/ROADMAP.md");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
@@ -164,6 +162,7 @@ describe("ROADMAP conflict remedy script", () => {
         "--",
         ".arc/backlog/ROADMAP.md",
       ).stdout;
+      expect(beforeUnmerged).not.toBe("");
       const beforeStatus = git("status", "--porcelain=v1", "-z").stdout;
 
       const remedy = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
