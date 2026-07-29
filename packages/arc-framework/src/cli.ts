@@ -292,11 +292,10 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Split a work unit into a cohort of members per a structured cut-map file")
-  .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
-  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
+  .description("Emit one canonical read-only v3 decomposition preflight")
+  .option("--preflight", "Emit one canonical read-only v3 starter map")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (options) => options.preflight === true },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
   ));
 

@@ -15,6 +15,12 @@ import {
   type ProjectReadinessRecordCandidate,
 } from "../../../src/lib/status/project-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import {
+  createProspectiveTransitionOverlay,
+  createValidatedTransitionOverlay,
+  transitionOverlayCompositionInput,
+} from "../../../src/lib/work-unit/transition-overlay.js";
 
 let root: string | undefined;
 
@@ -375,13 +381,43 @@ describe("composeProjectReadinessView", () => {
       localRefs: { exec, baseBranch: "main" },
       prospective: {
         currentBranch: newBranch,
-        superseded: { slug: oldSlug, branch: oldBranch },
       },
+      transitionOverlay: transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
+        origin: oldSlug,
+        sourceBranch: oldBranch,
+        planId: canonicalDigest("plan:test"),
+      })),
     });
 
     expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
     expect(input.records.some((record) => record.slug === newSlug)).toBe(true);
     expect(input.records.some((record) => record.slug === sibling)).toBe(true);
+
+    const validated = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: newBranch },
+      transitionOverlay: transitionOverlayCompositionInput(createValidatedTransitionOverlay({
+        origin: oldSlug,
+        sourceBranch: oldBranch,
+      })),
+    });
+    expect(validated).toEqual(input);
+    expect(composeProjectReadinessView({ ...validated, renderedRef: "abc1234" }))
+      .toBe(composeProjectReadinessView({ ...input, renderedRef: "abc1234" }));
+
+    const wrongBranch = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      transitionOverlay: { origin: oldSlug, sourceBranch: newBranch },
+    });
+    const wrongSlug = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      transitionOverlay: { origin: newSlug, sourceBranch: oldBranch },
+    });
+    expect(wrongBranch.records.some((record) => record.slug === oldSlug)).toBe(true);
+    expect(wrongSlug.records.some((record) => record.slug === oldSlug)).toBe(true);
   });
 
   it("keeps a genuine live sibling ahead of its completed tree record", async () => {

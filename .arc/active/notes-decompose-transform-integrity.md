@@ -81,17 +81,11 @@ cross-delivery seam review; no local chunk report or earlier stacked-base result
 
 ## Phase 1 Grounding
 
-The legacy cleanup begins with exactly two decomposition receipts:
-
-- `.arc/system/.internal/retirement-receipts/sha256-07d775a08ce484dadd4c699ebe19083c64cf9ec1f7714722ab73176edda8edbe.json`
-  is the v1 `cli-substrate-adoption` record.
-- `.arc/system/.internal/retirement-receipts/sha256-9587d5abca663f712032f64834df60620a7c6552819d9395e74adbb3ab55a9dc.json`
-  is the v2 `review-protocol-alignment` record.
-
-Seven other repository receipts remain owned by rename and abandon. `retirement-record-enumeration.ts` validates
-the whole reachable namespace before projecting one subject, so an undecodable legacy decomposition record makes
-the namespace corrupt rather than merely absent. Resolve the two records' reference and cleanup effects, delete
-their bytes, and prove the remaining namespace healthy before narrowing v1/v2 decomposition decoding.
+Legacy decomposition evidence has no remaining live obligation. Its two incoming dependency dispositions were
+already materialized directly: `operational-state-docs` depends on `cli-validation-surfaces`, and
+`schema-introspection-layer` depends on `cli-schema-kernel`. The old v1/v2 receipt bytes were removed after that
+verification. Seven other repository receipts remain owned by rename and abandon; their shared receipt behavior
+stays intact while v1/v2 decomposition decoding is narrowed away.
 
 The current evidence spine is distributed across `retirement-authority.ts`, `decompose-cut-map-schema.ts`,
 `decompose-preparation.ts`, `decompose-finalization.ts`, `retirement-receipt-codec.ts`,
@@ -452,10 +446,9 @@ full-protection retirement mechanics from becoming an impossible prerequisite fo
 
 ## Development Receipt Boundary
 
-ARC is pre-release and has no external installs, but the live session probe projects nine repository-owned
-retirement records into reference reconciliation. Seven describe rename/abandon transitions; those verbs still use
-the shared existing receipt contract. Two are old decomposition records (`cli-substrate-adoption` and
-`review-protocol-alignment`) and still suppress or resolve historical references.
+ARC is pre-release and has no external installs. The live repository namespace now retains seven rename/abandon
+records under the shared existing receipt contract. Obsolete decomposition records no longer suppress or resolve
+historical references.
 
 The core therefore does not add decomposition compatibility or migration. Implementation resolves the two old
 decomposition records' current reference/cleanup obligations and deletes them plus decomposition-specific legacy

@@ -16,196 +16,115 @@ self-hosting obligations are resolved. Unrelated transition receipts remain in t
 v3 decomposition validator owns authority; nested Markdown remains ordinary Markdown represented as disjoint byte
 units.
 
-### `[ ]` **1.1 Replace development evidence with the closed v3 contracts**
+### `[x]` **1.1 Replace development evidence with the closed v3 contracts**
 
 - _Goal:_ New decomposition transforms and stored decomposition authority have one canonical schema with no
   compatibility branches or partially authored state accepted as complete.
 
-- _Note:_ Design coverage: D1.
+    - `[x]` **1.1.a Resolve and clear obsolete decomposition state**
+        - Confirmed that the two old decomposition receipts' dependency obligations were already materialized,
+          deleted both records, and removed their v1/v2 decomposition authority without adding compatibility.
+        - Preserved complete enumeration and reconciliation for the seven retained rename/abandon records; obsolete
+          decomposition evidence no longer grants reference, cleanup, commit, or lifecycle authority.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
+    - `[x]` **1.1.b Define starter and completed cut-map schemas**
+        - Closed the v3 machine/authoring envelopes, every public union arm, exact placement depth, starter slot,
+          machine identity, canonical order, and symmetric/heterogeneous cardinality rule.
+        - Projected every named digest from validated closed operands so extra, self-referential, checkout-only, and
+          unversioned inputs cannot alter authority; the detailed decoder returns one deterministic actionable locus.
+        - Pinned canonical starter/completed bytes and every versioned identity while covering all nested arms,
+          preimage perturbations, stored-byte changes, placeholders, tampering, and identity-array drift.
 
-    - `[ ]` **1.1.a Resolve and clear obsolete decomposition state**
-        - Confirm the two repository-owned old decomposition receipts and enumerate the reference/cleanup
-          obligations they still serve.
-        - Resolve those self-hosting references or cleanup claims explicitly, then delete the development records
-          before removing any v1/v2 decomposition decoder branch. Delete decomposition-specific legacy fixtures
-          and authority branches with them.
-        - Preserve the existing shared receipt behavior still owned by rename, abandon, and park. Add no upgrader,
-          migration reader, startup cleanup, alias, or compatibility hierarchy.
-        - Verify the remaining seven non-decomposition receipts still enumerate, reference reconciliation remains
-          healthy, and obsolete decomposition evidence grants no cleanup, commit, or lifecycle authority.
+    - `[x]` **1.1.c Bind prepared evidence and allowed paths**
+        - Sealed the distinct v3 preparation namespace arm from one authenticated plan, exact stored-blob inventory,
+          completed map, allowed-path closure, publication, topology, prospective ROADMAP observation, and ownership.
+        - Revalidated canonical topology semantics, publication order, source overlay facts, ROADMAP identity, and
+          full-claim worktree correlation before returning prepared authority.
+        - Byte-pinned partial/no-topology and full/all-topology preparations; exhaustive identity, path, namespace,
+          ownership, publication, overlay, topology, and digest mutations now fail closed.
 
-    - `[ ]` **1.1.b Define starter and completed cut-map schemas**
-        - Add closed `V3DecomposeStarterMap` and `V3DecomposeCutMap` schemas with the spec-defined shared
-          `{ schemaVersion, machine, authoring }` envelope.
-        - Implement the spec's exact closed nested records for source/result binding, every planning-profile arm,
-          source units, incoming/outgoing edge identities, placement, destination and target arms, source
-          allocations, dependency dispositions, and their author slots. Give the unknown-cardinality shape,
-          placement, destinations, and internal-edge fields whole-field `{ "status": "author" }` slots.
-        - Close the public domain to machine-derived `started-planning | backlog-stub` source kind,
-          `symmetric | heterogeneous` authoring shape, direct-member/cohort/subcohort/at-cap placement, and
-          new-member/existing-home/cohort-coordination destinations. Admit no public extraction shape or
-          surviving-origin destination.
-        - Prepopulate one source-allocation element per machine source unit and one disposition element per machine
-          dependency edge. Preserve each machine identity/order while exposing only its ownership/disposition slot;
-          completed parsing requires exact identity agreement and concrete closed values everywhere.
-        - Implement the exact UTF-8 ordering rules and canonical preimages for edge IDs, `receiptId`, `preflightId`,
-          `cutMapDigest`, `allowedPathsDigest`, `topologyDigest`, `transitionPatchDigest`, and the four prepared
-          source/inventory digests. `sourceArtifactDigest` hashes the versioned path-sorted regular-blob inventory
-          with stored mode and exact stored-byte content digest; the source/incoming/outgoing inventory digests hash
-          their versioned canonical machine arrays. Hash only the closed values named by the spec and never a
-          digest's own field or checkout bytes/path.
-        - Build `test-first` (one behavior at a time):
-            - Byte-exact canonical starter and completed fixtures cover every nested union arm, author-slot shape,
-              identity array, and deterministic round-trip.
-            - Perturbing each canonical preimage member, source blob mode/bytes, or machine inventory member changes
-              only the identity or digest it feeds; reordering, self-hashing, omitted members, checkout-byte
-              substitution, and unversioned inventory hashing refuse or fail fixture equality.
-            - Symmetric maps require at least two new members and no existing home; heterogeneous maps require at
-              least one of each, while zero/one/many internal edges replace their collection slot without changing
-              the envelope.
-            - Every remaining placeholder, missing/extra/reordered machine identity, or operator-tampered machine
-              field refuses with direct authoring guidance.
-            - Extraction, surviving-origin, unknown shape/placement/destination, and source-kind tampering refuse
-              at the public decoder.
+    - `[x]` **1.1.d Bind finalized receipt and publication identity**
+        - Sealed finalized receipts from one authenticated preparation, exact per-destination outputs, the complete
+          non-receipt path-state partition, its changed patch, and publication-ordered continuation.
+        - Reauthenticated embedded preparation facts for shared-namespace reads and made ownership, logical anchor,
+          entries, topology, modes, receipt-path exclusion, destination coverage, and patch identity fail closed.
+        - Pinned canonical receipt bytes and every publication/continuation arm; direct finalization tests prove
+          exact compare-and-set replacement and no write under stored or live authority drift.
 
-    - `[ ]` **1.1.c Bind prepared evidence and allowed paths**
-        - Define the exact closed `V3DecomposePreparation` version-plus-kind arm in the shared retirement-record
-          namespace. Implement its `facts`, prospective overlay/ROADMAP observation, topology-fact arms, and
-          candidate-publication envelope without extending the generic v1/v2 result record.
-        - Bind preparation to the exact completed map, source/result identities and inventories, unique UTF-8
-          path-sorted `allowedPaths`, `allowedPathsDigest`, logical anchor, ordered candidate publication entries,
-          and constitutive topology facts/digest.
-        - Bind `candidateOwnership` as the exact full-protection
-          claim-ID/generation/branch/opaque-worktree identity or validator-fixed partial-protection not-applicable.
-          Implement the exact `planId` and `preparationId` canonical preimages so later configuration, layout,
-          authoring, or claim-store discovery cannot select a different contract.
-        - Build `test-first` (one behavior at a time):
-            - A byte-exact preparation fixture covers every envelope member and topology/ownership arm.
-            - Every member of the `planId` and `preparationId` preimages changes the appropriate canonical identity;
-              omitted, extra, self-referential, or reordered operands fail fixture equality.
-            - Full claim correlation and partial not-applicable round-trip exactly.
-            - Unknown fields, duplicate/noncanonical paths, candidate-ownership mismatch, and digest mismatch refuse
-              before prepared authority is returned.
+- _Outcome:_ V1/v2 decomposition evidence no longer grants authority; the v3 map, preparation, and finalized
+  receipt now form one closed, byte-pinned identity chain whose namespace, operands, paths, publication, topology,
+  ownership, and transition partitions are authenticated before use.
 
-    - `[ ]` **1.1.d Bind finalized receipt and publication identity**
-        - Define the closed `V3DecomposeContinuationInput`, exact `V3DecomposeReceipt` version-plus-kind arm,
-          path-state, transition-patch, and `DecompositionPublication` shapes. Specify the receipt as a
-          decomposition-specific shared-namespace record, never as a generic v1/v2 result arm.
-        - Restrict continuation input to unique publication-ordered selected slugs or explicit none, with no
-          receipt/object/path/readiness/approval fields.
-        - Give publication entries closed new-leaf and existing-destination arms. Mirror work-unit, draft-block
-          with v3 locator, and managed-document target identities; existing arms are never selection-eligible.
-        - Require `prepared` to equal the preparation `facts` byte-for-byte. Carry preparation-bound ownership,
-          logical anchor, ordered entry set, and constitutive topology unchanged. Implement the exact finalized
-          envelope and per-destination digest preimage; add every non-receipt allowed path's unique sorted
-          `managedPathResults`, the exact changed `transitionPatch` subset/digest, and typed initial continuation.
-          Exclude the receipt path from path results and permit only regular `100644`/`100755` states.
-        - Build `test-first` (one behavior at a time):
-            - One byte-exact receipt fixture covers every prepared/finalized member and publication arm.
-            - Every destination-digest and transition-patch preimage member changes the appropriate digest;
-              destination output ordering and record version-plus-kind discrimination are fixture-pinned.
-            - Candidate ownership, publication, and topology round-trip byte-for-byte from preparation; any
-              finalization-time replacement refuses.
-            - Every existing target arm round-trips with its exact identity and cannot enter continuation.
-            - Changed and unchanged result partitions are disjoint/exhaustive over non-receipt allowed paths;
-              `reuse` remains equal and every patch entry differs.
-            - Unknown fields, noncanonical ordering, malformed continuation/publication, candidate-ownership drift,
-              unsupported modes/object kinds, uncovered/overlapping paths, and digest mismatch refuse before
-              authority is returned.
-
-### `[ ]` **1.2 Scan stable disjoint allocation units**
+### `[x]` **1.2 Scan stable disjoint allocation units**
 
 - _Goal:_ Every source artifact can be conserved exactly once using hierarchy-qualified identities over its
   original bytes.
 
-- _Note:_ Design coverage: D1.
+    - `[x]` **1.2.a Build the H2-H6 heading-stack inventory**
+        - Scanned preamble, parent lead, and every H2-H6 descendant as disjoint original-byte ranges with
+          hierarchy-qualified, normalized, per-parent occurrence identities.
+        - Made occurrence keys collision-safe, treated H1 as a hierarchy reset without allocating it, and preserved
+          a leading BOM while classifying an immediate ATX or Setext heading.
+        - Pinned CRLF, multibyte, BOM, level-jump, repeated-parent, fence, HTML, quote, list, no-heading, and opaque
+          non-Markdown behavior while proving exact byte reconstruction.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
+    - `[x]` **1.2.b Resolve hierarchy-qualified locators**
+        - Closed locator ancestry to strictly increasing parent levels, projected untrusted locators canonically,
+          and required one exact match independent of object property order.
+        - Added one source-unit authentication seam that binds managed path plus locator into `sourceId`, retains
+          exact stored-byte digest separately, and reports stable identity, locator, or content loci on refusal.
+        - Preflight revalidation now pinpoints byte drift at the affected source-unit digest; hierarchy movement,
+          malformed ancestry, wrong level/occurrence, duplicate resolution, and byte-only edits are pinned.
 
-    - `[ ]` **1.2.a Build the H2-H6 heading-stack inventory**
-        - Extend the section locator with level, ancestry, and per-parent occurrence identity, then generalize the
-          Markdown boundary scanner while preserving existing normalization and incidental-heading protections.
-        - Derive ranges as UTF-8 byte offsets over original bytes; decoded text is classification input only.
-        - Build `test-first` (one behavior at a time):
-            - Preamble, parent lead content, and nested headings concatenate to the exact input without overlap.
-            - Level jumps and repeated siblings receive stable parent-qualified occurrences.
-            - Fences, HTML, quotes, lists, BOM, multibyte text, and CRLF preserve exact behavior and bytes.
+- _Outcome:_ Every allocatable artifact now yields an exhaustive original-byte inventory whose structural identity
+  changes only with path or hierarchy, while stored-byte changes remain a separate content binding and refuse at
+  the affected source-unit locus.
 
-    - `[ ]` **1.2.b Resolve hierarchy-qualified locators**
-        - Resolve the complete hierarchy-qualified locator and derive `sourceId` from schema version, source path,
-          and locator while retaining content digest separately.
-        - Build `test-first` (one behavior at a time):
-            - Identical headings under different parents resolve uniquely.
-            - Hierarchy movement changes identity; byte-only edits change only content state.
-            - Wrong ancestry, level, occurrence, or digest refuses at the exact source locus.
-
-### `[ ]` **1.3 Centralize v3 validation and transition composition**
+### `[x]` **1.3 Centralize v3 validation and transition composition**
 
 - _Goal:_ One canonical validator answers whether evidence proves the live transition, and one receipt-blind
   composition seam carries either plan-bound or validated suppression without duplicating project-readiness policy.
 
-- _Note:_ Design coverage: D1, D4, D5.
+    - `[x]` **1.3.a Decode and rederive every stored invariant**
+        - Added one discriminator-first shared receipt codec for retained transitions and closed v3 decomposition,
+          with namespace enumeration consuming only its authenticated receipt arms.
+        - Co-located each destination digest's exact output preimage, rederived it during untrusted decoding, and
+          authenticated the recursive receipt path, embedded preparation, result partition, patch, publication, and
+          continuation without returning partial or overlay authority.
+        - Retained rename, abandon, and park namespaces remain valid while legacy v1/v2 decomposition and all
+          version/kind collisions fail the namespace closed.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 1 grounding.
+    - `[x]` **1.3.b Validate the exact live decomposition**
+        - Consolidated normalized source artifacts/units, allocations, destination outputs, dependency edges,
+          actual result-base identity, managed path states, derived patch, topology, and publication behind the
+          canonical validator.
+        - Established deterministic first-failure precedence across preparation, receipt, source, allocation,
+          target, dependency, base, ownership, path, mode, patch, topology, and publication mismatches, with stable
+          source, allocation, destination, edge, and path loci.
+        - Finalization consumes only the complete canonical authority and performs no receipt replacement for any
+          mismatched live fact class.
 
-    - `[ ]` **1.3.a Decode and rederive every stored invariant**
-        - Implement the canonical v3 decomposition branch in the shared receipt codec and recompute
-          receipt/preparation identities, candidate ownership, inventories, allowed paths, managed path results,
-          changed/unchanged partition, transition patch, destination digests, and publication. Preserve the existing
-          non-decompose receipt decoder without admitting v1/v2 decomposition.
-        - Keep the decoder closed and return no partial authority on failure. It does not produce either overlay arm;
-          keep integration-anchor consumers outside this phase.
-        - Build `test-first` (one behavior at a time):
-            - Canonical v3 decomposition evidence and the retained non-decompose receipt set decode.
-            - Tampering, duplicate/unsorted paths or entries, and malformed topology or continuation facts refuse.
-            - V1/v2 decomposition evidence refuses while a namespace containing only retained transition records
-              remains valid.
+    - `[x]` **1.3.c Integrate authenticated v3 authority with shared consumers**
+        - Complete retirement enumeration now exposes only retained generic receipts, authenticated v3
+          preparations, and authenticated v3 receipts; mixed namespaces validate without reviving legacy
+          decomposition authority, and preparations remain nonterminal.
+        - Reference reconciliation projects the finalized original slug, while dependent queries join one exact
+          machine edge to one authored `edgeId` disposition with fixed `tree-only` evidence. Duplicate, missing,
+          legacy, conflicting, and malformed authority fails closed instead of appearing absent.
 
-    - `[ ]` **1.3.b Validate the exact live decomposition**
-        - Consolidate source/allocation inventory, target/dependency binding, result-base preconditions, and
-          mode-aware candidate patch validation behind `validateFinalizedV3Decomposition()`.
-        - Return canonical authority or one closed mismatch with a stable optional source/allocation/path/entry
-          locus and deterministic first-failure behavior.
-        - Build `test-first` (one behavior at a time):
-            - Exact evidence succeeds.
-            - Source, base, target, dependency, path, mode, patch, topology, and publication mismatches remain
-              distinguishable.
+    - `[x]` **1.3.d Establish receipt-blind transition overlay composition**
+        - Added opaque constructor-produced prospective and validated authority arms whose identity is stripped into
+          one minimal origin/source-branch input before shared project-record composition; only the canonical
+          finalized validator creates the durable arm.
+        - Kept ordinary current-branch prospective precedence independent, migrated direct transition, ROADMAP, and
+          composed-lifecycle callers, and removed staged-receipt discovery from the renderer. Exact suppression now
+          covers records, warnings, quality facts, and worktree projections without reaching authority adapters.
+        - Proved exact-pair suppression, mismatch and sibling preservation, unchanged no-overlay behavior, and
+          prospective/validated record plus rendered-ROADMAP parity.
 
-    - `[ ]` **1.3.c Integrate authenticated v3 authority with shared consumers**
-        - After the canonical decoder and live validator exist, extend complete retirement-record enumeration with
-          explicit v3 preparation and v3 receipt arms alongside the retained generic receipt arm; retain no v1/v2
-          decomposition-preparation arm and keep v3 preparation nonterminal.
-        - Project a canonically decoded v3 receipt's original slug into the existing decompose reference
-          transition. Join canonical incoming machine edges to authored dispositions by `edgeId` for dependent
-          queries with fixed `tree-only` evidence quality. Preserve generic rename/abandon/park behavior and fail
-          closed on missing, duplicate, or inconsistent joins.
-        - Build `test-first` (one behavior at a time):
-            - After the decoder/validator authority boundary is established, a mixed
-              retained-generic-receipt/v3 namespace authenticates completely through the canonical decoder.
-            - V3 preparation is ignored as nonterminal, while a validated v3 receipt supplies reference and
-              dependent-disposition facts.
-            - Malformed or ambiguous cross-arm evidence and invalid disposition joins corrupt/refuse the namespace
-              rather than appearing absent.
-
-    - `[ ]` **1.3.d Establish receipt-blind transition overlay composition**
-        - Define separate opaque/minimal `ProspectiveTransitionOverlay` and `ValidatedTransitionOverlay` arms over
-          one receipt-blind structured composition input. The first binds immutable-plan identity and is accepted
-          only during plan-bound candidate rendering; the second is created only from finalized canonical authority
-          and is accepted by durable consumers.
-        - Split ordinary `prospectiveTree: { currentBranch }` precedence from optional `transitionOverlay`. Replace
-          only the current untyped prospective supersession arm so staged activation, start, archive, and own-branch
-          residue behavior remain unchanged.
-        - Apply the overlay in shared project-record/oracle composition, not Markdown rendering. Migrate ROADMAP,
-          composed-lifecycle, and direct reconciliation call sites to the same receipt-blind composition interface
-          before any planning or finalization consumer uses it.
-        - Build `test-first` (one behavior at a time):
-            - The overlay suppresses only its exact origin/source branch while same-slug/wrong-branch,
-              same-branch/wrong-slug, and sibling records remain.
-            - No overlay leaves ordinary prospective-tree behavior and rendered readiness byte-identical.
-            - Plan-derived and receipt-derived equal suppression facts compose records and ROADMAP identically,
-              while prospective authority cannot enter commit, merge, publication, landing, or cleanup adapters.
+- _Outcome:_ Closed decoding, live validation, shared transition consumers, and receipt-blind composition now form
+  one authority path: plan-bound overlays remain transient, finalized overlays originate at the canonical
+  validator, and neither record enumeration nor project readiness reconstructs decomposition proof.
 
 ## **Phase 2:** Exact preflight and result planning
 

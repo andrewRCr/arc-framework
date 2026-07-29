@@ -1,7 +1,19 @@
 /** Deterministic source-unit scanning and locator resolution for decompose. */
 
+import { z } from "zod";
+
+import {
+  canonicalize,
+  digestBytes,
+  isCanonicalDigest,
+} from "../canonical/canonical-json.js";
+import { isManagedPath } from "../canonical/managed-path.js";
 import type { DecomposeContentLocator } from "./decompose-cut-map.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
+import {
+  V3DecomposeLocatorSchema,
+  v3SourceId,
+} from "./decompose-v3-schema.js";
 
 export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
@@ -28,6 +40,7 @@ interface SourceLine {
 
 interface HeadingBoundary {
   start: number;
+  level: number;
   headingSource: string;
 }
 
@@ -56,11 +69,14 @@ function sourceLines(content: string): SourceLine[] {
   return lines;
 }
 
-function atxH2Source(line: string): string | null {
-  const match = /^ {0,3}##(?:[ \t]+(.*)|[ \t]*)$/u.exec(line);
+function atxHeadingSource(line: string): { level: number; headingSource: string } | null {
+  const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/u.exec(line);
   if (match === null) return null;
-  const withoutClosing = (match[1] ?? "").replace(/[ \t]+#+[ \t]*$/u, "");
-  return normalizeDecomposeHeadingSource(withoutClosing);
+  const withoutClosing = (match[2] ?? "").replace(/[ \t]+#+[ \t]*$/u, "");
+  return {
+    level: match[1]?.length ?? 1,
+    headingSource: normalizeDecomposeHeadingSource(withoutClosing),
+  };
 }
 
 function isSetextH2Underline(line: string): boolean {
@@ -167,7 +183,7 @@ function closesFence(line: string, fence: { marker: "`" | "~"; length: number })
   return new RegExp(`^ {0,3}${escaped}{${fence.length},}[ \\t]*$`, "u").test(line);
 }
 
-function markdownBoundaries(content: string): HeadingBoundary[] {
+function markdownBoundaries(content: string, allLevels = false): HeadingBoundary[] {
   const lines = sourceLines(content);
   const headings: HeadingBoundary[] = [];
   let fence: { marker: "`" | "~"; length: number } | null = null;
@@ -199,7 +215,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       fence = opened;
       continue;
     }
-    const atx = atxH2Source(line.body);
+    const atx = atxHeadingSource(line.body);
     if (atx !== null) {
       if (container?.kind === "list" && leadingSpaces(line.body) >= container.contentIndent) {
         paragraph = [];
@@ -207,7 +223,9 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       }
       container = null;
       paragraph = [];
-      headings.push({ start: line.start, headingSource: atx });
+      if (allLevels || atx.level === 2) {
+        headings.push({ start: line.start, level: atx.level, headingSource: atx.headingSource });
+      }
       continue;
     }
     if (isSetextH2Underline(line.body)) {
@@ -215,6 +233,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       if (first !== undefined) {
         headings.push({
           start: first.start,
+          level: 2,
           headingSource: normalizeDecomposeHeadingSource(paragraph.map((part) => part.body).join("\n")),
         });
       }
@@ -222,6 +241,16 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       continue;
     }
     if (isSetextH1Underline(line.body) && paragraph.length > 0) {
+      if (allLevels) {
+        const first = paragraph[0];
+        if (first !== undefined) {
+          headings.push({
+            start: first.start,
+            level: 1,
+            headingSource: normalizeDecomposeHeadingSource(paragraph.map((part) => part.body).join("\n")),
+          });
+        }
+      }
       paragraph = [];
       continue;
     }
@@ -262,6 +291,213 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
     paragraph.push(line);
   }
   return headings;
+}
+
+export type V3DecomposeContentLocator = z.infer<typeof V3DecomposeLocatorSchema>;
+
+/** One exact byte-preserving v3 allocation unit. */
+export interface V3DecomposeContentUnit {
+  locator: V3DecomposeContentLocator;
+  content: string;
+  bytes: Uint8Array;
+}
+
+export type V3DecomposeContentScanResult =
+  | { status: "scanned"; units: V3DecomposeContentUnit[] }
+  | { status: "rejected"; reason: string };
+
+export type V3DecomposeContentResolution =
+  | { status: "resolved"; unit: V3DecomposeContentUnit }
+  | {
+      status: "rejected";
+      reason: string;
+      code?: "source-reference" | "source-id" | "source-locator" | "source-content";
+      locus?: string;
+    };
+
+const V3DecomposeSourceReferenceSchema = z.strictObject({
+  sourceId: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  sourcePath: z.string().refine(isManagedPath, "must be a managed repository-relative path"),
+  sourceLocator: V3DecomposeLocatorSchema,
+  contentDigest: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+});
+
+export type V3DecomposeSourceReference = z.infer<typeof V3DecomposeSourceReferenceSchema>;
+
+function byteOffset(content: string, offset: number): number {
+  return new TextEncoder().encode(content.slice(0, offset)).length;
+}
+
+/**
+ * Scan one source artifact into disjoint exhaustive v3 byte units.
+ *
+ * Markdown recognizes protected H2-H6 boundaries; other artifacts remain whole.
+ */
+export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3DecomposeContentScanResult {
+  if (!isArtifactBasename(artifact)) {
+    return { status: "rejected", reason: "decompose content artifact must be a slash-free NFC basename." };
+  }
+  const markdown = artifact.toLowerCase().endsWith(".md");
+  let content: string;
+  try {
+    content = new TextDecoder("utf-8", { fatal: markdown, ignoreBOM: true }).decode(bytes);
+  } catch {
+    return { status: "rejected", reason: `Markdown artifact \`${artifact}\` is not valid UTF-8.` };
+  }
+  if (!markdown) {
+    return {
+      status: "scanned",
+      units: [{ locator: { artifact, kind: "whole-file" }, content, bytes: new Uint8Array(bytes) }],
+    };
+  }
+  const classificationOffset = content.startsWith("\uFEFF") ? 1 : 0;
+  const boundaries = markdownBoundaries(content.slice(classificationOffset), true)
+    .map((heading) => ({ ...heading, start: heading.start + classificationOffset }));
+  const headings = boundaries.filter(({ level }) => level >= 2);
+  const units: V3DecomposeContentUnit[] = [];
+  const appendUnit = (start: number, end: number, locator: V3DecomposeContentLocator): void => {
+    units.push({
+      locator,
+      content: content.slice(start, end),
+      bytes: bytes.slice(byteOffset(content, start), byteOffset(content, end)),
+    });
+  };
+  if (headings.length === 0) {
+    appendUnit(0, content.length, { artifact, kind: "preamble" });
+    return { status: "scanned", units };
+  }
+  appendUnit(0, headings[0]?.start ?? 0, { artifact, kind: "preamble" });
+  const stack: Array<{ level: number; headingSource: string; occurrence: number }> = [];
+  const occurrences = new Map<string, number>();
+  let headingIndex = 0;
+  for (const heading of boundaries) {
+    if (heading.level === 1) {
+      stack.length = 0;
+      continue;
+    }
+    while ((stack.at(-1)?.level ?? 0) >= heading.level) stack.pop();
+    const ancestry = stack.map((entry) => ({ ...entry }));
+    const key = JSON.stringify([ancestry, heading.level, heading.headingSource]);
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    appendUnit(heading.start, headings[headingIndex + 1]?.start ?? content.length, {
+      artifact,
+      kind: "section",
+      level: heading.level,
+      headingSource: heading.headingSource,
+      ancestry,
+      occurrence,
+    });
+    stack.push({ level: heading.level, headingSource: heading.headingSource, occurrence });
+    headingIndex += 1;
+  }
+  return { status: "scanned", units };
+}
+
+/** Resolve one complete hierarchy-qualified v3 locator exactly once. */
+export function resolveV3DecomposeContentLocator(
+  units: readonly V3DecomposeContentUnit[],
+  locator: unknown,
+  declaredArtifact: string,
+): V3DecomposeContentResolution {
+  const parsed = V3DecomposeLocatorSchema.safeParse(locator);
+  if (!parsed.success) {
+    return {
+      status: "rejected",
+      reason: "content locator is invalid.",
+      code: "source-locator",
+      locus: declaredArtifact,
+    };
+  }
+  const sourceLocus = `${declaredArtifact}#${canonicalize(parsed.data)}`;
+  if (!isArtifactBasename(declaredArtifact) || parsed.data.artifact !== declaredArtifact) {
+    return {
+      status: "rejected",
+      reason: "content locator artifact does not match the declared target artifact.",
+      code: "source-locator",
+      locus: sourceLocus,
+    };
+  }
+  const encoded = canonicalize(parsed.data);
+  const matches = units.filter((candidate) => {
+    const candidateLocator = V3DecomposeLocatorSchema.safeParse(candidate.locator);
+    return candidateLocator.success && canonicalize(candidateLocator.data) === encoded;
+  });
+  return matches.length === 1 && matches[0] !== undefined
+    ? { status: "resolved", unit: matches[0] }
+    : {
+        status: "rejected",
+        reason: `content locator must resolve exactly once; resolved ${matches.length} times.`,
+        code: "source-locator",
+        locus: sourceLocus,
+      };
+}
+
+/**
+ * Authenticate one stored source reference against its exact artifact bytes.
+ *
+ * @param referenceInput - Closed path, locator, stable identity, and separate content binding
+ * @param storedBytes - Exact stored blob bytes for the reference's source path
+ * @returns The uniquely resolved byte unit, or one deterministic source locus
+ */
+export function resolveV3DecomposeSourceUnit(
+  referenceInput: unknown,
+  storedBytes: Uint8Array,
+): V3DecomposeContentResolution {
+  const parsed = V3DecomposeSourceReferenceSchema.safeParse(referenceInput);
+  if (!parsed.success) {
+    return {
+      status: "rejected",
+      reason: "source reference is invalid.",
+      code: "source-reference",
+    };
+  }
+  const reference = parsed.data;
+  if (reference.sourceId !== v3SourceId({
+    sourcePath: reference.sourcePath,
+    sourceLocator: reference.sourceLocator,
+  })) {
+    return {
+      status: "rejected",
+      reason: "source identity does not match its path and locator.",
+      code: "source-id",
+      locus: reference.sourcePath,
+    };
+  }
+  const artifact = reference.sourcePath.split("/").at(-1);
+  if (artifact === undefined) {
+    return {
+      status: "rejected",
+      reason: "source path has no artifact basename.",
+      code: "source-reference",
+      locus: reference.sourcePath,
+    };
+  }
+  const scan = scanV3DecomposeContent(artifact, storedBytes);
+  if (scan.status === "rejected") {
+    return {
+      status: "rejected",
+      reason: scan.reason,
+      code: "source-locator",
+      locus: reference.sourcePath,
+    };
+  }
+  const resolved = resolveV3DecomposeContentLocator(scan.units, reference.sourceLocator, artifact);
+  if (resolved.status === "rejected") {
+    return {
+      ...resolved,
+      locus: `${reference.sourcePath}#${canonicalize(reference.sourceLocator)}`,
+    };
+  }
+  if (digestBytes(resolved.unit.bytes) !== reference.contentDigest) {
+    return {
+      status: "rejected",
+      reason: "source content digest does not match the resolved stored bytes.",
+      code: "source-content",
+      locus: `${reference.sourcePath}#${canonicalize(reference.sourceLocator)}`,
+    };
+  }
+  return resolved;
 }
 
 function unit(

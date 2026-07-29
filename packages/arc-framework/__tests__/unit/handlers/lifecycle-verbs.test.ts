@@ -60,7 +60,10 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
 }));
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
-vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/tpl" }));
+vi.mock("../../../src/lib/paths.js", () => ({
+  getInternalTemplatePath: () => "/tpl",
+  resolveArcRoot: () => "/repo",
+}));
 
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
@@ -134,6 +137,11 @@ vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
     stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
     finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
   }),
+}));
+
+const mockCreateGitV3DecomposePreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
+  createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
 }));
 
 const mockRunPromote = vi.fn();
@@ -370,6 +378,10 @@ beforeEach(() => {
     authorityVersion: "finalized-version",
     lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
+  mockCreateGitV3DecomposePreflight.mockResolvedValue({
+    status: "ready",
+    preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -387,6 +399,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   process.exitCode = undefined;
 });
 
@@ -426,89 +439,32 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("prepares before dispatching the prepared decompose mutation", async () => {
-    await handleDecompose("mono", { cutMap: "cut.json" });
+  it("exposes only the complete read-only v3 preflight", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    expect(mockParseCutMap).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose).toHaveBeenCalledTimes(1);
-    expect(mockRunPreparedDecompose).toHaveBeenCalledTimes(1);
-    expect(mockStagePreparedResult).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRunPreparedDecompose.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
-    const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
-    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
-    expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("Placement:  flat planned siblings (no cohort)"),
-      "Decomposed",
-    );
-  });
+    await handleDecompose("mono", { preflight: true });
 
-  it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    await handleDecompose("mono", { finalize: receiptId });
-
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockPrepareDecompose).not.toHaveBeenCalled();
-    expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("arc teardown mono"), "Decompose finalized");
-  });
-
-  it("does not advertise teardown when finalizing a branchless origin", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    mockFinalizeDecompose.mockResolvedValue({
-      status: "recorded",
-      receipt: { receiptId },
-      authorityVersion: "finalized-version",
-      lifecycle: { ...branchlessRetirementLifecycle, transition: "decompose" },
-    });
-
-    await handleDecompose("mono", { finalize: receiptId });
-
-    expect(mockNote).toHaveBeenCalledWith(expect.not.stringContaining("arc teardown"), "Decompose finalized");
-  });
-
-  it("refuses a malformed cut-map before any mutation", async () => {
-    mockParseCutMap.mockReturnValue({ status: "rejected", reason: "cut-map requires an `entries` array." });
-
-    await handleDecompose("mono", { cutMap: "cut.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("refuses a missing / unreadable cut-map file before parse or mutation", async () => {
-    mockReadFile.mockRejectedValue(new Error("ENOENT: no such file"));
-
-    await handleDecompose("mono", { cutMap: "missing.json" });
-
+    expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
     expect(mockParseCutMap).not.toHaveBeenCalled();
+    expect(mockPrepareDecompose).not.toHaveBeenCalled();
+    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
+    expect(mockStagePreparedResult).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
   });
 
-  it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
-    await handleDecompose("other", { cutMap: "cut.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("refuses without `--cut-map`, never dispatching", async () => {
+  it("refuses an invocation without preflight authority", async () => {
     await handleDecompose("mono", {});
 
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses without an origin argument", async () => {
-    await handleDecompose(undefined, { cutMap: "cut.json" });
+    await handleDecompose(undefined, { preflight: true });
 
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

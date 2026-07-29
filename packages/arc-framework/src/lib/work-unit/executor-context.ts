@@ -77,6 +77,7 @@ import {
 } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { transitionOverlayCompositionInput } from "./transition-overlay.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -290,9 +291,11 @@ export function buildExecutorContext(
                 exec,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
-                ...(inputs.supersededSource === undefined
+                ...(inputs.transitionOverlay === undefined
                   ? {}
-                  : { superseded: inputs.supersededSource }),
+                  : {
+                      transitionOverlay: transitionOverlayCompositionInput(inputs.transitionOverlay),
+                    }),
               });
               return {
                 content: result.markdown,

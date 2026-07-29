@@ -27,7 +27,7 @@ import {
   type MetaRenderOverrides,
 } from "../../active/meta-reader.js";
 import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
-import { canonicalize } from "../../canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../canonical/canonical-json.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath, WorkUnitPlacementSchema } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
@@ -63,6 +63,7 @@ import {
   projectExtractionLifecycle,
   type RetirementLifecycleResult,
 } from "../retirement-lifecycle-result.js";
+import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -544,7 +545,13 @@ async function tearDownOrigin(
       slug: originSlug,
       inputs: sourceBranch === null || sourceBranch === "[none]"
         ? {}
-        : { supersededSource: { slug: originSlug, branch: sourceBranch } },
+        : {
+            transitionOverlay: createProspectiveTransitionOverlay({
+              origin: originSlug,
+              sourceBranch,
+              planId: canonicalDigest({ kind: "decompose", origin: originSlug, sourceBranch }),
+            }),
+          },
     },
   );
 }

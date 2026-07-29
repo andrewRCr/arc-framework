@@ -34,6 +34,7 @@
 import { basename, join, posix } from "node:path";
 
 import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
+import { canonicalDigest } from "../../canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
@@ -59,6 +60,7 @@ import {
   projectPendingRetirementLifecycle,
   type RetirementLifecycleResult,
 } from "../retirement-lifecycle-result.js";
+import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -204,7 +206,13 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     confirmed,
     ...(sourceBranch === null || sourceBranch === undefined || sourceBranch === "[none]"
       ? {}
-      : { supersededSource: { slug: name, branch: sourceBranch } }),
+      : {
+          transitionOverlay: createProspectiveTransitionOverlay({
+            origin: name,
+            sourceBranch,
+            planId: canonicalDigest({ kind: "abandon", origin: name, sourceBranch }),
+          }),
+        }),
   };
 
   const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs, executor.stageMeta);

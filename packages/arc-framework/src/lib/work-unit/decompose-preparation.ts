@@ -1,26 +1,12 @@
-/** Durable compare-and-set preparation for decompose retirement. */
+/** Durable compare-and-set preparation for version-3 decomposition evidence. */
 
-import {
-  canonicalDigest,
-  canonicalize,
-  isCanonicalDigest,
-  type CanonicalDigest,
-} from "../canonical/canonical-json.js";
-import { isManagedPath, type ManagedPath } from "../canonical/managed-path.js";
-import { preparationId, receiptId } from "../canonical/receipt-id.js";
-import {
-  decomposeInventoryDigests,
-  verifyDecomposeInventoryCoverage,
-  type DecomposeInventories,
-} from "./decompose-inventory.js";
-import {
-  parseCutMap,
-  parseDecomposeContentLocator,
-  retirementAllocationRefusal,
-  type DecomposeAllocationMap,
-} from "./decompose-cut-map.js";
+import { canonicalize, type CanonicalDigest } from "../canonical/canonical-json.js";
+import type { ManagedPath } from "../canonical/managed-path.js";
 import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
-import { isSlugSafe } from "./slug.js";
+import {
+  parseV3DecomposePreparation,
+  type V3DecomposePreparation,
+} from "./decompose-v3-preparation.js";
 import type {
   DecomposePreparationRecord,
   InventoryRead,
@@ -28,7 +14,13 @@ import type {
   RetirementAuthorityScope,
   TeardownAuthorizationRefusal,
 } from "./retirement-authority.js";
+import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
+import type { DecomposeInventories } from "./decompose-inventory.js";
 
+/**
+ * Legacy adapter shape retained only to keep generic callers type-stable while
+ * their former v1/v2 invocation is refused at the authority boundary.
+ */
 export interface DecomposePreparationProjection {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
@@ -37,6 +29,7 @@ export interface DecomposePreparationProjection {
   transformedIncomingDependents: readonly string[];
 }
 
+/** Retired v1/v2 adapter contract; no implementation accepts it. */
 export interface DecomposePreparationContext {
   readAuthoritySnapshot(scope: RetirementAuthorityScope): Promise<{
     authorityVersion: string;
@@ -50,347 +43,77 @@ export interface DecomposePreparationContext {
   stagePaths(paths: readonly string[]): Promise<void>;
 }
 
-export type DecomposePreparationResult =
-  | { status: "prepared"; preparation: PreparedDecomposeRetirement }
+/** Storage operations needed to persist an exact v3 preparation. */
+export interface V3DecomposePreparationContext {
+  readAuthoritySnapshot(receiptId: CanonicalDigest): Promise<{
+    authorityVersion: string;
+    recordState: "absent" | "prepared-decompose";
+  }>;
+  readStagedPaths(): Promise<readonly string[]>;
+  readRecord(receiptId: CanonicalDigest): Promise<string | null>;
+  createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
+  removeRecord(receiptId: CanonicalDigest): Promise<void>;
+  stagePaths(paths: readonly string[]): Promise<void>;
+}
+
+/** Exact v3 preparation plus the authority generation that admitted it. */
+export interface PreparedV3DecomposeRetirement {
+  preparation: V3DecomposePreparation;
+  authorityVersion: string;
+}
+
+export type V3DecomposePreparationResult =
+  | { status: "prepared"; preparation: PreparedV3DecomposeRetirement }
   | { status: "refused"; reason: TeardownAuthorizationRefusal };
 
 function compareCanonicalStrings(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-type JsonObject = Record<string, unknown>;
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasExactKeys(value: JsonObject, keys: readonly string[]): boolean {
-  const actual = Object.keys(value);
-  return actual.length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
-}
-
-function nonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-function parseScope(value: unknown): RetirementAuthorityScope | null {
-  if (!isObject(value) || !hasExactKeys(value, ["subject", "transition", "source", "resultProjection"])) return null;
-  if (value.transition !== "decompose" || !isObject(value.subject)
-    || !hasExactKeys(value.subject, ["kind", "name"])
-    || value.subject.kind !== "work-unit" || !nonEmpty(value.subject.name) || !isSlugSafe(value.subject.name)
-    || !isObject(value.source) || !hasExactKeys(value.source, ["branch", "head"])
-    || !nonEmpty(value.source.branch) || !nonEmpty(value.source.head)
-    || !isObject(value.resultProjection) || !hasExactKeys(value.resultProjection, ["ref", "head"])
-    || !nonEmpty(value.resultProjection.ref) || !nonEmpty(value.resultProjection.head)) {
-    return null;
-  }
-  return {
-    subject: { kind: "work-unit", name: value.subject.name },
-    transition: "decompose",
-    source: { branch: value.source.branch, head: value.source.head },
-    resultProjection: { ref: value.resultProjection.ref, head: value.resultProjection.head },
-  };
-}
-
-export function parseSourceInventory(value: unknown): DecomposeInventories["sourceInventory"] | null {
-  if (!Array.isArray(value)) return null;
-  const entries: DecomposeInventories["sourceInventory"] = [];
-  let previousId: string | undefined;
-  for (const candidate of value) {
-    if (!isObject(candidate)
-      || !hasExactKeys(candidate, ["sourceId", "sourcePath", "sourceLocator", "contentDigest"])
-      || !isCanonicalDigest(candidate.sourceId)
-      || typeof candidate.sourcePath !== "string" || !isManagedPath(candidate.sourcePath)
-      || !isCanonicalDigest(candidate.contentDigest)) {
-      return null;
-    }
-    const sourceLocator = parseDecomposeContentLocator(candidate.sourceLocator);
-    if (sourceLocator === null
-      || canonicalDigest({ schemaVersion: 2, sourcePath: candidate.sourcePath, sourceLocator }) !== candidate.sourceId
-      || (previousId !== undefined && compareCanonicalStrings(previousId, candidate.sourceId) >= 0)) {
-      return null;
-    }
-    previousId = candidate.sourceId;
-    entries.push({
-      sourceId: candidate.sourceId,
-      sourcePath: candidate.sourcePath,
-      sourceLocator,
-      contentDigest: candidate.contentDigest,
-    });
-  }
-  return entries;
-}
-
-export function parseIncomingInventory(value: unknown): DecomposeInventories["incomingEdgeInventory"] | null {
-  if (!Array.isArray(value)) return null;
-  const entries: DecomposeInventories["incomingEdgeInventory"] = [];
-  let previous: string | undefined;
-  for (const candidate of value) {
-    if (!isObject(candidate) || !hasExactKeys(candidate, ["dependent", "currentTargets"])
-      || !nonEmpty(candidate.dependent) || !isSlugSafe(candidate.dependent)
-      || !Array.isArray(candidate.currentTargets)
-      || candidate.currentTargets.some((target) => !nonEmpty(target) || !isSlugSafe(target))) {
-      return null;
-    }
-    const currentTargets = candidate.currentTargets as string[];
-    if (new Set(currentTargets).size !== currentTargets.length
-      || (previous !== undefined && compareCanonicalStrings(previous, candidate.dependent) >= 0)) {
-      return null;
-    }
-    previous = candidate.dependent;
-    entries.push({ dependent: candidate.dependent, currentTargets: [...currentTargets] });
-  }
-  return entries;
-}
-
-export function parseOutgoingInventory(value: unknown): DecomposeInventories["outgoingEdgeInventory"] | null {
-  if (!Array.isArray(value)) return null;
-  const entries: DecomposeInventories["outgoingEdgeInventory"] = [];
-  let previous: string | undefined;
-  for (const candidate of value) {
-    if (!isObject(candidate) || !hasExactKeys(candidate, ["prerequisite"])
-      || !nonEmpty(candidate.prerequisite) || !isSlugSafe(candidate.prerequisite)
-      || (previous !== undefined && compareCanonicalStrings(previous, candidate.prerequisite) >= 0)) {
-      return null;
-    }
-    previous = candidate.prerequisite;
-    entries.push({ prerequisite: candidate.prerequisite });
-  }
-  return entries;
-}
-
-function parseAllowedPaths(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const paths: string[] = [];
-  let previous: string | undefined;
-  for (const candidate of value) {
-    if (typeof candidate !== "string" || !isManagedPath(candidate)
-      || (previous !== undefined && compareCanonicalStrings(previous, candidate) >= 0)) {
-      return null;
-    }
-    previous = candidate;
-    paths.push(candidate);
-  }
-  return paths;
-}
-
-function parseTransformedIncomingDependents(
-  value: unknown,
-  incomingEdgeInventory: DecomposeInventories["incomingEdgeInventory"],
-): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const incoming = new Set(incomingEdgeInventory.map((edge) => edge.dependent));
-  const dependents: string[] = [];
-  let previous: string | undefined;
-  for (const candidate of value) {
-    if (typeof candidate !== "string" || !isSlugSafe(candidate) || !incoming.has(candidate)
-      || (previous !== undefined && compareCanonicalStrings(previous, candidate) >= 0)) {
-      return null;
-    }
-    previous = candidate;
-    dependents.push(candidate);
-  }
-  return dependents;
-}
-
-/** Decode and rederive one canonical prepared-decompose record. */
-export function parseDecomposePreparationRecord(
-  content: string,
-  expectedReceiptId?: CanonicalDigest,
-): DecomposePreparationRecord | null {
-  try {
-    const parsed: unknown = JSON.parse(content);
-    if (canonicalize(parsed) !== content || !isObject(parsed)) return null;
-    const schemaVersion = parsed.schemaVersion;
-    const expectedKeys = [
-        "kind",
-        "schemaVersion",
-        "locator",
-        "allocation",
-        "sourceInventory",
-        "incomingEdgeInventory",
-        "outgoingEdgeInventory",
-        "allowedPaths",
-        "sourceArtifactDigest",
-        "sourceInventoryDigest",
-        "incomingEdgeInventoryDigest",
-        "outgoingEdgeInventoryDigest",
-        "cutMapDigest",
-        ...(schemaVersion === 2 ? ["inventoryRead", "transformedIncomingDependents"] : []),
-      ];
-    if (!hasExactKeys(parsed, expectedKeys)
-      || parsed.kind !== "prepared-decompose" || (schemaVersion !== 1 && schemaVersion !== 2)
-      || (schemaVersion === 2
-        && parsed.inventoryRead !== "tree-only"
-        && parsed.inventoryRead !== "reachable"
-        && parsed.inventoryRead !== "degraded")
-      || !isObject(parsed.locator) || !hasExactKeys(parsed.locator, ["receiptId", "preparationId", "scope"])
-      || !isCanonicalDigest(parsed.locator.receiptId) || !isCanonicalDigest(parsed.locator.preparationId)
-      || (expectedReceiptId !== undefined && parsed.locator.receiptId !== expectedReceiptId)
-      || !isCanonicalDigest(parsed.sourceArtifactDigest)
-      || !isCanonicalDigest(parsed.sourceInventoryDigest)
-      || !isCanonicalDigest(parsed.incomingEdgeInventoryDigest)
-      || !isCanonicalDigest(parsed.outgoingEdgeInventoryDigest)
-      || !isCanonicalDigest(parsed.cutMapDigest)) {
-      return null;
-    }
-    const scope = parseScope(parsed.locator.scope);
-    const allocationResult = parseCutMap(parsed.allocation);
-    const sourceInventory = parseSourceInventory(parsed.sourceInventory);
-    const incomingEdgeInventory = parseIncomingInventory(parsed.incomingEdgeInventory);
-    const outgoingEdgeInventory = parseOutgoingInventory(parsed.outgoingEdgeInventory);
-    const allowedPaths = parseAllowedPaths(parsed.allowedPaths);
-    const transformedIncomingDependents = schemaVersion === 2 && incomingEdgeInventory !== null
-      ? parseTransformedIncomingDependents(parsed.transformedIncomingDependents, incomingEdgeInventory)
-      : null;
-    if (scope === null || allocationResult.status !== "parsed"
-      || canonicalize(allocationResult.params) !== canonicalize(parsed.allocation)
-      || sourceInventory === null || incomingEdgeInventory === null || outgoingEdgeInventory === null
-      || allowedPaths === null || (schemaVersion === 2 && transformedIncomingDependents === null)) {
-      return null;
-    }
-    const inventories = { sourceInventory, incomingEdgeInventory, outgoingEdgeInventory };
-    const inventoryDigests = decomposeInventoryDigests(inventories);
-    const cutMapDigest = canonicalDigest(allocationResult.params);
-    const deterministicReceiptId = receiptId({
-      schemaVersion,
-      subject: scope.subject,
-      transition: "decompose",
-      sourceBranch: scope.source.branch,
-      sourceHead: scope.source.head,
-    });
-    const deterministicPreparationId = preparationId({
-      receiptId: deterministicReceiptId,
-      baseHead: scope.resultProjection.head,
-      ...inventoryDigests,
-      cutMapDigest,
-    });
-    if (parsed.locator.receiptId !== deterministicReceiptId
-      || parsed.locator.preparationId !== deterministicPreparationId
-      || parsed.sourceInventoryDigest !== inventoryDigests.sourceInventoryDigest
-      || parsed.incomingEdgeInventoryDigest !== inventoryDigests.incomingEdgeInventoryDigest
-      || parsed.outgoingEdgeInventoryDigest !== inventoryDigests.outgoingEdgeInventoryDigest
-      || parsed.cutMapDigest !== cutMapDigest) {
-      return null;
-    }
-    const common = {
-      kind: "prepared-decompose",
-      locator: {
-        receiptId: deterministicReceiptId,
-        preparationId: deterministicPreparationId,
-        scope,
-      },
-      allocation: allocationResult.params,
-      ...inventories,
-      allowedPaths,
-      sourceArtifactDigest: parsed.sourceArtifactDigest,
-      ...inventoryDigests,
-      cutMapDigest,
-    } as const;
-    return schemaVersion === 1
-      ? { ...common, schemaVersion: 1 }
-      : {
-          ...common,
-          schemaVersion: 2,
-          inventoryRead: parsed.inventoryRead as Exclude<InventoryRead, "not-applicable">,
-          transformedIncomingDependents: transformedIncomingDependents ?? [],
-        };
-  } catch {
-    return null;
-  }
-}
-
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
 
-/** Persist or idempotently resume one exact decompose preparation. */
-export async function prepareDecomposeRetirement(
-  ctx: DecomposePreparationContext,
-  scope: RetirementAuthorityScope,
-  allocation: DecomposeAllocationMap,
+/**
+ * Persist or resume one authenticated version-3 preparation.
+ *
+ * The record is accepted only through the v3 codec; this is deliberately the
+ * sole decomposition preparation write authority.
+ */
+export async function prepareV3DecomposeRetirement(
+  ctx: V3DecomposePreparationContext,
+  candidate: unknown,
   expectedAuthorityVersion: string,
-): Promise<DecomposePreparationResult> {
+): Promise<V3DecomposePreparationResult> {
   try {
-    if (scope.transition !== "decompose") return { status: "refused", reason: "unsupported-transition" };
-    const snapshot = await ctx.readAuthoritySnapshot(scope);
+    const preparation = parseV3DecomposePreparation(candidate);
+    if (preparation === null) return { status: "refused", reason: "evidence-mismatch" };
+    const snapshot = await ctx.readAuthoritySnapshot(preparation.receiptId);
     if (snapshot.authorityVersion !== expectedAuthorityVersion) {
       return { status: "refused", reason: "authority-conflict" };
     }
-    const projection = await ctx.readProjection(scope);
-    if (verifyDecomposeInventoryCoverage(allocation, projection.inventories).status !== "covered") {
-      return { status: "refused", reason: "conservation-unproven" };
+    const recordPath = resolveRetirementRecordRelativePath(preparation.receiptId);
+    if (!preparation.facts.allowedPaths.includes(recordPath)) {
+      return { status: "refused", reason: "evidence-mismatch" };
     }
-    if (retirementAllocationRefusal(allocation) !== null) {
-      return { status: "refused", reason: "conservation-unproven" };
-    }
-    const incomingDependents = new Set(
-      projection.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
-    );
-    const transformedIncomingDependents = [...projection.transformedIncomingDependents]
-      .sort(compareCanonicalStrings);
-    if (new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
-      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))) {
-      return { status: "refused", reason: "conservation-unproven" };
-    }
-
-    const cutMapDigest = canonicalDigest(allocation);
-    const inventoryDigests = decomposeInventoryDigests(projection.inventories);
-    const deterministicReceiptId = receiptId({
-      schemaVersion: 2,
-      subject: scope.subject,
-      transition: "decompose",
-      sourceBranch: scope.source.branch,
-      sourceHead: scope.source.head,
-    });
-    const deterministicPreparationId = preparationId({
-      receiptId: deterministicReceiptId,
-      baseHead: scope.resultProjection.head,
-      ...inventoryDigests,
-      cutMapDigest,
-    });
-    const locator = {
-      receiptId: deterministicReceiptId,
-      preparationId: deterministicPreparationId,
-      scope,
-    };
-    const record: DecomposePreparationRecord = {
-      kind: "prepared-decompose",
-      schemaVersion: 2,
-      inventoryRead: projection.inventoryRead,
-      locator,
-      allocation,
-      sourceInventory: projection.inventories.sourceInventory,
-      incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
-      outgoingEdgeInventory: projection.inventories.outgoingEdgeInventory,
-      allowedPaths: [...projection.allowedPaths].sort(compareCanonicalStrings),
-      transformedIncomingDependents,
-      sourceArtifactDigest: projection.sourceArtifactDigest,
-      ...inventoryDigests,
-      cutMapDigest,
-    };
-    const content = canonicalize(record);
-    const recordPath = resolveRetirementRecordRelativePath(deterministicReceiptId);
+    const content = canonicalize(preparation);
     const stagedPaths = [...await ctx.readStagedPaths()].sort(compareCanonicalStrings);
-    const existing = await ctx.readRecord(deterministicReceiptId);
+    const existing = await ctx.readRecord(preparation.receiptId);
     if (existing !== null) {
       if (snapshot.recordState !== "prepared-decompose" || existing !== content) {
         return { status: "refused", reason: "authority-conflict" };
       }
-      const admitted = new Set([recordPath, ...record.allowedPaths]);
+      const admitted = new Set(preparation.facts.allowedPaths);
       if (!stagedPaths.includes(recordPath) || stagedPaths.some((path) => !admitted.has(path))) {
         return { status: "refused", reason: "authority-conflict" };
       }
-      return {
-        status: "prepared",
-        preparation: { locator, record, authorityVersion: snapshot.authorityVersion },
-      };
-    } else if (snapshot.recordState !== "absent" || stagedPaths.length !== 0) {
+      return { status: "prepared", preparation: { preparation, authorityVersion: snapshot.authorityVersion } };
+    }
+    if (snapshot.recordState !== "absent" || stagedPaths.length !== 0) {
       return { status: "refused", reason: "authority-conflict" };
     }
-
     try {
-      await ctx.createRecord(deterministicReceiptId, content);
+      await ctx.createRecord(preparation.receiptId, content);
     } catch (error) {
       if (isNodeError(error) && error.code === "EEXIST") {
         return { status: "refused", reason: "authority-conflict" };
@@ -400,18 +123,57 @@ export async function prepareDecomposeRetirement(
     try {
       await ctx.stagePaths([recordPath]);
     } catch {
-      await ctx.removeRecord(deterministicReceiptId).catch(() => {});
+      await ctx.removeRecord(preparation.receiptId).catch(() => {});
       return { status: "refused", reason: "authority-unavailable" };
     }
-    const preparedSnapshot = await ctx.readAuthoritySnapshot(scope);
+    const preparedSnapshot = await ctx.readAuthoritySnapshot(preparation.receiptId);
     if (preparedSnapshot.recordState !== "prepared-decompose") {
       return { status: "refused", reason: "authority-conflict" };
     }
     return {
       status: "prepared",
-      preparation: { locator, record, authorityVersion: preparedSnapshot.authorityVersion },
+      preparation: { preparation, authorityVersion: preparedSnapshot.authorityVersion },
     };
   } catch {
     return { status: "refused", reason: "authority-unavailable" };
   }
+}
+
+/**
+ * Retired compatibility decoder.
+ *
+ * V1/v2 preparation bytes no longer participate in any decomposition authority
+ * path. The type remains temporarily so unrelated generic retirement contracts
+ * can be removed independently.
+ */
+export function parseDecomposePreparationRecord(
+  _content: string,
+  _expectedReceiptId?: CanonicalDigest,
+): DecomposePreparationRecord | null {
+  void _content;
+  void _expectedReceiptId;
+  return null;
+}
+
+/**
+ * Retired compatibility entrypoint for the v1/v2 cut-map runtime.
+ *
+ * New callers must supply an authenticated v3 preparation to
+ * `prepareV3DecomposeRetirement`; a legacy allocation cannot manufacture v3
+ * machine, topology, ownership, or prospective-projection facts.
+ */
+export function prepareDecomposeRetirement(
+  _ctx: DecomposePreparationContext,
+  _scope: RetirementAuthorityScope,
+  _allocation: DecomposeAllocationMap,
+  _expectedAuthorityVersion: string,
+): Promise<{ status: "prepared"; preparation: PreparedDecomposeRetirement } | {
+  status: "refused";
+  reason: TeardownAuthorizationRefusal;
+}> {
+  void _ctx;
+  void _scope;
+  void _allocation;
+  void _expectedAuthorityVersion;
+  return Promise.resolve({ status: "refused", reason: "unsupported-transition" });
 }

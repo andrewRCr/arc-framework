@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { canonicalDigest } from "../lib/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
@@ -52,6 +53,10 @@ import {
   findIntegratingDependentAdvisories,
   transformDependentMutationExclusions,
 } from "../lib/work-unit/transform-coordination.js";
+import {
+  createProspectiveTransitionOverlay,
+  transitionOverlayCompositionInput,
+} from "../lib/work-unit/transition-overlay.js";
 import {
   runRename,
   type RenamePlan,
@@ -200,7 +205,18 @@ export async function runRenameCommand(
             currentBranch,
             ...(plan.oldBranch === null
               ? {}
-              : { superseded: { slug: plan.sourceSlug, branch: plan.oldBranch } }),
+              : {
+                  transitionOverlay: transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
+                    origin: plan.sourceSlug,
+                    sourceBranch: plan.oldBranch,
+                    planId: canonicalDigest({
+                      kind: "rename",
+                      origin: plan.sourceSlug,
+                      sourceBranch: plan.oldBranch,
+                      target: plan.targetSlug,
+                    }),
+                  })),
+                }),
           });
           return {
             content: result.markdown,

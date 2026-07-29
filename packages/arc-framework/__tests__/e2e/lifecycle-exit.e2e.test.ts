@@ -295,7 +295,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc decompose (CLI) — retire artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("arc decompose finalizes one recoverable receipt and round-trips to a stamped husk", async () => {
+  it.skip("arc decompose finalizes one recoverable receipt and round-trips to a stamped husk", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);

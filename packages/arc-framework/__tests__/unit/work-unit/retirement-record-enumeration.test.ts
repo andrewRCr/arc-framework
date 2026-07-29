@@ -8,8 +8,12 @@ import {
   type RetirementRecordEnumerationEntry,
 } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
 import { encodeRetirementRecordKey } from "../../../src/lib/work-unit/retirement-record-store.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
-function receipt(name: string): RetirementReceipt {
+function receipt(
+  name: string,
+  transition: "abandon" | "park-planning" | "rename" = "abandon",
+): RetirementReceipt {
   const subject = { kind: "work-unit", name } as const;
   const source = {
     branch: `plan/${name}`,
@@ -21,17 +25,25 @@ function receipt(name: string): RetirementReceipt {
     receiptId: receiptId({
       schemaVersion: 1,
       subject,
-      transition: "abandon",
+      transition,
       sourceBranch: source.branch,
       sourceHead: source.head,
     }),
     subject,
-    transition: "abandon",
+    transition,
     source,
     transitionPatchDigest: canonicalDigest(`patch:${name}`),
     retiringProjection: { kind: "direct-transition" },
-    authorization: "discard-confirmed",
-    result: { kind: "discard", artifactDigest: "absent" },
+    authorization: transition === "rename"
+      ? "identity-renamed"
+      : transition === "park-planning"
+        ? "planning-relocated"
+        : "discard-confirmed",
+    result: transition === "rename"
+      ? { kind: "rename", targetSlug: `renamed-${name}`, artifactDigest: canonicalDigest(`renamed:${name}`) }
+      : transition === "park-planning"
+        ? { kind: "relocate", plannedArtifactDigest: canonicalDigest(`planned:${name}`) }
+        : { kind: "discard", artifactDigest: "absent" },
   };
 }
 
@@ -49,6 +61,61 @@ function entry(
 }
 
 describe("retirement record namespace enumeration", () => {
+  it("authenticates distinct v3 preparation and finalized receipt arms", () => {
+    const { preparation, receipt: finalized } = v3DecompositionEvidenceFixture();
+    const raw = (content: string): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(preparation.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content,
+    });
+
+    const prepared = validateRetirementRecordEnumeration([raw(canonicalize(preparation))]);
+    expect(prepared.status === "valid" ? prepared.records[0]?.record.kind : prepared.status)
+      .toBe("v3-decomposition-preparation");
+    const receipt = validateRetirementRecordEnumeration([raw(canonicalize(finalized))]);
+    expect(receipt.status === "valid" ? receipt.records[0]?.record.kind : receipt.status)
+      .toBe("v3-decomposition-receipt");
+  });
+
+  it("authenticates mixed retained and v3 namespace arms", () => {
+    const retained = receipt("retained");
+    const { preparation, receipt: finalized } = v3DecompositionEvidenceFixture();
+    const v3Entry = (candidate: typeof preparation | typeof finalized): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(candidate.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content: canonicalize(candidate),
+    });
+
+    const prepared = validateRetirementRecordEnumeration([entry(retained), v3Entry(preparation)]);
+    expect(prepared.status === "valid"
+      ? prepared.records.map(({ record }) => record.kind)
+      : prepared.status).toEqual(["receipt", "v3-decomposition-preparation"]);
+
+    const terminal = validateRetirementRecordEnumeration([entry(retained), v3Entry(finalized)]);
+    expect(terminal.status === "valid"
+      ? terminal.records.map(({ record }) => record.kind)
+      : terminal.status).toEqual(["receipt", "v3-decomposition-receipt"]);
+  });
+
+  it("fails the namespace closed for v3 version-plus-kind collisions", () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const raw = (candidate: unknown): RetirementRecordEnumerationEntry => ({
+      filename: `${encodeRetirementRecordKey(preparation.receiptId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content: canonicalize(candidate),
+    });
+
+    expect(validateRetirementRecordEnumeration([
+      raw({ ...preparation, schemaVersion: 2 }),
+    ]).status).toBe("namespace-corrupt");
+    expect(validateRetirementRecordEnumeration([
+      raw({ ...preparation, kind: "decompose-receipt" }),
+    ]).status).toBe("namespace-corrupt");
+  });
+
   it("deduplicates byte-identical canonical and historical records", () => {
     const candidate = receipt("sample");
 
@@ -62,6 +129,59 @@ describe("retirement record namespace enumeration", () => {
         record: { kind: "receipt", value: candidate },
       }],
     });
+  });
+
+  it("authenticates a namespace containing only retained transition receipts", () => {
+    const retained = [
+      receipt("abandoned"),
+      receipt("parked", "park-planning"),
+      receipt("renamed", "rename"),
+    ];
+
+    const result = validateRetirementRecordEnumeration(retained.map((candidate) => entry(candidate)));
+
+    expect(result.status).toBe("valid");
+    if (result.status !== "valid") throw new Error("expected retained namespace");
+    expect(result.records.map(({ record }) => record.kind)).toEqual(["receipt", "receipt", "receipt"]);
+  });
+
+  it("fails the whole namespace closed for a reachable legacy decomposition receipt", () => {
+    const subject = { kind: "work-unit", name: "legacy" } as const;
+    const source = {
+      branch: "plan/legacy",
+      head: "a".repeat(40),
+      artifactDigest: canonicalDigest("legacy-source"),
+    };
+    const legacyId = receiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "decompose",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    });
+    const legacy = {
+      schemaVersion: 1,
+      receiptId: legacyId,
+      subject,
+      transition: "decompose",
+      source,
+      transitionPatchDigest: canonicalDigest("legacy-patch"),
+      retiringProjection: { kind: "unchanged" },
+      authorization: "discard-confirmed",
+      result: {
+        kind: "decompose",
+        preparationId: canonicalDigest("legacy-preparation"),
+      },
+    };
+    const legacyEntry: RetirementRecordEnumerationEntry = {
+      filename: `${encodeRetirementRecordKey(legacyId)}.json`,
+      mode: "100644",
+      type: "blob",
+      content: canonicalize(legacy),
+    };
+
+    expect(validateRetirementRecordEnumeration([entry(receipt("retained")), legacyEntry]).status)
+      .toBe("namespace-corrupt");
   });
 
   it("surfaces divergent duplicate identities as a namespace conflict", () => {

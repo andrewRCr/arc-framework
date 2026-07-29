@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
-import type { DecomposeAllocationMap } from "../../../src/lib/work-unit/decompose-cut-map.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   queryRetirementDisposition,
@@ -10,6 +9,7 @@ import {
 import type {
   RetirementRecordEnumerationResult,
 } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function renameReceipt(
   retiredSubject = "origin",
@@ -43,57 +43,6 @@ function renameReceipt(
       artifactDigest: canonicalDigest(`target:${targetSlug}`),
     },
   };
-}
-
-function decomposeReceipt(
-  incomingEdges: DecomposeAllocationMap["incomingEdges"],
-  evidenceQuality: "unknown" | "tree-only" | "reachable" | "degraded" = "reachable",
-): RetirementReceipt {
-  const subject = { kind: "work-unit", name: "origin" } as const;
-  const source = {
-    branch: "feat/origin",
-    head: "c".repeat(40),
-    artifactDigest: canonicalDigest("source:origin"),
-  };
-  const allocation: DecomposeAllocationMap = {
-    schemaVersion: 2,
-    origin: { slug: "origin", phase: "Active", location: "active" },
-    shape: "symmetric",
-    parentPosition: "standalone",
-    entries: [{ kind: "new-member", destinationId: "successor", slug: "successor", workClass: "Light" }],
-    internalEdges: [],
-    sourceAllocations: [],
-    incomingEdges,
-    outgoingEdges: [],
-  };
-  const schemaVersion = evidenceQuality === "unknown" ? 1 : 2;
-  const common = {
-    receiptId: receiptId({
-      schemaVersion,
-      subject,
-      transition: "decompose",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    }),
-    subject,
-    transition: "decompose" as const,
-    source,
-    transitionPatchDigest: canonicalDigest("patch:origin"),
-    retiringProjection: { kind: "unchanged" as const },
-    authorization: "discard-confirmed" as const,
-    result: {
-      kind: "decompose" as const,
-      preparationId: canonicalDigest("preparation"),
-      allocation,
-      cutMapDigest: canonicalDigest("cut-map"),
-      sourceInventoryDigest: canonicalDigest("source-inventory"),
-      incomingEdgeInventoryDigest: canonicalDigest("incoming-inventory"),
-      outgoingEdgeInventoryDigest: canonicalDigest("outgoing-inventory"),
-      targets: [],
-    },
-  };
-  if (evidenceQuality === "unknown") return { ...common, schemaVersion: 1 };
-  return { ...common, schemaVersion: 2, inventoryRead: evidenceQuality };
 }
 
 function enumeration(...receipts: RetirementReceipt[]): RetirementRecordEnumerationResult {
@@ -165,6 +114,24 @@ function parkReceipt(): RetirementReceipt {
 }
 
 describe("retirement disposition query", () => {
+  it("joins a v3 incoming edge to its exact authored disposition", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const result = queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: receipt.receiptId,
+        content: "",
+        record: { kind: "v3-decomposition-receipt", value: receipt },
+      }],
+    }, { retiredSubject: "origin", dependentSlug: "consumer" });
+
+    expect(result).toEqual({
+      status: "unique",
+      evidenceQuality: "tree-only",
+      disposition: { kind: "replace", replacementTargets: ["member-a"] },
+    });
+  });
+
   it("projects one reachable receipt without exposing storage paths", () => {
     const result = queryRetirementDisposition(
       enumeration(renameReceipt()),
@@ -180,6 +147,10 @@ describe("retirement disposition query", () => {
   });
 
   it("distinguishes absent, ambiguous, unmapped, version-conflict, and corrupt outcomes", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const withoutMatchingDependent = structuredClone(receipt);
+    withoutMatchingDependent.prepared.completedMap.machine.incomingEdges[0]!.dependent = "other";
+
     expect(queryRetirementDisposition(
       enumeration(),
       { retiredSubject: "origin", dependentSlug: "consumer" },
@@ -192,9 +163,19 @@ describe("retirement disposition query", () => {
       { retiredSubject: "origin", dependentSlug: "consumer" },
     )).toEqual({ status: "ambiguous" });
     expect(queryRetirementDisposition(
-      enumeration(decomposeReceipt([])),
+      {
+        status: "valid",
+        records: [{
+          id: withoutMatchingDependent.receiptId,
+          content: "",
+          record: {
+            kind: "v3-decomposition-receipt",
+            value: withoutMatchingDependent,
+          },
+        }],
+      },
       { retiredSubject: "origin", dependentSlug: "consumer" },
-    )).toEqual({ status: "unmapped-dependent", evidenceQuality: "reachable" });
+    )).toEqual({ status: "unmapped-dependent", evidenceQuality: "tree-only" });
     expect(queryRetirementDisposition(
       { status: "version-conflict", id: canonicalDigest("conflict") },
       { retiredSubject: "origin", dependentSlug: "consumer" },
@@ -206,22 +187,6 @@ describe("retirement disposition query", () => {
   });
 
   it.each([
-    {
-      label: "decompose replacement",
-      candidate: decomposeReceipt([{
-        dependent: "consumer",
-        disposition: { kind: "replace", replacementTargets: ["successor"] },
-      }]),
-      expected: { kind: "replace", replacementTargets: ["successor"] },
-    },
-    {
-      label: "authored decompose drop",
-      candidate: decomposeReceipt([{
-        dependent: "consumer",
-        disposition: { kind: "drop", reason: "no surviving concern" },
-      }]),
-      expected: { kind: "drop", reason: "no surviving concern" },
-    },
     {
       label: "rename",
       candidate: renameReceipt(),
@@ -254,22 +219,62 @@ describe("retirement disposition query", () => {
     expect(queryRetirementDisposition(evidence, query)).toEqual({ status: "absent" });
   });
 
-  it.each(["degraded", "unknown"] as const)(
-    "keeps mapped %s evidence actionable and unmapped evidence conflicting",
-    (evidenceQuality) => {
-      const mapped = decomposeReceipt([{
-        dependent: "consumer",
-        disposition: { kind: "replace", replacementTargets: ["successor"] },
-      }], evidenceQuality);
-      expect(queryRetirementDisposition(
-        enumeration(mapped),
-        { retiredSubject: "origin", dependentSlug: "consumer" },
-      )).toMatchObject({ status: "unique", evidenceQuality });
+  it("keeps v3 preparation nonterminal and retained-plus-v3 evidence ambiguous", () => {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const retained = renameReceipt();
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: preparation.receiptId,
+        content: "",
+        record: { kind: "v3-decomposition-preparation", value: preparation },
+      }],
+    }, { retiredSubject: "origin", dependentSlug: "consumer" })).toEqual({ status: "absent" });
 
-      expect(queryRetirementDisposition(
-        enumeration(decomposeReceipt([], evidenceQuality)),
-        { retiredSubject: "origin", dependentSlug: "consumer" },
-      )).toEqual({ status: "unmapped-dependent", evidenceQuality });
-    },
-  );
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [
+        {
+          id: retained.receiptId,
+          content: "",
+          record: { kind: "receipt", value: retained },
+        },
+        {
+          id: receipt.receiptId,
+          content: "",
+          record: { kind: "v3-decomposition-receipt", value: receipt },
+        },
+      ],
+    }, { retiredSubject: "origin", dependentSlug: "consumer" })).toEqual({ status: "ambiguous" });
+  });
+
+  it("fails malformed v3 dependent joins closed", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const query = (candidate: typeof receipt) => queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: candidate.receiptId,
+        content: "",
+        record: { kind: "v3-decomposition-receipt", value: candidate },
+      }],
+    }, { retiredSubject: "origin", dependentSlug: "consumer" });
+
+    const duplicateDependent = structuredClone(receipt);
+    duplicateDependent.prepared.completedMap.machine.incomingEdges.push({
+      dependent: "consumer",
+      currentTargets: ["other"],
+      edgeId: canonicalDigest("duplicate dependent edge"),
+    });
+    expect(query(duplicateDependent)).toEqual({ status: "namespace-corrupt" });
+
+    const missingDisposition = structuredClone(receipt);
+    missingDisposition.prepared.completedMap.authoring.incomingDispositions = [];
+    expect(query(missingDisposition)).toEqual({ status: "namespace-corrupt" });
+
+    const duplicateDisposition = structuredClone(receipt);
+    duplicateDisposition.prepared.completedMap.authoring.incomingDispositions.push(
+      structuredClone(duplicateDisposition.prepared.completedMap.authoring.incomingDispositions[0]!),
+    );
+    expect(query(duplicateDisposition)).toEqual({ status: "namespace-corrupt" });
+  });
 });

@@ -408,8 +408,9 @@ V3DecomposeReceipt:
 ```
 
 `prepared` is byte-for-byte equal to preparation `facts`. `destinationDigests` is unique and sorted by
-`destinationId`; each entry is `{ destinationId, digest }`, where `digest` hashes
-`{ destinationId, outputs: [{ path, after }] }` over that destination's UTF-8 path-sorted managed outputs.
+`destinationId`; each entry is `{ destinationId, outputs: [{ path, after }], digest }`, where `outputs` is the
+closed UTF-8 path-sorted preimage and `digest` hashes `{ destinationId, outputs }`. Co-locating the exact output
+preimage lets untrusted stored decoding rederive the digest instead of trusting an otherwise opaque value.
 `publication.logicalAnchor` and `entries` are byte-for-byte equal to `candidatePublication`; finalization adds only
 `initialContinuation`.
 

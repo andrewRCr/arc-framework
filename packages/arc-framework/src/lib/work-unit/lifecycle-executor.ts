@@ -43,6 +43,7 @@ import type {
 } from "./mutators/reconcile-worktree.js";
 import type { RelocateArtifactsParams, RelocateArtifactsResult } from "./mutators/relocate-artifacts.js";
 import type { SetPhaseParams, SetPhaseResult } from "./mutators/set-phase.js";
+import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 import {
   MARKED_ILLEGAL,
   TRANSITIONS,
@@ -85,8 +86,8 @@ export interface TransitionInputs {
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
-  /** Exact retiring ref candidate suppressed after the complete staged transition exists. */
-  supersededSource?: { slug: string; branch: string };
+  /** Plan-bound retiring ref suppression applied after the complete staged transition exists. */
+  transitionOverlay?: ProspectiveTransitionOverlay;
   /**
    * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
    * spawns normally infer this from `worktreeOp.createBranch`, but remote

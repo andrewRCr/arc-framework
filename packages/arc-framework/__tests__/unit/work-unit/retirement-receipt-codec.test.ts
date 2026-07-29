@@ -4,7 +4,12 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import { parseCutMap, type DecomposeAllocationMap } from "../../../src/lib/work-unit/decompose-cut-map.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
-import { parseRetirementReceipt } from "../../../src/lib/work-unit/retirement-receipt-codec.js";
+import {
+  parseRetirementRecord,
+  parseRetirementReceipt,
+  parseRetirementReceiptRecord,
+} from "../../../src/lib/work-unit/retirement-receipt-codec.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const digest = (label: string) => canonicalDigest(label);
 
@@ -88,19 +93,6 @@ describe("parseRetirementReceipt", () => {
         kind: "relocate",
         plannedArtifactDigest: digest("planned"),
       }),
-      receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
-        kind: "decompose",
-        preparationId: digest("preparation"),
-        allocation,
-        cutMapDigest: canonicalDigest(allocation),
-        sourceInventoryDigest: digest("source-inventory"),
-        incomingEdgeInventoryDigest: digest("incoming-inventory"),
-        outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-        targets: [
-          { path: ".arc/backlog/planned/my-cohort/member-a/meta-member-a.md", artifactDigest: digest("target-a") },
-          { path: ".arc/backlog/planned/my-cohort/member-b/meta-member-b.md", artifactDigest: digest("target-b") },
-        ],
-      }),
     ];
 
     for (const receipt of receipts) {
@@ -133,54 +125,41 @@ describe("parseRetirementReceipt", () => {
     expect(parseRetirementReceipt(canonicalize(nonApplicableWorkUnit))).toBeNull();
   });
 
-  it("requires exact embedded composed inventories on v2 decompose receipts", () => {
-    const inventories = {
-      sourceInventory: [],
-      incomingEdgeInventory: [],
-      outgoingEdgeInventory: [],
-      transformedIncomingDependents: [],
-    };
-    const emptyDigest = canonicalDigest([]);
-    const v1 = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
+  it("refuses legacy decomposition receipts without weakening retained receipt versions", () => {
+    const legacy = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
       kind: "decompose",
       preparationId: digest("preparation"),
       allocation,
       cutMapDigest: canonicalDigest(allocation),
-      sourceInventoryDigest: emptyDigest,
-      incomingEdgeInventoryDigest: emptyDigest,
-      outgoingEdgeInventoryDigest: emptyDigest,
-      ...inventories,
+      sourceInventoryDigest: digest("source-inventory"),
+      incomingEdgeInventoryDigest: digest("incoming-inventory"),
+      outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
       targets: [],
     });
-    const v2: RetirementReceipt = {
-      ...v1,
+    if (legacy.result.kind !== "decompose") throw new Error("expected legacy decomposition fixture");
+    const legacyV2: RetirementReceipt = {
+      ...legacy,
       schemaVersion: 2,
       inventoryRead: "reachable",
       receiptId: receiptId({
         schemaVersion: 2,
-        subject: v1.subject,
-        transition: v1.transition,
-        sourceBranch: v1.source.branch,
-        sourceHead: v1.source.head,
+        subject: legacy.subject,
+        transition: legacy.transition,
+        sourceBranch: legacy.source.branch,
+        sourceHead: legacy.source.head,
       }),
+      result: {
+        ...legacy.result,
+        sourceInventory: [],
+        incomingEdgeInventory: [],
+        outgoingEdgeInventory: [],
+        transformedIncomingDependents: [],
+      },
     };
-    expect(parseRetirementReceipt(contentOf(v2))).toEqual(v2);
 
-    const missing = candidate(v2);
-    delete (missing.result as Record<string, unknown>).incomingEdgeInventory;
-    expect(parseRetirementReceipt(canonicalize(missing))).toBeNull();
-
-    const missingPartition = candidate(v2);
-    delete (missingPartition.result as Record<string, unknown>).transformedIncomingDependents;
-    expect(parseRetirementReceipt(canonicalize(missingPartition))).toBeNull();
-
-    const invalidPartition = candidate(v2);
-    (invalidPartition.result as Record<string, unknown>).transformedIncomingDependents = ["unknown"];
-    expect(parseRetirementReceipt(canonicalize(invalidPartition))).toBeNull();
-
-    const drifted = candidate(v2);
-    (drifted.result as Record<string, unknown>).sourceInventoryDigest = digest("wrong");
-    expect(parseRetirementReceipt(canonicalize(drifted))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(legacy))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(legacyV2))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(receiptFor()))).toEqual(receiptFor());
   });
 
   it.each([
@@ -366,5 +345,56 @@ describe("parseRetirementReceipt", () => {
       base.result = { kind: "discard", artifactDigest: "absent" };
     }
     expect(parseRetirementReceipt(canonicalize(base))).toBeNull();
+  });
+});
+
+describe("parseRetirementReceiptRecord", () => {
+  it("discriminates canonical v3 decomposition from retained receipts", () => {
+    const retained = receiptFor();
+    const { receipt: decomposition } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementReceiptRecord(contentOf(retained))).toEqual({
+      kind: "retained",
+      receipt: retained,
+    });
+    expect(parseRetirementReceiptRecord(canonicalize(decomposition))).toEqual({
+      kind: "v3-decomposition",
+      receipt: decomposition,
+    });
+  });
+
+  it("refuses malformed v3 authority without falling through to retained decoding", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const tampered = structuredClone(receipt);
+    tampered.finalized.destinationDigests[0]!.digest = digest("forged");
+
+    expect(parseRetirementReceiptRecord(canonicalize(tampered))).toBeNull();
+    expect(parseRetirementReceiptRecord(canonicalize({ ...receipt, schemaVersion: 2 }))).toBeNull();
+  });
+
+  it("refuses a valid preparation as finalized receipt authority", () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementReceiptRecord(canonicalize(preparation))).toBeNull();
+  });
+});
+
+describe("parseRetirementRecord", () => {
+  it("returns only the three closed authenticated namespace arms", () => {
+    const retained = receiptFor();
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementRecord(contentOf(retained))).toEqual({
+      kind: "retained",
+      receipt: retained,
+    });
+    expect(parseRetirementRecord(canonicalize(preparation))).toEqual({
+      kind: "v3-decomposition-preparation",
+      preparation,
+    });
+    expect(parseRetirementRecord(canonicalize(receipt))).toEqual({
+      kind: "v3-decomposition",
+      receipt,
+    });
   });
 });

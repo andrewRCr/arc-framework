@@ -1,26 +1,23 @@
 /** Closed-schema decoder for finalized retirement receipts at an untrusted JSON boundary. */
 
 import {
-  canonicalDigest,
   canonicalize,
   isCanonicalDigest,
-  type CanonicalDigest,
 } from "../canonical/canonical-json.js";
-import { isManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import { parseCutMap, type DecomposeAllocationMap } from "./decompose-cut-map.js";
 import {
-  parseIncomingInventory,
-  parseOutgoingInventory,
-  parseSourceInventory,
-} from "./decompose-preparation.js";
-import { decomposeInventoryDigests } from "./decompose-inventory.js";
+  parseV3DecomposePreparation,
+  type V3DecomposePreparation,
+} from "./decompose-v3-preparation.js";
+import {
+  parseV3DecomposeReceipt,
+  type V3DecomposeReceipt,
+} from "./decompose-v3-receipt.js";
 import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
 
 type JsonObject = Record<string, unknown>;
-type DecomposeResult = Extract<RetirementReceipt["result"], { kind: "decompose" }>;
 
 const RECEIPT_KEYS = [
   "schemaVersion",
@@ -86,51 +83,7 @@ function parseProjection(value: unknown): RetirementReceipt["retiringProjection"
     : null;
 }
 
-function parseAllocation(value: unknown): DecomposeAllocationMap | null {
-  const parsed = parseCutMap(value);
-  if (parsed.status !== "parsed") return null;
-  return canonicalize(parsed.params) === canonicalize(value) ? parsed.params : null;
-}
-
-function compareCanonicalPath(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
-function parseTargets(value: unknown): DecomposeResult["targets"] {
-  if (!Array.isArray(value)) return [];
-  const targets: Array<{ path: ManagedPath; artifactDigest: CanonicalDigest }> = [];
-  const paths = new Set<string>();
-  let previousPath: string | undefined;
-  for (const item of value) {
-    if (!isObject(item) || !hasExactKeys(item, ["path", "artifactDigest"])
-      || typeof item.path !== "string"
-      || !isManagedPath(item.path)
-      || !isCanonicalDigest(item.artifactDigest)
-      || paths.has(item.path)
-      || (previousPath !== undefined && compareCanonicalPath(previousPath, item.path) >= 0)) {
-      return [];
-    }
-    paths.add(item.path);
-    previousPath = item.path;
-    targets.push({ path: item.path, artifactDigest: item.artifactDigest });
-  }
-  return targets;
-}
-
-function parseCanonicalSlugs(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const slugs: string[] = [];
-  let previous: string | undefined;
-  for (const candidate of value) {
-    const parsed = SlugSchema.safeParse(candidate);
-    if (!parsed.success || (previous !== undefined && compareCanonicalPath(previous, parsed.data) >= 0)) return null;
-    slugs.push(parsed.data);
-    previous = parsed.data;
-  }
-  return slugs;
-}
-
-function parseResult(value: unknown, schemaVersion: 1 | 2): RetirementReceipt["result"] | null {
+function parseResult(value: unknown): RetirementReceipt["result"] | null {
   if (!isObject(value) || typeof value.kind !== "string") return null;
   if (value.kind === "discard") {
     return hasExactKeys(value, ["kind", "artifactDigest"]) && value.artifactDigest === "absent"
@@ -150,92 +103,60 @@ function parseResult(value: unknown, schemaVersion: 1 | 2): RetirementReceipt["r
       ? { kind: "rename", targetSlug: targetSlug.data, artifactDigest: value.artifactDigest }
       : null;
   }
-  const decomposeKeys = [
-      "kind",
-      "preparationId",
-      "allocation",
-      "cutMapDigest",
-      "sourceInventoryDigest",
-      "incomingEdgeInventoryDigest",
-      "outgoingEdgeInventoryDigest",
-      "targets",
-    ];
-  const v2DecomposeKeys = [
-    ...decomposeKeys,
-    "sourceInventory",
-    "incomingEdgeInventory",
-    "outgoingEdgeInventory",
-    "transformedIncomingDependents",
-  ];
-  if (value.kind !== "decompose"
-    || !hasExactKeys(value, schemaVersion === 1 ? decomposeKeys : v2DecomposeKeys)) {
-    return null;
-  }
-  const allocation = parseAllocation(value.allocation);
-  if (allocation === null
-    || !isCanonicalDigest(value.preparationId)
-    || !isCanonicalDigest(value.cutMapDigest)
-    || !isCanonicalDigest(value.sourceInventoryDigest)
-    || !isCanonicalDigest(value.incomingEdgeInventoryDigest)
-    || !isCanonicalDigest(value.outgoingEdgeInventoryDigest)) {
-    return null;
-  }
-  const targets = parseTargets(value.targets);
-  if (!Array.isArray(value.targets) || targets.length !== value.targets.length) return null;
-  const sourceInventory = schemaVersion === 2 ? parseSourceInventory(value.sourceInventory) : undefined;
-  const incomingEdgeInventory = schemaVersion === 2 ? parseIncomingInventory(value.incomingEdgeInventory) : undefined;
-  const outgoingEdgeInventory = schemaVersion === 2 ? parseOutgoingInventory(value.outgoingEdgeInventory) : undefined;
-  const transformedIncomingDependents = schemaVersion === 2
-    ? parseCanonicalSlugs(value.transformedIncomingDependents)
-    : undefined;
-  if (schemaVersion === 2
-    && (sourceInventory === null
-      || incomingEdgeInventory === null
-      || outgoingEdgeInventory === null
-      || transformedIncomingDependents === null)) return null;
-  const result = {
-    kind: "decompose",
-    preparationId: value.preparationId,
-    allocation,
-    cutMapDigest: value.cutMapDigest,
-    sourceInventoryDigest: value.sourceInventoryDigest,
-    incomingEdgeInventoryDigest: value.incomingEdgeInventoryDigest,
-    outgoingEdgeInventoryDigest: value.outgoingEdgeInventoryDigest,
-    targets,
-  } as const;
-  if (schemaVersion === 1) return result;
-  if (sourceInventory === null || sourceInventory === undefined
-    || incomingEdgeInventory === null || incomingEdgeInventory === undefined
-    || outgoingEdgeInventory === null || outgoingEdgeInventory === undefined
-    || transformedIncomingDependents === null || transformedIncomingDependents === undefined) return null;
-  return {
-    ...result,
-    sourceInventory,
-    incomingEdgeInventory,
-    outgoingEdgeInventory,
-    transformedIncomingDependents,
-  };
+  return null;
 }
 
-function validV2DecomposeInventories(result: DecomposeResult): boolean {
-  const source = result.sourceInventory;
-  const incoming = result.incomingEdgeInventory;
-  const outgoing = result.outgoingEdgeInventory;
-  const transformed = result.transformedIncomingDependents;
-  return source !== undefined
-    && incoming !== undefined
-    && outgoing !== undefined
-    && transformed !== undefined
-    && transformed.every((dependent) => incoming.some((edge) => edge.dependent === dependent))
-    && canonicalize(decomposeInventoryDigests({
-      sourceInventory: source,
-      incomingEdgeInventory: incoming,
-      outgoingEdgeInventory: outgoing,
-    })) === canonicalize({
-      sourceInventoryDigest: result.sourceInventoryDigest,
-      incomingEdgeInventoryDigest: result.incomingEdgeInventoryDigest,
-      outgoingEdgeInventoryDigest: result.outgoingEdgeInventoryDigest,
-    });
+/** One fully authenticated receipt arm in the shared retirement namespace. */
+export type ParsedRetirementReceiptRecord =
+  | { kind: "retained"; receipt: RetirementReceipt }
+  | { kind: "v3-decomposition"; receipt: V3DecomposeReceipt };
+
+/** One authenticated record arm in the complete retirement namespace. */
+export type ParsedRetirementRecord =
+  | ParsedRetirementReceiptRecord
+  | { kind: "v3-decomposition-preparation"; preparation: V3DecomposePreparation };
+
+/**
+ * Discriminate and authenticate one canonical retirement record.
+ *
+ * @param content - Untrusted canonical record JSON
+ * @returns One complete retained, v3 preparation, or v3 receipt arm
+ */
+export function parseRetirementRecord(content: string): ParsedRetirementRecord | null {
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(content) as unknown;
+  } catch {
+    return null;
+  }
+  if (canonicalize(candidate) !== content || !isObject(candidate)) return null;
+  if (candidate.schemaVersion === 3) {
+    if (candidate.kind === "prepared-decompose") {
+      const preparation = parseV3DecomposePreparation(candidate);
+      return preparation === null
+        ? null
+        : { kind: "v3-decomposition-preparation", preparation };
+    }
+    if (candidate.kind === "decompose-receipt") {
+      const receipt = parseV3DecomposeReceipt(candidate);
+      return receipt === null ? null : { kind: "v3-decomposition", receipt };
+    }
+    return null;
+  }
+  if (candidate.schemaVersion !== 1 && candidate.schemaVersion !== 2) return null;
+  const receipt = parseRetirementReceipt(content);
+  return receipt === null ? null : { kind: "retained", receipt };
+}
+
+/**
+ * Authenticate only terminal receipt arms from the shared namespace.
+ *
+ * @param content - Untrusted canonical record JSON
+ * @returns One retained or v3 decomposition receipt, or `null`
+ */
+export function parseRetirementReceiptRecord(content: string): ParsedRetirementReceiptRecord | null {
+  const record = parseRetirementRecord(content);
+  return record?.kind === "v3-decomposition-preparation" ? null : record;
 }
 
 /**
@@ -257,15 +178,15 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
         && parsed.inventoryRead !== "tree-only"
         && parsed.inventoryRead !== "reachable"
         && parsed.inventoryRead !== "degraded")) return null;
+    if (parsed.transition === "decompose") return null;
     const subject = parseSubject(parsed.subject);
     const source = parseSource(parsed.source);
     const projection = parseProjection(parsed.retiringProjection);
-    const result = parseResult(parsed.result, schemaVersion);
+    const result = parseResult(parsed.result);
     if (subject === null || source === null || projection === null || result === null
       || (schemaVersion === 2
         && ((subject.kind === "work-unit") === (parsed.inventoryRead === "not-applicable")))
       || (parsed.transition !== "abandon"
-        && parsed.transition !== "decompose"
         && parsed.transition !== "park-planning"
         && parsed.transition !== "rename")
       || !isCanonicalDigest(parsed.transitionPatchDigest)
@@ -302,18 +223,10 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
         };
     const expectedLifecycle = transition === "park-planning" ? "planned" : "nonexistent";
     const projectionMatches = transition === "abandon"
-      || (transition === "decompose"
-        ? receipt.retiringProjection.kind === "unchanged"
-        : receipt.retiringProjection.kind === "direct-transition");
+      || receipt.retiringProjection.kind === "direct-transition";
     if (
       validateReceiptMatrix(receipt, expectedLifecycle) !== null
       || !projectionMatches
-      || (receipt.result.kind === "decompose"
-        && (receipt.subject.kind !== "work-unit"
-          || receipt.result.allocation.origin.slug !== receipt.subject.name
-          || canonicalDigest(receipt.result.allocation) !== receipt.result.cutMapDigest
-          || (receipt.schemaVersion === 2
-            && !validV2DecomposeInventories(receipt.result))))
       || (receipt.result.kind === "rename"
         && (receipt.subject.kind !== "work-unit"
           || receipt.result.targetSlug === receipt.subject.name))
