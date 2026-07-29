@@ -1040,14 +1040,36 @@ sweeps that heading's inbound `§` citations across both copies in the same incr
 the last consumer of a link-reference definition prunes that definition in the same increment. § Testing
 Requirements alone orphans three.
 
-### `[ ]` **5.1 Re-measure the instance register against base**
+### `[x]` **5.1 Re-measure the instance register against base**
 
 - _Goal:_ The instance dispositions execute against the current file, and the template's mirrored subset is
   measured rather than asserted.
 
-    - Same counting convention as Task 3.1, including the trailing-link-block exclusion.
-    - Identify every row whose target the shipped template also carries; that mirrored subset is additional edit
-      surface, not additional register lines.
+    - Re-derived per heading against `origin/main` under Task 3.1's convention, trailing link block excluded by
+      construction. The two unmerged base commits touch no tier-1 surface and neither copy of the file, so the
+      pending merge cannot move any figure recorded here.
+    - **Eighteen of twenty-one instance rows reproduce their recorded `nb` exactly**, and the file re-derives at 255
+      — Task 3.1's corrected denominator, independently confirmed. Two of the three that moved are Δ0 rows: § Preamble
+      is 6 not 7 (a hand-count error, 6 at every ref), and § Quality Gates' 61 nb span splits 24 / 37 rather than
+      26 / 35 — the boundary was drawn two lines late, content did not move.
+    - **One Δ changes:** the six numbered gate entries are 37 nb, so Δ28 → 30 at the row's own 7 nb residual. Task
+      5.3.b settles that residual against `QUICK-REFERENCE`. Register: instance `firm` 54 → 56, instance 102 → 104,
+      both files 244 → 246.
+    - **The register's coverage is complete** — the only unclassified nb are two container headings (§ Documentation
+      Standards, § Architecture Documentation, 1 nb each), which closes the arithmetic exactly at 255.
+    - **The mirrored subset is five rows, 41 nb of the template's 118** — § Contents, the gate entries, § Code
+      Quality Principles, § Markdown quality, § Documentation style. Twelve rows have no template heading at all;
+      § Testing Requirements shares a heading but carries no target to demote.
+
+- _Outcome:_ The instance enumeration is sound and, unlike Task 3.1's canonical pass, so is the accounting around
+  it — every correction here landed in a row rather than a denominator. Two findings outrun the count. § Documentation
+  style is **byte-identical** across the copies, so its disposition mirrors without re-derivation, while § Markdown
+  quality's line-length rule holds the template's **pre-compression** form — meaning a mirrored row can require
+  propagating an earlier unsynced compression before this work unit's applies. And the mirror is not a one-way
+  subset: § File Organization and the ADR criteria are template-only, so no row classifies them and the phase's
+  close, not a row, decides whether to touch them. The re-measured ledger is the larger result — the tier-1 set is
+  **−23 nb against base**, a 46 nb swing from the +23 recorded through Task 3.4, so Criterion 3's net is already
+  negative before this phase lands anything.
 
 ### `[ ]` **5.2 Quality-gate retarget**
 

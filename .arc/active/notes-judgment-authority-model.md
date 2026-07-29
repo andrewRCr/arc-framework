@@ -195,11 +195,11 @@ destination, as § Contributor commit release shows, but not this one.
 
 | Section                           | nb | C?    | Disposition                                                                                                                                                                                                   | Destination / mechanism                                                       | Tier      | Δnb |
 | --------------------------------- | -- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------- | --- |
-| Preamble                          | 7  | no    | keep                                                                                                                                                                                                          | —                                                                             | stays     | 0   |
+| Preamble                          | 6  | no    | keep                                                                                                                                                                                                          | —                                                                             | stays     | 0   |
 | Contents                          | 11 | no    | cut                                                                                                                                                                                                           | as above                                                                      | firm      | 11  |
 | Quality Gates — preamble          | 4  | yes   | keep — zero tolerance                                                                                                                                                                                         | —                                                                             | stays     | 1   |
-| Selecting what to run             | 26 | yes   | **keep unchanged — the exemplar**                                                                                                                                                                             | cite as the target shape; change nothing                                      | stays     | 0   |
-| The six numbered gate entries     | 35 | mixed | demote the commands behind a one-line retarget of the `quality-gate-commands` passthrough; keep the four constraints `QUICK-REFERENCE` does not carry                                                         | mechanism 1 fires once retargeted                                             | firm      | 28  |
+| Selecting what to run             | 24 | yes   | **keep unchanged — the exemplar**                                                                                                                                                                             | cite as the target shape; change nothing                                      | stays     | 0   |
+| The six numbered gate entries     | 37 | mixed | demote the commands behind a one-line retarget of the `quality-gate-commands` passthrough; keep the four constraints `QUICK-REFERENCE` does not carry                                                         | mechanism 1 fires once retargeted                                             | firm      | 30  |
 | Testing Requirements              | 10 | mixed | keep the coverage posture; demote the tier and method elaboration                                                                                                                                             | `test-first` / `testing-standards` declarations — fire                        | firm      | 6   |
 | Code Quality Principles           | 19 | mixed | cut DRY / SOLID / KISS; **keep YAGNI**, reframed as scope discipline; the TypeScript standards and the pre-public-release posture stay; reseat or rename the heading                                          | register cut 1 — see § Base drift                                             | decided   | 7   |
 | Markdown quality                  | 8  | mixed | keep line length and the underfill note; cut the always-run-lint duplication                                                                                                                                  | —                                                                             | firm      | 3   |
@@ -219,26 +219,28 @@ destination, as § Contributor commit release shows, but not this one.
 
 ### Totals
 
-| File                                                 | firm   | decided | authoring | trigger | blocked | residue | Total Δnb |
-| ---------------------------------------------------- | ------ | ------- | --------- | ------- | ------- | ------- | --------- |
-| `DEV-RULES.ARC` (canonical — ships)                  | 44     | 9       | 19        | 47      | 15      | 8       | 142       |
-| `DEV-RULES.PROJECT` (instance — template mirrors it) | 54     | 7       | 17        | 18      | 0       | 6       | 102       |
-| **Both**                                             | **98** | **16**  | **36**    | **65**  | **15**  | **14**  | **244**   |
+| File                                                 | firm    | decided | authoring | trigger | blocked | residue | Total Δnb |
+| ---------------------------------------------------- | ------- | ------- | --------- | ------- | ------- | ------- | --------- |
+| `DEV-RULES.ARC` (canonical — ships)                  | 44      | 9       | 19        | 47      | 15      | 8       | 142       |
+| `DEV-RULES.PROJECT` (instance — template mirrors it) | 56      | 7       | 17        | 18      | 0       | 6       | 104       |
+| **Both**                                             | **100** | **16**  | **36**    | **65**  | **15**  | **14**  | **246**   |
 
 Canonical `firm` and the totals carry Task 3.1's re-measurement (§ Contents 11 → 12); see § Execution
 re-measurement against base. Canonical `decided` carries Task 3.3's correction — § Task granularity's Δ5 was
 arithmetically impossible against its own disposition (the section is 6 nb, and keeping the heading plus the two
-qualitative bullets leaves 4), so the row is Δ2.
+qualitative bullets leaves 4), so the row is Δ2. Instance `firm` carries Task 5.1's — the six numbered gate entries
+are 37 nb rather than 35, so Δ28 → 30 at the row's own residual; see § Instance re-measurement against base.
 
 Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below, then 247 at
-Task 3.1's re-measurement, then 244 at Task 3.3's. The `P3` tier carries no Δ — its one row (Prefix mapping) was
-withdrawn rather than deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across **seven** index
-entries.
+Task 3.1's re-measurement, 244 at Task 3.3's, and 246 again at Task 5.1's. The `P3` tier carries no Δ — its one row
+(Prefix mapping) was withdrawn rather than deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across
+**seven** index entries.
 
-**`firm` + `decided` is what may be authored against today: 114 nb**, of which 53 is canonical `DEV-RULES.ARC`
-and 61 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
-tiers; execution is the first to touch `firm` and `decided`, adding 1 to the former and removing 3 from the
-latter. The instance share across the whole register is 102 / 244 ≈ **42%**.
+**`firm` + `decided` is what may be authored against today: 116 nb**, of which 53 is canonical `DEV-RULES.ARC`
+and 63 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
+tiers; execution is the first to touch `firm` and `decided` — Task 3.1 added 1 to the former, Task 3.3 removed 3
+from the latter, and Task 5.1 added 2 more to the former. The instance share across the whole register is
+104 / 246 ≈ **42%**.
 
 ### Execution re-measurement against base (Task 3.1)
 
@@ -299,6 +301,103 @@ collected. Against it: the `authoring` tier (19), the D6-gated `trigger` tier (4
 register (102). The canonical file has already returned below its own baseline while carrying a 37 nb addition,
 which is the leg that was in doubt. Re-measure this table at each phase close rather than carrying a running
 figure forward.
+
+### Instance re-measurement against base (Task 5.1)
+
+Re-derived mechanically per heading under Task 3.1's convention — scanning stops at the next heading or at the final
+`---` whose remainder is only link definitions, so the trailing link block is excluded by construction. Baseline is
+`origin/main`. The two base commits this branch has not merged (`bb6803b62`, `52693a754`) touch neither copy of
+`DEV-RULES.PROJECT` nor any other tier-1 surface, so `origin/main` and the merge-base agree on every file measured
+here and the pending merge cannot move a figure below.
+
+**Eighteen of the twenty-one instance rows reproduce their recorded `nb` exactly**, and the file's content total
+re-derives at **255** — Task 3.1's corrected denominator, now confirmed by an independent count. Three rows moved,
+none of them because base moved.
+
+**§ Preamble is 6 nb, not 7.** It measures 6 at the planning baseline, at `origin/main`, and now, so this is a
+hand-count error rather than drift. A `keep` / Δ0 row, so no disposition changes.
+
+**§ Quality Gates' internal split was drawn two lines late.** The heading span is 61 nb and has been stable at every
+ref measured; the register divided it 26 / 35 where the mechanical boundary — the first numbered entry — divides it
+**24 / 37**. Content did not move; the boundary did. That leaves the one row whose Δ changes: the six numbered gate
+entries are 37 nb, and the recorded Δ28 implied a 7 nb residual (the retarget line plus the four constraints
+`QUICK-REFERENCE` does not carry), so at that residual the row is **Δ30**. The residual itself was never measured —
+Task 5.3.b settles it against `QUICK-REFERENCE` § Quality Gate Commands and fixes the Δ against what actually stays.
+
+**Two `##` headings carry no register row** — § Documentation Standards and § Architecture Documentation, 1 nb each,
+both pure containers over `###` rows the register does enumerate. With the § Preamble correction this closes the
+file's arithmetic exactly: 254 recorded − 1 + 2 = 255. The register's coverage is complete; nothing is unclassified.
+
+Register consequences: instance `firm` 54 → **56**, instance total 102 → **104**, both files 244 → **246**, and
+`firm` + `decided` 114 → **116**, of which the instance carries 63. Against Task 3.1's corrected denominator the
+instance register is **104 nb of 255 ≈ 41%** of the file; the tables' `267` headings remain the planning-era record,
+per the record-the-correction rather than rewrite-the-header call Task 3.1 made for the canonical `418`.
+
+### The template's mirrored subset, measured (Task 5.1)
+
+Correction #2 below established that several rows reach the template and named five sites. This is the full
+enumeration behind that claim, with each site measured. The shipped template is
+`packages/arc-framework/arc/system/rules/DEV-RULES.PROJECT.md` — 118 content nb across twelve sections.
+`template-dev-rules.md` is not a second copy of it: that scaffold is for domain files and excludes both reserved
+filenames by name.
+
+**Twelve of the twenty-one rows have no template heading at all** — everything from § Workflow prose economy through
+§ Surface agent-side friction, plus § Selecting what to run, the row the register holds up as the exemplar. Of the
+nine sharing a heading, the mirror rule turns on whether the template carries the **row's target**, not the heading:
+
+| Register row                  | Template `nb` | Carries the row's target?                                       | Mirrored edit surface        |
+| ----------------------------- | ------------- | --------------------------------------------------------------- | ---------------------------- |
+| Preamble                      | 14            | n/a — the row is `keep`                                         | none                         |
+| Contents                      | 9             | yes — same block, same argument                                 | 9 nb, cut whole              |
+| Quality Gates — preamble      | 5             | partly — the zero-tolerance line is verbatim; see below         | none — the row is `keep`     |
+| The six numbered gate entries | 20            | yes — four placeholder gates plus two authoring comments        | 13 nb, leaving 7             |
+| Testing Requirements          | 10            | no — placeholders only; no tier or method elaboration to demote | none                         |
+| Code Quality Principles       | 11            | yes — DRY / SOLID / KISS / YAGNI verbatim                       | 6 nb                         |
+| Markdown quality              | 8             | partly — the always-run-lint bullet is verbatim; see below      | 1 nb, plus a divergence      |
+| Documentation style           | 12            | yes — **byte-identical to the instance**                        | 12 nb, Δ4 applies as written |
+| Capture Routing               | 10            | n/a — the row is `keep`                                         | none                         |
+| Architecture Decision Records | 17            | partly — the pointer, reworded; the leak rule is instance-only  | the pointer                  |
+
+**Five rows carry real template edit surface** — § Contents, the gate entries, § Code Quality Principles,
+§ Markdown quality, and § Documentation style — 41 nb of the template's 118 touched. None of it is register lines:
+the register measures the instance, and the template edit rides the same increment.
+
+**§ Documentation style is byte-identical across the copies**, which makes it the one row whose disposition needs no
+re-derivation for the template — the Δ4 compression applies to the same twelve lines twice.
+
+**The mirror is not a one-way subset.** The template carries § File Organization (5 nb) and the ADR write-when /
+don't-write-for criteria (10 nb) that the instance does not — content no register row classifies, so the mirror rule
+reaches none of it. Whether this phase touches template-only content is a call for the phase's close, not something
+a row settles.
+
+**Two shared sections hold longer text in the template than in the instance, and they are different cases.**
+§ Markdown quality's line-length rule is the same framework-general rule in both copies, and the template holds the
+pre-compression five-line form against the instance's three — so mirroring that row means first propagating a
+compression that never synced, not applying this work unit's. § Quality Gates' tiered paragraph diverges for a
+legitimate reason instead: the instance's version names its own strategy pointer and `QUICK-REFERENCE`, which is
+project-specific content the Configurable contract puts in the instance by design, and `046272788` correctly edited
+the instance and `QUICK-REFERENCE` while leaving the template alone. Sharing a heading settles neither question.
+
+### Ledger position at Phase 5's open (Task 5.1)
+
+Re-measured end to end against `origin/main` rather than carried forward. The base column moved too:
+`STRATEGY-INDEX` is 62 at the current base, not the 61 the Task 3.4 table used, so the index leg is +15 rather than
++16 — the maintenance errand's own +1 belongs to base, not to this work unit.
+
+| Tier-1 surface        | base    | now     | Δ       |
+| --------------------- | ------- | ------- | ------- |
+| `DEV-RULES.ARC`       | 398     | 349     | −49     |
+| `DEV-RULES.PROJECT`   | 255     | 255     | 0       |
+| `STRATEGY-INDEX`      | 62      | 77      | +15     |
+| `AGENT-BRIEF.ARC`     | 84      | 95      | +11     |
+| `AGENT-BRIEF.PROJECT` | 29      | 29      | 0       |
+| **Total**             | **828** | **805** | **−23** |
+
+**The set is −23 nb, a 46 nb swing from the +23 recorded through Task 3.4.** The canonical file returned 45 nb
+beyond where that measurement caught it, while carrying a § Rule Authority that has itself grown to 41 nb. Criterion
+3's net is already negative before Phase 5's instance register (104) touches anything, which retires the doubt the
+Task 3.1 table was recording — the constitutional half's cost is paid, and the instance register is now surplus
+rather than the leg the criterion depends on.
 
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
