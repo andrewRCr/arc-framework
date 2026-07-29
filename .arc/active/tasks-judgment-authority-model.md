@@ -612,8 +612,17 @@ an orphan.
 - **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
   `DEV-RULES.ARC` table and the itemized § Commit control table, the `trigger` rows
 
-    - `[ ]` **3.6.a § Scaled Process, Invariant Discipline**
-        - Keep the invariant-floor line; demote the `Class`-versus-Work-Character taxonomy.
+    - `[x]` **3.6.a § Scaled Process, Invariant Discipline**
+        - Invariant-floor paragraph kept intact; the `Class`-versus-Work-Character taxonomy demoted, and the
+          destination pointer collapsed into the `classify-work-unit` method line. 10 nb → 7, Δ3 against a
+          modeled 6 — reaching 4 would mean cutting into the floor paragraph this row keeps.
+        - **No write owed.** `strategy-work-organization` § Class Model already carries the distinction in fuller
+          form than the rules file did: the two-question model (weight versus spec-worthiness), the explicit
+          "Atomic is **not** a `Class` value — `Class` begins at the `light` floor; an Errand carries none", and
+          the scales-versus-never-scales split itself. Verified before removing.
+        - The in-file pointer to the strategy went with it — `STRATEGY-INDEX`'s rewritten entry names the `Class`
+          model's worked examples as its residual question, so the summoner Task 2.2.a authored is what reaches
+          it now. `[work-org]` survives as a link definition; § Route by urgency still uses it.
 
     - `[ ]` **3.6.b § Design before implementation**
         - Keep the settle-all-settle-able-design-up-front constraint; demote the rationale.
