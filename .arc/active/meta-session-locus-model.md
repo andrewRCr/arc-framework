@@ -1,8 +1,8 @@
 # Metadata: session-locus-model
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/session-locus-delivery-plan` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
+| --------- | --------- | ----------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/locus-record-substrate` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** DTI closeout gate verified; S0 and S1 manifests prepared
-- **Next Task:** Task 7.P.0 — S0 — Establish the planning baseline (line ~2103)
+- **Last Completed:** S0 merged through PR #395 as `bb6803b62`
+- **Next Task:** Task 7.P.a — S1 — Locus record substrate (line ~2109)
 - **Blockers:** [none]
 
-- **Next Action:** Complete S0 from `origin/main` `b5bf493db`, regenerate `ROADMAP`, run the complete documentation
-  gates, and prepare the direct-to-`main` hosted-review target
+- **Next Action:** Port the prepared S1 manifest from `archive/session-locus-model-donor-fa3c10f0e`, complete
+  Task 7.P.a.i, run the exact-base gates, and prepare the direct-to-`main` CodeRabbit target
 
 - **PR URL:** [none]
 - **Completed:** [none]
