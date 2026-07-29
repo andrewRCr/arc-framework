@@ -179,12 +179,14 @@ describe("applyRoadmapConflictAutoRemedy", () => {
     expect(written).not.toMatch(/\| `Active` \| origin\s+\|/u);
   });
 
-  it("stages the candidate ROADMAP before resolving an unmerged transition overlay", async () => {
+  it("resolves an unmerged transition through an alternate index before publishing", async () => {
     const head = "a".repeat(40);
-    const incomingRoadmap = "b".repeat(40);
     const writes: string[] = [];
     let candidateStaged = false;
-    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    const indexFile = "/repo/.git/index.lock";
+    const commit = vi.fn(async () => undefined);
+    const rollback = vi.fn(async () => undefined);
+    const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
       if (args.join("\0") === ["rev-parse", "--verify", "HEAD^{commit}"].join("\0")) {
         return { stdout: `${head}\n`, stderr: "" };
       }
@@ -200,16 +202,16 @@ describe("applyRoadmapConflictAutoRemedy", () => {
           stdout: [
             `100644 ${"c".repeat(40)} 1\t${ROADMAP_PATH}`,
             `100644 ${"d".repeat(40)} 2\t${ROADMAP_PATH}`,
-            `100644 ${incomingRoadmap} 3\t${ROADMAP_PATH}`,
+            `100644 ${"b".repeat(40)} 3\t${ROADMAP_PATH}`,
             "",
           ].join("\0"),
           stderr: "",
         };
       }
-      if (args.join("\0") === ["show", incomingRoadmap].join("\0")) {
-        return { stdout: "# Candidate roadmap\n", stderr: "" };
-      }
       if (args[0] === "update-index") {
+        if (options?.indexFile !== indexFile) {
+          throw new Error("candidate ROADMAP staged outside alternate index");
+        }
         candidateStaged = true;
         return { stdout: "", stderr: "" };
       }
@@ -236,6 +238,11 @@ describe("applyRoadmapConflictAutoRemedy", () => {
         writeFile: async (_path, content) => {
           writes.push(content);
         },
+        captureIndexState: async () => ({
+          indexFile,
+          commit,
+          rollback,
+        }),
         resolveTransitionOverlay,
         baseBranch: "main",
         renderedRef: "fixed-stamp",
@@ -244,9 +251,11 @@ describe("applyRoadmapConflictAutoRemedy", () => {
     );
 
     expect(result.status).toBe("applied");
-    expect(writes[0]).toBe("# Candidate roadmap\n");
-    expect(writes.at(-1)).not.toBe(writes[0]);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("# Roadmap: Project Status");
     expect(resolveTransitionOverlay).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledOnce();
+    expect(rollback).not.toHaveBeenCalled();
   });
 
   it("does not rewrite ROADMAP when merge transition authority is refused", async () => {
@@ -284,6 +293,71 @@ describe("applyRoadmapConflictAutoRemedy", () => {
       message: "Merge transition authority was refused: namespace-corrupt",
     });
     expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("rolls back an alternate index when unmerged transition authority is refused", async () => {
+    const head = "a".repeat(40);
+    const indexFile = "/repo/.git/index.lock";
+    const commit = vi.fn(async () => undefined);
+    const rollback = vi.fn(async () => undefined);
+    const writeFile = vi.fn();
+    const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
+      if (args.join("\0") === ["rev-parse", "--verify", "HEAD^{commit}"].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args.join("\0") === [
+        "rev-parse",
+        "--verify",
+        "refs/heads/main^{commit}",
+      ].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-files" && args.includes("--unmerged")) {
+        return {
+          stdout: [
+            `100644 ${"b".repeat(40)} 1\t${ROADMAP_PATH}`,
+            `100644 ${"c".repeat(40)} 2\t${ROADMAP_PATH}`,
+            `100644 ${"d".repeat(40)} 3\t${ROADMAP_PATH}`,
+            "",
+          ].join("\0"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "update-index") {
+        if (options?.indexFile !== indexFile) {
+          throw new Error("candidate ROADMAP staged outside alternate index");
+        }
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile,
+        captureIndexState: async () => ({
+          indexFile,
+          commit,
+          rollback,
+        }),
+        resolveTransitionOverlay: async () => ({
+          status: "refused",
+          reason: "namespace-corrupt",
+        }),
+        baseBranch: "main",
+      },
+      { eligible: true, trigger: "unmerged-only-roadmap" },
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Merge transition authority was refused: namespace-corrupt",
+    });
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    expect(rollback).toHaveBeenCalledOnce();
   });
 
   it("writes the regenerated ROADMAP and restages it when eligible", async () => {

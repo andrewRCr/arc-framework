@@ -15,7 +15,11 @@
  * @module
  */
 
-import type { GitExec } from "../git/exec.js";
+import {
+  captureGitIndexState,
+  type GitExec,
+  type GitIndexTransaction,
+} from "../git/exec.js";
 import { readConfigSettings } from "../config/status-reader.js";
 import { materializeArcPath } from "../layout/index.js";
 import type { GitMergeTransitionOverlayResult } from "../work-unit/git-merge-transition-overlay.js";
@@ -89,8 +93,13 @@ export interface RoadmapConflictAutoRemedyDeps {
   baseBranch?: string;
   /** Optional fixed render stamp for tests. */
   renderedRef?: RenderRoadmapFromIndexOptions["renderedRef"];
+  /** Optional index transaction seam; production captures the repository index. */
+  captureIndexState?: () => Promise<GitIndexTransaction>;
   /** Resolve finalized transition authority from one configured-base merge snapshot. */
-  resolveTransitionOverlay(configuredBaseRef: string): Promise<GitMergeTransitionOverlayResult>;
+  resolveTransitionOverlay(
+    configuredBaseRef: string,
+    exec: GitExec,
+  ): Promise<GitMergeTransitionOverlayResult>;
 }
 
 /**
@@ -157,17 +166,23 @@ export async function applyRoadmapConflictAutoRemedy(
     return { status: "skipped", reason: eligibility.reason };
   }
 
+  let indexTransaction: GitIndexTransaction | undefined;
   try {
     const baseBranch = deps.baseBranch ?? await readBaseBranch(deps.cwd);
     const baseRef = configuredBaseRef(baseBranch);
+    let exec = deps.exec;
     if (eligibility.trigger === "unmerged-only-roadmap") {
-      await stageCandidateRoadmap(deps, baseRef);
+      indexTransaction = deps.captureIndexState === undefined
+        ? await captureGitIndexState(deps.exec, deps.cwd)
+        : await deps.captureIndexState();
+      exec = againstIndex(deps.exec, indexTransaction.indexFile);
+      await stageCandidateRoadmap({ ...deps, exec }, baseRef);
     }
-    const transition = await deps.resolveTransitionOverlay(baseRef);
+    const transition = await deps.resolveTransitionOverlay(baseRef, exec);
     const transitionOverlay = transitionOverlayForRoadmap(transition);
     const rendered = await renderRoadmapFromIndexResult({
       cwd: deps.cwd,
-      exec: deps.exec,
+      exec,
       baseBranch,
       ...(deps.renderedRef !== undefined ? { renderedRef: deps.renderedRef } : {}),
       ...(transitionOverlay === undefined ? {} : { transitionOverlay }),
@@ -175,7 +190,8 @@ export async function applyRoadmapConflictAutoRemedy(
 
     const absolutePath = materializeArcPath(deps.cwd, ROADMAP_PATH);
     await deps.writeFile(absolutePath, rendered.content);
-    await deps.exec("git", ["add", "--", ROADMAP_PATH], { cwd: deps.cwd });
+    await exec("git", ["add", "--", ROADMAP_PATH], { cwd: deps.cwd });
+    await indexTransaction?.commit();
 
     return {
       status: "applied",
@@ -183,6 +199,18 @@ export async function applyRoadmapConflictAutoRemedy(
       indeterminate: rendered.indeterminate,
     };
   } catch (err) {
+    try {
+      await indexTransaction?.rollback();
+    } catch (rollbackError) {
+      return {
+        status: "failed",
+        message: [
+          err instanceof Error ? err.message : String(err),
+          "The alternate Git index could not be discarded:",
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+        ].join(" "),
+      };
+    }
     return {
       status: "failed",
       message: err instanceof Error ? err.message : String(err),
@@ -218,13 +246,16 @@ async function stageCandidateRoadmap(
   if (candidate === undefined) {
     throw new Error("ROADMAP conflict does not expose the candidate-side merge stage");
   }
-  const { stdout: content } = await deps.exec("git", ["show", candidate.oid], { cwd: deps.cwd });
-  await deps.writeFile(materializeArcPath(deps.cwd, ROADMAP_PATH), content);
   await deps.exec(
     "git",
     ["update-index", "--add", "--cacheinfo", `${candidate.mode},${candidate.oid},${ROADMAP_PATH}`],
     { cwd: deps.cwd },
   );
+}
+
+function againstIndex(exec: GitExec, indexFile: string): GitExec {
+  return async (cmd, args, options) =>
+    await exec(cmd, args, { ...options, indexFile });
 }
 
 function configuredBaseRef(baseBranch: string): string {
