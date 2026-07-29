@@ -668,13 +668,13 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             readEvidence: () => Promise.resolve(evidence),
             validateProspectiveProjection: async (prepared, overlay) =>
               await validateProspectiveProjection(prepared, overlay),
-            replaceAndStageRecord: async (recordId, expected, next) => {
+            replaceAndStageRecord: async (targetRecordId, expected, next) => {
               return await replaceV3Record(
                 deps,
                 preparation,
                 projectionAfter,
                 expectedStagedPaths,
-                recordId,
+                targetRecordId,
                 expected,
                 next,
               );

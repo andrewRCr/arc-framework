@@ -157,6 +157,7 @@ async function resolveIndexTree(exec: GitExec, cwd: string): Promise<string> {
 
 async function readRecordProjection(fs: RetirementSnapshotFs, path: string): Promise<RecordProjection> {
   try {
+    // Any readable record at this retired v1/v2 path is residual authority and must conflict.
     await fs.readFile(path);
   } catch (err) {
     if (isNodeError(err) && err.code === "ENOENT") {

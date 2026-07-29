@@ -32,6 +32,14 @@ function identifierViolations(forbidden: ReadonlySet<string>): { file: string; i
   return violations;
 }
 
+function hasExportedFunction(path: string, name: string): boolean {
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+  return source.statements.some((statement) =>
+    ts.isFunctionDeclaration(statement)
+    && statement.name?.text === name
+    && statement.modifiers?.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword) === true);
+}
+
 describe("decomposition v3 authority boundary", () => {
   it("ships no legacy authoring or executor modules", () => {
     const removedModules = [
@@ -67,11 +75,11 @@ describe("decomposition v3 authority boundary", () => {
   });
 
   it("retains the positive v3 preparation and finalization boundary", () => {
-    const preparation = readFileSync(join(SOURCE_ROOT, "lib/work-unit/decompose-preparation.ts"), "utf8");
-    const finalization = readFileSync(join(SOURCE_ROOT, "lib/work-unit/decompose-finalization.ts"), "utf8");
+    const preparation = join(SOURCE_ROOT, "lib/work-unit/decompose-preparation.ts");
+    const finalization = join(SOURCE_ROOT, "lib/work-unit/decompose-finalization.ts");
 
-    expect(preparation).toContain("prepareV3DecomposeRetirement");
-    expect(finalization).toContain("finalizeV3DecomposeRetirement");
+    expect(hasExportedFunction(preparation, "prepareV3DecomposeRetirement")).toBe(true);
+    expect(hasExportedFunction(finalization, "finalizeV3DecomposeRetirement")).toBe(true);
   });
 
   it("keeps shipped methodology v3-only and its project projection synchronized", () => {
