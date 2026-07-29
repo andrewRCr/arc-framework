@@ -105,14 +105,9 @@ task-interlock approval; `workflowCommit` releases commit-interlock at workflow-
 `workflowPush` releases push-interlock at workflow-interlock approval. Class tags name the fire-site
 type; routing (wrapper or raw) follows § Workflow class-tag routing.
 
-- **Commit triggering** · `[configurable]`:
-    - Follows `arc.commitInterlock`. Default `manual` requires explicit user approval before each commit.
-    - Per-mode behavior lives in the [process-task-loop workflow][process-task-loop].
-
-- **Push triggering** · `[configurable]`:
-    - Follows `arc.pushInterlock`. Default `manual` requires explicit user invocation; `on-handoff`
-      mode fires push at handoff only — never per commit.
-    - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
+- **Commit and push triggering** · `[configurable]`: follow `arc.commitInterlock` and `arc.pushInterlock`,
+  both defaulting to `manual` — explicit approval before each commit, explicit invocation for each push.
+  Per-mode behavior lives in [process-task-loop][process-task-loop] and [session-handoff][session-handoff].
 
 - **Implied-approval scope** · Approval released at a structured approval gate — surfaced changes +
   `<Prefix> <Target>?` prompt (see [process-task-loop][process-task-loop] § Completion protocol) — covers
@@ -176,11 +171,6 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
-- **ROADMAP regen:** Under `pm.mode: arc-in-git`, a commit changing a render field
-  (`Depends On` / `Owner` / `Cohort`) on an `active/` or `backlog/planned/` meta — or moving a WU into
-  or out of `backlog/planned/` — re-renders `backlog/ROADMAP.md` in the same commit (lifecycle
-  ceremonies regen via their own step). See [strategy-work-organization § ROADMAP][work-org-roadmap].
-
 - **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly
   instructs the write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a
   meta update. A commit's authority to touch the meta comes from the ceremony workflow it runs, not
@@ -192,14 +182,6 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
   staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
   Never bundled with code commits (already enforced by meta-file timing above).
-
-- **Contributor commit release:** Under `arc.commitInterlock: on-task-approval`, contributor-role
-  commit release stages code only — project-level meta-file updates remain a maintainer responsibility.
-  Contributor meta files (gitignored, `user/{identity}/active/`) update at handoff regardless of
-  interlock settings.
-
-**For complex commits** (multi-session accumulated work, interleaved concerns), load the
-[prepare-commits workflow][prepare-commits].
 
 ### Commit format · `[configurable]`
 
@@ -586,7 +568,6 @@ Load these documents when you reach the relevant work — not during session ini
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [concurrent-work]: ../../reference/strategies/arc/strategy-concurrent-work.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
-[work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/process-task-loop.md

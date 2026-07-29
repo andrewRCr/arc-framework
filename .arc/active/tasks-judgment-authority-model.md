@@ -393,16 +393,24 @@ an orphan.
         - No inbound `§ Contents` citation to sweep — the only corpus hits are an archived work unit's task list
           referring to a different file's contents list.
 
-    - `[ ]` **3.2.b § Commit Discipline firm items**
-        - Commit and push triggering — compress to the obligation; per-mode behavior is already pointered to the
-          workflows where the mode bites.
-        - ROADMAP regen — demote **the render-field clause only**. The hook matches a staged
-          `Depends On` / `Owner` / `Cohort` diff and emits the re-render command for it. The rule's other trigger —
-          moving a work unit into or out of `backlog/planned/` — is a rename with no field diff, so the hook stays
-          silent and that clause has no summoner. Keep it always-loaded unless the ceremony workflows it defers to
-          are confirmed to state the obligation themselves, in which case record where.
-        - Contributor commit release — demote to `AGENT-BRIEF.CONTRIBUTOR`, which loads role-conditionally.
-        - Complex-commits pointer — cut; duplicated in § When to Load Additional Guidance.
+    - `[x]` **3.2.b § Commit Discipline firm items**
+        - Commit and push triggering — the two bullets merged into one carrying both config keys, both `manual`
+          defaults, and both workflow pointers. 7 nb → 3.
+        - ROADMAP regen — **demoted whole, both clauses**, and the conditional the task left open resolved
+          affirmatively. The render-field clause is covered verbatim: CHECK 17 matches a staged
+          `Depends On` / `Owner` / `Cohort` diff on an `active/` or `backlog/planned/` meta and prints
+          `arc status --project --staged > .arc/backlog/ROADMAP.md` plus the stage-it follow-up. The move clause
+          has no hook summoner — a rename carries no field diff — but every ceremony that moves a work unit across
+          lifecycle directories carries its own regen step: `init-work-unit` § 5, plus `promote-`, `resume-`,
+          `park-`, `deactivate-`, `decompose-`, `archive-`, and `integrate-work-unit`. Both fire sites covered, so
+          the rule demotes rather than splitting.
+        - Contributor commit release — written into `AGENT-BRIEF.CONTRIBUTOR` § Commit Convention **before**
+          removal, in both copies; the brief loads role-conditionally and previously said nothing about interlock
+          release. Measured 4 nb, not the recorded 3.
+        - Complex-commits pointer — cut; the duplicate in § When to Load Additional Guidance is verbatim on both
+          the trigger and the criteria (multi-session work, interleaved concerns, atomicity analysis).
+        - Removing the ROADMAP bullet orphaned the `[work-org-roadmap]` link definition — its only in-body user.
+          Dropped from both copies.
 
     - `[x]` **3.2.c § Test-first assessment**
         - Compressed to one line carrying the obligation and the method pointer; the method declaration already

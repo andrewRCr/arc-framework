@@ -27,6 +27,10 @@ Subject line follows the same rules as maintainer commits ([arc-config.yml][arc-
 `commit.format`, conventional commits by default). See [contributor commit example][TODO-docs-site]
 for a worked example.
 
+Under `arc.commitInterlock: on-task-approval`, commit release stages code only — project-level meta
+files stay a maintainer responsibility. Your own meta files (gitignored, `user/{identity}/active/`)
+update at handoff regardless of the interlock setting.
+
 ## Session Workflow
 
 Contributor sessions follow [session-init][session-init] and [session-handoff][session-handoff]
