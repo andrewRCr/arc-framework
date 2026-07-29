@@ -831,6 +831,47 @@ document that ships without an instance counterpart still states its rules to ev
         - Record the derivation only. Applying the compression method to an orientation surface is out of scope —
           a sibling work unit owns that audit.
 
+### `[ ]` **4.6 Act on the sweep's non-marker findings**
+
+- _Goal:_ The sweep's output beyond the marker footprint is resolved rather than recorded and left, with each item
+  either acted on here or held by an existing capture.
+
+- _Rationale:_ The sweep's routable findings were captured at Task 4.3's close under the standing capture protocol,
+  and the inbox owns them. What no surface holds is the work that is this work unit's own: a family with no parent
+  anywhere, an ownership question between two of its own tasks, and one defect that is the ambiguity the work unit
+  exists to remove.
+
+- _Scope decision:_ The defect fixed below is the same concern as this work unit — a limb and its heading
+  disagreeing about their own force — not a distinct concern riding the change set. The distinct concerns the sweep
+  surfaced stay captured rather than folded in.
+
+- _Note:_ Held by `USER-INBOX` captures and deliberately not scheduled here — the Codex event-set contradiction in
+  `01_verify-and-configure`; `park-work-unit` L78's dead `#the-park-exit-block` anchor and `decompose-work-unit`'s
+  pending inventory re-run, both blocked on `decompose-transform-integrity`'s remaining slices; the cross-file
+  anchor gap in `lint:arc:section-refs`; and `prepare-commits`' commit-step classification, which is a routing
+  change rather than doc work.
+
+- **Additional Context:** `notes-judgment-authority-model.md` § Findings — the method, strategy, and workflow
+  region sections
+
+    - `[ ]` **4.6.a Settle the `K2` remedy and the unmarked-parent ownership**
+        - `K2` — pre-commitment text is not rewritten to match the outcome — has seven instances across all three
+          swept regions and no parent anywhere. The recommended remedy is a constitutional statement rather than
+          seven markers; Phase 3 has closed, so it lands here.
+        - Check the statement against Success Criterion 1 before writing it: a family parent is not a per-case
+          rule, but the criterion is the test it has to pass.
+        - The five unmarked constitutional parents are counted inside Task 4.5.a's thirty-one and simultaneously
+          assigned to Phase 3 / Phase 5 by the workflow region's finding 2. Settle which task carries them so the
+          marker is applied once, not twice or never.
+        - Both copies, in the `[invariant]` notation Task 1.5.a establishes.
+
+    - `[ ]` **4.6.b Resolve `draft-design` L162's force disagreement**
+        - "must not silently drop substance" sits under a heading reading "Three leans, never hard gates". The limb
+          and its heading disagree about their own force, which is the ambiguity this work unit exists to remove.
+        - Settle which reading governs before editing either — the heading may be what is wrong.
+        - Doc-only. Apply in both copies where the file mirrors; re-derive the relationship by comparing the
+          copies, per the phase's reading rule.
+
 ## **Phase 5:** Instance register — `DEV-RULES.PROJECT`
 
 _Purpose:_ Execute the instance register and mirror every disposition that reaches the shipped template, then
