@@ -830,22 +830,22 @@ The ledger records durable intent and the last reconciled fact, not live GitHub 
 authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
 ledger in the next safe pre-review commit.
 
-| Slice | Status                 | PR   | Landed on `main` |
-| ----- | ---------------------- | ---- | ---------------- |
-| S0    | landed                 | #395 | `bb6803b62`      |
-| S1    | awaiting hosted review | #396 | —                |
-| S2    | blocked by S1          | —    | —                |
-| S3    | blocked by S2          | —    | —                |
-| S4    | blocked by S3          | —    | —                |
-| S5    | blocked by S4          | —    | —                |
-| S6    | blocked by S5          | —    | —                |
-| S7    | blocked by S6          | —    | —                |
-| S8    | blocked by S7          | —    | —                |
-| S9    | blocked by S8          | —    | —                |
-| S10   | blocked by S9          | —    | —                |
-| S11   | blocked by S10         | —    | —                |
-| S12   | blocked by S11         | —    | —                |
-| S13   | blocked by S12         | —    | —                |
+| Slice | Status         | PR   | Landed on `main` |
+| ----- | -------------- | ---- | ---------------- |
+| S0    | landed         | #395 | `bb6803b62`      |
+| S1    | landed         | #396 | `56d52f013`      |
+| S2    | constructing   | —    | —                |
+| S3    | blocked by S2  | —    | —                |
+| S4    | blocked by S3  | —    | —                |
+| S5    | blocked by S4  | —    | —                |
+| S6    | blocked by S5  | —    | —                |
+| S7    | blocked by S6  | —    | —                |
+| S8    | blocked by S7  | —    | —                |
+| S9    | blocked by S8  | —    | —                |
+| S10   | blocked by S9  | —    | —                |
+| S11   | blocked by S10 | —    | —                |
+| S12   | blocked by S11 | —    | —                |
+| S13   | blocked by S12 | —    | —                |
 
 **External gate satisfied:** `decompose-transform-integrity` delivery 05 (PR #392) merged as `f69cc4a46`, delivery
 06 (PR #393) merged as `2beef3fa2`, and bespoke closeout PR #394 merged as `b5bf493db`. S0 cuts from that closeout
@@ -875,7 +875,7 @@ dispositions to the PR rather than copying them here.
   including the regenerated `ROADMAP` hunk.
 - **State:** PR #395 accepted head `52693a754` without hosted review and landed through merge commit `bb6803b62`.
 
-#### S1 locus record substrate — constructing
+#### S1 locus record substrate — landed
 
 - **Donor/base proof:** `archive/session-locus-model-donor-fa3c10f0e` ported onto detached `origin/main`
   `62504727c`; the eleven-file baseline is 1,062 additions and its 16 focused tests pass.
@@ -905,9 +905,17 @@ dispositions to the PR rather than copying them here.
 - **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
 - **Gate evidence:** The complete local gate set passed on the second-fix tree after the focused mint-concurrency
   regressions proved both failure modes against the pre-fix behavior.
-- **State:** Draft PR #396 is in its second hosted-review fix round. The base and previously reviewed bytes remain
-  tree-identical, so the next exact head requires another incremental CodeRabbit review; the initial full review
-  plus both incremental ranges retain complete exact-target coverage.
+- **Hosted review:** CodeRabbit covered the complete target through the initial full review and two composable
+  incremental fix reviews, then approved exact accepted head `c055a31cf`.
+- **State:** PR #396 accepted head `c055a31cf` and landed through merge commit `56d52f013`.
+
+#### S2 process and platform inspection — constructing
+
+- **Entry base:** `origin/main` `56d52f013`, the S1 merge.
+- **Planned capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
+  durable ARC process rather than an invocation wrapper.
+- **State:** Canonical branch `feat/locus-process-inspection` is cut from the exact S1 merge; manifest preparation
+  and the remaining `7.P.b.i` correction are next.
 
 ### Resume protocol
 

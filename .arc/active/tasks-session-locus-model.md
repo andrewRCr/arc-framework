@@ -2107,7 +2107,7 @@ triage before implementing.
   below the slice-size ceiling, so S1 can remain an independently reviewable implementation capability.
 - _Outcome:_ PR #395 established the planning control plane independently and landed as `bb6803b62`.
 
-### `[ ]` **7.P.a S1 — Locus record substrate**
+### `[x]` **7.P.a S1 — Locus record substrate**
 
 - _Goal:_ The record schema, store, and identity derivation stand alone on the base: a record round-trips through
   its schema, derives a stable identifier from a flavor-normalized checkout spelling, and persists through bounded
@@ -2120,6 +2120,9 @@ triage before implementing.
     - `[x]` **7.P.a.ii Drop the unwired error and registry surfaces**
         - The slice omits the unwired locus error and registry modules and their tests while leaving the existing
           session-envelope registry unchanged.
+
+- _Outcome:_ PR #396 landed the schema, flavor-normalized checkout identity, bounded record reader, and atomic
+  no-clobber mint; lock-bound replacement and removal remain scoped to S3.
 
 ### `[ ]` **7.P.b S2 — Process and platform inspection**
 
