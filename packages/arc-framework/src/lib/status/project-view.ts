@@ -676,7 +676,7 @@ async function resolveOracleCandidates(
         : resolveArcPath({
             kind: "work-unit-artifact",
             placement: { kind: "active", scope: { kind: "project" } },
-            slug: SlugSchema.parse(slugHint),
+            slug: slugHint,
             artifact: "meta",
           });
       rejectedRecords.push({

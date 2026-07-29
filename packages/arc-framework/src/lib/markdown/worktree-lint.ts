@@ -22,7 +22,10 @@ export interface WorktreeMarkdownlintResult {
   readonly paths: readonly ManagedPath[];
 }
 
-/** Validate config parity, then lint every shared-selector worktree path explicitly. */
+/**
+ * Validate config parity, then lint every shared-selector worktree path explicitly —
+ * including untracked non-ignored Markdown selected by the worktree Git view.
+ */
 export async function runWorktreeMarkdownlint(
   options: RunWorktreeMarkdownlintOptions,
 ): Promise<WorktreeMarkdownlintResult> {

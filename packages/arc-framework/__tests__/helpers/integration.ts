@@ -36,22 +36,15 @@ import {
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
+import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 
 const execFileAsync = promisify(execFile);
 
 /** Create a real GitExec bound to a specific cwd. */
 export function makeGitExec(cwd: string): GitExec {
-  return async (cmd, args, options) => {
-    const indexFile = options?.indexFile;
-    const { stdout, stderr } = await execFileAsync(cmd, args, {
-      cwd: options?.cwd ?? cwd,
-      signal: options?.signal,
-      ...(indexFile === undefined
-        ? {}
-        : { env: { ...process.env, GIT_INDEX_FILE: indexFile } }),
-    });
-    return { stdout: stdout.trimEnd(), stderr };
-  };
+  const exec = createExecaGitExec();
+  return async (cmd, args, options) =>
+    await exec(cmd, args, { ...options, cwd: options?.cwd ?? cwd });
 }
 
 /**

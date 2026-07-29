@@ -73,6 +73,21 @@ interface CapturedGraduationInput {
   sourceTree: string;
 }
 
+type GraduationCaptureReason = "git-read" | "source-shape" | "anchor-policy";
+
+class GraduationCaptureError extends Error {
+  constructor(
+    readonly reason: GraduationCaptureReason,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function captureRefusal(reason: GraduationCaptureReason, message: string): never {
+  throw new GraduationCaptureError(reason, message);
+}
+
 function comparePaths(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
 }
@@ -109,7 +124,7 @@ async function readTreeArtifacts(
   for (const record of records) {
     const match = TREE_ENTRY.exec(record);
     if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined || match[4] === undefined) {
-      throw new Error(`Malformed tree entry under ${input.sourceDirectory}.`);
+      captureRefusal("source-shape", `Malformed tree entry under ${input.sourceDirectory}.`);
     }
     const [, mode, objectKind, oid, path] = match;
     const basename = posix.basename(path);
@@ -117,10 +132,10 @@ async function readTreeArtifacts(
       || !matcher.test(basename)
       || objectKind !== "blob"
       || (mode !== "100644" && mode !== "100755")) {
-      throw new Error(`Unexpected stored artifact ${path}.`);
+      captureRefusal("source-shape", `Unexpected stored artifact ${path}.`);
     }
     const bytes = await deps.readBlob(input.sourceRef, path);
-    if (bytes === null) throw new Error(`Stored artifact disappeared: ${path}.`);
+    if (bytes === null) captureRefusal("source-shape", `Stored artifact disappeared: ${path}.`);
     artifacts.push({
       basename,
       sourcePath: path,
@@ -206,16 +221,21 @@ async function capture(
   deps: GitGraduationTransactionDependencies,
   request: PrepareGitGraduationTransactionInput,
 ): Promise<CapturedGraduationInput> {
-  const [sourceHead, sourceTree, indexTree, artifacts, targetsAbsent, branchAbsent, worktreeResult] =
+  const indexTreeRead = request.mode === "spawned"
+    ? Promise.resolve<string | null>(null)
+    : resolveOid(deps.exec, request.cwd, "HEAD^{tree}").then(async () => {
+        const { stdout } = await deps.exec("git", ["write-tree"], { cwd: request.cwd });
+        const oid = stdout.trim();
+        if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) {
+          throw new Error("Git returned an invalid index tree.");
+        }
+        return oid;
+      });
+  const [sourceHead, sourceTree, capturedIndexTree, artifacts, targetsAbsent, branchAbsent, worktreeResult] =
     await Promise.all([
       resolveOid(deps.exec, request.cwd, `${request.sourceRef}^{commit}`),
       resolveOid(deps.exec, request.cwd, `${request.sourceRef}^{tree}`),
-      resolveOid(deps.exec, request.cwd, "HEAD^{tree}").then(async () => {
-        const { stdout } = await deps.exec("git", ["write-tree"], { cwd: request.cwd });
-        const oid = stdout.trim();
-        if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) throw new Error("Git returned an invalid index tree.");
-        return oid;
-      }),
+      indexTreeRead,
       readTreeArtifacts(deps, request),
       targetDirectoryIsAbsent(deps, request),
       branchIsAbsent(deps, request),
@@ -252,21 +272,36 @@ async function capture(
 
   const metaPath = posix.join(request.sourceDirectory, `meta-${request.slug}.md`);
   const metaArtifact = artifacts.find(({ sourcePath }) => sourcePath === metaPath);
-  if (metaArtifact === undefined) throw new Error(`Backlog meta is absent: ${metaPath}.`);
+  if (metaArtifact === undefined) captureRefusal("source-shape", `Backlog meta is absent: ${metaPath}.`);
+  let metaContent: string;
+  try {
+    metaContent = new TextDecoder("utf-8", { fatal: true }).decode(metaArtifact.bytes);
+  } catch {
+    captureRefusal("source-shape", `Backlog meta is not valid UTF-8: ${metaPath}.`);
+  }
   let marker;
   try {
-    marker = readDecompositionReceiptMarker(new TextDecoder("utf-8", { fatal: true }).decode(metaArtifact.bytes));
-  } catch {
-    throw new Error(`Backlog meta is not valid UTF-8: ${metaPath}.`);
+    marker = readDecompositionReceiptMarker(metaContent);
+  } catch (error) {
+    captureRefusal(
+      "source-shape",
+      `Backlog meta is malformed: ${metaPath}. ${errorMessage(error)}`,
+    );
   }
   if (marker.status === "refused") {
-    throw new Error(`Backlog meta has a ${marker.reason} decomposition receipt marker: ${metaPath}.`);
+    captureRefusal(
+      "source-shape",
+      `Backlog meta has a ${marker.reason} decomposition receipt marker: ${metaPath}.`,
+    );
   }
   let anchor: DecompositionIntegrationAnchor | null = null;
   if (marker.receiptId !== null) {
     const resolved = await deps.resolveAnchor(marker.receiptId);
     if (resolved.status !== "resolved") {
-      throw new Error(`Decomposition receipt ${marker.receiptId} has no exact landed anchor: ${resolved.reason}.`);
+      captureRefusal(
+        "anchor-policy",
+        `Decomposition receipt ${marker.receiptId} has no exact landed anchor: ${resolved.reason}.`,
+      );
     }
     anchor = resolved.anchor;
   }
@@ -288,7 +323,7 @@ async function capture(
         baseHead: sourceHead,
         branch: { kind: "absent", ref: `refs/heads/plan/${request.slug}` },
         worktree,
-        indexTree: request.mode === "spawned" ? sourceTree : indexTree,
+        indexTree: capturedIndexTree ?? sourceTree,
         operation: request.mode === "spawned"
           ? {
               kind: "spawned",
@@ -342,11 +377,7 @@ export async function prepareGitGraduationTransaction(
     first = await capture(deps, request);
   } catch (error) {
     const detail = errorMessage(error);
-    const reason = detail.includes("anchor") || detail.includes("receipt")
-      ? "anchor-policy"
-      : detail.includes("artifact") || detail.includes("meta")
-        ? "source-shape"
-        : "git-read";
+    const reason = error instanceof GraduationCaptureError ? error.reason : "git-read";
     return { status: "refused", reason, locus: request.sourceDirectory, detail };
   }
   const prepared = prepareValidatedGraduationTransaction(first.input);

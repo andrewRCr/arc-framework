@@ -213,6 +213,61 @@ describe("materializeV3DecomposePlan", () => {
     expect(mismatched.applications).toEqual([]);
   });
 
+  it("refuses an invalid new-member projection before observing or writing paths", async () => {
+    const invalid = plan();
+    invalid.mutations = invalid.mutations.filter(({ path }) =>
+      path !== ".arc/active/meta-member.md");
+    const h = harness(new Map());
+    let observations = 0;
+    h.io.observe = async () => {
+      observations += 1;
+      return { kind: "absent" };
+    };
+
+    expect(await materializeV3DecomposePlan(invalid, h.io)).toEqual({
+      status: "refused",
+      reason: "invalid-member-projection",
+      path: ".arc/backlog/planned/member/draft-member.md",
+      appliedPaths: [],
+    });
+    expect(observations).toBe(0);
+    expect(h.applications).toEqual([]);
+  });
+
+  it("returns typed read refusals before applying any path", async () => {
+    const states = new Map<string, V3PlanCanonicalPathState>([
+      [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
+      [".arc/backlog/ROADMAP.md", before],
+    ]);
+    const observeFailure = harness(states);
+    observeFailure.io.observe = async (path) => {
+      if (path === ".arc/backlog/planned/member/draft-member.md") {
+        throw new Error("observation failed");
+      }
+      return states.get(path) ?? { kind: "absent" };
+    };
+    expect(await materializeV3DecomposePlan(plan(), observeFailure.io)).toEqual({
+      status: "refused",
+      reason: "observe-failed",
+      path: ".arc/backlog/planned/member/draft-member.md",
+      appliedPaths: [],
+    });
+    expect(observeFailure.applications).toEqual([]);
+
+    const blobFailure = harness(states);
+    blobFailure.io.readBlob = async () => {
+      throw new Error("blob read failed");
+    };
+    expect(await materializeV3DecomposePlan(plan(), blobFailure.io)).toEqual({
+      status: "refused",
+      reason: "blob-read-failed",
+      path: ".arc/active/meta-member.md",
+      appliedPaths: [],
+    });
+    expect(blobFailure.applications).toEqual([]);
+  });
+
   it("reuses one verified blob for paths with the same content digest", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
@@ -231,10 +286,15 @@ describe("materializeV3DecomposePlan", () => {
     const result = await materializeV3DecomposePlan(plan(), h.io);
 
     expect(result.status).toBe("materialized");
-    expect(h.applications.map(({ bytes }) => bytes)).toEqual([afterBytes, draftBytes, afterBytes]);
+    expect(sharedBlobReads).toBe(1);
+    expect(h.applications.map(({ bytes }) => bytes)).toEqual([
+      afterBytes,
+      draftBytes,
+      afterBytes,
+    ]);
   });
 
-  it("reports only completed writes when applying a later path fails", async () => {
+  it("reports an apply failure after preserving completed writes", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
       [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
@@ -242,7 +302,7 @@ describe("materializeV3DecomposePlan", () => {
     ]));
     const applyAndStageFinal = h.io.applyAndStageFinal;
     h.io.applyAndStageFinal = async (path, state, bytes) => {
-      if (path === ".arc/backlog/planned/member/draft-member.md") {
+      if (path === ".arc/backlog/ROADMAP.md") {
         throw new Error("apply failed");
       }
       await applyAndStageFinal(path, state, bytes);
@@ -251,11 +311,15 @@ describe("materializeV3DecomposePlan", () => {
     expect(await materializeV3DecomposePlan(plan(), h.io)).toEqual({
       status: "refused",
       reason: "apply-failed",
-      path: ".arc/backlog/planned/member/draft-member.md",
-      appliedPaths: [".arc/active/meta-member.md"],
+      path: ".arc/backlog/ROADMAP.md",
+      appliedPaths: [
+        ".arc/active/meta-member.md",
+        ".arc/backlog/planned/member/draft-member.md",
+      ],
     });
     expect(h.applications.map(({ path }) => path)).toEqual([
       ".arc/active/meta-member.md",
+      ".arc/backlog/planned/member/draft-member.md",
     ]);
   });
 });

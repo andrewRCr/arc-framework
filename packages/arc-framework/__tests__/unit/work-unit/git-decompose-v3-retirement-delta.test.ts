@@ -97,6 +97,24 @@ describe("Git v3 retirement delta adapter", () => {
     expect(deps.readObject).not.toHaveBeenCalled();
   });
 
+  it("maps missing merge bases and duplicate tree paths to typed refusals", async () => {
+    const missing = adapter({}, "");
+    await expect(planGitV3RetirementDelta({ cwd: "/repo", ...missing }, input())).resolves.toEqual({
+      status: "refused",
+      refusal: { code: "missing-merge-base" },
+    });
+
+    const duplicatePath = ".arc/active/meta-origin.md";
+    const malformed = trees({
+      [SOURCE]: `${trees()[SOURCE]}${line("100644", "blob", META_SOURCE, duplicatePath)}`,
+    });
+    const duplicate = adapter(malformed);
+    await expect(planGitV3RetirementDelta({ cwd: "/repo", ...duplicate }, input())).resolves.toEqual({
+      status: "refused",
+      refusal: { code: "git-read-failed" },
+    });
+  });
+
   it("binds exact binary object bytes from all three recursively listed trees", async () => {
     const deps = adapter();
 
@@ -112,6 +130,7 @@ describe("Git v3 retirement delta adapter", () => {
       bytes: encoder.encode(`blob:${META_SOURCE}`),
     });
     expect(result.paths.some(({ path }) => path === ".arc")).toBe(false);
+    expect(deps.readObject).not.toHaveBeenCalledWith(TREE, "tree");
     expect(deps.calls.slice(1)).toHaveLength(3);
     for (const args of deps.calls.slice(1)) {
       expect(args).toEqual([

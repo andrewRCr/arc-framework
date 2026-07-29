@@ -333,7 +333,7 @@ export function resolveV3DecomposeFinalizationTransition(
     }
     const priorBytes = canonicalize(input.refresh.priorReceipt);
     if (index.bytes !== priorBytes) {
-      return { status: "refused", refusal: { code: "refresh-not-authorized", locus: "worktree" } };
+      return { status: "refused", refusal: { code: "refresh-not-authorized", locus: "index" } };
     }
     return {
       status: "refreshed",
@@ -341,7 +341,7 @@ export function resolveV3DecomposeFinalizationTransition(
       mutation: { kind: "replace", expected: priorBytes, next: receiptBytes },
     };
   }
-  return { status: "refused", refusal: { code: "record-state-mismatch", locus: "index-worktree" } };
+  return { status: "refused", refusal: { code: "record-state-mismatch", locus: "index" } };
 }
 
 /**

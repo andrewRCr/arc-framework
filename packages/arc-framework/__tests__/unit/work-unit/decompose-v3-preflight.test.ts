@@ -123,6 +123,7 @@ describe("v3 decomposition preflight", () => {
       location: "active",
       branch: "main",
     }];
+    activeBase.sourceBase.sourceArtifacts[0]!.path = ".arc/active/draft-origin.md";
     expect(createV3DecomposePreflight(activeBase)).toMatchObject({
       status: "ready",
       preflight: {

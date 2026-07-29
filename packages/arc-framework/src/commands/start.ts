@@ -356,6 +356,14 @@ export async function runGraduate(
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
+  const preflight = await preflightGraduate(
+    ctx,
+    params.name,
+    params.cls,
+    params.inPlace ? undefined : params.sourceIndex,
+  );
+  if (preflight !== null) return { status: "rejected", reason: preflight };
+
   let transaction: ValidatedGraduationTransaction;
   try {
     const prepared = await params.prepareTransaction();
@@ -371,13 +379,6 @@ export async function runGraduate(
     const message = err instanceof Error ? err.message : String(err);
     return { status: "rejected", reason: `could not prepare graduation before mutation: ${message}` };
   }
-  const preflight = await preflightGraduate(
-    ctx,
-    params.name,
-    params.cls,
-    params.inPlace ? undefined : params.sourceIndex,
-  );
-  if (preflight !== null) return { status: "rejected", reason: preflight };
 
   return runGraduateThroughExecutor(ctx, {
     ...params,

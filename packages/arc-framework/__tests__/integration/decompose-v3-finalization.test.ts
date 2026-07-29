@@ -77,7 +77,10 @@ describe("v3 decompose refresh against real Git", () => {
     await Promise.all(repos.splice(0).map(async (repo) => await cleanupTempDir(repo)));
   });
 
-  async function harness(options: { raceAfterWrite?: boolean } = {}) {
+  async function harness(options: {
+    raceAfterWrite?: boolean;
+    omitProjectionValidator?: boolean;
+  } = {}) {
     const repo = await createTempRepo("arc-v3-finalize-");
     repos.push(repo);
     await mkdir(join(repo, ".arc/active"), { recursive: true });
@@ -89,7 +92,9 @@ describe("v3 decompose refresh against real Git", () => {
     const head = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
     await execFileAsync("git", ["branch", "plan/origin", head], { cwd: repo });
 
-    const template = await readFile("arc/reference/templates/arc/work-unit/template-cohort.md");
+    const template = await readFile(
+      new URL("../../arc/reference/templates/arc/work-unit/template-cohort.md", import.meta.url),
+    );
     const incomplete = renderV3IncompleteCohort(template, "origin");
     if (incomplete === null) throw new Error("cohort template must render");
     const topology = encoder.encode(
@@ -172,7 +177,9 @@ describe("v3 decompose refresh against real Git", () => {
           cohortDocs: [{ path: topologyPath, content: new TextDecoder().decode(topology) }],
         },
       }),
-      validateProspectiveProjection: async () => true,
+      ...(options.omitProjectionValidator === true
+        ? {}
+        : { validateProspectiveProjection: async () => true }),
     });
     return { driver, fixture, repo, resultPaths };
   }
@@ -235,6 +242,24 @@ describe("v3 decompose refresh against real Git", () => {
     )).toBe(canonicalize(fixture.receipt));
   });
 
+  it("names unavailable prospective projection validation precisely", async () => {
+    const { driver, fixture } = await harness({ omitProjectionValidator: true });
+
+    expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
+      continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
+      composition: composition(),
+      readinessDeps: readyDeps,
+    })).toMatchObject({
+      status: "refused",
+      reason: "prospective-projection-validation-unavailable",
+      recovery: {
+        action: "guidance",
+        message: expect.stringMatching(/prospective projection validation is unavailable/iu),
+      },
+    });
+  });
+
   it("refuses a foreign staged path before replacing the prior receipt", async () => {
     const { driver, fixture, repo } = await harness();
     await writeFile(join(repo, "foreign.txt"), "foreign");
@@ -245,7 +270,11 @@ describe("v3 decompose refresh against real Git", () => {
       continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
-    })).toMatchObject({ status: "refused", reason: "v3 decompose staged path set changed" });
+    })).toMatchObject({
+      status: "refused",
+      reason: "v3 decompose staged path set changed",
+      recovery: { action: "retry" },
+    });
     expect(await readFile(
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
       "utf8",
@@ -261,7 +290,11 @@ describe("v3 decompose refresh against real Git", () => {
       continuationPath: "/tmp/continuation.json",
       composition: composition(),
       readinessDeps: readyDeps,
-    })).toMatchObject({ status: "refused", reason: "v3 decompose index/worktree projection changed" });
+    })).toMatchObject({
+      status: "refused",
+      reason: "v3 decompose index/worktree projection changed",
+      recovery: { action: "retry" },
+    });
     expect(await readFile(
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
       "utf8",

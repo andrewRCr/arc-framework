@@ -186,7 +186,7 @@ function markerCount(value: V3PlannedByteState, receiptId: string): number {
   if (value.kind !== "object" || value.objectKind !== "blob") return 0;
   try {
     const marker = `- **Decomposition Receipt:** \`${receiptId}\``;
-    return decoder.decode(value.bytes).split("\n").filter((line) => line === marker).length;
+    return decoder.decode(value.bytes).split(/\r?\n/u).filter((line) => line === marker).length;
   } catch {
     return 0;
   }
@@ -219,11 +219,7 @@ function validNewMemberProfileMeta(
   } catch {
     return false;
   }
-  const roles: V3ContentArtifactRole[] = input.planningProfile.kind === "draft"
-    ? ["draft"]
-    : input.planningProfile.kind === "single-spec"
-      ? ["spec"]
-      : ["spec", "rfc"];
+  const roles = expectedArtifactRoles(input.planningProfile).filter((role) => role !== "meta");
   const design = roles.map((role) => {
     const paths = [...new Set(
       contributions.filter((entry) => entry.artifactRole === role).map(({ path }) => path),
@@ -388,8 +384,9 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
         },
       };
     }
+    const receiptMarkers = markerCount(contribution.after, input.receiptId);
     if (contribution.destinationKind === "new-member" && contribution.artifactRole === "meta") {
-      if (markerCount(contribution.after, input.receiptId) !== 1) {
+      if (receiptMarkers !== 1) {
         return {
           status: "refused",
           refusal: {
@@ -399,8 +396,7 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
           },
         };
       }
-    } else if (contribution.destinationKind === "existing-home"
-      && markerCount(contribution.after, input.receiptId) > 0) {
+    } else if (receiptMarkers > 0) {
       return {
         status: "refused",
         refusal: {

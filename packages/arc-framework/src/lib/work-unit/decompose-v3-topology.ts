@@ -154,13 +154,13 @@ export function renderV3IncompleteCohort(
 }
 
 function renderCohort(
-  input: V3InternalTopologyPlanInput,
+  cohortTemplate: Uint8Array,
   cohort: string,
 ): { status: "accepted"; state: Exclude<V3TopologyTreeState, { kind: "absent" }> } | {
   status: "refused";
   refusal: { code: V3TopologyRefusalCode };
 } {
-  const bytes = renderV3IncompleteCohort(input.cohortTemplate, cohort);
+  const bytes = renderV3IncompleteCohort(cohortTemplate, cohort);
   return bytes === null
     ? { status: "refused", refusal: { code: "invalid-cohort-template" } }
     : { status: "accepted", state: fileState(bytes) };
@@ -175,7 +175,7 @@ function planCohortPath(
   const path = v3CohortDocumentPath(cohort);
   const before = readState(input, path);
   if (before.kind === "absent") {
-    const rendered = renderCohort(input, cohort);
+    const rendered = renderCohort(input.cohortTemplate, cohort);
     return rendered.status === "refused"
       ? { refusal: rendered.refusal }
       : { kind: missingKind, path, before, after: rendered.state };

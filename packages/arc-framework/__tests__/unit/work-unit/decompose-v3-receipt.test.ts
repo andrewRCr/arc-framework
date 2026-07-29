@@ -251,10 +251,21 @@ describe("v3 finalized decomposition evidence", () => {
 
   it("constructs only the exact prepared envelope and destination output set", () => {
     const { preparation, receipt } = v3DecompositionEvidenceFixture();
-    const destinationOutputs = receipt.finalized.destinationDigests.map(({ destinationId, outputs }) => ({
-      destinationId,
-      outputs,
-    }));
+    const outputFor = (path: string) => {
+      const result = receipt.finalized.managedPathResults.find((entry) => entry.path === path);
+      if (result === undefined) throw new Error(`missing fixture result: ${path}`);
+      return { path, after: result.after };
+    };
+    const destinationOutputs = [
+      {
+        destinationId: "member-a",
+        outputs: [outputFor(".arc/backlog/planned/origin/member-a/meta-member-a.md")],
+      },
+      {
+        destinationId: "member-b",
+        outputs: [outputFor(".arc/backlog/planned/origin/member-b/meta-member-b.md")],
+      },
+    ];
     expect(createV3DecomposeReceipt(
       preparation,
       receipt.finalized.managedPathResults,

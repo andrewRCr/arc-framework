@@ -110,7 +110,10 @@ function harness(options: { raceAfterProjection?: boolean } = {}): {
         }
         if (args[0] === "ls-tree" && args[1] === "-z") {
           const ref = args[2];
-          const path = args.at(-1) ?? "";
+          const pathspec = args.at(-1) ?? "";
+          const path = pathspec.startsWith(":(literal)")
+            ? pathspec.slice(":(literal)".length)
+            : pathspec;
           if (path === receiptPath) {
             return ref === PREPARED_BASE
               ? { stdout: "" }

@@ -9,12 +9,13 @@ import {
   type V3DecomposeSourceMeta,
   type V3DecomposeStoredArtifact,
   type V3DecomposeTreeSnapshot,
+  v3PlanningDesignNames,
 } from "./decompose-v3-preflight.js";
 
 export interface GitV3DecomposePreflightDependencies {
   cwd: string;
   exec: GitExec;
-  readBlob(ref: string, path: string): Promise<Uint8Array | null>;
+  readBlob(commit: string, path: string): Promise<Uint8Array | null>;
 }
 
 export type GitV3DecomposePreflightResult =
@@ -122,10 +123,7 @@ async function readSnapshot(
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
   const matcher = artifactMatcher(origin);
-  const layeredDesignNames = new Set([
-    `spec-${origin}-prd.md`,
-    `spec-${origin}-rfc.md`,
-  ]);
+  const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {

@@ -6,10 +6,10 @@ import type { DecomposeTransientClaimStore } from "./decompose-transient-claim-s
 import {
   decomposeCandidateBranch,
   decomposeTransientClaimId,
-  parseDecomposeTransientClaim,
   projectDecomposeTransientCandidateOwnership,
   type DecomposeTransientClaim,
   type DecomposeTransientClaimBinding,
+  type DecomposeTransientOccupationEvidence,
 } from "./decompose-transient-claim.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 
@@ -219,7 +219,11 @@ function validateRecoverableObservation(
 function occupationEvidence(
   observation: DecomposeCandidateObservation,
   claim: DecomposeTransientClaim,
-) {
+): DecomposeTransientOccupationEvidence | null {
+  const registration = observation.registrations[0];
+  if (observation.branchHead === null
+    || registration === undefined
+    || registration.marker === null) return null;
   return {
     registrations: observation.registrations.map(({ path, candidateBranch, head }) => ({
       path,
@@ -228,13 +232,9 @@ function occupationEvidence(
     })),
     branch: {
       candidateBranch: claim.binding.candidateBranch,
-      head: observation.branchHead ?? "",
+      head: observation.branchHead,
     },
-    marker: observation.registrations[0]?.marker ?? {
-      claimId: claim.claimId,
-      generation: 0,
-      candidateWorktree: claim.candidateWorktree,
-    },
+    marker: registration.marker,
   };
 }
 
@@ -276,7 +276,7 @@ export async function occupyDecomposeResult(
   const claimId = decomposeTransientClaimId(binding);
   let observation = await adapter.observeCandidate(binding.candidateBranch);
   const stored = await adapter.claims.read(claimId);
-  const storedClaim = stored.status === "found" ? parseDecomposeTransientClaim(stored.claim) : null;
+  const storedClaim = stored.status === "found" ? stored.claim : null;
 
   if (observation.registrations.length > 1) {
     return { status: "refused", reason: "duplicate-registration" };
@@ -293,7 +293,13 @@ export async function occupyDecomposeResult(
       return { status: "refused", reason: "branch-exists-unregistered" };
     }
   } else if (storedClaim?.state.kind === "occupied") {
-    return { status: "refused", reason: "recovery-required" };
+    return storedClaim.registration.kind === "registered"
+      ? {
+          status: "refused",
+          reason: "recovery-required",
+          recovery: pendingCandidateRecovery(storedClaim, storedClaim.registration.path),
+        }
+      : { status: "refused", reason: "claim-conflict" };
   }
 
   const acquired = await adapter.claims.acquire(claimId, binding);
@@ -369,11 +375,19 @@ export async function occupyDecomposeResult(
   if (refusal !== null) {
     return { status: "refused", reason: refusal, recovery: pendingCandidateRecovery(claim, path) };
   }
+  const evidence = occupationEvidence(created.observation, claim);
+  if (evidence === null) {
+    return {
+      status: "refused",
+      reason: "recovery-required",
+      recovery: pendingCandidateRecovery(claim, path),
+    };
+  }
   const occupied = await adapter.claims.occupy(
     claimId,
     claim.generation,
     path,
-    occupationEvidence(created.observation, claim),
+    evidence,
   );
   if (occupied.status !== "occupied" && occupied.status !== "already-occupied-matching") {
     return {

@@ -124,9 +124,10 @@ describe("validated v3 decomposition plan path registry", () => {
       },
     ];
 
+    const topologyInput = topology("create", path, absent, scaffolded);
     const result = buildValidatedDecomposePlan({
       ...operands,
-      topology: topology("create", path, absent, scaffolded),
+      topology: topologyInput,
       claims,
     });
     expect(result.ok).toBe(true);
@@ -153,7 +154,7 @@ describe("validated v3 decomposition plan path registry", () => {
       cutMapDigest: operands.cutMapDigest,
       allowedPathsDigest: result.plan.allowedPathsDigest,
       candidatePublication: operands.candidatePublication,
-      topologyDigest: result.plan.candidateAuthority.topology.digest,
+      topologyDigest: topologyInput.digest,
     });
     expect(result.plan.planId).toBe(expectedPlanId);
     expect(result.plan.prospectiveOverlay).toEqual({
