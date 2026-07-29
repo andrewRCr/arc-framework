@@ -24,6 +24,8 @@ import { readErrandSlugByBranch } from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
   exec: GitExec;
+  /** Repository checkout used to resolve repository-common candidate claims. */
+  cwd?: string;
   /** Current identity, or `null` when unconfigured — the filter passes through. */
   identity: string | null;
   /** Team mode — gates the oracle identity filter (no-op in solo mode). */
@@ -64,7 +66,7 @@ export interface ActiveInFlightResult {
 export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
-  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
+  const { exec, cwd, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
   const result = await deriveInFlight({
     exec,
@@ -76,6 +78,7 @@ export async function runActiveInFlight(
     errandSlugByBranch,
     parkedSlugs,
     prSource,
+    ...(cwd === undefined ? {} : { decompositionClaimCwd: cwd }),
   });
   return {
     entries: result.entries,

@@ -250,7 +250,7 @@ export async function resolveRenameWorktreeMove(
 }
 
 /** Notice surfaced when the project has not configured its worktree provisioning script. */
-const POST_CREATE_UNCONFIGURED_NOTICE =
+export const POST_CREATE_UNCONFIGURED_NOTICE =
   "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
 
 /**
@@ -293,6 +293,56 @@ async function copyRegisteredHarnessDirs(
     if (!(await ctx.fs.directoryExists(source))) continue;
     await ctx.fs.copyDirectory(source, join(params.worktreePath, dir));
   }
+}
+
+/** Operands for provisioning an already-created linked worktree. */
+export interface ProvisionSpawnedWorktreeOp {
+  worktreePath: string;
+  wuName: string;
+  spawningIdentity: string;
+  postCreateScript?: string;
+  primaryWorktreePath?: string;
+  registeredHarnessDirs?: string;
+  now?: number;
+}
+
+/**
+ * Apply the post-create script, harness copies, ignore rule, and ownership marker.
+ *
+ * @param ctx - Git and filesystem boundaries
+ * @param op - Exact spawned-worktree provisioning operands
+ * @returns The existing no-script notice, or `null`
+ */
+export async function provisionSpawnedWorktree(
+  ctx: ReconcileWorktreeContext,
+  op: ProvisionSpawnedWorktreeOp,
+): Promise<string | null> {
+  const postCreateScript = op.postCreateScript?.trim();
+  let postCreateNotice: string | null = null;
+  if (postCreateScript) {
+    const { cmd, args } = postCreateShellCommand(postCreateScript);
+    try {
+      await ctx.exec(cmd, args, { cwd: op.worktreePath });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
+    }
+  } else {
+    postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
+  }
+  await copyRegisteredHarnessDirs(ctx, {
+    primaryWorktreePath: op.primaryWorktreePath,
+    worktreePath: op.worktreePath,
+    registeredHarnessDirs: op.registeredHarnessDirs,
+  });
+  await ensureWorktreeMarkerIgnored(op.worktreePath, ctx.exec, ctx.fs);
+  await writeWorktreeOwnershipMarker(op.worktreePath, {
+    createdByArc: true,
+    createdFor: { kind: "work-unit", name: op.wuName },
+    spawningIdentity: op.spawningIdentity,
+    now: op.now,
+  });
+  return postCreateNotice;
 }
 
 /**
@@ -384,36 +434,12 @@ export async function reconcileWorktree(
         ? ["worktree", "add", worktreePath, op.branch]
         : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
     await ctx.exec("git", add);
-    const postCreateScript = op.postCreateScript?.trim();
-    let postCreateNotice: string | undefined;
-    if (postCreateScript) {
-      const { cmd, args } = postCreateShellCommand(postCreateScript);
-      try {
-        await ctx.exec(cmd, args, { cwd: worktreePath });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
-      }
-    } else {
-      postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
-    }
-    await copyRegisteredHarnessDirs(ctx, {
-      primaryWorktreePath: op.primaryWorktreePath,
-      worktreePath,
-      registeredHarnessDirs: op.registeredHarnessDirs,
-    });
-    await ensureWorktreeMarkerIgnored(worktreePath, ctx.exec, ctx.fs);
-    await writeWorktreeOwnershipMarker(worktreePath, {
-      createdByArc: true,
-      createdFor: { kind: "work-unit", name: op.wuName },
-      spawningIdentity: op.spawningIdentity,
-      now: op.now,
-    });
+    const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
     return {
       mutation: "spawn",
       worktreePath,
       branch: op.branch,
-      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+      ...(postCreateNotice === null ? {} : { postCreateNotice }),
     };
   }
 

@@ -66,6 +66,8 @@ export interface StatusUserViewResult {
 export interface RunStatusUserViewOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Repository checkout used to resolve repository-common candidate claims. */
+  cwd?: string;
   /** Resolved identity; `null` short-circuits (the view is identity-scoped). */
   identity: string | null;
   /** Team mode — gates oracle identity filtering. */
@@ -115,7 +117,7 @@ function composeUserView(
 export async function runStatusUserView(
   options: RunStatusUserViewOptions,
 ): Promise<StatusUserViewResult> {
-  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
+  const { exec, cwd, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
 
   if (identity === null) {
     return {
@@ -140,6 +142,7 @@ export async function runStatusUserView(
     errandSlugByBranch,
     parkedSlugs,
     prSource,
+    ...(cwd === undefined ? {} : { decompositionClaimCwd: cwd }),
   });
   const warnings = remoteResult.warnings.map(renderInFlightWarning);
   // Online but unreachable: the in-flight half can't be refreshed, so degrade to

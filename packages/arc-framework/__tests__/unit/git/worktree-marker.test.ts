@@ -27,6 +27,7 @@ import {
   type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 
 describe("worktree-marker", () => {
   let cwd: string;
@@ -336,6 +337,26 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
         createdAt: "2026-05-27T12:00:00.000Z",
       },
     });
+  });
+
+  it("carries one exact decomposition candidate generation without a host path", async () => {
+    const decompositionCandidate = {
+      claimId: canonicalDigest("claim"),
+      generation: 3,
+      candidateWorktree: canonicalDigest("candidate-worktree"),
+    };
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "branch", ref: "chore/decompose-origin" },
+      spawningIdentity: "andrew",
+      decompositionCandidate,
+      now: 0,
+    });
+    expect(await readWorktreeMarker(cwd)).toMatchObject({
+      kind: "present",
+      marker: { decompositionCandidate },
+    });
+    expect(JSON.stringify((await readWorktreeMarker(cwd)))).not.toContain(cwd);
   });
 
   it("writes no marker for an advisory worktree ARC did not create", async () => {

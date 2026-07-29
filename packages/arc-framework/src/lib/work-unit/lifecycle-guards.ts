@@ -112,10 +112,10 @@ function materializesInCurrentCheckout(inputs: {
   worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean };
   materializesCurrentCheckout?: boolean;
 }): boolean {
+  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   const op = inputs.worktreeOp;
   if (op?.mutation !== "spawn") return true;
   if (op.inPlace === true) return true;
-  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   return op.createBranch !== false;
 }
 

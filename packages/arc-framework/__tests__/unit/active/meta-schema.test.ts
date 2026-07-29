@@ -23,6 +23,7 @@ function validRecord(): Record<string, unknown> {
     design: ["spec-cli-validation-surfaces.md"],
     taskList: "tasks-cli-validation-surfaces.md",
     reviewRubric: null,
+    decompositionReceipt: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: "Task 2.1.a — Define the semantic meta-record contract",
@@ -123,6 +124,7 @@ describe("MetaProjectionRecordSchema", () => {
       Design: "spec-example.md",
       "Task List": "tasks-example.md",
       "Review Rubric": null,
+      "Decomposition Receipt": null,
       "Current Workflow": null,
       "Last Completed": null,
       "Next Task": null,
@@ -139,11 +141,11 @@ describe("MetaProjectionRecordSchema", () => {
     expect(META_FIELDS.map(({ name, key }) => ({ name, key }))).toEqual(META_FIELD_KEYS);
   });
 
-  it("requires exactly the 18 managed labels", () => {
+  it("requires exactly the 19 managed labels", () => {
     const complete = projectionRecord();
     const missing = Object.fromEntries(Object.entries(complete).filter(([name]) => name !== "Completed"));
 
-    expect(Object.keys(complete)).toHaveLength(18);
+    expect(Object.keys(complete)).toHaveLength(19);
     expect(MetaProjectionRecordSchema.safeParse(missing).success).toBe(false);
     expect(MetaProjectionRecordSchema.safeParse({ ...complete, Extra: null }).success).toBe(false);
     expect(MetaProjectionRecordSchema.safeParse({ ...complete, State: 42 }).success).toBe(false);

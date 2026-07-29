@@ -31,7 +31,17 @@
  * @module
  */
 
-import { readdir, rmdir } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  rmdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
@@ -66,6 +76,7 @@ import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
   nodeReconcileWorktreeFs,
+  provisionSpawnedWorktree,
   reconcileWorktree,
 } from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
@@ -77,6 +88,8 @@ import {
 } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { transitionOverlayCompositionInput } from "./transition-overlay.js";
+import { atomicGraduate } from "./atomic-graduation.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -200,6 +213,15 @@ export function buildExecutorContext(
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
     reconcileWorktree: (op) =>
       reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
+    atomicGraduate: (transaction) => atomicGraduate(transaction, {
+      cwd,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+      provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+        { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs },
+        op,
+      ),
+    }),
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
@@ -290,9 +312,11 @@ export function buildExecutorContext(
                 exec,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
-                ...(inputs.supersededSource === undefined
+                ...(inputs.transitionOverlay === undefined
                   ? {}
-                  : { superseded: inputs.supersededSource }),
+                  : {
+                      transitionOverlay: transitionOverlayCompositionInput(inputs.transitionOverlay),
+                    }),
               });
               return {
                 content: result.markdown,

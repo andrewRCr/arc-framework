@@ -1,426 +1,571 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
-import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
-import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
-import { preparationId, receiptId } from "../../../src/lib/canonical/receipt-id.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
+  authorizeV3DecomposeRefresh,
   finalizeDecomposeRetirement,
-  type DecomposeFinalizationContext,
-  type DecomposeFinalizationProjection,
+  finalizeV3DecomposeRetirement,
+  resolveV3DecomposeFinalizationTransition,
+  type V3DecomposeFinalizationContext,
 } from "../../../src/lib/work-unit/decompose-finalization.js";
-import { decomposeInventoryDigests } from "../../../src/lib/work-unit/decompose-inventory.js";
-import { queryRetirementDisposition } from "../../../src/lib/work-unit/retirement-disposition-query.js";
-import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
-import type {
-  DecomposePreparationLocator,
-  DecomposePreparationRecord,
-} from "../../../src/lib/work-unit/retirement-authority.js";
+import {
+  createV3DecomposeReceipt,
+  type V3DecomposeContinuationInput,
+  type V3ManagedPathResult,
+} from "../../../src/lib/work-unit/decompose-v3-receipt.js";
+import { validateFinalizedV3Decomposition } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
 
-const bytes = (value: string) => new TextEncoder().encode(value);
-const digest = (value: string) => contentDigest(bytes(value));
-const targetPath = validateManagedPath(".arc/backlog/planned/origin/member-a/draft-member-a.md");
-const scope = {
-  subject: { kind: "work-unit" as const, name: "origin" },
-  transition: "decompose" as const,
-  source: { branch: "plan/origin", head: "a".repeat(40) },
-  resultProjection: { ref: "main", head: "b".repeat(40) },
-};
-const sourcePath = validateManagedPath(".arc/active/draft-origin.md");
-const sourceLocator = { artifact: "draft-origin.md", kind: "preamble" as const };
-const sourceId = canonicalDigest({ schemaVersion: 2, sourcePath, sourceLocator });
-const inventories = {
-  sourceInventory: [{
-    sourceId,
-    sourcePath,
-    sourceLocator,
-    contentDigest: digest("source"),
-  }],
-  incomingEdgeInventory: [{ dependent: "consumer", currentTargets: ["other", "origin"] }],
-  outgoingEdgeInventory: [{ prerequisite: "foundation" }],
-};
-const inventoryDigests = decomposeInventoryDigests(inventories);
-const allocation = {
-  schemaVersion: 2 as const,
-  origin: { slug: "origin", phase: "Planning" as const, location: "active" as const },
-  shape: "symmetric" as const,
-  parentPosition: "standalone" as const,
-  cohort: "origin",
-  entries: [
-    { kind: "new-member" as const, destinationId: "a", slug: "member-a", workClass: "Light" as const },
-    { kind: "new-member" as const, destinationId: "b", slug: "member-b", workClass: "Light" as const },
-  ],
-  internalEdges: [],
-  sourceAllocations: [{
-    sourceId,
-    ownership: "destination-owned" as const,
-    disposition: {
-      kind: "target" as const,
-      destinationId: "a",
-      targetLocator: { artifact: "draft-member-a.md", kind: "preamble" as const },
-    },
-  }],
-  incomingEdges: [{
-    dependent: "consumer",
-    disposition: { kind: "replace" as const, replacementTargets: ["member-a"] },
-  }],
-  outgoingEdges: [{
-    prerequisite: "foundation",
-    disposition: { kind: "targets" as const, targets: ["member-a"] },
-  }],
-};
-const receiptIdValue = receiptId({
-  schemaVersion: 1,
-  subject: scope.subject,
-  transition: "decompose",
-  sourceBranch: scope.source.branch,
-  sourceHead: scope.source.head,
+describe("retired v1/v2 decomposition finalization boundary", () => {
+  it("refuses legacy evidence instead of emitting a generic receipt", async () => {
+    expect(await finalizeDecomposeRetirement(
+      {} as never,
+      {} as never,
+      "legacy-authority",
+    )).toEqual({ status: "refused", reason: "unsupported-transition" });
+  });
 });
-const cutMapDigest = canonicalDigest(allocation);
-const locator: DecomposePreparationLocator = {
-  receiptId: receiptIdValue,
-  preparationId: preparationId({
-    receiptId: receiptIdValue,
-    baseHead: scope.resultProjection.head,
-    ...inventoryDigests,
-    cutMapDigest,
-  }),
-  scope,
-};
-const recordPath = resolveRetirementRecordRelativePath(locator.receiptId);
-const record: DecomposePreparationRecord = {
-  kind: "prepared-decompose",
-  schemaVersion: 1,
-  locator,
-  allocation,
-  ...inventories,
-  allowedPaths: [targetPath],
-  sourceArtifactDigest: digest("source-artifacts"),
-  ...inventoryDigests,
-  cutMapDigest,
-};
-const projection: DecomposeFinalizationProjection = {
-  inventoryRead: "reachable",
-  sourceArtifactDigest: record.sourceArtifactDigest,
-  inventories,
-  stagedPaths: [recordPath, targetPath],
-  transitionPatch: [{ operation: "write", path: targetPath, contentDigest: digest("intro") }],
-  targets: [{ path: ".arc/backlog/planned/origin/member-a", entries: [{ path: targetPath, state: "present", contentDigest: digest("intro") }] }],
-  transformedIncomingDependents: ["consumer"],
-};
 
-function v2Fixture(inventoryRead: "tree-only" | "reachable" | "degraded") {
-  const v2ReceiptId = receiptId({
-    schemaVersion: 2,
-    subject: scope.subject,
-    transition: "decompose",
-    sourceBranch: scope.source.branch,
-    sourceHead: scope.source.head,
-  });
-  const v2Locator: DecomposePreparationLocator = {
-    ...locator,
-    receiptId: v2ReceiptId,
-    preparationId: preparationId({
-      receiptId: v2ReceiptId,
-      baseHead: scope.resultProjection.head,
-      ...inventoryDigests,
-      cutMapDigest,
-    }),
-  };
-  const v2Record: DecomposePreparationRecord = {
-    ...record,
-    schemaVersion: 2,
-    inventoryRead,
-    transformedIncomingDependents: ["consumer"],
-    locator: v2Locator,
-  };
-  return {
-    locator: v2Locator,
-    record: v2Record,
-    projection: {
-      ...projection,
-      inventoryRead,
-      stagedPaths: [resolveRetirementRecordRelativePath(v2ReceiptId), targetPath],
-    },
-  };
-}
+describe("v3 decomposition finalization boundary", () => {
+  type EvidenceFacts = Awaited<
+    ReturnType<V3DecomposeFinalizationContext["readEvidence"]>
+  >["facts"];
 
-function context(
-  overrides: Partial<DecomposeFinalizationContext> = {},
-  fixture: { record: DecomposePreparationRecord; projection: DecomposeFinalizationProjection } = {
-    record,
-    projection,
-  },
-) {
-  const replacements: string[] = [];
-  const ctx: DecomposeFinalizationContext = {
-    readAuthoritySnapshot: async () => ({ authorityVersion: "prepared-version", recordState: "prepared-decompose" }),
-    readRecord: async () => canonicalize(fixture.record),
-    readProjection: async () => fixture.projection,
-    readTargetArtifact: async () => bytes("intro"),
-    readDependsOn: async (slug) => {
-      if (slug === "consumer") return ["other", "member-a"];
-      if (slug === "member-a") return ["foundation"];
-      return [];
-    },
-    replaceAndStageRecord: async (_id, expected, next, stagedPaths) => {
-      expect(expected).toBe(canonicalize(fixture.record));
-      expect(stagedPaths).toEqual(fixture.projection.stagedPaths);
-      replacements.push(next);
-    },
-    ...overrides,
-  };
-  return { ctx, replacements };
-}
-
-describe("finalizeDecomposeRetirement", () => {
-  it("verifies the prepared result and atomically replaces it with a finalized receipt", async () => {
-    const h = context();
-    const result = await finalizeDecomposeRetirement(h.ctx, locator, "prepared-version");
-
-    expect(result.status).toBe("recorded");
-    if (result.status !== "recorded") return;
-    expect(result.receipt).toMatchObject({
-      receiptId: locator.receiptId,
-      transition: "decompose",
-      result: { kind: "decompose", preparationId: locator.preparationId },
-    });
-    expect(result.lifecycle).toEqual({
-      subject: { slug: "origin", branch: "plan/origin" },
-      transition: "decompose",
-      authority: {
-        kind: "receipt-backed",
-        receiptId: locator.receiptId,
-        authorityVersion: result.authorityVersion,
+  function fixtureFacts() {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const machine = preparation.facts.completedMap.machine;
+    const authoring = preparation.facts.completedMap.authoring;
+    const sourceUnit = machine.sourceUnits[0]!;
+    return {
+      preparation,
+      receipt,
+      facts: {
+        preparation,
+        receipt,
+        sourceArtifactDigest: preparation.facts.sourceArtifactDigest,
+        sourceArtifactInventory: [{
+          path: sourceUnit.sourcePath,
+          objectKind: "blob" as const,
+          mode: "100644" as const,
+          contentDigest: sourceUnit.contentDigest,
+        }],
+        sourceUnits: machine.sourceUnits,
+        sourceAllocations: authoring.sourceAllocations,
+        resultBaseHead: machine.resultBase.head,
+        candidateOwnership: preparation.facts.candidateOwnership,
+        destinationOutputs: receipt.finalized.destinationDigests.map(
+          ({ destinationId, outputs }) => ({ destinationId, outputs }),
+        ),
+        incomingEdges: machine.incomingEdges,
+        outgoingEdges: machine.outgoingEdges,
+        managedPathResults: receipt.finalized.managedPathResults,
+        transitionPatch: receipt.finalized.transitionPatch,
+        topology: preparation.facts.topology,
+        publication: receipt.finalized.publication,
       },
-      cleanup: {
-        branch: { status: "pending" },
-        worktree: { status: "pending" },
-        userWorkspace: { status: "pending" },
-      },
-      successorReadiness: {
-        candidates: ["member-b"],
-        actionable: false,
-        remedy: null,
-      },
-    });
-    expect(queryRetirementDisposition({
-      status: "valid",
-      records: [{
-        id: result.receipt.receiptId,
-        content: "",
-        record: { kind: "receipt", value: result.receipt },
-      }],
-    }, {
-      retiredSubject: "origin",
-      dependentSlug: "consumer",
-    })).toMatchObject({
-      status: "unique",
-      disposition: { kind: "replace", replacementTargets: ["member-a"] },
-    });
-    expect(h.replacements).toEqual([canonicalize(result.receipt)]);
-  });
-
-  it("refuses authority drift, paths outside the prepared set, and mismatched final dependencies", async () => {
-    expect(
-      await finalizeDecomposeRetirement(
-        context({ readAuthoritySnapshot: async () => ({ authorityVersion: "changed", recordState: "prepared-decompose" }) }).ctx,
-        locator,
-        "prepared-version",
-      ),
-    ).toMatchObject({ status: "refused", reason: "authority-conflict" });
-    expect(
-      await finalizeDecomposeRetirement(
-        context({ readProjection: async () => ({ ...projection, stagedPaths: [...projection.stagedPaths, "outside.md"] }) }).ctx,
-        locator,
-        "prepared-version",
-      ),
-    ).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
-    expect(
-      await finalizeDecomposeRetirement(
-        context({ readProjection: async () => ({ ...projection, stagedPaths: [targetPath] }) }).ctx,
-        locator,
-        "prepared-version",
-      ),
-    ).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
-    expect(
-      await finalizeDecomposeRetirement(
-        context({ readDependsOn: async () => [] }).ctx,
-        locator,
-        "prepared-version",
-      ),
-    ).toMatchObject({ status: "refused", reason: "conservation-unproven" });
-  });
-
-  it("refuses a target locator that does not resolve in the declared artifact", async () => {
-    const result = await finalizeDecomposeRetirement(
-      context({ readTargetArtifact: async () => null }).ctx,
-      locator,
-      "prepared-version",
-    );
-    expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
-  });
-
-  it("does not require branch-private incoming edges to be mutated in the result checkout", async () => {
-    const branchPrivateProjection = {
-      ...projection,
-      transformedIncomingDependents: [],
     };
-    const result = await finalizeDecomposeRetirement(
-      context({
-        readProjection: async () => branchPrivateProjection,
-        readDependsOn: async (slug) => slug === "member-a" ? ["foundation"] : [],
-      }).ctx,
-      locator,
-      "prepared-version",
-    );
+  }
 
-    expect(result.status).toBe("recorded");
-  });
-
-  it("persists the transformed incoming-edge partition in v2 receipts", async () => {
-    const fixture = v2Fixture("reachable");
-    const result = await finalizeDecomposeRetirement(
-      context({}, fixture).ctx,
-      fixture.locator,
-      "prepared-version",
-    );
-
-    expect(result).toMatchObject({
-      status: "recorded",
-      receipt: {
-        schemaVersion: 2,
-        result: { transformedIncomingDependents: ["consumer"] },
-      },
-    });
-  });
-
-  it("projects retirement cleanup as inapplicable for a branchless source", async () => {
-    const branchlessAllocation = {
-      ...record.allocation,
-      origin: { ...record.allocation.origin, location: "planned" as const },
-      shape: "backlog-stub-source" as const,
-    };
-    const branchlessCutMapDigest = canonicalDigest(branchlessAllocation);
-    const branchlessLocator: DecomposePreparationLocator = {
-      ...locator,
-      preparationId: preparationId({
-        receiptId: locator.receiptId,
-        baseHead: locator.scope.resultProjection.head,
-        ...inventoryDigests,
-        cutMapDigest: branchlessCutMapDigest,
+  function refinedReceipt() {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const managedPathResults = structuredClone(receipt.finalized.managedPathResults);
+    const destinationPath = preparation.facts.destinationOutputPaths[0]!.paths[0]!;
+    const result = managedPathResults.find(({ path }) => path === destinationPath);
+    if (result?.after.kind !== "file") throw new Error("fixture destination must be a file");
+    result.after.contentDigest = canonicalDigest("refined destination");
+    const destinationOutputs = preparation.facts.destinationOutputPaths.map(({ destinationId, paths }) => ({
+      destinationId,
+      outputs: paths.map((path) => {
+        const output = managedPathResults.find((candidate) => candidate.path === path);
+        if (output === undefined) throw new Error("fixture destination output must exist");
+        return { path, after: output.after };
       }),
-    };
-    const branchlessRecord: DecomposePreparationRecord = {
-      ...record,
-      locator: branchlessLocator,
-      allocation: branchlessAllocation,
-      cutMapDigest: branchlessCutMapDigest,
-    };
-    const h = context({}, { record: branchlessRecord, projection });
+    }));
+    const refined = createV3DecomposeReceipt(
+      preparation,
+      managedPathResults,
+      destinationOutputs,
+      receipt.finalized.publication.initialContinuation,
+    );
+    if (refined === null) throw new Error("refined receipt must be canonical");
+    return { preparation, receipt, refined };
+  }
 
-    const result = await finalizeDecomposeRetirement(h.ctx, branchlessLocator, "prepared-version");
+  function recreateReceipt(
+    managedPathResults: readonly V3ManagedPathResult[],
+    continuation: V3DecomposeContinuationInput,
+  ) {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const destinationOutputs = preparation.facts.destinationOutputPaths.map(({ destinationId, paths }) => ({
+      destinationId,
+      outputs: paths.map((path) => {
+        const result = managedPathResults.find((candidate) => candidate.path === path);
+        if (result === undefined) throw new Error("destination result must exist");
+        return { path, after: result.after };
+      }),
+    }));
+    const receipt = createV3DecomposeReceipt(
+      preparation,
+      managedPathResults,
+      destinationOutputs,
+      continuation,
+    );
+    if (receipt === null) throw new Error("receipt must be canonical");
+    return receipt;
+  }
 
-    expect(result.status).toBe("recorded");
-    if (result.status !== "recorded") return;
-    expect(result.lifecycle.subject.branch).toBeNull();
-    expect(result.lifecycle.cleanup).toEqual({
-      branch: { status: "not-applicable" },
-      worktree: { status: "not-applicable" },
-      userWorkspace: { status: "not-applicable" },
-    });
-  });
-
-  it("binds finalization to the prepare-time transformed-dependent partition", async () => {
-    const fixture = v2Fixture("reachable");
-    const result = await finalizeDecomposeRetirement(
-      context({
-        readProjection: async () => ({
-          ...fixture.projection,
-          // A fresh post-mutation composition no longer exposes the retired edge.
-          // Finalization must not silently replace the partition prepared earlier.
-          transformedIncomingDependents: [],
+  function fixtureContext(): {
+    ctx: V3DecomposeFinalizationContext;
+    readStored(): string;
+    writes(): number;
+  } {
+    const { preparation, facts } = fixtureFacts();
+    let stored = canonicalize(preparation);
+    let writeCount = 0;
+    return {
+      ctx: {
+        readEvidence: async () => ({
+          authorityVersion: "authority-v1",
+          parentRecord: null,
+          indexRecord: stored,
+          worktreeRecord: stored,
+          facts,
         }),
-      }, fixture).ctx,
-      fixture.locator,
-      "prepared-version",
+        validateProspectiveProjection: async () => true,
+        replaceAndStageRecord: async (_receiptId, expected, next) => {
+          if (stored !== expected) throw new Error("compare-and-set failed");
+          stored = next;
+          writeCount += 1;
+          return { status: "replaced" };
+        },
+      },
+      readStored: () => stored,
+      writes: () => writeCount,
+    };
+  }
+
+  it("returns one receipt-bound payload for recorded, already-finalized, and refreshed", () => {
+    const { preparation, receipt: prior, refined: receipt } = refinedReceipt();
+    const facts = fixtureFacts().facts;
+    facts.receipt = receipt;
+    facts.destinationOutputs = receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({ destinationId, outputs }),
     );
-
-    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
-  });
-
-  it("refuses undeclared or duplicated dependencies on a new member", async () => {
-    for (const dependencies of [
-      ["foundation", "unexpected"],
-      ["foundation", "foundation"],
-    ]) {
-      const result = await finalizeDecomposeRetirement(
-        context({
-          readDependsOn: async (slug) => {
-            if (slug === "consumer") return ["other", "member-a"];
-            if (slug === "member-a") return dependencies;
-            return [];
-          },
-        }).ctx,
-        locator,
-        "prepared-version",
-      );
-      expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
-    }
-  });
-
-  it("fails closed when transactional receipt replacement cannot stage", async () => {
-    const result = await finalizeDecomposeRetirement(
-      context({ replaceAndStageRecord: async () => { throw new Error("stage failed"); } }).ctx,
-      locator,
-      "prepared-version",
+    facts.managedPathResults = receipt.finalized.managedPathResults;
+    facts.transitionPatch = receipt.finalized.transitionPatch;
+    facts.publication = receipt.finalized.publication;
+    const validation = validateFinalizedV3Decomposition(facts);
+    if (validation.status !== "validated") throw new Error("fixture must validate");
+    const refresh = authorizeV3DecomposeRefresh(
+      prior,
+      receipt,
+      prior.finalized.publication.initialContinuation,
     );
+    if (refresh.status !== "authorized") throw new Error("refresh must be authorized");
 
-    expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+    const recorded = resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: canonicalize(preparation),
+      worktreeRecord: canonicalize(preparation),
+    });
+    const alreadyFinalized = resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: canonicalize(receipt),
+      worktreeRecord: canonicalize(receipt),
+    });
+    const refreshed = resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: canonicalize(prior),
+      worktreeRecord: canonicalize(prior),
+      refresh,
+    });
+
+    expect(recorded).toMatchObject({ status: "recorded", mutation: { kind: "replace" } });
+    expect(alreadyFinalized).toMatchObject({ status: "already-finalized", mutation: { kind: "none" } });
+    expect(refreshed).toMatchObject({ status: "refreshed", mutation: { kind: "replace" } });
+    const payload = (result: typeof recorded) => {
+      if (result.status === "refused") throw new Error("fixture transition must succeed");
+      return {
+        receipt: result.receipt,
+        authorityVersion: result.authorityVersion,
+        transitionOverlay: result.transitionOverlay,
+        lifecycle: result.lifecycle,
+      };
+    };
+    expect(payload(alreadyFinalized)).toEqual(payload(recorded));
+    expect(payload(refreshed)).toEqual(payload(recorded));
   });
 
-  it("preserves degraded preparation quality when the reachable inventory is unchanged", async () => {
-    const fixture = v2Fixture("degraded");
-    const h = context({}, fixture);
-
-    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
-
-    expect(result).toMatchObject({
-      status: "recorded",
-      receipt: { schemaVersion: 2, inventoryRead: "degraded" },
+  it("authorizes a destination-only refinement with unchanged continuation", () => {
+    const { receipt, refined } = refinedReceipt();
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      refined,
+      receipt.finalized.publication.initialContinuation,
+    )).toMatchObject({
+      status: "authorized",
+      priorReceipt: receipt,
     });
   });
 
-  it("refuses reachable-to-degraded quality regression before replacing the preparation", async () => {
-    const fixture = v2Fixture("reachable");
-    const h = context({
-      readProjection: async () => ({ ...fixture.projection, inventoryRead: "degraded" }),
-    }, fixture);
-
-    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
-
-    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
-    expect(h.replacements).toEqual([]);
+  it.each([
+    [{ kind: "selected", slugs: ["member-b"] }],
+    [{ kind: "none" }],
+  ] as const)("refuses a changed $kind continuation", (continuation) => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const candidate = recreateReceipt(
+      receipt.finalized.managedPathResults,
+      structuredClone(continuation) as V3DecomposeContinuationInput,
+    );
+    expect(authorizeV3DecomposeRefresh(receipt, candidate, continuation)).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
   });
 
-  it("refuses a newly enlarged reachable inventory before replacing the preparation", async () => {
-    const fixture = v2Fixture("reachable");
-    const h = context({
-      readProjection: async () => ({
-        ...fixture.projection,
-        inventories: {
-          ...fixture.projection.inventories,
-          incomingEdgeInventory: [
-            ...fixture.projection.inventories.incomingEdgeInventory,
-            { dependent: "new-consumer", currentTargets: ["origin"] },
-          ],
-        },
-      }),
-    }, fixture);
+  it("refuses changing a finalized none continuation to selected", () => {
+    const { receipt: selected } = v3DecompositionEvidenceFixture();
+    const prior = recreateReceipt(selected.finalized.managedPathResults, { kind: "none" });
+    expect(authorizeV3DecomposeRefresh(
+      prior,
+      selected,
+      selected.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
+  });
 
-    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+  it("refuses an invalid supplied continuation without throwing", () => {
+    const { receipt, refined } = refinedReceipt();
+    expect(authorizeV3DecomposeRefresh(receipt, refined, { kind: "selected", slugs: ["foreign"] })).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-continuation-changed" },
+    });
+  });
 
-    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
-    expect(h.replacements).toEqual([]);
+  it("refuses a changed managed-path prestate boundary", () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const changed = structuredClone(receipt.finalized.managedPathResults);
+    changed[0]!.before = {
+      kind: "file",
+      mode: "100644",
+      contentDigest: canonicalDigest("changed prestate"),
+    };
+    const candidate = recreateReceipt(changed, receipt.finalized.publication.initialContinuation);
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      candidate,
+      receipt.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-path-boundary-changed", locus: changed[0]!.path },
+    });
+  });
+
+  it("refuses a changed non-destination result", () => {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+    const changed = structuredClone(receipt.finalized.managedPathResults);
+    const destinationPaths = new Set(preparation.facts.destinationOutputPaths.flatMap(({ paths }) => paths));
+    const result = changed.find(({ path }) => !destinationPaths.has(path));
+    if (result?.after.kind !== "file") throw new Error("fixture topology result must be a file");
+    result.after.contentDigest = canonicalDigest("changed topology");
+    const candidate = recreateReceipt(changed, receipt.finalized.publication.initialContinuation);
+    expect(authorizeV3DecomposeRefresh(
+      receipt,
+      candidate,
+      receipt.finalized.publication.initialContinuation,
+    )).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-nondestination-changed", locus: result.path },
+    });
+  });
+
+  it.each([
+    ["preparation", "preparation", "recorded"],
+    ["receipt", "receipt", "already-finalized"],
+    ["preparation", "receipt", "record-state-mismatch:index-worktree"],
+    ["receipt", "preparation", "record-state-mismatch:index-worktree"],
+    ["absent", "preparation", "record-state-mismatch:index"],
+    ["preparation", "absent", "record-state-mismatch:worktree"],
+    ["absent", "receipt", "record-state-mismatch:index"],
+    ["receipt", "absent", "record-state-mismatch:worktree"],
+    ["absent", "absent", "record-state-mismatch:index"],
+  ] as const)(
+    "maps absent-parent %s/%s projections to %s",
+    (indexKind, worktreeKind, expected) => {
+      const { preparation, receipt, facts } = fixtureFacts();
+      const validation = validateFinalizedV3Decomposition(facts);
+      const record = (kind: typeof indexKind): string | null =>
+        kind === "preparation"
+          ? canonicalize(preparation)
+          : kind === "receipt" ? canonicalize(receipt) : null;
+      const result = resolveV3DecomposeFinalizationTransition({
+        validation,
+        parentRecord: null,
+        indexRecord: record(indexKind),
+        worktreeRecord: record(worktreeKind),
+      });
+      const actual = result.status === "refused"
+        ? `${result.refusal.code}:${
+          "locus" in result.refusal ? result.refusal.locus : ""
+        }`.replace(/:$/u, "")
+        : result.status;
+      expect(actual).toBe(expected);
+    },
+  );
+
+  it("attributes equal index/worktree content that matches neither authority record to the index", () => {
+    const { facts } = fixtureFacts();
+    const validation = validateFinalizedV3Decomposition(facts);
+    const unrelated = canonicalize(v3DecompositionEvidenceFixture({
+      resultBaseHead: "f".repeat(40),
+    }).preparation);
+
+    expect(resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: unrelated,
+      worktreeRecord: unrelated,
+    })).toEqual({
+      status: "refused",
+      refusal: { code: "record-state-mismatch", locus: "index" },
+    });
+  });
+
+  it("attributes a receipt outside the authorized refresh pair to the index", () => {
+    const { receipt: prior, refined: receipt } = refinedReceipt();
+    const facts = fixtureFacts().facts;
+    facts.receipt = receipt;
+    facts.destinationOutputs = receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({ destinationId, outputs }),
+    );
+    facts.managedPathResults = receipt.finalized.managedPathResults;
+    facts.transitionPatch = receipt.finalized.transitionPatch;
+    facts.publication = receipt.finalized.publication;
+    const validation = validateFinalizedV3Decomposition(facts);
+    const refresh = authorizeV3DecomposeRefresh(
+      prior,
+      receipt,
+      prior.finalized.publication.initialContinuation,
+    );
+    if (refresh.status !== "authorized") throw new Error("fixture refresh must be authorized");
+    const unrelated = canonicalize(v3DecompositionEvidenceFixture({
+      resultBaseHead: "f".repeat(40),
+    }).receipt);
+
+    expect(resolveV3DecomposeFinalizationTransition({
+      validation,
+      parentRecord: null,
+      indexRecord: unrelated,
+      worktreeRecord: unrelated,
+      refresh,
+    })).toEqual({
+      status: "refused",
+      refusal: { code: "refresh-not-authorized", locus: "index" },
+    });
+  });
+
+  it.each(["preparation", "receipt", "invalid"] as const)(
+    "refuses a committed parent %s before considering index/worktree status",
+    (parentKind) => {
+      const { preparation, receipt, facts } = fixtureFacts();
+      const validation = validateFinalizedV3Decomposition(facts);
+      const parentRecord = parentKind === "preparation"
+        ? canonicalize(preparation)
+        : parentKind === "receipt" ? canonicalize(receipt) : "{}";
+      expect(resolveV3DecomposeFinalizationTransition({
+        validation,
+        parentRecord,
+        indexRecord: canonicalize(receipt),
+        worktreeRecord: canonicalize(receipt),
+      })).toEqual({
+        status: "refused",
+        refusal: { code: "candidate-parent-record", locus: "parent" },
+      });
+    },
+  );
+
+  it("atomically replaces one exact preparation with validated finalized authority", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    const result = await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    );
+    expect(result.status).toBe("recorded");
+    expect(harness.readStored()).toBe(canonicalize(receipt));
+    expect(harness.writes()).toBe(1);
+  });
+
+  it("returns already-finalized with the same authority and performs zero retry writes", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    const recorded = await finalizeV3DecomposeRetirement(harness.ctx, receipt, "authority-v1");
+    const retried = await finalizeV3DecomposeRetirement(harness.ctx, receipt, "authority-v1");
+
+    expect(recorded).toMatchObject({ status: "recorded" });
+    expect(retried).toEqual({ ...recorded, status: "already-finalized" });
+    expect(harness.readStored()).toBe(canonicalize(receipt));
+    expect(harness.writes()).toBe(1);
+  });
+
+  it("refuses prospective projection drift before replacing preparation", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.validateProspectiveProjection = async () => false;
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "projection-mismatch",
+      diagnostic: "prospective-projection-mismatch",
+    });
+    expect(harness.writes()).toBe(0);
+  });
+
+  it("propagates typed bounded residue instead of claiming finalization", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.replaceAndStageRecord = async () => ({
+      status: "refused",
+      refusal: {
+        code: "record-rollback-residue",
+        locus: "index",
+        diagnostic: "prior receipt could not be restored in the index",
+      },
+    });
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "evidence-mismatch",
+      diagnostic: "record-rollback-residue",
+      refusal: {
+        code: "record-rollback-residue",
+        locus: "index",
+        diagnostic: "prior receipt could not be restored in the index",
+      },
+    });
+  });
+
+  it("returns no authority when the evidence adapter throws", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.readEvidence = async () => {
+      throw new Error("evidence read failed");
+    };
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: "evidence read failed",
+    });
+    expect(harness.writes()).toBe(0);
+  });
+
+  it("returns no authority and performs no write for stored or live drift", async () => {
+    const { preparation, receipt } = v3DecompositionEvidenceFixture();
+
+    const authorityConflict = fixtureContext();
+    const readAuthorityConflict = authorityConflict.ctx.readEvidence;
+    authorityConflict.ctx.readEvidence = async (...args) => ({
+      ...await readAuthorityConflict(...args),
+      authorityVersion: "changed-authority",
+    });
+    expect(await finalizeV3DecomposeRetirement(
+      authorityConflict.ctx,
+      receipt,
+      "wrong-authority",
+    )).toMatchObject({ status: "refused", reason: "authority-conflict" });
+    expect(authorityConflict.writes()).toBe(0);
+
+    const storedDrift = fixtureContext();
+    const readStoredDrift = storedDrift.ctx.readEvidence;
+    storedDrift.ctx.readEvidence = async (...args) => {
+      const evidence = await readStoredDrift(...args);
+      const changed = canonicalize({
+        ...preparation,
+        preparationId: "sha256:".concat("0".repeat(64)),
+      });
+      return { ...evidence, indexRecord: changed, worktreeRecord: changed };
+    };
+    expect(await finalizeV3DecomposeRetirement(
+      storedDrift.ctx,
+      receipt,
+      "authority-v1",
+    )).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
+    expect(storedDrift.writes()).toBe(0);
+
+    for (const mutate of [
+      (facts: EvidenceFacts) => {
+        facts.sourceUnits = structuredClone(facts.sourceUnits);
+        facts.sourceUnits[0]!.contentDigest = canonicalDigest("changed source unit");
+      },
+      (facts: EvidenceFacts) => {
+        facts.sourceAllocations = structuredClone(facts.sourceAllocations);
+        facts.sourceAllocations[0]!.ownership = "cohort-shared";
+      },
+      (facts: EvidenceFacts) => {
+        facts.destinationOutputs = structuredClone(facts.destinationOutputs);
+        facts.destinationOutputs[0]!.outputs[0]!.after = { kind: "absent" };
+      },
+      (facts: EvidenceFacts) => {
+        facts.incomingEdges = structuredClone(facts.incomingEdges);
+        facts.incomingEdges[0]!.currentTargets = ["other"];
+      },
+      (facts: EvidenceFacts) => {
+        facts.candidateOwnership = { kind: "not-applicable", protection: "full" };
+      },
+      (facts: EvidenceFacts) => {
+        facts.topology = {
+          facts: [{ kind: "none" }],
+          digest: "sha256:".concat("1".repeat(64)),
+        };
+      },
+      (facts: EvidenceFacts) => {
+        facts.publication = { kind: "none" };
+      },
+      (facts: EvidenceFacts) => {
+        facts.managedPathResults = facts.managedPathResults.slice(1);
+      },
+      (facts: EvidenceFacts) => {
+        facts.managedPathResults = structuredClone(facts.managedPathResults);
+        const after = facts.managedPathResults[0]!.after;
+        if (after.kind !== "file") throw new Error("expected file");
+        after.mode = "100755";
+      },
+      (facts: EvidenceFacts) => {
+        facts.transitionPatch = facts.transitionPatch.slice(1);
+      },
+    ]) {
+      const liveDrift = fixtureContext();
+      const originalRead = liveDrift.ctx.readEvidence;
+      liveDrift.ctx.readEvidence = async (...args) => {
+        const evidence = await originalRead(...args);
+        mutate(evidence.facts);
+        return evidence;
+      };
+      expect(await finalizeV3DecomposeRetirement(
+        liveDrift.ctx,
+        receipt,
+        "authority-v1",
+      )).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
+      expect(liveDrift.writes()).toBe(0);
+    }
   });
 });

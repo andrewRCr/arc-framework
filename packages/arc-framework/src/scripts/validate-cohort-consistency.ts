@@ -22,15 +22,20 @@ import { fileURLToPath } from "node:url";
 
 import {
   checkCohortConsistency,
-  cohortDocLocation,
   type BacklogFile,
 } from "../lib/active/cohort-consistency.js";
-import { buildLifecycleIndexFromMetas } from "../lib/work-unit/lifecycle-index.js";
-import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
+import {
+  buildLiveCohortContext,
+  classifyCohortPath,
+  type CohortPathClassification,
+  type LiveCohortContext,
+} from "../lib/active/cohort-live-context.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
-export type PathClassification = "meta" | "cohort-doc" | "other";
+export type PathClassification = CohortPathClassification;
+export type { LiveCohortContext };
+export { buildLiveCohortContext };
 
 /** Aggregate validation outcome. */
 export interface ValidationResult {
@@ -38,62 +43,15 @@ export interface ValidationResult {
   diagnostics: string[];
 }
 
-/**
- * Lifecycle-complete cohort context resolved from the live tree — membership and
- * cohort-doc presence across every lifecycle state, not just the staged delta.
- * Feeds {@link checkCohortConsistency}'s conditions (b)/(c) so graduated members
- * and unstaged ancestor docs are not mistaken for orphans.
- */
-export interface LiveCohortContext {
-  liveMembersByDir: Map<string, Set<string>>;
-  existingCohortDocDirs: Set<string>;
-}
-
 const META_FILENAME_RE = /^meta-(.+)\.md$/;
 const COHORT_DOC_FILENAME_RE = /^cohort-.+\.md$/;
-
-const META_PATH = /(?:^|\/)\.arc\/backlog\/planned\/(?:[^/]+\/)*meta-[^/]+\.md$/;
-const COHORT_DOC_PATH = /(?:^|\/)\.arc\/backlog\/planned\/(?:[^/]+\/)*cohort-[^/]+\.md$/;
 
 /**
  * Classify a path — `meta` for a backlog work-unit meta, `cohort-doc` for a
  * backlog cohort doc, `other` for everything else (skipped).
  */
 export function classifyPath(path: string): PathClassification {
-  const posix = path.replace(/\\/g, "/");
-  if (META_PATH.test(posix)) return "meta";
-  if (COHORT_DOC_PATH.test(posix)) return "cohort-doc";
-  return "other";
-}
-
-/**
- * Build the live-tree cohort context from a flat artifact set spanning every
- * lifecycle state. `metas` carries every WU `meta-*.md` (across `active/`,
- * `backlog/planned/`, `backlog/provisional/`, `completed/`) as path+content;
- * `cohortDocPaths` lists every backlog cohort doc. Pure over its inputs — the
- * filesystem walk that gathers them lives in
- * {@link buildLiveCohortContextFromDisk} — so the mapping is unit-testable
- * without a real tree.
- *
- * Membership is the work-unit lifecycle index's cohort projection
- * ({@link buildCohortMembership} over {@link buildLifecycleIndexFromMetas}) — the
- * one membership source, keying on each meta's `**Cohort:**` field value (the
- * position-independent source of truth), so an activated member in flat
- * `active/`, a provisional member still in pre-commitment, or a shipped member
- * under `completed/` still resolves to its cohort. A malformed or unresolvable
- * meta is skipped there, never thrown, preserving best-effort.
- */
-export function buildLiveCohortContext(
-  metas: BacklogFile[],
-  cohortDocPaths: string[],
-): LiveCohortContext {
-  const liveMembersByDir = buildCohortMembership(buildLifecycleIndexFromMetas(metas));
-  const existingCohortDocDirs = new Set<string>();
-  for (const path of cohortDocPaths) {
-    const location = cohortDocLocation(path);
-    if (location !== null) existingCohortDocDirs.add(location.cohortDir);
-  }
-  return { liveMembersByDir, existingCohortDocDirs };
+  return classifyCohortPath(path);
 }
 
 /** Recursively yield every file path under `dir`; a missing dir yields nothing. */

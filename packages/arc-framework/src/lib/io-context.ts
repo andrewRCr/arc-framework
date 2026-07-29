@@ -103,6 +103,20 @@ export async function readGitBlobBytes(
   }
 }
 
+/**
+ * Read one exact Git blob object by object identity without text decoding.
+ *
+ * @param cwd - Repository worktree used to locate the object database
+ * @param oid - Exact blob object identity
+ * @returns The stored blob bytes
+ */
+export async function readGitObjectBytes(cwd: string, oid: string): Promise<Uint8Array> {
+  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) {
+    throw new Error("Cannot read an invalid Git object id.");
+  }
+  return (await createRawGitExec(cwd)(["cat-file", "blob", oid])).stdout;
+}
+
 async function execaGit(
   args: string[],
   options: { cwd: string; env: NodeJS.ProcessEnv | undefined; maxBuffer: number },

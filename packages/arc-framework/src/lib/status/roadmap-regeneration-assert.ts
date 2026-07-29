@@ -14,8 +14,7 @@ import type { GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
-import { RETIREMENT_RECORD_NAMESPACE } from "../work-unit/retirement-record-store.js";
-import { parseRetirementReceipt } from "../work-unit/retirement-receipt-codec.js";
+import type { TransitionOverlayCompositionInput } from "../work-unit/transition-overlay.js";
 
 import {
   composeProjectReadinessViewResult,
@@ -73,8 +72,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
-  /** Exact retiring oracle identity suppressed by the staged transition. */
-  superseded?: { slug: string; branch: string };
+  /** Optional explicit receipt-blind transition suppression. */
+  transitionOverlay?: TransitionOverlayCompositionInput;
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -179,15 +178,12 @@ export async function renderRoadmapFromIndexViewResult(
   options: RenderRoadmapFromIndexOptions,
 ): Promise<RoadmapIndexViewResult> {
   const fs = createIndexProjectViewFs(options);
-  const [parkedSlugs, currentBranch, errandContext, superseded] = await Promise.all([
+  const [parkedSlugs, currentBranch, errandContext] = await Promise.all([
     buildLifecycleIndex({ cwd: options.cwd, fs }).then(listParkedSlugs),
     options.currentBranch === undefined
       ? resolveCurrentBranch(options.exec, options.cwd)
       : Promise.resolve(options.currentBranch),
     resolveProjectErrandOracleContext(options.exec),
-    options.superseded === undefined
-      ? resolveStagedDecomposeSupersession(options.exec, options.cwd)
-      : Promise.resolve(options.superseded),
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
@@ -204,8 +200,8 @@ export async function renderRoadmapFromIndexViewResult(
       : {
           prospective: {
             currentBranch,
-            ...(superseded === undefined ? {} : { superseded }),
           },
+          ...(options.transitionOverlay === undefined ? {} : { transitionOverlay: options.transitionOverlay }),
         }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
@@ -218,40 +214,6 @@ export async function renderRoadmapFromIndexViewResult(
     result: composeProjectReadinessViewResult({ ...input, renderedRef }),
     indeterminate: input.indeterminate,
   };
-}
-
-async function resolveStagedDecomposeSupersession(
-  exec: GitExec,
-  cwd: string,
-): Promise<{ slug: string; branch: string } | undefined> {
-  const { stdout } = await exec("git", [
-    "diff",
-    "--cached",
-    "--name-only",
-    "--diff-filter=A",
-    "-z",
-    "--",
-    RETIREMENT_RECORD_NAMESPACE,
-  ], { cwd });
-  const recordPaths = stdout
-    .split("\0")
-    .filter((path) =>
-      /^\.arc\/system\/\.internal\/retirement-receipts\/sha256-[0-9a-f]{64}\.json$/u.test(path));
-  const receipts = await Promise.all(recordPaths.map(async (path) => {
-    const { stdout: content } = await exec("git", ["show", `:${path}`], { cwd });
-    return parseRetirementReceipt(content);
-  }));
-  const decompositions = receipts.filter((receipt) =>
-    receipt?.transition === "decompose"
-    && receipt.subject.kind === "work-unit"
-    && receipt.result.kind === "decompose");
-  if (decompositions.length > 1) {
-    throw new Error("staged ROADMAP render found multiple finalized decomposition receipts");
-  }
-  const receipt = decompositions[0];
-  return receipt?.subject.kind === "work-unit"
-    ? { slug: receipt.subject.name, branch: receipt.source.branch }
-    : undefined;
 }
 
 async function resolveCurrentBranch(exec: GitExec, cwd: string): Promise<string | null> {
