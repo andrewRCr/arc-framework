@@ -1649,8 +1649,8 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   script, or command position, so a lease binds to the durable session rather than a short-lived `bash -lc` wrapper
   or an unrelated Node/npm/npx ancestor; subject projection reuses the reader's bounded scheduler.
 
-- _Outcome:_ Re-homed whole to `7.P.b.i`. All three findings share one stable locus — the process and platform
-  inspection slice — so the task moves without decomposition.
+- _Outcome:_ L3-F1 and L3-F2 moved to `7.P.b.i`, where the process and platform inspection slice owns their stable
+  loci. L3-F4 moved to `7.P.f.ii`, because its subject-projection locus enters with the evidence and roster reader.
 
 ### `[~]` **7.E.g Repair the named paths that do not work**
 
@@ -2124,15 +2124,18 @@ triage before implementing.
 - _Outcome:_ PR #396 landed the schema, flavor-normalized checkout identity, bounded record reader, and atomic
   no-clobber mint; lock-bound replacement and removal remain scoped to S3.
 
-### `[ ]` **7.P.b S2 — Process and platform inspection**
+### `[x]` **7.P.b S2 — Process and platform inspection**
 
 - _Goal:_ Liveness inspection is platform-correct and unknown-safe, and the session anchor it feeds binds to a
   process that outlives the invocation.
 
-    - `[ ]` **7.P.b.i Bind the session anchor to a durable process** — L3-F1, L3-F2, L3-F4
-        - Anchor selection classifies proven wrappers before interactivity and requires ARC at the executable,
-          script, or command position, so a lease binds to the durable session rather than a short-lived `bash -lc`
-          wrapper or an unrelated Node/npm/npx ancestor; subject projection reuses the reader's bounded scheduler.
+    - `[x]` **7.P.b.i Bind the session anchor to a durable process** — L3-F1, L3-F2
+        - Anchor selection now classifies proven wrappers before interactivity and parses command boundaries before
+          recognizing ARC at the executable, script, or command position, keeping short-lived shell wrappers and
+          unrelated Node/npm/npx ancestors from becoming or crossing the durable session anchor.
+
+- _Outcome:_ Linux, BSD, and Windows adapters expose one PID-plus-start-token liveness contract with unknown-safe
+  failure behavior, while bounded ancestry selects the durable harness or directly verified interactive shell.
 
 ### `[ ]` **7.P.c S3 — Lock and mutation protocol**
 
@@ -2173,6 +2176,10 @@ triage before implementing.
           of at most 4,096 characters, so an empty or oversized message turns the read-only error path into a
           `ZodError` throw. Normalize at the boundary rather than widening the schema.
         - Cover the empty and oversized messages, asserting an envelope rather than a throw.
+
+    - `[ ]` **7.P.f.ii Bound subject projection concurrency** — L3-F4
+        - Reuse the reader's bounded scheduler for subject-meta projection so a large valid roster cannot launch
+          unbounded filesystem work; cover the maximum concurrency at high cardinality.
 
 ### `[ ]` **7.P.g S7 — Allocation and provisioning**
 

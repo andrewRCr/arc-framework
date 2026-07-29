@@ -912,10 +912,16 @@ dispositions to the PR rather than copying them here.
 #### S2 process and platform inspection — constructing
 
 - **Entry base:** `origin/main` `56d52f013`, the S1 merge.
-- **Planned capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
+- **Capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
   durable ARC process rather than an invocation wrapper.
-- **State:** Canonical branch `feat/locus-process-inspection` is cut from the exact S1 merge; manifest preparation
-  and the remaining `7.P.b.i` correction are next.
+- **Whole-file donor manifest:** `locus/{platform-inspectors,process-exec,process-inspector}.ts`, their direct unit
+  tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
+- **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
+  `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
+- **Exact local measurement:** 1,506 additions plus 35 deletions (1,541 changed lines) across eleven files against
+  `56d52f013`.
+- **Gate evidence:** The complete local gate set passed on the final construction tree.
+- **State:** Baseline and remaining S2 corrections are complete locally and ready for publication.
 
 ### Resume protocol
 
