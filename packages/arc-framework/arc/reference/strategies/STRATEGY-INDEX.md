@@ -6,8 +6,8 @@ work in their domains.
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
-Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management
-mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
+Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management mode is active
+(`pm.mode: arc-in-git`); those marked **(team mode)** only when `team.mode: true` — both in `arc-config.yml`.
 
 - `arc/strategy-adr-methodology.md`
     - Consult when: writing an ADR, deciding whether a decision warrants one
@@ -20,26 +20,37 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
   specs
-    - Consult when: authoring specs, resolving planning depth, planning work units
+    - ALWAYS load before authoring a draft or spec, resolving planning depth, or moving a work unit between
+      planning stages; do not draft, or settle depth, from the artifact templates alone.
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
       per-task and per-unit gate runs are covered by the `quality-gate-commands` method
 - `arc/strategy-session-operations.md`
-    - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session
-      workflows
+    - ALWAYS load before placing new guidance content in a loading tier, changing when session state is written, or
+      authoring an interlock or handoff step; do not place content, or pick a write point, by matching where
+      similar content already sits.
+- `arc/strategy-interlock-release-wrappers.md`
+    - ALWAYS load before enabling, configuring, or troubleshooting `arc release commit` / `arc release push`, or
+      composing them with harness permission or hook layers; do not infer wrapper behavior from the interlock
+      configuration values alone.
 - `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success
   criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
     - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save
       checklist
-- `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
-    - Consult when: authoring a framework or project workflow file
-- `arc/strategy-team-coordination.md`
-    - Consult when: working in team mode, setting up multi-developer coordination
+- `arc/strategy-workflow-authoring.md`
+    - ALWAYS load before authoring or editing a workflow file — frontmatter, method or extension declarations,
+      interlock markers, routing class tags; do not copy the shape from an existing workflow.
+- `arc/strategy-team-coordination.md` **(team mode)**
+    - ALWAYS load before assigning or transferring work-unit ownership across developers, or setting
+      interlock-release configuration in a shared repository; do not resolve cross-person coordination from the
+      single-owner conventions.
 - `arc/strategy-concurrent-work.md`
     - Consult when: running multiple work units at once, deciding whether to parallelize, integrating concurrent work
 - `arc/strategy-work-organization.md`
-    - Consult when: creating branches, deciding work unit types, archiving completed work
+    - ALWAYS load before categorizing work, resolving a work unit's `Class`, cutting or naming a branch, forming a
+      cohort, rendering ROADMAP, or archiving completed work; do not infer the category, branch name, or archive
+      location from surrounding examples.
 
 ## Project Strategies
 
@@ -58,5 +69,8 @@ create them):
 
 ---
 
-**Maintenance:** Update this index when adding new strategy documents. Prefer a "Consult when:" sub-item as the
-firing condition; add a one-line description only when it carries content-shape the condition does not.
+**Maintenance:** Update this index when adding new strategy documents. Write each entry's firing condition as a
+directive — name the operation that triggers the load and the default behavior it suppresses ("ALWAYS load X
+before {operation}; do not {default} directly") — rather than a title or a passive summary. Anchor the trigger to
+the operation, not to the workflow it usually runs in. Add a one-line description only when it carries
+content-shape the condition does not.

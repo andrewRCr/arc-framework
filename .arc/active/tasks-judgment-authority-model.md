@@ -232,72 +232,72 @@ check will catch.
   a manifest entry, and every manifest key resolves back to a recipe entry. The four demotion destinations reach
   installing projects, so the Phase 3 and 5 demotions relocate content rather than deleting it.
 
-### `[ ]` **2.2 Rewrite five shared-block entries and add a sixth**
+### `[x]` **2.2 Rewrite five shared-block entries and add a sixth**
 
 - _Goal:_ Six `STRATEGY-INDEX` entries fire at the explicit-trigger band in **both** copies, so demoted content is
   reachable for every project rather than only in this repository.
 
-- _Rationale:_ Rewriting the instance alone would ship a shortened rules file whose demoted content lands in
-  Framework strategies reachable only through the passive line this work unit exists to remove — the demotion
-  precondition violated for every project by construction.
+    - `[x]` **2.2.a `strategy-work-organization`**
+        - Directive anchored to the operations the strategy governs — categorizing work, resolving `Class`,
+          cutting or naming a branch, forming a cohort, rendering ROADMAP, archiving — suppressing inference from
+          surrounding examples. Receives the `Class`-versus-Work-Character taxonomy (Task 3.6).
 
-- _Approach:_ Read each destination strategy before authoring its trigger; a condition invented from the entry's
-  existing description reproduces the passive form under a new label.
-
-- _Shape:_ A firing condition names its trigger **and** the default behavior it suppresses — `ALWAYS load/do X
-  when {trigger}; do not {default action} directly` — never a title or a passive summary. That form is what the
-  explicit-trigger band measures, so an entry that reads as a better description has not moved bands.
-
-- _Note:_ The `## ARC Framework Strategies` block is byte-identical across the two copies at the time of writing,
-  so this is a sync obligation rather than a reconcile. Confirm that still holds before editing; the Configurable
-  class fires no counterpart check.
-
-- **Additional Context:** `strategy-knowledge-evolution.md` § Forward-Compat Principles, principles 2 and 3
-
-    - `[ ]` **2.2.a `strategy-work-organization`**
-        - Receives the `Class`-versus-Work-Character taxonomy (Task 3.6).
-
-    - `[ ]` **2.2.b `strategy-work-planning`**
-        - Receives the design-before-implementation rationale (Task 3.6).
+    - `[x]` **2.2.b `strategy-work-planning`**
+        - Directive anchored to authoring a draft or spec, resolving planning depth, and planning-stage
+          transitions, suppressing the template-only default. Receives the design-before-implementation rationale
+          (Task 3.6).
         - Description **stays** — spec forms and layered specs are content-shape detail the condition cannot
           carry.
 
-    - `[ ]` **2.2.c `strategy-session-operations`**
-        - Receives the session-state file model, portability, and § Context quality's four boundary categories
-          (Task 3.6).
-        - The trigger must not key on the agent estimating its own context state.
+    - `[x]` **2.2.c `strategy-session-operations`**
+        - Directive anchored to placing guidance content in a loading tier, changing when session state is
+          written, and authoring an interlock or handoff step — all author-side operations, so the trigger never
+          asks the agent to estimate its own context state. Receives the session-state file model, portability,
+          and § Context quality's four boundary categories (Task 3.6).
 
-    - `[ ]` **2.2.d `strategy-workflow-authoring`**
-        - Receives the prose-economy and verbs-over-mechanics rationale (Task 5.5).
+    - `[x]` **2.2.d `strategy-workflow-authoring`**
+        - Directive anchored to authoring or editing a workflow file, suppressing the copy-an-existing-workflow
+          default. Description dropped: it restated the section names, which the condition now carries. Receives
+          the prose-economy and verbs-over-mechanics rationale (Task 5.5).
 
-    - `[ ]` **2.2.e `strategy-team-coordination`**
-        - Receives § Task interlock's team elaboration (Task 3.4), and § Whose call if Task 1.4.b demotes it.
-        - The only entry in this set whose file most projects do not install — it is gated on team mode while the
-          index ships unconditionally. Mark the entry conditional using the convention the index already carries
-          for its arc-in-git-only strategy, so the directive never tells a reader to load a file they lack.
+    - `[x]` **2.2.e `strategy-team-coordination`**
+        - Marked **(team mode)**, with the block preamble extended to define that marker alongside the
+          **(arc-in-git)** convention it already carried — so the directive never tells a reader to load a file
+          they lack. Receives § Task interlock's team elaboration (Task 3.4), and § Whose call if Task 1.4.b
+          demotes it.
 
-    - `[ ]` **2.2.f Add `strategy-interlock-release-wrappers`**
-        - The file exists in both copies, byte-identical, and carries no entry in either today.
-        - Receives the interlock/fire-site concept, wrapper mechanics, and class-tag routing mechanics
-          (Task 3.6) — the largest single destination in the register.
+    - `[x]` **2.2.f Add `strategy-interlock-release-wrappers`**
+        - New entry in both copies, placed after `strategy-session-operations` — the adjacent interlock domain.
+          Directive anchored to enabling, configuring, or troubleshooting the release wrappers and to composing
+          them with harness permission or hook layers. Receives the interlock/fire-site concept, wrapper
+          mechanics, and class-tag routing mechanics (Task 3.6) — the largest single destination in the register.
 
-### `[ ]` **2.3 Re-author the instance-only entry**
+- _Outcome:_ Confirmed before editing that the `## ARC Framework Strategies` block was still byte-identical across
+  the two copies, and again after — so this stayed a sync obligation rather than a reconcile. The six entries no
+  longer restate their own titles: each names the operation that fires the load and the default it suppresses,
+  operation-anchored rather than workflow-anchored, so ad-hoc invocation is covered without naming every workflow
+  that reaches them.
+
+### `[x]` **2.3 Re-author the instance-only entry**
 
 - _Goal:_ `strategy-package-project-sync` reaches its content through a trigger that fires, without inventing a
   package counterpart that does not exist.
 
-    - Project strategy — that directory ships to projects as an empty surface, so this entry is instance-only and
-      has no package obligation.
-    - Receives the hook explanation and the skill-drift hazard (Task 5.5).
+    - Rewritten in `.arc/` only — a project strategy, and that directory ships to projects as an empty surface, so
+      there is no package obligation.
+    - The directive fires on editing any file with a package counterpart, and suppresses the specific hazard the
+      strategy exists to prevent: copying between the two copies to reconcile them. Receives the hook explanation
+      and the skill-drift hazard (Task 5.5).
 
-### `[ ]` **2.4 Update the shipped maintenance footer**
+### `[x]` **2.4 Update the shipped maintenance footer**
 
 - _Goal:_ The shipped index stops instructing future authors to restore the passive form this work unit removes.
 
     - Package copy only — the instance carries no maintenance footer.
-    - Current text directs authors to keep one-line descriptions and add a `Consult when:` sub-item; rewrite it to
-      describe the condition-only convention.
-    - Leaving it would ship guidance that contradicts the index above it.
+    - Scope reduced by work that landed on the base first: a maintenance errand had already replaced the
+      keep-one-line-descriptions text with the description-only-when-it-carries-content-shape rule, so what
+      remained was the half it could not state — the directive form itself. The footer now specifies naming the
+      triggering operation and the suppressed default, and anchoring to the operation rather than the workflow.
 
 ## **Phase 3:** Canonical register — `DEV-RULES.ARC`
 
