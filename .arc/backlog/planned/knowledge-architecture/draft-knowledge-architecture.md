@@ -96,6 +96,16 @@
 - _Evidence:_ `internal-skill-root`, `strategy-family`, and `strategy-index-name`; corresponding
   `scan-result.json#class-*` anchors.
 
+### `[ ]` **Key `STRATEGY-INDEX`'s load on lifecycle state, per entry**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-28);
+  captured during `judgment-authority-model` handoff.
+- _Concern:_ The index loads in full every session, but many entries cannot apply to the session reading them
+  (planning-only vs execution-only). Per-entry keying on probe-resolved `sessionType` would drop ~25 of 61 nb
+  without wholesale demotion. Needs projection-predicate machinery; fail-open on `sessionType: null`.
+- _Fold-in:_ lifecycle-conditional entry predicates on the always-loaded index surface — distinct from and better
+  than `loadset-composition`'s wholesale-demotion lean for this file.
+
 ## Problem / Motivation
 
 ARC's _procedural_ content (workflows, methods, extensions) has a heavily developed — partly still

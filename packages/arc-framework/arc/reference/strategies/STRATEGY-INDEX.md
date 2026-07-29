@@ -9,31 +9,36 @@ These ship with the framework and cover development methodology applicable to an
 Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management
 mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 
-- `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
+- `arc/strategy-adr-methodology.md`
     - Consult when: writing an ADR, deciding whether a decision warrants one
-- `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
+- `arc/strategy-configurability-architecture.md`
     - Consult when: working on config, extensions, or methods infrastructure
-- `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling boundaries
+- `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling
+  boundaries
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
-- `arc/strategy-file-classification.md` - File taxonomy and naming conventions
+- `arc/strategy-file-classification.md`
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
-- `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered specs
+- `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
+  specs
     - Consult when: authoring specs, resolving planning depth, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
       per-task and per-unit gate runs are covered by the `quality-gate-commands` method
-- `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability
-    - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
-- `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success criteria
+- `arc/strategy-session-operations.md`
+    - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session
+      workflows
+- `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success
+  criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
-    - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save checklist
+    - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save
+      checklist
 - `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
     - Consult when: authoring a framework or project workflow file
-- `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
+- `arc/strategy-team-coordination.md`
     - Consult when: working in team mode, setting up multi-developer coordination
-- `arc/strategy-concurrent-work.md` - Concurrency doctrine — parallelize, rebase/merge discipline, worktree ops
+- `arc/strategy-concurrent-work.md`
     - Consult when: running multiple work units at once, deciding whether to parallelize, integrating concurrent work
-- `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
+- `arc/strategy-work-organization.md`
     - Consult when: creating branches, deciding work unit types, archiving completed work
 
 ## Project Strategies
@@ -53,5 +58,5 @@ create them):
 
 ---
 
-**Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
-add a "Consult when:" sub-item with trigger conditions.
+**Maintenance:** Update this index when adding new strategy documents. Prefer a "Consult when:" sub-item as the
+firing condition; add a one-line description only when it carries content-shape the condition does not.

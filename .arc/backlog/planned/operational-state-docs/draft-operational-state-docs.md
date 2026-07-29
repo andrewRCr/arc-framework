@@ -566,6 +566,18 @@
 
 - _Captured during:_ `WORKING-MEMORY` prune follow-up, 2026-07-25.
 
+### `[ ]` **Give `WORKING-MEMORY` a mutation verb, and make its proposal gate mechanical**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-28); captured during
+  `judgment-authority-model` planning.
+- _Concern:_ `arc user` has `inbox-remove` for `USER-INBOX`, but nothing mutates `WORKING-MEMORY` — every entry is
+  hand-written prose whose shape rules live in an on-demand strategy. Verb-gap per DEV-RULES.PROJECT § Verbs over
+  mechanics. A verb could enforce `_Remove when:_` mechanically and carry the propose-don't-self-add gate as a real
+  interlock.
+- _Fold-in:_ `user-surface-records` / managed-write surface — the WORKING-MEMORY side of the same CLI mutator family
+  as `arc inbox add` paired with remove. Settle verb surface (add / remove / list), composition with
+  `arc user save` / `load`, and gate shape (interlock vs emitted proposal).
+
 ---
 
 ## Purpose
