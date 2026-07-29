@@ -53,4 +53,36 @@ describe("v3 decomposition preparation persistence", () => {
     expect(removeRecord).toHaveBeenCalledExactlyOnceWith(preparation.receiptId);
     expect(staged).toEqual([]);
   });
+
+  it("preserves the record when staged rollback fails", async () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+    const recordPath = resolveRetirementRecordRelativePath(preparation.receiptId);
+    const staged: string[] = [];
+    let recordExists = false;
+    const readAuthoritySnapshot = vi.fn()
+      .mockResolvedValueOnce({ authorityVersion: "initial", recordState: "absent" })
+      .mockRejectedValueOnce(new Error("post-create authority read failed"));
+
+    const result = await prepareV3DecomposeRetirement({
+      readAuthoritySnapshot,
+      readStagedPaths: async () => [],
+      readRecord: async () => null,
+      createRecord: async () => {
+        recordExists = true;
+      },
+      removeRecord: async () => {
+        recordExists = false;
+      },
+      stagePaths: async (paths) => {
+        staged.push(...paths);
+      },
+      rollbackPaths: async () => {
+        throw new Error("staged rollback failed");
+      },
+    }, preparation, "initial");
+
+    expect(result).toEqual({ status: "refused", reason: "authority-unavailable" });
+    expect(recordExists).toBe(true);
+    expect(staged).toEqual([recordPath]);
+  });
 });

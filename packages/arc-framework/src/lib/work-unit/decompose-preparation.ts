@@ -85,7 +85,7 @@ async function refuseV3AfterCleanup(
   try {
     await ctx.rollbackPaths([recordPath]);
   } catch {
-    cleanupFailed = true;
+    return { status: "refused", reason: "authority-unavailable" };
   }
   try {
     await ctx.removeRecord(preparation.receiptId);

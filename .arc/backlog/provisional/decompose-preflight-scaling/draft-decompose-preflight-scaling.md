@@ -14,7 +14,7 @@
 
 ## Problem / Motivation
 
-The v3 read-only preflight has three independent multiplicative costs that are harmless on current fixture scale
+The v3 read-only preflight has four independent multiplicative costs that are harmless on current fixture scale
 but structurally unbounded:
 
 1. **Local-branch discovery** — lists each branch's full `.arc` tree, then reads every meta blob sequentially
