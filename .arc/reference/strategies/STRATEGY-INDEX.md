@@ -29,7 +29,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `arc/strategy-session-operations.md`
     - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
       handoff step — the tier classification criteria and loading mechanisms have no leaner surface;
-      `DEV-RULES.ARC` § Session Management covers the state-file write rules themselves.
+      `DEV-RULES.ARC` § Commit Discipline and § Handoff carry the state-file write rules themselves.
 - `arc/strategy-interlock-release-wrappers.md`
     - ALWAYS load when deciding whether to adopt the release wrappers, or composing them with harness permission
       or hook layers — the trust model, the non-fit cases, the universal route for a harness with no reference

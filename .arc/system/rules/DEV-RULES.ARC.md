@@ -344,26 +344,11 @@ planning artifact.
 
 ## Session Management
 
-### Session state control
-
-Session state uses two files with different update triggers:
-
-- **`meta-{name}.md`** (tracked, `active/`) — the active WU's project pointer.
-  Updated only at handoff commits and workflow-ceremony commits; task-completion code commits never
-  touch it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
-
-- **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
-  Personal working context for the next session. Per-developer directory (`user/{identity}/`);
-  see [Session Operations Strategy][session-ops] § Portability for cross-machine portability
-  via git notes.
-
-The agent reports progress throughout the session; session state files capture the summary at handoff
-and ceremony boundaries.
-
 ### Handoff
 
 **Session handoff is human-invoked.** Agents do not initiate handoff — the user signals when to
 hand off (typically via `arc-handoff` skill invocation); the agent then executes the handoff workflow.
+SESSION-NOTES.md (gitignored) is written only at handoff.
 
 ### Context quality
 

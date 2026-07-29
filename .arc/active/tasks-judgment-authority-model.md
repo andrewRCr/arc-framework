@@ -652,8 +652,33 @@ an orphan.
           and `generate-tasks`'s inbound `§ Design before implementation` citation in both copies leans on the
           settle-up-front constraint, which survives — so nothing to sweep.
 
-    - `[ ]` **3.6.c § Session state control**
-        - Keep the write-trigger constraint; demote the file model and portability.
+    - `[x]` **3.6.c § Session state control**
+        - **The section is gone; its one surviving rule moved into § Handoff.** The two-files lead-in, both
+          file models, the portability pointer, and the progress-reporting contrast line demoted as planned.
+          The meta write-trigger bullet was then cut on the maintainer's call: it restated § Meta-file timing,
+          ~130 lines above it in the same always-loaded file, which states the rule more completely (authority
+          comes from the ceremony workflow, not an enumerated list). What remained — SESSION-NOTES is written
+          only at handoff — is a fact about handoff, and § Handoff sat directly below it, so a heading named
+          for two files no longer had two files to govern. 11 nb → 0, with +1 to § Handoff (3 → 4) carrying
+          the absorbed line; net Δ10 against a modeled 6.
+        - **No write owed.** `strategy-session-operations` carries every demoted limb in fuller form:
+          § SESSION-NOTES pairs the personal file against the project pointer and gives the real per-WU path
+          the rules file abbreviated, § User Workspace Directory carries the WU-scoped-versus-identity-global
+          layout, § Session State Portability carries the whole git-notes model the removed pointer named, and
+          § Meta-File Timing carries both the write triggers and the churn rationale. Sixth of seven rows to
+          owe its destination nothing.
+        - No pointer replaced either removed one. Task 2.2.c's `STRATEGY-INDEX` entry is the summoner, and
+          with the index now naming § Commit Discipline directly, an in-file cross-reference from § Handoff
+          would have been redundant navigation rather than a rule.
+        - **Inbound-citation sweep, both copies:** `STRATEGY-INDEX`'s `strategy-session-operations` entry ceded
+          the state-file write rules to `DEV-RULES.ARC` § Session Management. After the cut that cession was
+          half-wrong — the meta rule lives in § Commit Discipline — so the entry now names § Commit Discipline
+          and § Handoff. This is the standing heading-sweep obligation firing on a Phase 2 output.
+        - `[session-ops]` survives as a link definition; § Context quality still uses it, so Task 3.6.d owns
+          the prune decision.
+        - Two residual mentions left alone, neither a citation to sweep: this WU's own register table records
+          the section as measured, and `notes-docs-content-sweep.md` carries it in a sibling WU's planning
+          table — a cross-WU seam that routes at planning close, not from this branch.
 
     - `[ ]` **3.6.d § Context quality**
         - Keep the opening line and the boundary procedure — its second step is a mandatory stop.
