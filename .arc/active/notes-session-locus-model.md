@@ -921,7 +921,7 @@ dispositions to the PR rather than copying them here.
 - **Exact local measurement:** 1,506 additions plus 35 deletions (1,541 changed lines) across eleven files against
   `56d52f013`.
 - **Gate evidence:** The complete local gate set passed on the final construction tree.
-- **State:** Baseline and remaining S2 corrections are complete locally and ready for publication.
+- **State:** Draft PR #397 is open at construction head `27c33062c`; required CI precedes the initial hosted review.
 
 ### Resume protocol
 
