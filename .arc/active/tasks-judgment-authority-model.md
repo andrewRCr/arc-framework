@@ -623,6 +623,13 @@ an orphan.
         - The in-file pointer to the strategy went with it — `STRATEGY-INDEX`'s rewritten entry names the `Class`
           model's worked examples as its residual question, so the summoner Task 2.2.a authored is what reaches
           it now. `[work-org]` survives as a link definition; § Route by urgency still uses it.
+        - **The method pointer went too, beyond the row's disposition.** `Class` is only ever resolved inside a
+          workflow that declares `classify-work-unit` in its own frontmatter — `draft-design`, `create-spec`,
+          `generate-tasks`, `init-work-unit`, `promote-work-unit`, `activate-work-unit`, six of them, each firing
+          the method at its own point. An always-loaded line instructing the agent to use a method that is
+          already loaded wherever the operation occurs fires exactly as often as the load it replaces, which is
+          D5 test 5 applied to an in-file pointer rather than an index entry. What remains is a pure statement of
+          the invariant floor, which is the constraint the row exists to keep. 10 nb → 6, Δ4.
 
     - `[ ]` **3.6.b § Design before implementation**
         - Keep the settle-all-settle-able-design-up-front constraint; demote the rationale.

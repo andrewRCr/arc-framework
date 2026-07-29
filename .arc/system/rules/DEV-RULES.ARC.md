@@ -93,8 +93,6 @@ how much review and integration ceremony it warrants. What never scales is execu
 [review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
 quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
 
-Resolve a work unit's `Class` with the `classify-work-unit` method.
-
 ---
 
 ## Commit Discipline
