@@ -236,6 +236,8 @@ describe("decomposition cohort doctrine projection", () => {
     const projectMethod = readFileSync("../../.arc/system/methods/assess-cohort-fit.md", "utf8");
 
     expect(projectMethod).toBe(packageMethod);
-    expect(packageMethod).toContain("Every decomposition with more than one new member must select");
+    expect(packageMethod).toMatch(
+      /Every decomposition with more than one new\s+member must select `cohort`, `subcohort`, or `at-cap`/u,
+    );
   });
 });

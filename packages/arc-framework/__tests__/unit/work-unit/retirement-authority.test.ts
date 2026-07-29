@@ -6,7 +6,6 @@ import {
   retirementSubjectRefusal,
   validateReceiptMatrix,
   worktreeSubjectsEqual,
-  type DecomposeAllocationMap,
   type RetirementReceipt,
   type TeardownAuthorizationRefusal,
 } from "../../../src/lib/work-unit/retirement-authority.js";
@@ -78,22 +77,6 @@ describe("receipt cross-field matrix", () => {
     [receipt(), "nonexistent"],
     [
       receipt({
-        transition: "decompose",
-        result: {
-          kind: "decompose",
-          preparationId: digest("prep"),
-          allocation: { schemaVersion: 2 } as DecomposeAllocationMap,
-          cutMapDigest: digest("cut-map"),
-          sourceInventoryDigest: digest("source-inventory"),
-          incomingEdgeInventoryDigest: digest("incoming-inventory"),
-          outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-          targets: [],
-        },
-      }),
-      "nonexistent",
-    ],
-    [
-      receipt({
         transition: "park-planning",
         authorization: "planning-relocated",
         result: { kind: "relocate", plannedArtifactDigest: digest("planned") },
@@ -116,7 +99,6 @@ describe("receipt cross-field matrix", () => {
     [receipt(), "planned"],
     [receipt({ authorization: "planning-relocated" }), "nonexistent"],
     [receipt({ result: { kind: "relocate", plannedArtifactDigest: digest("planned") } }), "nonexistent"],
-    [receipt({ transition: "decompose" }), "nonexistent"],
     [receipt({ transition: "park-planning" }), "planned"],
     [
       receipt({

@@ -88,37 +88,6 @@ function abandonReceipt(): RetirementReceipt {
   };
 }
 
-function decomposeReceipt(): RetirementReceipt {
-  return {
-    ...abandonReceipt(),
-    transition: "decompose",
-    authorization: "discard-confirmed",
-    result: {
-      kind: "decompose",
-      preparationId: DIGEST,
-      allocation: {
-        schemaVersion: 2,
-        origin: { slug: "retired", phase: "Active", location: "active" },
-        shape: "symmetric",
-        parentPosition: "standalone",
-        entries: [
-          { kind: "new-member", destinationId: "first", slug: "first", workClass: "Light" },
-          { kind: "new-member", destinationId: "second", slug: "second", workClass: "Light" },
-        ],
-        internalEdges: [],
-        sourceAllocations: [],
-        incomingEdges: [],
-        outgoingEdges: [],
-      },
-      cutMapDigest: DIGEST,
-      sourceInventoryDigest: DIGEST,
-      incomingEdgeInventoryDigest: DIGEST,
-      outgoingEdgeInventoryDigest: DIGEST,
-      targets: [],
-    },
-  };
-}
-
 function enumerated(receipt: RetirementReceipt): RetirementRecordEnumerationResult {
   return {
     status: "valid",
@@ -414,64 +383,6 @@ describe("runLandedRetirementSweep", () => {
     expect(authorize).toHaveBeenCalledOnce();
   });
 
-  it("lists several ready successors without selecting a default action", async () => {
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(decomposeReceipt()),
-      authorize: async () => authorizedDecision(),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements[0]).toMatchObject({
-      status: "actionable",
-      lifecycle: {
-        successorReadiness: {
-          candidates: ["first", "second"],
-          actionable: true,
-          remedy: null,
-        },
-      },
-    });
-  });
-
-  it("selects one default-spawn remedy from complete landed dependencies", async () => {
-    const receipt = decomposeReceipt();
-    if (receipt.result.kind !== "decompose") throw new Error("expected decompose receipt");
-    receipt.result.allocation.internalEdges = [{ from: "second", to: "first" }];
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(receipt),
-      authorize: async () => authorizedDecision(),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements[0]).toMatchObject({
-      status: "actionable",
-      lifecycle: {
-        successorReadiness: {
-          candidates: ["first"],
-          actionable: true,
-          remedy: {
-            argv: ["arc", "start", "first"],
-            text: "arc start first",
-          },
-        },
-      },
-    });
-  });
-
   it("ignores same-slug history when the active worktree has no exact retirement authority", async () => {
     const historical: RetirementReceipt = {
       ...abandonReceipt(),
@@ -550,25 +461,4 @@ describe("runLandedRetirementSweep", () => {
     }]);
   });
 
-  it("blocks a source-HEAD-bound decompose receipt when authorization refuses", async () => {
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(decomposeReceipt()),
-      authorize: async () => ({ status: "refused", reason: "conservation-unproven" }),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements).toEqual([{
-      status: "blocked",
-      worktreePath: "/wt/retired",
-      subject: { slug: "retired", branch: "feat/retired" },
-      reason: "conservation-unproven",
-    }]);
-  });
 });

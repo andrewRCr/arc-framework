@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -140,10 +140,6 @@ describe("v3 decompose refresh against real Git", () => {
     const driver = createInRepoDecomposeRetirementDriver({
       cwd: repo,
       exec: makeGitExec(repo),
-      lifecycleFs: {
-        readdir: async (path) => await readdir(path, { withFileTypes: true }),
-        readFile: async (path) => await readFile(path, "utf8"),
-      },
       readFile: async (path) => await readFile(path, "utf8"),
       readBlob: async (ref, path) => await readGitBlobBytes(repo, ref, path),
       createRecord: async (receiptId, content) => await writeRetirementRecord(repo, receiptId, content),

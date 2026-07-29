@@ -5,12 +5,6 @@
  * @module
  */
 
-import {
-  newMemberDependencies,
-  type DecomposeParams,
-  type NewMemberEntry,
-} from "./decompose-cut-map.js";
-
 /** One independently projected retirement-cleanup leg. */
 export type RetirementCleanupProjection =
   | { status: "not-applicable" }
@@ -18,10 +12,12 @@ export type RetirementCleanupProjection =
   | { status: "completed" }
   | { status: "blocked"; reason: string };
 
-/** Evidence identity for a retirement, or the structural absence used by extraction. */
-export type RetirementLifecycleAuthority =
-  | { kind: "receipt-backed"; receiptId: string; authorityVersion: string }
-  | { kind: "not-applicable"; reason: "extraction" };
+/** Evidence identity for a retirement. */
+export type RetirementLifecycleAuthority = {
+  kind: "receipt-backed";
+  receiptId: string;
+  authorityVersion: string;
+};
 
 /** Exact default-spawn command offered for one authoritative ready successor. */
 export interface SuccessorStartRemedy {
@@ -50,7 +46,7 @@ export interface RetirementLifecycleResult {
   };
   /** Transform that produced the result. */
   transition: "decompose" | "abandon";
-  /** Receipt identity, or structural non-applicability for extraction. */
+  /** Receipt identity for the completed retirement. */
   authority: RetirementLifecycleAuthority;
   /** Independently replayable cleanup legs. */
   cleanup: {
@@ -100,47 +96,6 @@ export function projectPendingRetirementLifecycle(
     },
     successorReadiness: projectSuccessorReadiness(params.successorCandidates ?? [], false),
   };
-}
-
-/**
- * Build extraction's structural non-retirement result.
- *
- * @param slug - Surviving origin slug.
- * @param branch - Surviving origin branch, when any.
- * @param successorCandidates - Dependency-free extracted members.
- * @returns A result with no receipt fields and every cleanup leg inapplicable.
- */
-export function projectExtractionLifecycle(
-  slug: string,
-  branch: string | null,
-  successorCandidates: readonly string[],
-): RetirementLifecycleResult {
-  const notApplicable = { status: "not-applicable" } as const;
-  return {
-    subject: { slug, branch: branch === "[none]" ? null : branch },
-    transition: "decompose",
-    authority: { kind: "not-applicable", reason: "extraction" },
-    cleanup: {
-      branch: notApplicable,
-      worktree: notApplicable,
-      userWorkspace: notApplicable,
-    },
-    successorReadiness: projectSuccessorReadiness(successorCandidates, false),
-  };
-}
-
-/**
- * Derive ready decompose members from their complete projected `Depends On`
- * sets, including internal cut edges and allocated external prerequisites.
- *
- * @param cut - Validated allocation map.
- * @returns Candidate slugs in declared member order.
- */
-export function deriveDecomposeSuccessorCandidates(cut: DecomposeParams): string[] {
-  return cut.entries
-    .filter((entry): entry is NewMemberEntry => entry.kind === "new-member")
-    .filter((entry) => newMemberDependencies(cut, entry.slug).length === 0)
-    .map((entry) => entry.slug);
 }
 
 /**

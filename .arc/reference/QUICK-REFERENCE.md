@@ -323,7 +323,7 @@ arc integrate [slug] --last-completed <work> --action <next action>
 arc reopen [slug] [--keep-pr]
 
 # Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --cut-map <file>
+arc decompose <origin> --execute <file>
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes

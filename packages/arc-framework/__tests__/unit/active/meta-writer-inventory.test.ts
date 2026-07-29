@@ -22,7 +22,6 @@ const producerPaths = [
   "lib/errand/promote.ts",
   "lib/git/worktree-scaffold.ts",
   "lib/work-unit/pointer-record.ts",
-  "lib/work-unit/verbs/decompose.ts",
   "lib/work-unit/verbs/park-resume.ts",
   "lib/work-unit/verbs/stub.ts",
 ] as const;

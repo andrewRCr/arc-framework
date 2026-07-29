@@ -103,27 +103,23 @@ aren't self-describing); inter-member order, when it exists, lives in `Depends O
 
 ### Output — the cut-map
 
-The method produces either **"stays one WU"** or the **cut-map**:
+The method produces either **"stays one WU"** or the author-owned half of the v3 cut-map. The CLI supplies the
+immutable source units and dependency edges; complete only these authoring decisions:
 
-- **`parentPosition`** — `standalone`, `in-cohort`, `at-cap`, or `cohortless`;
-- **`cohort`** — required for `standalone` / `in-cohort`, omitted for `at-cap` / `cohortless`;
-- **members** — each with its legible slug;
-- **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
-- **deliverable boundaries** — what each member independently ships.
+- **shape** — `symmetric` or `heterogeneous`;
+- **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
+- **destinations** — each exact `new-member`, `existing-home`, or `cohort-coordination` target;
+- **source allocations** — one destination and locator, or one reasoned drop, for every reported source unit;
+- **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
+- **internal dependency edges** — authored from the cut's delivery order.
 
-`cohortless` is the direct-member arm for exactly one newly minted member; any existing or atomic homes remain
-destinations, not members. Every decomposition with more than one new member must select `standalone`,
-`in-cohort`, or `at-cap`, regardless of content ownership. Ownerless shared coordination independently requires a
+`direct-member` is the placement for exactly one newly minted member. Every decomposition with more than one new
+member must select `cohort`, `subcohort`, or `at-cap`, regardless of content ownership. Existing or atomic homes
+remain `existing-home` destinations, not members. Ownerless shared coordination independently requires a
 cohort-backed placement and a `cohort-coordination` destination.
 
-**Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
-cover the non-symmetric transform shapes — a data-shape the cut-map carries, while _when_ to use them stays this
-method's judgment:
-
-- **surviving-origin** — names the _retained_ origin as an entry (the extraction shape), carrying its disposition
-  (`keep-active` / `park`); the origin survives the cut rather than retiring.
-- **existing/atomic-home** — names an _existing or atomic destination_ (the heterogeneous shape): a sibling stub, a
-  `draft-design` block, or an in-place atomic edit to a standing doc, rather than a new member.
+Keeping an origin active or performing extraction is outside the core decomposition transform. The cut-map retires
+the supported origin into its declared destinations and does not model a retained origin as another destination.
 
 Producing the cut-map ends this method's job — it _decides_, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.

@@ -101,14 +101,9 @@ vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", () => ({
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
 
-// The `decompose` handler reads its cut-map file off `node:fs/promises` directly;
-// mock the read so the file content is test-driven (the other ops are unused — the
-// verb is mocked). `readFile` defaults to valid JSON; a test rejects it for the
-// missing-file case.
+// Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
-  // The cut-map content is fixed per-test via `mockReadFile`; the path argument is
-  // not asserted, so the factory doesn't forward it.
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),
@@ -121,30 +116,14 @@ vi.mock("node:fs/promises", () => ({
   rmdir: vi.fn(),
 }));
 
-const mockParseCutMap = vi.fn();
-vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
-  parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
-}));
 const mockRevalidateV3DecomposeExecutionPreflight = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-v3-execution-preflight.js", () => ({
   revalidateV3DecomposeExecutionPreflight: (...a: unknown[]) => mockRevalidateV3DecomposeExecutionPreflight(...a),
 }));
-const mockRunDecompose = vi.fn();
-const mockRunPreparedDecompose = vi.fn();
-vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
-  runDecompose: (...a: unknown[]) => mockRunDecompose(...a),
-  runPreparedDecompose: (...a: unknown[]) => mockRunPreparedDecompose(...a),
-}));
-const mockPrepareDecompose = vi.fn();
-const mockStagePreparedResult = vi.fn();
-const mockFinalizeDecompose = vi.fn();
 const mockFinalizeV3Decompose = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
   createInRepoDecomposeRetirementDriver: () => ({
     finalizeV3: (...a: unknown[]) => mockFinalizeV3Decompose(...a),
-    prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
-    stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
-    finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
   }),
 }));
 const mockResolveProjectReadinessComposition = vi.fn();
@@ -373,50 +352,6 @@ beforeEach(() => {
     completedMap: {},
     preflight: {},
   });
-  mockParseCutMap.mockReturnValue({
-    status: "parsed",
-    params: { origin: { slug: "mono", phase: "Planning", location: "active" }, shape: "symmetric", entries: [], internalEdges: [] },
-  });
-  mockRunDecompose.mockResolvedValue({
-    status: "decomposed",
-    result: {
-      placement: {
-        kind: "cohortless",
-        cohort: null,
-        coordination: "none",
-        summary: "flat planned siblings (no cohort)",
-      },
-      members: [{ slug: "alpha" }, { slug: "beta" }],
-      repointed: [],
-      origin: "retired",
-      teardown: { slug: "mono", branch: "plan/mono" },
-    },
-  });
-  mockRunPreparedDecompose.mockResolvedValue({
-    status: "decomposed",
-    result: {
-      placement: {
-        kind: "cohortless",
-        cohort: null,
-        coordination: "none",
-        summary: "flat planned siblings (no cohort)",
-      },
-      members: [{ slug: "alpha" }, { slug: "beta" }],
-      repointed: [],
-      origin: "retired",
-      teardown: { slug: "mono", branch: "plan/mono" },
-    },
-  });
-  mockPrepareDecompose.mockResolvedValue({
-    status: "prepared",
-    preparation: { locator: { receiptId: `sha256:${"a".repeat(64)}` } },
-  });
-  mockFinalizeDecompose.mockResolvedValue({
-    status: "recorded",
-    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
-    authorityVersion: "finalized-version",
-    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
-  });
   mockResolveProjectReadinessComposition.mockResolvedValue({
     acceptedCandidates: [],
     rejectedRecords: [],
@@ -525,11 +460,6 @@ describe("handleDecompose", () => {
     await handleDecompose("mono", { preflight: true });
 
     expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
-    expect(mockParseCutMap).not.toHaveBeenCalled();
-    expect(mockPrepareDecompose).not.toHaveBeenCalled();
-    expect(mockFinalizeDecompose).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockStagePreparedResult).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();

@@ -9,14 +9,8 @@
 import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
-import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
 import type { V3DecomposeFinalizationResult } from "./decompose-finalization.js";
 import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
-import type {
-  DecomposeIncomingEdgeInventoryEntry,
-  DecomposeOutgoingEdgeInventoryEntry,
-  DecomposeSourceInventoryEntry,
-} from "./decompose-inventory.js";
 
 /** Preservation fact that can authorize a terminal worktree transition. */
 export type HuskAuthorization = "merged-preserved" | "discard-confirmed" | "planning-relocated";
@@ -59,55 +53,14 @@ export type DecodedRetirementEvidence =
       value: { kind: string } & Readonly<Record<string, unknown>>;
     };
 
-export type { DecomposeAllocationMap } from "./decompose-cut-map.js";
-
-/** Safe direct locator for one persisted decompose preparation. */
-export interface DecomposePreparationLocator {
-  receiptId: CanonicalDigest;
-  preparationId: CanonicalDigest;
-  scope: RetirementAuthorityScope;
-}
-
-/** Prepared decompose state returned to its driver. */
-export interface PreparedDecomposeRetirement {
-  locator: DecomposePreparationLocator;
-  record: DecomposePreparationRecord;
-  authorityVersion: string;
-}
-
-/** Durable compare-and-set envelope written before decompose mutates artifacts. */
-interface DecomposePreparationRecordBase {
-  kind: "prepared-decompose";
-  locator: DecomposePreparationLocator;
-  allocation: DecomposeAllocationMap;
-  sourceInventory: DecomposeSourceInventoryEntry[];
-  incomingEdgeInventory: DecomposeIncomingEdgeInventoryEntry[];
-  outgoingEdgeInventory: DecomposeOutgoingEdgeInventoryEntry[];
-  allowedPaths: string[];
-  sourceArtifactDigest: CanonicalDigest;
-  sourceInventoryDigest: CanonicalDigest;
-  incomingEdgeInventoryDigest: CanonicalDigest;
-  outgoingEdgeInventoryDigest: CanonicalDigest;
-  cutMapDigest: CanonicalDigest;
-}
-
 /** Closed quality fact for the lifecycle inventory bound into retirement evidence. */
 export type InventoryRead = "not-applicable" | "tree-only" | "reachable" | "degraded";
-
-/** Exact historical and current decompose preparation envelopes. */
-export type DecomposePreparationRecord =
-  | (DecomposePreparationRecordBase & { schemaVersion: 1 })
-  | (DecomposePreparationRecordBase & {
-      schemaVersion: 2;
-      inventoryRead: Exclude<InventoryRead, "not-applicable">;
-      transformedIncomingDependents: string[];
-    });
 
 /** Canonical non-shipped retirement receipt. */
 interface RetirementReceiptBase {
   receiptId: CanonicalDigest;
   subject: WorktreeSubject;
-  transition: RetirementTransition;
+  transition: Exclude<RetirementTransition, "decompose">;
   source: {
     branch: string;
     head: string;
@@ -118,23 +71,6 @@ interface RetirementReceiptBase {
   authorization: Exclude<HuskAuthorization, "merged-preserved"> | "identity-renamed";
   result:
     | { kind: "discard"; artifactDigest: "absent" }
-    | {
-        kind: "decompose";
-        preparationId: CanonicalDigest;
-        allocation: DecomposeAllocationMap;
-        cutMapDigest: CanonicalDigest;
-        sourceInventoryDigest: CanonicalDigest;
-        incomingEdgeInventoryDigest: CanonicalDigest;
-        outgoingEdgeInventoryDigest: CanonicalDigest;
-        sourceInventory?: DecomposeSourceInventoryEntry[];
-        incomingEdgeInventory?: DecomposeIncomingEdgeInventoryEntry[];
-        outgoingEdgeInventory?: DecomposeOutgoingEdgeInventoryEntry[];
-        transformedIncomingDependents?: string[];
-        targets: ReadonlyArray<{
-          path: string;
-          artifactDigest: CanonicalDigest;
-        }>;
-      }
     | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
     | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
 }
@@ -147,7 +83,7 @@ export type RetirementReceipt =
 /** Exact source and result projections bound by an authority snapshot. */
 export interface RetirementAuthorityScope {
   subject: WorktreeSubject;
-  transition: RetirementTransition;
+  transition: Exclude<RetirementTransition, "decompose">;
   source: {
     branch: string;
     head: string;
@@ -163,7 +99,7 @@ export interface RetirementAuthoritySnapshot {
   authorityVersion: string;
   sourceRefOid: string;
   resultRefOid: string;
-  recordState: "absent" | "prepared-decompose";
+  recordState: "absent";
 }
 
 /** Exact live teardown request. */
@@ -214,20 +150,6 @@ export interface RetirementAuthorityPort {
   record(receipt: RetirementReceipt, expectedAuthorityVersion: string): Promise<
     | { status: "recorded"; authorityVersion: string }
     | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
-  >;
-
-  prepareDecompose(
-    scope: RetirementAuthorityScope,
-    allocation: DecomposeAllocationMap,
-    expectedAuthorityVersion: string,
-  ): Promise<
-    | { status: "prepared"; preparation: PreparedDecomposeRetirement }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
-  >;
-
-  finalizeDecompose(locator: DecomposePreparationLocator, expectedAuthorityVersion: string): Promise<
-    | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
   >;
 
   finalizeV3Decompose(
@@ -291,10 +213,6 @@ export function validateReceiptMatrix(
       && receipt.authorization === "discard-confirmed"
       && expectedLifecycle === "nonexistent"
       && receipt.result.kind === "discard")
-    || (receipt.transition === "decompose"
-      && receipt.authorization === "discard-confirmed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "decompose")
     || (receipt.transition === "park-planning"
       && receipt.authorization === "planning-relocated"
       && expectedLifecycle === "planned"

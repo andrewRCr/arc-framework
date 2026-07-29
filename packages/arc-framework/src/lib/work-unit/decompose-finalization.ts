@@ -1,7 +1,6 @@
 /** Final verification and atomic receipt replacement for version-3 decompose. */
 
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../canonical/canonical-json.js";
-import type { ArtifactSetEntry, PatchOperation } from "../canonical/content-digest.js";
 import {
   parseV3DecomposePreparation,
   type V3DecomposePreparation,
@@ -17,54 +16,12 @@ import {
   type FinalizedV3DecompositionValidation,
   type V3DecompositionMismatch,
 } from "./validate-v3-decomposition.js";
-import type { DecomposeInventories } from "./decompose-inventory.js";
 import {
   projectPendingRetirementLifecycle,
   type RetirementLifecycleResult,
 } from "./retirement-lifecycle-result.js";
 import type { ValidatedTransitionOverlay } from "./transition-overlay.js";
-import type {
-  DecomposePreparationLocator,
-  DecomposePreparationRecord,
-  InventoryRead,
-  RetirementReceipt,
-  TeardownAuthorizationRefusal,
-} from "./retirement-authority.js";
-
-/** Retired v1/v2 target descriptor retained for adapter type compatibility. */
-export interface DecomposeFinalTarget {
-  path: string;
-  entries: readonly ArtifactSetEntry[];
-}
-
-/** Retired v1/v2 projection descriptor retained for adapter type compatibility. */
-export interface DecomposeFinalizationProjection {
-  sourceArtifactDigest: CanonicalDigest;
-  inventories: DecomposeInventories;
-  stagedPaths: readonly string[];
-  transitionPatch: readonly PatchOperation[];
-  targets: readonly DecomposeFinalTarget[];
-  inventoryRead: Exclude<InventoryRead, "not-applicable">;
-  transformedIncomingDependents: readonly string[];
-}
-
-/** Retired v1/v2 adapter contract; its finalizer always refuses. */
-export interface DecomposeFinalizationContext {
-  readAuthoritySnapshot(locator: DecomposePreparationLocator): Promise<{
-    authorityVersion: string;
-    recordState: "absent" | "prepared-decompose";
-  }>;
-  readRecord(receiptId: CanonicalDigest): Promise<string | null>;
-  readProjection(record: DecomposePreparationRecord): Promise<DecomposeFinalizationProjection>;
-  readTargetArtifact(destinationId: string, artifact: string): Promise<Uint8Array | null>;
-  readDependsOn(slug: string): Promise<readonly string[] | null>;
-  replaceAndStageRecord(
-    receiptId: CanonicalDigest,
-    expectedContent: string,
-    nextContent: string,
-    stagedPaths: readonly string[],
-  ): Promise<void>;
-}
+import type { TeardownAuthorizationRefusal } from "./retirement-authority.js";
 
 /** Git/filesystem adapter facts, normalized before the canonical v3 boundary. */
 export interface V3DecomposeFinalizationContext {
@@ -420,27 +377,4 @@ export async function finalizeV3DecomposeRetirement(
       diagnostic: error instanceof Error ? error.message : String(error),
     };
   }
-}
-
-/**
- * Retired compatibility entrypoint for generic v1/v2 decomposition receipts.
- * Generic rename, abandon, and park finalization does not call this function.
- */
-export function finalizeDecomposeRetirement(
-  _ctx: DecomposeFinalizationContext,
-  _locator: DecomposePreparationLocator,
-  _expectedAuthorityVersion: string,
-): Promise<
-  | {
-      status: "recorded";
-      receipt: RetirementReceipt;
-      authorityVersion: string;
-      lifecycle: RetirementLifecycleResult;
-    }
-  | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
-> {
-  void _ctx;
-  void _locator;
-  void _expectedAuthorityVersion;
-  return Promise.resolve({ status: "refused", reason: "unsupported-transition" });
 }
