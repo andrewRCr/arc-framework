@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2beef3fa2`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `ae08f25b6`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,81 +13,83 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                     | Priority | Owner  | Depends on | Cohort                        |
-| ------------- | ----------------------------- | -------- | ------ | ---------- | ----------------------------- |
-| `Integrating` | decompose-transform-integrity | P1       | andrew | —          | decompose-transform-integrity |
-| `Planning`    | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment     |
-| `Planning`    | chunked-delivery              | P1       | andrew | —          | —                             |
-| `Planning`    | decomposition-doctrine        | P1       | andrew | —          | —                             |
-| `Planning`    | integration-boundary-accuracy | P1       | andrew | —          | —                             |
-| `Active`      | judgment-authority-model      | P1       | andrew | —          | —                             |
-| `Planning`    | review-checkout-lifecycle     | P1       | andrew | —          | —                             |
-| `Active`      | session-locus-model           | P1       | andrew | —          | —                             |
-| `Planning`    | stub-mint-to-launch           | P1       | andrew | —          | —                             |
+| State      | Work unit                     | Priority | Owner  | Depends on | Cohort                    |
+| ---------- | ----------------------------- | -------- | ------ | ---------- | ------------------------- |
+| `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
+| `Planning` | chunked-delivery              | P1       | andrew | —          | —                         |
+| `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
+| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                         |
+| `Active`   | judgment-authority-model      | P1       | andrew | —          | —                         |
+| `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
+| `Active`   | session-locus-model           | P1       | andrew | —          | —                         |
+| `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                         |
 
 ## Ready
 
-| Work unit                        | Priority | Owner  | Depends on | Cohort                     |
-| -------------------------------- | -------- | ------ | ---------- | -------------------------- |
-| interlock-release-refinement     | P1       | andrew | —          | approval-flow-refinement   |
-| delivery-intent-integrity        | P1       | andrew | —          | —                          |
-| recovery-hardening               | P1       | andrew | —          | —                          |
-| roadmap-tooling                  | P1       | andrew | —          | —                          |
-| wu-lifecycle-state-model         | P1       | andrew | —          | —                          |
-| composable-workflows             | P2       | andrew | —          | agent-context-optimization |
-| loadset-composition              | P2       | andrew | —          | agent-context-optimization |
-| commit-increments                | P2       | andrew | —          | approval-flow-refinement   |
-| check-id-stabilization           | P2       | andrew | —          | architecture-remediation   |
-| cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption     |
-| method-conventions               | P2       | andrew | —          | doc-conventions            |
-| naming-conventions               | P2       | andrew | —          | doc-conventions            |
-| cross-wu-coordination            | P2       | andrew | —          | —                          |
-| execution-delegation-doctrine    | P2       | andrew | —          | —                          |
-| frictionless-capture             | P2       | andrew | —          | —                          |
-| goal-aware-direction             | P2       | andrew | —          | —                          |
-| graduation-cleanup               | P2       | andrew | —          | —                          |
-| knowledge-architecture           | P2       | andrew | —          | —                          |
-| operational-advisory-registers   | P2       | andrew | —          | —                          |
-| operational-state-docs           | P2       | andrew | —          | —                          |
-| plan-segmentation                | P2       | andrew | —          | —                          |
-| workflow-eval-harness            | P2       | andrew | —          | —                          |
-| handoff-optimization             | P3       | andrew | —          | agent-context-optimization |
-| ci-cross-platform-hardening      | P3       | andrew | —          | architecture-remediation   |
-| lib-layer-type-extraction        | P3       | andrew | —          | architecture-remediation   |
-| schema-introspection-layer       | P3       | andrew | —          | architecture-remediation   |
-| sync-handler-decomposition       | P3       | andrew | —          | architecture-remediation   |
-| user-sync-module-split           | P3       | andrew | —          | architecture-remediation   |
-| config-migration-registry        | P3       | andrew | —          | configuration              |
-| config-storage-architecture      | P3       | andrew | —          | configuration              |
-| customization-arch-realign       | P3       | andrew | —          | configuration              |
-| task-list-conventions            | P3       | andrew | —          | doc-conventions            |
-| scalable-core                    | P3       | andrew | —          | principle-anchored-core    |
-| binary-distribution              | P3       | andrew | —          | release-readiness          |
-| docs-site-refresh                | P3       | andrew | —          | release-readiness          |
-| release-lifecycle                | P3       | andrew | —          | release-readiness          |
-| adopter-content-aware-ci         | P3       | andrew | —          | —                          |
-| adr-accept-timing                | P3       | andrew | —          | —                          |
-| arc-backend                      | P3       | andrew | —          | —                          |
-| arc-reinforce                    | P3       | andrew | —          | —                          |
-| chunk-scope-binding              | P3       | andrew | —          | —                          |
-| cohort-cut-coherence             | P3       | andrew | —          | —                          |
-| cold-start-init-polish           | P3       | andrew | —          | —                          |
-| contributor-path                 | P3       | andrew | —          | —                          |
-| external-coord-probe             | P3       | andrew | —          | —                          |
-| external-pm-composition          | P3       | andrew | —          | —                          |
-| grok-compaction-recovery         | P3       | andrew | —          | —                          |
-| idiomatic-alignment              | P3       | andrew | —          | —                          |
-| inbound-routing-method           | P3       | andrew | —          | —                          |
-| knowledge-lint                   | P3       | andrew | —          | —                          |
-| planning-iteration-mechanics     | P3       | andrew | —          | —                          |
-| quality-gate-hooks               | P3       | andrew | —          | —                          |
-| rules-restructure                | P3       | andrew | —          | —                          |
-| self-hosted-ci-qualification     | P3       | andrew | —          | —                          |
-| session-retitle                  | P3       | andrew | —          | —                          |
-| shared-inbox-model               | P3       | andrew | —          | —                          |
-| skill-infrastructure-cleanup     | P3       | andrew | —          | —                          |
-| sync-primitive-discipline        | P3       | andrew | —          | —                          |
-| synthesis-modality               | P3       | andrew | —          | —                          |
+| Work unit                        | Priority | Owner  | Depends on | Cohort                        |
+| -------------------------------- | -------- | ------ | ---------- | ----------------------------- |
+| interlock-release-refinement     | P1       | andrew | —          | approval-flow-refinement      |
+| decompose-extraction             | P1       | andrew | —          | decompose-transform-integrity |
+| delivery-intent-integrity        | P1       | andrew | —          | —                             |
+| recovery-hardening               | P1       | andrew | —          | —                             |
+| roadmap-tooling                  | P1       | andrew | —          | —                             |
+| wu-lifecycle-state-model         | P1       | andrew | —          | —                             |
+| composable-workflows             | P2       | andrew | —          | agent-context-optimization    |
+| loadset-composition              | P2       | andrew | —          | agent-context-optimization    |
+| commit-increments                | P2       | andrew | —          | approval-flow-refinement      |
+| check-id-stabilization           | P2       | andrew | —          | architecture-remediation      |
+| cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption        |
+| decompose-base-mobility          | P2       | andrew | —          | decompose-transform-integrity |
+| decompose-durable-consumers      | P2       | andrew | —          | decompose-transform-integrity |
+| method-conventions               | P2       | andrew | —          | doc-conventions               |
+| naming-conventions               | P2       | andrew | —          | doc-conventions               |
+| cross-wu-coordination            | P2       | andrew | —          | —                             |
+| execution-delegation-doctrine    | P2       | andrew | —          | —                             |
+| frictionless-capture             | P2       | andrew | —          | —                             |
+| goal-aware-direction             | P2       | andrew | —          | —                             |
+| graduation-cleanup               | P2       | andrew | —          | —                             |
+| knowledge-architecture           | P2       | andrew | —          | —                             |
+| operational-advisory-registers   | P2       | andrew | —          | —                             |
+| operational-state-docs           | P2       | andrew | —          | —                             |
+| plan-segmentation                | P2       | andrew | —          | —                             |
+| workflow-eval-harness            | P2       | andrew | —          | —                             |
+| handoff-optimization             | P3       | andrew | —          | agent-context-optimization    |
+| ci-cross-platform-hardening      | P3       | andrew | —          | architecture-remediation      |
+| lib-layer-type-extraction        | P3       | andrew | —          | architecture-remediation      |
+| schema-introspection-layer       | P3       | andrew | —          | architecture-remediation      |
+| sync-handler-decomposition       | P3       | andrew | —          | architecture-remediation      |
+| user-sync-module-split           | P3       | andrew | —          | architecture-remediation      |
+| config-migration-registry        | P3       | andrew | —          | configuration                 |
+| config-storage-architecture      | P3       | andrew | —          | configuration                 |
+| customization-arch-realign       | P3       | andrew | —          | configuration                 |
+| task-list-conventions            | P3       | andrew | —          | doc-conventions               |
+| scalable-core                    | P3       | andrew | —          | principle-anchored-core       |
+| binary-distribution              | P3       | andrew | —          | release-readiness             |
+| docs-site-refresh                | P3       | andrew | —          | release-readiness             |
+| release-lifecycle                | P3       | andrew | —          | release-readiness             |
+| adopter-content-aware-ci         | P3       | andrew | —          | —                             |
+| adr-accept-timing                | P3       | andrew | —          | —                             |
+| arc-backend                      | P3       | andrew | —          | —                             |
+| arc-reinforce                    | P3       | andrew | —          | —                             |
+| chunk-scope-binding              | P3       | andrew | —          | —                             |
+| cohort-cut-coherence             | P3       | andrew | —          | —                             |
+| cold-start-init-polish           | P3       | andrew | —          | —                             |
+| contributor-path                 | P3       | andrew | —          | —                             |
+| external-coord-probe             | P3       | andrew | —          | —                             |
+| external-pm-composition          | P3       | andrew | —          | —                             |
+| grok-compaction-recovery         | P3       | andrew | —          | —                             |
+| idiomatic-alignment              | P3       | andrew | —          | —                             |
+| inbound-routing-method           | P3       | andrew | —          | —                             |
+| knowledge-lint                   | P3       | andrew | —          | —                             |
+| planning-iteration-mechanics     | P3       | andrew | —          | —                             |
+| quality-gate-hooks               | P3       | andrew | —          | —                             |
+| rules-restructure                | P3       | andrew | —          | —                             |
+| self-hosted-ci-qualification     | P3       | andrew | —          | —                             |
+| session-retitle                  | P3       | andrew | —          | —                             |
+| shared-inbox-model               | P3       | andrew | —          | —                             |
+| skill-infrastructure-cleanup     | P3       | andrew | —          | —                             |
+| sync-primitive-discipline        | P3       | andrew | —          | —                             |
+| synthesis-modality               | P3       | andrew | —          | —                             |
 
 ## Blocked
 
@@ -95,11 +97,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                        |
 | --------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
-| decompose-extraction              | P1       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
-| decompose-base-mobility           | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
-| decompose-durable-consumers       | P2       | andrew | decompose-transform-integrity                               | decompose-transform-integrity |
+| decompose-planning-lane           | P2       | andrew | decompose-base-mobility                                     | decompose-transform-integrity |
 | review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                             |
 | documentation-surface-routing     | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |
 | instruction-optimization          | P3       | andrew | composable-workflows                                        | agent-context-optimization    |
@@ -110,11 +110,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                 | Priority | Owner  | Depends on                                             | Cohort                        |
-| ------------------------- | -------- | ------ | ------------------------------------------------------ | ----------------------------- |
-| review-activity-contracts | P1       | andrew | review-source-authority                                | review-protocol-alignment     |
-| decompose-planning-lane   | P2       | andrew | decompose-transform-integrity, decompose-base-mobility | decompose-transform-integrity |
-| wu5-public-release        | P3       | andrew | docs-content-sweep                                     | release-readiness             |
+| Work unit                 | Priority | Owner  | Depends on              | Cohort                    |
+| ------------------------- | -------- | ------ | ----------------------- | ------------------------- |
+| review-activity-contracts | P1       | andrew | review-source-authority | review-protocol-alignment |
+| wu5-public-release        | P3       | andrew | docs-content-sweep      | release-readiness         |
 
 ### Depth 3
 

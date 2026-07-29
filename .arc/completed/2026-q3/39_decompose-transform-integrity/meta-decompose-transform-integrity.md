@@ -1,8 +1,8 @@
 # Metadata: decompose-transform-integrity
 
-| **State**     | **Owner** | **Branch**                           | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decompose-transform-integrity` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the lifecycle-only closeout PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/394>
+- **Completed:** 2026-07-29
 
 ## Release Notes Entry
 
