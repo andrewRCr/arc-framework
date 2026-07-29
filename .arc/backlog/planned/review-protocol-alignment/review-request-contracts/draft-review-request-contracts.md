@@ -7,6 +7,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Expose a review-owned per-requirement qualification projection**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-07-28);
+  captured during `chunked-delivery` draft-design forward-compatibility pass.
+- _Concern:_ Terminal delivery assurance must know whether each review requirement is merge-admissible without
+  reconstructing the target → requirement → request → receipt chain. `ForwardGateProjection` exposes one complete
+  singleton chain; deferred assurance groups may project several requirements from one receipt. Coupling delivery
+  to raw receipt cardinality would force a rewrite when groups land.
+- _Fold-in:_ public `RequirementQualificationProjection` over caller-held target/requirement facts — closed
+  `qualified | nonblocking | blocked | stale` outcomes preserving required-vs-recommended policy, plus exact
+  reasoned routing for the exempt case. Group planning stays in `chunked-delivery`.
+
+### `[ ]` **Bind delivery assurance subjects into exact-target review requirements**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-07-28);
+  captured during `chunked-delivery` draft-design assurance-record pass.
+- _Concern:_ Cross-deliverable seam coverage without assurance groups needs the ordinary review requirement to
+  name what it covered. Scheduling a seam on its latest incident deliverable is not evidence.
+- _Fold-in:_ public `ReviewCoverageBinding` derivation binding exact target, plan revision, member/seam subjects,
+  incident generations, and reviewer-guidance digest into requirement identity. Named seams are required assurance
+  dimensions (cannot route exempt). Not `chunk-scope-binding` partial-scope algebra or multi-target assurance
+  groups.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

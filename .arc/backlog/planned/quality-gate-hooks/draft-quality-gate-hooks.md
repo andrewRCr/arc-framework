@@ -305,6 +305,16 @@
 - _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while creating
   `notes-judgment-authority-model.md` for the compression enumeration.
 
+### `[ ]` **Add a checker that resolves Markdown `§` citations against real headings**
+
+- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step at drain), housekeep drain (2026-07-28); captured
+  during `judgment-authority-model` create-spec adversarial pass two.
+- _Concern:_ Nothing validates inbound `§` citations. `lint:arc:section-refs` enforces the opposite rule (no `§` in
+  code). ~45 live citation sites across workflows/methods/strategies can silently orphan on heading rename.
+  Design forks: file-qualified vs bare same-file citations, dual package/`.arc` Framework copies, incidental prose
+  `§` false positives. Sibling of existing `audit-*.ts` / `lint:arc:*` family.
+- _Fold-in:_ fourth ARC contract check + possible rename of existing `lint:arc:section-refs` for disambiguation.
+
 ---
 
 ## Problem / Motivation
