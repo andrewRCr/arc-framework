@@ -386,9 +386,12 @@ an orphan.
 - **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
   `DEV-RULES.ARC` table, the `firm` rows
 
-    - `[ ]` **3.2.a § Contents — cut whole**
-        - Zero risk: the file loads whole, and `§` reference resolution never consults it. The navigation
+    - `[x]` **3.2.a § Contents — cut whole**
+        - Cut from both copies: 12 nb, matching the Task 3.1 re-measurement exactly (the recorded 11 predated the
+          § Rule Authority line). The file loads whole and `§` resolution never consults it, so the navigation
           mechanism a table of contents serves is absent for its only reader.
+        - No inbound `§ Contents` citation to sweep — the only corpus hits are an archived work unit's task list
+          referring to a different file's contents list.
 
     - `[ ]` **3.2.b § Commit Discipline firm items**
         - Commit and push triggering — compress to the obligation; per-mode behavior is already pointered to the
@@ -401,8 +404,11 @@ an orphan.
         - Contributor commit release — demote to `AGENT-BRIEF.CONTRIBUTOR`, which loads role-conditionally.
         - Complex-commits pointer — cut; duplicated in § When to Load Additional Guidance.
 
-    - `[ ]` **3.2.c § Test-first assessment**
-        - Compress to the obligation plus the method pointer; the method declaration already fires.
+    - `[x]` **3.2.c § Test-first assessment**
+        - Compressed to one line carrying the obligation and the method pointer; the method declaration already
+          fires, so the decision tree needs no restatement here.
+        - **Δ1, not the modeled Δ2.** The section ends a `##` block, so its span includes the structural `---`
+          that cannot be removed. The two prose lines were the only compressible content and they became one.
 
     - `[ ]` **3.2.d § Route by urgency × isolation and § Holding ≠ execution**
         - § Route by urgency — keep the table, the routing constraint, and the express-lane permission; demote
@@ -410,8 +416,14 @@ an orphan.
         - § Holding ≠ execution — keep the never-on-the-WU-branch constraint; demote the protection-mode shape and
           the record back-pointer to `run-errand`, which loads while running one.
 
-    - `[ ]` **3.2.e § Consult strategy guidance**
-        - Compress to one obligation line; `STRATEGY-INDEX` is itself always-loaded and self-describing.
+    - `[x]` **3.2.e § Consult strategy guidance**
+        - Compressed 8 nb → 2: one obligation line pointing at the index, which is itself always-loaded and now
+          carries its own firing conditions. Δ6 as modeled.
+        - The four numbered steps were the index's own mechanics restated in the file that summons it. Two prose
+          clauses also went, each with a surviving carrier: "when uncertain, ask" is § Verify before assuming's
+          stop-and-ask step, and "search a large strategy rather than reading it whole" is largely discharged by
+          Task 2.2 — a residual-scoped entry now states which question the load answers, which is what made the
+          instruction necessary when entries named only a domain.
 
 ### `[ ]` **3.3 Decided tier — the settled cuts**
 

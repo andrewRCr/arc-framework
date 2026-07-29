@@ -64,21 +64,6 @@ holder is not you, propose rather than discharge.
 
 ---
 
-## Contents
-
-- [Rule Authority](#rule-authority) — default unless marked invariant, discharge protocol, whose call
-- [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
-- [Scaled Process, Invariant Discipline](#scaled-process-invariant-discipline) — process scales, discipline does not
-- [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
-- [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
-- [Session Management](#session-management) — state control, handoff, context quality
-- [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
-- [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
-- [When to Load Additional Guidance](#when-to-load-additional-guidance) — on-demand reference
-
----
-
 ## Review-Increment Invariant
 
 Every review increment closes with a structured approval gate that precedes any commit
@@ -314,8 +299,7 @@ If quality gates fail after task completion:
 
 ### Test-first assessment · `[configurable]`
 
-Before implementing any task, assess whether tests should be written first — see the
-[test-first method][arc-methods-tf] for the decision tree.
+Before implementing any task, assess whether tests come first; the [test-first method][arc-methods-tf] decides.
 
 ---
 
@@ -486,15 +470,7 @@ recommended option with a one-line rationale; never a bare fork. The user still 
 
 ### Consult strategy guidance
 
-Before implementing work in codified domains, consult the relevant strategy document.
-
-1. Identify if your work touches a domain with codified guidance
-2. Check [STRATEGY-INDEX][strategy-index] for relevant strategies
-3. Read relevant section(s) before implementing
-4. Follow documented patterns
-
-When uncertain if a strategy applies, ask. For large multi-topic strategies, search for the
-specific topic rather than reading the entire document.
+Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-index] entries that fire.
 
 ### Method and extension loading
 
