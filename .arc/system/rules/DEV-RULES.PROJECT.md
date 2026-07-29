@@ -106,19 +106,11 @@ instead.
 
 ### Workflow prose economy
 
-When authoring or editing a workflow, write for the agent _executing_ it, not a reader evaluating the
-design. Judge each line by one test: **does a session executing this need it to act correctly?** Keep
-procedure and load-bearing constraints — the rule, the format, when to skip; cut author-facing justification
-— "what this is / isn't" framing, why-a-rule-exists rationale, and restatements an adjacent inline hint
-already carries. Full convention: [strategy-workflow-authoring][workflow-authoring] § Body Conventions
-(Prose economy).
+Write workflow prose for the executing session — full convention in [strategy-workflow-authoring][workflow-authoring].
 
 ### Verbs over mechanics — the framework-author degree of freedom
 
-The shipped rule ([strategy-workflow-authoring][workflow-authoring] § Body Conventions, Verbs over
-mechanics) gets one extra degree of freedom here that adopters lack: the `arc` CLI is ours to grow. A
-mechanics-narrating line that exists because no verb covers the operation is a **verb-gap signal** — surface
-it for potential `arc-inbox` capture rather than accepting the coupling as permanent.
+A mechanics-narrating line no verb covers is a **verb-gap signal** — surface it for `arc-inbox` capture.
 
 ## Commit Conventions (self-hosting)
 
@@ -141,20 +133,9 @@ go through the package source and sync to `.arc/` — not the other way around. 
 are edited in `.arc/` (project-specific sections) or package source (framework sections); never
 `cp` between copies — that overwrites project-specific overrides silently.
 
-Pre-commit hooks (a) warn when Framework files are edited in `.arc/` without the package
-counterpart staged, and (b) error when a Configurable file in `.arc/` is staged byte-identical to
-the package source after diverging at HEAD (the blind-`cp` signature). See
-[Package-Project Sync Strategy][package-sync] for the full architecture, dependency map, and
-template handling guidance.
-
-**Self-hosting skill-file drift:** The harness-local skill directories (`.claude/skills/`,
-`.codex/skills/`, `.gemini/skills/`, etc. — all gitignored) are regenerated deterministically by
-`arc update` for adopters. This repo doesn't run `arc update` against itself, so those harness
-copies can drift from canonical sources in `.arc/system/.internal/skills/` and
-`packages/arc-framework/arc/system/.internal/skills/` when canonical content changes. On a fresh
-self-hosting session, if a skill's behavior surprises you, suspect drift — hand-sync by copying
-the canonical `SKILL.md` into the harness subdirectory. Adopters aren't affected; their harness
-copies regenerate on every `arc update`.
+Pre-commit hooks catch the two mechanical failures of that rule. See [Package-Project Sync
+Strategy][package-sync] for what they check, the harness skill-directory drift hazard, the file
+inventory and dependency map, and template handling.
 
 **npm spikes rewrite the root `package.json` under workspaces:** a throwaway `npm init` / `install` run from the
 repo root rewrites the workspaces root `package.json` (injecting the flattened dep tree and a wrong

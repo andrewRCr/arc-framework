@@ -552,6 +552,53 @@ ADRs were always one internal-only surface among several, and `strategies/projec
 outside this work unit's own planning artifacts, and no link-reference definition lost its last consumer — all
 eight in the instance file still resolve to at least one use.
 
+### The trigger tier, demoted (Task 5.5)
+
+`DEV-RULES.PROJECT` goes **184 → 166 nb**. Both rows landed **exactly on projection** — Δ8 and Δ10, 18 delivered
+against 18 — which is the first task in either register phase where the Δ column survived execution untouched.
+
+| Row                                               | `nb` → residual | Δ projected | Δ measured |
+| ------------------------------------------------- | --------------- | ----------- | ---------- |
+| § Workflow prose economy + § Verbs over mechanics | 12 → 4          | 8           | 8          |
+| § Package-Project Sync                            | 24 → 14         | 10          | 10         |
+
+**Two of the three demotions had nothing to write.** The standing obligation — write the content into the
+destination before the rules file loses it — was satisfied vacuously for both, and confirmed clause by clause
+rather than assumed. `strategy-workflow-authoring` § Body Conventions (Prose economy) already carries every clause
+of the instance's version (the executing-session framing, the one-line test verbatim, both the keep and the cut
+lists) plus a sentence the instance never had. The hook explanation is the same case against
+`strategy-package-project-sync` § Safeguards, which documents both checks, what they catch, and what they cannot —
+where the instance had five lines. These are the **redundancy** sub-case of the demotion precondition, not
+relocations: the correct action is to cut, and writing them into the destination would have duplicated content
+already there. Only the skill-drift hazard was genuinely absent from its destination and had to be written first.
+
+**One demotion destination turned out to be audience-blocked, and the register never checked for that.**
+§ Verbs over mechanics' rationale — the `arc` CLI is ours to grow, one degree of freedom adopters lack — is
+project-internal, and the row's named destination `strategy-workflow-authoring` is `classification: Framework`
+and ships. Sending it there would have violated § Audience Boundaries to satisfy a register row. It was cut
+instead, which the content permits: it is rationale for a kept instruction, not a constraint, and the
+verb-gap capture instruction it justifies stays in the instance. The framing survives at zero body cost in the
+heading that already carried it — § Verbs over mechanics — the framework-author degree of freedom. **The
+register's destination column records reachability, not audience fit**; a row demoting project-internal content
+into `strategies/arc/**` is unexecutable as written, and only this row hit it.
+
+**Destination reachability was confirmed rather than assumed, per the row.** `strategy-workflow-authoring` resolves
+in `init-recipe.json` (Task 2.1.a added it) and in `manifest.json` as `Framework` / `core` (Task 2.1.b), and both
+copies are byte-identical, so the package-counterpart check is live for it — which is also why writing into it
+would have obliged a mirrored package edit. `strategy-package-project-sync` is absent from the recipe, the
+manifest, and the package tree, which is correct rather than the recipe defect: `strategies/project/` ships as an
+empty surface, so an instance-only destination only has to exist in this instance.
+
+**The skill-drift hazard landed as a new `### Harness skill directories` under § Two-Copy Architecture**, applying
+Task 5.4.d's lesson. § Safeguards documents automated checks, and nothing checks this; what the content actually
+states is that a third, derived, gitignored surface exists and which copy is authoritative for it — a location and
+authority fact, which is that section's subject. The destination had already pre-described its own post-demotion
+shape: its § DEV-RULES.PROJECT guard calls the instance section "a short section ... Points here for the full
+architecture", which is exactly the three-line residual this row leaves.
+
+**No link definition was orphaned.** `[workflow-authoring]` fell from three uses to one and `[package-sync]` still
+resolves; all eight definitions in the instance file retain a consumer.
+
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
 Three findings against the register, all confirmed at source. Two share a root cause the register should hold

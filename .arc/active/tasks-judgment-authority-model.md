@@ -1266,26 +1266,52 @@ Requirements alone orphans three.
   compressed against content its destination already carried. Where a moved rule lands decides what it still has to
   say, so the destination's existing scope is an input to the move, not a check after it.
 
-### `[ ]` **5.5 Trigger tier — the gated demotions**
+### `[x]` **5.5 Trigger tier — the gated demotions**
 
 - _Goal:_ The instance file's gated rows demote to index entries that now fire, with the constraint half of each
   mixed row staying behind.
 
-- _Note:_ Blocked until Phase 2 completes.
-
 - **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
   `DEV-RULES.PROJECT` table, the `trigger` rows
 
-    - `[ ]` **5.5.a § Workflow prose economy and § Verbs over mechanics**
-        - Prose economy — demote, keeping a one-line obligation.
-        - Verbs over mechanics — keep the verb-gap capture instruction; demote the rationale.
-        - Both to `strategy-workflow-authoring`, which Task 2.1 brings under manifest classification and its
-          package-counterpart check; confirm that landed rather than assuming it.
+    - `[x]` **5.5.a § Workflow prose economy and § Verbs over mechanics**
+        - 12 nb → 4, Δ8. Prose economy keeps a one-line obligation; verbs over mechanics keeps the verb-gap
+          capture instruction.
+        - **Nothing was written into the destination, because it was already there.** Verified clause by clause,
+          not assumed: `strategy-workflow-authoring` § Body Conventions (Prose economy) carries the
+          executing-session framing, the one-line test verbatim, and both the keep and the cut lists, plus a
+          sentence the instance never had. The redundancy sub-case of the demotion precondition — cut, not copy.
+        - **The verbs-over-mechanics rationale could not go to its named destination.** "The `arc` CLI is ours to
+          grow — one degree of freedom adopters lack" is project-internal, and `strategy-workflow-authoring` is
+          `classification: Framework` and ships; sending it there would breach § Audience Boundaries to satisfy a
+          register row. Cut instead, which the content permits — it is rationale for a kept instruction, not a
+          constraint — and the framing survives at zero body cost in the heading that already carried it.
+        - Confirmed rather than assumed, per the row: the destination resolves in `init-recipe.json` and in
+          `manifest.json` as `Framework` / `core`, and both copies are byte-identical, so its package-counterpart
+          check is live.
 
-    - `[ ]` **5.5.b § Package-Project Sync**
-        - Keep the two-copy direction constraint and the npm-spike hazard; demote the hook explanation and the
-          skill-drift hazard.
-        - Destination is instance-only — that strategy directory ships as an empty surface.
+    - `[x]` **5.5.b § Package-Project Sync**
+        - 24 nb → 14, Δ10. The two-copy direction constraint and the npm-spike hazard stay verbatim.
+        - The hook explanation is the same redundancy case as 5.5.a: `strategy-package-project-sync` § Safeguards
+          already documents both checks, what they catch, and what they cannot, where the instance had five lines.
+          Cut to a three-line pointer — which the destination had already pre-described, calling the instance
+          section "a short section ... Points here for the full architecture".
+        - The skill-drift hazard was the one genuinely absent from its destination, so it was written there first,
+          as a new § Harness skill directories under § Two-Copy Architecture. Placed by scope per Task 5.4.d:
+          § Safeguards documents automated checks and nothing checks this, while what the content states is that a
+          third derived surface exists and which copy is authoritative for it.
+        - Destination confirmed instance-only — absent from the recipe, the manifest, and the package tree, since
+          `strategies/project/` ships as an empty surface. No counterpart obligation applies.
+
+- _Outcome:_ `DEV-RULES.PROJECT` is **184 → 166 nb**, and both rows landed **exactly on projection** — the first
+  task in either register phase whose Δ column survived execution untouched, against three of six in Task 5.3 and
+  two of four in Task 5.4. The tier's finding is that two of its three demotions had nothing to move: the
+  destinations already carried the content in more detail, so the standing write-first obligation was discharged
+  by verification rather than by writing. That is the register's own **redundancy** sub-case arriving in
+  execution, and it is invisible from the disposition column, which reads identically whether a destination holds
+  the content or not. The sharper one is that **the destination column records reachability, never audience fit**
+  — one row directed project-internal rationale into a shipping strategy, and no earlier pass could have caught it
+  from the register alone.
 
 ### `[ ]` **5.6 Reconcile the shipped template against the instance**
 
