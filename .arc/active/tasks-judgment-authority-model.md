@@ -680,22 +680,30 @@ an orphan.
           the section as measured, and `notes-docs-content-sweep.md` carries it in a sibling WU's planning
           table — a cross-WU seam that routes at planning close, not from this branch.
 
-    - `[ ]` **3.6.d § Context quality**
-        - Keep the opening line and the boundary procedure — its second step is a mandatory stop.
-        - Keep the three blocks this row does not name: prefer-handoff-at-natural-boundaries,
-          compact-and-recover-between-them, and end-of-session. The first is prohibition-shaped — context pressure
-          alone does not force early handoff — so it is a constraint and does not demote. The row's Δ re-derives
-          at Task 3.1 against this keep-set rather than the reverse.
-        - `Natural session boundaries` lists **three** categories: mode transitions, structural boundaries, and
-          quality signals.
-        - Cut the quality-signals bullet **entirely**: it asks the agent to detect its own degradation, and an
-          agent reliable enough to do so would not be drifting.
-        - **Extract as a one-line keep** the "note the handoff opportunity if significant context has accumulated"
-          clause from structural boundaries — that clause, not the quality-signals bullet, is what produces the
-          handoff-boundary behavior worth keeping.
-        - Demote the two remaining categories. With one cut, one demoted pair, and a clause lifted out, the
-          `Natural session boundaries` lead-in no longer introduces a list — resolve it the way Task 5.3.f
-          resolves its heading rather than leaving it stranded.
+    - `[x]` **3.6.d § Context quality**
+        - Quality-signals bullet cut entirely; mode transitions and structural boundaries demoted; the
+          note-the-handoff-opportunity clause lifted into the prefer-handoff block, where it now reads as a
+          condition on that judgment rather than a trailing clause on a category. Opening line, all three
+          named blocks, and the boundary procedure with its mandatory stop all stay. 24 nb → 17, Δ7.
+        - **The one row so far that owed its destination a real write — and the destination was incoherent
+          without it.** `strategy-session-operations` uses "natural boundary" seven times, including the
+          instruction that the user decides whether context pressure has reached one, and nowhere said what one
+          is: the definition existed only in the always-loaded file. § Context Monitoring now carries both
+          categories under a `What counts as a natural boundary` block, anchored to work state rather than a
+          context estimate, per the constraint Task 2.2.c's entry was authored against.
+        - The stranded lead-in resolved by **removal**, not the rename Task 5.3.f uses. That row renames because
+          content survives under its heading; here nothing did, so a bolded lead-in introducing no list is the
+          whole of what was left.
+        - **The recorded Δ11 is arithmetically impossible against this row's own keep-set**, and its asterisk
+          has no footnote anywhere in the notes. Heading, opening, three kept blocks, procedure, and the
+          extracted line floor the section at 17 nb before any disposition is applied — the fifth Δ variance of
+          the phase, and the second traceable to a stated constraint rather than to drift.
+        - **The surviving pointer was retargeted.** It promised `strategy-session-operations` carries duration
+          guidance; that file's own preamble routes duration guidance to the docs site, so the promise was
+          false wherever a reader followed it. It now names § Context Monitoring and the utilization
+          thresholds, which is what the file actually holds. Not dropped the way this phase drops other
+          pointers: the `STRATEGY-INDEX` entry fires on authoring a loading tier, interlock, recovery, or
+          handoff step, and a session-length question is none of those — so no summoner covers it.
 
     - `[ ]` **3.6.e § Commit control — the wrapper and routing mechanics**
         - Demote the interlocks-gate / fire-sites-release concept, the wrapper mechanics, and the class-tag

@@ -358,23 +358,12 @@ specification throughout the session regardless of context window size or utiliz
 **Prefer handoff at natural boundaries.** This is a judgment call for scope, review, and
 a clean episodic baseline, not a correctness requirement for every context-pressure event.
 At a boundary, handoff captures state; the clean baseline comes from the fresh load after
-`clear`. See [Session Operations Strategy][session-ops] for duration guidance.
+`clear`. Note the handoff opportunity when significant context has accumulated. See
+[Session Operations Strategy][session-ops] § Context Monitoring for the utilization thresholds.
 
 **Between natural boundaries, compact and recover.** Context pressure alone does not force
 early handoff; use harness recovery or `arc-recover` when available, otherwise hand off
 and re-init. "Clean baseline" means a clean episodic baseline, not a lighter procedural load.
-
-**Natural session boundaries:**
-
-- **Mode transitions** — design to implementation, investigation to fix, planning to
-  execution. Analysis context carried forward crowds the window without serving the new work.
-
-- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh
-  session starts with focused context even when the current session has headroom. At these
-  points, note the handoff opportunity if significant context has accumulated.
-
-- **Quality signals** — output becoming less precise, early-session guidance being missed,
-  re-deriving decisions already established in this session
 
 When a boundary is reached or the user initiates handoff:
 

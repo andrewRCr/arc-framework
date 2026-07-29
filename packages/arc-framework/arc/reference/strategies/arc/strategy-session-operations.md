@@ -972,6 +972,14 @@ natural boundary, hand off, clear the harness conversation if needed, and re-ent
 session-init for a clean episodic baseline. Between natural boundaries, recover when available;
 otherwise hand off and re-init.
 
+**What counts as a natural boundary.** Two kinds recur, and both read off work state rather than a
+context estimate:
+
+- **Mode transitions** — design to implementation, investigation to fix, planning to execution.
+  Analysis context carried forward crowds the window without serving the new work.
+- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh session
+  starts with focused context even when the current session has headroom.
+
 **The agent is the secondary safety net.** Harness-level files (e.g., `CLAUDE.md`, `AGENTS.md`)
 may define threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches
 cases where the user isn't monitoring, but it's imprecise: agents assess their own token usage
