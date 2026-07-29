@@ -219,11 +219,7 @@ function validNewMemberProfileMeta(
   } catch {
     return false;
   }
-  const roles: V3ContentArtifactRole[] = input.planningProfile.kind === "draft"
-    ? ["draft"]
-    : input.planningProfile.kind === "single-spec"
-      ? ["spec"]
-      : ["spec", "rfc"];
+  const roles = expectedArtifactRoles(input.planningProfile).filter((role) => role !== "meta");
   const design = roles.map((role) => {
     const paths = [...new Set(
       contributions.filter((entry) => entry.artifactRole === role).map(({ path }) => path),
