@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.2 — Sweep the strategy corpus (51 marker candidates / 125 accepted across 21 documents)
-- **Next Task:** Task 4.3 — Sweep the workflow corpus (line ~792)
+- **Last Completed:** Task 4.3 — Sweep the workflow corpus (220 marker candidates / 635 accepted across 36 documents)
+- **Next Task:** Task 4.4 — Sweep the extension corpus (line ~809)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.3 — sweep the shipped workflow set on Task 4.1's terms, re-deriving the
-  template-paired and instance-less members by comparing copies; carry `decompose-work-unit.md` as in-flight
+- **Next Action:** Begin Task 4.4 — sweep the shipped extension set on Task 4.1's terms; read for the obligation
+  rather than the `never` / `must not` vocabulary, which does not appear in the region at all
 
 - **PR URL:** [none]
 - **Completed:** [none]
