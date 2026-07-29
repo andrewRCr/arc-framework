@@ -1313,31 +1313,49 @@ Requirements alone orphans three.
   — one row directed project-internal rationale into a shipping strategy, and no earlier pass could have caught it
   from the register alone.
 
-### `[ ]` **5.6 Reconcile the shipped template against the instance**
+### `[x]` **5.6 Reconcile the shipped template against the instance**
 
 - _Goal:_ No register row lands in this repository while the shipped template keeps the text the row calls inert.
 
-    - Walk the mirrored subset identified in Task 5.1 and confirm each row's disposition reached the template.
-    - This is the check, not the primary edit — each task above stages both. A row surfacing here that was missed
-      upstream is a defect in that task, not a step this one absorbs silently.
+    - Walked all five mirrored rows. **Four had already landed with their originating task** — § Contents absent,
+      the gate entries at their 7 nb residual, § Code Quality Principles at 8 nb with DRY / SOLID / KISS gone, and
+      § Documentation style byte-identical to the instance. No row surfaced here that an upstream task had missed,
+      so the check found no defect to attribute.
+    - The one open item was the divergence Task 5.3.d deferred here by name: the template still held the
+      **pre-compression** line-length rule. Propagated the instance's three-line form, 6 nb → 4. The template is
+      **85 nb, from 105 at base**.
+    - **Template-only content is left alone — the phase's close deciding, not a row.** § File Organization is
+      placeholder scaffolding a project fills in, not inert prose, and the ADR write-when / don't-write-for
+      criteria are the criteria this register **withdrew** from demotion; applying a withdrawn disposition to the
+      copy the row does not reach would be executing a row that no longer exists.
 
-### `[ ]` **5.7 Measure the always-loaded ledger**
+### `[x]` **5.7 Measure the always-loaded ledger**
 
 - _Goal:_ The compression claim is a measurement across the whole tier-1 full-read set, not an assertion about
   the two files that shrank most.
 
-- _Rationale:_ Measuring two files in isolation cannot detect a wash, and omitting the brief would leave the
-  ledger open exactly where the constitutional half spends.
-
-    - Measure across every tier-1 surface this work unit touched: both rules files, `STRATEGY-INDEX`, and
-      `AGENT-BRIEF.ARC`. The tier-1 full-read set is fixed by the load-set projection, so the measurement boundary
-      is a resolved fact rather than a judgment.
-    - Record, beyond the net figure: that every demoted line's destination summoner fires, is anchored to the
-      operation rather than to a workflow the content must survive outside, and does not depend on the agent
-      estimating its own state.
-    - Record that no constraint left the always-loaded set, and that each demoted line carries a recorded
-      constraint-or-not determination — so a violation is visible rather than inferred.
-    - The determination covers § Rule Authority's own addition (Task 1.4) as well as the register's rows.
+    - Re-measured end to end against `origin/main` rather than carried forward. **The tier-1 set is 828 → 716 nb,
+      −112, or 13.5% of the base surface** — against −23 when Task 5.1 measured Phase 5's open. The instance
+      register delivered the 89 nb difference exactly, and the +26 the index and brief surfaces spend is carried
+      more than four times over, so Criterion 3 no longer depends on any single leg.
+    - Every destination summoner fires, checked rather than assumed: the seven trigger-tier entries are present in
+      the always-loaded `STRATEGY-INDEX`, and the three non-index destinations resolve through their own declared
+      paths — the `quality-gate-commands` passthrough Task 5.2 retargeted, the `testing-standards` `.override`
+      declared in `process-task-loop`, and the sync strategy's own index entry.
+    - **Anchoring splits five operation-named against two residual-question, and neither form depends on the agent
+      estimating its own state.** The residual-question pair reads as self-assessment and is not: both name the
+      residual surfaces explicitly and the routine cover that handles the rest, so what the agent answers is
+      whether the document in hand settled a named question — checkable against text. "Load when unsure" would
+      fail this test; none is phrased that way.
+    - Operation-locality holds for every Phase 5 destination — the failure mode is content demoted into a workflow
+      it must outlive, and this phase demoted into strategies and methods only, both method destinations being read
+      at the moment their operation runs.
+    - No constraint left the always-loaded set. The determination is recorded per line — the register's `C?` column
+      across all twenty-one instance rows, plus § Rule Authority's own table for Task 1.4's addition, where every
+      rule-carrying block returned `constraint → stays`. Two demotions were withdrawn mid-register once the column
+      re-read them as constraints.
+    - **One determination the columns cannot express** surfaced at Task 5.5: a destination can be reachable and
+      still be the wrong audience, which no `C?` or destination value encodes.
 
 ## **Phase 6:** Verification
 

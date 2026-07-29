@@ -599,6 +599,57 @@ architecture", which is exactly the three-line residual this row leaves.
 **No link definition was orphaned.** `[workflow-authoring]` fell from three uses to one and `[package-sync]` still
 resolves; all eight definitions in the instance file retain a consumer.
 
+### The always-loaded ledger, closed (Tasks 5.6 and 5.7)
+
+Re-measured end to end against `origin/main` under Task 3.1's convention, not carried forward. The measurement
+boundary is the tier-1 full-read set fixed by the load-set projection, so it is a resolved fact rather than a
+judgment about which files "count".
+
+| Tier-1 surface        | base    | now     | Δ        |
+| --------------------- | ------- | ------- | -------- |
+| `DEV-RULES.ARC`       | 398     | 349     | −49      |
+| `DEV-RULES.PROJECT`   | 255     | 166     | −89      |
+| `STRATEGY-INDEX`      | 62      | 77      | +15      |
+| `AGENT-BRIEF.ARC`     | 84      | 95      | +11      |
+| `AGENT-BRIEF.PROJECT` | 29      | 29      | 0        |
+| **Total**             | **828** | **716** | **−112** |
+
+**The set is −112 nb, 13.5% of the base tier-1 surface**, against −23 when Task 5.1 measured Phase 5's open. The
+instance register delivered the 89 nb difference exactly: 57 at Task 5.3, 14 at 5.4, 18 at 5.5, and 0 at 5.2,
+whose retarget moved content out of the method layer rather than out of the file. Criterion 3 is net-negative by a
+margin that no longer depends on any single leg, and the two index and brief surfaces the constitutional half
+spends into (+26 combined) are carried more than four times over.
+
+**Every destination summoner fires, and each was checked rather than assumed.** The seven trigger-tier entries
+Phase 2 authored are all present in `STRATEGY-INDEX` — which is itself always-loaded, so they fire by
+construction — and the three non-index destinations resolve through their own declared paths: `QUICK-REFERENCE`
+§ Quality Gate Commands via the `quality-gate-commands` passthrough that Task 5.2 retargeted, the
+`testing-standards` `.override` via that method's declaration in `process-task-loop`, and
+`strategy-package-project-sync` via its own index entry.
+
+**Anchoring splits two ways, and neither way depends on the agent estimating its own state.** Five entries name
+an act the session is performing — authoring or editing a workflow file, placing guidance in a loading tier,
+transferring ownership, adopting the release wrappers, composing a sync question. The other two (`work-organization`,
+`work-planning`) take the residual-question form: load when the routine path or the planning workflow in hand does
+not settle it. That reads as self-assessment and is not, because both name the residual surfaces explicitly after
+the dash **and** name the routine cover that handles the rest. The question the agent answers is whether the
+document in front of it settled a named question — checkable against text — not whether it feels uninformed.
+A trigger phrased as "load when unsure" would fail this; none is.
+
+**The operation-locality test holds for every Phase 5 destination.** Its failure mode is content demoted into a
+workflow that the content must outlive — the P3 disqualification that cost two of five workflow destinations
+earlier in the register. Phase 5 demoted into strategies and methods only, and the two method destinations are
+operation-local by construction: gate commands are read at the moment a gate runs, and the testing override at
+the moment a test-touching task starts.
+
+**No constraint left the always-loaded set, and the determination is recorded per line rather than inferred.**
+The register's `C?` column carries a yes / no / mixed verdict for all twenty-one instance rows and every canonical
+row, and § Rule Authority's own addition was held to the same procedure in its own table — where every block
+carrying a rule returned `constraint → stays`, and the 15 nb removed was justification for rules that stayed. Two
+further demotions were withdrawn mid-register once the column re-read them as constraints. The one determination
+the columns **cannot** express surfaced at Task 5.5: a row's destination can be reachable and still be the wrong
+audience, which no `C?` or destination value encodes.
+
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
 Three findings against the register, all confirmed at source. Two share a root cause the register should hold
