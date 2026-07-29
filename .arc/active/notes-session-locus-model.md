@@ -830,22 +830,22 @@ The ledger records durable intent and the last reconciled fact, not live GitHub 
 authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
 ledger in the next safe pre-review commit.
 
-| Slice | Status                            | PR | Landed on `main` |
-| ----- | --------------------------------- | -- | ---------------- |
-| S0    | constructing from `b5bf493db`     | —  | —                |
-| S1    | manifest prepared; blocked by S0  | —  | —                |
-| S2    | blocked by S1                     | —  | —                |
-| S3    | blocked by S2                     | —  | —                |
-| S4    | blocked by S3                     | —  | —                |
-| S5    | blocked by S4                     | —  | —                |
-| S6    | blocked by S5                     | —  | —                |
-| S7    | blocked by S6                     | —  | —                |
-| S8    | blocked by S7                     | —  | —                |
-| S9    | blocked by S8                     | —  | —                |
-| S10   | blocked by S9                     | —  | —                |
-| S11   | blocked by S10                    | —  | —                |
-| S12   | blocked by S11                    | —  | —                |
-| S13   | blocked by S12                    | —  | —                |
+| Slice | Status                        | PR   | Landed on `main` |
+| ----- | ----------------------------- | ---- | ---------------- |
+| S0    | landed                        | #395 | `bb6803b62`      |
+| S1    | constructing from `bb6803b62` | —    | —                |
+| S2    | blocked by S1                 | —    | —                |
+| S3    | blocked by S2                 | —    | —                |
+| S4    | blocked by S3                 | —    | —                |
+| S5    | blocked by S4                 | —    | —                |
+| S6    | blocked by S5                 | —    | —                |
+| S7    | blocked by S6                 | —    | —                |
+| S8    | blocked by S7                 | —    | —                |
+| S9    | blocked by S8                 | —    | —                |
+| S10   | blocked by S9                 | —    | —                |
+| S11   | blocked by S10                | —    | —                |
+| S12   | blocked by S11                | —    | —                |
+| S13   | blocked by S12                | —    | —                |
 
 **External gate satisfied:** `decompose-transform-integrity` delivery 05 (PR #392) merged as `f69cc4a46`, delivery
 06 (PR #393) merged as `2beef3fa2`, and bespoke closeout PR #394 merged as `b5bf493db`. S0 cuts from that closeout
@@ -855,7 +855,8 @@ tree; S1 waits for S0.
 
 1. At slice entry, reconcile the predecessor row from GitHub and record its PR plus landed merge commit.
 2. Before S0 publication or an implementation slice's first hosted review, record the current slice's exact
-   manifest, measured diff, PR, and head immediately below the table. That edit is part of the PR target.
+   manifest, measured diff, PR, and construction head immediately below the table. That edit is part of the PR
+   target; GitHub remains authoritative for the later reviewed head because a commit cannot embed its own SHA.
 3. Do not mutate an approved head merely to record approval or merge. GitHub carries those facts until the
    successor's entry commit, or the bespoke closeout for S13, reconciles them into this ledger.
 4. At handoff, SESSION-NOTES carries the exact live cursor — current branch, PR, head, review/fix round, checks, and
@@ -865,30 +866,33 @@ Add one compact subsection per slice at entry; retain it after landing. Record t
 additions plus deletions, gate head, PR, hosted-review result, accepted head, and merge commit. Link bulky finding
 dispositions to the PR rather than copying them here.
 
-#### S0 planning baseline — constructing
+#### S0 planning baseline — landed
 
 - **Manifest:** whole-file additions of `meta-session-locus-model.md`, `notes-session-locus-model.md`,
   `spec-session-locus-model.md`, and `tasks-session-locus-model.md`, plus the generated `ROADMAP` hunk.
 - **Entry base:** `origin/main` `b5bf493db`, the DTI closeout merge.
 - **Exact local measurement:** 4,924 additions plus 1 deletion (4,925 changed lines) against `b5bf493db`,
   including the regenerated `ROADMAP` hunk.
-- **State:** `feat/session-locus-delivery-plan` cut locally; PR absent; hosted review not required.
+- **State:** PR #395 accepted head `52693a754` without hosted review and landed through merge commit `bb6803b62`.
 
-#### S1 locus record substrate — manifest prepared, not cut
+#### S1 locus record substrate — constructing
 
 - **Donor/base proof:** `archive/session-locus-model-donor-fa3c10f0e` ported onto detached `origin/main`
   `62504727c`; the eleven-file baseline is 1,062 additions and its 16 focused tests pass.
 - **Whole-file manifest:** `locus/schema/{identity,index,limits,mutation,record,state}.ts`,
   `locus/path-identity.ts`, `locus/record-store.ts`, and the matching `locus/{schema,path-identity,record-store}`
   unit tests.
-- **Owned residual hunks:** `limits.ts`, `mutation.ts`, and `schema.test.ts` own `7.P.a.i`; the final diff remains
-  to be measured after that slice-local implementation and the post-S0 base advance.
+- **Exact constructed measurement:** 1,135 additions plus 45 deletions (1,180 changed lines) across fourteen files
+  against `bb6803b62`.
+- **Owned residual hunks:** `limits.ts`, `mutation.ts`, and `schema.test.ts` require every open-success authority
+  coordinate on both success outcomes and constrain persisted timestamps to canonical `Z` instants.
 - **Proved exclusions:** `locus/errors.ts` and `locus/registry.ts` plus their tests are dropped as unwired;
   the `session-envelope/registry.ts` composition hunk and matching test hunk do not enter S1.
   `locus/selected-generation.ts` and its test move to S9 with their first live consumers.
 - **Finding correction:** E1-F1's stable locus is `errand/identity-record.ts`, not the locus record store; it moves
   from `7.P.a` to S4's transient identity core.
-- **State:** branch and PR absent; blocked by S0.
+- **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
+- **State:** `feat/locus-record-substrate` constructed locally; full gates pending; PR absent.
 
 ### Resume protocol
 
