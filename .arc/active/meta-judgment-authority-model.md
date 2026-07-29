@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.1 — Sweep the method corpus (52 marker candidates / 63 accepted across 25 documents)
-- **Next Task:** Task 4.2 — Sweep the strategy corpus (line ~777)
+- **Last Completed:** Task 4.2 — Sweep the strategy corpus (51 marker candidates / 125 accepted across 21 documents)
+- **Next Task:** Task 4.3 — Sweep the workflow corpus (line ~792)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.2 — sweep both `strategies/arc/` and `strategies/project/` on Task 4.1's terms, and
-  resolve the `strategy-package-project-sync` "never `cp`" counterexample candidate rather than assuming the conflict
+- **Next Action:** Begin Task 4.3 — sweep the shipped workflow set on Task 4.1's terms, re-deriving the
+  template-paired and instance-less members by comparing copies; carry `decompose-work-unit.md` as in-flight
 
 - **PR URL:** [none]
 - **Completed:** [none]
