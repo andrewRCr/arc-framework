@@ -353,9 +353,6 @@ async function parkPlanning(
       reason: `Cannot record park evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
   }
-  if (snapshot.snapshot.recordState !== "absent") {
-    return { status: "rejected", reason: "Cannot record park evidence: retirement authority already exists." };
-  }
 
   const workspaceHandler = ctx.executor.sideEffects?.["user-workspace"];
   const deferredWorkspace: Array<() => Promise<string | undefined>> = [];

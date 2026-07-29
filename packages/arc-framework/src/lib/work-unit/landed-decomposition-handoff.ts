@@ -63,6 +63,24 @@ export interface LandedPublicationResolution {
   entries: readonly LandedPublicationResolutionEntry[];
 }
 
+/** Stable live-projection refusal classes exposed by the public handoff. */
+export type LandedPublicationProjectionRefusal =
+  | "tree-read-failed"
+  | "tree-entry-duplicate"
+  | "tree-entry-nonregular"
+  | "project-record-indeterminate"
+  | "project-record-missing"
+  | "project-record-duplicate"
+  | "project-record-rejected"
+  | "project-record-identity"
+  | "destination-missing"
+  | "destination-path-mismatch"
+  | "draft-locator"
+  | "logical-anchor-missing"
+  | "logical-anchor-duplicate"
+  | "logical-anchor-identity"
+  | "logical-anchor-fanout";
+
 export interface LandedDecompositionHandoffInput {
   originalSlug: string;
   snapshot: {
@@ -89,8 +107,6 @@ export interface LandedDecompositionHandoff {
     landedCommitHead: string;
     landedTree: string;
   };
-  /** Exact shared authority also consumed by start and cleanup. */
-  integrationAnchor: DecompositionIntegrationAnchor;
   logicalAnchor: V3CandidatePublication["logicalAnchor"];
   displayAnchor: LandedDecompositionDisplayAnchor;
   entries: readonly LandedDecompositionHandoffEntry[];
@@ -109,16 +125,92 @@ export type LandedDecompositionHandoffResult =
   | { status: "absent" }
   | {
     status: "namespace-corrupt";
-    reason?: Extract<
-      ReturnType<typeof produceDecompositionIntegrationAnchor>,
-      { status: "refused" }
-    >["reason"];
+    reason?:
+      | Extract<
+        ReturnType<typeof produceDecompositionIntegrationAnchor>,
+        { status: "refused" }
+      >["reason"]
+      | "git-read-failed"
+      | "namespace-corrupt";
   }
-  | { status: "projection-mismatch" }
+  | {
+    status: "projection-mismatch";
+    reason?: LandedPublicationProjectionRefusal;
+    locus?: string;
+  }
   | { status: "ambiguous" }
   | { status: "not-landed" }
   | { status: "stale-base" }
   | { status: "resolved"; handoff: LandedDecompositionHandoff };
+
+/** Already-selected exact-base authority and its live publication projection. */
+export interface ComposeLandedDecompositionHandoffInput {
+  originalSlug: string;
+  integrationAnchor: DecompositionIntegrationAnchor;
+  publication: LandedPublicationResolution;
+}
+
+/**
+ * Compose a facts-only handoff from the shared exact-base anchor.
+ *
+ * @param input - Exact anchor plus live publication projection
+ * @returns One handoff or a closed projection mismatch
+ */
+export function composeLandedDecompositionHandoff(
+  input: ComposeLandedDecompositionHandoffInput,
+): LandedDecompositionHandoffResult {
+  const { integrationAnchor: anchor } = input;
+  if (anchor.origin !== input.originalSlug) return { status: "absent" };
+  const publication = anchor.receipt.finalized.publication;
+  if (!publicationIsExact(publication, input.publication)) {
+    return { status: "projection-mismatch" };
+  }
+
+  const newLeaves = new Map(
+    input.publication.entries.flatMap((entry) =>
+      entry.kind === "new-leaf" ? [[entry.slug, entry] as const] : []),
+  );
+  const initialContinuation = publication.initialContinuation;
+  const selectedSlugs = initialContinuation.kind === "selected"
+    ? initialContinuation.slugs
+    : [];
+  const selectedReadiness = selectedSlugs.flatMap((slug) => {
+    const entry = newLeaves.get(slug);
+    return entry === undefined ? [] : [{ slug, readiness: entry.readiness }];
+  });
+  if (selectedReadiness.length !== selectedSlugs.length) {
+    return { status: "namespace-corrupt" };
+  }
+  const launchableSelected = selectedSlugs.flatMap((slug) => {
+    const entry = newLeaves.get(slug);
+    return entry?.readiness.kind === "ready"
+      ? [{ slug, displayPath: entry.displayPath }]
+      : [];
+  });
+
+  return {
+    status: "resolved",
+    handoff: {
+      kind: "landed-decomposition-handoff",
+      schemaVersion: 1,
+      authority: {
+        configuredBaseHead: anchor.currentBaseHead,
+        receiptId: anchor.receiptId,
+        preparationId: anchor.preparationId,
+        sourceHead: anchor.sourceHead,
+        candidateCommitHead: anchor.candidateCommitHead,
+        landedCommitHead: anchor.landedCommitHead,
+        landedTree: anchor.landedTree,
+      },
+      logicalAnchor: publication.logicalAnchor,
+      displayAnchor: input.publication.anchor,
+      entries: input.publication.entries,
+      initialContinuation,
+      selectedReadiness,
+      launchableSelected,
+    },
+  };
+}
 
 function nonEmpty(value: string): boolean {
   return value.trim() !== "";
@@ -251,57 +343,9 @@ export function resolveLandedDecompositionHandoff(
   if (input.rereadConfiguredBaseHead !== input.snapshot.configuredBaseHead) {
     return { status: "stale-base" };
   }
-
-  const { anchor } = anchorResult;
-  const publication = anchor.receipt.finalized.publication;
-  if (!publicationIsExact(publication, input.snapshot.publication)) {
-    return { status: "projection-mismatch" };
-  }
-
-  const newLeaves = new Map(
-    input.snapshot.publication.entries.flatMap((entry) =>
-      entry.kind === "new-leaf" ? [[entry.slug, entry] as const] : []),
-  );
-  const initialContinuation = publication.initialContinuation;
-  const selectedSlugs = initialContinuation.kind === "selected"
-    ? initialContinuation.slugs
-    : [];
-  const selectedReadiness = selectedSlugs.flatMap((slug) => {
-    const entry = newLeaves.get(slug);
-    return entry === undefined ? [] : [{ slug, readiness: entry.readiness }];
+  return composeLandedDecompositionHandoff({
+    originalSlug: input.originalSlug,
+    integrationAnchor: anchorResult.anchor,
+    publication: input.snapshot.publication,
   });
-  if (selectedReadiness.length !== selectedSlugs.length) {
-    // Canonical receipt validation should already make this unreachable.
-    return { status: "namespace-corrupt" };
-  }
-  const launchableSelected = selectedSlugs.flatMap((slug) => {
-    const entry = newLeaves.get(slug);
-    return entry?.readiness.kind === "ready"
-      ? [{ slug, displayPath: entry.displayPath }]
-      : [];
-  });
-
-  return {
-    status: "resolved",
-    handoff: {
-      kind: "landed-decomposition-handoff",
-      schemaVersion: 1,
-      authority: {
-        configuredBaseHead: input.snapshot.configuredBaseHead,
-        receiptId: anchor.receiptId,
-        preparationId: anchor.preparationId,
-        sourceHead: anchor.sourceHead,
-        candidateCommitHead: anchor.candidateCommitHead,
-        landedCommitHead: anchor.landedCommitHead,
-        landedTree: anchor.landedTree,
-      },
-      integrationAnchor: anchor,
-      logicalAnchor: publication.logicalAnchor,
-      displayAnchor: input.snapshot.publication.anchor,
-      entries: input.snapshot.publication.entries,
-      initialContinuation,
-      selectedReadiness,
-      launchableSelected,
-    },
-  };
 }

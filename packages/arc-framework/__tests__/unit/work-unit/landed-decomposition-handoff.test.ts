@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  composeLandedDecompositionHandoff,
   resolveLandedDecompositionHandoff,
   type LandedDecompositionHandoffInput,
   type LandedPublicationResolution,
 } from "../../../src/lib/work-unit/landed-decomposition-handoff.js";
+import {
+  produceDecompositionIntegrationAnchor,
+} from "../../../src/lib/work-unit/decomposition-integration-anchor.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const BASE_HEAD = "c".repeat(40);
@@ -79,6 +83,38 @@ function input(
 }
 
 describe("resolveLandedDecompositionHandoff", () => {
+  it("composes from the exact shared anchor without changing its bytes", () => {
+    const candidate = input();
+    const selection = produceDecompositionIntegrationAnchor({
+      ...candidate.snapshot.integration,
+      receipts: [v3DecompositionEvidenceFixture().receipt],
+      currentBaseHead: candidate.snapshot.configuredBaseHead,
+    });
+    expect(selection.status).toBe("resolved");
+    if (selection.status !== "resolved") return;
+
+    const result = composeLandedDecompositionHandoff({
+      originalSlug: "origin",
+      integrationAnchor: selection.anchor,
+      publication: candidate.snapshot.publication,
+    });
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.handoff.authority).toEqual({
+      configuredBaseHead: selection.anchor.currentBaseHead,
+      receiptId: selection.anchor.receiptId,
+      preparationId: selection.anchor.preparationId,
+      sourceHead: selection.anchor.sourceHead,
+      candidateCommitHead: selection.anchor.candidateCommitHead,
+      landedCommitHead: selection.anchor.landedCommitHead,
+      landedTree: selection.anchor.landedTree,
+    });
+    expect(canonicalize(selection.anchor.receipt)).toBe(canonicalize(
+      v3DecompositionEvidenceFixture().receipt,
+    ));
+  });
+
   it("resolves exact landed authority and keeps immutable selection separate from readiness", () => {
     const result = resolveLandedDecompositionHandoff(input());
 
@@ -109,6 +145,9 @@ describe("resolveLandedDecompositionHandoff", () => {
     });
     expect(result.handoff.entries.flatMap((entry) =>
       entry.kind === "new-leaf" ? [entry.slug] : [])).toEqual(["member-a", "member-b"]);
+    expect(Object.keys(result.handoff)).not.toContain("integrationAnchor");
+    expect(canonicalize(result.handoff)).not.toContain('"receipt":');
+    expect(canonicalize(result.handoff)).not.toMatch(/argv|command|resume|frontier/u);
   });
 
   it("preserves selected blocker order and excludes unselected ready leaves", () => {

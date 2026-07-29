@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
-import { parseCutMap, type DecomposeAllocationMap } from "../../../src/lib/work-unit/decompose-cut-map.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   parseRetirementRecord,
@@ -12,26 +11,6 @@ import {
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const digest = (label: string) => canonicalDigest(label);
-
-const allocationInput = {
-  schemaVersion: 2,
-  origin: { slug: "sample", phase: "Planning", location: "planned" },
-  shape: "symmetric",
-  parentPosition: "standalone",
-  cohort: "my-cohort",
-  entries: [
-    { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
-    { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Heavy" },
-  ],
-  internalEdges: [],
-  sourceAllocations: [],
-  incomingEdges: [],
-  outgoingEdges: [],
-};
-
-const allocationResult = parseCutMap(allocationInput);
-if (allocationResult.status !== "parsed") throw new Error(allocationResult.reason);
-const allocation: DecomposeAllocationMap = allocationResult.params;
 
 function receiptFor(
   subject: RetirementReceipt["subject"] = { kind: "work-unit", name: "sample" },
@@ -56,7 +35,7 @@ function receiptFor(
     transition,
     source,
     transitionPatchDigest: digest("patch"),
-    retiringProjection: { kind: transition === "decompose" ? "unchanged" : "direct-transition" },
+    retiringProjection: { kind: "direct-transition" },
     authorization: transition === "rename"
       ? "identity-renamed"
       : transition === "park-planning"
@@ -126,40 +105,46 @@ describe("parseRetirementReceipt", () => {
   });
 
   it("refuses legacy decomposition receipts without weakening retained receipt versions", () => {
-    const legacy = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
+    const retained = receiptFor();
+    const legacyResult = {
       kind: "decompose",
       preparationId: digest("preparation"),
-      allocation,
-      cutMapDigest: canonicalDigest(allocation),
+      allocation: { schemaVersion: 2 },
+      cutMapDigest: digest("cut-map"),
       sourceInventoryDigest: digest("source-inventory"),
       incomingEdgeInventoryDigest: digest("incoming-inventory"),
       outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
       targets: [],
-    });
-    if (legacy.result.kind !== "decompose") throw new Error("expected legacy decomposition fixture");
-    const legacyV2: RetirementReceipt = {
+    };
+    const legacy = {
+      ...retained,
+      transition: "decompose",
+      retiringProjection: { kind: "unchanged" },
+      result: legacyResult,
+      receiptId: receiptId({
+        schemaVersion: 1,
+        subject: retained.subject,
+        transition: "decompose",
+        sourceBranch: retained.source.branch,
+        sourceHead: retained.source.head,
+      }),
+    };
+    const legacyV2 = {
       ...legacy,
       schemaVersion: 2,
       inventoryRead: "reachable",
       receiptId: receiptId({
         schemaVersion: 2,
         subject: legacy.subject,
-        transition: legacy.transition,
+        transition: "decompose",
         sourceBranch: legacy.source.branch,
         sourceHead: legacy.source.head,
       }),
-      result: {
-        ...legacy.result,
-        sourceInventory: [],
-        incomingEdgeInventory: [],
-        outgoingEdgeInventory: [],
-        transformedIncomingDependents: [],
-      },
     };
 
-    expect(parseRetirementReceipt(contentOf(legacy))).toBeNull();
-    expect(parseRetirementReceipt(contentOf(legacyV2))).toBeNull();
-    expect(parseRetirementReceipt(contentOf(receiptFor()))).toEqual(receiptFor());
+    expect(parseRetirementReceipt(canonicalize(legacy))).toBeNull();
+    expect(parseRetirementReceipt(canonicalize(legacyV2))).toBeNull();
+    expect(parseRetirementReceipt(contentOf(retained))).toEqual(retained);
   });
 
   it.each([
@@ -202,80 +187,10 @@ describe("parseRetirementReceipt", () => {
     expect(parseRetirementReceipt(canonicalize(authorization))).toBeNull();
   });
 
-  it("requires decompose allocations and targets to be canonical closed values", () => {
-    const base = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
-      kind: "decompose",
-      preparationId: digest("preparation"),
-      allocation,
-      cutMapDigest: canonicalDigest(allocation),
-      sourceInventoryDigest: digest("source-inventory"),
-      incomingEdgeInventoryDigest: digest("incoming-inventory"),
-      outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-      targets: [
-        { path: "a.md", artifactDigest: digest("a") },
-        { path: "b.md", artifactDigest: digest("b") },
-      ],
-    });
-
-    const unsortedAllocation = candidate(base);
-    const unsortedResult = unsortedAllocation.result as Record<string, unknown>;
-    unsortedResult.allocation = {
-      ...allocation,
-      entries: [...allocation.entries].reverse(),
-    };
-    expect(parseRetirementReceipt(canonicalize(unsortedAllocation))).toBeNull();
-
-    const unsortedTargets = candidate(base);
-    const targetResult = unsortedTargets.result as Record<string, unknown>;
-    targetResult.targets = [
-      { path: "b.md", artifactDigest: digest("b") },
-      { path: "a.md", artifactDigest: digest("a") },
-    ];
-    expect(parseRetirementReceipt(canonicalize(unsortedTargets))).toBeNull();
-
-    const duplicateTargets = candidate(base);
-    const duplicateResult = duplicateTargets.result as Record<string, unknown>;
-    duplicateResult.targets = [
-      { path: "a.md", artifactDigest: digest("a") },
-      { path: "a.md", artifactDigest: digest("other") },
-    ];
-    expect(parseRetirementReceipt(canonicalize(duplicateTargets))).toBeNull();
-  });
-
   it("requires the receipt ID to be derived from the exact identity tuple", () => {
     const invalid = candidate(receiptFor());
     invalid.receiptId = digest("not-the-derived-id");
     expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
-  });
-
-  it("rejects decompose subject and allocation-digest mismatches", () => {
-    const base = candidate(receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
-      kind: "decompose",
-      preparationId: digest("preparation"),
-      allocation,
-      cutMapDigest: canonicalDigest(allocation),
-      sourceInventoryDigest: digest("source-inventory"),
-      incomingEdgeInventoryDigest: digest("incoming-inventory"),
-      outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-      targets: [],
-    }));
-
-    const mismatchedSubject = structuredClone(base);
-    mismatchedSubject.subject = { kind: "work-unit", name: "other" };
-    const source = mismatchedSubject.source as Record<string, unknown>;
-    mismatchedSubject.receiptId = receiptId({
-      schemaVersion: 1,
-      subject: { kind: "work-unit", name: "other" },
-      transition: "decompose",
-      sourceBranch: source.branch as string,
-      sourceHead: source.head as string,
-    });
-    expect(parseRetirementReceipt(canonicalize(mismatchedSubject))).toBeNull();
-
-    const mismatchedDigest = structuredClone(base);
-    const result = mismatchedDigest.result as Record<string, unknown>;
-    result.cutMapDigest = digest("other-allocation");
-    expect(parseRetirementReceipt(canonicalize(mismatchedDigest))).toBeNull();
   });
 
   it("decodes a canonical rename receipt to its fully narrowed value", () => {
@@ -317,25 +232,13 @@ describe("parseRetirementReceipt", () => {
   it.each([
     ["abandon relocation", "abandon", "planning-relocated", "relocate", "direct-transition"],
     ["park discard", "park-planning", "discard-confirmed", "discard", "direct-transition"],
-    ["decompose direct projection", "decompose", "discard-confirmed", "decompose", "direct-transition"],
   ] as const)("rejects the incoherent %s matrix", (_label, transition, authorization, resultKind, projection) => {
     const base = candidate(receiptFor(
       { kind: "work-unit", name: "sample" },
       transition,
-      transition === "decompose"
-        ? {
-            kind: "decompose",
-            preparationId: digest("preparation"),
-            allocation,
-            cutMapDigest: digest("cut-map"),
-            sourceInventoryDigest: digest("source-inventory"),
-            incomingEdgeInventoryDigest: digest("incoming-inventory"),
-            outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
-            targets: [],
-          }
-        : transition === "park-planning"
-          ? { kind: "relocate", plannedArtifactDigest: digest("planned") }
-          : { kind: "discard", artifactDigest: "absent" },
+      transition === "park-planning"
+        ? { kind: "relocate", plannedArtifactDigest: digest("planned") }
+        : { kind: "discard", artifactDigest: "absent" },
     ));
     base.authorization = authorization;
     base.retiringProjection = { kind: projection };

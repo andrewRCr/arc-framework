@@ -271,6 +271,7 @@ describe("materializeV3DecomposePlan", () => {
   it("reuses one verified blob for paths with the same content digest", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
       [".arc/backlog/ROADMAP.md", before],
     ]));
     const readBlob = h.io.readBlob;
@@ -296,6 +297,7 @@ describe("materializeV3DecomposePlan", () => {
   it("reports an apply failure after preserving completed writes", async () => {
     const h = harness(new Map<string, V3PlanCanonicalPathState>([
       [".arc/active/meta-member.md", { kind: "absent" }],
+      [".arc/backlog/planned/member/draft-member.md", { kind: "absent" }],
       [".arc/backlog/ROADMAP.md", before],
     ]));
     const applyAndStageFinal = h.io.applyAndStageFinal;

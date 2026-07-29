@@ -8,17 +8,20 @@
  * @module
  */
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { environmentForGitCwd } from "../lib/git/process-executor.js";
+import { readGitObjectBytes } from "../lib/io-context.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
   formatRoadmapConflictAutoRemedyMessage,
 } from "../lib/status/roadmap-conflict-auto-remedy.js";
+import { resolveGitMergeTransitionOverlay } from "../lib/work-unit/git-merge-transition-overlay.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,8 +39,13 @@ export const remedyRoadmapConflictInputPolicyDeclarations = [{
 
 /** Real Git executor for this script; stdout is not trimEnd()ed. */
 const rawGitExec: GitExec = async (cmd, args, options) => {
+  const environment = environmentForGitCwd(options?.cwd);
+  const env = options?.indexFile === undefined
+    ? environment
+    : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
   const { stdout, stderr } = await execFileAsync(cmd, args, {
     cwd: options?.cwd,
+    env,
     signal: options?.signal,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
@@ -60,6 +68,15 @@ export async function runRoadmapConflictAutoRemedy(
     writeFile: async (path, content) => {
       await writeFile(path, content, "utf8");
     },
+    resolveTransitionOverlay: async (configuredBaseRef, exec) =>
+      await resolveGitMergeTransitionOverlay(configuredBaseRef, {
+        cwd,
+        exec,
+        fs: {
+          readFile: async (path) => await readFile(path, "utf8"),
+        },
+        readBlob: async (oid) => await readGitObjectBytes(cwd, oid),
+      }),
   });
 
   const message = formatRoadmapConflictAutoRemedyMessage(result);

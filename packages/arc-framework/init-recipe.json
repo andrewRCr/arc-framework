@@ -132,6 +132,7 @@
     "system/workflows/arc/supplemental/drain-inbox.md",
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md",
+    "system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     "system/workflows/arc/supplemental/clean-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md",

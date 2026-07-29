@@ -201,8 +201,8 @@ export async function renderRoadmapFromIndexViewResult(
           prospective: {
             currentBranch,
           },
-          ...(options.transitionOverlay === undefined ? {} : { transitionOverlay: options.transitionOverlay }),
         }),
+    ...(options.transitionOverlay === undefined ? {} : { transitionOverlay: options.transitionOverlay }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,

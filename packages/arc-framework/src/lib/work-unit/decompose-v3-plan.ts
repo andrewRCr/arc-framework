@@ -341,10 +341,12 @@ export function buildValidatedDecomposePlan(
       if (!modeTransitionIsCompatible(base, after)) {
         return { ok: false, refusal: { code: "incompatible-mode-transition", path } };
       }
-      if (exclusiveRoleOwners.has(exclusiveEntry.claim.role)) {
-        return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+      if (exclusiveEntry.claim.role !== "retiring-source") {
+        if (exclusiveRoleOwners.has(exclusiveEntry.claim.role)) {
+          return { ok: false, refusal: { code: "duplicate-role-owner", path } };
+        }
+        exclusiveRoleOwners.add(exclusiveEntry.claim.role);
       }
-      exclusiveRoleOwners.add(exclusiveEntry.claim.role);
       const mutation: V3ValidatedExclusiveMutation = {
         kind: "exclusive",
         path,

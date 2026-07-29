@@ -584,12 +584,21 @@ describe("trusted review-gate workflows", () => {
     expect(commandCount).toBe(3);
   });
 
-  it("keeps read-only decomposition outside merge authority", async () => {
+  it("gates full-protection decomposition merge after PR status", async () => {
     const decompose = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     );
+    const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
+    const full = sectionBetween(decompose, "### Full protection", "## 8. Resolve the landed handoff");
+    const status = full.indexOf("Surface PR status");
+    const interlock = full.indexOf("`integration-interlock`");
+    const merge = full.indexOf("merge according to project policy");
+
     expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
-    expect(decompose).not.toContain("`integration-interlock`");
+    expect(partial).not.toContain("`integration-interlock`");
+    expect(status).toBeGreaterThan(-1);
+    expect(interlock).toBeGreaterThan(status);
+    expect(merge).toBeGreaterThan(interlock);
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {

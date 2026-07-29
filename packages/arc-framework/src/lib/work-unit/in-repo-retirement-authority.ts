@@ -3,8 +3,7 @@
  *
  * The adapter composes the Git/filesystem snapshot, committed-evidence
  * authorization, and version-checked record boundaries while keeping their I/O
- * seams injectable. Decompose persistence is activated with its allocation
- * driver; until then those two declared operations fail closed.
+ * seams injectable.
  */
 
 import {
@@ -18,19 +17,11 @@ import {
 } from "./retirement-authority-snapshot.js";
 import { recordRetirementReceipt, type RetirementRecordContext } from "./retirement-record.js";
 import {
-  prepareDecomposeRetirement,
-  type DecomposePreparationContext,
-} from "./decompose-preparation.js";
-import {
-  finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
-  type DecomposeFinalizationContext,
   type V3DecomposeFinalizationContext,
 } from "./decompose-finalization.js";
 import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type {
-  DecomposeAllocationMap,
-  DecomposePreparationLocator,
   RetirementAuthorityPort,
   RetirementAuthorityScope,
   RetirementReceipt,
@@ -43,8 +34,6 @@ export interface InRepoRetirementAuthorityContext {
   snapshot: RetirementSnapshotContext;
   record: RetirementRecordContext;
   authorization: RetirementAuthorizationContext;
-  decompose: DecomposePreparationContext;
-  decomposeFinalization: DecomposeFinalizationContext;
   v3DecomposeFinalization: V3DecomposeFinalizationContext;
 }
 
@@ -62,21 +51,6 @@ export class InRepoRetirementAuthority implements RetirementAuthorityPort {
 
   async record(receipt: RetirementReceipt, expectedAuthorityVersion: string) {
     return await recordRetirementReceipt(this.#ctx.record, receipt, expectedAuthorityVersion);
-  }
-
-  async prepareDecompose(
-    scope: RetirementAuthorityScope,
-    allocation: DecomposeAllocationMap,
-    expectedAuthorityVersion: string,
-  ) {
-    return await prepareDecomposeRetirement(this.#ctx.decompose, scope, allocation, expectedAuthorityVersion);
-  }
-
-  async finalizeDecompose(
-    locator: DecomposePreparationLocator,
-    expectedAuthorityVersion: string,
-  ) {
-    return await finalizeDecomposeRetirement(this.#ctx.decomposeFinalization, locator, expectedAuthorityVersion);
   }
 
   async finalizeV3Decompose(

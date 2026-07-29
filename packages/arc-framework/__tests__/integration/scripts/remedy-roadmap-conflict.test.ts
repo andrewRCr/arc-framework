@@ -36,7 +36,7 @@ describe("ROADMAP conflict remedy script", () => {
     }
   });
 
-  it("surfaces the regenerate-and-stage remedy when ROADMAP conflicts during merge", () => {
+  it("surfaces and applies the regenerate-and-stage remedy when ROADMAP conflicts during merge", () => {
     const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-merge-driver-"));
     const git = (...args: string[]) => spawnSync("git", args, {
       cwd,
@@ -50,7 +50,9 @@ describe("ROADMAP conflict remedy script", () => {
       expect(git("config", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND).status).toBe(0);
 
       mkdirSync(join(cwd, ".arc", "backlog"), { recursive: true });
+      mkdirSync(join(cwd, ".arc", "system"), { recursive: true });
       writeFileSync(join(cwd, ".gitattributes"), `${ROADMAP_MERGE_ATTRIBUTE}\n`);
+      writeFileSync(join(cwd, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
       writeFileSync(join(cwd, ".arc", "backlog", "ROADMAP.md"), "# Roadmap\n\nbase\n");
       expect(git("add", ".").status).toBe(0);
       expect(git("commit", "-m", "base").status).toBe(0);
@@ -75,6 +77,112 @@ describe("ROADMAP conflict remedy script", () => {
       expect(git("diff", "--name-only", "--diff-filter=U").stdout.trim()).toBe(
         ".arc/backlog/ROADMAP.md",
       );
+
+      const remedy = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
+        cwd,
+        encoding: "utf8",
+      });
+      expect(remedy.status).toBe(0);
+      expect(remedy.stdout).toContain("Auto-remedied ROADMAP-only conflict");
+      expect(git("diff", "--name-only", "--diff-filter=U").stdout).toBe("");
+      const roadmap = readFileSync(
+        join(cwd, ".arc", "backlog", "ROADMAP.md"),
+        "utf8",
+      );
+      expect(roadmap).toContain("# Roadmap: Project Status");
+      expect(roadmap).toContain("_No work units in flight._");
+      expect(roadmap).toContain("_No ready work units._");
+      expect(roadmap).toContain("_No blocked work units._");
+      expect(roadmap).not.toContain("<<<<<<<");
+      expect(roadmap).not.toContain("\ncurrent\n");
+      expect(roadmap).not.toContain("\nincoming\n");
+      expect(git("show", ":.arc/backlog/ROADMAP.md").stdout).toBe(roadmap);
+      expect(git(
+        "diff",
+        "--cached",
+        "--name-only",
+      ).stdout.trim()).toBe(".arc/backlog/ROADMAP.md");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves the exact unmerged ROADMAP state when transition authority is refused", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-refused-authority-"));
+    const git = (...args: string[]) => spawnSync("git", args, {
+      cwd,
+      encoding: "utf8",
+    });
+    const roadmapPath = join(cwd, ".arc", "backlog", "ROADMAP.md");
+
+    try {
+      expect(git("init", "-b", "main").status).toBe(0);
+      expect(git("config", "user.name", "ARC Test").status).toBe(0);
+      expect(git("config", "user.email", "arc@example.test").status).toBe(0);
+      expect(git("config", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND).status).toBe(0);
+
+      mkdirSync(join(cwd, ".arc", "backlog"), { recursive: true });
+      mkdirSync(join(cwd, ".arc", "system"), { recursive: true });
+      writeFileSync(join(cwd, ".gitattributes"), `${ROADMAP_MERGE_ATTRIBUTE}\n`);
+      writeFileSync(join(cwd, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+      writeFileSync(roadmapPath, "# Roadmap\n\nbase\n");
+      expect(git("add", ".").status).toBe(0);
+      expect(git("commit", "-m", "base").status).toBe(0);
+
+      expect(git("switch", "-c", "incoming").status).toBe(0);
+      mkdirSync(
+        join(cwd, ".arc", "system", ".internal", "retirement-receipts"),
+        { recursive: true },
+      );
+      writeFileSync(
+        join(
+          cwd,
+          ".arc",
+          "system",
+          ".internal",
+          "retirement-receipts",
+          "not-a-receipt.json",
+        ),
+        "{}\n",
+      );
+      writeFileSync(roadmapPath, "# Roadmap\n\nincoming\n");
+      expect(git("add", ".").status).toBe(0);
+      expect(git("commit", "-m", "incoming").status).toBe(0);
+
+      expect(git("switch", "main").status).toBe(0);
+      writeFileSync(roadmapPath, "# Roadmap\n\ncurrent\n");
+      expect(git("commit", "-am", "current").status).toBe(0);
+
+      expect(git("merge", "incoming").status).toBe(1);
+      const beforeRoadmap = readFileSync(roadmapPath, "utf8");
+      const beforeUnmerged = git(
+        "ls-files",
+        "--unmerged",
+        "-z",
+        "--",
+        ".arc/backlog/ROADMAP.md",
+      ).stdout;
+      expect(beforeUnmerged).not.toBe("");
+      const beforeStatus = git("status", "--porcelain=v1", "-z").stdout;
+
+      const remedy = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
+        cwd,
+        encoding: "utf8",
+      });
+
+      expect(remedy.status).toBe(1);
+      expect(remedy.stderr).toContain(
+        "Merge transition authority was refused: namespace-corrupt",
+      );
+      expect(readFileSync(roadmapPath, "utf8")).toBe(beforeRoadmap);
+      expect(git(
+        "ls-files",
+        "--unmerged",
+        "-z",
+        "--",
+        ".arc/backlog/ROADMAP.md",
+      ).stdout).toBe(beforeUnmerged);
+      expect(git("status", "--porcelain=v1", "-z").stdout).toBe(beforeStatus);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

@@ -261,9 +261,6 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
       reason: `Cannot record abandon evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
   }
-  if (snapshot.snapshot.recordState !== "absent") {
-    return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
-  }
 
   const workspaceHandler = executor.sideEffects?.["user-workspace"];
   const transitionExecutor = {

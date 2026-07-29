@@ -481,6 +481,32 @@ describe("v3 decomposition plan composition", () => {
     });
   });
 
+  it("accepts every distinct retiring-source path under the shared exclusive role", () => {
+    const input = baseInput();
+    const secondPath = ".arc/backlog/planned/origin/tasks-origin.md";
+    const result = composeV3DecomposePlan({
+      ...input,
+      expectedPaths: [...input.expectedPaths, secondPath],
+      sourceRetirements: [
+        ...input.sourceRetirements,
+        {
+          path: secondPath,
+          before: file("origin tasks"),
+          after: absent,
+        },
+      ],
+    });
+
+    expect(result.status).toBe("composed");
+    if (result.status !== "composed") return;
+    expect(result.plan.mutations.filter((mutation) =>
+      mutation.kind === "exclusive" && mutation.role === "retiring-source",
+    ).map(({ path }) => path)).toEqual([
+      originDraftPath,
+      secondPath,
+    ]);
+  });
+
   it("renders the receipt marker only for decomposition-created leaf metas", () => {
     const rendered = new TextDecoder().decode(renderV3NewLeafMeta("member-a", receiptId, {
       state: "Planning",

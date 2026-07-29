@@ -6,7 +6,13 @@ import {
   resolveConfiguredBaseDecompositionAnchorByReceiptId,
   type ConfiguredBaseDecompositionAnchorDependencies,
 } from "../../../src/lib/work-unit/configured-base-decomposition-anchor.js";
+import {
+  deriveDecompositionLocalCleanupEligibility,
+} from "../../../src/lib/work-unit/decomposition-local-cleanup.js";
 import { v3DecomposeReceiptPath } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
+import {
+  composeLandedDecompositionHandoff,
+} from "../../../src/lib/work-unit/landed-decomposition-handoff.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const PREPARED_BASE = "b".repeat(40);
@@ -48,6 +54,7 @@ function harness(options: {
     "cohort topology",
     "result 0",
     "result 1",
+    "roadmap before",
     "roadmap after",
   ];
   for (const [index, label] of knownPreimages.entries()) {
@@ -236,5 +243,75 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") return;
     expect(result.anchor.receiptId).toBe(receipt.receiptId);
+  });
+
+  it("supplies byte-equal anchor facts to start, landed handoff, and cleanup consumers", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const start = await resolveConfiguredBaseDecompositionAnchorByReceiptId(
+      BASE_REF,
+      receipt.receiptId,
+      harness().deps,
+    );
+    const handoffSelection = await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      harness().deps,
+    );
+    const cleanupSelection = await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      harness().deps,
+    );
+    expect(start.status).toBe("resolved");
+    expect(handoffSelection.status).toBe("resolved");
+    expect(cleanupSelection.status).toBe("resolved");
+    if (start.status !== "resolved"
+      || handoffSelection.status !== "resolved"
+      || cleanupSelection.status !== "resolved") return;
+
+    const handoff = composeLandedDecompositionHandoff({
+      originalSlug: "origin",
+      integrationAnchor: handoffSelection.anchor,
+      publication: {
+        anchor: {
+          ...receipt.finalized.publication.logicalAnchor,
+          displayPath: ".arc/backlog/planned/origin",
+        },
+        entries: receipt.finalized.publication.entries.map((entry) =>
+          entry.kind === "new-leaf"
+            ? {
+              kind: entry.kind,
+              slug: entry.slug,
+              displayPath: `.arc/backlog/planned/origin/${entry.slug}`,
+              readiness: { kind: "ready" as const },
+            }
+            : {
+              ...entry,
+              displayPath: entry.target.kind === "document"
+                ? entry.target.path
+                : `.arc/backlog/planned/${entry.destinationId}`,
+            }),
+      },
+    });
+    const cleanup = deriveDecompositionLocalCleanupEligibility(cleanupSelection, {
+      origin: "origin",
+      branch: "plan/origin",
+      head: "a".repeat(40),
+      locality: "local",
+    });
+    expect(handoff.status).toBe("resolved");
+    expect(cleanup.status).toBe("eligible");
+    if (handoff.status !== "resolved" || cleanup.status !== "eligible") return;
+
+    expect(canonicalize(start.anchor)).toBe(canonicalize(cleanup.cleanup.integrationAnchor));
+    expect(handoff.handoff.authority).toMatchObject({
+      configuredBaseHead: start.anchor.currentBaseHead,
+      receiptId: start.anchor.receiptId,
+      preparationId: start.anchor.preparationId,
+      sourceHead: start.anchor.sourceHead,
+      candidateCommitHead: start.anchor.candidateCommitHead,
+      landedCommitHead: start.anchor.landedCommitHead,
+      landedTree: start.anchor.landedTree,
+    });
   });
 });

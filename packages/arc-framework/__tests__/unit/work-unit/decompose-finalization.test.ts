@@ -4,7 +4,6 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
   authorizeV3DecomposeRefresh,
-  finalizeDecomposeRetirement,
   finalizeV3DecomposeRetirement,
   resolveV3DecomposeFinalizationTransition,
   type V3DecomposeFinalizationContext,
@@ -15,16 +14,6 @@ import {
   type V3ManagedPathResult,
 } from "../../../src/lib/work-unit/decompose-v3-receipt.js";
 import { validateFinalizedV3Decomposition } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
-
-describe("retired v1/v2 decomposition finalization boundary", () => {
-  it("refuses legacy evidence instead of emitting a generic receipt", async () => {
-    expect(await finalizeDecomposeRetirement(
-      {} as never,
-      {} as never,
-      "legacy-authority",
-    )).toEqual({ status: "refused", reason: "unsupported-transition" });
-  });
-});
 
 describe("v3 decomposition finalization boundary", () => {
   type EvidenceFacts = Awaited<
@@ -427,6 +416,25 @@ describe("v3 decomposition finalization boundary", () => {
       status: "refused",
       reason: "projection-mismatch",
       diagnostic: "prospective-projection-mismatch",
+    });
+    expect(harness.writes()).toBe(0);
+  });
+
+  it("returns no authority when the evidence adapter throws", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const harness = fixtureContext();
+    harness.ctx.readEvidence = async () => {
+      throw new Error("evidence read failed");
+    };
+
+    expect(await finalizeV3DecomposeRetirement(
+      harness.ctx,
+      receipt,
+      "authority-v1",
+    )).toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: "evidence read failed",
     });
     expect(harness.writes()).toBe(0);
   });

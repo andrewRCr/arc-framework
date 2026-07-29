@@ -106,6 +106,19 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     });
   });
 
+  it("accepts paired-spec artifacts owned by a new member", () => {
+    const input = validInput();
+    input.completedMap.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "member-a",
+      targetLocator: { artifact: "spec-member-a-prd.md", kind: "preamble" },
+    };
+
+    expect(validateV3DecomposeConservation(input)).toMatchObject({
+      status: "validated",
+    });
+  });
+
   it("refuses duplicate destination identities before allocation projection", () => {
     const input = validInput();
     input.completedMap.authoring.destinations[1] = {

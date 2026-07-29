@@ -250,6 +250,8 @@ describe("decomposition cohort doctrine projection", () => {
     );
 
     expect(projectMethod).toBe(packageMethod);
-    expect(packageMethod).toContain("Every decomposition with more than one new member must select");
+    expect(packageMethod).toMatch(
+      /Every decomposition with more than one new\s+member must select `cohort`, `subcohort`, or `at-cap`/u,
+    );
   });
 });

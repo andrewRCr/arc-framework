@@ -77,13 +77,19 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
+function artifactBelongsToWorkUnit(artifact: string, slug: string): boolean {
+  return artifact.endsWith(`-${slug}.md`)
+    || artifact === `spec-${slug}-prd.md`
+    || artifact === `spec-${slug}-rfc.md`;
+}
+
 function locatorBelongsToDestination(
   destination: V3DecomposeCutMap["authoring"]["destinations"][number],
   locator: V3SourceTargetLocator,
 ): boolean {
   const artifact = locator.artifact;
   if (destination.kind === "new-member") {
-    return artifact.endsWith(`-${destination.slug}.md`);
+    return artifactBelongsToWorkUnit(artifact, destination.slug);
   }
   if (destination.kind === "cohort-coordination") {
     return artifact === `cohort-${destination.cohort.split("/").at(-1)}.md`;
@@ -94,7 +100,7 @@ function locatorBelongsToDestination(
   if (destination.target.kind === "draft-block") {
     return canonicalDigest(destination.target.locator) === canonicalDigest(locator);
   }
-  return artifact.endsWith(`-${destination.target.slug}.md`);
+  return artifactBelongsToWorkUnit(artifact, destination.target.slug);
 }
 
 function destinationIdentity(

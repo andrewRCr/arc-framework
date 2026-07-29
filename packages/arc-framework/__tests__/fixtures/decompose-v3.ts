@@ -23,39 +23,44 @@ import {
   v3SourceId,
   v3SourceInventoryDigest,
   type V3DecomposeCutMap,
+  type V3SourceArtifactEntry,
 } from "../../src/lib/work-unit/decompose-v3-schema.js";
 
 export function v3DecompositionEvidenceFixture(options: {
+  origin?: string;
   sourceHead?: string;
   resultBaseHead?: string;
   digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
+  additionalSourceArtifacts?: readonly V3SourceArtifactEntry[];
 } = {}): {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
 } {
+  const origin = options.origin ?? "origin";
+  const sourceBranch = `plan/${origin}`;
   const digestLabel = options.digestLabel ?? canonicalDigest;
-  const sourceLocator = { artifact: "draft-origin.md", kind: "preamble" as const };
+  const sourceLocator = { artifact: `draft-${origin}.md`, kind: "preamble" as const };
   const sourceUnit = {
-    sourceId: v3SourceId({ sourcePath: ".arc/active/draft-origin.md", sourceLocator }),
-    sourcePath: ".arc/active/draft-origin.md",
+    sourceId: v3SourceId({ sourcePath: `.arc/active/draft-${origin}.md`, sourceLocator }),
+    sourcePath: `.arc/active/draft-${origin}.md`,
     sourceLocator,
     contentDigest: digestLabel("source unit"),
   };
   const incomingEdge = {
     dependent: "consumer",
-    currentTargets: ["origin"],
-    edgeId: v3IncomingEdgeId({ dependent: "consumer", currentTargets: ["origin"] }),
+    currentTargets: [origin],
+    edgeId: v3IncomingEdgeId({ dependent: "consumer", currentTargets: [origin] }),
   };
   const machineFacts = {
     source: {
-      origin: "origin",
+      origin,
       kind: "started-planning" as const,
-      logicalBranch: "plan/origin",
-      ref: "refs/heads/plan/origin",
+      logicalBranch: sourceBranch,
+      ref: `refs/heads/${sourceBranch}`,
       head: options.sourceHead ?? "a".repeat(40),
     },
     resultBase: { ref: "refs/heads/main", head: options.resultBaseHead ?? "b".repeat(40) },
-    planningProfile: { kind: "draft" as const, sourceDesign: ["draft-origin.md"] },
+    planningProfile: { kind: "draft" as const, sourceDesign: [`draft-${origin}.md`] },
     sourceUnits: [sourceUnit],
     incomingEdges: [incomingEdge],
     outgoingEdges: [],
@@ -66,7 +71,7 @@ export function v3DecompositionEvidenceFixture(options: {
     machine,
     authoring: {
       shape: "symmetric",
-      placement: { kind: "cohort", cohort: "origin" },
+      placement: { kind: "cohort", cohort: origin },
       destinations: [
         { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
         { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
@@ -90,17 +95,23 @@ export function v3DecompositionEvidenceFixture(options: {
   };
   const receiptId = v3ReceiptId(machine);
   const resultPaths = [
-    ".arc/backlog/planned/origin/member-a/meta-member-a.md",
-    ".arc/backlog/planned/origin/member-b/meta-member-b.md",
+    `.arc/backlog/planned/${origin}/member-a/meta-member-a.md`,
+    `.arc/backlog/planned/${origin}/member-b/meta-member-b.md`,
   ];
-  const topologyPath = ".arc/backlog/planned/origin/cohort-origin.md";
+  const roadmapPath = ".arc/backlog/ROADMAP.md";
+  const topologyPath = `.arc/backlog/planned/${origin}/cohort-${origin}.md`;
   const recordPath = v3DecomposeReceiptPath(receiptId);
-  const allowedPaths = sortByCanonicalBytes([...resultPaths, topologyPath, recordPath]);
+  const allowedPaths = sortByCanonicalBytes([
+    ...resultPaths,
+    roadmapPath,
+    topologyPath,
+    recordPath,
+  ]);
   const allowedPathsDigest = v3AllowedPathsDigest(allowedPaths);
   if (allowedPathsDigest === null) throw new Error("fixture paths must be canonical");
   const candidatePublication = v3CandidatePublication(
     completedMap,
-    { kind: "cohort", cohort: "origin" },
+    { kind: "cohort", cohort: origin },
   );
   const topologyFacts = [{
     kind: "create" as const,
@@ -128,9 +139,9 @@ export function v3DecompositionEvidenceFixture(options: {
     contentDigest: digestLabel(label),
   });
   const prospectiveProjection = {
-    overlay: { origin: "origin", sourceBranch: "plan/origin", planId },
+    overlay: { origin, sourceBranch, planId },
     roadmap: {
-      path: ".arc/backlog/ROADMAP.md",
+      path: roadmapPath,
       before: file("roadmap before"),
       after: file("roadmap after"),
     },
@@ -139,12 +150,14 @@ export function v3DecompositionEvidenceFixture(options: {
     { destinationId: "member-a", paths: [resultPaths[0]!] },
     { destinationId: "member-b", paths: [resultPaths[1]!] },
   ];
-  const sourceArtifactDigest = v3SourceArtifactDigest([{
+  const sourceArtifactInventory = [{
     path: sourceUnit.sourcePath,
     objectKind: "blob",
     mode: "100644",
     contentDigest: sourceUnit.contentDigest,
-  }]);
+  } satisfies V3SourceArtifactEntry, ...(options.additionalSourceArtifacts ?? [])]
+    .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
+  const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
   if (sourceArtifactDigest === null) throw new Error("fixture source artifacts must be canonical");
   const facts = {
     preflightId: machine.preflightId,
@@ -186,6 +199,11 @@ export function v3DecompositionEvidenceFixture(options: {
     facts,
   };
   const managedPathResults = [
+    {
+      path: roadmapPath,
+      before: prospectiveProjection.roadmap.before,
+      after: prospectiveProjection.roadmap.after,
+    },
     {
       path: topologyPath,
       before: absent,

@@ -720,6 +720,11 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "dcc8a99ec6a47dda4af6330233e0eb75a542f3967987a9fe1ffdaf99dd65b04a"
+    },
+    "system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "327dc3509f21ce717211f5a7dfac1bca62ddbfc294a1b56ec669c47bc29376c4"
     }
   }
 }

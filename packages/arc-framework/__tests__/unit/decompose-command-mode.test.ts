@@ -8,14 +8,29 @@ describe("DecomposeCommandInputSchema", () => {
     expect(DecomposeCommandInputSchema.safeParse({ origin, preflight: true }).success).toBe(true);
   });
 
+  it("accepts the complete read-only landed-handoff mode", () => {
+    expect(DecomposeCommandInputSchema.safeParse({ origin, handoff: true }).success).toBe(true);
+  });
+
+  it.each([
+    { origin, execute: "map.json" },
+    { origin, discard: "map.json" },
+    {
+      origin,
+      finalize: `sha256:${"a".repeat(64)}`,
+      continuation: "continuation.json",
+    },
+  ])("accepts a complete repository command mode: %o", (input) => {
+    expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
+  });
+
   it.each([
     { origin },
+    { origin, preflight: true, handoff: true },
     { origin, preflight: true, cutMap: "map.json" },
     { origin, cutMap: "map.json" },
     { origin, finalize: `sha256:${"a".repeat(64)}` },
     { origin, continuation: "continuation.json" },
-    { origin, discard: "map.json" },
-    { origin, handoff: true },
     {
       origin,
       finalize: `sha256:${"a".repeat(64)}`,

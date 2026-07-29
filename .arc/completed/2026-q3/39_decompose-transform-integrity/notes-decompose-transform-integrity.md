@@ -1,65 +1,90 @@
 # Notes: Decompose Transform Integrity
 
+## Contents
+
+- **Delivery record**
+    - [Manual Decomposition](#manual-decomposition)
+    - [Scope and Size Outcome](#scope-and-size-outcome)
+    - [Manual Delivery Stack](#manual-delivery-stack)
+- **Implementation grounding**
+    - [Implementation Grounding](#implementation-grounding)
+    - [Evidence and Conservation Grounding](#evidence-and-conservation-grounding)
+    - [Preflight and Result Planning Grounding](#preflight-and-result-planning-grounding)
+    - [Planning Authority and Finalization Grounding](#planning-authority-and-finalization-grounding)
+    - [Publication and Workflow Grounding](#publication-and-workflow-grounding)
+    - [Real-Topology Acceptance Grounding](#real-topology-acceptance-grounding)
+- **Contract boundaries**
+    - [Development Receipt Boundary](#development-receipt-boundary)
+    - [Source, Result, and Driver Boundary](#source-result-and-driver-boundary)
+    - [Planning and Launch Boundary](#planning-and-launch-boundary)
+    - [Cohort Topology Boundary](#cohort-topology-boundary)
+    - [Finalization and Consumer Boundary](#finalization-and-consumer-boundary)
+    - [Review Boundary](#review-boundary)
+
 ## Manual Decomposition
 
-This planning branch manually bootstraps the transform topology that the work unit will make reliable. It creates
-no synthetic cut map, preparation, receipt, candidate branch, or automated launch.
+This work unit manually bootstrapped the transform topology before the reliable v3 machinery existed. The split
+created no synthetic cut map, preparation, receipt, candidate branch, or automated launch.
 
-The durable human anchor is `cohort-decompose-transform-integrity.md`. The active origin survives as the core and
-is the initial continuation. Child metas own current dependencies and lifecycle state:
+The durable human anchor is `cohort-decompose-transform-integrity.md`. The origin shipped as the core and was the
+initial continuation. Child metas own their dependencies and lifecycle state:
 
 - `decompose-base-mobility` depends on the core.
 - `decompose-extraction` depends on the core.
 - `decompose-durable-consumers` depends on the core.
 - `decompose-planning-lane` depends on the core and base mobility.
 
-All child artifacts begin at `generate-tasks`. Their task files are provisional content-fill drafts and their
-metadata intentionally retains `Task List: [none]` until each member completes normal task-list finalization.
+All child artifacts began at `generate-tasks`. Their initial task files were provisional content-fill drafts and
+their metadata retained `Task List: [none]` until each member completed normal task-list finalization.
 
-## Scope and Size Estimate
+## Scope and Size Outcome
 
-The pre-split implementation estimate was roughly 12k-17k diff lines. The current low-confidence partition is:
+The pre-split estimate was roughly 12k-17k changed lines across the cohort, with 5k-8.5k assigned to the core. The
+core ultimately landed through 55,065 reviewed changed lines including planning, or 52,050 after the planning-only
+slice. The estimate undercounted the closed-schema test matrix, exact Git and rollback authority, installed-hook
+acceptance surface, review repairs, and the final removal of legacy implementation and tests.
 
-| Member                          | Rough implementation diff |
-| ------------------------------- | ------------------------: |
-| `decompose-transform-integrity` |                   5k-8.5k |
-| `decompose-base-mobility`       |                     1k-2k |
-| `decompose-extraction`          |                   2k-3.5k |
-| `decompose-durable-consumers`   |                   0.8k-2k |
-| `decompose-planning-lane`       |                   1.5k-3k |
+| Delivery              | PR   | Additions | Deletions | Changed lines |
+| --------------------- | ---- | --------: | --------: | ------------: |
+| Planning              | #382 |     2,891 |       124 |         3,015 |
+| Authority             | #383 |     9,487 |     2,921 |        12,408 |
+| Result plan           | #384 |     6,615 |       443 |         7,058 |
+| Finalization          | #385 |    10,999 |       953 |        11,952 |
+| Publication authority | #386 |     4,880 |       273 |         5,153 |
+| Lifecycle publication | #392 |     8,237 |       492 |         8,729 |
+| Legacy retirement     | #393 |       318 |     6,432 |         6,750 |
 
-The core may remain above the normal 5k target, but its remaining surfaces form the one authority spine:
-schema/inventory → exact plan → scaffolding/finalization → publication/projection. Splitting inside that chain now
-would create temporary duplicated validators or an artificial dependency WU rather than an independently useful
-delivery. Review chunking or stacked delivery can separate review/merge boundaries if the measured implementation
-diff reaches the upper end.
+The core remained one authority spine: schema/inventory → exact plan → scaffolding/finalization →
+publication/projection. Its original design boundaries did not all leave an independently coherent mainline tree,
+so the delivery stack required temporary compatibility caps rather than a direct phase-for-PR mapping. The
+measurement gap and cap cost are field evidence for pre-implementation decomposition and bounded-delivery design.
 
 ## Manual Delivery Stack
 
-This work unit uses disposable delivery refs to give each bounded slice its own exact `merge-ok` target while the
-canonical WU state remains anchored to `feat/decompose-transform-integrity`. The local stack begins:
+The work landed through seven append-only delivery refs, giving each bounded slice its own exact `merge-ok` target
+while canonical lifecycle state remained anchored to `feat/decompose-transform-integrity`:
 
-1. `feat/decompose-transform-integrity-delivery-00-planning` — planning and lifecycle artifacts through
-   `421f4caaf`.
-2. `feat/decompose-transform-integrity-delivery-01-authority` — Phase 1 through `31ad6078b`, plus a temporary,
-   self-deleting cap that publishes only the complete read-only v3 preflight.
-3. `feat/decompose-transform-integrity-delivery-02-plan` — Phase 2 through `bb2fb1c46`, inheriting that cap while
-   incomplete v3 mutation and finalization remain dormant.
-4. `feat/decompose-transform-integrity-delivery-03-finalization` — Phase 3 through `4006303c9`, inheriting the
-   cap while the complete internal candidate operation and finalizer remain unpublished.
+1. Planning and lifecycle baseline — PR #382.
+2. Closed v3 transition authority with a temporary self-deleting publication cap — PR #383.
+3. Exact result planning behind the cap — PR #384.
+4. Complete internal candidate operation and finalization behind the cap — PR #385.
+5. Durable transition authority — PR #386.
+6. Complete public lifecycle and cap removal — PR #392.
+7. Legacy v2 retirement — PR #393.
 
-The cap deletes in the first later slice that exposes the complete execute, discard, finalize, landed-handoff, and
-workflow surface. Later implementation slices extend the stack from the preceding landed tree. Delivery refs carry
-no independent ARC meta, notes, or lifecycle identity.
+Each later slice extended the preceding landed tree and carried no independent ARC meta, notes, or lifecycle
+identity. Before retargeting, updated `main` was merged into the slice so the head moved and `merge-ok` evaluated
+the exact new base/head pair. Published refs were never rewritten, and every landed tree was independently green
+and semantically coherent.
 
-For every slice after the first: merge updated `main` into the delivery branch before retargeting its PR to
-`main`; the merge must move the head so `merge-ok` evaluates the exact new base/head pair. Never carry a green
-result across retargeting, rewrite a published delivery ref, or merge a slice whose tree is not independently
-green and semantically coherent. A stalled stack leaves `main` at the last complete slice; the next ref remains
-unmerged and may be abandoned without rollback.
+The first review pass on PR #383 exposed a concrete stacking hazard: accepted repairs had accumulated on a later
+slice. Twelve commits replayed directly, while nine required reconstruction or splitting against the earlier
+surface before the authority slice could land. Later slices reconciled the equivalent repairs once, preserving
+append-only history.
 
-Review chunking applies within each attention-heavy delivery. The complete series also receives union-coverage and
-cross-delivery seam review; no local chunk report or earlier stacked-base result grants terminal authority.
+Review chunking bounded attention within the larger deliveries, while repeated exact-head hosted passes covered
+finding-driven changes. The complete series received union and seam coverage; earlier stacked-base results never
+granted terminal authority. The resulting mainline remained usable if the stack stopped after any landed slice.
 
 ## Implementation Grounding
 
@@ -79,7 +104,7 @@ cross-delivery seam review; no local chunk report or earlier stacked-base result
 - The staged ROADMAP supersession correction landed in `9704cc42c`. Validate it through the real transform and
   implement only remaining transform-local gaps.
 
-## Phase 1 Grounding
+## Evidence and Conservation Grounding
 
 Legacy decomposition evidence has no remaining live obligation. Its two incoming dependency dispositions were
 already materialized directly: `operational-state-docs` depends on `cli-validation-surfaces`, and
@@ -144,7 +169,7 @@ The concentrated regression surfaces are `decompose-content.test.ts`, `decompose
 `sourceAllocations`; replace those conveniences with exhaustive v3 allocations. Preserve the existing
 transactional rollback/finalization cases and migrate their evidence rather than discarding the scenarios.
 
-## Phase 2 Grounding
+## Preflight and Result Planning Grounding
 
 The current preparation projection is checkout-relative. `decompose-retirement-projection.ts` resolves the origin
 through the ambient composed lifecycle index, reads its working-tree meta to discover `Branch`, falls back to the
@@ -249,7 +274,7 @@ claim ID/generation, while exact landed validation owns the other terminal retir
 managed-path composer/materializer before wiring this driver so no independent writer or interim mutation path
 retains live resolver authority.
 
-## Phase 3 Grounding
+## Planning Authority and Finalization Grounding
 
 `scaffoldCohortMembers()` currently derives conventional paths, dependencies, metadata, and generic draft prose
 from the cut map during mutation. Phase 3 replaces that authority with the Phase 2 one-entry-per-path table. The
@@ -341,7 +366,7 @@ composes the generic cohort-consistency result with its exact required-path `Pur
 generic cohort semantics. Recovery rendering consumes a closed action/facts union; validator mismatches alone do
 not prove an operator's cut-map pathname or a candidate/receipt command.
 
-## Phase 4 Grounding
+## Publication and Workflow Grounding
 
 Phase 1 replaces the overloaded `ProjectReadinessProspectiveInput` suppression arm with the shared receipt-blind
 overlay composition seam while preserving ordinary `currentBranch` staged-tree precedence. The immutable plan
@@ -400,7 +425,7 @@ closed handoff/refusal result without reading candidate-only authority into the 
 The workflow and acceptance fixture consume that surface; launch orchestration remains owned by
 `stub-mint-to-launch`.
 
-## Phase 5 Grounding
+## Real-Topology Acceptance Grounding
 
 The canonical acceptance owner is `packages/arc-framework/__tests__/e2e/lifecycle-exit.e2e.test.ts`, but its
 decomposition setup currently replaces the installed hooks with a generated pre-commit shim and imports internal

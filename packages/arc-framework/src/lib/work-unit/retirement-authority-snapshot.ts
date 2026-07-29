@@ -5,7 +5,7 @@
  * the Git index tree, and the adapter storage schema into one opaque digest.
  */
 
-import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../canonical/canonical-json.js";
 import { receiptId } from "../canonical/receipt-id.js";
 import type { GitExec } from "../git/exec.js";
 import { resolveRetirementRecordPath } from "./retirement-record-store.js";
@@ -35,7 +35,6 @@ type SnapshotResult =
 
 type RecordProjection =
   | { status: "resolved"; state: "absent"; digest: null }
-  | { status: "resolved"; state: "prepared-decompose"; digest: string }
   | { status: "refused"; reason: TeardownAuthorizationRefusal };
 
 /**
@@ -157,37 +156,16 @@ async function resolveIndexTree(exec: GitExec, cwd: string): Promise<string> {
 }
 
 async function readRecordProjection(fs: RetirementSnapshotFs, path: string): Promise<RecordProjection> {
-  let content: string;
   try {
-    content = await fs.readFile(path);
+    // Any readable record at this retired v1/v2 path is residual authority and must conflict.
+    await fs.readFile(path);
   } catch (err) {
     if (isNodeError(err) && err.code === "ENOENT") {
       return { status: "resolved", state: "absent", digest: null };
     }
     throw err;
   }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(content);
-  } catch {
-    return { status: "refused", reason: "evidence-mismatch" };
-  }
-  if (!isPreparedDecomposeRecord(value)) {
-    return { status: "refused", reason: "authority-conflict" };
-  }
-  return {
-    status: "resolved",
-    state: "prepared-decompose",
-    digest: digestBytes(Buffer.from(content, "utf8")),
-  };
-}
-
-function isPreparedDecomposeRecord(value: unknown): boolean {
-  return typeof value === "object"
-    && value !== null
-    && (value as Record<string, unknown>).kind === "prepared-decompose"
-    && (value as Record<string, unknown>).schemaVersion === 1;
+  return { status: "refused", reason: "authority-conflict" };
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

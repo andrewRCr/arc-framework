@@ -229,20 +229,20 @@ function comprehensiveCompleted(): V3DecomposeCutMap {
   };
 }
 
-function retainOnlyNewA(map: V3DecomposeCutMap): void {
-  map.authoring.destinations = map.authoring.destinations
+function retainOnlyNewA(value: V3DecomposeCutMap): void {
+  value.authoring.destinations = value.authoring.destinations
     .filter((destination) => destination.kind !== "new-member" || destination.slug === "new-a");
-  map.authoring.internalEdges = map.authoring.internalEdges
+  value.authoring.internalEdges = value.authoring.internalEdges
     .filter(({ from, to }) => from !== "new-b" && to !== "new-b");
-  for (const entry of map.authoring.incomingDispositions) {
-    if (entry.disposition.kind === "replace") {
-      entry.disposition.replacementTargets = entry.disposition.replacementTargets
+  for (const edge of value.authoring.incomingDispositions) {
+    if (edge.disposition.kind === "replace") {
+      edge.disposition.replacementTargets = edge.disposition.replacementTargets
         .filter((target) => target !== "new-b");
     }
   }
-  for (const entry of map.authoring.outgoingDispositions) {
-    if (entry.disposition.kind === "targets") {
-      entry.disposition.targets = entry.disposition.targets.filter((target) => target !== "new-b");
+  for (const edge of value.authoring.outgoingDispositions) {
+    if (edge.disposition.kind === "targets") {
+      edge.disposition.targets = edge.disposition.targets.filter((target) => target !== "new-b");
     }
   }
 }

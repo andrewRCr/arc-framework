@@ -278,7 +278,7 @@ authority; finalization checks mechanics and persists no approval credential.
 
 - _Note:_ Design coverage: D3, D5.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 3 Grounding
+- **Additional Context:** `notes-decompose-transform-integrity.md` § Planning Authority and Finalization Grounding
 
     - `[x]` **3.1.a Materialize one canonical mutation per managed path**
         - The managed optional `Decomposition Receipt` field now omits on ordinary render/reconcile, preserves one
@@ -434,393 +434,275 @@ orchestration the same canonical transition authority.
 _Design decisions:_ Stable identity and initial continuation persist in the receipt. Display path and readiness
 remain live derivations from metas. The core supplies an exact-base integration anchor that later mobility extends.
 
-### `[ ]` **4.1 Select durable transition authority and exact-base integration anchor**
+### `[x]` **4.1 Select durable transition authority and exact-base integration anchor**
 
 - _Goal:_ Durable project and lifecycle consumers select one canonical finalized transition and expose local
   cleanup only from its exact landed anchor.
 
-- _Note:_ Design coverage: D4, D5.
+    - `[x]` **4.1.a Select one overlay from an atomic merge snapshot**
+        - Added a synchronous closed-facts selector and Git adapter that pin HEAD, ordered merge parents, configured
+          base, candidate tree, exact changed paths, receipt provenance, and validator inputs before selection.
+        - Complete namespace authentication, exact candidate derivation, ordered-parent deduplication, non-merge
+          isolation, and final marker/ref/index rereads fail closed; ROADMAP recovery writes only from selected
+          validated authority and leaves refused, ambiguous, stale, or failed snapshots untouched.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
+    - `[x]` **4.1.b Consume the shared exact-base anchor for durable cleanup**
+        - Added local cleanup composition that retains the selected anchor and claim-retirement arm unchanged,
+          binds the exact retiring origin/branch/head, and authorizes only local branch, worktree, and user-workspace
+          cleanup.
+        - Landed handoff now composes from that selected anchor; fast-forward, merge, refusal-matrix, and
+          cross-consumer tests prove the start, handoff, and cleanup paths receive byte-identical authority without
+          granting descendant-base or remote cleanup.
 
-    - `[ ]` **4.1.a Select one overlay from an atomic merge snapshot**
-        - Classify repository operation state and permit operation-parent recovery only for merge. Pin HEAD OID,
-          ordered MERGE_HEAD OIDs, configured-base OID, and an exact index tree OID produced by `write-tree` or an
-          equivalent read-only snapshot.
-        - Build a closed `PinnedMergeValidationFacts` DTO containing exact receipt bytes/provenance, required commit
-          parents, path/object states, and candidate/base facts. Read only from pinned objects, then reread all refs
-          and regenerate the index tree before granting authority; any movement or disappearance fails closed.
-        - Enumerate candidate receipts from the candidate tree and ordered operation parents, deduplicate identical
-          receipt/derivation identities, and accept exactly one distinct candidate only when canonical validation
-          proves its transition derives the pinned candidate tree. Mere receipt presence grants nothing.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary and first-parent-inherited receipt topology select the one deriving candidate.
-            - Same evidence inherited through multiple parents deduplicates, while distinct receipts/derivations,
-              conflicting origins, octopus ambiguity, historical/other-parent-only evidence, and races fail closed.
-            - Rebase, cherry-pick, and revert states receive no inferred operation-parent overlay.
-            - The synchronous selector performs no I/O and adapter failure yields no partial overlay.
+    - `[x]` **4.1.c Gate cleanup through the anchor's claim-retirement arm**
+        - Added a serialized cleanup gate that correlates the anchor-bound full claim, retires only its exact
+          generation to the matching landed terminal, and exposes actionable cleanup solely after retired or
+          matching-idempotent CAS outcomes.
+        - Partial protection proves the deterministic claim key absent without mutation; cleanup failure or
+          incomplete Git/marker/branch absence preserves the terminal registration, while exact completion releases
+          the same generation idempotently.
 
-    - `[ ]` **4.1.b Consume the shared exact-base anchor for durable cleanup**
-        - Reuse the Task 3.2.a `DecompositionIntegrationAnchor` producer over the pinned landed base facts; do not
-          define another anchor shape, landing relation, receipt validator, or history search.
-        - Require byte-equal `preparedBaseHead`, `candidateCommitHead`, `currentBaseHead`, receipt, origin, source
-          head, and `claimRetirement` facts across start, landed handoff, and cleanup consumers. The full arm retains
-          exact claim-ID/generation/branch/opaque-worktree identity; the partial arm remains not-applicable.
-        - Compose decomposition local branch/worktree/user-workspace cleanup eligibility from that anchor.
-          Preserve generic rename/abandon/park policy, authorize no remote cleanup, and leave descendant-base
-          derivation and host/ref enumeration to their child work units.
-        - Build `test-first` (one behavior at a time):
-            - Exact fast-forward and merge landing reuse the earlier producer and yield local-only cleanup
-              eligibility without a second validation path.
-            - Candidate-only, finalized-uncommitted, other-branch, unlanded, base-moved, candidate-moved, invalid,
-              ambiguous, descendant-base-only, and remote-only evidence yield no core cleanup authority.
-            - Start, handoff, and cleanup consumers receive the same anchor bytes for one pinned landing.
+- _Outcome:_ Merge recovery, start, landed handoff, and local teardown now share one exact-base authority. Cleanup
+  is local-only and becomes actionable only after its receipt-carried claim arm is satisfied without weakening
+  retained generic retirement policy or importing descendant-base authority.
 
-    - `[ ]` **4.1.c Gate cleanup through the anchor's claim-retirement arm**
-        - Derive and canonically validate the anchor read-only. For `required`, compare-and-swap retire only its
-          bound `claimId` and generation with terminal `{ kind: landed, receiptId, candidateHead }`; return
-          actionable local cleanup only on `retired` or `already-retired-matching`.
-        - For `not-applicable`, perform no claim CAS and grant cleanup from the exact partial-protection anchor only
-          after proving no matching live or superseded candidate claim exists. Treat `missing-unproven` as a
-          full-required-arm failure, not as a partial-protection prerequisite.
-        - `conflict`, discarded terminal state, concurrent generation, or any unexpected partial matching claim may
-          return non-actionable diagnostics but grant no cleanup eligibility.
-        - After authorized local cleanup succeeds, release the exact terminal generation's worktree registration
-          only when its Git registration, marker, and branch occupation are absent. Preserve terminal registration
-          on failed or incomplete cleanup so restart retains a path-addressable recovery boundary.
-        - Build `test-first` (one behavior at a time):
-            - Exact landing retires one generation and retry is idempotent from matching terminal evidence.
-            - Concurrent/superseded generation, unproven absence, and landed/discarded terminal conflict preserve
-              current ownership and grant no actionable cleanup.
-            - Exact partial landing exposes `not-applicable`, performs no claim read-modify-write, and grants
-              cleanup only when the candidate-claim namespace has no matching live or superseded record.
-            - Validation failure never mutates the claim; claim CAS failure never leaks previously derived
-              actionable authority.
-            - Full-protection cleanup releases only the exact retired registration; failure between retirement,
-              deletion, and release resumes without advancing the generation.
-
-### `[ ]` **4.2 Resolve the landed publication handoff**
+### `[x]` **4.2 Resolve the landed publication handoff**
 
 - _Goal:_ A canonically landed retirement resolves from its original slug into exact live publication and
   operator-selected continuation facts without storing mutable scheduling state.
 
-- _Note:_ Design coverage: D5.
+    - `[x]` **4.2.a Resolve one exact landed publication by original slug**
+        - Added a configured-base Git resolver that selects the canonical exact-base anchor by retired origin,
+          reads publication inputs only from that pinned commit, and closes a second base-ref race after projection.
+        - Absent, corrupt, ambiguous, unlanded, stale, and projection-invalid evidence return closed no-authority
+          results without workspace, remote, descendant-base, or reachable-history discovery.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
+    - `[x]` **4.2.b Resolve live anchor, entries, and selected readiness**
+        - Added a tree-local projector over the full lossless lifecycle composition, exact destination outputs,
+          structural cohort identity, draft locators, documents, and all existing-destination arms.
+        - New leaves reuse the shared readiness aggregate and preserve exact dependency/provider blockers; duplicate,
+          indeterminate, moved-invalid, malformed, and digest-mismatched records or topology fail closed.
 
-    - `[ ]` **4.2.a Resolve one exact landed publication by original slug**
-        - Add a deliberately narrow core resolver over one pinned configured-base commit/tree and original slug.
-          Authenticate the complete base-tree retirement namespace, select exactly one v3 decomposition receipt,
-          and require its canonical `DecompositionIntegrationAnchor`.
-        - Return closed absent, namespace-corrupt, ambiguous, not-landed, stale-base, or resolved outcomes. Do not
-          consult workspace records, reachable-history enumeration, descendant bases, or remote refs.
-        - Reread the configured base ref before returning and include the pinned head in resolved authority.
-        - Build `test-first` (one behavior at a time):
-            - Exact landed evidence resolves from the retired original slug.
-            - Candidate-only, committed-unlanded, other-branch, absent, ambiguous, corrupt, or raced base evidence
-              yields no handoff.
+    - `[x]` **4.2.c Export a facts-only `LandedDecompositionHandoff`**
+        - The stable handoff now exports pinned identities, logical/display anchors, ordered entries, immutable
+          continuation, selected readiness, and launchable selection without receipt bytes, argv, commands, or
+          persisted frontier state.
+        - `draft-stub-mint-to-launch.md` now consumes this contract while retaining launch orchestration ownership.
 
-    - `[ ]` **4.2.b Resolve live anchor, entries, and selected readiness**
-        - From the same pinned landed tree, resolve the publication's logical
-          direct-member/cohort/subcohort/at-cap anchor into a typed display path without creating or repairing
-          topology. Missing, duplicate, moved-invalid, or structural-identity mismatch returns a typed refusal;
-          moved-valid topology may change display only.
-        - Resolve every exact publication entry by its recorded arm. New leaves and existing work units use landed
-          lifecycle records; draft blocks additionally require the exact artifact locator; documents require their
-          exact managed path state in the same pinned tree. Existing destinations remain display entries but never
-          continuation candidates; missing, duplicate, renamed, moved, or kind-mismatched entries fail closed.
-        - Keep immutable `initialContinuation` separate from derived `launchableSelected`. Explicit none always
-          yields no launchable entry; unselected ready leaves never appear; selected blocked leaves remain selected
-          but non-launchable.
-        - Reuse `resolveLaunchReadiness()` from Task 3.3.a over the same lossless pinned composition and shared
-          `DecomposeReadinessDeps` provider. Require exactly one unparked planned `State: Planning` new-leaf record,
-          shipped-only dependency satisfaction, and provider readiness; preserve typed blocked/refused reasons and
-          loci. Absent, duplicate, rejected, wrong-lifecycle, or indeterminate records never become ready through a
-          reduced view or empty-edge default.
-        - Build `test-first` (one behavior at a time):
-            - Direct-member, cohort, subcohort, at-cap, and moved-valid anchors resolve display paths without
-              receipt mutation.
-            - Selected-ready, selected-blocked, unselected-ready, mixed selection, and explicit none produce exact
-              immutable and derived fields.
-            - Missing/invalid entry, existing destination selection, integrating/shipped/parked/nonexistent
-              dependency states, and provider blockers remain distinguishable.
-            - The same receipt against snapshots A and B keeps immutable authority equal while display/readiness
-              derivations change.
+    - `[x]` **4.2.d Expose one read-only landed-handoff command**
+        - Added mutually exclusive `arc decompose <origin> --handoff` schema, CLI, and handler wiring over the
+          configured-base resolver. Resolved and refusal results emit canonical JSON on stdout, with refusal
+          diagnostics on stderr.
+        - The adapter performs only Git object/ref reads, rechecks the configured base after projection, and requires
+          no caller-supplied receipt, object identity, or display path. A built-CLI real-repository case proves exact
+          landed output without changing HEAD, refs, the index, or the worktree.
 
-    - `[ ]` **4.2.c Export a facts-only `LandedDecompositionHandoff`**
-        - Export a stable handoff containing pinned base/receipt identity, logical and display anchor, ordered
-          resolved entries, immutable initial continuation, and derived selected readiness/blockers.
-        - Include no argv, launch execution, resume/status state, or persisted frontier. `stub-mint-to-launch`
-          consumes this contract and owns entry-point-agnostic orchestration.
-        - Build `test-first` (one behavior at a time):
-            - A consumer can select orchestration entirely from typed facts without parsing receipt JSON or prose.
-            - Multiple selected leaves and blockers preserve order and exact loci without precomposed commands.
-            - Update the downstream planning contract to reference this handoff without implementing its launch
-              orchestration in core.
+- _Outcome:_ One base-local, receipt-free handoff now carries immutable publication authority beside live
+  display/readiness derivations. The library, handler, and downstream launch-planning boundary share the same
+  facts-only contract without adding scheduling state or launch execution to the transform.
 
-    - `[ ]` **4.2.d Expose one read-only landed-handoff command**
-        - Add `arc decompose <origin> --handoff` as the public command/handler surface over the core resolver. Make
-          it mutually exclusive with preflight, execute, finalize, and discard modes.
-        - Return one closed machine-readable result for resolved and every refusal status. Keep canonical payload
-          on stdout and diagnostics on stderr; do not expose receipt storage bytes or require a caller-supplied
-          receipt, base OID, candidate OID, or display path.
-        - Pin and recheck the configured base through the resolver. The command changes no ref, index, worktree,
-          claim, or lifecycle record; prepared and committed-unlanded evidence returns `not-landed`.
-        - Make the shipped workflow and real-topology acceptance invoke this command rather than import the
-          resolver or parse a receipt.
-        - Build `test-first` (one behavior at a time):
-            - Exact landing emits the typed facts-only handoff through the built CLI.
-            - Candidate-only, committed-unlanded, absent, corrupt, ambiguous, and raced-base cases emit their exact
-              closed status with no repository mutation.
-            - Mode conflicts and extra positional/option evidence refuse at the handler boundary.
-
-### `[ ]` **4.3 Publish the verb-driven decomposition workflow**
+### `[x]` **4.3 Publish the verb-driven decomposition workflow**
 
 - _Goal:_ One post-authoring interlock reviews semantic distribution while every deterministic proof and recovery
   choice comes from CLI results.
 
-- _Note:_ Design coverage: D6.
+    - `[x]` **4.3.a Bind the immutable result operation to one repository locus**
+        - The repository adapter derives the immutable plan from pinned trees, occupies an exact claim-backed
+          candidate or configured-base locus, revalidates before mutation, materializes and stages final bytes,
+          replaces the receipt placeholder through the durable driver, and returns only bounded restoration or
+          exact candidate-generation retry/discard authority on refusal.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 4 Grounding
+    - `[x]` **4.3.b Expose execute, discard, and finalize through closed command modes**
+        - Mutually exclusive command modes now route through repository-bound execute, exact-generation discard,
+          and pinned finalization adapters. Canonical results retain plan packets, exact next-action commands, and
+          typed recovery authority; handlers only emit adapter-produced facts and remedies.
 
-    - `[ ]` **4.3.a Move the distribution interlock to the authored candidate**
-        - Edit package-source `decompose-work-unit.md` and render its Framework project copy.
-        - Remove the old pre-transform semantic approval. Place exactly one named distribution
-          `workflow-interlock` after every CLI-reported member/existing-home/cohort destination is authored and
-          before the closed continuation input and finalization.
-        - Review actual distributed authority, dependency effects, topology, publication entries, and explicit
-          selected-slugs-or-none continuation. Author only the closed continuation-input file and invoke the exact
-          CLI-reported finalize-with-continuation command; never edit preparation or receipt JSON.
-        - Preserve commit, push, and integration interlocks solely as release controls.
+    - `[x]` **4.3.c Move the distribution interlock to the authored candidate**
+        - The sole semantic interlock now reviews the fully authored result and continuation disposition before the
+          workflow writes only the reported continuation input and invokes the exact reported finalization command.
 
-    - `[ ]` **4.3.b Replace mechanics with verbs and reported remedies**
-        - Dispatch in the spec-defined order: preflight starter map; operator-owned semantic completion; exact
-          prepare/materialize; author every result-packet destination; distribution interlock/continuation
-          selection; typed finalize-with-continuation; protection-mode ship; landed facts-only handoff.
-        - Iterate CLI profile/topology packets containing exact paths, dispositions, and authoring requirements.
-          Remove workflow-side Git topology, schema/JSON/digest/receipt construction, branch/worktree mutation,
-          topology repair/validation, and recovery reconstruction.
-        - Stop on every refusal, display only the CLI-rendered typed status/remedy, and re-enter only at the
-          action-indicated step. Never invent retry/discard/re-preflight/reauthor commands or placeholder facts.
-        - Remove extension-owned extraction, source-thinning, multi-member cohortless, planning-lane, mobility,
-          durable-enumeration, and remote-cleanup arms. Core reports the landed handoff; it does not launch members.
+    - `[x]` **4.3.d Replace mechanics with verbs and reported remedies**
+        - The eight-step workflow consumes ordered CLI packets, statuses, and remedies without constructing Git
+          topology, evidence, recovery commands, extension-owned transforms, or launch behavior.
 
-    - `[ ]` **4.3.c Route release controls by protection mode**
-        - Under partial protection, run the commit interlock and direct configured-base commit only; include no
-          pre-push extension, push, PR, integration interlock, or merge sequence.
-        - Under full protection, use the existing CLI-reported candidate branch without creating/switching/deleting
-          it, then order finalize success, commit interlock/`workflowCommit`, `pre-push-review`, push
-          interlock/`workflowPush`, PR status, integration interlock, and merge.
-        - Route post-landing handoff and exact reported local cleanup/claim outcomes without reconstructing
-          teardown authority.
-        - Build `test-first` (one behavior at a time):
-            - Partial and full render mutually exclusive release sequences.
-            - Full protection preserves extension and release-interlock dominance; partial contains none of its
-              push/PR/merge controls.
-            - No workflow command creates or deletes a Git branch/worktree.
+    - `[x]` **4.3.e Route release controls by protection mode**
+        - Partial protection ends at the direct configured-base commit. Full protection alone carries the reported
+          candidate through commit, pre-push review, push, PR status, integration approval, and policy-selected merge.
 
-    - `[ ]` **4.3.d Verify workflow and package/project parity**
-        - Add a focused decomposition workflow contract test over ordered stable headings/markers, one named
-          distribution interlock, typed continuation/finalization, profile/topology packets, recovery control flow,
-          protection-mode release arms, and facts-only handoff.
-        - Allow only decompose preflight/execute/finalize-with-continuation, exact reported remedies, release
-          routing, full-protection PR control, and landed handoff command families. Separately forbid Git plumbing,
-          handwritten schemas/digests/receipt mechanics, branch/worktree mutation, topology repair/validation, and
-          invented recovery.
-        - Render package source with `npm run render:framework`; verify the focused contract, existing generic
-          release-interlock dominance, framework sync, Markdown lint, and ARC methodology contract checks.
+    - `[x]` **4.3.f Verify workflow and package/project parity**
+        - Focused and generic contracts cover lifecycle order, semantic and release interlocks, exact reported
+          continuation/recovery, forbidden Git mechanics, installed recipe membership, and rendered-copy parity.
+
+- _Outcome:_ The installed workflow exposes the complete repository-bound retirement lifecycle while keeping
+  deterministic authority and recovery in typed CLI results and semantic distribution at one human interlock.
 
 ## **Phase 5:** Real-topology core acceptance
 
 _Purpose:_ Prove the complete retirement core at the command, hook, landing, project-projection, publication, and
 local-cleanup boundaries without importing extension-owned matrices.
 
-### `[ ]` **5.1 Exercise the canonical retirement lifecycle**
+### `[x]` **5.1 Exercise the canonical retirement lifecycle**
 
 - _Goal:_ A realistic started work unit reaches a landed, origin-addressable, launch-ready result using only
   machine-produced proof and the installed ARC surface.
 
-- _Note:_ Design coverage: D1-D6. This is acceptance composition, not the implementation home for lower-tier
-  behavior.
+    - `[x]` **5.1.a Build the realistic decomposition fixture**
+        - Normal initialization now drives a full-protection `stub → start` topology through the installed hook
+          chain and a local bare remote. The base retains its planned draft predecessor while `plan/origin` owns
+          paired-spec planning plus a nontrivial task seed.
+        - A committed source rider refuses before candidate occupation, its committed revert forces a new exact
+          source head, and canonical non-TTY preflight is checkout-independent and mutation-free. The persisted
+          symmetric three-leaf map edits only public author slots and preserves the machine envelope byte-for-byte.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
+    - `[x]` **5.1.b Drive one canonical started retirement**
+        - The built CLI now carries the authored candidate through prepared-commit refusal, atomic finalization,
+          installed commit/push hooks, exact-base merge, manifest and no-rider proof, and origin-addressed landed
+          handoff with exact selected, blocked, and unselected readiness.
+        - Explicit `arc teardown origin` consumes the same anchor, retires and releases the bound claim
+          idempotently, removes only exact local source/candidate projections, preserves remote refs, and leaves no
+          local worktree or branch residue.
 
-    - `[ ]` **5.1.a Build the realistic decomposition fixture**
-        - Keep the canonical acceptance black-box: import only Node built-ins and run the built CLI. Initialize a
-          repository normally, set `branch.protection: full`, and assert `core.hooksPath` remains
-          `.arc/system/.internal/githooks` with the installed `pre-commit`, `commit-msg`, and `pre-push` chain.
-        - Name fixture-only setup helpers as hook-bypassing and restrict them to repository bootstrap before the
-          acceptance history. Use plain `git commit` through the installed chain for a valid control commit and
-          every candidate/finalization commit; remove the synthetic decomposition-only hook installer.
-        - Through built CLI commands, create and commit a planned predecessor on the configured base, then start it
-          onto source branch `plan/origin` and its attached worktree. Commit branch-private paired-spec planning
-          authority with a nontrivial provisional task seed while the base retains the exact planned predecessor.
-        - Assert configured primary/base/source refs, registered source worktree, merge base, exact heads,
-          predecessor bytes, the absence of source-only bytes from base, and the absence of the deterministic
-          candidate ref/worktree/claim. Use a local bare remote for synchronization and no network.
-        - Commit one unrelated source rider and prove pre-occupation validation refuses before any candidate,
-          claim, or result path exists. Revert the rider in committed source history, rerun preflight, and continue
-          only from the new exact source head.
-        - Run `--preflight` through an explicitly non-TTY helper that keeps stdout and stderr separate. Persist its
-          canonical stdout, prove it changes no ref/index/worktree/claim state, and obtain the same source binding
-          from the source and another attached checkout.
-        - Complete the map as an explicitly symmetric retirement with at least three new leaves and no existing
-          home, using only the documented semantic allocation, ownership, and dependency slots. Compare the decoded
-          map before and after authoring so every machine-owned field remains byte-for-byte equal.
+- _Outcome:_ The canonical installed lifecycle proves receipt-backed publication, projection, handoff, and
+  local-only cleanup as one exact full-protection topology without importing lower-tier implementation seams.
 
-    - `[ ]` **5.1.b Drive one canonical started retirement**
-        - Exercise candidate occupation, exact tuple/cohort materialization, semantic authoring, the fixture's
-          explicit post-authoring continuation file, and atomic finalization. Prove checkpoint order without
-          fabricating an approval token or claiming automated proof of semantic fidelity; the receipt contains no
-          approval credential.
-        - Before finalization, prove the installed hook chain rejects the prepared candidate commit. Finalize once,
-          assert an immediate no-change retry returns `already-finalized`, then commit normally with a valid ARC
-          message through the commit-relevant installed hooks and push to the local bare remote through
-          `pre-push`.
-        - While prepared and again while committed-unlanded, use only public read-only status and `--handoff`
-          queries from the base checkout. Assert candidate members remain absent, handoff is non-landed, and no
-          query mutates the base or candidate; do not probe with `arc start`.
-        - Assert the candidate projection suppresses the retired origin while the configured-base ROADMAP and
-          predecessor remain unchanged. Land with a real exact-base non-fast-forward Git merge, never by copying
-          files or moving refs, and do not advance the base after landing. Re-render without a supplied overlay and
-          require the same converged project view.
-        - After landing, resolve the public handoff by original slug. Assert one selected ready new leaf, one
-          blocked published new leaf with its exact dependency locus, and one unselected ready new leaf.
-        - Assert the exact managed-path manifest with blob OIDs and modes, no extra paths, paired-spec member
-          metadata, provisional-task non-authority, logical/display anchor, receipt/base/candidate identities, and
-          unchanged source ref/tree.
-        - Assert the live claim's exact generation and binding suppress only its candidate warning while a
-          simultaneous recordless `chore/decompose-*` branch still warns. Exact landing retires the claim to
-          matching `{ kind: landed, receiptId, candidateHead }`; retry is already-retired-matching.
-        - Derive local-only teardown eligibility and claim retirement from the same canonical landing result.
-          Grant no remote cleanup, keep the source branch/worktree until explicit fixture teardown, and finish with
-          no stray worktrees, live claims, refs, or temporary repositories.
-
-### `[ ]` **5.2 Cover representative core variants without a cross-product**
+### `[x]` **5.2 Cover representative core variants without a cross-product**
 
 - _Goal:_ Focused command and integration cases prove the remaining core shapes without repeating the canonical
   full-protection lifecycle.
 
-- _Note:_ Design coverage: D2-D6. Extension-owned lifecycle matrices remain outside this phase.
+    - `[x]` **5.2.a Combine partial protection, heterogeneous allocation, and cohortless eligibility**
+        - A built-command case now refuses stale existing-home bytes without mutation, then retires one direct
+          member on the exact partial base with targeted document and dependency edits. Canonical finalization,
+          typed existing-destination publication, the not-applicable anchor arm, and the absence of candidate,
+          claim, remote, cohort, or continuation authority for existing homes are proved together.
 
-- **Additional Context:** `notes-decompose-transform-integrity.md` § Phase 5 Grounding
+    - `[x]` **5.2.b Exercise a configured-ref backlog-stub retirement**
+        - A real-Git command case now resolves a single-spec stub directly from `refs/heads/main`, removes its exact
+          predecessor, publishes profile-correct cohort members, finalizes on the partial base, and resolves the
+          not-applicable anchor without source/candidate worktrees or claims. Empty source parents prune through
+          the shared bounded helper while nonempty parents and their unrelated bytes remain intact.
 
-    - `[ ]` **5.2.a Combine partial protection, heterogeneous allocation, and cohortless eligibility**
-        - Use one partial-protection retirement with exactly one new leaf plus existing destinations, so the
-          one-new-member cohortless rule is exercised without importing extraction or leaving a surviving origin.
-        - Assert direct exact-base materialization/finalization, no candidate branch/worktree or transient claim,
-          anchor `claimRetirement: { kind: not-applicable, protection: partial }`, no claim CAS, and no push, PR,
-          integration, or remote-cleanup surface.
-        - Apply only exact allocated edits to existing-home artifacts. Assert no existing-home meta scaffold or
-          wholesale re-render, exact dependency disposition, canonical v3 finalization, and a refusal on stale
-          existing-home before-state before any write.
-        - Assert every existing destination publishes its exact typed identity but never enters continuation
-          selection.
+    - `[x]` **5.2.c Own topology and installation assertions at their narrow seams**
+        - Existing pure planner/materializer suites own the standalone, nested, missing-parent, at-cap,
+          single-member, refusal, provenance, and idempotency matrix. A built-command case now proves
+          destination-owned multi-member direct placement refuses without candidate, claim, or path mutation.
+        - Ordinary initialization now proves the installed workflow has exactly one reviewed distribution
+          interlock between authoring and finalization, with no planning-lane or `arc-cleared` surface.
 
-    - `[ ]` **5.2.b Exercise a configured-ref backlog-stub retirement**
-        - Run this case under partial protection. Resolve the committed source from its configured ref with no
-          active source workspace. Assert exact predecessor removal, canonical receipt/publication, profile-correct
-          new members, and correct empty-parent pruning or nonempty-parent preservation.
-        - Assert the explicit partial `candidateOwnership`/`claimRetirement` arms, no source-worktree teardown, no
-          candidate branch/worktree, no transient claim or claim CAS, and no full-protection behavior. Keep this a
-          focused command/integration case rather than a second complete lifecycle.
+- _Outcome:_ The bounded variant set closes partial/direct, configured-ref, topology, materialization, and default
+  installation behavior without duplicating the canonical full-protection lifecycle or importing extraction,
+  base-mobility, planning-lane, durable-consumer, or live-remote-cleanup matrices.
 
-    - `[ ]` **5.2.c Own topology and installation assertions at their narrow seams**
-        - Add a pure planner/materializer table for standalone cohort, in-cohort subcohort, missing-parent backfill,
-          at-cap provenance/idempotency, and eligible single-new-member cohortless placement.
-        - Add a destination-owned v3 multi-member cohortless refusal before candidate, claim, or path creation;
-          do not satisfy it with an extraction-shaped surviving origin.
-        - Piggyback one ordinary-install assertion that the default shipped workflow contains the reviewed
-          distribution interlock while planning-lane and `arc-cleared` behavior are absent/inactive.
-        - Keep the canonical full lifecycle only in Task 5.1. Exclude extraction, committed-unlanded refresh,
-          descendant-base landing, planning-lane automation, durable enumeration, narrative reconciliation, and
-          live-remote cleanup; retain core ownership of uncommitted refresh and exact-base local cleanup.
+### `[x]` **5.R Retire the residual v2 decomposition surface**
+
+- _Goal:_ Decomposition ships one v3 authoring and authority path, with no callable v2/extraction compatibility
+  surface or stale workflow dependency left behind.
+
+    - `[x]` **5.R.a Prove the v3-only authority boundary**
+        - Added a source-boundary contract that rejects legacy v2 modules, authority entrypoints, executor symbols,
+          and stale method terms while preserving the generic receipt behavior owned by rename, abandon, and park.
+
+    - `[x]` **5.R.b Remove legacy authoring, execution, and authority adapters**
+        - Deleted the standalone v2 codec, executor, inventory, placement, and verb surfaces; narrowed shared
+          transition adapters to retained generic behavior; and removed tests owned only by the retired path.
+
+    - `[x]` **5.R.c Repair shipped methodology seams**
+        - Recast cohort assessment around v3 authoring, removed the park workflow's deleted choreography reference,
+          and synchronized the implemented `--execute` command across the shipped quick-reference pair.
+
+- _Outcome:_ Decomposition now exposes one v3-only authoring and authority chain across production, tests, and
+  shipped methodology while rename, abandon, and park retain their generic transition behavior.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown/ARC contract lint, TypeScript/shell lint, source/test typechecking, build, and full
+  Vitest matrix — all passed (8,373 passed, 1 skipped).
+- _Success criteria:_ 43 criteria met; two adversarial verification passes converged after the v3-only retirement
+  and final shipped-reference corrections.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` V3 is the only decomposition authoring and authority schema; old decomposition records and
+- `[x]` V3 is the only decomposition authoring and authority schema; old decomposition records and
   decomposition-specific legacy machinery are gone after their self-hosting obligations are resolved.
-- `[ ]` Preflight binds one exact committed source, emits canonical JSON only on stdout, and changes no repository
+- `[x]` Preflight binds one exact committed source, emits canonical JSON only on stdout, and changes no repository
   state.
-- `[ ]` Source selection uses only self-authenticating local branch refs or the exact configured-base predecessor;
+- `[x]` Source selection uses only self-authenticating local branch refs or the exact configured-base predecessor;
   checkout, remote refs, aliases, and ref order cannot change or ambiguously choose the source.
-- `[ ]` Starter and completed maps share one exact machine envelope; scalar, collection, source-allocation, and
+- `[x]` Starter and completed maps share one exact machine envelope; scalar, collection, source-allocation, and
   dependency-disposition author slots cannot alter machine identity.
-- `[ ]` Preflight derives the planning profile from the pinned source before starter emission and rederives it with
+- `[x]` Preflight derives the planning profile from the pinned source before starter emission and rederives it with
   every other machine field before completed-map authority.
-- `[ ]` Every v3 nested wire record, preparation/receipt envelope, ordering rule, and canonical digest preimage is
+- `[x]` Every v3 nested wire record, preparation/receipt envelope, ordering rule, and canonical digest preimage is
   closed and byte-fixtured under a decomposition-specific version-plus-kind namespace arm.
-- `[ ]` Source-artifact and source/incoming/outgoing inventory digests have explicit versioned preimages over exact
+- `[x]` Source-artifact and source/incoming/outgoing inventory digests have explicit versioned preimages over exact
   stored mode/bytes or canonical machine arrays.
-- `[ ]` Public v3 authoring admits only started-planning/backlog-stub symmetric or heterogeneous retirement;
+- `[x]` Public v3 authoring admits only started-planning/backlog-stub symmetric or heterogeneous retirement;
   extraction and surviving-origin topology remain outside the core codecs.
-- `[ ]` Preparation and receipts bind one immutable candidate-ownership arm, so landing cannot infer protection or
+- `[x]` Preparation and receipts bind one immutable candidate-ownership arm, so landing cannot infer protection or
   claim generation from current configuration.
-- `[ ]` Full-protection occupation uses the exact repository-common claim key/store, atomic generation CAS, and
+- `[x]` Full-protection occupation uses the exact repository-common claim key/store, atomic generation CAS, and
   latest-terminal retention bound; missing, malformed, or superseded records fail closed.
-- `[ ]` Candidate worktree identity is deterministic from claim/generation and its crash-recoverable
+- `[x]` Candidate worktree identity is deterministic from claim/generation and its crash-recoverable
   intended/registered/released path mapping remains machine-local and absent from preparation/receipt identity.
-- `[ ]` A post-acquire `pending/unregistered` generation is resumable without path authority; crash and collision
+- `[x]` A post-acquire `pending/unregistered` generation is resumable without path authority; crash and collision
   handling preserve it unless guarded rollback proves no observer or mutation can exist.
-- `[ ]` Preparation binds the exact candidate publication and constitutive topology before execution; authoring and
+- `[x]` Preparation binds the exact candidate publication and constitutive topology before execution; authoring and
   finalization validate but never re-project them.
-- `[ ]` One canonical path registry rejects exclusive-role collisions and composes valid
+- `[x]` One canonical path registry rejects exclusive-role collisions and composes valid
   topology/content/dependency overlap into one final per-path mutation before occupation.
-- `[ ]` Managed path results cover every non-receipt allowed path exactly once; transition patches are precisely
+- `[x]` Managed path results cover every non-receipt allowed path exactly once; transition patches are precisely
   the changed subset and unchanged reuse paths remain explicit.
-- `[ ]` Markdown inventory is byte-exhaustive and non-overlapping from preamble through H2-H6.
-- `[ ]` Allocation, ownership, dependency, profile, topology, predecessor, rider, path-state, and mode violations
+- `[x]` Markdown inventory is byte-exhaustive and non-overlapping from preamble through H2-H6.
+- `[x]` Allocation, ownership, dependency, profile, topology, predecessor, rider, path-state, and mode violations
   refuse before candidate creation.
-- `[ ]` Full and partial protection create, resume, recover, and discard only the exact validated result.
-- `[ ]` Every decomposition has an origin-addressable logical anchor; multi-member cohortless fan-out refuses.
-- `[ ]` Cohort topology contributes only planned composed edits, preserves existing docs outside authorized content
+- `[x]` Full and partial protection create, resume, recover, and discard only the exact validated result.
+- `[x]` Every decomposition has an origin-addressable logical anchor; multi-member cohortless fan-out refuses.
+- `[x]` Cohort topology contributes only planned composed edits, preserves existing docs outside authorized content
   composition, reports exact paths, appends provenance once, and blocks finalization until Purpose floors are
   authored.
-- `[ ]` Draft/single/paired members preserve planning maturity and provisional tasks remain non-authoritative.
-- `[ ]` One exact-base anchor producer precedes start and is reused byte-for-byte by start, landed handoff, and
+- `[x]` Draft/single/paired members preserve planning maturity and provisional tasks remain non-authoritative.
+- `[x]` One exact-base anchor producer precedes start and is reused byte-for-byte by start, landed handoff, and
   cleanup for both fast-forward and merge landing.
-- `[ ]` New leaves alone carry an exact optional decomposition-receipt marker; `arc start` validates its landed
+- `[x]` New leaves alone carry an exact optional decomposition-receipt marker; `arc start` validates its landed
   publication, preserves or derives workflow semantics, and removes it only in the successful atomic ceremony;
   ordinary rendering and reconciliation never emit or backfill the field.
-- `[ ]` Start consumes one validated atomic graduation transaction that owns branch/worktree, artifact, meta, and
+- `[x]` Start consumes one validated atomic graduation transaction that owns branch/worktree, artifact, meta, and
   index mutation/rollback without changing other lifecycle verbs' forward-recovery contract.
-- `[ ]` Atomic start preserves supplied Class, managed-field reconciliation, backfill notices, and the existing
+- `[x]` Atomic start preserves supplied Class, managed-field reconciliation, backfill notices, and the existing
   successful `GraduateResult` surface without post-transaction meta writes.
-- `[ ]` Finalization is idempotent and refreshes only approved fully staged uncommitted destination refinement
+- `[x]` Finalization is idempotent and refreshes only approved fully staged uncommitted destination refinement
   while preserving byte-identical `initialContinuation`.
-- `[ ]` Commit validation, project projection, merge recovery, and exact-base integration anchors consume the same
+- `[x]` Commit validation, project projection, merge recovery, and exact-base integration anchors consume the same
   canonical v3 authority.
-- `[ ]` Shared record enumeration, reference reconciliation, and dependent-disposition queries explicitly consume
+- `[x]` Shared record enumeration, reference reconciliation, and dependent-disposition queries explicitly consume
   v3 preparation/receipt arms while retained generic transition behavior remains unchanged.
-- `[ ]` Final receipts store exact publication entries and typed continuation while live display and readiness stay
+- `[x]` Final receipts store exact publication entries and typed continuation while live display and readiness stay
   derived.
-- `[ ]` Publication entries follow canonical destination-ID order after coordination filtering, and continuation
+- `[x]` Publication entries follow canonical destination-ID order after coordination filtering, and continuation
   preserves the resulting new-leaf subsequence.
-- `[ ]` Candidate continuation and landed handoff reuse `resolveLaunchReadiness()` with identical lifecycle,
+- `[x]` Candidate continuation and landed handoff reuse `resolveLaunchReadiness()` with identical lifecycle,
   shipped-only dependency, and configured-provider semantics; absent or invalid records fail closed.
-- `[ ]` Readiness consumes one lossless pinned composition with accepted and rejected record facts, and both paths
+- `[x]` Readiness consumes one lossless pinned composition with accepted and rejected record facts, and both paths
   receive the same required typed provider through the shared decomposition dependency bundle; production adapts
   the existing batch provider without changing its public interface.
-- `[ ]` Work-unit, draft-block, and document existing destinations publish exact typed identities and are never
+- `[x]` Work-unit, draft-block, and document existing destinations publish exact typed identities and are never
   continuation-eligible.
-- `[ ]` Finalization consumes one closed continuation file and seals it atomically without an approval credential.
-- `[ ]` Plan-derived candidate projection and receipt-validated project authority produce an exact parity-checked
+- `[x]` Finalization consumes one closed continuation file and seals it atomically without an approval credential.
+- `[x]` Plan-derived candidate projection and receipt-validated project authority produce an exact parity-checked
   ROADMAP without circular finalization authority.
-- `[ ]` The public landed-handoff command is read-only, refuses candidate-time authority, and returns only typed
+- `[x]` The public landed-handoff command is read-only, refuses candidate-time authority, and returns only typed
   base-rooted facts.
-- `[ ]` Full-protection candidates use exact transient ownership claims, never branch-prefix exemptions, and leave
+- `[x]` Full-protection candidates use exact transient ownership claims, never branch-prefix exemptions, and leave
   no live-claim residue after landing or discard.
-- `[ ]` Partial-protection anchors encode claim retirement as not applicable and grant cleanup without claim CAS
+- `[x]` Partial-protection anchors encode claim retirement as not applicable and grant cleanup without claim CAS
   only when no unexpected matching claim exists.
-- `[ ]` The shipped workflow has one semantic distribution interlock and no operator-authored proof mechanics.
-- `[ ]` Real-topology acceptance uses normal initialization, installed hooks, exact-base landing, publication
+- `[x]` The shipped workflow has one semantic distribution interlock and no operator-authored proof mechanics.
+- `[x]` Real-topology acceptance uses normal initialization, installed hooks, exact-base landing, publication
   handoff, and receipt-backed local cleanup eligibility.
-- `[ ]` Ordinary installs remain reviewed and default-off from planning-lane automation.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` Ordinary installs remain reviewed and default-off from planning-lane automation.
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
