@@ -348,13 +348,15 @@ export async function executeV3DecomposeOperation(
       const mutatedPaths = materialization.paths
         .filter(({ disposition }) => disposition === "applied")
         .map(({ path }) => path);
-      const recovery = occupation.protection === "partial"
-        ? await restorePartial(
-            partialPreimages,
-            mutatedPaths,
-            dependencies.partialRecovery as V3PartialRecoveryIO,
-          )
-        : fullRecovery(input.plan, occupation);
+      let recovery;
+      if (occupation.protection === "partial") {
+        if (partialRecovery === undefined) {
+          throw new Error("partial recovery dependency lost after capture");
+        }
+        recovery = await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
+      } else {
+        recovery = fullRecovery(input.plan, occupation);
+      }
       return {
         status: "refused",
         stage: recovery.kind === "partial-restoration" && recovery.status === "failed"

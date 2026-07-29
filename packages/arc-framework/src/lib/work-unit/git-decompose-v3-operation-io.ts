@@ -287,17 +287,22 @@ async function repositoryChanged(
   return stdout !== "";
 }
 
-async function readIndexState(
+interface IndexEntry {
+  mode: "100644" | "100755";
+  bytes: Uint8Array;
+}
+
+async function readIndexEntry(
   exec: GitExec,
   cwd: string,
   path: string,
-): Promise<V3PlanCanonicalPathState> {
+): Promise<IndexEntry | null> {
   const { stdout } = await exec(
     "git",
     ["ls-files", "--stage", "-z", "--", literalPath(path)],
     { cwd },
   );
-  if (stdout === "") return { kind: "absent" };
+  if (stdout === "") return null;
   const entries = stdout.split("\0").filter(Boolean);
   const match = entries.length === 1
     ? /^(100644|100755) [0-9a-f]{40,64} 0\t/u.exec(entries[0] ?? "")
@@ -306,15 +311,25 @@ async function readIndexState(
   if (mode !== "100644" && mode !== "100755") throw new Error(`Unsupported index state: ${path}`);
   const bytes = await readGitBlobBytes(cwd, null, validateManagedPath(path));
   if (bytes === null) throw new Error(`Unreadable index state: ${path}`);
-  return { kind: "file", mode, contentDigest: digestBytes(bytes) };
+  return { mode, bytes };
+}
+
+async function readIndexState(
+  exec: GitExec,
+  cwd: string,
+  path: string,
+): Promise<V3PlanCanonicalPathState> {
+  const entry = await readIndexEntry(exec, cwd, path);
+  return entry === null
+    ? { kind: "absent" }
+    : { kind: "file", mode: entry.mode, contentDigest: digestBytes(entry.bytes) };
 }
 
 async function readIndexImage(exec: GitExec, cwd: string, path: string): Promise<V3PartialPathImage> {
-  const state = await readIndexState(exec, cwd, path);
-  if (state.kind === "absent") return state;
-  const bytes = await readGitBlobBytes(cwd, null, validateManagedPath(path));
-  if (bytes === null) throw new Error(`Unreadable index image: ${path}`);
-  return { kind: "object", objectKind: "blob", mode: state.mode, bytes };
+  const entry = await readIndexEntry(exec, cwd, path);
+  return entry === null
+    ? { kind: "absent" }
+    : { kind: "object", objectKind: "blob", mode: entry.mode, bytes: entry.bytes };
 }
 
 async function readWorktreeImage(cwd: string, path: string): Promise<V3PartialPathImage> {

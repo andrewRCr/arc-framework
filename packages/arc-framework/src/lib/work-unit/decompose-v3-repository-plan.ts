@@ -311,9 +311,7 @@ function sourceArtifactState(
   sourceTree: V3RepositoryPlanTree,
   sourceName: string,
 ): V3RepositoryPlanState {
-  const sourceDir = posix.dirname(map.machine.source.kind === "started-planning"
-    ? map.machine.sourceUnits[0]?.sourcePath ?? ""
-    : map.machine.sourceUnits[0]?.sourcePath ?? "");
+  const sourceDir = posix.dirname(map.machine.sourceUnits[0]?.sourcePath ?? "");
   return stateAt(sourceTree, posix.join(sourceDir, sourceName));
 }
 
@@ -475,7 +473,7 @@ function contentContributions(
   baseTree: V3RepositoryPlanTree,
   baseMetas: readonly TreeMeta[],
   topology: readonly V3TopologyAction[],
-  scaffolds: ReturnType<typeof newMemberScaffolds> & {},
+  scaffolds: NonNullable<ReturnType<typeof newMemberScaffolds>>,
 ): { content: V3PlannedContentContribution[]; states: V3RepositoryPlanTree } | null {
   const content = [...scaffolds.content];
   const states = cloneTree(baseTree);

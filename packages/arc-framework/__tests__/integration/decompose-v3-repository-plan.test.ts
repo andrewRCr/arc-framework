@@ -410,6 +410,28 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("preserves unexpected Git adapter diagnostics in the refusal locus", async () => {
+    const { completedMap, dependencies } = await startedRepository();
+    const result = await composeGitV3RepositoryPlan({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        if (command === "git" && args[0] === "rev-parse" && args[1] === "--short") {
+          throw new Error("synthetic Git read failure");
+        }
+        return await dependencies.exec(command, args, options);
+      },
+    }, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "repository-plan-failed",
+        locus: "synthetic Git read failure",
+      },
+    });
+  });
+
   it("refuses moved source or base authority before claiming a candidate", async () => {
     for (const movedRef of ["plan/origin", "main"]) {
       const { repo, completedMap, dependencies } = await startedRepository();

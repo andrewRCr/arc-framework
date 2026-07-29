@@ -47,19 +47,24 @@ vi.mock("../../../src/lib/io-context.js", () => ({
   readGitObjectBytes: vi.fn(),
 }));
 
+const mockReadConfigSettings = vi.fn();
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
-  readConfigSettings: async () => ({
+  readConfigSettings: (...args: unknown[]) => mockReadConfigSettings(...args),
+}));
+
+function configResult(protection: "full" | "partial" = "partial") {
+  return {
     settings: {
       "team.mode": "false",
       "branch.base": "main",
-      "branch.protection": "partial",
+      "branch.protection": protection,
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     },
     warnings: [],
-  }),
-}));
+  };
+}
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
 vi.mock("../../../src/lib/paths.js", () => ({
@@ -321,6 +326,8 @@ const cleanReconcile = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
+  mockReadFile.mockResolvedValue("{}");
+  mockReadConfigSettings.mockResolvedValue(configResult());
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockBuildLifecycleIndex.mockResolvedValue(new Map([
     ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
@@ -614,6 +621,25 @@ describe("handleDecompose", () => {
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("maps full branch protection into full candidate execution", async () => {
+    mockReadConfigSettings.mockResolvedValue(configResult("full"));
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "full",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
+    );
+    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
+    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
   });
 
   it("does not select handoff when a programmatic caller supplies it as undefined", async () => {

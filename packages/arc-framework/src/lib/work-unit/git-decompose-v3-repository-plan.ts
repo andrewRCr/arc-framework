@@ -301,7 +301,10 @@ export async function composeGitV3RepositoryPlan(
     if (sourceAfter !== sourceHead) return gitRefusal("source-ref-moved", map.machine.source.ref);
     if (resultAfter !== resultBaseHead) return gitRefusal("result-ref-moved", map.machine.resultBase.ref);
     return result;
-  } catch {
-    return gitRefusal("repository-plan-failed");
+  } catch (error) {
+    return gitRefusal(
+      "repository-plan-failed",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }

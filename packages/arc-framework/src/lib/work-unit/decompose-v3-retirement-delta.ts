@@ -190,7 +190,9 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
   if (!statesEqual(predecessorFacts.base, predecessorFacts.result)) {
     return { status: "refused", refusal: { code: "predecessor-changed", path: predecessorPath } };
   }
-  const predecessorArtifactPaths = input.predecessorArtifactPaths ?? [predecessorPath];
+  const predecessorArtifactPaths = [
+    ...new Set(input.predecessorArtifactPaths ?? [predecessorPath]),
+  ];
   if (!predecessorArtifactPaths.includes(predecessorPath)) {
     return { status: "refused", refusal: { code: "predecessor-missing", path: predecessorPath } };
   }

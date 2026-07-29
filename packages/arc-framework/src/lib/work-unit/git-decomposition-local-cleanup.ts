@@ -35,6 +35,7 @@ import {
   createNodeDecomposeTransientClaimStore,
   type DecomposeTransientClaimStore,
 } from "./decompose-transient-claim-store.js";
+import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
 
 /** Mutable boundaries used by the landed decomposition cleanup driver. */
 export interface GitDecompositionLocalCleanupDependencies {
@@ -392,7 +393,7 @@ export async function cleanupGitLandedDecompositionLocally(
 
   const candidateBranch = authorization.authorization.retirement.kind === "required"
     ? authorization.authorization.retirement.claim.binding.candidateBranch
-    : `chore/decompose-${origin}`;
+    : decomposeCandidateBranch(origin);
   const candidatePath = authorization.authorization.retirement.kind === "required"
     ? authorization.authorization.retirement.claim.registration.kind === "registered"
       ? authorization.authorization.retirement.claim.registration.path
