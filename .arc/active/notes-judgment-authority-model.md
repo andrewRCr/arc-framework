@@ -852,9 +852,16 @@ was rewritten from "select it only when every conserved source has a destination
 nameable discharging fact — to a cardinality constraint on the cut-map, "every decomposition with more than one new
 member must select `standalone`, `in-cohort`, or `at-cap`, **regardless of content ownership**." The closing clause
 deletes the discharge on purpose. The verdict is unchanged (`default` either way) but the reason moves from 1 to 4,
-and the row is now recorded against the merged text. Nothing else in the region moved; the strategy region — Task
-4.2's corpus — was untouched by all 100 commits, while `decompose-work-unit.md` lost ~790 lines, so Task 4.3 would
-have swept text that no longer exists had the merge waited.
+and the row is now recorded against the merged text. Nothing else in the method region moved, and the strategy
+region — Task 4.2's corpus — was untouched across all 100 commits.
+
+One workflow changed shape, and it is a **relocation, not a removal**: `decompose-work-unit.md` went 434 → 39 lines
+because its procedure moved into the CLI behind `arc decompose --preflight`, whose implementation landed in the same
+merge. Nothing was withdrawn — the body crossed the agent/CLI seam, which is the movement
+`strategy-procedure-evolution` exists to watch. It is also **mid-transformation**: `decompose-transform-integrity` is
+landing as a hand-cut seven-slice stack, only slices 01–03 are in, and the workflow slice is among those still
+outstanding. Task 4.3 must record that file as in-flight and re-check it rather than classify its interim text, and
+should expect the same shape wherever else that stack is still landing.
 
 **8. One rule reaches past its own stated concern.** `assess-cohort-fit`'s "**Never encode order in the slug**"
 justifies itself by opacity ("`model-foundation` is opaque"), but bans ordinals on a slug that is _already_
