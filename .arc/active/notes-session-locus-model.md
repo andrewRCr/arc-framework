@@ -830,22 +830,22 @@ The ledger records durable intent and the last reconciled fact, not live GitHub 
 authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
 ledger in the next safe pre-review commit.
 
-| Slice | Status                        | PR   | Landed on `main` |
-| ----- | ----------------------------- | ---- | ---------------- |
-| S0    | landed                        | #395 | `bb6803b62`      |
-| S1    | constructing from `bb6803b62` | —    | —                |
-| S2    | blocked by S1                 | —    | —                |
-| S3    | blocked by S2                 | —    | —                |
-| S4    | blocked by S3                 | —    | —                |
-| S5    | blocked by S4                 | —    | —                |
-| S6    | blocked by S5                 | —    | —                |
-| S7    | blocked by S6                 | —    | —                |
-| S8    | blocked by S7                 | —    | —                |
-| S9    | blocked by S8                 | —    | —                |
-| S10   | blocked by S9                 | —    | —                |
-| S11   | blocked by S10                | —    | —                |
-| S12   | blocked by S11                | —    | —                |
-| S13   | blocked by S12                | —    | —                |
+| Slice | Status                 | PR   | Landed on `main` |
+| ----- | ---------------------- | ---- | ---------------- |
+| S0    | landed                 | #395 | `bb6803b62`      |
+| S1    | awaiting hosted review | #396 | —                |
+| S2    | blocked by S1          | —    | —                |
+| S3    | blocked by S2          | —    | —                |
+| S4    | blocked by S3          | —    | —                |
+| S5    | blocked by S4          | —    | —                |
+| S6    | blocked by S5          | —    | —                |
+| S7    | blocked by S6          | —    | —                |
+| S8    | blocked by S7          | —    | —                |
+| S9    | blocked by S8          | —    | —                |
+| S10   | blocked by S9          | —    | —                |
+| S11   | blocked by S10         | —    | —                |
+| S12   | blocked by S11         | —    | —                |
+| S13   | blocked by S12         | —    | —                |
 
 **External gate satisfied:** `decompose-transform-integrity` delivery 05 (PR #392) merged as `f69cc4a46`, delivery
 06 (PR #393) merged as `2beef3fa2`, and bespoke closeout PR #394 merged as `b5bf493db`. S0 cuts from that closeout
@@ -882,8 +882,8 @@ dispositions to the PR rather than copying them here.
 - **Whole-file manifest:** `locus/schema/{identity,index,limits,mutation,record,state}.ts`,
   `locus/path-identity.ts`, `locus/record-store.ts`, and the matching `locus/{schema,path-identity,record-store}`
   unit tests.
-- **Exact constructed measurement:** 1,135 additions plus 45 deletions (1,180 changed lines) across fourteen files
-  against `bb6803b62`.
+- **Exact review-target measurement:** 1,137 additions plus 45 deletions (1,182 changed lines) across fourteen files
+  against `bb6803b62`; the two-commit construction head before this status update is `93eeecea9`.
 - **Owned residual hunks:** `limits.ts`, `mutation.ts`, and `schema.test.ts` require every open-success authority
   coordinate on both success outcomes and constrain persisted timestamps to canonical `Z` instants.
 - **Proved exclusions:** `locus/errors.ts` and `locus/registry.ts` plus their tests are dropped as unwired;
@@ -892,7 +892,9 @@ dispositions to the PR rather than copying them here.
 - **Finding correction:** E1-F1's stable locus is `errand/identity-record.ts`, not the locus record store; it moves
   from `7.P.a` to S4's transient identity core.
 - **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
-- **State:** `feat/locus-record-substrate` constructed locally; full gates pending; PR absent.
+- **Gate evidence:** The complete local gate set passed at construction head `93eeecea9`; the status-only ledger
+  update re-runs the Markdown gates before publication.
+- **State:** Draft PR #396 is ready for whole-target CodeRabbit review after this ledger update lands.
 
 ### Resume protocol
 
