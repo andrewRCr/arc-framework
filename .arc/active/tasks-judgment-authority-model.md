@@ -527,17 +527,22 @@ an orphan.
         - "Always" dropped deliberately: a default that cannot be discharged is an invariant, and this one is not.
         - **+2 nb.**
 
-    - `[ ]` **3.4.d § Commit control — reseat merge authority**
-        - Move the merge-authority block out of commit control into a new `### Merge authority` subsection under
-          § Commit Discipline — a heading that names what the block is about, where a reader looking for merge
-          rules will look. Within-file relocation, not a demotion: the block stays whole and stays always-loaded.
-        - Do not seat it by adjacency to § Commit control's interlock-vocabulary bullet — Task 3.6.e demotes that
-          bullet in this same phase. The interlock terms resolve through `AGENT-BRIEF.ARC`'s vocabulary block,
-          which stays always-loaded.
-        - Keep the not-authorization enumeration **whole**: classifying the rule invariant establishes that an
-          authorization is required, not that a general "proceed" is not one.
-        - Close by sweeping inbound `§ Commit control` citations across both copies, retargeting those that meant
-          the merge rule.
+    - `[x]` **3.4.d § Commit control — reseat merge authority**
+        - Reseated as `### Merge authority` under § Commit Discipline, between § Commit control and § Commit
+          format. A reader looking for merge rules now finds a heading that says so, instead of the fourteenth
+          bullet of a section about commit triggering. Within-file relocation: the block is unchanged and stays
+          always-loaded.
+        - Seated by concern rather than adjacency — merge authority is a control rule, so it sits with the other
+          control content, and nothing about the placement depends on the interlock-vocabulary bullet Task 3.6.e
+          demotes.
+        - The not-authorization enumeration is intact and verbatim: task approval, review completion, passing
+          checks, general "proceed" language. Classifying the rule `[invariant]` establishes that an
+          authorization is required — not that any of those four is one.
+        - **Citation sweep: zero retargets owed, verified rather than skipped.** The corpus carries no `§ Commit
+          control` citation at all. The one live reference to the heading — `arc-commit/SKILL.md`, both copies —
+          means class-tag routing, which stays in § Commit control. Two further hits are out of scope by rule: an
+          ADR (a historical record, not a live pointer) and another work unit's notes companion.
+        - **+1 nb** — the heading, less the bullet's list indent.
 
     - `[ ]` **3.4.e § Task interlock**
         - Rephrase the leaf binding to a **floor** plus an explicit boundary parameter; the deferred-review

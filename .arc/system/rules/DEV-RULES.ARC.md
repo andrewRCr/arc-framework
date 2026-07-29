@@ -152,10 +152,6 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
     - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
       captured on the audit umbrella but do not re-route through `arc release push`.
 
-- **Merge to integration / main requires explicit approval** · `[invariant]` (the integration-interlock).
-  Agents must not infer merge approval from task approval, review completion, passing checks, or general
-  "proceed" language. Integration may happen only when the user explicitly authorizes it.
-
 - **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
 
 - **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
@@ -188,6 +184,12 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
   staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
   Never bundled with code commits (already enforced by meta-file timing above).
+
+### Merge authority
+
+**Merge to integration / main requires explicit approval** · `[invariant]` (the integration-interlock).
+Agents must not infer merge approval from task approval, review completion, passing checks, or general
+"proceed" language. Integration may happen only when the user explicitly authorizes it.
 
 ### Commit format · `[configurable]`
 
