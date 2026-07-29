@@ -35,7 +35,12 @@ export type NativeProcessRunner = (
   options: ProcessExecOptions & { readonly maxOutputBytes: number },
 ) => Promise<NativeProcessRunResult>;
 
-/** Adapt an argument-array runner to the stable inspection result algebra. */
+/**
+ * Adapt an argument-array runner to the stable inspection result algebra.
+ *
+ * @param runner - native process boundary to invoke
+ * @returns a bounded process executor with normalized outcomes
+ */
 export function createProcessExec(runner: NativeProcessRunner = runNativeProcess): ProcessExec {
   return async (command, args, options = {}) => {
     const maxOutputBytes = options.maxOutputBytes ?? MAX_PROCESS_OUTPUT_BYTES;
@@ -79,10 +84,17 @@ async function runNativeProcess(
     maxBuffer: options.maxOutputBytes,
     encoding: "utf8",
   });
+  if (result.exitCode === undefined
+    || hasTrue(result, "isCanceled")
+    || hasTrue(result, "timedOut")
+    || hasTrue(result, "isMaxBuffer")) {
+    if (result instanceof Error) throw result;
+    throw new Error("Native process failure metadata is malformed");
+  }
   return {
     stdout: result.stdout,
     stderr: result.stderr,
-    exitCode: result.exitCode ?? 1,
+    exitCode: result.exitCode,
   };
 }
 

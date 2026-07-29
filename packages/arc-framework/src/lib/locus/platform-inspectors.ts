@@ -16,7 +16,12 @@ export interface LinuxProcessFs {
   procRoot?: string;
 }
 
-/** Build the Linux ancestry adapter with command-line and terminal evidence. */
+/**
+ * Build the Linux ancestry adapter with command-line and terminal evidence.
+ *
+ * @param fs - Linux process filesystem access and optional proc root
+ * @returns a Linux process ancestry inspector
+ */
 export function createLinuxProcessAncestryInspector(
   fs: LinuxProcessFs = {
     readFile: (path) => readFile(path, "utf8"),
@@ -58,7 +63,12 @@ export function createLinuxProcessAncestryInspector(
   };
 }
 
-/** Build the Linux `/proc` adapter. */
+/**
+ * Build the Linux `/proc` adapter.
+ *
+ * @param fs - Linux process filesystem access and optional proc root
+ * @returns a Linux process inspector
+ */
 export function createLinuxProcessInspector(
   fs: LinuxProcessFs = {
     readFile: (path) => readFile(path, "utf8"),
@@ -108,7 +118,12 @@ export function createLinuxProcessInspector(
   };
 }
 
-/** Build the locale-stable macOS/BSD `ps` adapter. */
+/**
+ * Build the locale-stable macOS/BSD `ps` adapter.
+ *
+ * @param exec - bounded argument-array process executor
+ * @returns a BSD process inspector
+ */
 export function createBsdProcessInspector(exec: ProcessExec = createProcessExec()): ProcessInspector {
   return {
     kind: "bsd-ps",
@@ -142,7 +157,12 @@ export function createBsdProcessInspector(exec: ProcessExec = createProcessExec(
   };
 }
 
-/** Build the BSD ancestry adapter without relying on localized field labels. */
+/**
+ * Build the BSD ancestry adapter without relying on localized field labels.
+ *
+ * @param exec - bounded argument-array process executor
+ * @returns a BSD process ancestry inspector
+ */
 export function createBsdProcessAncestryInspector(
   exec: ProcessExec = createProcessExec(),
 ): ProcessAncestryInspector {
@@ -153,23 +173,23 @@ export function createBsdProcessAncestryInspector(
       const inspected = await base.inspect(pid);
       if (inspected.kind !== "present") return inspected;
       const env = { LC_ALL: "C", LANG: "C" };
-      const command = await exec("ps", ["-p", String(pid), "-o", "lstart=,command="], { env });
-      const tty = await exec("ps", ["-p", String(pid), "-o", "tty="], { env });
-      if (command.kind !== "success" || tty.kind !== "success") {
+      const evidence = await exec("ps", ["-p", String(pid), "-o", "lstart=,tty=,command="], { env });
+      if (evidence.kind !== "success") {
         return unknownAncestor("BSD process ancestry query is unavailable");
       }
-      const commandMatch = /^\s*(.{24})\s+(\S(?:.*\S)?)\s*$/u.exec(command.stdout.replace(/\n$/u, ""));
-      const ttyValue = tty.stdout.trim();
-      if (commandMatch?.[1] === undefined || commandMatch[2] === undefined
-        || commandMatch[1] !== inspected.startToken || ttyValue === "") {
+      const evidenceMatch = /^\s*(.{24})\s+(\S+)\s+(\S(?:.*\S)?)\s*$/u
+        .exec(evidence.stdout.replace(/\n$/u, ""));
+      if (evidenceMatch?.[1] === undefined || evidenceMatch[2] === undefined
+        || evidenceMatch[3] === undefined || evidenceMatch[1] !== inspected.startToken) {
         return unknownAncestor("BSD process ancestry output is malformed");
       }
+      const ttyValue = evidenceMatch[2];
       const controllingTty = ttyValue !== "??" && ttyValue !== "?" && ttyValue !== "-";
       return {
         kind: "present",
         snapshot: {
           ...inspected,
-          commandLine: commandMatch[2],
+          commandLine: evidenceMatch[3],
           controllingTty,
           interactive: controllingTty && isShellIdentity(inspected.commandIdentity),
         },
@@ -192,7 +212,12 @@ const WINDOWS_ANCESTRY_SCRIPT = [
   "$process | Select-Object ParentProcessId,ExecutablePath,CreationDate,CommandLine | ConvertTo-Json -Compress",
 ].join("; ");
 
-/** Build the PowerShell/CIM Windows adapter. */
+/**
+ * Build the PowerShell/CIM Windows adapter.
+ *
+ * @param exec - bounded argument-array process executor
+ * @returns a Windows process inspector
+ */
 export function createWindowsProcessInspector(exec: ProcessExec = createProcessExec()): ProcessInspector {
   return {
     kind: "windows-cim",
@@ -227,7 +252,12 @@ export function createWindowsProcessInspector(exec: ProcessExec = createProcessE
   };
 }
 
-/** Build the Windows CIM ancestry adapter with exact command-line evidence. */
+/**
+ * Build the Windows CIM ancestry adapter with exact command-line evidence.
+ *
+ * @param exec - bounded argument-array process executor
+ * @returns a Windows process ancestry inspector
+ */
 export function createWindowsProcessAncestryInspector(
   exec: ProcessExec = createProcessExec(),
 ): ProcessAncestryInspector {
@@ -267,7 +297,13 @@ export function createWindowsProcessAncestryInspector(
   };
 }
 
-/** Select the supported native adapter without guessing on unknown platforms. */
+/**
+ * Select the supported native adapter without guessing on unknown platforms.
+ *
+ * @param platform - Node platform identifier
+ * @param dependencies - optional platform-boundary overrides
+ * @returns a native process inspector or an unknown-safe unsupported adapter
+ */
 export function createPlatformProcessInspector(
   platform: string = process.platform,
   dependencies: { exec?: ProcessExec; linuxFs?: LinuxProcessFs } = {},
@@ -283,7 +319,13 @@ export function createPlatformProcessInspector(
   };
 }
 
-/** Select the supported native ancestry adapter without guessing on unknown platforms. */
+/**
+ * Select the supported native ancestry adapter without guessing on unknown platforms.
+ *
+ * @param platform - Node platform identifier
+ * @param dependencies - optional platform-boundary overrides
+ * @returns a native ancestry inspector or an unknown-safe unsupported adapter
+ */
 export function createPlatformProcessAncestryInspector(
   platform: string = process.platform,
   dependencies: { exec?: ProcessExec; linuxFs?: LinuxProcessFs } = {},
@@ -335,7 +377,7 @@ function parseNullSeparatedArguments(value: string): readonly string[] | null {
 function isShellIdentity(identity: string): boolean {
   const executable = identity.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() ?? "";
   return executable === "bash" || executable === "zsh" || executable === "fish" || executable === "sh"
-    || executable === "pwsh" || executable === "powershell.exe";
+    || executable === "dash" || executable === "pwsh" || executable === "powershell.exe";
 }
 
 function errorCode(value: unknown): string | undefined {

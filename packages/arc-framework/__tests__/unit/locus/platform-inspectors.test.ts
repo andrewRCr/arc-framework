@@ -51,6 +51,27 @@ describe("Linux process inspector", () => {
     });
   });
 
+  it("recognizes dash with a controlling terminal as interactive", async () => {
+    const inspector = createLinuxProcessAncestryInspector({
+      readFile: async (path) => {
+        if (path.endsWith("/stat")) return procStat(42, 7, "12345", "34817");
+        if (path.endsWith("/cmdline")) return "/bin/dash\0";
+        return "dash\n";
+      },
+      readlink: async () => "/bin/dash",
+      procRoot: "/proc",
+    });
+
+    await expect(inspector.inspectAncestor(42)).resolves.toMatchObject({
+      kind: "present",
+      snapshot: {
+        commandIdentity: "/bin/dash",
+        controllingTty: true,
+        interactive: true,
+      },
+    });
+  });
+
   it("distinguishes absence from permission, parse, and identity uncertainty", async () => {
     const failure = (code: string) => Object.assign(new Error(code), { code });
     await expect(createLinuxProcessInspector({
@@ -79,20 +100,28 @@ describe("BSD process inspector", () => {
     });
   });
 
-  it("pins ancestry command and terminal queries to argument arrays", async () => {
+  it("pins ancestry evidence to two generation-consistent argument-array queries", async () => {
     const exec = vi.fn<ProcessExec>(async (_command, args) => {
       const fields = args.at(-1);
       if (fields === "ppid=,lstart=,comm=") {
         return { kind: "success", stdout: "7 Mon Jul 18 00:00:00 2026 /opt/codex\n", stderr: "", exitCode: 0 };
       }
-      if (fields === "lstart=,command=") {
-        return { kind: "success", stdout: "Mon Jul 18 00:00:00 2026 codex --session x\n", stderr: "", exitCode: 0 };
-      }
-      return { kind: "success", stdout: "ttys001\n", stderr: "", exitCode: 0 };
+      return {
+        kind: "success",
+        stdout: "Mon Jul 18 00:00:00 2026 ttys001 codex --session x\n",
+        stderr: "",
+        exitCode: 0,
+      };
     });
     await expect(createBsdProcessAncestryInspector(exec).inspectAncestor(42)).resolves.toMatchObject({
       kind: "present", snapshot: { commandLine: "codex --session x", controllingTty: true },
     });
+    expect(exec).toHaveBeenCalledTimes(2);
+    expect(exec).toHaveBeenLastCalledWith(
+      "ps",
+      ["-p", "42", "-o", "lstart=,tty=,command="],
+      { env: { LC_ALL: "C", LANG: "C" } },
+    );
   });
 
   it("degrades malformed, denied, and unavailable output safely", async () => {

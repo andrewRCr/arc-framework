@@ -54,7 +54,13 @@ export type LeaseAuthority = "self" | "foreign" | "dead" | "unverifiable";
 
 const MAX_ANCESTOR_DEPTH = 32;
 
-/** Acquire and select one durable session anchor without walking above it. */
+/**
+ * Acquire and select one durable session anchor without walking above it.
+ *
+ * @param pid - invoking process identifier
+ * @param inspector - platform ancestry boundary
+ * @returns the selected durable anchor or an unverifiable result
+ */
 export async function acquireSessionAnchor(
   pid: number,
   inspector: ProcessAncestryInspector,
@@ -90,7 +96,13 @@ export async function acquireSessionAnchor(
   return unverifiable("Process ancestry exceeds 32 entries");
 }
 
-/** Select one per-session process without crossing an ambiguous ancestor. */
+/**
+ * Select one per-session process without crossing an ambiguous ancestor.
+ *
+ * @param snapshots - bounded ancestry snapshots from the invoking process upward
+ * @param inspector - inspector kind that produced the snapshots
+ * @returns the selected durable anchor or an unverifiable result
+ */
 export function selectSessionAnchor(
   snapshots: readonly AncestorProcessSnapshot[],
   inspector = "unbound",
@@ -131,7 +143,13 @@ function anchorSelector(snapshot: AncestorProcessSnapshot): string | null {
   return harnessSelector(snapshot) ?? (isInteractiveShell(snapshot) ? "interactive-shell" : null);
 }
 
-/** Verify PID generation through the inspector that minted the anchor. */
+/**
+ * Verify PID generation through the inspector that minted the anchor.
+ *
+ * @param anchor - recorded process anchor
+ * @param inspector - platform process boundary
+ * @returns whether the exact process generation is live, dead, or unknown
+ */
 export async function verifyProcessAnchor(
   anchor: LocusProcessAnchor,
   inspector: ProcessInspector,

@@ -834,7 +834,7 @@ ledger in the next safe pre-review commit.
 | ----- | -------------- | ---- | ---------------- |
 | S0    | landed         | #395 | `bb6803b62`      |
 | S1    | landed         | #396 | `56d52f013`      |
-| S2    | constructing   | —    | —                |
+| S2    | review repair  | #397 | —                |
 | S3    | blocked by S2  | —    | —                |
 | S4    | blocked by S3  | —    | —                |
 | S5    | blocked by S4  | —    | —                |
@@ -909,7 +909,7 @@ dispositions to the PR rather than copying them here.
   incremental fix reviews, then approved exact accepted head `c055a31cf`.
 - **State:** PR #396 accepted head `c055a31cf` and landed through merge commit `56d52f013`.
 
-#### S2 process and platform inspection — constructing
+#### S2 process and platform inspection — review repair
 
 - **Entry base:** `origin/main` `56d52f013`, the S1 merge.
 - **Capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
@@ -918,10 +918,18 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact local measurement:** 1,506 additions plus 35 deletions (1,541 changed lines) across eleven files against
-  `56d52f013`.
-- **Gate evidence:** The complete local gate set passed on the final construction tree.
-- **State:** Draft PR #397 is open at construction head `27c33062c`; required CI precedes the initial hosted review.
+- **Exact repaired measurement:** 1,650 additions plus 35 deletions (1,685 changed lines) across eleven files
+  against `56d52f013`.
+- **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
+  preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
+  interactive shell. The accepted repair also covers the real native binding and reduces BSD ancestry inspection
+  from three process calls to two while keeping command identity independently parseable. The requested duplicate
+  literal `npm exec` test was declined because that exact identity is already covered; no unsupported platform
+  rationale was added.
+- **Gate evidence:** The complete local gate set passed on the review-repair tree: 8,444 tests passed and one
+  skipped, with Markdown and ARC contracts, TypeScript and shell lint, both typechecks, and the build green.
+- **State:** PR #397 remains at published head `0ade00809`; the accepted review repair is local and awaits its
+  commit, push, exact-head CI, and CodeRabbit follow-up review.
 
 ### Resume protocol
 

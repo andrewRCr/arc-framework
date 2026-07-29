@@ -1,16 +1,59 @@
 /** Native operating-system process-inspector contract probes. */
 
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   createPlatformProcessInspector,
   type LinuxProcessFs,
 } from "../../src/lib/locus/platform-inspectors.js";
-import type { ProcessExec, ProcessExecResult } from "../../src/lib/locus/process-exec.js";
+import {
+  createProcessExec,
+  type ProcessExec,
+  type ProcessExecResult,
+} from "../../src/lib/locus/process-exec.js";
 import { verifyProcessAnchor } from "../../src/lib/locus/process-inspector.js";
 
 const SUPPORTED_PLATFORMS = ["linux", "darwin", "win32"];
 const MISSING_PID = 2_147_483_647;
+
+describe("native process execution", () => {
+  const exec = createProcessExec();
+
+  it("classifies a genuinely missing executable", async () => {
+    const missingExecutable = join(tmpdir(), `arc-missing-executable-${randomUUID()}`);
+
+    await expect(exec(missingExecutable, [])).resolves.toMatchObject({ kind: "missing" });
+  });
+
+  it("preserves a genuine nonzero exit", async () => {
+    await expect(exec(process.execPath, ["--eval", "process.exit(7)"])).resolves.toEqual({
+      kind: "nonzero",
+      stdout: "",
+      stderr: "",
+      exitCode: 7,
+    });
+  });
+
+  it("classifies native cancellation", async () => {
+    await expect(exec(
+      process.execPath,
+      ["--eval", "setInterval(() => {}, 10_000)"],
+      { signal: AbortSignal.abort() },
+    )).resolves.toMatchObject({ kind: "canceled" });
+  });
+
+  it("classifies the native output limit", async () => {
+    await expect(exec(
+      process.execPath,
+      ["--eval", "process.stdout.write(\"x\".repeat(1_024))"],
+      { maxOutputBytes: 16 },
+    )).resolves.toMatchObject({ kind: "output-limit" });
+  });
+});
 
 function nativeFailureInspector(failure: "permission" | "malformed") {
   if (process.platform === "linux") {
