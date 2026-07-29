@@ -20,19 +20,20 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
   specs
-    - ALWAYS load before authoring a draft or spec, resolving planning depth, or moving a work unit between
-      planning stages; do not draft, or settle depth, from the artifact templates alone.
+    - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
+      compose, where the pipeline's stage boundaries fall; the `resolve-planning-depth` method and the
+      `draft-design` / `create-spec` workflows cover routine depth resolution and authoring.
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
       per-task and per-unit gate runs are covered by the `quality-gate-commands` method
 - `arc/strategy-session-operations.md`
-    - ALWAYS load before placing new guidance content in a loading tier, changing when session state is written, or
-      authoring an interlock or handoff step; do not place content, or pick a write point, by matching where
-      similar content already sits.
+    - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
+      handoff step — the tier classification criteria and loading mechanisms have no leaner surface;
+      `DEV-RULES.ARC` § Session Management covers the state-file write rules themselves.
 - `arc/strategy-interlock-release-wrappers.md`
-    - ALWAYS load before enabling, configuring, or troubleshooting `arc release commit` / `arc release push`, or
-      composing them with harness permission or hook layers; do not infer wrapper behavior from the interlock
-      configuration values alone.
+    - ALWAYS load when deciding whether to adopt the release wrappers, or composing them with harness permission
+      or hook layers — the trust model, the non-fit cases, the universal route for a harness with no reference
+      implementation; `DEV-RULES.ARC` § Commit Discipline covers routine invocation and class-tag routing.
 - `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success
   criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
@@ -48,9 +49,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `arc/strategy-concurrent-work.md`
     - Consult when: running multiple work units at once, deciding whether to parallelize, integrating concurrent work
 - `arc/strategy-work-organization.md`
-    - ALWAYS load before categorizing work, resolving a work unit's `Class`, cutting or naming a branch, forming a
-      cohort, rendering ROADMAP, or archiving completed work; do not infer the category, branch name, or archive
-      location from surrounding examples.
+    - ALWAYS load when the routine path does not settle it — the `Class` model's worked examples, the
+      Errand-versus-work-unit boundary, branch protection modes, spec-flow invariants, cohort nesting; the
+      `classify-work-unit` / `assess-cohort-fit` methods and the work-unit lifecycle workflows cover routine
+      classification, branch, and archival calls.
 
 ## Project Strategies
 
@@ -72,5 +74,7 @@ create them):
 **Maintenance:** Update this index when adding new strategy documents. Write each entry's firing condition as a
 directive — name the operation that triggers the load and the default behavior it suppresses ("ALWAYS load X
 before {operation}; do not {default} directly") — rather than a title or a passive summary. Anchor the trigger to
-the operation, not to the workflow it usually runs in. Add a one-line description only when it carries
+the operation, not to the workflow it usually runs in. Where a leaner surface already covers the common case, name
+the **residual** question the entry answers and say which surface holds the rest; a condition that fires as often
+as the load would have relocates the read instead of removing it. Add a one-line description only when it carries
 content-shape the condition does not.

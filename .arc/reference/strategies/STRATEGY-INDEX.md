@@ -20,19 +20,20 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
   specs
-    - ALWAYS load before authoring a draft or spec, resolving planning depth, or moving a work unit between
-      planning stages; do not draft, or settle depth, from the artifact templates alone.
+    - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
+      compose, where the pipeline's stage boundaries fall; the `resolve-planning-depth` method and the
+      `draft-design` / `create-spec` workflows cover routine depth resolution and authoring.
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
       per-task and per-unit gate runs are covered by the `quality-gate-commands` method
 - `arc/strategy-session-operations.md`
-    - ALWAYS load before placing new guidance content in a loading tier, changing when session state is written, or
-      authoring an interlock or handoff step; do not place content, or pick a write point, by matching where
-      similar content already sits.
+    - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
+      handoff step — the tier classification criteria and loading mechanisms have no leaner surface;
+      `DEV-RULES.ARC` § Session Management covers the state-file write rules themselves.
 - `arc/strategy-interlock-release-wrappers.md`
-    - ALWAYS load before enabling, configuring, or troubleshooting `arc release commit` / `arc release push`, or
-      composing them with harness permission or hook layers; do not infer wrapper behavior from the interlock
-      configuration values alone.
+    - ALWAYS load when deciding whether to adopt the release wrappers, or composing them with harness permission
+      or hook layers — the trust model, the non-fit cases, the universal route for a harness with no reference
+      implementation; `DEV-RULES.ARC` § Commit Discipline covers routine invocation and class-tag routing.
 - `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success
   criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
@@ -48,15 +49,17 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `arc/strategy-concurrent-work.md`
     - Consult when: running multiple work units at once, deciding whether to parallelize, integrating concurrent work
 - `arc/strategy-work-organization.md`
-    - ALWAYS load before categorizing work, resolving a work unit's `Class`, cutting or naming a branch, forming a
-      cohort, rendering ROADMAP, or archiving completed work; do not infer the category, branch name, or archive
-      location from surrounding examples.
+    - ALWAYS load when the routine path does not settle it — the `Class` model's worked examples, the
+      Errand-versus-work-unit boundary, branch protection modes, spec-flow invariants, cohort nesting; the
+      `classify-work-unit` / `assess-cohort-fit` methods and the work-unit lifecycle workflows cover routine
+      classification, branch, and archival calls.
 
 ## Project Strategies
 
 - `project/strategy-package-project-sync.md`
-    - ALWAYS load before editing any file with a counterpart under `packages/arc-framework/arc/`, or resolving a
-      package/project sync warning; do not copy between the two copies to reconcile them.
+    - ALWAYS load when a sync question outruns the always-loaded rule — the file inventory and dependency map,
+      template-counterpart handling, what each safeguard actually checks; `DEV-RULES.PROJECT` § Package-Project
+      Sync covers the routine edit-flow and never-copy rules.
 - `project/strategy-testing-methodology.md` - TDD decision tree, test tiers, vertical slice workflow, mocking rules
     - Consult when: the `test-first` / `testing-standards` methods don't settle it — TDD rationale, tier
       boundaries, worked examples

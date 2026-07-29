@@ -238,22 +238,26 @@ check will catch.
   reachable for every project rather than only in this repository.
 
     - `[x]` **2.2.a `strategy-work-organization`**
-        - Directive anchored to the operations the strategy governs — categorizing work, resolving `Class`,
-          cutting or naming a branch, forming a cohort, rendering ROADMAP, archiving — suppressing inference from
-          surrounding examples. Receives the `Class`-versus-Work-Character taxonomy (Task 3.6).
+        - **Residual-scoped** (D5 test 5): the entry names the `Class` model's worked examples, the
+          Errand-versus-work-unit boundary, protection modes, spec-flow invariants, and cohort nesting, and cedes
+          routine classification, branch, and archival calls to the `classify-work-unit` / `assess-cohort-fit`
+          methods and the lifecycle workflows. The first authoring fired on every one of those routine operations
+          — 1465 lines summoned to name a branch. Receives the `Class`-versus-Work-Character taxonomy (Task 3.6).
 
     - `[x]` **2.2.b `strategy-work-planning`**
-        - Directive anchored to authoring a draft or spec, resolving planning depth, and planning-stage
-          transitions, suppressing the template-only default. Receives the design-before-implementation rationale
+        - **Residual-scoped**: which spec form fits, how layered specs compose, where stage boundaries fall —
+          with routine depth resolution and authoring ceded to the `resolve-planning-depth` method and the
+          `draft-design` / `create-spec` workflows. Receives the design-before-implementation rationale
           (Task 3.6).
         - Description **stays** — spec forms and layered specs are content-shape detail the condition cannot
           carry.
 
     - `[x]` **2.2.c `strategy-session-operations`**
-        - Directive anchored to placing guidance content in a loading tier, changing when session state is
-          written, and authoring an interlock or handoff step — all author-side operations, so the trigger never
-          asks the agent to estimate its own context state. Receives the session-state file model, portability,
-          and § Context quality's four boundary categories (Task 3.6).
+        - Directive retained — no leaner surface covers tier classification or loading mechanisms, and the entry
+          says so while ceding the state-file write rules to `DEV-RULES.ARC` § Session Management. Anchored to
+          author-side operations throughout, so the trigger never asks the agent to estimate its own context
+          state. Receives the session-state file model, portability, and § Context quality's four boundary
+          categories (Task 3.6).
 
     - `[x]` **2.2.d `strategy-workflow-authoring`**
         - Directive anchored to authoring or editing a workflow file, suppressing the copy-an-existing-workflow
@@ -268,15 +272,22 @@ check will catch.
 
     - `[x]` **2.2.f Add `strategy-interlock-release-wrappers`**
         - New entry in both copies, placed after `strategy-session-operations` — the adjacent interlock domain.
-          Directive anchored to enabling, configuring, or troubleshooting the release wrappers and to composing
-          them with harness permission or hook layers. Receives the interlock/fire-site concept, wrapper
-          mechanics, and class-tag routing mechanics (Task 3.6) — the largest single destination in the register.
+          **Residual-scoped**: the adoption decision, the trust model, non-fit cases, and the universal route for
+          a harness with no reference implementation, with routine invocation and class-tag routing ceded to
+          `DEV-RULES.ARC` § Commit Discipline. Receives the interlock/fire-site concept, wrapper mechanics, and
+          class-tag routing mechanics (Task 3.6) — the largest single destination in the register.
 
 - _Outcome:_ Confirmed before editing that the `## ARC Framework Strategies` block was still byte-identical across
   the two copies, and again after — so this stayed a sync obligation rather than a reconcile. The six entries no
-  longer restate their own titles: each names the operation that fires the load and the default it suppresses,
-  operation-anchored rather than workflow-anchored, so ad-hoc invocation is covered without naming every workflow
-  that reaches them.
+  longer restate their own titles: each names the operation that fires the load, operation-anchored rather than
+  workflow-anchored, so ad-hoc invocation is covered without naming every workflow that reaches them.
+
+- _Outcome:_ Authored twice. The first pass satisfied the directive form and shipped four entries that fired on
+  operations a leaner surface already served — the `pointless-as-routed` failure, caught by the
+  `knowledge-evolution` forward-compat pass rather than by any stated obligation, since D5 test 5 reached neither
+  this task's shape nor Success Criterion 3. Each entry now either names its residual question and the surface
+  holding the rest, or states that no leaner surface exists; D6 and Criterion 3 carry the test that would have
+  caught it.
 
 ### `[x]` **2.3 Re-author the instance-only entry**
 
@@ -285,9 +296,11 @@ check will catch.
 
     - Rewritten in `.arc/` only — a project strategy, and that directory ships to projects as an empty surface, so
       there is no package obligation.
-    - The directive fires on editing any file with a package counterpart, and suppresses the specific hazard the
-      strategy exists to prevent: copying between the two copies to reconcile them. Receives the hook explanation
-      and the skill-drift hazard (Task 5.5).
+    - **Residual-scoped**: the file inventory and dependency map, template-counterpart handling, and what each
+      safeguard actually checks — with the routine edit-flow and never-copy rules ceded to `DEV-RULES.PROJECT`
+      § Package-Project Sync, which is always loaded. The first authoring fired on editing any file with a
+      counterpart, which in this repository is most edits. Receives the hook explanation and the skill-drift
+      hazard (Task 5.5).
 
 ### `[x]` **2.4 Update the shipped maintenance footer**
 
@@ -297,7 +310,8 @@ check will catch.
     - Scope reduced by work that landed on the base first: a maintenance errand had already replaced the
       keep-one-line-descriptions text with the description-only-when-it-carries-content-shape rule, so what
       remained was the half it could not state — the directive form itself. The footer now specifies naming the
-      triggering operation and the suppressed default, and anchoring to the operation rather than the workflow.
+      triggering operation and the suppressed default, anchoring to the operation rather than the workflow, and
+      naming the residual question wherever a leaner surface already covers the common case.
 
 ## **Phase 3:** Canonical register — `DEV-RULES.ARC`
 
