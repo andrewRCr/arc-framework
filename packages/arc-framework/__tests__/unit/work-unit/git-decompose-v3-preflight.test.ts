@@ -270,6 +270,52 @@ describe("createGitV3DecomposePreflight", () => {
     });
   });
 
+  it("reports malformed origin state at its committed-tree locus", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const malformed = new TextDecoder()
+      .decode(meta("origin", "Planning", null))
+      .replace("`Planning`", "[none]");
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: `100644 blob ${metaPath}\0`, stderr: "" },
+      readBlob: async (_ref, path) => path === metaPath ? encoder.encode(malformed) : null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:invalid-origin-meta",
+      locus: metaPath,
+    });
+  });
+
+  it("reports malformed origin planning data through the pure profile refusal", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const malformed = new TextDecoder()
+      .decode(meta("origin", "Planning", null))
+      .replace("`draft-origin.md`", "[none]");
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: `100644 blob ${metaPath}\0`, stderr: "" },
+      readBlob: async (_ref, path) => path === metaPath ? encoder.encode(malformed) : null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "planning-profile",
+      locus: `${metaPath}#Design`,
+    });
+  });
+
   it("fails closed when the configured local base is absent", async () => {
     const result = await createGitV3DecomposePreflight({
       cwd: "/repo",
@@ -320,7 +366,7 @@ describe("createGitV3DecomposePreflight", () => {
       }, "main", "origin")));
 
     expect(results.every((result) => result.status === "ready")).toBe(true);
-    expect(results.slice(1)).toEqual(results.slice(1).map(() => results[0]));
+    expect(results).toEqual(checkouts.map(() => results[0]));
     expect(exec.mock.calls.every(([, args]) =>
       args[0] === "for-each-ref" || args[0] === "ls-tree")).toBe(true);
     expect(exec.mock.calls.filter(([, args]) => args[0] === "for-each-ref")

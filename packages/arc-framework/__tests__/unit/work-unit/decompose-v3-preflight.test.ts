@@ -123,6 +123,7 @@ describe("v3 decomposition preflight", () => {
       location: "active",
       branch: "main",
     }];
+    activeBase.sourceBase.sourceArtifacts[0]!.path = ".arc/active/draft-origin.md";
     expect(createV3DecomposePreflight(activeBase)).toMatchObject({
       status: "ready",
       preflight: {
@@ -190,6 +191,11 @@ describe("v3 decomposition preflight", () => {
     const initial = createV3DecomposePreflight(input());
     expect(initial.status).toBe("ready");
     if (initial.status !== "ready") return;
+
+    expect(revalidateV3DecomposePreflight(initial.preflight, input())).toEqual({
+      status: "current",
+      preflight: initial.preflight,
+    });
 
     const changed = input();
     changed.localBranches[0]!.head = "d".repeat(40);

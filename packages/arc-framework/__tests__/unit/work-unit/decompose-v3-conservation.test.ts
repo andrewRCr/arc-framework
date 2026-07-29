@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/work-unit/decompose-v3-conservation.js";
 import {
   createV3DecomposeStarterMap,
+  v3IncomingEdgeId,
   v3OutgoingEdgeId,
   v3PreflightId,
   v3SourceId,
@@ -73,6 +74,24 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     });
   });
 
+  it("treats live dependency targets as an order-insensitive set", () => {
+    const input = validInput();
+    const currentTargets = ["foundation", "origin"];
+    const edgeId = v3IncomingEdgeId({ dependent: "consumer", currentTargets });
+    input.completedMap.machine.incomingEdges = [{
+      dependent: "consumer",
+      currentTargets,
+      edgeId,
+    }];
+    input.completedMap.authoring.incomingDispositions[0]!.edgeId = edgeId;
+    input.workUnits[0]!.dependsOn = ["origin", "foundation"];
+    rebindCurrentPreflight(input);
+
+    expect(validateV3DecomposeConservation(input)).toMatchObject({
+      status: "validated",
+    });
+  });
+
   it("restricts source ownership to a compatible destination kind", () => {
     const input = validInput();
     input.completedMap.authoring.sourceAllocations[0]!.ownership = "cohort-shared";
@@ -131,23 +150,23 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         destinationId: "missing",
         targetLocator: { artifact: "draft-member-a.md", kind: "preamble" },
       };
-    }, "authoring.sourceAllocations.0.disposition.destinationId"],
+    }, "authoring.sourceAllocations.0.disposition.destinationId", "decoded-map", "authoring-identity"],
     ["incompatible locator", (input: V3DecomposeConservationInput) => {
       input.completedMap.authoring.sourceAllocations[0]!.disposition = {
         kind: "target",
         destinationId: "member-a",
         targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
       };
-    }, "authoring.sourceAllocations.0.disposition.targetLocator"],
-  ])("refuses %s at its exact allocation locus", (_name, mutate, locus) => {
+    }, "authoring.sourceAllocations.0.disposition.targetLocator", "ownership", "incompatible-allocation-locator"],
+  ])("refuses %s at its exact allocation locus", (_name, mutate, locus, stage, reason) => {
     const input = validInput();
     mutate(input);
 
     expect(validateV3DecomposeConservation(input)).toEqual({
       status: "refused",
       refusal: {
-        stage: "ownership",
-        reason: expect.any(String),
+        stage,
+        reason,
         locus,
       },
     });
@@ -229,9 +248,9 @@ describe("v3 decomposition allocation and dependency conservation", () => {
   });
 
   it.each([
-    ["unknown recipient", ["ghost"], "unknown-dependency-recipient"],
-    ["retiring origin", ["origin"], "origin-reference-remains"],
-  ])("refuses an incoming replacement with %s", (_name, replacementTargets, reason) => {
+    ["unknown recipient", ["ghost"]],
+    ["retiring origin", ["origin"]],
+  ])("refuses an incoming replacement with %s", (_name, replacementTargets) => {
     const input = validInput();
     input.completedMap.authoring.incomingDispositions[0]!.disposition = {
       kind: "replace",
@@ -242,8 +261,8 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     expect(result.status).toBe("refused");
     if (result.status !== "refused") return;
     expect(result.refusal).toMatchObject({
-      stage: "dependency-projection",
-      reason,
+      stage: "decoded-map",
+      reason: "authoring-identity",
       locus: "authoring.incomingDispositions.0.disposition.replacementTargets.0",
     });
   });

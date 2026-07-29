@@ -1150,6 +1150,11 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => ({
+        workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
+        sessionNotesPath: (workUnitName) =>
+          join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
+      }),
     });
 
     expect(result.releaseRouting.ok).toBe(true);
@@ -1188,6 +1193,11 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       identity: "andrew",
       role: "maintainer",
       probes,
+      resolveHandoffSurfaces: async () => ({
+        workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
+        sessionNotesPath: (workUnitName) =>
+          join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
+      }),
     });
 
     expect(result.releaseRouting.ok).toBe(true);
@@ -1256,10 +1266,16 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
       ].join("\n"),
     );
 
+    const resolveHandoffSurfaces = async () => ({
+      workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
+      sessionNotesPath: (workUnitName: string) =>
+        join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
+    });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
       probes: realHandoffInboxStateProbes(fixture),
+      resolveHandoffSurfaces,
     });
 
     expect(result.inboxState?.ok).toBe(true);
@@ -1273,6 +1289,11 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
       identity: "andrew",
       role: "maintainer",
       probes: realHandoffInboxStateProbes(fixture),
+      resolveHandoffSurfaces: async () => ({
+        workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
+        sessionNotesPath: (workUnitName) =>
+          join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
+      }),
     });
 
     expect(result.inboxState?.ok).toBe(true);

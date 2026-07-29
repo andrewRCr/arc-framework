@@ -208,6 +208,44 @@ describe("decomposition result occupation", () => {
     });
   });
 
+  it("requires recovery when occupied state loses its candidate or creation cannot prove absence", async () => {
+    const lost = harness();
+    expect((await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      lost.adapter,
+    )).status).toBe("occupied");
+    lost.setObservation({ branchHead: null, registrations: [] });
+    expect(await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      lost.adapter,
+    )).toEqual({ status: "refused", reason: "recovery-required" });
+
+    const unproven = harness({
+      ensureCandidate: async () => ({ status: "collision", noMutation: false }),
+    });
+    const refusal = await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      unproven.adapter,
+    );
+    const [claim] = (await unproven.claims.list()).claims;
+    if (claim === undefined) throw new Error("expected the pending recovery claim");
+    expect(refusal).toEqual({
+      status: "refused",
+      reason: "recovery-required",
+      recovery: {
+        path: "/repo/worktrees/decompose-origin",
+        candidateOwnership: {
+          kind: "claimed",
+          protection: "full",
+          claimId: claim.claimId,
+          generation: claim.generation,
+          candidateBranch: claim.binding.candidateBranch,
+          candidateWorktree: claim.candidateWorktree,
+        },
+      },
+    });
+  });
+
   it("refuses a stale source binding and duplicate or occupied registrations", async () => {
     const stale = harness();
     const staleBinding = {

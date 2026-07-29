@@ -490,6 +490,36 @@ describe("v3 decomposition plan composition", () => {
     expect(renderMetaFile("ordinary", { state: "Planning", owner: "andrew" }))
       .not.toContain("Decomposition Receipt");
 
+    const crlfInput = baseInput();
+    crlfInput.content = crlfInput.content.map((entry) => entry.artifactRole === "meta"
+      ? {
+        ...entry,
+        after: file(
+          new TextDecoder().decode(
+            (entry.after.kind === "object" ? entry.after.bytes : new Uint8Array()),
+          ).replaceAll("\n", "\r\n"),
+        ),
+      }
+      : entry);
+    expect(composeV3DecomposePlan(crlfInput).status).toBe("composed");
+
+    const misplacedInput = baseInput();
+    misplacedInput.content = misplacedInput.content.map((entry) =>
+      entry.artifactRole === "draft" && entry.contributorKind === "scaffold"
+        ? {
+          ...entry,
+          after: file(`# Draft\n\n- **Decomposition Receipt:** \`${receiptId}\`\n`),
+        }
+        : entry);
+    expect(composeV3DecomposePlan(misplacedInput)).toEqual({
+      status: "refused",
+      refusal: {
+        code: "receipt-marker-forbidden",
+        path: draftPath,
+        destinationId: "a",
+      },
+    });
+
     const input = baseInput();
     const existingPath = ".arc/active/meta-existing.md";
     const result = composeV3DecomposePlan({

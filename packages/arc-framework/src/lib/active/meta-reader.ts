@@ -1281,7 +1281,7 @@ const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
 function extractField(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/u);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;

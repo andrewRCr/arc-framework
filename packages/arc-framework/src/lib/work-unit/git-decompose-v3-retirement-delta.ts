@@ -74,7 +74,9 @@ async function readTree(
       kind: "object",
       objectKind: object.objectKind,
       mode: object.mode,
-      bytes: await deps.readObject(object.oid, object.objectKind),
+      bytes: object.objectKind === "tree"
+        ? new Uint8Array()
+        : await deps.readObject(object.oid, object.objectKind),
     };
   }
   return tree;

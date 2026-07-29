@@ -96,7 +96,7 @@ export async function materializeV3DecomposePlan(
   io: V3MaterializerIO,
 ): Promise<V3MaterializationResult> {
   const observations = new Map<string, V3PlanCanonicalPathState>();
-  const blobs = new Map<string, Uint8Array | null>();
+  const blobs = new Map<string, Uint8Array>();
   const memberProjection = projectMembers(plan);
   if (!memberProjection.ok) {
     return {
@@ -124,9 +124,10 @@ export async function materializeV3DecomposePlan(
     }
     observations.set(mutation.path, observed);
     if (mutation.after.kind === "absent") {
-      blobs.set(mutation.path, null);
       continue;
     }
+    const cached = blobs.get(mutation.after.contentDigest);
+    if (cached !== undefined) continue;
     let bytes: Uint8Array | null;
     try {
       bytes = await io.readBlob(mutation.after.contentDigest);
@@ -144,7 +145,7 @@ export async function materializeV3DecomposePlan(
     if (digestBytes(bytes) !== mutation.after.contentDigest) {
       return { status: "refused", reason: "final-blob-mismatch", path: mutation.path, appliedPaths: [] };
     }
-    blobs.set(mutation.path, bytes);
+    blobs.set(mutation.after.contentDigest, bytes);
   }
 
   const paths: V3MaterializedPath[] = [];
@@ -163,7 +164,10 @@ export async function materializeV3DecomposePlan(
       continue;
     }
     try {
-      await io.applyAndStageFinal(mutation.path, mutation.after, blobs.get(mutation.path) ?? null);
+      const bytes = mutation.after.kind === "absent"
+        ? null
+        : blobs.get(mutation.after.contentDigest) ?? null;
+      await io.applyAndStageFinal(mutation.path, mutation.after, bytes);
     } catch {
       return {
         status: "refused",

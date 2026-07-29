@@ -44,7 +44,13 @@ export interface ValidateExplicitMarkdownPathsOptions {
   readonly realpath: (path: string) => Promise<string>;
 }
 
-/** Inputs for selecting the complete tracked Markdown corpus from one Git view. */
+/**
+ * Inputs for selecting the complete Markdown corpus from one Git view.
+ *
+ * - `index` — blobs present in the index (staged corpus; pre-commit certification).
+ * - `worktree` — index paths plus untracked non-ignored worktree files, so mid-edit
+ *   composition sees new Markdown that has not been staged yet.
+ */
 export interface EnumerateTrackedMarkdownPathsOptions {
   readonly root: string;
   readonly exec: GitExec;
@@ -168,7 +174,12 @@ export async function validateExplicitMarkdownPaths(
 }
 
 /**
- * Enumerate the canonical tracked Markdown scope without consulting worktree glob walkers.
+ * Enumerate the canonical Markdown scope without consulting worktree glob walkers.
+ *
+ * Worktree view includes untracked non-ignored files (`--others --exclude-standard`) so
+ * `lint:md` composition cannot false-green over new Markdown that only exists on disk.
+ * Index view stays index-only for staged certification. Shared ignore policy still applies
+ * via {@link isMarkdownPathExcluded}.
  *
  * @param options - Repository root, Git boundary, and selected Git view
  * @returns NUL-safely decoded repository-relative paths in Git order
@@ -178,10 +189,12 @@ export async function enumerateTrackedMarkdownPaths(
 ): Promise<readonly ManagedPath[]> {
   let stdout: string;
   try {
-    const args = options.source === "index" ? ["ls-files", "--cached", "-z"] : ["ls-files", "-z"];
+    const args = options.source === "index"
+      ? ["ls-files", "--cached", "-z"]
+      : ["ls-files", "--cached", "--others", "--exclude-standard", "-z"];
     ({ stdout } = await options.exec("git", args, { cwd: options.root }));
   } catch (error) {
-    throw new ArcError("Cannot enumerate the tracked Markdown scope", "markdown.selection-failed", {
+    throw new ArcError("Cannot enumerate the Markdown selection scope", "markdown.selection-failed", {
       cause: error,
     });
   }
@@ -193,7 +206,7 @@ export async function enumerateTrackedMarkdownPaths(
     if (!isMarkdownPathExcluded(path)) selected.push(path);
   }
   if (selected.length === 0) {
-    throw selectionError("The tracked Markdown selection is empty", "markdown.empty-selection");
+    throw selectionError("The Markdown selection is empty", "markdown.empty-selection");
   }
   return selected;
 }

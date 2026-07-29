@@ -504,6 +504,70 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
       message: "Keep authored identities unique and in canonical UTF-8 order.",
     },
   };
+  const declaredDestinationIds = new Set(destinationIds);
+  for (const [index, allocation] of authoring.sourceAllocations.entries()) {
+    if (allocation.disposition.kind === "target"
+      && !declaredDestinationIds.has(allocation.disposition.destinationId)) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: `authoring.sourceAllocations.${index}.disposition.destinationId`,
+          message: "Reference one destinationId declared by authoring.destinations.",
+        },
+      };
+    }
+  }
+  const dependencyRecipients = new Set(authoring.destinations.flatMap((destination) =>
+    destination.kind === "new-member"
+      ? [destination.slug]
+      : destination.kind === "existing-home" && destination.target.kind === "work-unit"
+        ? [destination.target.slug]
+        : []));
+  for (const [index, edge] of authoring.internalEdges.entries()) {
+    for (const field of ["from", "to"] as const) {
+      if (!dependencyRecipients.has(edge[field])) {
+        return {
+          status: "rejected",
+          issue: {
+            code: "authoring-identity",
+            path: `authoring.internalEdges.${index}.${field}`,
+            message: "Reference one dependency-capable destination declared by authoring.destinations.",
+          },
+        };
+      }
+    }
+  }
+  for (const [index, edge] of authoring.incomingDispositions.entries()) {
+    if (edge.disposition.kind !== "replace") continue;
+    for (const [targetIndex, target] of edge.disposition.replacementTargets.entries()) {
+      if (!dependencyRecipients.has(target)) {
+        return {
+          status: "rejected",
+          issue: {
+            code: "authoring-identity",
+            path: `authoring.incomingDispositions.${index}.disposition.replacementTargets.${targetIndex}`,
+            message: "Reference one dependency-capable destination declared by authoring.destinations.",
+          },
+        };
+      }
+    }
+  }
+  for (const [index, edge] of authoring.outgoingDispositions.entries()) {
+    if (edge.disposition.kind !== "targets") continue;
+    for (const [targetIndex, target] of edge.disposition.targets.entries()) {
+      if (!dependencyRecipients.has(target)) {
+        return {
+          status: "rejected",
+          issue: {
+            code: "authoring-identity",
+            path: `authoring.outgoingDispositions.${index}.disposition.targets.${targetIndex}`,
+            message: "Reference one dependency-capable destination declared by authoring.destinations.",
+          },
+        };
+      }
+    }
+  }
   if ((authoring.shape === "symmetric" && (newCount < 2 || existingCount !== 0))
     || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))) return {
     status: "rejected",

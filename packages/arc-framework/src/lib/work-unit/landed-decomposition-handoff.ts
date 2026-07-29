@@ -107,7 +107,14 @@ export interface LandedDecompositionHandoff {
 
 export type LandedDecompositionHandoffResult =
   | { status: "absent" }
-  | { status: "namespace-corrupt" }
+  | {
+    status: "namespace-corrupt";
+    reason?: Extract<
+      ReturnType<typeof produceDecompositionIntegrationAnchor>,
+      { status: "refused" }
+    >["reason"];
+  }
+  | { status: "projection-mismatch" }
   | { status: "ambiguous" }
   | { status: "not-landed" }
   | { status: "stale-base" }
@@ -206,7 +213,7 @@ function anchorFailure(
     case "stale":
       return { status: "stale-base" };
     case "refused":
-      return { status: "namespace-corrupt" };
+      return { status: "namespace-corrupt", reason: result.reason };
   }
 }
 
@@ -248,7 +255,7 @@ export function resolveLandedDecompositionHandoff(
   const { anchor } = anchorResult;
   const publication = anchor.receipt.finalized.publication;
   if (!publicationIsExact(publication, input.snapshot.publication)) {
-    return { status: "namespace-corrupt" };
+    return { status: "projection-mismatch" };
   }
 
   const newLeaves = new Map(

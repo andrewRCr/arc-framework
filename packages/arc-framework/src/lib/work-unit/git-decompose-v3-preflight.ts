@@ -9,17 +9,30 @@ import {
   type V3DecomposeSourceMeta,
   type V3DecomposeStoredArtifact,
   type V3DecomposeTreeSnapshot,
+  v3PlanningDesignNames,
 } from "./decompose-v3-preflight.js";
 
 export interface GitV3DecomposePreflightDependencies {
   cwd: string;
   exec: GitExec;
-  readBlob(ref: string, path: string): Promise<Uint8Array | null>;
+  readBlob(commit: string, path: string): Promise<Uint8Array | null>;
 }
 
 export type GitV3DecomposePreflightResult =
   | V3DecomposePreflightResult
-  | { status: "rejected"; reason: `git-preflight:${string}` };
+  | { status: "rejected"; reason: `git-preflight:${string}`; locus?: string };
+
+class GitV3DecomposePreflightRejection extends Error {
+  readonly reason: `git-preflight:${string}`;
+  readonly locus: string;
+
+  constructor(reason: `git-preflight:${string}`, locus: string) {
+    super(reason);
+    this.name = "GitV3DecomposePreflightRejection";
+    this.reason = reason;
+    this.locus = locus;
+  }
+}
 
 interface TreeEntry {
   mode: string;
@@ -89,7 +102,13 @@ async function readSnapshot(
   const origins: V3DecomposeSourceMeta[] = [];
   for (const meta of metaRecords.filter(({ slug }) => slug === origin)) {
     const location = locationOf(meta.path);
-    if (location === null || meta.record.state === null) continue;
+    if (location === null) continue;
+    if (meta.record.state === null) {
+      throw new GitV3DecomposePreflightRejection(
+        "git-preflight:invalid-origin-meta",
+        meta.path,
+      );
+    }
     origins.push({
       path: meta.path,
       origin,
@@ -104,10 +123,7 @@ async function readSnapshot(
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
   const matcher = artifactMatcher(origin);
-  const layeredDesignNames = new Set([
-    `spec-${origin}-prd.md`,
-    `spec-${origin}-rfc.md`,
-  ]);
+  const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
@@ -183,6 +199,13 @@ export async function createGitV3DecomposePreflight(
       localBranches,
     });
   } catch (error) {
+    if (error instanceof GitV3DecomposePreflightRejection) {
+      return {
+        status: "rejected",
+        reason: error.reason,
+        locus: error.locus,
+      };
+    }
     return {
       status: "rejected",
       reason: `git-preflight:${error instanceof Error ? error.message : String(error)}`,

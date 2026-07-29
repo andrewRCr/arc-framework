@@ -371,6 +371,12 @@ describe("parseRetirementReceiptRecord", () => {
     expect(parseRetirementReceiptRecord(canonicalize(tampered))).toBeNull();
     expect(parseRetirementReceiptRecord(canonicalize({ ...receipt, schemaVersion: 2 }))).toBeNull();
   });
+
+  it("refuses a valid preparation as finalized receipt authority", () => {
+    const { preparation } = v3DecompositionEvidenceFixture();
+
+    expect(parseRetirementReceiptRecord(canonicalize(preparation))).toBeNull();
+  });
 });
 
 describe("parseRetirementRecord", () => {
