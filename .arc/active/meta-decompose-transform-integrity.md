@@ -1,8 +1,8 @@
 # Metadata: decompose-transform-integrity
 
-| **State** | **Owner** | **Branch**                           | **Class** | **Priority** |
-| --------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/decompose-transform-integrity` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                           | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/decompose-transform-integrity` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning finalized; work unit activated
-- **Next Task:** Task 1.1.a — Resolve and clear obsolete decomposition state
+- **Last Completed:** Phase 6 verification completed; delivery stack landed through PR #393
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Follow `notes-decompose-transform-integrity.md` § Manual Delivery Stack — publish 05–06, then
-  land 00–06 in order
+- **Next Action:** Open the lifecycle-only closeout PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
