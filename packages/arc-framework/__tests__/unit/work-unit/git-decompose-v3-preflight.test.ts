@@ -366,7 +366,7 @@ describe("createGitV3DecomposePreflight", () => {
       }, "main", "origin")));
 
     expect(results.every((result) => result.status === "ready")).toBe(true);
-    expect(results.slice(1)).toEqual(results.slice(1).map(() => results[0]));
+    expect(results).toEqual(checkouts.map(() => results[0]));
     expect(exec.mock.calls.every(([, args]) =>
       args[0] === "for-each-ref" || args[0] === "ls-tree")).toBe(true);
     expect(exec.mock.calls.filter(([, args]) => args[0] === "for-each-ref")

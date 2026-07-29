@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,7 +16,11 @@ import { parseV3DecomposeContinuationInput } from "../../../src/lib/work-unit/de
 import type { V3DecomposeCutMap } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
-const template = readFileSync("arc/reference/templates/arc/work-unit/template-cohort.md");
+const packageRoot = resolve(import.meta.dirname, "../../..");
+const template = readFileSync(resolve(
+  packageRoot,
+  "arc/reference/templates/arc/work-unit/template-cohort.md",
+));
 
 function map(): V3DecomposeCutMap {
   return structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
@@ -236,6 +241,22 @@ describe("v3 preparation-bound publication projection", () => {
     expect(projectV3CandidateAuthority(value, mismatched)).toMatchObject({
       status: "refused",
       refusal: { code: "topology-action-mismatch" },
+    });
+
+    const invalidState = structuredClone(topology);
+    const invalidAction = invalidState.actions[0];
+    if (invalidAction === undefined || !("after" in invalidAction)) {
+      throw new Error("fixture topology must carry a materialized action");
+    }
+    invalidAction.after = {
+      kind: "object",
+      objectKind: "symlink",
+      mode: "120000",
+      bytes: new Uint8Array(),
+    };
+    expect(projectV3CandidateAuthority(value, invalidState)).toMatchObject({
+      status: "refused",
+      refusal: { code: "topology-state-invalid" },
     });
 
     const drifted = structuredClone(topology);

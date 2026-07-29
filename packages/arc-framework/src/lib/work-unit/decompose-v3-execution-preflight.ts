@@ -86,7 +86,7 @@ export async function revalidateV3DecomposeExecutionPreflight(
     return {
       status: "stale",
       reason: refreshed.reason,
-      locus: "locus" in refreshed && refreshed.locus !== undefined
+      locus: refreshed.locus !== undefined
         ? refreshed.locus
         : "machine.source",
     };

@@ -5,10 +5,10 @@ import type { ProtectionMode } from "../git/write-context.js";
 import type { DecomposeTransientClaimStore } from "./decompose-transient-claim-store.js";
 import {
   decomposeTransientClaimId,
-  parseDecomposeTransientClaim,
   projectDecomposeTransientCandidateOwnership,
   type DecomposeTransientClaim,
   type DecomposeTransientClaimBinding,
+  type DecomposeTransientOccupationEvidence,
 } from "./decompose-transient-claim.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 
@@ -194,7 +194,11 @@ function validateRecoverableObservation(
 function occupationEvidence(
   observation: DecomposeCandidateObservation,
   claim: DecomposeTransientClaim,
-) {
+): DecomposeTransientOccupationEvidence | null {
+  const registration = observation.registrations[0];
+  if (observation.branchHead === null
+    || registration === undefined
+    || registration.marker === null) return null;
   return {
     registrations: observation.registrations.map(({ path, candidateBranch, head }) => ({
       path,
@@ -203,13 +207,9 @@ function occupationEvidence(
     })),
     branch: {
       candidateBranch: claim.binding.candidateBranch,
-      head: observation.branchHead ?? "",
+      head: observation.branchHead,
     },
-    marker: observation.registrations[0]?.marker ?? {
-      claimId: claim.claimId,
-      generation: 0,
-      candidateWorktree: claim.candidateWorktree,
-    },
+    marker: registration.marker,
   };
 }
 
@@ -251,7 +251,7 @@ export async function occupyDecomposeResult(
   const claimId = decomposeTransientClaimId(binding);
   let observation = await adapter.observeCandidate(binding.candidateBranch);
   const stored = await adapter.claims.read(claimId);
-  const storedClaim = stored.status === "found" ? parseDecomposeTransientClaim(stored.claim) : null;
+  const storedClaim = stored.status === "found" ? stored.claim : null;
 
   if (observation.registrations.length > 1) {
     return { status: "refused", reason: "duplicate-registration" };
@@ -338,11 +338,13 @@ export async function occupyDecomposeResult(
 
   const refusal = validateObservation(claim, created.observation);
   if (refusal !== null) return { status: "refused", reason: refusal };
+  const evidence = occupationEvidence(created.observation, claim);
+  if (evidence === null) return { status: "refused", reason: "recovery-required" };
   const occupied = await adapter.claims.occupy(
     claimId,
     claim.generation,
     path,
-    occupationEvidence(created.observation, claim),
+    evidence,
   );
   if (occupied.status !== "occupied" && occupied.status !== "already-occupied-matching") {
     return { status: "refused", reason: "recovery-required" };

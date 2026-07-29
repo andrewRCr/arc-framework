@@ -200,6 +200,27 @@ describe("decomposition result occupation", () => {
     });
   });
 
+  it("requires recovery when occupied state loses its candidate or creation cannot prove absence", async () => {
+    const lost = harness();
+    expect((await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      lost.adapter,
+    )).status).toBe("occupied");
+    lost.setObservation({ branchHead: null, registrations: [] });
+    expect(await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      lost.adapter,
+    )).toEqual({ status: "refused", reason: "recovery-required" });
+
+    const unproven = harness({
+      ensureCandidate: async () => ({ status: "collision", noMutation: false }),
+    });
+    expect(await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", plan: plan() },
+      unproven.adapter,
+    )).toEqual({ status: "refused", reason: "recovery-required" });
+  });
+
   it("refuses a stale source binding and duplicate or occupied registrations", async () => {
     const stale = harness();
     const staleBinding = {

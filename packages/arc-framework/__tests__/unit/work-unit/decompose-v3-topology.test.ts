@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,7 +10,12 @@ import {
   type V3TopologyTreeState,
 } from "../../../src/lib/work-unit/decompose-v3-topology.js";
 
-const template = readFileSync("arc/reference/templates/arc/work-unit/template-cohort.md");
+const packageRoot = resolve(import.meta.dirname, "../../..");
+const repositoryRoot = resolve(packageRoot, "../..");
+const template = readFileSync(resolve(
+  packageRoot,
+  "arc/reference/templates/arc/work-unit/template-cohort.md",
+));
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -144,7 +150,9 @@ describe("v3 decomposition topology planning", () => {
     });
     expect(first.plan.actions[0]?.kind).toBe("append");
     const appended = first.plan.actions[0];
-    if (appended === undefined || !("after" in appended) || appended.after.kind !== "object") return;
+    if (appended === undefined || !("after" in appended) || appended.after.kind !== "object") {
+      throw new Error("append action must carry an object result");
+    }
 
     const repeated = planV3DecomposeTopology(input({
       placement: { kind: "at-cap", parent: "group/nested" },
@@ -232,8 +240,14 @@ describe("v3 decomposition topology planning", () => {
 
 describe("decomposition cohort doctrine projection", () => {
   it("keeps package authority and the project method synchronized on multi-member grouping", () => {
-    const packageMethod = readFileSync("arc/system/methods/assess-cohort-fit.md", "utf8");
-    const projectMethod = readFileSync("../../.arc/system/methods/assess-cohort-fit.md", "utf8");
+    const packageMethod = readFileSync(
+      resolve(packageRoot, "arc/system/methods/assess-cohort-fit.md"),
+      "utf8",
+    );
+    const projectMethod = readFileSync(
+      resolve(repositoryRoot, ".arc/system/methods/assess-cohort-fit.md"),
+      "utf8",
+    );
 
     expect(projectMethod).toBe(packageMethod);
     expect(packageMethod).toContain("Every decomposition with more than one new member must select");
