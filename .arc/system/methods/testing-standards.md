@@ -20,7 +20,8 @@ override-mode: extend
 ## testing-standards.override
 
 Applied on top of `.default` (`override-mode: extend`) — the universal principles stand, instantiated here for
-`@arc-framework/cli` (TypeScript CLI, Vitest, three test tiers):
+`@arc-framework/cli` (TypeScript CLI, Vitest, and three test tiers — unit / integration / e2e, rooted at
+`packages/arc-framework/__tests__/`):
 
 - **Boundaries are** `execFile` / git, `fs`, the npm-registry check, and time — mock these in unit tests; let
   integration and e2e exercise the real thing.

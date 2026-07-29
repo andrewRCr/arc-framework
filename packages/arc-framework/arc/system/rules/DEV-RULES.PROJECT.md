@@ -18,18 +18,6 @@ Use this when a domain's rules are substantial enough to warrant separation.
 
 ---
 
-## Contents
-
-- [Quality Gates](#quality-gates) — checks and enforcement
-- [Testing Requirements](#testing-requirements) — test strategy and coverage
-- [Code Quality Principles](#code-quality-principles) — engineering standards
-- [Documentation Standards](#documentation-standards) — markdown quality, style conventions
-- [File Organization](#file-organization) — directory structure and boundaries
-- [Capture Routing](#capture-routing) — where deferred issues go
-- [Architecture Documentation](#architecture-documentation) — ADRs and design records
-
----
-
 ## Quality Gates
 
 **Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
@@ -59,12 +47,8 @@ or focus areas]
 
 ## Code Quality Principles
 
-Apply standard software engineering principles:
-
-- **DRY** (don't repeat yourself)
-- **SOLID** (single responsibility, open/closed, dependency inversion)
-- **KISS** (keep it simple)
-- **YAGNI** (you aren't gonna need it)
+**Scope discipline:** Don't build what wasn't asked for. Speculative abstraction and unrequested capability are
+scope decisions rather than engineering taste, and they belong to whoever set the scope.
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
@@ -77,8 +61,6 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ### Markdown quality
 
-- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
-- Always run markdown linting after updating documentation files
 - **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
   80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
   in wide content (tables, task lists, rationale blocks), and compound over time as subsequent edits match the short

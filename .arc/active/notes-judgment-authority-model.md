@@ -201,8 +201,8 @@ destination, as § Contributor commit release shows, but not this one.
 | Selecting what to run             | 24 | yes   | **keep unchanged — the exemplar**                                                                                                                                                                             | cite as the target shape; change nothing                                      | stays     | 0   |
 | The six numbered gate entries     | 37 | mixed | demote the commands behind a one-line retarget of the `quality-gate-commands` passthrough; keep the four constraints `QUICK-REFERENCE` does not carry                                                         | mechanism 1 fires once retargeted                                             | firm      | 30  |
 | Testing Requirements              | 10 | mixed | keep the coverage posture; demote the tier and method elaboration                                                                                                                                             | `test-first` / `testing-standards` declarations — fire                        | firm      | 6   |
-| Code Quality Principles           | 19 | mixed | cut DRY / SOLID / KISS; **keep YAGNI**, reframed as scope discipline; the TypeScript standards and the pre-public-release posture stay; reseat or rename the heading                                          | register cut 1 — see § Base drift                                             | decided   | 7   |
-| Markdown quality                  | 8  | mixed | keep line length and the underfill note; cut the always-run-lint duplication                                                                                                                                  | —                                                                             | firm      | 3   |
+| Code Quality Principles           | 19 | mixed | cut DRY / SOLID / KISS; **keep YAGNI**, reframed as scope discipline; the TypeScript standards and the pre-public-release posture stay; reseat or rename the heading                                          | register cut 1 — see § Base drift                                             | decided   | 3   |
+| Markdown quality                  | 8  | mixed | keep line length and the underfill note; cut the always-run-lint duplication                                                                                                                                  | —                                                                             | firm      | 2   |
 | Documentation style               | 12 | yes   | keep the collaborative voice and the reference-link convention; compress the examples                                                                                                                         | —                                                                             | authoring | 4   |
 | Workflow prose economy            | 7  | mixed | demote, keeping a one-line obligation                                                                                                                                                                         | `strategy-workflow-authoring` — passive index entry                           | trigger   | 5   |
 | Verbs over mechanics              | 5  | mixed | keep the verb-gap capture instruction; demote the rationale                                                                                                                                                   | `strategy-workflow-authoring` — same entry                                    | trigger   | 3   |
@@ -212,18 +212,18 @@ destination, as § Contributor commit release shows, but not this one.
 | Surface taxonomy                  | 19 | yes   | **keep verbatim** — the path lists are the operative content, not prose around it; compressing them trades a quiet-failing rule's precision for 5 nb                                                          | retracted from a 5 nb compression                                             | stays     | 0   |
 | Leak patterns                     | 12 | yes   | keep — quiet-failing constraints                                                                                                                                                                              | —                                                                             | stays     | 2   |
 | Package-source mirror inheritance | 3  | yes   | keep                                                                                                                                                                                                          | —                                                                             | stays     | 1   |
-| Relationship to DEV-RULES.ARC     | 8  | no    | cut to a one-line "both apply" — pure cross-reference reconciliation                                                                                                                                          | —                                                                             | firm      | 6   |
+| Relationship to DEV-RULES.ARC     | 8  | no    | cut to a one-line "both apply" — pure cross-reference reconciliation                                                                                                                                          | —                                                                             | firm      | 5   |
 | Capture Routing                   | 3  | yes   | keep                                                                                                                                                                                                          | —                                                                             | stays     | 1   |
 | Surface agent-side friction       | 14 | yes   | keep the standing instruction; compress the two trigger-class definitions                                                                                                                                     | —                                                                             | authoring | 6   |
 | Architecture Decision Records     | 12 | mixed | compress the 3 nb pointer in place; relocate the 8 nb internal-only leak rule into § Audience Boundaries (within-file, not a demotion) — the criteria this row once proposed demoting are not in the instance | none — nothing demotes; `strategy-adr-methodology` is no longer a destination | authoring | 3   |
 
 ### Totals
 
-| File                                                 | firm    | decided | authoring | trigger | blocked | residue | Total Δnb |
-| ---------------------------------------------------- | ------- | ------- | --------- | ------- | ------- | ------- | --------- |
-| `DEV-RULES.ARC` (canonical — ships)                  | 44      | 9       | 19        | 47      | 15      | 8       | 142       |
-| `DEV-RULES.PROJECT` (instance — template mirrors it) | 56      | 7       | 17        | 18      | 0       | 6       | 104       |
-| **Both**                                             | **100** | **16**  | **36**    | **65**  | **15**  | **14**  | **246**   |
+| File                                                 | firm   | decided | authoring | trigger | blocked | residue | Total Δnb |
+| ---------------------------------------------------- | ------ | ------- | --------- | ------- | ------- | ------- | --------- |
+| `DEV-RULES.ARC` (canonical — ships)                  | 44     | 9       | 19        | 47      | 15      | 8       | 142       |
+| `DEV-RULES.PROJECT` (instance — template mirrors it) | 54     | 3       | 17        | 18      | 0       | 6       | 98        |
+| **Both**                                             | **98** | **12**  | **36**    | **65**  | **15**  | **14**  | **240**   |
 
 Canonical `firm` and the totals carry Task 3.1's re-measurement (§ Contents 11 → 12); see § Execution
 re-measurement against base. Canonical `decided` carries Task 3.3's correction — § Task granularity's Δ5 was
@@ -232,15 +232,15 @@ qualitative bullets leaves 4), so the row is Δ2. Instance `firm` carries Task 5
 are 37 nb rather than 35, so Δ28 → 30 at the row's own residual; see § Instance re-measurement against base.
 
 Down from the pre-audit 318, then 261, then 246 after the two adversarial passes' corrections below, then 247 at
-Task 3.1's re-measurement, 244 at Task 3.3's, and 246 again at Task 5.1's. The `P3` tier carries no Δ — its one row
-(Prefix mapping) was withdrawn rather than deferred. The `trigger` tier is what D6 gates, and it is now 65 nb across
-**seven** index entries.
+Task 3.1's re-measurement, 244 at Task 3.3's, 246 at Task 5.1's, and 240 once Task 5.3 measured what its six rows
+actually removed. The `P3` tier carries no Δ — its one row (Prefix mapping) was withdrawn rather than deferred. The
+`trigger` tier is what D6 gates, and it is now 65 nb across **seven** index entries.
 
-**`firm` + `decided` is what may be authored against today: 116 nb**, of which 53 is canonical `DEV-RULES.ARC`
-and 63 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
+**`firm` + `decided` is what may be authored against today: 110 nb**, of which 53 is canonical `DEV-RULES.ARC`
+and 57 is the instance file. Every correction before Task 3.1 landed in the `trigger`, `authoring`, and `blocked`
 tiers; execution is the first to touch `firm` and `decided` — Task 3.1 added 1 to the former, Task 3.3 removed 3
-from the latter, and Task 5.1 added 2 more to the former. The instance share across the whole register is
-104 / 246 ≈ **42%**.
+from the latter, Task 5.1 added 2 to the former, and Task 5.3 removed 2 from `firm` and 4 from `decided` against
+measured outcomes. The instance share across the whole register is 98 / 240 ≈ **41%**.
 
 ### Execution re-measurement against base (Task 3.1)
 
@@ -457,6 +457,61 @@ other work units, and the unsafe window opens at 5.3.b.
 be coordinated with this work unit's ignorance-guard / bias-guard cut so the two do not mint separate vocabularies
 for one cut. Captured to `USER-INBOX § Work Unit` against `quality-gate-hooks`; it is that WU's authoring call, not
 an impl task here.
+
+### The firm and decided tiers, executed (Task 5.3)
+
+`DEV-RULES.PROJECT` goes **255 → 198 nb**, and the shipped template 105 → 91. Six rows landed; every disposition
+executed as written and none was abandoned, but three Δs came in under their projection, so the tier totals are
+measured rather than carried. Sum delivered **57 nb against a projected 63**.
+
+| Row                             | `nb` → residual | Δ projected | Δ measured | Why it moved                              |
+| ------------------------------- | --------------- | ----------- | ---------- | ----------------------------------------- |
+| § Contents                      | 11 → 0          | 11          | 11         | —                                         |
+| The six numbered gate entries   | 37 → 7          | 30          | 30         | matches, once the residual sits right     |
+| § Testing Requirements          | 10 → 4          | 6           | 6          | —                                         |
+| § Markdown quality              | 8 → 6           | 3           | 2          | only two lines restate the gate           |
+| § Relationship to DEV-RULES.ARC | 8 → 3           | 6           | 5          | the section's structural `---` is in span |
+| § Code Quality Principles       | 19 → 16         | 7           | 3          | Δ7 unreachable from its own disposition   |
+
+**The § Code Quality Principles projection was arithmetically unreachable**, the same defect Task 3.3 found in
+§ Task granularity. Its disposition removes the lead-in and three acronym bullets — 4 nb — and the YAGNI reframe
+costs 2 back, so Δ3 is the outcome and Δ4 the ceiling even with a one-line reframe. Nothing was dropped to reach the
+projection, which is the correct call: the row's content verdict was sound and only its arithmetic was wrong.
+
+**§ Markdown quality's "always-run-lint duplication" is two lines, not three.** Both the zero-tolerance restatement
+and the run-the-linter line restate § Quality Gates; the template-first and READMEs bullets are conventions stated
+nowhere else and stayed. Δ2.
+
+**The gate-entry residual settles at 7 nb** — the figure Task 5.1 deferred here, and it lands on the projection only
+because the residual was **placed** correctly. The four kept constraints compress to three bullets, the
+index-versus-worktree trap merging with re-stage-after-fix since one is the consequence of the other. The first
+attempt left that block where the numbered entries had sat, which put gate behaviors inside § Selecting what to run —
+a subsection about which checks a change reaches, not about how a check misleads — and carried its own duplicate
+pointer to the destination. Reseating it under § Quality Gates beside the zero-tolerance rule cost a line and gained
+one: the existing preamble pointer absorbed the reference, and **§ Selecting what to run came back byte-identical to
+base**, which its `keep unchanged — the exemplar` disposition requires and the first placement had quietly violated.
+
+**§ Relationship to DEV-RULES.ARC cannot reach 2 nb.** It closes a `##` block, so its span includes the structural
+`---`, leaving heading + `---` + one line as the floor. The one-line form was authored to that floor: Δ5.
+
+**The heading rename is `## Engineering Standards`, and it was authored rather than inherited.** No prior artifact
+settled a name; the spec fixed only the requirement (describe what remains — the compatibility posture plus the
+TypeScript standards — rather than reseating the posture into § Package-Project Sync). The retired § Contents entry
+had glossed the section as "engineering standards", which is evidence the maintainer already read it that way.
+Per the row, the rename is **instance-only**: the template's section holds the reframed rule, a composition line, and
+language-agnostic placeholders, which an instance-derived heading would misdescribe.
+
+**The sweep found nothing to sweep.** No live inbound `§ Code Quality Principles` citation exists outside this work
+unit's own planning artifacts — the only other references were the two § Contents entries this task cut anyway — and
+nothing in the corpus anchors into `DEV-RULES.PROJECT.md#`. § Testing Requirements orphaned exactly the three link
+definitions the phase preamble predicted, all three pruned; both copies now carry zero orphans.
+
+**The demotion destination was checked for install reachability before anything was written into it.**
+`testing-standards` is absent from **both** `manifest.json` and `init-recipe.json`, so no project receives it — the
+hazard that deletes content rather than relocating it. It does not bite here: the demoted lines describe _this
+repository's_ test layout, so the destination only has to exist in this instance, and it does. What the row moved is
+instance content into an instance file, not framework content into a file that never ships. The absence is the
+pre-existing recipe defect already recorded as correction 11b, not something this row deepened.
 
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 

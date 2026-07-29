@@ -1134,7 +1134,7 @@ Requirements alone orphans three.
   load-bearing. Closing it needed no new mechanism — the existing declaration, authored so the settled retirement of
   the tier vocabulary sweeps past it untouched.
 
-### `[ ]` **5.3 Firm and decided tiers**
+### `[x]` **5.3 Firm and decided tiers**
 
 - _Goal:_ The instance file's largest reductions land, with each demotion's content written to its destination
   and each cut's structural consequence resolved rather than left as a bare deletion.
@@ -1142,34 +1142,47 @@ Requirements alone orphans three.
 - **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
   `DEV-RULES.PROJECT` table, the `firm` and `decided` rows
 
-    - `[ ]` **5.3.a § Contents — cut whole**
-        - Same argument as Task 3.2.a. Mirror the cut in the template, which carries the same block.
+    - `[x]` **5.3.a § Contents — cut whole**
+        - Cut from both copies — 11 nb instance, 9 template. No live inbound `§ Contents` citation and nothing in
+          the corpus anchors into `DEV-RULES.PROJECT.md#`, so the cut broke no reference.
 
-    - `[ ]` **5.3.b The six numbered gate entries**
-        - Demote the commands behind Task 5.2's retarget; **keep** the four constraints `QUICK-REFERENCE` does not
-          carry: the index-versus-worktree false-green trap, re-stage-after-fix, the worktree check's fails-closed
-          behavior, and "run both before declaring types green."
-        - The destination is not already populated. `QUICK-REFERENCE` § Quality Gate Commands carries the tier
-          command blocks but not `typecheck:all`, the five config paths, the `shellcheck` system-install
-          requirement, or the tooling names — those arrive with this demotion. Three commands the section needs
-          already live in § Command Patterns; decide once whether they move or are cross-referenced, rather than
-          per item.
-        - Re-read the destination section's own lead-in afterwards: it currently defers "which gates to run" to
-          the section this task empties.
-        - Blocked on Task 5.2 — do not empty the section before the retarget lands.
+    - `[x]` **5.3.b The six numbered gate entries**
+        - 37 nb → 8. Commands, config paths, `typecheck:all`, the `shellcheck` system-install requirement, and the
+          tooling names were written into `QUICK-REFERENCE` § Quality Gate Commands as a new § The gates
+          subsection **before** the instance lost them. The four kept constraints compress to three bullets — the
+          index-versus-worktree trap merges with re-stage-after-fix, one being the consequence of the other.
+        - **Decided once, as instructed:** the three Markdown commands already in § Command Patterns are
+          **cross-referenced, not moved** — that section owns the invocation gotchas (`--no-globs`, the MD060
+          caveat), and a same-file pointer costs nothing while a copy would be a second place to update.
+        - The destination's lead-in needed only a narrowing, not a redirect: § Selecting what to run stays in
+          `DEV-RULES.PROJECT`, so deferring "which gates to run" there is still true; what changed is that this
+          section now carries the gate listing itself.
+        - Δ30, matching the projection — the residual Task 5.1 deferred here measures 7 nb, but only once it is
+          **placed** correctly. Left where the numbered entries had sat, it put gate behaviors inside § Selecting
+          what to run and carried a duplicate destination pointer; reseated under § Quality Gates it absorbs into
+          the existing pointer, and § Selecting what to run returns **byte-identical to base**, which its
+          `keep unchanged — the exemplar` disposition requires.
 
-    - `[ ]` **5.3.c § Testing Requirements**
-        - Keep the coverage posture; demote the tier and method elaboration to the method declarations, which
-          already fire.
+    - `[x]` **5.3.c § Testing Requirements**
+        - 10 nb → 4; the coverage posture stays. The framework-and-tiers line and the methodology pointer left.
+        - Destination checked for install reachability first: `testing-standards` is in **neither**
+          `manifest.json` nor `init-recipe.json`, so no project receives it. It does not bite — the demoted lines
+          describe this repository's own test layout, so the destination only has to exist in this instance. The
+          tier root was written into its `.override` lead-in; the strategy pointer was already reachable through
+          `STRATEGY-INDEX`. Pruned the three link definitions this orphaned, as the phase preamble predicted.
 
-    - `[ ]` **5.3.d § Markdown quality**
-        - Keep the line-length rule and the underfill note; cut the always-run-lint duplication.
-        - The template carries the duplicated line too — mirror the cut.
+    - `[x]` **5.3.d § Markdown quality**
+        - 8 nb → 6, mirrored in the template. **Δ2, not the projected 3:** the duplication is two lines — the
+          zero-tolerance restatement and the run-the-linter line — while the template-first and READMEs bullets
+          are conventions stated nowhere else and stayed.
+        - The template's line-length rule is still the pre-compression form Task 5.1 recorded. Left alone
+          deliberately: propagating that is a sync reconcile, not this row's cut, and Task 5.6 owns it.
 
-    - `[ ]` **5.3.e § Relationship to DEV-RULES.ARC**
-        - Cut to a one-line "both apply" — the rest is pure cross-reference reconciliation.
+    - `[x]` **5.3.e § Relationship to DEV-RULES.ARC**
+        - Cut to one line. **Δ5, not 6:** the section closes a `##` block, so its span includes the structural
+          `---` and the floor is heading + `---` + one line.
 
-    - `[ ]` **5.3.f § Code Quality Principles**
+    - `[x]` **5.3.f § Code Quality Principles**
         - Cut DRY / SOLID / KISS. **Keep YAGNI**, reframed as scope discipline — "don't build what wasn't asked
           for" is a scope-authority rule agents do violate and ARC states nowhere else, not capability guidance.
         - The TypeScript standards and the pre-public-release compatibility posture stay.
@@ -1181,7 +1194,26 @@ Requirements alone orphans three.
           standards — after the cut it holds YAGNI, a composition line, and language-agnostic placeholder
           comments, which the instance-derived heading would misdescribe. Leave the template's heading as it is,
           and record why, so the divergence reads as a decision rather than a missed mirror.
-        - Close by sweeping inbound `§ Code Quality Principles` citations across both copies.
+        - Renamed to **§ Engineering Standards**, authored rather than inherited — no prior artifact settled a
+          name, and the retired § Contents entry had already glossed the section as "engineering standards".
+          YAGNI is now a two-line scope-authority rule; the posture and TypeScript standards are untouched.
+        - Cut mirrored in the template; its heading stays `Code Quality Principles` per the row, since what
+          remains there is the reframed rule, a composition line, and language-agnostic placeholders.
+        - **Δ3, not the projected 7 — the projection was unreachable from its own disposition**, the same defect
+          Task 3.3 found in § Task granularity: the cut removes 4 nb and the reframe costs 2 back, so Δ4 is the
+          ceiling even with a one-line reframe. Nothing was dropped to chase the figure.
+        - Sweep run and empty: no live inbound `§ Code Quality Principles` citation exists outside this work
+          unit's own planning artifacts, and the only other references were the § Contents entries 5.3.a cut.
+
+- _Outcome:_ `DEV-RULES.PROJECT` is **255 → 198 nb** and the template 105 → 91, with every disposition executed as
+  written and none abandoned. Three of six Δs came in under projection — 57 delivered against 63 — and every
+  shortfall was arithmetic rather than judgment: a miscounted duplication, a structural separator inside a span, and
+  one projection unreachable from the disposition that produced it. The register's row-level content verdicts have
+  now survived execution six more times; its Δ column has not, which is the same split Task 3.1 recorded when it
+  found the enumeration sound and the accounting around it wrong. The one substantive lesson is about **placement,
+  not counting**: a retained residual left where the demoted content used to sit landed gate behavior inside a
+  subsection about check selection, and silently edited the one section the register marks keep-unchanged. Where a
+  cut's remainder belongs is part of the cut.
 
 ### `[ ]` **5.4 Authoring tier — compress in place**
 

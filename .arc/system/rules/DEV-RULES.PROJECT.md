@@ -8,26 +8,21 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 ---
 
-## Contents
-
-- [Quality Gates](#quality-gates) — checks and enforcement
-- [Testing Requirements](#testing-requirements) — test strategy and coverage
-- [Code Quality Principles](#code-quality-principles) — engineering standards
-- [Documentation Standards](#documentation-standards) — markdown quality, style conventions
-- [Commit Conventions (self-hosting)](#commit-conventions-self-hosting) — scope and type adherence in this repo
-- [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
-- [Audience Boundaries](#audience-boundaries) — adopter-facing vs. internal-dev-facing surfaces
-- [Capture Routing](#capture-routing) — where deferred issues go
-- [Architecture Documentation](#architecture-documentation) — ADRs and design records
-
----
-
 ## Quality Gates
 
 **Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
 
 **Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
-Commands and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+
+Four gate behaviors that reference does not carry, each of which fails quietly:
+
+- `lint:md:staged` certifies the **git index**, not the worktree — the false-green trap is index-versus-worktree
+  bytes, not a second rule set; **re-stage after every fix**, or findings target already-corrected lines.
+- `lint:md` **fails closed** when a staged Markdown-gate path still differs in the worktree, so a green worktree
+  run cannot hide a dirty index.
+- Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
+  test-only type error passes a source-only check and surfaces only at commit.
 
 ### Selecting what to run
 
@@ -61,71 +56,16 @@ running a tier partially, and Tier 3 in particular is still run whole.
 Re-running **is** warranted after a base merge, after any review-driven fix, and at the first full-suite
 attestation of composed work — each introduces state no prior run saw.
 
-1. **Markdown Linting**: Zero violations
-    - **Authoritative gate (pre-commit):** `npm run -s lint:md:staged` — certifies the **git index** (what will
-      commit), not the worktree. Same rule config as the worktree run (`.markdownlint-cli2.jsonc`); the false-
-      green trap is **index vs worktree bytes**, not a second rule set. After every fix, **re-stage** before
-      re-running — otherwise findings target already-corrected worktree lines and look spurious.
-    - Worktree check: `npm run -s lint:md` — mid-edit composition over worktree files. On a clean lint it also
-      **fails closed** when any staged Markdown-gate path still differs in the worktree (so a green worktree
-      run cannot hide a dirty index). Still not a substitute for `lint:md:staged` before commit when you want
-      the full index certification (deps + checker alignment).
-    - Auto-fix: `npm run -s lint:md:fix` clears many rules (including MD049 emphasis-style) but **not**
-      MD060 table alignment — use `npm run format:tables -- <file> [<file> ...]` (explicit tracked paths;
-      source-first Framework projection; does not rewrite surrounding prose).
-    - Config: `.markdownlint-cli2.jsonc`
-
-2. **Code Linting**: Zero violations
-    - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
-      (typescript-eslint recommended-type-checked)
-    - Shell: `npm run lint:sh` — requires system-installed `shellcheck` on developer machines
-
-3. **TypeScript Type Checking**: Zero errors
-    - Source: `npm run typecheck` — config `packages/arc-framework/tsconfig.json` (strict; excludes `__tests__`)
-    - Tests: `npm run typecheck:test` — config `packages/arc-framework/tsconfig.test.json`
-    - Both at once: `npm run typecheck:all`
-    - Test files typecheck under a separate config; Vitest's esbuild transpile skips type-checking, so a
-      test-only type error passes a source-only check and surfaces only at commit. Run both before declaring
-      types green — especially after editing a shared or exported type.
-
-4. **Tests**: All pass
-    - Command: `npm test` (full suite), `npm run test:unit` (unit only)
-    - Framework: Vitest
-    - Config: `packages/arc-framework/vitest.config.ts`
-
-5. **Build**: Succeeds
-    - Command: `npm run build`
-    - Tooling: tsup (ESM output, declarations, shebang injection)
-
-6. **ARC Contract Checks**: Zero violations
-    - Commands: `npm run -s lint:arc:triggers`, `npm run -s lint:arc:domain-rules`,
-      `npm run -s lint:arc:section-refs`
-    - Validate methodology artifacts — declared method fire-points, domain-rules frontmatter, and `§` section
-      references across the corpus. **Required in CI**, and the family most often missed locally; see
-      [QUICK-REFERENCE][quick-ref] § Quality Gate Commands for the parity rule.
-
 ## Testing Requirements
-
-**Test framework:** Vitest. Three test tiers under `packages/arc-framework/__tests__/`
-(unit / integration / e2e).
 
 **Coverage expectations:** Business logic and core libraries should have unit test coverage.
 Commands are validated through integration and E2E tests. No hard coverage percentage target —
 meaningful assertions over line counting.
 
-**Testing methodology:** Operational rules live in the methods — [`test-first`][test-first] (planning-time
-test sequencing) and [`testing-standards`][testing-standards] (execution-time assertion / mocking / isolation
-discipline). See [Testing Methodology Strategy][testing-methodology] for the deep-dive — rationale, tier
-details, and worked examples.
+## Engineering Standards
 
-## Code Quality Principles
-
-Apply standard software engineering principles:
-
-- **DRY** (don't repeat yourself)
-- **SOLID** (single responsibility, open/closed, dependency inversion)
-- **KISS** (keep it simple)
-- **YAGNI** (you aren't gonna need it)
+**Scope discipline:** Don't build what wasn't asked for. Speculative abstraction and unrequested capability are
+scope decisions rather than engineering taste, and they belong to whoever set the scope.
 
 **Pre-public-release compatibility posture:** ARC is currently pre-public-release. Until its first public release,
 unpublished project-owned contracts and development-only persisted state may change in place. Do not add
@@ -147,10 +87,8 @@ instead.
 
 ### Markdown quality
 
-- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
 - Template-first documents with comprehensive inline guidance and framework defaults
 - READMEs required for each directory
-- Always run markdown linting after updating documentation files
 - **Line length**: 120 characters — wrap at natural phrase boundaries near the target width. Linting catches
   overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
   Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
@@ -284,12 +222,7 @@ The `.arc/` copy inherits the classification.
 
 ### Relationship to DEV-RULES.ARC § Documentation Boundaries
 
-Planning-artifact references — task IDs, R-IDs, phase numbers, ADR numbers, named processes /
-methods / workflows, `.arc/` doc paths — are handled by DEV-RULES.ARC § Documentation
-Boundaries; that rule prohibits them across code, tests, and durable documentation including
-strategies. This section adds the orthogonal **adopter vs. internal-dev** concerns above
-(transitional framing, project-internal migration, future-scope pointers) within methodology
-surfaces. Both apply.
+DEV-RULES.ARC § Documentation Boundaries and § Audience Boundaries above both apply, on orthogonal concerns.
 
 ---
 
@@ -339,9 +272,6 @@ for docs-site content.
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
-[testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
-[test-first]: ../methods/test-first.md
-[testing-standards]: ../methods/testing-standards.md
 [commit-format]: ../methods/commit-format.md
 [commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
