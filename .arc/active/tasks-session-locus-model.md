@@ -2101,10 +2101,11 @@ Placement for the `7.E.g` and `7.E.h` members derives from those parents' record
 records — each slice re-verifies its own members against `notes-session-locus-model.md` § Chunked-review finding
 triage before implementing.
 
-### `[ ]` **7.P.0 S0 — Establish the planning baseline**
+### `[x]` **7.P.0 S0 — Establish the planning baseline**
 
 - _Goal:_ Land the active meta, spec, task list, notes, and derived `ROADMAP` state as one checked control-plane PR
   below the slice-size ceiling, so S1 can remain an independently reviewable implementation capability.
+- _Outcome:_ PR #395 established the planning control plane independently and landed as `bb6803b62`.
 
 ### `[ ]` **7.P.a S1 — Locus record substrate**
 
@@ -2112,20 +2113,13 @@ triage before implementing.
   its schema, derives a stable identifier from a flavor-normalized checkout spelling, and persists under
   generation-safe read, mint, and replace.
 
-    - `[ ]` **7.P.a.i Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
-        - The open-success refinement requires only `activeLocusPath` and `sessionHomePath`, so an applied or
-          idempotent open receipt validates with `allocation`, `recordId`, and `leaseId` still null — the exact
-          coordinates a caller needs to continue safely. Require all five together on the three open operations.
-        - `LocusTimestampSchema` is `z.iso.datetime({ offset: true })`, which accepts non-`Z` offsets against a
-          persisted-record contract that specifies canonical UTC. Require `Z` form, or normalize before persistence.
-        - Cover one negative case per missing coordinate and the offset boundary on both arms.
+    - `[x]` **7.P.a.i Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
+        - All three open operations now require allocation, record and lease IDs, active locus, and session-home
+          coordinates on applied and idempotent results; persisted timestamps accept canonical `Z` instants only.
 
-    - `[ ]` **7.P.a.ii Drop the unwired error and registry surfaces**
-        - No source file imports `locus/errors.ts` and the package publishes no barrel. Drop the module and its
-          test rather than shipping a test-only error surface.
-        - `locus/registry.ts` and its sole importer `session-envelope/registry.ts` form a dead chain reachable from
-          no entry point. Leave the existing session-envelope registry unchanged and omit the locus registry plus
-          its tests.
+    - `[x]` **7.P.a.ii Drop the unwired error and registry surfaces**
+        - The slice omits the unwired locus error and registry modules and their tests while leaving the existing
+          session-envelope registry unchanged.
 
 ### `[ ]` **7.P.b S2 — Process and platform inspection**
 
