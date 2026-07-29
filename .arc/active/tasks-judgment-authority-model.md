@@ -374,17 +374,10 @@ an orphan.
   prose, which is the failure mode this work unit exists to name — a rule stated and not applied to the case that
   did not look like its example.
 
-### `[ ]` **3.2 Firm tier — cuts and verified-redundancy demotions**
+### `[x]` **3.2 Firm tier — cuts and verified-redundancy demotions**
 
 - _Goal:_ The rows whose mechanism already fires leave the always-loaded set, with the demoted content landing at
   its destination in the same increment.
-
-- _Note:_ The pre-commit hook this task's ROADMAP row depends on lives at
-  `.arc/system/.internal/githooks/pre-commit`, mirrored in the package source — not at a top-level `githooks/`.
-  Its CHECK 17 emits the re-render command verbatim, which is the mechanism the demotion relies on.
-
-- **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
-  `DEV-RULES.ARC` table, the `firm` rows
 
     - `[x]` **3.2.a § Contents — cut whole**
         - Cut from both copies: 12 nb, matching the Task 3.1 re-measurement exactly (the recorded 11 predated the
@@ -418,11 +411,30 @@ an orphan.
         - **Δ1, not the modeled Δ2.** The section ends a `##` block, so its span includes the structural `---`
           that cannot be removed. The two prose lines were the only compressible content and they became one.
 
-    - `[ ]` **3.2.d § Route by urgency × isolation and § Holding ≠ execution**
-        - § Route by urgency — keep the table, the routing constraint, and the express-lane permission; demote
-          drain behavior and the retention exception to the drain operation, where they are local.
-        - § Holding ≠ execution — keep the never-on-the-WU-branch constraint; demote the protection-mode shape and
-          the record back-pointer to `run-errand`, which loads while running one.
+    - `[x]` **3.2.d § Route by urgency × isolation and § Holding ≠ execution**
+        - **Both destinations already carried every demoted line — no writes were owed.** This is the
+          verified-redundancy half of the tier behaving as designed, and it was checked rather than assumed:
+          `drain-inbox` carries the retention escape-hatch with its full `_Hold:` / `_Created:` grammar and the
+          "never the default, never agent-suggested" guard, the no-un-triaged-entries invariant in its own
+          frontmatter, the non-arc-in-git routing fallback, and "routing is not execution" verbatim; `run-errand`
+          carries the protection-mode shape at § Launch step 3 and again at § Ship and § Complete, and the
+          inbox back-pointer with its drop-at-close semantics in both places.
+        - § Route by urgency — 23 nb → 17. **Δ6, not the modeled Δ7:** one clause was kept rather than demoted.
+          "The inline, holding, and anti-rider rules are mode-independent" is a scope statement about
+          always-loaded constraints, and its reader is the agent at routing time, not at drain time — demoting it
+          to `drain-inbox` would file it where it is never read.
+        - § Holding ≠ execution — 11 nb → 6, Δ5 as modeled. A four-word pointer that shape follows protection
+          mode survives the cut, so the variance is still signalled where the detail is not.
+        - "An errand has no meta file or lifecycle of its own" was cut outright rather than demoted: it is
+          verbatim in `AGENT-BRIEF.ARC`'s always-loaded Errand vocabulary entry.
+
+- _Outcome:_ **44 nb out of `DEV-RULES.ARC`, 437 → 393**, against a modeled 44 — the tier's total held even though
+  four of its six rows missed their individual figures in both directions. Only one row required a destination
+  write (the contributor rule, into `AGENT-BRIEF.CONTRIBUTOR`); every other demotion resolved to redundancy
+  already present at the fire site, which is what `firm` was supposed to mean and is now evidence rather than
+  assertion. Two rows measured differently than recorded — § Contents 12 and contributor release 4 — and the
+  second sits in the itemized § Commit control sub-table that Task 3.1's heading-level pass could not reach, so
+  the remaining tiers' sub-table figures carry the same unverified status.
 
     - `[x]` **3.2.e § Consult strategy guidance**
         - Compressed 8 nb → 2: one obligation line pointing at the index, which is itself always-loaded and now

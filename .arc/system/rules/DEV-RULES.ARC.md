@@ -324,14 +324,8 @@ directly — run an errand (a self-evident concern, atomic, possibly extended) o
 (spec-worthy future work) — but never must: capture-plus-drain reaches the same place. Lack of time is never a
 reason to lose a thought.
 
-**Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow.
-Under PM modes other than arc-in-git, captures route per project convention (see
-[DEV-RULES.PROJECT][dev-rules-project]); the inline, holding, and anti-rider rules are mode-independent. The
-drain clears each entry to a home, with one sanctioned exception — a developer may **retain** a specific
-capture in `USER-INBOX` (held privately until
-vetted, or for imminent self-execution), explicit and per-entry, never the default. So the WU-start invariant
-is **no un-triaged entries**, not an empty inbox: a retained entry is triaged (marked, reminder-tracked), not
-rot.
+**Where captures drain.** `USER-INBOX` drains at the between-WUs `arc-housekeep` flow; the inline, holding,
+and anti-rider rules hold under every PM mode.
 
 ### Holding ≠ execution
 
@@ -339,13 +333,7 @@ Capture _holds_; it never _executes_. Capture is inbox-only — a deferred conce
 `arc-inbox`), never as a queued or seeded errand. **An errand _is_ its execution:** out-of-WU work runs through
 the `run-errand` lifecycle on its own isolated branch — entered warm with `arc-errand` or cold with
 `arc-session --errand` — never hand-rolled on your current WU branch. The isolation rule is universal — get off
-the WU branch — but its _shape_ follows protection mode: a `chore/<slug>` branch + PR under full, a direct base
-commit under partial (see [strategy-work-organization][work-org] § Cheap-branch path). An errand has no meta
-file or lifecycle of its own — its state is derived from its branch and PR.
-
-Routing a multi-step note _to its stub_ is not execution — the housekeep drain writes it straight in. When an
-errand executes a captured item, its inbox entry is removed at **completion** — matched via its errand record's
-origin back-pointer — not at start, so an abandoned errand never orphans the intent.
+the WU branch — while its _shape_ follows protection mode.
 
 ### Anti-rider
 
