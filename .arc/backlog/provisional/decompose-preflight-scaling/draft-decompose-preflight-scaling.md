@@ -14,7 +14,7 @@
 
 ## Problem / Motivation
 
-The v3 read-only preflight has three independent multiplicative costs that are harmless on current fixture scale
+The v3 read-only preflight has four independent multiplicative costs that are harmless on current fixture scale
 but structurally unbounded:
 
 1. **Local-branch discovery** — lists each branch's full `.arc` tree, then reads every meta blob sequentially
@@ -22,12 +22,15 @@ but structurally unbounded:
 2. **Locator revalidation** — reparses and canonicalizes every scanned unit for every stored source unit
    (units²).
 3. **Content scanning** — re-encodes the document prefix for every unit boundary (document length × units).
+4. **Repository-plan hydration** — reads every object byte in the source, merge-base, and result-base trees again
+   during post-occupation revalidation, even when their immutable OIDs are unchanged.
 
 ## Approach (candidate)
 
 1. Measure representative wide-branch, wide-topology, and large-document cases first.
 2. Define explicit cost bounds from the measurements.
-3. Batch or bound Git object reads while preserving the pinned-ref / reread race contract.
+3. Batch, cache by immutable OID, or lazily hydrate Git objects while preserving the pinned-ref / reread race
+   contract.
 4. Precompute a validated locator representation without weakening the runtime boundary.
 5. Derive UTF-8 byte offsets in one pass without changing Unicode boundary semantics.
 

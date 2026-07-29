@@ -1,6 +1,7 @@
 /** Commit-time gate requiring exact finalized evidence for decompose writes. */
 
 import { execFile } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { promisify } from "node:util";
@@ -28,13 +29,15 @@ import {
   type V3ManagedPathResult,
 } from "../lib/work-unit/decompose-v3-receipt.js";
 import { v3SourceArtifactDigest } from "../lib/work-unit/decompose-v3-schema.js";
+import type { V3SourceArtifactEntry } from "../lib/work-unit/decompose-v3-schema.js";
 import { validateFinalizedV3Decomposition } from "../lib/work-unit/validate-v3-decomposition.js";
+import { readGitV3DecomposeTreeSnapshot } from "../lib/work-unit/git-decompose-v3-preflight.js";
 
 /** Closed-stdin subprocess policies owned by the decompose-record hook adapter. */
 export const validateDecomposeRecordInputPolicyDeclarations = [{
   commandPath: "hook-validate-decompose-record",
   aliases: [],
-  sites: [1, 2, 3, 4, 5, 6].map((occurrence) => declareInteractionSite(
+  sites: [1, 2, 3, 4, 5, 6, 7].map((occurrence) => declareInteractionSite(
     { file: "scripts/validate-decompose-record.ts", kind: "subprocess", callee: "execFileAsync", occurrence },
     {
       acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
@@ -62,6 +65,10 @@ export interface DecomposeCommitGateInput {
     ref: string | null,
     path: string,
   ): V3ManagedPathResult["before"];
+  /** Complete source-artifact inventory reconstructed from the pinned source tree. */
+  readSourceArtifactInventory?(
+    preparation: V3DecomposePreparation,
+  ): readonly V3SourceArtifactEntry[] | null;
   /** Exact blob/absence state for every merge parent, including `HEAD`. */
   readParentBytes?(path: string): readonly (Uint8Array | null)[];
 }
@@ -330,7 +337,9 @@ function validateV3CommitAddition(
   if (!sameChanges(changes, expectedV3Changes(receipt, change.path))) {
     return ["v3 decompose exact write set contains a rider or path-status mismatch"];
   }
-  if (input.resolveRef === undefined || input.readPathState === undefined) {
+  if (input.resolveRef === undefined
+    || input.readPathState === undefined
+    || input.readSourceArtifactInventory === undefined) {
     return ["v3 decompose canonical validation evidence is unavailable"];
   }
   const preparation: V3DecomposePreparation = {
@@ -345,18 +354,11 @@ function validateV3CommitAddition(
     || input.resolveRef(machine.resultBase.ref) !== machine.resultBase.head) {
     return ["v3 decompose canonical validation mismatch: base"];
   }
-  const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
-    .sort(compareUtf8);
-  const sourceArtifactInventory = sourcePaths.flatMap((path) => {
-    const state = input.readPathState?.(machine.source.head, path);
-    return state?.kind === "file"
-      ? [{ path, objectKind: "blob" as const, mode: state.mode, contentDigest: state.contentDigest }]
-      : [];
-  });
-  if (sourceArtifactInventory.length !== sourcePaths.length) {
+  const sourceArtifactInventory = input.readSourceArtifactInventory(preparation);
+  if (sourceArtifactInventory === null) {
     return ["v3 decompose canonical validation mismatch: source"];
   }
-  const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
+  const sourceArtifactDigest = v3SourceArtifactDigest([...sourceArtifactInventory]);
   if (sourceArtifactDigest === null) {
     return ["v3 decompose canonical validation mismatch: source"];
   }
@@ -609,6 +611,7 @@ export type V3CommitGateEvidenceSnapshot =
       status: "available";
       resolvedRefs: ReadonlyMap<string, string>;
       pathStates: ReadonlyMap<string, V3ManagedPathResult["before"]>;
+      sourceArtifactInventories: ReadonlyMap<string, readonly V3SourceArtifactEntry[]>;
     }
   | { status: "unavailable" };
 
@@ -624,19 +627,27 @@ export async function collectV3CommitGateEvidence(
   deps: {
     resolveRef(ref: string): Promise<string>;
     readPathState(ref: string | null, path: string): Promise<V3ManagedPathResult["before"]>;
+    readSourceArtifactInventory(
+      receipt: V3DecomposeReceipt,
+    ): Promise<readonly V3SourceArtifactEntry[]>;
   },
 ): Promise<V3CommitGateEvidenceSnapshot> {
   const resolvedRefs = new Map<string, string>();
   const pathStates = new Map<string, V3ManagedPathResult["before"]>();
+  const sourceArtifactInventories = new Map<string, readonly V3SourceArtifactEntry[]>();
   try {
     for (const receipt of receipts) {
       const machine = receipt.prepared.completedMap.machine;
       for (const ref of [machine.source.ref, machine.resultBase.ref]) {
         if (!resolvedRefs.has(ref)) resolvedRefs.set(ref, await deps.resolveRef(ref));
       }
+      if (!sourceArtifactInventories.has(receipt.receiptId)) {
+        sourceArtifactInventories.set(
+          receipt.receiptId,
+          await deps.readSourceArtifactInventory(receipt),
+        );
+      }
       const requests = [
-        ...[...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
-          .map((path) => [machine.source.head, path] as const),
         ...receipt.finalized.managedPathResults.flatMap(({ path }) => [
           [machine.resultBase.head, path] as const,
           [null, path] as const,
@@ -652,7 +663,12 @@ export async function collectV3CommitGateEvidence(
   } catch {
     return { status: "unavailable" };
   }
-  return { status: "available", resolvedRefs, pathStates };
+  return {
+    status: "available",
+    resolvedRefs,
+    pathStates,
+    sourceArtifactInventories,
+  };
 }
 
 /** Validate the current index and set a failing exit code on refusal. */
@@ -702,6 +718,27 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   const evidence = await collectV3CommitGateEvidence(receipts, {
     resolveRef: async (ref) => await resolveCommit(cwd, ref),
     readPathState: async (ref, path) => await gitNormalizedPathState(cwd, ref, path),
+    readSourceArtifactInventory: async (receipt) => {
+      const machine = receipt.prepared.completedMap.machine;
+      const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
+        cwd,
+        exec: async (command, args, options) => {
+          const result = await execFileAsync(command, args, {
+            cwd: options?.cwd,
+            encoding: "utf8",
+            maxBuffer: 20 * 1024 * 1024,
+          });
+          return { stdout: result.stdout, stderr: result.stderr };
+        },
+        readBlob: async (ref, path) => await readGitBlobBytes(cwd, ref, path),
+      }, machine.source.ref, machine.source.head, machine.source.origin);
+      return sourceSnapshot.sourceArtifacts.map((artifact) => ({
+        path: artifact.path,
+        objectKind: artifact.objectKind,
+        mode: artifact.mode,
+        contentDigest: contentDigest(artifact.bytes),
+      }));
+    },
   });
   const errors = validateDecomposeCommitGate({
     changes,
@@ -720,6 +757,8 @@ export async function runDecomposeRecordValidation(): Promise<void> {
             }
             return state;
           },
+          readSourceArtifactInventory: (preparation: V3DecomposePreparation) =>
+            evidence.sourceArtifactInventories.get(preparation.receiptId) ?? null,
         }),
   });
   if (errors.length > 0) {
@@ -729,7 +768,20 @@ export async function runDecomposeRecordValidation(): Promise<void> {
 }
 
 const modulePath = fileURLToPath(import.meta.url);
-if (modulePath === process.argv[1] && basename(modulePath).startsWith("validate-decompose-record.")) {
+function realPathOrNull(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+const invokedPath = process.argv[1];
+const resolvedModulePath = realPathOrNull(modulePath);
+if (invokedPath !== undefined
+  && resolvedModulePath !== null
+  && resolvedModulePath === realPathOrNull(invokedPath)
+  && basename(modulePath).startsWith("validate-decompose-record.")) {
   void runDecomposeRecordValidation().catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

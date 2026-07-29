@@ -100,6 +100,51 @@ describe("v3 source retirement delta planning", () => {
     expect(result.retirements).toHaveLength(1);
   });
 
+  it("accounts for a started source moved away from its planned predecessor family", () => {
+    const roadmapPath = ".arc/backlog/ROADMAP.md";
+    const plannedMeta = ".arc/backlog/planned/origin/meta-origin.md";
+    const plannedDraft = ".arc/backlog/planned/origin/draft-origin.md";
+    const activeMeta = ".arc/active/meta-origin.md";
+    const activeDraft = ".arc/active/draft-origin.md";
+    const input: V3RetirementDeltaInput = {
+      sourceKind: "started-planning",
+      mergeBases: ["base-oid"],
+      predecessorCandidates: [plannedMeta],
+      predecessorArtifactPaths: [plannedDraft, plannedMeta],
+      originArtifactPaths: [activeDraft, activeMeta],
+      roadmapPath,
+      baseTree: {
+        [plannedMeta]: file("planned meta"),
+        [plannedDraft]: file("planned draft"),
+        [roadmapPath]: file("base roadmap"),
+      },
+      sourceTree: {
+        [activeMeta]: file("active meta"),
+        [activeDraft]: file("active draft"),
+        [roadmapPath]: file("source roadmap"),
+      },
+      resultTree: {
+        [plannedMeta]: file("planned meta"),
+        [plannedDraft]: file("planned draft"),
+        [roadmapPath]: file("base roadmap"),
+      },
+    };
+
+    const result = planV3RetirementDelta(input);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.riders).toEqual([]);
+    expect(result.predecessorRetirements.map(({ path }) => path)).toEqual([
+      plannedDraft,
+      plannedMeta,
+    ]);
+    expect(result.retirements.map(({ path }) => path)).toEqual([
+      activeDraft,
+      activeMeta,
+    ]);
+  });
+
   it.each([
     ["missing result predecessor", (input: V3RetirementDeltaInput) => {
       delete input.resultTree[".arc/active/meta-origin.md"];

@@ -63,7 +63,16 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
   return null;
 }
 
-async function readSnapshot(
+/**
+ * Read one exact decomposition source snapshot from a pinned commit.
+ *
+ * @param deps - Git and blob-reading boundaries
+ * @param ref - Logical local ref bound to the snapshot
+ * @param head - Exact commit object to read
+ * @param origin - Retiring work-unit slug
+ * @returns Complete metadata, artifact, and dependency facts from the pinned tree
+ */
+export async function readGitV3DecomposeTreeSnapshot(
   deps: GitV3DecomposePreflightDependencies,
   ref: string,
   head: string,
@@ -187,10 +196,10 @@ export async function createGitV3DecomposePreflight(
     }
     const base = pairs.find(({ ref }) => ref === baseRef);
     if (base === undefined) return { status: "rejected", reason: "git-preflight:missing-base" };
-    const sourceBase = await readSnapshot(deps, base.ref, base.head, origin);
+    const sourceBase = await readGitV3DecomposeTreeSnapshot(deps, base.ref, base.head, origin);
     const localBranches: V3DecomposeTreeSnapshot[] = [];
     for (const pair of pairs.filter(({ ref }) => ref !== baseRef)) {
-      localBranches.push(await readSnapshot(deps, pair.ref, pair.head, origin));
+      localBranches.push(await readGitV3DecomposeTreeSnapshot(deps, pair.ref, pair.head, origin));
     }
     return createV3DecomposePreflight({
       origin,

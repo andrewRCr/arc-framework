@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
@@ -168,8 +168,29 @@ function validateRename(options: RenameFixtureOptions = {}): string[] {
 }
 
 describe("validateDecomposeCommitGate", () => {
+  it("treats a nonexistent process entrypoint as a non-entrypoint import", async () => {
+    const invokedPath = process.argv[1];
+    process.argv[1] = "/nonexistent/arc/validate-decompose-record.js";
+    vi.resetModules();
+    try {
+      await expect(import("../../../src/scripts/validate-decompose-record.js"))
+        .resolves.toBeDefined();
+    } finally {
+      if (invokedPath === undefined) process.argv.splice(1, 1);
+      else process.argv[1] = invokedPath;
+    }
+  });
+
   it("accepts one exact canonical v3 receipt addition through live validation", () => {
-    const { preparation, receipt: v3Receipt } = v3DecompositionEvidenceFixture();
+    const taskArtifact = {
+      path: ".arc/active/tasks-origin.md",
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      contentDigest: canonicalDigest("source tasks"),
+    };
+    const { preparation, receipt: v3Receipt } = v3DecompositionEvidenceFixture({
+      additionalSourceArtifacts: [taskArtifact],
+    });
     const v3RecordPath = resolveRetirementRecordRelativePath(v3Receipt.receiptId);
     const changes: StagedPathChange[] = [
       { status: "A", path: v3RecordPath },
@@ -180,6 +201,12 @@ describe("validateDecomposeCommitGate", () => {
     ];
     const machine = preparation.facts.completedMap.machine;
     const sourcePath = machine.sourceUnits[0]!.sourcePath;
+    const sourceArtifactInventory = [{
+      path: sourcePath,
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      contentDigest: machine.sourceUnits[0]!.contentDigest,
+    }, taskArtifact];
 
     const input = {
       changes,
@@ -188,6 +215,7 @@ describe("validateDecomposeCommitGate", () => {
       resolveRef: (ref) => ref === machine.source.ref
         ? machine.source.head
         : ref === machine.resultBase.ref ? machine.resultBase.head : null,
+      readSourceArtifactInventory: () => sourceArtifactInventory,
       readPathState: (ref, path) => {
         if (ref === machine.source.head && path === sourcePath) {
           return {
@@ -607,7 +635,7 @@ describe("parseStagedPathChanges", () => {
 });
 
 describe("collectV3CommitGateEvidence", () => {
-  it.each(["ref", "path"] as const)(
+  it.each(["ref", "path", "source"] as const)(
     "converts a failed %s read into typed gate evidence unavailability",
     async (failure) => {
       const { receipt } = v3DecompositionEvidenceFixture();
@@ -619,6 +647,10 @@ describe("collectV3CommitGateEvidence", () => {
         readPathState: async () => {
           if (failure === "path") throw new Error("ls-tree failed");
           return { kind: "absent" };
+        },
+        readSourceArtifactInventory: async () => {
+          if (failure === "source") throw new Error("source inventory failed");
+          return [];
         },
       });
       expect(evidence).toEqual({ status: "unavailable" });

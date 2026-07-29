@@ -13,13 +13,24 @@ describe("DecomposeCommandInputSchema", () => {
   });
 
   it.each([
+    { origin, execute: "map.json" },
+    { origin, discard: "map.json" },
+    {
+      origin,
+      finalize: `sha256:${"a".repeat(64)}`,
+      continuation: "continuation.json",
+    },
+  ])("accepts a complete repository command mode: %o", (input) => {
+    expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
+  });
+
+  it.each([
     { origin },
     { origin, preflight: true, handoff: true },
     { origin, preflight: true, cutMap: "map.json" },
     { origin, cutMap: "map.json" },
     { origin, finalize: `sha256:${"a".repeat(64)}` },
     { origin, continuation: "continuation.json" },
-    { origin, discard: "map.json" },
     {
       origin,
       finalize: `sha256:${"a".repeat(64)}`,
