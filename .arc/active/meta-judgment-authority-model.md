@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.6 — Trigger tier, the gated demotions; Phases 1–3 complete
-- **Next Task:** Task 4.1 — Sweep the method corpus (line ~765)
+- **Last Completed:** Task 4.1 — Sweep the method corpus (52 marker candidates / 63 accepted across 25 documents)
+- **Next Task:** Task 4.2 — Sweep the strategy corpus (line ~777)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — derive the shipped method corpus by comparing both copies, then classify each
-  imperative as marker-or-accepted-reclassification into a per-document table in `notes-judgment-authority-model.md`
+- **Next Action:** Begin Task 4.2 — sweep both `strategies/arc/` and `strategies/project/` on Task 4.1's terms, and
+  resolve the `strategy-package-project-sync` "never `cp`" counterexample candidate rather than assuming the conflict
 
 - **PR URL:** [none]
 - **Completed:** [none]
