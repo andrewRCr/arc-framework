@@ -399,6 +399,65 @@ beyond where that measurement caught it, while carrying a § Rule Authority that
 Task 3.1 table was recording — the constitutional half's cost is paid, and the instance register is now surplus
 rather than the leg the criterion depends on.
 
+### The quality-gate retarget's fire sites (Task 5.2)
+
+The method's `.default` now names `QUICK-REFERENCE` § Quality Gate Commands. The destination heading exists in both
+copies — populated in the instance, a placeholder with the tier subsections in `QUICK-REFERENCE.template.md` — so the
+pointer resolves on either side, lateral in the shipped copy exactly as the task predicted. `[dev-rules-project]`
+lost its only consumer in the method and was pruned in both copies; `[quick-ref]` replaces it.
+
+**The declaring surface is two files, one per copy** — `process-task-loop` and its `.template` counterpart, each
+marking the method at the same three points and resolving `[arc-methods-qg]` to its own tree's method. Both verified
+by hand, since nothing validates fire-point marking. The `post-task-quality` / `post-unit-quality` extensions name
+Tier 1 and Tier 2 but declare no method and resolve no pointer, so they were out of scope by construction rather
+than by omission.
+
+**The package-source link is dangling in the package tree by convention, not by mistake.** `[quick-ref]` names the
+post-install `reference/QUICK-REFERENCE.md`, and the package tree carries only `QUICK-REFERENCE.template.md`.
+`02_define-project.template.md` and `clean-work-unit.md` already reference the same target the same way, so the form
+is the established idiom for a template-paired destination and the link is correct where it is read.
+
+**One deviation from the task's plan.** The template comment the task expected to survive unchanged —
+"Commands here should match `QUICK-REFERENCE` § Quality Gate Commands" — is not left true by the retarget so much as
+left vacuous: with the listing gone it names content that no longer exists, and still reads as an instruction to
+record commands in that section. Reworded to send the author to `QUICK-REFERENCE` instead of matching against it,
+which keeps the task's intent that this is the one comment that stays. Template § Quality Gates lands at 7 nb from
+20, matching Task 5.1's measured surface exactly.
+
+**Two gate-running workflows had no path to the commands, and the demotion made it load-bearing.**
+`verify-work-unit` § Step 1 runs the full suite against the Quality Gates Strategy — the tier model — and
+`integrate-work-unit` runs gates at six points; neither declared the method. The commands were reachable only because
+they sat in an always-loaded file the agent already held, which is implicit awareness rather than a trigger. Task
+5.3.b empties exactly that listing, so after it the whole integration lane reaches tier definitions and no commands.
+
+Measured against `analysis-load-set-scoping` § The demotion precondition, that is **unsafe**, not merely pointless:
+clause (a) needs a correctly-scoped trigger in a document loaded at the position, clause (b) fails because these
+workflows run the gates, and unsafe is the never-demote verdict. Declaring the method at each is therefore the
+precondition that legitimizes 5.3.b rather than an improvement alongside it — it also moves the read from the
+60–75% implicit-awareness band into the 85–95% explicit-trigger band the same document measures.
+
+**The declaration is forward-compatible with the settled gate-model reshape, which was checked before wiring.**
+`draft-quality-gate-hooks.md` § Alternatives retired Tier 1/2/3 (settled 2026-07-25) for **gate** (deadline) ×
+**kind** (feedback versus enforcement), and its sweep list already names both workflows. Three things make the
+declaration compose with it rather than add to its churn: the method survives as the single dispatch home — the
+current lean extends `quality-gate-commands` with per-command stage metadata rather than splitting it; the `kind`
+axis is literally "workflow fire sites versus hook/CI gates," so a gate-running workflow declaring the commands
+method is the feedback half of the target vocabulary; and the fire-point markers were authored **tier-numeral-free**,
+following the precedent that `DEV-RULES.PROJECT` § Selecting what to run was "deliberately written vocabulary-neutral
+so they would not churn through this rename." Both files carry exactly the tier-numeral count they carried at base —
+2 and 5 — so the rename sweep sees the surface it already sized.
+
+The residual risk is named rather than dismissed: that WU's consolidation criterion could retire workflow gate
+invocations in favor of hook dispatch, stranding a declaration. Its own ordering constraint gates that on the
+selection rule landing first and singles out these two sites as runs a pre-commit hook cannot dedupe, so the risk
+points away from them. Waiting for that WU was rejected on schedule — it sits in the pre-1.0 polish window behind two
+other work units, and the unsafe window opens at 5.3.b.
+
+**One coordination obligation routed rather than absorbed.** That draft asks for the feedback/enforcement wording to
+be coordinated with this work unit's ignorance-guard / bias-guard cut so the two do not mint separate vocabularies
+for one cut. Captured to `USER-INBOX § Work Unit` against `quality-gate-hooks`; it is that WU's authoring call, not
+an impl task here.
+
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
 Three findings against the register, all confirmed at source. Two share a root cause the register should hold

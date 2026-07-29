@@ -39,25 +39,7 @@ integration checkpoints at coherent unit boundaries (Tier 2), and full suite for
 pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
 and task list integration.
 
-<!-- List your quality gate tools. Each gate needs: name, command, config location. -->
-<!-- Commands here should match QUICK-REFERENCE § Quality Gate Commands. -->
-
-1. **[Linter/Formatter]**: Zero violations
-   - Command: `[lint_command]`
-   - Config: `[config_path]`
-
-2. **[Type Checker]**: Zero errors
-   - Command: `[typecheck_command]`
-   - Config: `[config_path]`
-
-3. **[Test Runner]**: All pass
-   - Command: `[test_command]`
-
-4. **[Build Tool]**: Succeeds
-   - Command: `[build_command]`
-
-<!-- Add or remove gates to match your stack. Common additions: -->
-<!-- security scanning, license checking, bundle size limits, API schema validation -->
+<!-- Record each gate's command in QUICK-REFERENCE § Quality Gate Commands, not here. -->
 
 ## Testing Requirements
 

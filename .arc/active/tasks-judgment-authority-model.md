@@ -1071,7 +1071,7 @@ Requirements alone orphans three.
   **−23 nb against base**, a 46 nb swing from the +23 recorded through Task 3.4, so Criterion 3's net is already
   negative before this phase lands anything.
 
-### `[ ]` **5.2 Quality-gate retarget**
+### `[x]` **5.2 Quality-gate retarget**
 
 - _Goal:_ The quality-gate method resolves to a section that carries commands — in both copies and in the
   template — before the section it currently points at is emptied.
@@ -1087,27 +1087,52 @@ Requirements alone orphans three.
   The move is lateral rather than a regression — the section the method points at today is equally a placeholder
   in the shipped copy — but do not expect to find a populated destination there.
 
-    - `[ ]` **5.2.a Retarget the method's `.default`**
-        - Destination is `QUICK-REFERENCE` § Quality Gate Commands — an on-demand section rather than part of the
-          always-loaded partial read, which is what makes this a redundancy demotion in the instance.
-        - The method is **Configurable**, not Framework: edit `.default` in the package source and mirror by hand.
-          Neither the byte-identity test nor the counterpart warning covers it, so nothing checks the mirror.
-          `QUICK-REFERENCE` is Configurable too — the same applies to every edit this task makes there.
+    - `[x]` **5.2.a Retarget the method's `.default`**
+        - `.default` now names `QUICK-REFERENCE` § Quality Gate Commands — on-demand rather than part of the
+          always-loaded partial read, which is what makes it a redundancy demotion in the instance. Edited in the
+          package source and mirrored by hand; the copies verified byte-identical afterward, since neither the
+          byte-identity test nor the counterpart warning covers a Configurable file.
+        - `[dev-rules-project]` lost its only consumer and was pruned in both copies; `[quick-ref]` replaces it,
+          naming the post-install path per the convention two other package-source files already use for this
+          template-paired target.
 
-    - `[ ]` **5.2.b Update the shipped template's § Quality Gates scaffold**
-        - So the shipped instruction and the shipped method agree: commands recorded in `QUICK-REFERENCE`,
-          standards in `DEV-RULES.PROJECT`.
-        - The four numbered command placeholders leave the template's § Quality Gates, and so do the two
-          authoring comments that instruct filling them in — one asks for each gate's command and config
-          location, the other for adding and removing gate entries; both become false once the listing is gone.
-          The comment pointing at `QUICK-REFERENCE` § Quality Gate Commands is the one the retarget leaves true,
-          and it stays.
-        - Consequence to accept: the scaffold's shape changes for projects. Existing filled-in instances keep
-          working, since the method resolves to whichever section carries the commands.
+    - `[x]` **5.2.b Update the shipped template's § Quality Gates scaffold**
+        - The four numbered command placeholders and both fill-them-in authoring comments left the template's
+          § Quality Gates: 20 nb → 7, matching Task 5.1's measured surface. The shipped instruction and the shipped
+          method now agree — commands in `QUICK-REFERENCE`, standards in `DEV-RULES.PROJECT`.
+        - **Deviation:** the surviving comment was reworded rather than retained verbatim. With the listing gone it
+          named absent content and still read as an instruction to record commands there, so it now sends the author
+          to `QUICK-REFERENCE` instead of matching against it — the task's intent, made true.
+        - Consequence accepted as planned: the scaffold's shape changes for projects, and filled-in instances keep
+          working because the method resolves to whichever section carries the commands.
 
-    - `[ ]` **5.2.c Hand-verify every site the method fires from**
-        - No checker validates method fire-point marking, so this is a hand obligation.
-        - Verify each declaring workflow reaches the retargeted content, not a stale pointer.
+    - `[x]` **5.2.c Hand-verify every site the method fires from**
+        - Two declaring files, one per copy — `process-task-loop` and its `.template` counterpart — each marking the
+          method at the same three points, each resolving `[arc-methods-qg]` into its own tree. Verified by hand; no
+          stale pointer, and no checker validates this.
+        - The `post-task-quality` / `post-unit-quality` extensions name the tiers but declare no method, so they
+          resolve no pointer and were out of scope by construction.
+
+    - `[x]` **5.2.d Declare the method at the gate-running lifecycle workflows**
+        - 5.2.c found two workflows running gates with no path to the commands: `verify-work-unit` § Step 1, and
+          `integrate-work-unit` at six points. Both now declare `quality-gate-commands`, in both copies.
+        - Under `analysis-load-set-scoping` § The demotion precondition this is **unsafe** rather than merely
+          pointless — clause (a) has no trigger at the position and clause (b) fails because the workflows run the
+          gates — so the declaration is the precondition that legitimizes Task 5.3.b, not an addition beside it.
+        - Fire points marked at the first invocation each entry path reaches: § Step 1 for `verify-work-unit`, and
+          both the Phase 1 review-iteration run and the Phase 2 Step 10 run for `integrate-work-unit`, whose
+          documented mid-file re-entry means a Phase 2 resume never reads the Phase 1 site. The remaining four
+          references were left untouched.
+        - **Authored tier-numeral-free** against the settled gate-model reshape, following the vocabulary-neutral
+          precedent of `DEV-RULES.PROJECT` § Selecting what to run. Both files carry the tier-numeral count they
+          carried at base — 2 and 5 — so the pending rename sweep sees the surface it already sized.
+
+- _Outcome:_ The retarget lands cleanly in both copies and the destination heading resolves on either side — lateral
+  in the shipped copy, as the task's note predicted. The increment grew one subtask because the verification found the
+  retarget was necessary but not sufficient: pointing the method at a section that carries commands does nothing for
+  two workflows that never reached the method at all, and the demotion one task away turns that from latent to
+  load-bearing. Closing it needed no new mechanism — the existing declaration, authored so the settled retirement of
+  the tier vocabulary sweeps past it untouched.
 
 ### `[ ]` **5.3 Firm and decided tiers**
 
