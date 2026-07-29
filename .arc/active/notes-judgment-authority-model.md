@@ -513,6 +513,45 @@ repository's_ test layout, so the destination only has to exist in this instance
 instance content into an instance file, not framework content into a file that never ships. The absence is the
 pre-existing recipe defect already recorded as correction 11b, not something this row deepened.
 
+### The authoring tier, compressed in place (Task 5.4)
+
+`DEV-RULES.PROJECT` goes **198 → 184 nb**, and the shipped template 91 → 87. No constraint left the file: every row
+here is a rewrite in place, and the one relocation stayed inside it. Four rows landed against a projected 17;
+**delivered 14**.
+
+| Row                             | `nb` → residual | Δ projected | Δ measured | Why it moved                              |
+| ------------------------------- | --------------- | ----------- | ---------- | ----------------------------------------- |
+| § Documentation style           | 12 → 8          | 4           | 4          | — (template identical, Δ4 applies twice)  |
+| § Commit Conventions            | 12 → 9          | 4           | 3          | the scope examples are the rule's content |
+| § Surface agent-side friction   | 14 → 10         | 6           | 4          | Δ6 implies a 1 nb two-class definition    |
+| § Architecture Decision Records | 12 → 3 + 6      | 3           | 3          | reached only because the move compressed  |
+
+**The two shortfalls are the same shape as Task 5.3's, and both are projection arithmetic rather than a withheld
+cut.** § Commit Conventions' rationale compresses freely, but what remains is a locus rule whose worked examples
+_are_ its content — the seven scope examples demonstrate "narrowest descriptive locus" in a way no restatement
+does, and cutting them to reach Δ4 would trade the rule's operability for a line. § Surface agent-side friction's
+Δ6 requires the two trigger-class definitions to collapse from 7 nb to 1; both classes carry a floor (systemic or
+likely-recurring; observable cost, never aesthetic preference, never before engaging recorded rationale), and
+stating both floors takes three lines. The classes did compress 7 → 3, which is the disposition executed.
+
+**§ Architecture Decision Records hit its projection only because the relocation compressed too.** Δ3 against a
+3 nb pointer and an 8 nb rule that moves rather than leaves is unreachable if the move is verbatim — 12 → 2 + 8 is
+Δ2 at best, and the pointer floors at 2. The rule's first two lines were the slack: "ADRs are internal-only" and
+"they live in `.arc/reference/adr/`" are already carried by § Surface taxonomy's path list and by the retained
+pointer, so the relocated form states the referencing constraint alone and lands at 6.
+
+**Where the moved rule belongs was decided by the destination's scope, not by proximity.** It became a new
+`### Referencing across the boundary` between § Leak patterns and § Package-source mirror inheritance. § Surface
+taxonomy is `keep verbatim` and § Leak patterns enumerates prose patterns to avoid in adopter-facing content — a
+referencing constraint is not a prose pattern, so appending it there would have widened that heading's scope the
+way Task 5.3's first placement widened § Selecting what to run. Both neighbours were re-verified byte-identical to
+base afterward, along with § Selecting what to run itself. The generalization the new heading forces is faithful:
+ADRs were always one internal-only surface among several, and `strategies/project/` was already named in the rule.
+
+**The sweep found nothing to sweep, again.** No live inbound `§ Architecture Decision Records` citation exists
+outside this work unit's own planning artifacts, and no link-reference definition lost its last consumer — all
+eight in the instance file still resolve to at least one use.
+
 ### Corrections from the create-spec adversarial pass (2026-07-28)
 
 Three findings against the register, all confirmed at source. Two share a root cause the register should hold

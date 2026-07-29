@@ -95,18 +95,14 @@ instead.
 
 ### Documentation style
 
-- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
-  perspective — not as a transcript of human-AI interaction. Write as the work's author would.
-    - ❌ "The user approved the approach", "Pending user review", "User requested we defer this"
-    - ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
+- **Collaborative voice**: Commits, task lists, and project docs read as the work's author would write them — an
+  author or team perspective, never a transcript of human-AI interaction. "Approved after review", "Pending
+  review", "Decided to defer this" — not "The user approved the approach", "Pending user review".
 
-- **Reference-style links**: Prefer reference-style links for cross-file references. Collect link definitions at
-  the end of the file after a `---` separator. The separator doubles as a consistent EOF indicator — link
-  definitions are invisible in rendered output, so the horizontal rule is the last visible element.
-    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
-    - One `---` + link block per file, always at the very end
-    - Short links (same directory or one level up) may remain inline at author discretion
-    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
+- **Reference-style links**: Prefer reference-style links for cross-file references, with the definitions collected
+  after one trailing `---` per file — the separator doubles as the EOF indicator, since link definitions render
+  invisibly. Names are lowercase, descriptive, hyphenated (`[dev-rules]`); short links (same directory or one level
+  up) may stay inline; movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc].
 
 ### Workflow prose economy
 
@@ -126,16 +122,13 @@ it for potential `arc-inbox` capture rather than accepting the coupling as perma
 
 ## Commit Conventions (self-hosting)
 
-The universal format lives in the [commit-format][commit-format] and [commit-footer][commit-footer] methods.
-One project-specific adherence rule applies on top, because this repository is ARC:
+The universal format lives in the [commit-format][commit-format] and [commit-footer][commit-footer] methods. One
+project-specific adherence rule applies on top, because this repository is ARC:
 
-**`(arc)` is not the default scope here.** `commit-format` § Subject scope reserves `(arc)` for cross-cutting
-framework concerns and ARC lifecycle-ceremony invocations — "not a default-when-uncertain catch-all." In an
-adopter repo `(arc)` carries real signal (it scopes edits to installed ARC artifacts); **in this repo everything
-is ARC, so it carries none.** Prefer the narrowest descriptive locus: `fix(brief)`, `fix(hook)`, `fix(strategy)`,
-`fix(method)`, `chore(backlog)`, `feat(status)`, `feat(session-init)`. Reserve `(arc)` for genuinely cross-cutting
-changes with no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/activate/archive/handoff
-…`) remain a legitimate use.
+**`(arc)` is not the default scope here.** It marks edits to installed ARC artifacts, which is no signal in a repo
+where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`, `fix(hook)`, `fix(strategy)`,
+`fix(method)`, `chore(backlog)`, `feat(session-init)` — and reserve `(arc)` for genuinely cross-cutting changes with
+no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) remain legitimate.
 
 **`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
 are `fix` / `refactor` / `feat` by intent, never `docs`.
@@ -215,6 +208,14 @@ Route such concerns to internal-dev surfaces instead: WU notes for in-flight con
 PROJECT-PRD for directional decisions; project strategies for conventions that don't apply to
 adopters.
 
+### Referencing across the boundary
+
+Adopter-facing content cannot reference an internal-only surface — an ADR, a `strategies/project/` document — because
+the reader doesn't have it and the link goes nowhere. `strategies/arc/**` is packaged via `npx arc update`, so it is
+bound by this too; `strategies/project/` ships as an empty surface and may reference internal material freely.
+Operational rationale adopters need must stand alone in the adopter-facing source; rationale that doesn't earn that
+placement stays in the ADR itself, or routes to whatever capture surface the project uses for docs-site content.
+
 ### Package-source mirror inheritance
 
 Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
@@ -233,16 +234,11 @@ See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routi
 
 ### Surface agent-side friction and idiom divergence
 
-**Dev-internal to this repository only** — never carry this to other ARC projects, where an
-ARC-improvement observation is something the reader cannot act on. Two trigger classes:
-
-- **Friction (factual).** The harness or methodology made the job measurably harder — you had to hunt for
-  something, a surface misled you, a workaround or retry loop was needed. Floor: systemic or likely-recurring,
-  never one-off trivia.
-- **Idiom divergence (opinion — stricter floor).** ARC's design departs from established industry idiom _at an
-  observable cost_, or leaves unhandled a case the norm covers. Never aesthetic preference. Engage any recorded
-  rationale (ADRs, strategies) before raising it — an observation that ignores a recorded decision is noise; one
-  that engages it is signal. Mark these as judgment, not fact.
+**Dev-internal to this repository only** — elsewhere an ARC-improvement observation is something the reader cannot
+act on. Two trigger classes, both floored at systemic or likely-recurring rather than one-off trivia: **friction**
+(factual — the harness or methodology made the job measurably harder) and **idiom divergence** (marked as judgment,
+stricter floor — ARC departs from established industry idiom _at an observable cost_ or leaves unhandled a case the
+norm covers, never aesthetic preference, and never before engaging the recorded rationale in ADRs and strategies).
 
 **Protocol:** batch to the next natural report boundary (completion report, handoff) as one proposed line each —
 "hit friction X — capture?" — never a mid-execution interrupt. On confirmation, route via `arc-inbox`. When
@@ -253,18 +249,8 @@ never loses the thought.
 
 ### Architecture Decision Records (ADRs)
 
-Document significant architectural decisions as ADRs in `.arc/reference/adr/`.
-See [ADR Methodology Strategy][adr-methodology] — decision criteria, three-tier stability model,
-amendment vs. supersession.
-
-**ADRs are internal-only.** They live in `.arc/reference/adr/` and don't ship to adopters. Don't
-reference ADRs from `strategies/arc/` (packaged via `npx arc update`), docs-site content, or any
-other adopter-facing material — adopters don't have them and following the link goes nowhere.
-Project strategies (`strategies/project/`) and other internal-only docs may reference ADRs freely;
-that directory ships to adopters as an empty surface for their own strategies. Operational
-rationale that adopters need must stand alone in the adopter-facing source; rationale that doesn't
-earn that placement stays in the ADR itself or routes to whatever capture surface the project uses
-for docs-site content.
+Document significant architectural decisions as ADRs in `.arc/reference/adr/`. See [ADR Methodology
+Strategy][adr-methodology] for decision criteria, the three-tier stability model, and amendment vs. supersession.
 
 ---
 

@@ -69,18 +69,14 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ### Documentation style
 
-- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
-  perspective — not as a transcript of human-AI interaction. Write as the work's author would.
-    - ❌ "The user approved the approach", "Pending user review", "User requested we defer this"
-    - ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
+- **Collaborative voice**: Commits, task lists, and project docs read as the work's author would write them — an
+  author or team perspective, never a transcript of human-AI interaction. "Approved after review", "Pending
+  review", "Decided to defer this" — not "The user approved the approach", "Pending user review".
 
-- **Reference-style links**: Prefer reference-style links for cross-file references. Collect link definitions at
-  the end of the file after a `---` separator. The separator doubles as a consistent EOF indicator — link
-  definitions are invisible in rendered output, so the horizontal rule is the last visible element.
-    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
-    - One `---` + link block per file, always at the very end
-    - Short links (same directory or one level up) may remain inline at author discretion
-    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
+- **Reference-style links**: Prefer reference-style links for cross-file references, with the definitions collected
+  after one trailing `---` per file — the separator doubles as the EOF indicator, since link definitions render
+  invisibly. Names are lowercase, descriptive, hyphenated (`[dev-rules]`); short links (same directory or one level
+  up) may stay inline; movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc].
 
 ## File Organization
 

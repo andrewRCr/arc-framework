@@ -1215,7 +1215,7 @@ Requirements alone orphans three.
   subsection about check selection, and silently edited the one section the register marks keep-unchanged. Where a
   cut's remainder belongs is part of the cut.
 
-### `[ ]` **5.4 Authoring tier — compress in place**
+### `[x]` **5.4 Authoring tier — compress in place**
 
 - _Goal:_ The instance file's prose densifies without any constraint leaving it, and the one within-file
   relocation lands at the heading that describes it.
@@ -1223,24 +1223,48 @@ Requirements alone orphans three.
 - **Additional Context:** `notes-judgment-authority-model.md` § Line-level compression enumeration —
   `DEV-RULES.PROJECT` table, the `authoring` rows and their Δ targets
 
-    - `[ ]` **5.4.a § Documentation style**
-        - Keep the collaborative voice and the reference-link convention; compress the examples.
-        - The template carries this section — mirror the compression.
+    - `[x]` **5.4.a § Documentation style**
+        - 12 nb → 8, Δ4. The collaborative voice and the whole reference-link convention stay — preferred form,
+          the single trailing `---` and its EOF role, lowercase-hyphenated names, the same-directory inline
+          latitude, the movable-artifact exception. The ❌/✅ pair and the four sub-bullets fold into prose.
+        - Mirrored in the template, where the section is byte-identical, so the same edit applies twice: 91 → 87.
 
-    - `[ ]` **5.4.b § Commit Conventions (self-hosting)**
-        - Keep the scope rule; compress the rationale. Instance-only.
+    - `[x]` **5.4.b § Commit Conventions (self-hosting)**
+        - 12 nb → 9. The `commit-format` § Subject scope citation and the adopter-repo contrast compress to a
+          clause; the scope rule, its seven-example locus list, the cross-cutting reservation, the
+          lifecycle-ceremony allowance, and the `docs` rule all stay.
+        - **Δ3, not the projected 4:** what remains after the rationale goes is a locus rule whose worked examples
+          are its content. Cutting them to reach the figure would trade operability for a line.
 
-    - `[ ]` **5.4.c § Surface agent-side friction**
-        - Keep the standing instruction; compress the two trigger-class definitions. Instance-only.
+    - `[x]` **5.4.c § Surface agent-side friction**
+        - 14 nb → 10. The dev-internal scoping and the whole protocol are untouched; the two trigger-class
+          definitions go 7 nb → 3, keeping both floors (systemic or likely-recurring; observable cost, never
+          aesthetic preference, never before engaging recorded rationale) and the judgment-not-fact marking.
+        - **Δ4, not the projected 6:** Δ6 requires the two definitions to collapse to a single line, and stating
+          both floors does not fit in one.
 
-    - `[ ]` **5.4.d § Architecture Decision Records**
-        - Compress the pointer in place — the instance carries only a pointer, not the decision criteria.
-        - Relocate the internal-only leak rule into § Audience Boundaries. Within-file move, not a demotion —
-          nothing here leaves the always-loaded set.
+    - `[x]` **5.4.d § Architecture Decision Records**
+        - 12 nb → 3 + 6 relocated, Δ3. The pointer compresses to two lines; the leak rule moves to a new
+          § Referencing across the boundary under § Audience Boundaries.
         - **Instance-only, despite the heading existing in both.** The template's section is different content
           under the same name — the write / don't-write criteria and a stability note, with no pointer to
           compress and no leak rule to relocate. The phase's mirror rule does not apply to this row.
-        - Close by sweeping inbound `§ Architecture Decision Records` citations across both copies.
+        - **The destination heading was chosen by scope, not proximity.** § Surface taxonomy is `keep verbatim`
+          and § Leak patterns enumerates prose patterns to avoid — a referencing constraint is neither, so
+          appending it to either would have widened that heading's scope the way 5.3.b widened § Selecting what
+          to run. Both neighbours, and § Selecting what to run, re-verified byte-identical to base afterward.
+        - The move compressed 8 nb → 6, which is what makes Δ3 reachable: "ADRs are internal-only" and their
+          directory are already carried by § Surface taxonomy's path list and the retained pointer.
+        - Sweep run and empty — no live inbound `§ Architecture Decision Records` citation outside this work
+          unit's own planning artifacts, and no link definition lost its last consumer.
+
+- _Outcome:_ `DEV-RULES.PROJECT` is **198 → 184 nb** and the template 91 → 87, with no constraint leaving the file:
+  every row is a rewrite in place and the one relocation stayed inside it. Δ14 delivered against 17 projected, and
+  as in Task 5.3 both shortfalls are arithmetic rather than judgment — one projection assumed worked examples were
+  rationale, the other assumed two floored definitions fit on one line. The tier's own lesson is the inverse of
+  5.3's and confirms it: § Architecture Decision Records reached its figure **only** because the relocated rule
+  compressed against content its destination already carried. Where a moved rule lands decides what it still has to
+  say, so the destination's existing scope is an input to the move, not a check after it.
 
 ### `[ ]` **5.5 Trigger tier — the gated demotions**
 
