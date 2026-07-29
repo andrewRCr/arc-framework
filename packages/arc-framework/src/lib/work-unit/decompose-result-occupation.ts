@@ -4,6 +4,7 @@ import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DecomposeTransientClaimStore } from "./decompose-transient-claim-store.js";
 import {
+  decomposeCandidateBranch,
   decomposeTransientClaimId,
   projectDecomposeTransientCandidateOwnership,
   type DecomposeTransientClaim,
@@ -138,14 +139,10 @@ function pendingCandidateRecovery(claim: DecomposeTransientClaim, path: string) 
   };
 }
 
-function candidateBranch(origin: string): string {
-  return `chore/decompose-${origin}`;
-}
-
 function bindingFor(plan: ValidatedDecomposePlan): DecomposeTransientClaimBinding {
   return {
     origin: plan.prospectiveOverlay.origin,
-    candidateBranch: candidateBranch(plan.prospectiveOverlay.origin),
+    candidateBranch: decomposeCandidateBranch(plan.prospectiveOverlay.origin),
     sourceHead: plan.sourceHead,
     resultBaseHead: plan.expectedBaseHead,
     cutMapDigest: plan.cutMapDigest,
@@ -296,7 +293,13 @@ export async function occupyDecomposeResult(
       return { status: "refused", reason: "branch-exists-unregistered" };
     }
   } else if (storedClaim?.state.kind === "occupied") {
-    return { status: "refused", reason: "recovery-required" };
+    return storedClaim.registration.kind === "registered"
+      ? {
+          status: "refused",
+          reason: "recovery-required",
+          recovery: pendingCandidateRecovery(storedClaim, storedClaim.registration.path),
+        }
+      : { status: "refused", reason: "claim-conflict" };
   }
 
   const acquired = await adapter.claims.acquire(claimId, binding);

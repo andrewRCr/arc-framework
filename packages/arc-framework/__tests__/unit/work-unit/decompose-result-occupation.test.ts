@@ -215,10 +215,27 @@ describe("decomposition result occupation", () => {
       lost.adapter,
     )).status).toBe("occupied");
     lost.setObservation({ branchHead: null, registrations: [] });
-    expect(await occupyDecomposeResult(
+    const lostRefusal = await occupyDecomposeResult(
       { protection: "full", configuredBase: "main", plan: plan() },
       lost.adapter,
-    )).toEqual({ status: "refused", reason: "recovery-required" });
+    );
+    const [lostClaim] = (await lost.claims.list()).claims;
+    if (lostClaim === undefined) throw new Error("expected the occupied recovery claim");
+    expect(lostRefusal).toEqual({
+      status: "refused",
+      reason: "recovery-required",
+      recovery: {
+        path: "/repo/worktrees/decompose-origin",
+        candidateOwnership: {
+          kind: "claimed",
+          protection: "full",
+          claimId: lostClaim.claimId,
+          generation: lostClaim.generation,
+          candidateBranch: lostClaim.binding.candidateBranch,
+          candidateWorktree: lostClaim.candidateWorktree,
+        },
+      },
+    });
 
     const unproven = harness({
       ensureCandidate: async () => ({ status: "collision", noMutation: false }),

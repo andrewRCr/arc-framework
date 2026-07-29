@@ -7,7 +7,10 @@ import type {
   DecomposeTransientClaimBinding,
   DecomposeTransientReleaseEvidence,
 } from "./decompose-transient-claim.js";
-import { decomposeTransientClaimId } from "./decompose-transient-claim.js";
+import {
+  decomposeCandidateBranch,
+  decomposeTransientClaimId,
+} from "./decompose-transient-claim.js";
 
 export interface V3DecomposeDiscardAuthority {
   planId: CanonicalDigest;
@@ -111,7 +114,7 @@ export async function discardV3DecomposeCandidate(
   }
   const { authority } = revalidated;
   if (authority.binding.origin !== origin
-    || authority.binding.candidateBranch !== `chore/decompose-${origin}`) {
+    || authority.binding.candidateBranch !== decomposeCandidateBranch(origin)) {
     return { status: "refused", reason: "candidate-binding-mismatch", recovery: { kind: "none" } };
   }
   const read = await deps.claims.read(decomposeTransientClaimId(authority.binding));
