@@ -1498,7 +1498,7 @@ parked, which would otherwise ship a second time unrecorded.
   briefs end in a prose footer, so a mechanical rule drops 4 nb from each and moves the base off 828, which is
   exactly the kind of error that looks like a result.
 
-### `[ ]` **5.R.f Close Phase 5's parked template-only items**
+### `[x]` **5.R.f Close Phase 5's parked template-only items**
 
 - _Goal:_ The two items Task 5.1 measured as template-only and handed to the phase close are decided rather than
   left open a second time.
@@ -1507,16 +1507,21 @@ parked, which would otherwise ship a second time unrecorded.
   recording a verdict on either. Moves no tier-1 figure: the template is not in Task 5.7's measured set, so
   Task 5.R.e is unaffected whichever way this lands.
 
-    - Cut the shipped template's "**Write an ADR when:**" / "**Don't write an ADR for:**" criteria (13 nb of its
-      89) down to the instance's pointer shape. Reachability holds without authoring anything: `STRATEGY-INDEX` is
-      always-loaded in every project and its entry already names the residual question — "deciding whether a
-      decision warrants one" — rather than the domain, and `strategy-adr-methodology.md` resolves in
-      `init-recipe.json`. The instance carries no counterpart, so this is a template-only edit.
-    - Assess § File Organization, the second parked item, under the same test and record the verdict either way.
-      Template scaffolding a project fills in is a different class from inert generic guidance, so a keep is a
-      legitimate outcome — an unrecorded one is not.
-    - Both are constraint-or-not determinations in the register's sense; record them alongside the Phase 5 rows
-      rather than only in this task's outcome.
+    - The shipped template's ADR section is now the instance's pointer shape: **85 → 71 nb**. The demotion holds
+      on both preconditions rather than one — `STRATEGY-INDEX`'s entry names the residual question ("deciding
+      whether a decision warrants one"), and `strategy-adr-methodology` § When to Write an ADR was read and
+      carries all five write-when criteria with examples plus the identical three don't-write items, so the
+      template's list is a strict subset. `init-recipe.json` installs the strategy.
+    - § File Organization: **keep**, recorded. A fill-in scaffold holds no rule to lose, its content is
+      project-specific and unknowable from here, and no destination exists to demote it to — the opposite of the
+      generic-capability-guidance class the register's cut test targets.
+    - Both dispositions are recorded with their `C?` verdicts in `notes-judgment-authority-model.md` § The two
+      template-only rows, decided.
+
+- _Outcome:_ The redundancy leg was checked at source rather than inferred from the pointer's wording, which is
+  the precaution the register's own history earns: this work unit's first pass found four destinations that
+  looked right and installed nowhere. Reading the strategy's § When to Write an ADR turned a plausible demotion
+  into a verified one — the template's fourteen lines exist verbatim at the destination, so nothing was deleted.
 
 ## **Phase 6:** Verification
 
@@ -1576,19 +1581,22 @@ parked, which would otherwise ship a second time unrecorded.
     - Re-derived at Task 5.R.e against `origin/main`: 828 → 724 nb, −104 (−12.6%). The first pass's −112 is
       superseded; the base column reproduces file for file, so the two measurements are comparable.
 
-- `[ ]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
+- `[x]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
   is operation-anchored, does not key on the agent estimating its own state, and carries a recorded
   constraint-or-not determination
     - Task 5.7. One limit the columns cannot express surfaced at Task 5.5 — a destination can be reachable and
       still be the wrong audience.
-    - Re-open: Task 5.R.f demotes shipped template content, which owes the same determination.
+    - Task 5.R.f carries both determinations for the two template-only rows — the ADR criteria demote to a
+      destination whose `STRATEGY-INDEX` trigger names the residual question, and § File Organization is a
+      recorded keep. No constraint moved: the demoted lines exist verbatim at the destination.
 
-- `[ ]` Every destination this register demotes into is a file projects actually receive — verified against the
+- `[x]` Every destination this register demotes into is a file projects actually receive — verified against the
   install recipe, not against the package tree — or the row was re-derived rather than demoted
     - Task 2.1 added four destinations to `init-recipe.json` and `manifest.json`; Task 5.5 re-confirmed
       `strategy-workflow-authoring` resolves in both, and that `strategy-package-project-sync` is correctly
       instance-only rather than a recipe omission.
-    - Re-open: Task 5.R.f adds `strategy-adr-methodology` as a destination.
+    - Task 5.R.f confirmed `strategy-adr-methodology` resolves in `init-recipe.json`, and read its § When to
+      Write an ADR to verify the demoted criteria exist there rather than inferring it from the pointer.
 
 - `[x]` Every heading this work unit moved, renamed, or emptied has had its inbound `§` citations swept and
   updated across both copies

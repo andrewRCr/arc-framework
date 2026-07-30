@@ -103,28 +103,8 @@ See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routi
 
 ### Architecture Decision Records (ADRs)
 
-Document significant architectural decisions in ADRs (`.arc/reference/adr/`). ADRs capture the context,
-decision, and consequences of important design choices, serving as historical record and reference for
-understanding system constraints.
-
-**Write an ADR when:**
-
-- Decision affects system structure or external contracts
-- Multiple alternatives were considered
-- Decision driven by external constraint (API limitations, regulatory requirements)
-- Future developers will ask "why did we do it this way?"
-- Decision could be reversed later (context needed for reversal)
-
-**Don't write an ADR for:**
-
-- Purely tactical implementation choices (variable names, loop constructs)
-- Decisions obvious from reading code (standard CRUD, framework conventions)
-- Temporary or experimental choices
-
-**Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
-
-ADRs are stable once accepted — corrections and amendments are permitted under the three-tier model
-in [ADR Methodology Strategy][adr-methodology], but the decision itself changes only through supersession.
+Document significant architectural decisions as ADRs in `.arc/reference/adr/`. See [ADR Methodology
+Strategy][adr-methodology] for decision criteria, the three-tier stability model, and amendment vs. supersession.
 
 ---
 

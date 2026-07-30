@@ -2454,6 +2454,31 @@ link-definition block**, which is not the same as excluding everything after the
 in a prose footer instead, and a mechanical last-`---` rule silently drops 4 nb from each — enough to move the
 base off 828 and make the whole comparison unreproducible.
 
+### The two template-only rows, decided (Task 5.R.f)
+
+Task 5.1 measured both as template-only — no instance counterpart, so no register row classified them — and handed
+the call to Phase 5's close, which recorded neither. Both now carry a disposition on the same two columns every
+register row does.
+
+| Template section              | nb | C?  | Disposition                                                | Destination                    | Δnb |
+| ----------------------------- | -- | --- | ---------------------------------------------------------- | ------------------------------ | --- |
+| Architecture Decision Records | 16 | no  | demote to the instance's pointer shape                     | `strategy-adr-methodology`     | 14  |
+| File Organization             | 5  | n/a | **keep** — fill-in scaffold, not content                   | none                           | 0   |
+
+**The ADR criteria demote on both preconditions, not one.** Reachability holds without authoring anything:
+`STRATEGY-INDEX` is always-loaded in every project and its entry already names the residual question — "deciding
+whether a decision warrants one" — rather than the domain, which is the form the register's own over-firing rule
+demands. Redundancy holds too, and it was checked rather than assumed: `strategy-adr-methodology` § When to Write
+an ADR carries all five write-when criteria with worked examples plus the identical three don't-write items, so
+the template's list is a strict subset. `init-recipe.json` installs the strategy. Measured 85 → 71 nb.
+
+**File Organization is not the cut test's class.** The register's cut targets generic capability guidance that
+model progress has settled — the DRY / SOLID / KISS row is the worked example. A fill-in scaffold with an
+authoring comment and three placeholder rows is the opposite: it holds no rule to lose, its filled content is
+project-specific and unknowable from here, and no destination exists to demote it to. Keeping it is not a
+concession that scaffold sections earn always-loaded placement in general — that question belongs to whoever
+revisits the template's scaffold model, and this work unit's register never opened it.
+
 ### Lifecycle state at handoff
 
 The WU was archived to `completed/2026-q3/40_judgment-authority-model/` and then restored by reverting that commit,
