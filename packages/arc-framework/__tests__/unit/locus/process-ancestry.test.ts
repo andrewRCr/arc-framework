@@ -154,6 +154,24 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("does not trust quoted source and eval text as shell commands", async () => {
+    const command = "printf 'source \"/tmp/shell-snapshots/snapshot-1.sh\"; eval \"arc\"'";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, {
+        kind: "present",
+        snapshot: {
+          ...snapshot(20, 10, "/usr/bin/bash", `/usr/bin/bash -c ${command}`),
+          commandArguments: ["/usr/bin/bash", "-c", command],
+        },
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: "Unrecognized process boundary: /usr/bin/bash",
+    });
+  });
+
   it("refuses the agent tool shell when its eval payload does not invoke arc", async () => {
     const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh 2>/dev/null || true"
       + " && eval 'cd /repo/arc-framework && make build' < /dev/null";

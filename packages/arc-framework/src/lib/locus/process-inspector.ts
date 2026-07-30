@@ -261,17 +261,34 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
 }
 
 function isAgentSnapshotShell(snapshot: AncestorProcessSnapshot, commandLine: string): boolean {
-  if (snapshot.commandArguments === undefined && !/\s-(?:l)?c\s+source\b/u.test(commandLine)) return false;
   const command = snapshot.commandArguments === undefined
-    ? commandLine
+    ? shellCommandLineOperand(commandLine)
     : shellCommandOperand(snapshot.commandArguments);
   if (command === null) return false;
-  const source = /\bsource\s+('[^']+'|"[^"]+"|\S+)/u.exec(command)?.[1];
-  if (source === undefined) return false;
-  const snapshotPath = source.replace(/^(['"])([\s\S]*)\1$/u, "$2").replaceAll("\\", "/");
+  const commands = parseShellCommandList(command);
+  if (commands === null || commands.length === 0) return false;
+  const source = commands[0];
+  if (source?.[0] !== "source" || source[1] === undefined) return false;
+  const snapshotPath = source[1].replaceAll("\\", "/");
   if (!/[\\/]shell-snapshots[\\/]snapshot-[^/]+\.sh$/u.test(snapshotPath)) return false;
-  return /\beval\s+["'](?:[\s\S]*?(?:&&|;|\|)\s*)?(?:npx\s+arc\b|arc\b|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u
-    .test(command);
+  const evalIndex = commands.findIndex((words, index) => index > 0 && words[0] === "eval");
+  if (evalIndex < 0) return false;
+  const setupCommands = commands.slice(1, evalIndex);
+  if (!setupCommands.every((words) => words[0] === "true" || words[0] === "shopt")) return false;
+  const evalPayload = commands[evalIndex]?.[1];
+  if (evalPayload === undefined) return false;
+  const evaluatedCommands = parseShellCommandList(evalPayload);
+  return evaluatedCommands !== null && evaluatedCommands.some(isDirectArcInvocation);
+}
+
+function shellCommandLineOperand(commandLine: string): string | null {
+  const matched = /^\s*(?:"[^"]+"|'[^']+'|\S+)\s+-(?:l)?c\s+([\s\S]+)$/u.exec(commandLine);
+  if (matched?.[1] === undefined) return null;
+  const operand = matched[1].trim();
+  const quote = operand[0];
+  return quote !== undefined && (quote === "'" || quote === "\"") && operand.at(-1) === quote
+    ? operand.slice(1, -1)
+    : operand;
 }
 
 function shellCommandOperand(args: readonly string[]): string | null {
@@ -280,6 +297,72 @@ function shellCommandOperand(args: readonly string[]): string | null {
     return option === "-c" || option === "-lc";
   });
   return optionIndex < 0 ? null : args[optionIndex + 1] ?? null;
+}
+
+function parseShellCommandList(script: string): readonly (readonly string[])[] | null {
+  const commands: string[][] = [];
+  let words: string[] = [];
+  let token = "";
+  let tokenStarted = false;
+  let quote: "'" | "\"" | null = null;
+
+  const finishToken = (): void => {
+    if (!tokenStarted) return;
+    words.push(token);
+    token = "";
+    tokenStarted = false;
+  };
+  const finishCommand = (): void => {
+    finishToken();
+    if (words.length === 0) return;
+    commands.push(words);
+    words = [];
+  };
+
+  for (let index = 0; index < script.length; index += 1) {
+    const character = script[index];
+    const following = script[index + 1];
+    if (character === undefined) continue;
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+        tokenStarted = true;
+      } else if (quote === "\"" && character === "\\" && following !== undefined) {
+        index += 1;
+        token += following;
+        tokenStarted = true;
+      } else {
+        token += character;
+        tokenStarted = true;
+      }
+      continue;
+    }
+    if (character === "'" || character === "\"") {
+      quote = character;
+      tokenStarted = true;
+      continue;
+    }
+    if (character === "\\" && following !== undefined) {
+      index += 1;
+      token += following;
+      tokenStarted = true;
+      continue;
+    }
+    if (character === "\n" || character === ";" || character === "&" || character === "|") {
+      finishCommand();
+      if ((character === "&" || character === "|") && script[index + 1] === character) index += 1;
+      continue;
+    }
+    if (/\s/u.test(character)) {
+      finishToken();
+      continue;
+    }
+    token += character;
+    tokenStarted = true;
+  }
+  if (quote !== null) return null;
+  finishCommand();
+  return commands;
 }
 
 function isArcNodeInvocation(args: readonly string[]): boolean {
