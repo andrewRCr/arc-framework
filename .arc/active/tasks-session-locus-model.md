@@ -2096,6 +2096,12 @@ at the exact head, and use an explicitly authorized admin merge commit only to b
 `arc-cleared` context. Do not invoke `integrate-work-unit`; begin the successor only after the landing is verified
 and recorded by the runbook.
 
+_Control-plane retrofit:_ S3 is the last implementation target that carries the active planning artifacts. After
+it lands, one persistent control branch retains the tracked meta/spec/tasks/notes set and the session-handoff
+anchor. S4 removes exactly those four paths from `main`; S5–S13 carry no `.arc/active/**` paths. Bespoke closeout
+copies the final control artifacts directly into `.arc/completed/**` and renders `ROADMAP` without reintroducing an
+active work unit on the base.
+
 _Inherited placement:_ subtasks carrying a finding ID were re-homed from `7.E.e`, `7.E.f`, `7.E.g`, or `7.E.h`.
 Placement for the `7.E.g` and `7.E.h` members derives from those parents' recorded Goals, not from the finding
 records — each slice re-verifies its own members against `notes-session-locus-model.md` § Chunked-review finding
@@ -2137,14 +2143,17 @@ triage before implementing.
 - _Outcome:_ Linux, BSD, and Windows adapters expose one PID-plus-start-token liveness contract with unknown-safe
   failure behavior, while bounded ancestry selects the durable harness or directly verified interactive shell.
 
-### `[ ]` **7.P.c S3 — Lock and mutation protocol**
+### `[x]` **7.P.c S3 — Lock and mutation protocol**
 
 - _Goal:_ Record mutation is serialized by an owned lock, refuses on generation mismatch, and reclaims only
   proven-dead locks.
 
-    - `[ ]` **7.P.c.i Bind replacement and pop to the held record lock**
-        - Add replace and remove only with the lock-backed mutation boundary that makes exact-generation safety
-          true, and prove concurrent contenders cannot clobber or delete a newer record generation.
+    - `[x]` **7.P.c.i Bind replacement and pop to the held record lock**
+        - Replacement and removal now require the matching live lock handle and exact record bytes; contention
+          coverage proves a blocked or stale generation cannot clobber or delete the successor's record.
+
+- _Outcome:_ Record-scoped locks serialize exact-generation mutation, reclaim only stable dead holders through a
+  secondary lock, and preserve the atomic no-clobber mint guarantees established by the record substrate.
 
 ### `[ ]` **7.P.d S4 — Transient identity core**
 
