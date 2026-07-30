@@ -155,7 +155,7 @@ export async function resolveOptionalCommit(exec: GitExec, ref: string): Promise
     return /^[0-9a-f]{40}$/u.test(oid) ? { kind: "present", oid } : { kind: "error", message: "Ref resolved to an invalid OID." };
   } catch (error) {
     const normalized = normalizeGitRejection(error, { command: "git", args });
-    return normalized.exitCode === 1 || normalized.exitCode === 128
+    return normalized.exitCode === 1
       ? { kind: "absent" }
       : { kind: "error", message: normalized.message };
   }

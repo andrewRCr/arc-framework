@@ -70,6 +70,12 @@ describe("transient identity snapshots", () => {
     expect(treeFailure).toMatchObject({ kind: "error", stage: "tree" });
   });
 
+  it("rejects a resolved tip that is not a full Git object ID", async () => {
+    const result = await readTransientIdentitySnapshot(io(async () => ({ stdout: "HEAD\n" })));
+
+    expect(result).toMatchObject({ kind: "error", stage: "tip" });
+  });
+
   it("rejects declared oversized input before reading its blob", async () => {
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
@@ -116,17 +122,21 @@ describe("transient identity snapshots", () => {
     });
   });
 
-  it("rejects a malformed or non-blob root enumeration", async () => {
-    const malformed = await readTransientIdentitySnapshot(io(async (_command, args) => {
+  it.each([
+    ["malformed entry", "not-an-ls-tree-entry\0"],
+    ["subtree", `040000 tree ${blobOid} -\tnested\0`],
+    [
+      "duplicate key",
+      `100644 blob ${blobOid} 1\tduplicate\0`
+        + `100644 blob ${"c".repeat(40)} 1\tduplicate\0`,
+    ],
+    ["non-NUL-terminated output", `100644 blob ${blobOid} 1\tunterminated`],
+  ])("rejects a root enumeration containing a %s", async (_case, stdout) => {
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
-      return { stdout: "not-an-ls-tree-entry\0" };
-    }));
-    const subtree = await readTransientIdentitySnapshot(io(async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
-      return { stdout: `040000 tree ${blobOid} -\tnested\0` };
+      return { stdout };
     }));
 
-    expect(malformed).toMatchObject({ kind: "error", stage: "tree" });
-    expect(subtree).toMatchObject({ kind: "error", stage: "tree" });
+    expect(result).toMatchObject({ kind: "error", stage: "tree" });
   });
 });

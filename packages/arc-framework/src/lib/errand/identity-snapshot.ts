@@ -68,7 +68,7 @@ export async function readTransientIdentitySnapshotAtRef(
 ): Promise<TransientIdentitySnapshot> {
   let tip: string;
   try {
-    const result = await io.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
+    const result = await io.exec("git", ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]);
     tip = result.stdout.trim();
   } catch (error) {
     if (isAbsentRefFailure(gitFailureText(error))) return { kind: "absent" };

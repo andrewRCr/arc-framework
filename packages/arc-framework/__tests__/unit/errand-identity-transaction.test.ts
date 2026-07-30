@@ -30,6 +30,22 @@ describe("identity object reconciliation", () => {
     )).toEqual({ kind: "conflict", keys: ["shared"] });
   });
 
+  it("accepts convergent changes to the same key", () => {
+    expect(reconcileIdentityObjects(
+      objects({ shared: "a" }),
+      objects({ shared: "b" }),
+      objects({ shared: "b" }),
+    )).toEqual({ kind: "merged", objects: objects({ shared: "b" }) });
+  });
+
+  it("preserves a key deletion made independently on both sides", () => {
+    expect(reconcileIdentityObjects(
+      objects({ shared: "a" }),
+      new Map(),
+      new Map(),
+    )).toEqual({ kind: "merged", objects: new Map() });
+  });
+
   it("treats an absent remote and common basis as empty without dropping local state", () => {
     expect(reconcileIdentityObjects(new Map(), objects({ local: "a" }), new Map())).toEqual({
       kind: "merged",

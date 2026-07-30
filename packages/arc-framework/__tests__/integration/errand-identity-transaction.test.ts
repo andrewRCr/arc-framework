@@ -85,6 +85,7 @@ describe("identity transactions", () => {
   let remoteDir: string | undefined;
 
   beforeEach(async () => {
+    remoteDir = undefined;
     dir = await createTempRepo();
     await makeCommit(dir, "init");
   });
@@ -232,6 +233,21 @@ describe("identity transactions", () => {
     const snapshot = await readTransientIdentitySnapshot(real);
     if (snapshot.kind !== "complete") throw new Error("expected complete snapshot");
     expect(snapshot.records.has("alpha")).toBe(true);
+  });
+
+  it("reports the repeated push failure that exhausts reconciliation", async () => {
+    remoteDir = await addBareRemote(dir);
+    const real = ioFor(dir);
+    const exec: GitExec = async (command, args, options) => {
+      if (args[0] === "push") throw new Error("pre-receive hook declined");
+      return real.exec(command, args, options);
+    };
+
+    await expect(addRecord({ ...real, exec }, "alpha", "origin")).resolves.toMatchObject({
+      kind: "error",
+      stage: "push",
+      message: expect.stringContaining("pre-receive hook declined"),
+    });
   });
 
   it("retries local compare-and-swap rejection and reports exhausted contention", async () => {

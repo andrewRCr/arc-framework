@@ -95,9 +95,8 @@ export async function resolveChangeRequestLifecycleConfiguration(
   }
   const https = /^(?:https?|ssh):\/\/(?:[^@/]+@)?([^/]+)\/([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
   const scp = /^(?:[^@]+@)?([^:]+):([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
-  const match = https ?? scp;
-  const hostRef = match?.[1];
-  const repositoryRef = match?.[2];
+  const hostRef = https?.[1]?.replace(/:\d+$/u, "") ?? scp?.[1];
+  const repositoryRef = https?.[2] ?? scp?.[2];
   return hostRef !== undefined && repositoryRef !== undefined && baseRef !== ""
     ? { hostRef, repositoryRef, baseRef }
     : null;

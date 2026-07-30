@@ -94,7 +94,11 @@ interface CompleteBasis {
   readonly records: ReadonlyMap<string, TransientIdentityRecord>;
 }
 
-type AttemptResult<T> = IdentityTransactionOutcome<T> | { kind: "retry" };
+type RetryResult =
+  | { kind: "retry"; stage: "write" }
+  | { kind: "retry"; stage: "push"; message: string };
+
+type AttemptResult<T> = IdentityTransactionOutcome<T> | RetryResult;
 
 /**
  * Run an idempotent transform over a complete local/remote identity basis.
@@ -108,11 +112,13 @@ export async function transactTransientIdentities<T>(
   params: IdentityTransactionParams<T>,
 ): Promise<IdentityTransactionOutcome<T>> {
   const ref = errandsRef(io.identity);
+  let lastRetry: RetryResult | null = null;
   for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt += 1) {
     const remote = params.remote;
     if (remote === null) {
       const result = await transactLocalAttempt(io, ref, params);
       if (result.kind !== "retry") return result;
+      lastRetry = result;
       continue;
     }
 
@@ -121,6 +127,10 @@ export async function transactTransientIdentities<T>(
     const cleanup = await deleteTemporaryRef(io, temporaryRef);
     if (cleanup !== null) return cleanup;
     if (result.kind !== "retry") return result;
+    lastRetry = result;
+  }
+  if (lastRetry?.stage === "push") {
+    return { kind: "error", stage: "push", message: lastRetry.message };
   }
   return { kind: "error", stage: "write", message: "Identity transaction exceeded retry attempts" };
 }
@@ -212,7 +222,7 @@ async function applyAndPublish<T>(
     tip = await writeTreeCommit(io, objects, params.message, parents, local.tip);
   } catch (error) {
     return isCasRejectionError(errorMessage(error))
-      ? { kind: "retry" }
+      ? { kind: "retry", stage: "write" }
       : { kind: "error", stage: "write", message: errorMessage(error) };
   }
   if (push && params.remote !== null) {
@@ -222,7 +232,7 @@ async function applyAndPublish<T>(
       if (isRemoteUnavailableError(errorMessage(error))) {
         return { kind: "error", stage: "push", message: errorMessage(error) };
       }
-      return { kind: "retry" };
+      return { kind: "retry", stage: "push", message: errorMessage(error) };
     }
   }
   return decision.kind === "applied"

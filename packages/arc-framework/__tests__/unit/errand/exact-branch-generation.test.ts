@@ -20,6 +20,8 @@ const OPTIONS = {
 interface Sides {
   local: string | null;
   remote: string | null;
+  /** When true the local ref cannot be read, so its absence is never proven. */
+  localReadFails?: boolean;
   /** When false the remote cannot be read, so its absence is never proven. */
   remoteReachable?: boolean;
   /** When true the leased remote delete is refused as stale. */
@@ -48,6 +50,9 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
     }
     if (subcommand === "rev-parse") {
       const ref = (args.at(3) ?? "").replace("^{commit}", "");
+      if (ref === `refs/heads/${BRANCH}` && sides.localReadFails === true) {
+        throw gitFailure(128, "fatal: unable to read the local ref");
+      }
       const oid = ref === `refs/heads/${BRANCH}` ? sides.local : temporary.get(ref) ?? null;
       if (oid === null) throw gitFailure(1, "");
       return { stdout: `${oid}\n` };
@@ -103,6 +108,15 @@ describe("tearDownExactBranchGeneration", () => {
     await expect(boundary.result).resolves.toEqual({ kind: "idempotent" });
     expect(boundary.calls.some(([subcommand]) => subcommand === "push")).toBe(false);
     expect(boundary.calls).not.toContainEqual(["update-ref", "-d", `refs/heads/${BRANCH}`, HEAD]);
+  });
+
+  it("reports a fatal local-ref read instead of treating it as absence", async () => {
+    const boundary = tearDown({ local: null, remote: null, localReadFails: true });
+
+    await expect(boundary.result).resolves.toMatchObject({
+      kind: "error",
+      message: expect.stringContaining("fatal: unable to read the local ref"),
+    });
   });
 
   it("refuses a local head that moved off the proven generation", async () => {

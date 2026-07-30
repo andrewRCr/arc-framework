@@ -10,6 +10,7 @@ import {
   type TransientIdentityTailRecord,
   TransientIdentityRecordV3Schema,
 } from "../../src/lib/errand/index.js";
+import { resolveChangeRequestLifecycleConfiguration } from "../../src/lib/errand/change-request-lifecycle.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
 const configured: ChangeRequestLifecycleConfiguration = {
@@ -38,6 +39,22 @@ function pull(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("change-request lifecycle configuration", () => {
+  it.each([
+    ["ssh://git@git.example.com:2222/owner/repo.git", "git.example.com"],
+    ["https://git.example.com:8443/owner/repo.git", "git.example.com"],
+    ["git@github.com:owner/repo.git", "github.com"],
+  ])("normalizes the repository host from %s", async (url, hostRef) => {
+    const exec: GitExec = async () => ({ stdout: url, stderr: "" });
+
+    await expect(resolveChangeRequestLifecycleConfiguration(exec, "main")).resolves.toEqual({
+      repositoryRef: "owner/repo",
+      hostRef,
+      baseRef: "main",
+    });
+  });
+});
 
 describe("GitHub change-request lifecycle port", () => {
   it("reports requested work only for an exact open head with changes requested", async () => {
@@ -94,10 +111,6 @@ describe("GitHub change-request lifecycle port", () => {
   });
 });
 
-function lifecycle(kind: "merged" | "closed-unmerged" | "open"): ChangeRequestLifecycleEvidence {
-  return { kind, changeRequest } as ChangeRequestLifecycleEvidence;
-}
-
 describe("transient change-request tail retirement", () => {
   const groom = TransientIdentityRecordV3Schema.parse({
     version: 3,
@@ -116,8 +129,7 @@ describe("transient change-request tail retirement", () => {
   }) as TransientIdentityTailRecord;
 
   it("finalizes only exact merged truth and replays retirement idempotently", () => {
-    const exact = lifecycle("merged");
-    const evidence = { ...exact, changeRequest: groom.changeRequest } as ChangeRequestLifecycleEvidence;
+    const evidence = { kind: "merged", changeRequest: groom.changeRequest } as ChangeRequestLifecycleEvidence;
     const transform = transientTailRetirementTransform({ previous: groom, action: "finalize", lifecycle: evidence });
     expect(transform(new Map([[groom.slug, groom]]))).toMatchObject({ kind: "applied", value: null });
     expect(transform(new Map())).toMatchObject({ kind: "idempotent", value: null });

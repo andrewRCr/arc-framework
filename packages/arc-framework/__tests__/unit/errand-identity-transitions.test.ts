@@ -8,6 +8,7 @@ import {
 } from "../../src/lib/errand/identity-record.js";
 import {
   ordinaryErrandTransform,
+  rollbackOrdinaryErrandResumeTransform,
   type OrdinaryErrandRecord,
   type PauseHeadEvidence,
 } from "../../src/lib/errand/identity-transitions.js";
@@ -219,6 +220,21 @@ describe("ordinary Errand identity transitions", () => {
         updatedAt: resumedAt,
       })).toMatchObject({ kind: "refused" });
     }
+  });
+
+  it("rolls an exact resumed generation back after allocation failure", () => {
+    const previous = open({ state: "paused", savedHead: head });
+    const resumed = open({ updatedAt });
+    const rollback = rollbackOrdinaryErrandResumeTransform(previous, resumed);
+
+    expect(rollback(new Map([[previous.slug, previous]])))
+      .toMatchObject({ kind: "idempotent", value: previous });
+    const applied = rollback(new Map([[resumed.slug, resumed]]));
+    expect(applied).toMatchObject({ kind: "applied", value: previous });
+    if (applied.kind !== "applied") throw new Error("expected applied rollback");
+    expect(applied.records.get(previous.slug)).toEqual(previous);
+    expect(rollback(new Map([[resumed.slug, open({ claimId: "f".repeat(32) })]])))
+      .toMatchObject({ kind: "refused" });
   });
 
   it("retires only along state-authorized promotion, close, and abandonment edges", () => {
