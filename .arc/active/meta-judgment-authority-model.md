@@ -29,7 +29,7 @@
 Rules now carry a stated authority model: every rule is a default an agent may set aside by naming the fact that
 discharges it, unless it is marked invariant, and an unmarked rule is classified by a reading rather than by
 per-rule fiat. Silence fails safe toward invariant. The always-loaded context an agent reads at every session start
-is meanwhile 13.5% shorter, with the material it no longer carries relocated to destinations that load when the
+is meanwhile 12.6% shorter, with the material it no longer carries relocated to destinations that load when the
 work reaches them.
 
 ### Added
@@ -64,7 +64,7 @@ which is what makes autonomous `WORKING-MEMORY` additions resolve to propose-don
 test's own verdict — the reserved case the spec used to test whether the backstop could overturn its own primary.
 `adr-030` records the decision and its relationship to the three prior ADRs it generalizes.
 
-The compression half took the always-loaded set from 828 to 716 non-blank lines (−13.5%), re-derived against base
+The compression half took the always-loaded set from 828 to 724 non-blank lines (−12.6%), re-derived against base
 rather than carried forward. No constraint left the set: every demoted line landed at a destination whose summoner
 fires, is operation-anchored, and does not key on the agent estimating its own state. Task 2.1 found four of those
 destinations absent from `init-recipe.json` — present in the package tree, byte-identical across both copies, and
