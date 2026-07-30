@@ -13,12 +13,16 @@ import { tmpdir } from "node:os";
 
 import {
   classifyTransientWorktreeProvenance,
+  createWorktreeMarkerGeneration,
   decodeWorktreeMarkerOwnership,
   ensureWorktreeMarkerIgnored,
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
+  readWorktreeMarkerGeneration,
+  removeWorktreeMarkerGeneration,
   renameWorktreeOwnershipMarker,
+  replaceWorktreeMarkerGeneration,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -58,6 +62,11 @@ describe("worktree-marker", () => {
     expect(JSON.parse(raw)).toEqual(sampleMarker);
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: sampleMarker });
+    expect(await readWorktreeMarkerGeneration(cwd)).toEqual({
+      kind: "present",
+      marker: sampleMarker,
+      bytes: Buffer.from(raw),
+    });
   });
 
   it("tolerates an absent marker — a missing file reads as 'no marker', not an error", async () => {
@@ -78,6 +87,24 @@ describe("worktree-marker", () => {
     await writeFile(path, JSON.stringify({ spawnedByArc: "yes", wuName: 3 }), "utf8");
 
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+
+  it("creates, replaces, and removes only exact marker generations", async () => {
+    const created = await createWorktreeMarkerGeneration(cwd, sampleMarker);
+    expect(created.kind).toBe("created");
+    if (created.kind !== "created") throw new Error("fixture create failed");
+    await expect(createWorktreeMarkerGeneration(cwd, sampleMarker)).resolves.toEqual({ kind: "exists" });
+
+    const next = { ...sampleMarker, createdAt: "2026-05-26T00:00:00.000Z" };
+    await expect(replaceWorktreeMarkerGeneration(cwd, Buffer.from("stale"), next))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    const replaced = await replaceWorktreeMarkerGeneration(cwd, created.bytes, next);
+    expect(replaced.kind).toBe("replaced");
+    if (replaced.kind !== "replaced") throw new Error("fixture replace failed");
+
+    await expect(removeWorktreeMarkerGeneration(cwd, created.bytes))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    await expect(removeWorktreeMarkerGeneration(cwd, replaced.bytes)).resolves.toEqual({ kind: "removed" });
   });
 
   it.each<WorktreeSubject>([
