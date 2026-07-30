@@ -115,6 +115,20 @@ describe("locus record lock", () => {
     await expect(readFile(`${path}.break`, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("does not restart acquisition after a dead-holder break exhausts the deadline", async () => {
+    const path = await lockPath();
+    await writeFile(path, serializeLocusLockHolder({ token: "a".repeat(32), anchor, createdAt: timestamp }));
+
+    await expect(acquireLocusLock({
+      path,
+      anchor: { ...anchor, pid: 43, startToken: "start-43" },
+      inspector: inspector("dead"),
+      token: "b".repeat(32),
+      timeoutMs: 0,
+    })).resolves.toEqual({ kind: "refused", reason: "timeout" });
+    await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("aborts stale breaking when the observed generation changes", async () => {
     const path = await lockPath();
     const replacement = serializeLocusLockHolder({

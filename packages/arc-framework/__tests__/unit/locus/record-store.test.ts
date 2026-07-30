@@ -182,6 +182,10 @@ describe("locus record store", () => {
       .resolves.toEqual({ kind: "generation-mismatch" });
     await expect(removeLocusRecord({ path, expectedBytes: minted.bytes, lock }))
       .resolves.toEqual({ kind: "removed" });
+    await expect(removeLocusRecord({ path, expectedBytes: minted.bytes, lock }))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    await expect(replaceLocusRecord({ path, expectedBytes: minted.bytes, record: record(), lock }))
+      .resolves.toEqual({ kind: "generation-mismatch" });
   });
 
   it("refuses removal under a lock held for a different record", async () => {

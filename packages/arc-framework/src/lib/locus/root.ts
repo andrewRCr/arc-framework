@@ -44,7 +44,7 @@ export async function resolveLocusRoot(options: {
   identity: string;
   exec?: GitExec;
   scan?: Scan;
-}): Promise<{ ok: true } & LocusRoot | { ok: false; message: string }> {
+}): Promise<({ ok: true } & LocusRoot) | { ok: false; message: string }> {
   const scan = options.scan ?? (options.exec === undefined
     ? undefined
     : async () => scanRegisteredWorktrees(options.exec as GitExec));

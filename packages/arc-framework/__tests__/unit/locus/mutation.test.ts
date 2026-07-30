@@ -12,6 +12,7 @@ import {
   releaseLocusLease,
   resumeDeadTransientLease,
   updateLocusRole,
+  validateOwnedLocusRole,
   type LocusLeaseMutationIO,
   type LocusRolePopIO,
   type LocusRoleAuthority,
@@ -198,7 +199,7 @@ describe("durable locus role minting", () => {
       const store = memoryIO();
       const result = await mintDurableLocusRole({
         ...BASE,
-        recordId: `sha256:${String(index + 2).repeat(64)}`,
+        recordId: `sha256:${String(index + 2).padStart(2, "0").repeat(32)}`,
         authority: value.authority,
         io: store.io,
       });
@@ -228,6 +229,17 @@ describe("durable locus role minting", () => {
       },
       io: store.io,
     })).toEqual({ kind: "refused", reason: "role-conflict" });
+  });
+
+  it("reports malformed directed record coordinates separately from role conflicts", async () => {
+    const store = memoryIO();
+
+    await expect(mintDurableLocusRole({
+      ...BASE,
+      recordId: "sha256:invalid",
+      authority: { kind: "work-unit", key: "demo" },
+      io: store.io,
+    })).resolves.toEqual({ kind: "refused", reason: "record-malformed" });
   });
 
   it("attaches a minted lease to an unleased role and replays its exact token and anchor", async () => {
@@ -489,6 +501,7 @@ describe("durable locus role minting", () => {
       recordId: BASE.recordId,
       checkoutPath: BASE.checkoutPath,
       expectedRole: initial.record.role,
+      expectedLeaseId: null,
       authority: { kind: "identity" as const, identity },
       parentCheckoutPath: "/parent",
       establishedAt: BASE.establishedAt,
@@ -536,6 +549,19 @@ describe("durable locus role minting", () => {
       recordId: BASE.recordId,
       checkoutPath: BASE.checkoutPath,
       expectedRole: current.record.role,
+      expectedLeaseId: "b".repeat(32),
+      authority: { kind: "work-unit", key: "promoted" },
+      parentCheckoutPath: null,
+      sessionHomePath: BASE.checkoutPath,
+      establishedAt: BASE.establishedAt,
+      io: store.io,
+    })).toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+
+    expect(await updateLocusRole({
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: current.record.role,
+      expectedLeaseId: "a".repeat(32),
       authority: { kind: "work-unit", key: "promoted" },
       parentCheckoutPath: null,
       sessionHomePath: BASE.checkoutPath,
@@ -548,6 +574,32 @@ describe("durable locus role minting", () => {
         lease: { leaseId: "a".repeat(32), sessionHomePath: BASE.checkoutPath },
       },
     });
+  });
+
+  it("reports a directed-role replace race as a lease generation mismatch", async () => {
+    const store = memoryIO();
+    const identity = errandIdentity("errand");
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity },
+      io: store.io,
+    });
+    const current = store.current();
+    if (current.kind !== "valid") throw new Error("expected seeded record");
+
+    await expect(updateLocusRole({
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: current.record.role,
+      expectedLeaseId: null,
+      authority: { kind: "identity", identity },
+      parentCheckoutPath: "/parent",
+      establishedAt: BASE.establishedAt,
+      io: {
+        ...store.io,
+        replace: async () => ({ kind: "generation-mismatch" }),
+      },
+    })).resolves.toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
   });
 
   it("pops the exact unleased role generation and replays an already-absent pop", async () => {
@@ -622,6 +674,116 @@ describe("durable locus role minting", () => {
       io: store.io,
     })).toMatchObject({ outcome: "applied", recordId: BASE.recordId });
     expect(store.current()).toEqual({ kind: "absent" });
+  });
+
+  it("requires the exact subject, lease, and entering anchor for an owned pop", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity: errandIdentity("errand") },
+      io: store.io,
+    });
+    const anchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "start",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor,
+      leaseId: "a".repeat(32),
+      attachedAt: BASE.establishedAt,
+      heartbeatAt: BASE.establishedAt,
+      observedLiveness: null,
+      io: store.io,
+    });
+    const common = {
+      operation: "errand-leave" as const,
+      recommendedPromptText: "Errand occupancy removed.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedSubject: { kind: "errand" as const, key: "demo", claimId: "2".repeat(32) },
+      expectedLeaseId: "a".repeat(32),
+      enteringAnchor: anchor,
+    };
+    const existing = store.current();
+
+    expect(validateOwnedLocusRole(existing, common)).toEqual({ kind: "owned" });
+    for (const changed of [
+      { enteringAnchor: { ...anchor, pid: 99 } },
+      { expectedLeaseId: "b".repeat(32) },
+    ]) {
+      expect(validateOwnedLocusRole(existing, { ...common, ...changed }))
+        .toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+      await expect(popOwnedLocusRole({ ...common, ...changed, io: store.io }))
+        .resolves.toMatchObject({ outcome: "refused", reason: "lease-generation-mismatch" });
+    }
+    const foreignSubject = {
+      ...common,
+      expectedSubject: { ...common.expectedSubject, key: "other" },
+    };
+    expect(validateOwnedLocusRole(existing, foreignSubject))
+      .toEqual({ kind: "refused", reason: "role-conflict" });
+    await expect(popOwnedLocusRole({ ...foreignSubject, io: store.io }))
+      .resolves.toMatchObject({ outcome: "refused", reason: "role-conflict" });
+    expect(store.current()).toMatchObject({ kind: "valid" });
+  });
+
+  it("classifies a newer subject after an owned-pop remove race", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity: errandIdentity("errand") },
+      io: store.io,
+    });
+    const anchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "start",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor,
+      leaseId: "a".repeat(32),
+      attachedAt: BASE.establishedAt,
+      heartbeatAt: BASE.establishedAt,
+      observedLiveness: null,
+      io: store.io,
+    });
+    const existing = store.current();
+    if (existing.kind !== "valid") throw new Error("expected seeded record");
+    const newer = {
+      kind: "valid" as const,
+      record: {
+        ...existing.record,
+        role: {
+          ...existing.record.role,
+          subject: { ...existing.record.role.subject, key: "other" },
+        },
+      },
+      bytes: Buffer.from("newer"),
+    };
+    let reads = 0;
+
+    await expect(popOwnedLocusRole({
+      operation: "errand-leave",
+      recommendedPromptText: "Errand occupancy removed.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedSubject: existing.record.role.subject,
+      expectedLeaseId: "a".repeat(32),
+      enteringAnchor: anchor,
+      io: {
+        read: async () => reads++ === 0 ? existing : newer,
+        remove: async () => ({ kind: "generation-mismatch" }),
+      },
+    })).resolves.toMatchObject({ outcome: "refused", reason: "role-conflict" });
   });
 
   it("refuses duplicate, newer role/lease, and live or unknown pop targets", async () => {

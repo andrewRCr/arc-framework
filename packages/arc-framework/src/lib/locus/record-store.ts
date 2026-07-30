@@ -194,7 +194,12 @@ export async function removeLocusRecord(options: {
   if (!current.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
     return { kind: "generation-mismatch" };
   }
-  await unlink(options.path);
+  try {
+    await unlink(options.path);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
   return { kind: "removed" };
 }
 

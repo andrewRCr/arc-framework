@@ -90,7 +90,10 @@ export async function acquireLocusLock(options: {
           breakerAnchor: options.anchor,
           beforeBreakRecheck: options.beforeBreakRecheck,
         });
-        if (broken.kind === "broken" || broken.kind === "already-absent") continue;
+        if (broken.kind === "broken" || broken.kind === "already-absent") {
+          if (Date.now() >= deadline) return { kind: "refused", reason: "timeout" };
+          continue;
+        }
         lastReason = broken.kind === "live" ? "live" : "unknown";
       }
     }
@@ -179,7 +182,7 @@ export async function readLocusLockHolder(path: string): Promise<LocusLockReadRe
     const buffer = Buffer.allocUnsafe(MAX_LOCK_BYTES + 1);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     if (bytesRead === 0 || bytesRead > MAX_LOCK_BYTES) return { kind: "unknown" };
-    const bytes = buffer.subarray(0, bytesRead);
+    const bytes = Buffer.from(buffer.subarray(0, bytesRead));
     let decoded: unknown;
     try {
       decoded = JSON.parse(bytes.toString("utf8"));

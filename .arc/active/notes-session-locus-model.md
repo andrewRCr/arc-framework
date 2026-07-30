@@ -835,7 +835,7 @@ ledger in the next safe pre-review commit.
 | S0    | landed         | #395 | `bb6803b62`      |
 | S1    | landed         | #396 | `56d52f013`      |
 | S2    | landed         | #397 | `6eebb7f31`      |
-| S3    | review prep    | #399 | —                |
+| S3    | repair ready   | #399 | —                |
 | S4    | blocked by S3  | —    | —                |
 | S5    | blocked by S4  | —    | —                |
 | S6    | blocked by S5  | —    | —                |
@@ -998,8 +998,15 @@ dispositions to the PR rather than copying them here.
   behavior.
 - **Exact review-target measurement:** 2,240 additions plus 20 deletions (2,260 changed lines) across twelve files
   against `6eebb7f31`; the two-commit construction head before this status update is `f01592e7c`.
-- **State:** PR #399 is a draft. The complete local gate passes with 8,490 tests and one skip; the final ledger head
-  will be marked ready for initial hosted review.
+- **Hosted review:** CodeRabbit covered exact target `6eebb7f31..d3d194337` and opened three actionable threads
+  plus nine nitpicks. The accepted repair bounds acquisition after a dead-holder break, requires the expected lease
+  generation before role/session-home transitions, and preserves `generation-mismatch` when final deletion loses
+  its record. Supporting corrections make the ancestry boundary injectable, retain only actual lock bytes, align
+  refusal reasons and helper types, and close the missing ownership and absence coverage. The advisory 80% docstring
+  warning was declined because the project defines no percentage target and every new exported function has TSDoc.
+- **Exact first-fix measurement:** 2,493 additions plus 20 deletions (2,513 changed lines) across thirteen files.
+- **State:** The first hosted-review repair passed the complete local gate set: 8,496 tests passed and one skipped,
+  with lint, both type-check layers, the build, and all ARC contract checks green.
 
 ### Resume protocol
 

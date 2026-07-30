@@ -93,7 +93,7 @@ export async function mintDurableLocusRole(options: {
     role,
     lease: null,
   });
-  if (!parsed.success) return { kind: "refused", reason: "role-conflict" };
+  if (!parsed.success) return { kind: "refused", reason: "record-malformed" };
   const expected = parsed.data;
   const initial = await options.io.read();
   if (initial.kind !== "absent") return existingResult(initial, expected);
@@ -261,6 +261,7 @@ export async function updateLocusRole(options: {
   recordId: string;
   checkoutPath: string;
   expectedRole: LocusRole;
+  expectedLeaseId: string | null;
   authority: LocusRoleAuthority;
   parentCheckoutPath: string | null;
   /** Optional session-home rebase applied atomically with the role transition. */
@@ -273,6 +274,9 @@ export async function updateLocusRole(options: {
     || existing.record.recordId !== options.recordId
     || existing.record.checkoutPath !== options.checkoutPath) {
     return { kind: "refused", reason: "record-malformed" };
+  }
+  if ((existing.record.lease?.leaseId ?? null) !== options.expectedLeaseId) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
   }
   const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);
   if (desired === null) return { kind: "refused", reason: "role-conflict" };
@@ -290,7 +294,7 @@ export async function updateLocusRole(options: {
   const replaced = await options.io.replace(existing.bytes, next);
   return replaced.kind === "replaced"
     ? { kind: "applied", record: next, bytes: replaced.bytes }
-    : { kind: "refused", reason: "role-conflict" };
+    : { kind: "refused", reason: "lease-generation-mismatch" };
 }
 
 /** Validate a complete command-independent locus mutation result. */
@@ -440,8 +444,14 @@ export async function popOwnedLocusRole(options: {
   }
 }
 
+interface LocusResultContext {
+  operation: LocusOperation;
+  recommendedPromptText: string;
+  recordId: string;
+}
+
 function popSuccess(
-  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText" | "recordId">,
+  options: LocusResultContext,
   outcome: "applied" | "idempotent",
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
@@ -461,7 +471,7 @@ function popSuccess(
 }
 
 function refusal(
-  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText">,
+  options: LocusResultContext,
   reason: Extract<LocusMutationResultV1, { outcome: "refused" }>["reason"],
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
@@ -473,7 +483,7 @@ function refusal(
 }
 
 function failure(
-  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText">,
+  options: LocusResultContext,
   error: unknown,
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
@@ -535,8 +545,8 @@ function deriveRole(
 }
 
 function role(
-  kind: string,
-  subjectKind: string,
+  kind: LocusRole["kind"],
+  subjectKind: LocusRole["subject"]["kind"],
   key: string,
   claimId: string | null,
   parentCheckoutPath: string | null,
