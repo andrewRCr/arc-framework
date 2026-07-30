@@ -1,8 +1,8 @@
 # Metadata: judgment-authority-model
 
-| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/judgment-authority-model` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -18,10 +18,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** refresh PR #398, then compose the archive-phase content
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/398>
+- **Completed:** 2026-07-30
 
 ## Release Notes Entry
 
