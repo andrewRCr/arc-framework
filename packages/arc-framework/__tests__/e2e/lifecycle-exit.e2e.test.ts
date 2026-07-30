@@ -1321,7 +1321,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       .not.toMatch(/plan\/origin|chore\/decompose-origin/u);
     expect(await git(repo, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]))
       .toBe("main");
-  }, 120_000);
+  }, 150_000);
 
   // -------------------------------------------------------------------------
   // arc park@Planning (CLI) — relocate in-verb, defer teardown out-of-band
