@@ -25,6 +25,90 @@ export {
 } from "./record.js";
 
 export {
+  TransientIdentityRecordV3Schema,
+  TransientIdentityRecordSchema,
+  mintClaimId,
+  serializeTransientIdentityRecord,
+  deserializeTransientIdentityRecord,
+  projectLocusIdentity,
+  type TransientIdentityRecordV3,
+  type TransientIdentityRecord,
+  type TransientIdentityDecodeResult,
+  type TransientIdentityOperation,
+  LegacyIdentityOperationError,
+  assertTransientIdentityOperation,
+} from "./identity-record.js";
+
+export {
+  readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
+  type IdentitySnapshotIO,
+  type IdentitySnapshotDiagnostic,
+  type TransientIdentitySnapshot,
+} from "./identity-snapshot.js";
+
+export {
+  reconcileIdentityObjects,
+  transactTransientIdentities,
+  type IdentityObjectReconcile,
+  type IdentityTransformDecision,
+  type IdentityTransform,
+  type IdentityTransactionParams,
+  type IdentityTransactionOutcome,
+} from "./identity-transaction.js";
+
+export {
+  ordinaryErrandTransform,
+  provePauseHead,
+  type OrdinaryErrandRecord,
+  type PauseHeadEvidence,
+  type ProvePauseHeadParams,
+  type ProvePauseHeadOutcome,
+  type AwaitMergeConfiguredCoordinates,
+  type OrdinaryErrandTransition,
+  type OrdinaryErrandTransform,
+} from "./identity-transitions.js";
+
+export {
+  groomClaimTransform,
+  groomAwaitMergeTransform,
+  groomResumeTransform,
+  groomSettleTransform,
+  rollbackGroomResumeTransform,
+  housekeepAwaitMergeTransform,
+  housekeepClaimTransform,
+  identityClaimRollbackTransform,
+  rollbackIdentityClaim,
+  pinGroomOpenedBaseHead,
+  type GroomIdentityRecord,
+  type GroomClaimVerdict,
+  type GroomAwaitMergeRequest,
+  type GroomResumeRequest,
+  type GroomSettleRequest,
+  type SettledPartialGroomRecord,
+  type HousekeepAwaitMergeRequest,
+  type HousekeepIdentityRecord,
+  type HousekeepClaimVerdict,
+  type IdentityClaimRollbackParams,
+  type IdentityClaimRollbackOutcome,
+  type PinGroomOpenedBaseHeadParams,
+  type PinGroomOpenedBaseHeadOutcome,
+} from "./identity-claims.js";
+
+export {
+  createGhChangeRequestLifecyclePort,
+  evaluateChangeRequestReentry,
+  transientTailRetirementTransform,
+  type ChangeRequestLifecycleConfiguration,
+  type ChangeRequestLifecycleTruth,
+  type ChangeRequestLifecycleEvidence,
+  type ChangeRequestLifecyclePort,
+  type ChangeRequestReentryVerdict,
+  type TransientIdentityTailRecord,
+  type TransientTailRetirementRequest,
+} from "./change-request-lifecycle.js";
+
+export {
   mergeErrandTrees,
   reconcileErrandPush,
   incomingErrandRef,
