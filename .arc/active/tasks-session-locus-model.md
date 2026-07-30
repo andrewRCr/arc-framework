@@ -2096,6 +2096,12 @@ at the exact head, and use an explicitly authorized admin merge commit only to b
 `arc-cleared` context. Do not invoke `integrate-work-unit`; begin the successor only after the landing is verified
 and recorded by the runbook.
 
+_Control-plane retrofit:_ S3 is the last implementation target that carries the active planning artifacts. After
+it lands, one persistent control branch retains the tracked meta/spec/tasks/notes set and the session-handoff
+anchor. S4 removes exactly those four paths from `main`; S5–S13 carry no `.arc/active/**` paths. Bespoke closeout
+copies the final control artifacts directly into `.arc/completed/**` and renders `ROADMAP` without reintroducing an
+active work unit on the base.
+
 _Inherited placement:_ subtasks carrying a finding ID were re-homed from `7.E.e`, `7.E.f`, `7.E.g`, or `7.E.h`.
 Placement for the `7.E.g` and `7.E.h` members derives from those parents' recorded Goals, not from the finding
 records — each slice re-verifies its own members against `notes-session-locus-model.md` § Chunked-review finding

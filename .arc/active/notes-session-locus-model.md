@@ -776,8 +776,9 @@ plane first; the thirteen implementation slices then remain code-review-sized.
 | `feat/session-locus-model`                     | 195-commit development record | Retained and pushed; never merged                    |
 | `archive/session-locus-model-origin-f774446c0` | Frozen origin tip             | Pushed; deepest content fallback                     |
 | `archive/session-locus-model-donor-fa3c10f0e`  | Proven-green carve head       | Pushed; **content donor for every slice**            |
+| `feat/session-locus-delivery-control`          | Persistent session control    | Cut after S3; retained until closeout, never merged  |
 | `feat/session-locus-model-d1-carve`            | Scratch construction branch   | Retain through S1 construction, then remove          |
-| `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Stays here and switches to each current slice branch |
+| `arc-framework.session-locus-model` checkout   | Managed work-unit locus       | Stays on the control branch from S4 through closeout |
 
 The donor is the carve head rather than the origin tip: the transient-lifecycle and claimed-sweep de-wiring and the
 seam fixes are already applied and proven there, and every slice is a subset of it. Planning artifacts come from
@@ -801,6 +802,12 @@ the branch tip instead — the carve head predates the delivery restructure.
 - **Planning-baseline review exception.** S0 carries only the already-settled planning record and derived
   `ROADMAP`; it requires the normal pull-request checks and explicit merge authorization, but no CodeRabbit or
   hosted Codex review. Hosted review begins with S1 and applies to every implementation slice.
+- **Control-plane isolation after S3.** S4 removes the four session-locus artifacts that S0 placed in
+  `.arc/active/`; S5–S13 carry no `.arc/active/**` paths. The persistent control branch retains the only live
+  tracked artifact set and session-handoff anchor.
+- **Defer heavy CI through review.** Keep `ci-defer-heavy` attached throughout hosted review and repair cycles.
+  Remove it only after exact-head hosted approval, then run the complete self-hosted matrix once. A CI-driven code
+  change restores the label before review resumes.
 
 ### Slice branches
 
@@ -854,9 +861,9 @@ tree; S1 waits for S0.
 **Update discipline:**
 
 1. At slice entry, reconcile the predecessor row from GitHub and record its PR plus landed merge commit.
-2. Before S0 publication or an implementation slice's first hosted review, record the current slice's exact
-   manifest, measured diff, PR, and construction head immediately below the table. That edit is part of the PR
-   target; GitHub remains authoritative for the later reviewed head because a commit cannot embed its own SHA.
+2. Before S0–S3 publication or first hosted review, record the current slice's exact manifest, measured diff, PR,
+   and construction head immediately below the table. From S4 onward, record that evidence on the control branch;
+   delivery branches exclude the active artifacts by contract.
 3. Do not mutate an approved head merely to record approval or merge. GitHub carries those facts until the
    successor's entry commit, or the bespoke closeout for S13, reconciles them into this ledger.
 4. At handoff, SESSION-NOTES carries the exact live cursor — current branch, PR, head, review/fix round, checks, and
@@ -1013,39 +1020,47 @@ dispositions to the PR rather than copying them here.
   requested direct coverage. Explicit lock-field serialization order was declined because ownership compares
   retained original bytes; parsed holders are never reserialized for comparison.
 - **Exact second-fix measurement:** 2,717 additions plus 22 deletions (2,739 changed lines) across thirteen files.
-- **State:** The second hosted-review repair passes Markdown and code lint, all three ARC contract checks, source
-  and test typechecks, build, and the full suite at 657 passed plus one skipped file / 8,504 passed plus one skipped
-  test. It is ready for the review-increment commit.
+- **Incremental closure review:** CodeRabbit reviewed `4624ada5f..bb55aa077` but skipped seven of ten changed files,
+  so it did not close whole-target coverage. Its one new actionable finding was valid: concurrent replacements
+  sharing one lock handle could both pass the final recheck and report success. The accepted repair serializes
+  replacement and removal by record-lock path through the filesystem action and proves only one replacement can
+  consume an expected generation.
+- **Exact third-fix measurement:** 2,844 additions plus 54 deletions (2,898 changed lines) across thirteen files.
+- **State:** Third repair passed complete local gates: 657 test files and 8,505 tests passed, one of each skipped;
+  all lint, contract, typecheck, and build gates are green. It is ready to publish for fresh whole-target review.
 
 ### Resume protocol
 
 Every fresh session or long-pause resume follows the same read-only reconciliation before editing:
 
 1. Read the ledger and the current slice's evidence entry.
-2. Fetch `origin`, inspect the local slice head and `origin/main`, and resolve the named PR's live base, head, state,
-   checks, and review status.
+2. Fetch `origin`; inspect the control branch, `origin/main`, and the one live slice worktree; then resolve the named
+   PR's live base, head, state, checks, and review status.
 3. Treat Git/GitHub as authority when prose lags. Stop on an unexplained head, target, or merge mismatch.
-4. Reconcile stale ledger facts in the next pre-review commit; never change a clean reviewed head only for status.
+4. Reconcile stale ledger facts on the control branch; never change a clean reviewed delivery head only for status.
 5. Continue from exactly one state: manifest preparation, construction, local gates, hosted review, finding repair,
    merge-ready, or landed reconciliation.
 
-### The planning artifacts travel with every slice
+### The control branch owns planning artifacts from S4 onward
 
-Not a preference — session initialization resolves the active work unit from `meta-session-locus-model.md` **in the
-working tree**, and the checkout sits on the one delivery branch under construction. So `meta-*`, `tasks-*`, and
-`notes-*` travel with every slice. S0 activates them from the development record; every implementation slice
-inherits their landed state from `main`.
+S0 put the four session-locus planning artifacts on `main`, and S1–S3 carried their updates. That made unrelated
+work-unit reconciles see this work unit as another active occupant. The remaining delivery must remove that
+interference without fragmenting the work unit's identity or handoff history.
 
-The consequence is deliberate: once the first slice merges, the base carries an `Active` meta for a work unit that
-is not finished, and each later merge updates it. Progress becomes visible on the base rather than invisible until
-a single terminal merge. Archival moves the artifacts out after the last slice.
+After S3 lands, cut and push `feat/session-locus-delivery-control` from its accepted head before removing anything.
+The managed checkout stays on that branch through S4–S13 and bespoke closeout. It retains the only tracked
+`meta-*`, `spec-*`, `tasks-*`, and `notes-*` set; status, finding dispositions, measurements, and handoffs update
+there. Each delivery branch is a sibling-worktree projection cut from current `main`, not another work-unit locus.
+The control session owns judgment and approval gates while the projection branch owns only its reviewable payload.
 
-**The meta's `Branch` field tracks the delivery under construction**, updated at each cut. A delivery boundary is
-the ceremony boundary that authorizes the write. Between a merge and its successor's first commit, `main` may
-still name the just-landed branch; the next slice advances it before ordinary work resumes.
+S4 is the one retrofit exception: its PR must delete exactly the four session-locus paths already present under
+`.arc/active/` and add or modify no other active path. S5–S13 must produce no `.arc/active/**` diff at all. Check
+that path-set invariant before every publication; a donor copy or status update that reintroduces one is a hard
+stop. The deletion and the new exclusion discipline land together in S4.
 
-The current meta still names the drained errand batch as a blocker. The gate is satisfied and this runbook
-supersedes it; ARC's meta timing rule defers that field update to the next handoff or slice-entry ceremony.
+After S13 lands, create a small DTI-style closeout PR from `main`: copy the final control artifacts directly into
+their `.arc/completed/**` destination, render `ROADMAP`, and retire the control branch. Never re-add the files to
+`.arc/active/` on `main`; this preserves one meta history, one archive, and one continuous handoff anchor.
 
 ### Slice-size gate
 
@@ -1065,18 +1080,18 @@ its size promise is not accepted from estimates alone.
 
 ### Per-slice runbook
 
-1. **Reconcile entry.** Require the predecessor landed, fetch current `main`, reconcile the preceding ledger row,
-   and confirm no other slice branch is live. Scratch preparation may precede this step; canonical construction may
-   not.
-2. **Cut the canonical branch.** Create the named branch from current `main`. S0 activates the planning artifacts
-   from `feat/session-locus-model`, regenerates `ROADMAP`, and switches the managed WU checkout only after the DTI
-   closeout gate above. S1 cuts only after S0 lands; every implementation slice advances the inherited meta and
-   ledger at entry.
+1. **Reconcile entry.** Require the predecessor landed, fetch current `main`, reconcile the preceding ledger row on
+   the control branch, and confirm no other delivery slice is live. Scratch preparation may precede this step;
+   canonical construction may not.
+2. **Cut the canonical branch.** Create the named delivery branch and sibling worktree from current `main`; keep the
+   managed work-unit checkout on the control branch. S4 includes the exact four active-artifact deletions. S5–S13
+   inherit their absence and must not add them back.
 3. **Construct one coherent stop.** Port only the slice manifest from the donor, apply its remaining `7.P`
    corrections, and reconcile shared tests, command inventories, package/project copies, and documentation against
    the surface that actually exists at this stop.
-4. **Measure and gate.** Apply the size gate, then run the complete project gate set against the cumulative tree.
-   A prior donor or predecessor green never transfers across a new base or new slice.
+4. **Measure and gate.** Enforce the `.arc/active/**` path-set rule, apply the size gate, then run the complete
+   project gate set against the cumulative tree. A prior donor or predecessor green never transfers across a new
+   base or new slice.
 5. **Publish one PR to `main`.** Push append-only, open the pull request directly against `main`, record its exact
    base/head and gate evidence, and wait for required CI plus `merge-ok`.
 6. **Run hosted review for S1–S13.** S0 skips this step because it is the planning baseline. For implementation
@@ -1092,9 +1107,9 @@ its size promise is not accepted from estimates alone.
    `arc-cleared` context cannot be produced by this sliced path, so—only after explicit integration approval—use an
    admin merge commit to bypass that one known lifecycle clearance gap. Admin capability does not waive any other
    check, review, or approval.
-9. **Verify and advance.** Fetch `main`, verify the PR's merge commit and expected tree landed, delete or retain the
-   slice branch per the recorded cleanup decision, then cut only its immediate successor. The successor entry
-   records the completed evidence.
+9. **Verify and advance.** Fetch `main`, verify the PR's merge commit and expected tree landed, update the control
+   ledger and handoff state, delete or retain the slice branch per the recorded cleanup decision, then cut only its
+   immediate successor.
 
 ### Base drift during delivery
 
