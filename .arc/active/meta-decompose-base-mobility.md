@@ -1,8 +1,8 @@
 # Metadata: decompose-base-mobility
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ---------- | --------- | ------------------------------ | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/decompose-base-mobility` | `Heavy`   | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** `decompose-transform-integrity`

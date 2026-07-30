@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `85acef775`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `676d5d7c3`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,15 +13,16 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                     | Priority | Owner  | Depends on | Cohort                    |
-| ---------- | ----------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
-| `Planning` | chunked-delivery              | P1       | andrew | —          | —                         |
-| `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
-| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                         |
-| `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
-| `Active`   | session-locus-model           | P1       | andrew | —          | —                         |
-| `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                         |
+| State      | Work unit                     | Priority | Owner  | Depends on | Cohort                        |
+| ---------- | ----------------------------- | -------- | ------ | ---------- | ----------------------------- |
+| `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment     |
+| `Planning` | chunked-delivery              | P1       | andrew | —          | —                             |
+| `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                             |
+| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                             |
+| `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                             |
+| `Active`   | session-locus-model           | P1       | andrew | —          | —                             |
+| `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                             |
+| `Planning` | decompose-base-mobility       | P2       | andrew | —          | decompose-transform-integrity |
 
 ## Ready
 
@@ -38,7 +39,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                | P2       | andrew | —          | approval-flow-refinement      |
 | check-id-stabilization           | P2       | andrew | —          | architecture-remediation      |
 | cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption        |
-| decompose-base-mobility          | P2       | andrew | —          | decompose-transform-integrity |
 | decompose-durable-consumers      | P2       | andrew | —          | decompose-transform-integrity |
 | method-conventions               | P2       | andrew | —          | doc-conventions               |
 | naming-conventions               | P2       | andrew | —          | doc-conventions               |
