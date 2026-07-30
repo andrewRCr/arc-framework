@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "roadmap-regen-retirement-aware",
-  "origin": "description",
-  "intent": "Make the ROADMAP regeneration check retirement-aware so decomposition commits pass under full protection",
-  "branch": "fix/roadmap-regen-retirement-aware",
-  "createdAt": "2026-07-30T21:38:22.260Z",
-  "returnBranch": "main"
-}
