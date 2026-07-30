@@ -13,12 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Integration ran to the merge gate, then reopened — a stop-shape gap in the shipped register
-- **Next Task:** [none] — Phase 5.R not yet authored
+- **Last Completed:** Stop-shape audit verified against source and the remedial phase authored; five criteria and
+  the verification task re-opened, one criterion added
+- **Next Task:** Task 5.R.a — Land the two clauses and reconcile the always-loaded surface (line ~1379)
 - **Blockers:** [none]
 
-- **Next Action:** Verify the audit findings, then author Phase 5.R and re-open the affected success criteria —
-  inputs in `notes-judgment-authority-model.md` § Remedial phase
+- **Next Action:** Start Task 5.R.a — approved dispositions in `notes-judgment-authority-model.md`
+  § Verification outcome, which supersedes the advisory audit sections above it
 
 - **PR URL:** [none]
 - **Completed:** [none]
