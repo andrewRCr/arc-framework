@@ -9,52 +9,106 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 > Rules marked `[configurable]` follow the project's configured override; see [Configurability
-> Architecture Strategy][config-arch] for the override model.
+> Architecture Strategy][config-arch] for the override model. Rules marked `[invariant]` are not the
+> agent's to set aside; § Rule Authority carries that reading and classifies every unmarked rule.
 
 ---
 
-## Contents
+## Rule Authority
 
-- [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
-- [Scaled Process, Invariant Discipline](#scaled-process-invariant-discipline) — process scales, discipline does not
-- [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
-- [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
-- [Session Management](#session-management) — state control, handoff, context quality
-- [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
-- [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
-- [When to Load Additional Guidance](#when-to-load-additional-guidance) — on-demand reference
+Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
+unless marked **invariant**.
+
+**`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
+whether the _agent_ may set it aside in the moment. Configurability is never itself a discharge.
+
+**Emphasis is not a marker** — `never`, `must not`, and categorical phrasing are how rules are ordinarily written,
+never how they are classified. An emphatic unmarked rule is still unmarked, and the reading below may still land it
+on invariant.
+
+**Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern does
+not arise here.
+
+- You can name one, and it is yours to establish or already supplied — the doubt is **dischargeable** →
+  **default**. Discharge it as below.
+- The fact is not yours to establish — it lives with someone else and has not been said → **invariant**.
+  Ask for it; do not infer it.
+- You can name nothing, or no fact you could produce would settle it → **invariant**.
+
+**Backstop.** Regardless of the above, a rule is invariant when it protects the integrity of a check, or when
+it withholds an _authorization_ rather than a _judgment_ — a decision reserved to a person because it commits
+them.
+
+**Both limbs reach acts, not only rules.** A record attesting your own work, or a decision that commits someone
+else, is caught whether or not a rule addresses it. Absence of a rule is not a grant.
+
+A rule **protects the integrity of a check** when the agent's own work is what the check examines — quality
+gates, verification, review, and the commit and merge gates that admit work (illustrative, not exhaustive). An
+agent is never the judge of whether a check applies to its own work; reading what a check reported, including
+that it produced no result, is not that judgment.
+
+The same limb settles **self-attestation**. Writing that a gate was met, that a human approved, or that a pass
+was rigorous attests the agent's own output and discharges nothing. The claim needs a witness the agent does
+not write — a check that ran, an artifact on disk, a person who spoke. Absent one, do not record it as
+satisfied; say what is actually known.
+
+The same limb settles **pre-commitment text** — a success criterion, a `_Goal:_`, a task line, an accepted
+decision, a shipped release note: what was written before the work to say what the work must achieve. It is the
+target the outcome is judged against, so **rewriting it to match what was built is never the agent's call** ·
+`[invariant]`. Amend forward, or record the change and what prompted it; never edit the original into agreement.
+
+**An invariant is not the agent's to discharge.** What it withholds is the authority to decide, never the
+capability to act. Its holder may still make the reserved decision, and their making it is the rule working
+rather than a waiver — an operator authorizing a merge _is_ the merge gate. What no amount of reaffirmation
+does is move that decision to the agent.
+
+**Discharging a default.** Name the rule and the fact that discharges it, surface it where the developer is
+already reading — the gate or the completion report, never a log — leave it reversible in one turn, and
+proceed. Raise it once per instance: a reaffirmation is a decision, not an invitation to re-raise.
+
+**A stop with one answer.** A default sometimes stops for a decision with one defensible outcome — you can name the
+alternatives and name them strictly worse. Asking there spends a turn and returns nothing: discharge it as above.
+The discharging fact is that **the action is reversible in one turn**, never your reading that the answer is
+obvious — that reading is what makes you look, not what settles it. Acts that cannot be undone or unspent — a
+merge, a publish, a deletion, a costly pass — stop even when the answer is plain. This reaches no invariant: an
+always-stop interlock is not a one-answer fork, it is an authorization withheld.
+
+**Whose call.** Authority resolves from the actor's role and the surface the rule governs; no rule declares its
+own authority. The owner of the governed surface may discharge a default over it; a rule governing a surface
+with no single owner, or governing the project's own standards, resolves to the maintainer. Where the resolved
+holder is not you, propose rather than discharge.
 
 ---
 
 ## Review-Increment Invariant
 
-Every review increment closes with a structured approval gate that precedes any commit
-invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
+**Every review increment closes with a structured approval gate that precedes any commit invocation, wrapped or
+raw** · `[invariant]`. The release wrapper bypasses the harness's per-invocation prompt;
 it does **not** bypass the user's approval gate.
 
 The sole bounded exception assembles a provisional integration candidate after the WU's routed review obligation
-is authoritatively settled. Candidate-tail cleanup, archive composition and closeout, lifecycle sweep/readiness
-regeneration, and a typed safe base reconcile may commit and push before their structured review at the final
-integration interlock. An implementation or finding-driven fix still requires its structured approval gate before
-commit, and no provisional candidate may merge without exact-head integration authorization. A pre-composition
-direction may authorize autonomous advance to that final interlock, but never prospective merge authority over a
-head that does not yet exist.
+is authoritatively settled. Four operations may commit and push before their structured review at the final
+integration interlock:
+
+- candidate-tail cleanup
+- archive composition and closeout
+- lifecycle sweep and readiness regeneration
+- a typed safe base reconcile
+
+An implementation or finding-driven fix still requires its structured approval gate before commit, and no
+provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
+authorize autonomous advance to that final interlock, but never prospective merge authority over a head that does
+not yet exist.
 
 ---
 
 ## Scaled Process, Invariant Discipline
 
 A work unit's weight (its `Class`) scales the process around it — how much design is authored in planning, and
-how much review and integration ceremony it warrants. What never scales is execution discipline: the
-[review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
-quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
-
-`Class` records work-unit-scoped weight (`Light` / `Heavy` / `Novel`), distinct from **Work Character** —
-whether a concern is atomic or Errand-shaped below the WU wrapper, not a fourth `Class` value.
-
-Resolve a work unit's `Class` with the `classify-work-unit` method; the model and worked examples live in the
-[Work Organization Strategy][work-org].
+how much review and integration ceremony it warrants. **What never scales is execution discipline** ·
+`[invariant]`: the [review-increment invariant](#review-increment-invariant), the interlocks that gate review and
+merge, and the quality gates hold identically across the whole range, from a single-concern Errand to a novel work
+unit.
 
 ---
 
@@ -62,20 +116,14 @@ Resolve a work unit's `Class` with the `classify-work-unit` method; the model an
 
 ### Commit control
 
-**Concept.** Interlocks gate (stop, await direction). Fire sites release (execute the gated
-operation). Each fire pairs with a specific interlock — `taskCommit` releases commit-interlock at
-task-interlock approval; `workflowCommit` releases commit-interlock at workflow-interlock approval;
-`workflowPush` releases push-interlock at workflow-interlock approval. Class tags name the fire-site
-type; routing (wrapper or raw) follows § Workflow class-tag routing.
+**Concept.** Interlocks gate (stop, await direction); fire sites release (execute the gated operation).
+Each fire pairs with one interlock — `taskCommit` releases commit-interlock at task-interlock approval;
+`workflowCommit` and `workflowPush` release commit- and push-interlock at workflow-interlock approval.
+Class tags name the fire-site type; routing follows § Workflow class-tag routing.
 
-- **Commit triggering** · `[configurable]`:
-    - Follows `arc.commitInterlock`. Default `manual` requires explicit user approval before each commit.
-    - Per-mode behavior lives in the [process-task-loop workflow][process-task-loop].
-
-- **Push triggering** · `[configurable]`:
-    - Follows `arc.pushInterlock`. Default `manual` requires explicit user invocation; `on-handoff`
-      mode fires push at handoff only — never per commit.
-    - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
+- **Commit and push triggering** · `[configurable]`: follow `arc.commitInterlock` and `arc.pushInterlock`,
+  both defaulting to `manual` — explicit approval before each commit, explicit invocation for each push.
+  Per-mode behavior lives in [process-task-loop][process-task-loop] and [session-handoff][session-handoff].
 
 - **Implied-approval scope** · Approval released at a structured approval gate — surfaced changes +
   `<Prefix> <Target>?` prompt (see [process-task-loop][process-task-loop] § Completion protocol) — covers
@@ -87,47 +135,32 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
       `Proceed` when `manual`; `Commit and proceed` when `on-task-approval` or `on-workflow`.
       `pushInterlock` selects the analogous push prefix when a push fire is in scope.
 
-- **Release-wrapper invocation** · `[configurable]`:
-    - `arc release commit` / `arc release push` are an authorized invocation path. The wrapper validates
-      interlock state and writes a per-invocation audit entry regardless of opt-in.
-    - With `arc.releaseOptedIn: true` plus the corresponding harness allowlist entries, the wrapper
-      additionally bypasses the per-invocation harness prompt — the canonical shape for commit/push under
-      workflow guidance when active. Default: `arc.releaseOptedIn: false`.
-    - Wrappers fire at codified trigger points only — `taskCommit` at task approval under release-mode
-      interlocks, `workflowCommit` / `workflowPush` at workflow ceremony fire-sites. Off-workflow commits
-      (manual fixups, exploratory edits, anything not emitted by a workflow) use raw `git` even when
-      opt-in is on.
+- **Release-wrapper invocation** · `[configurable]`: off-workflow commits — manual fixups, exploratory edits,
+  anything not emitted by a workflow — use raw `git` even when `arc.releaseOptedIn` is on.
 
 - **Workflow class-tag routing** · `[configurable]`:
-    - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``,
-      `` `workflowCommit` ``, `` `workflowPush` ``). At fire time, look up
-      `releaseRouting.value.<class>` from the session-init envelope: `wrapper` invokes
-      `arc release commit` / `arc release push` (workflow supplies the message body in a `text`
-      codeblock or push args inline); `raw` (default; also on probe failure, missing tag, or
-      unrecognized class) invokes raw `git`.
-    - Class authorization (when `wrapper` resolves): `taskCommit` requires `arc.releaseOptedIn` AND
-      `arc.commitInterlock ∈ {on-task-approval, on-workflow}`; `workflowCommit` requires
-      `arc.releaseOptedIn` AND `arc.commitInterlock: on-workflow`; `workflowPush` requires
-      `arc.releaseOptedIn` AND `arc.pushInterlock: on-workflow`.
-    - Destructive flags (`--delete`, `--force`, `--force-with-lease`) stay literal — never
-      class-tagged; the wrapper refuses them by design.
-    - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
-      captured on the audit umbrella but do not re-route through `arc release push`.
+    - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``, `` `workflowCommit` ``,
+      `` `workflowPush` ``). At fire time, look up `releaseRouting.value.<class>` in the session-init envelope:
+      `wrapper` invokes `arc release commit` / `arc release push` (the workflow supplies the message body in a
+      `text` codeblock, or push args inline); `raw` invokes raw `git`, and is the default on probe failure, a
+      missing tag, or an unrecognized class.
+    - Class authorization, when `wrapper` resolves: all three require `arc.releaseOptedIn`, plus
+      `arc.commitInterlock ∈ {on-task-approval, on-workflow}` for `taskCommit`, `arc.commitInterlock:
+      on-workflow` for `workflowCommit`, and `arc.pushInterlock: on-workflow` for `workflowPush`.
+    - Destructive flags (`--delete`, `--force`, `--force-with-lease`) stay literal — never class-tagged; the
+      wrapper refuses them by design.
+    - `arc sync` handles its own internal push and does not re-route through `arc release push`.
 
-- **Merge to integration / main requires explicit approval** (the integration-interlock). Agents
-  must not infer merge approval from task approval, review completion, passing checks, or general
-  "proceed" language. Integration may happen only when the user explicitly authorizes it.
+- **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
 
-- **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
+- **Amend scope:** `git commit --amend` only for same-concern fixups to the most recent unpushed commit (typo,
+  lint, missing file from the same logical change); anything else is a new commit. **Never amend pushed commits
+  without explicit user request** · `[invariant]`.
 
-- **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
-  unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
-  new commit. Never amend pushed commits without explicit user request.
-
-- **Rebase scope:** Never rebase or otherwise rewrite a _pushed_ branch to absorb base changes —
-  rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
-  in instead (append-only — see the [concurrent-work strategy][concurrent-work] § Append-only until
-  integration). Rewriting _unpushed_ commits is fine.
+- **Rebase scope:** Rewriting _unpushed_ commits is fine. **Never rebase or otherwise rewrite a _pushed_ branch to
+  absorb base changes** · `[invariant]` — rewriting published commits orphans the SHA-keyed git notes and forces a
+  force-push. Merge the base in instead (append-only — see the [concurrent-work strategy][concurrent-work]
+  § Append-only until integration).
 
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
@@ -139,30 +172,20 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
-- **ROADMAP regen:** Under `pm.mode: arc-in-git`, a commit changing a render field
-  (`Depends On` / `Owner` / `Cohort`) on an `active/` or `backlog/planned/` meta — or moving a WU into
-  or out of `backlog/planned/` — re-renders `backlog/ROADMAP.md` in the same commit (lifecycle
-  ceremonies regen via their own step). See [strategy-work-organization § ROADMAP][work-org-roadmap].
+- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly instructs the
+  write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a meta update. A commit's
+  authority to touch the meta comes from the ceremony workflow it runs, not from an enumerated list;
+  task-completion code commits never touch it, and nothing writes it mid-stage.
 
-- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly
-  instructs the write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a
-  meta update. A commit's authority to touch the meta comes from the ceremony workflow it runs, not
-  from an enumerated list; task-completion code commits never touch the meta file, and nothing writes
-  it mid-stage.
+- **Meta-file commit shape:** The staging area is the test — concurrent ceremony content staged (file moves, spec
+  save, archival) → bundle the meta edit into that commit; meta edit alone → a dedicated `chore(arc):` commit.
+  Never bundled with code commits, which meta-file timing already forbids.
 
-- **Meta-file commit shape:** Meta-file edits ride with concurrent ceremony content (file
-  moves, spec save, archival) — bundle into the ceremony commit. When the
-  meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
-  staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
-  Never bundled with code commits (already enforced by meta-file timing above).
+### Merge authority
 
-- **Contributor commit release:** Under `arc.commitInterlock: on-task-approval`, contributor-role
-  commit release stages code only — project-level meta-file updates remain a maintainer responsibility.
-  Contributor meta files (gitignored, `user/{identity}/active/`) update at handoff regardless of
-  interlock settings.
-
-**For complex commits** (multi-session accumulated work, interleaved concerns), load the
-[prepare-commits workflow][prepare-commits].
+**Merge to integration / main requires explicit approval** · `[invariant]` (the integration-interlock).
+Agents must not infer merge approval from task approval, review completion, passing checks, or general
+"proceed" language. Integration may happen only when the user explicitly authorizes it.
 
 ### Commit format · `[configurable]`
 
@@ -182,41 +205,28 @@ changes by task; commit shared documentation (task list updates) last.
 
 ## Task Execution
 
-### Task interlock
+### Task interlock · `[invariant]`
 
-Each checkbox in the task list is one _review increment_ — a bounded unit of autonomous execution
-between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
-this default boundary: the increment closes with a structured approval gate before the agent advances or
-commits, and that gate is the task-interlock — stop after reporting completion, surface verification
-status, and await explicit user approval. Deferred review is a bounded convenience gated by user
-approval, not an autonomy mode.
+The review increment's boundary is a parameter, and **one leaf task is its floor**. The
+[Review-Increment Invariant](#review-increment-invariant) applies at whatever boundary is in force: the
+increment closes with a structured approval gate before the agent advances or commits, and that gate is the
+task-interlock — stop after reporting completion, surface verification status, and await explicit user
+approval. Deferred review is a bounded convenience gated by user approval, not an autonomy mode.
 
-One leaf is the _default_ increment boundary, not the only legal one: when a parent's subtasks are
-tightly coupled — landing as one atomic commit, or individually incoherent mid-sequence — the agent may
-**propose** reviewing the parent as one increment (agent proposes, user approves; one gate, never
-self-invoked). That is correct _scoping_ of the invariant, not an exception — the default stays per-leaf
-and is never silently widened. Signals and procedure: [process-task-loop][process-task-loop] § Deferred
-review.
-
-A work unit's review increments all run under its single owner — cross-person parallelism is multiple work
-units, not multiple developers within one. See [Team Coordination Strategy][team-coordination] for
-cross-person coordination conventions.
+Widening the parameter is the user's call. When a parent's subtasks are tightly coupled — landing as one
+atomic commit, or individually incoherent mid-sequence — the agent may **propose** reviewing the parent as
+one increment (agent proposes, user approves; one gate, never self-invoked). That is correct _scoping_ of the
+invariant, not an exception: the floor never moves on the agent's own authority. Signals and procedure:
+[process-task-loop][process-task-loop] § Deferred review.
 
 **For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
 stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
 
 ### Design before implementation (spec-directed work)
 
-ARC is spec-directed: design decisions are settled upfront in the spec (`spec-*.md`), not during
-implementation. The task list (`tasks-*.md`) decomposes that design into actionable steps; the code realizes
-it. The meta file's `**Design:**` field carries the pointer, making the spec the recurring, self-describing
-upstream of the work.
-
-Settle **all settle-able design up front** — best reasonable effort, never a conscious deferral — and route any
-genuinely-emergent design question back to the spec rather than accumulating design debt in code or notes. This
-holds identically at every `Class`: a lighter `Class` means the design was _more determinate coming in_, not
-that more design may be left open. A lighter process is never license to defer design — the
-implementation-detail latitude ARC already grants is unchanged.
+Settle **all settle-able design up front** in the spec — never during implementation, never a conscious
+deferral, never less because `Class` is light — and route genuinely-emergent design questions back to the
+spec rather than accumulating design debt in code or notes.
 
 ### Sub-agent scope
 
@@ -238,16 +248,14 @@ manual fresh-session pass; never a primary-context self-pass presented as indepe
 
 ### Review finding mutation guard
 
-Verify every review finding against source with your own judgment; reviewer or delegated output remains advisory.
-Present the complete proposed disposition set and obtain approval before applying any finding-driven fix. This
-constraint applies regardless of who reviewed the change or where the findings arrived.
+**Verify every review finding against source with your own judgment** · `[invariant]`; reviewer or delegated output
+remains advisory. Present the complete proposed disposition set and obtain approval before applying any finding-driven
+fix · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
 
 ### Task granularity
 
 Break down a task into subtasks if it requires:
 
-- More than 3 files to be modified
-- More than 50 lines of core logic changes
 - Multiple interdependent changes
 - Complex debugging or investigation
 
@@ -255,15 +263,18 @@ Break down a task into subtasks if it requires:
 
 If quality gates fail after task completion:
 
+- **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to decide.
 - **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
   auto-fixable lint): fix and re-run immediately; report the correction.
 - **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
   approved.
 
+**A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
+reported — including that it produced no result — is not that judgment.
+
 ### Test-first assessment · `[configurable]`
 
-Before implementing any task, assess whether tests should be written first — see the
-[test-first method][arc-methods-tf] for the decision tree.
+Before implementing any task, assess whether tests come first; the [test-first method][arc-methods-tf] decides.
 
 ---
 
@@ -274,7 +285,7 @@ take responsibility for it. Never silently drop an observation that should be fi
 
 **The core invariant.** A work unit's stub/draft is the single authoritative source for its domain concerns;
 capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
-item with a known home may rest in a capture surface.**
+item with a known home may rest in a capture surface** · `[invariant]`.
 
 ### Leave it cleaner
 
@@ -284,7 +295,8 @@ The behavioral floor for everything below — what to do with a concern the mome
 via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
 _same-concern_ cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
 
-**Always propose placement to the user before acting** — the agent suggests, the user decides.
+**Propose placement before acting** — the agent suggests, the user decides. A deterministic same-concern cleanup
+inside the change already under review discharges that: fix it and name the correction in the completion report.
 
 ### Route by urgency × isolation
 
@@ -306,14 +318,8 @@ directly — run an errand (a self-evident concern, atomic, possibly extended) o
 (spec-worthy future work) — but never must: capture-plus-drain reaches the same place. Lack of time is never a
 reason to lose a thought.
 
-**Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow.
-Under PM modes other than arc-in-git, captures route per project convention (see
-[DEV-RULES.PROJECT][dev-rules-project]); the inline, holding, and anti-rider rules are mode-independent. The
-drain clears each entry to a home, with one sanctioned exception — a developer may **retain** a specific
-capture in `USER-INBOX` (held privately until
-vetted, or for imminent self-execution), explicit and per-entry, never the default. So the WU-start invariant
-is **no un-triaged entries**, not an empty inbox: a retained entry is triaged (marked, reminder-tracked), not
-rot.
+**Where captures drain.** `USER-INBOX` drains at the between-WUs `arc-housekeep` flow; the inline, holding,
+and anti-rider rules hold under every PM mode.
 
 ### Holding ≠ execution
 
@@ -321,13 +327,7 @@ Capture _holds_; it never _executes_. Capture is inbox-only — a deferred conce
 `arc-inbox`), never as a queued or seeded errand. **An errand _is_ its execution:** out-of-WU work runs through
 the `run-errand` lifecycle on its own isolated branch — entered warm with `arc-errand` or cold with
 `arc-session --errand` — never hand-rolled on your current WU branch. The isolation rule is universal — get off
-the WU branch — but its _shape_ follows protection mode: a `chore/<slug>` branch + PR under full, a direct base
-commit under partial (see [strategy-work-organization][work-org] § Cheap-branch path). An errand has no meta
-file or lifecycle of its own — its state is derived from its branch and PR.
-
-Routing a multi-step note _to its stub_ is not execution — the housekeep drain writes it straight in. When an
-errand executes a captured item, its inbox entry is removed at **completion** — matched via its errand record's
-origin back-pointer — not at start, so an abandoned errand never orphans the intent.
+the WU branch — while its _shape_ follows protection mode.
 
 ### Anti-rider
 
@@ -347,26 +347,11 @@ planning artifact.
 
 ## Session Management
 
-### Session state control
-
-Session state uses two files with different update triggers:
-
-- **`meta-{name}.md`** (tracked, `active/`) — the active WU's project pointer.
-  Updated only at handoff commits and workflow-ceremony commits; task-completion code commits never
-  touch it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
-
-- **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
-  Personal working context for the next session. Per-developer directory (`user/{identity}/`);
-  see [Session Operations Strategy][session-ops] § Portability for cross-machine portability
-  via git notes.
-
-The agent reports progress throughout the session; session state files capture the summary at handoff
-and ceremony boundaries.
-
 ### Handoff
 
 **Session handoff is human-invoked.** Agents do not initiate handoff — the user signals when to
 hand off (typically via `arc-handoff` skill invocation); the agent then executes the handoff workflow.
+SESSION-NOTES.md (gitignored) is written only at handoff.
 
 ### Context quality
 
@@ -376,23 +361,12 @@ specification throughout the session regardless of context window size or utiliz
 **Prefer handoff at natural boundaries.** This is a judgment call for scope, review, and
 a clean episodic baseline, not a correctness requirement for every context-pressure event.
 At a boundary, handoff captures state; the clean baseline comes from the fresh load after
-`clear`. See [Session Operations Strategy][session-ops] for duration guidance.
+`clear`. Note the handoff opportunity when significant context has accumulated. See
+[Session Operations Strategy][session-ops] § Context Monitoring for the utilization thresholds.
 
 **Between natural boundaries, compact and recover.** Context pressure alone does not force
 early handoff; use harness recovery or `arc-recover` when available, otherwise hand off
 and re-init. "Clean baseline" means a clean episodic baseline, not a lighter procedural load.
-
-**Natural session boundaries:**
-
-- **Mode transitions** — design to implementation, investigation to fix, planning to
-  execution. Analysis context carried forward crowds the window without serving the new work.
-
-- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh
-  session starts with focused context even when the current session has headroom. At these
-  points, note the handoff opportunity if significant context has accumulated.
-
-- **Quality signals** — output becoming less precise, early-session guidance being missed,
-  re-deriving decisions already established in this session
 
 When a boundary is reached or the user initiates handoff:
 
@@ -409,11 +383,8 @@ handoff.
 
 ### Verify before assuming
 
-**When uncertain about implementation details, file locations, or existing content:**
-
-1. **Search first** — verify from source (Grep, Glob, Read)
-2. **Ask clarifying questions** — when the request is understood but design decisions need input
-3. **Stop and ask** — if still unclear after searching
+**When uncertain about requirements:** stop and ask — they live with the user, so no work of yours settles them.
+Implementation details, file locations, and existing content are yours to establish: resolve them at the source.
 
 **Never generate or assume:**
 
@@ -434,15 +405,7 @@ recommended option with a one-line rationale; never a bare fork. The user still 
 
 ### Consult strategy guidance
 
-Before implementing work in codified domains, consult the relevant strategy document.
-
-1. Identify if your work touches a domain with codified guidance
-2. Check [STRATEGY-INDEX][strategy-index] for relevant strategies
-3. Read relevant section(s) before implementing
-4. Follow documented patterns
-
-When uncertain if a strategy applies, ask. For large multi-topic strategies, search for the
-specific topic rather than reading the entire document.
+Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-index] entries that fire.
 
 ### Method and extension loading
 
@@ -460,67 +423,59 @@ When a loaded method carries a populated `.override`, follow its `override-mode`
 
 ### No meta-project references in code
 
-Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs
-(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or
-workflows that organize the work (ARC's own — `the test-first method`,
-`prepare-commits workflow` — or your project's analogues), or `.arc/` documentation paths in
-code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to
-comments, docstrings (including file-level), identifiers, test names, and prose.
+Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs (`B5`), requirement
+IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or workflows that organize the work (ARC's own
+— `the test-first method`, `prepare-commits workflow` — or your project's analogues), or `.arc/` documentation
+paths in code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to comments,
+docstrings (including file-level), identifiers, test names, and prose.
 
-Meta-commentary vs. substantive reference: citations that justify the code by appeal to
-process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
-`per the test-first method's batching-judgment clause` — are a form of documentation coupling,
-binding code to a document on its own evolution schedule. Replace them with what the code
-does; route process rationale to a planning artifact (specs, drafts, task lists, meta files,
-ADRs, work-unit notes, commit `Context:` footers). Substantive references —
-test names describing behavior, comments on non-obvious invariants — stay.
+Meta-commentary vs. substantive reference: citations that justify the code by appeal to process artifacts — `per
+the team's TDD playbook`, `implements the spec from RFC-042`, `per the test-first method's batching-judgment
+clause` — couple code to a document on its own evolution schedule. Replace them with what the code does; route
+process rationale to a planning artifact (specs, drafts, task lists, meta files, ADRs, work-unit notes, commit
+`Context:` footers). Substantive references — test names describing behavior, comments on non-obvious invariants —
+stay.
 
 ### Artifact relocatability
 
-Movable `.arc/` artifacts — a WU's `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions, plus `cohort-*` —
-relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`), and every such move is a pure `git mv`
-with no content edit. That holds only if artifacts carry position-independent references — the rule below.
+Movable `.arc/` artifacts relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`) by pure
+`git mv` with no content edit — which holds only if they carry position-independent references, the rule below.
 
 ### `.arc/` artifact references
 
-Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` —
-are project-internal: shipped or published content cannot reference them at all. Two rules keep internal
-references stable across relocation:
+Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` — are
+project-internal: shipped or published content cannot reference them at all. Two rules keep internal references
+stable across relocation:
 
 - **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
-- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's own path
-  changes when it relocates, so any relative link it carries would break. Relative paths are legal only in
-  non-moving docs.
+- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's path changes
+  when it relocates, so any relative link would break. Relative paths are legal only in non-moving docs.
 
 Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
 
 ### Write for the reader, not the author
 
-When removing or restructuring content, don't leave notes explaining what was removed or where
-it went — future readers have no context for the old state. Document what _is_, not what _was_.
-Historical context belongs in commit messages and task list completion notes, not in the living
-document.
+When removing or restructuring content, don't leave notes explaining what was removed or where it went — future
+readers have no context for the old state. Document what _is_, not what _was_. Historical context belongs in
+commit messages and task list completion notes, not in the living document.
 
-**Also applies to communication artifacts** — PR descriptions, notes files, and documentation
-handoffs describe what the artifact delivers, not the author's workflow continuity. Workflow
-continuity (post-merge activation, next actions, session boundaries, file-retirement metadata
-tied to specific commits) belongs in the active WU's `meta-{name}.md` and SESSION-NOTES,
-not in the artifact body.
+**Also applies to communication artifacts** — PR descriptions, notes files, and documentation handoffs describe
+what the artifact delivers, not the author's workflow continuity, which belongs in the active WU's
+`meta-{name}.md` and SESSION-NOTES.
 
 **Examples of reader-hostile patterns:**
 
 - "Previously this section covered X, which has moved to Y" (reader never saw X here)
-- "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
-  workflow state, not reader-relevant for reviewing the change
+- "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side workflow state, not
+  reader-relevant for reviewing the change
 
 ### Commit and PR surface language
 
-Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge:
-backticked artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a
-load-bearing term (a `Class` value, a named internal procedure) is not. Traceability — task IDs,
-phases, lifecycle action — routes to the `Context:` footer; the prose carries the change.
-Illustrative, not exhaustive.
+Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge: backticked
+artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a load-bearing term (a
+`Class` value, a named internal procedure) is not. Traceability — task IDs, phases, lifecycle action — routes to
+the `Context:` footer; the prose carries the change. Illustrative, not exhaustive.
 
 ---
 
@@ -558,7 +513,6 @@ Load these documents when you reach the relevant work — not during session ini
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [concurrent-work]: ../../reference/strategies/arc/strategy-concurrent-work.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
-[work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/process-task-loop.md
@@ -566,5 +520,4 @@ Load these documents when you reach the relevant work — not during session ini
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [contributor-briefing]: ../../reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md
-[team-coordination]: ../../reference/strategies/arc/strategy-team-coordination.md
 [session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md

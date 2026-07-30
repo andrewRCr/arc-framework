@@ -243,8 +243,8 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    presentation only and cannot change routing, response, or evidence authority.
 
 5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
-   vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
-   malformed WU state; a missing or contradictory Errand identity stops.
+   vehicle is explicitly outside WU composition-product requirements. **Never infer the exemption from absent or
+   malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
    Run authoritative base freshness and validate the complete typed result:
 

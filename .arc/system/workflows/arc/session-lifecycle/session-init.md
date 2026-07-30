@@ -62,12 +62,16 @@ precondition, the entry dispatch, then the sync channels.
 When `worktree.value.state == "branch-gone"`, align git state _before_ anything reads against the working
 branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
 context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
-The `recovery` slot carries pre-computed candidates (no scanning across turns); render them as a single
-recovery prompt, branched on `recovery.value.kind`:
+The `recovery` slot carries pre-computed candidates (no scanning across turns). One arm recovers without
+asking; every other renders a single recovery prompt, branched on `recovery.value.kind`:
 
-- `resolved` — offer the one candidate directly; or, when its `proposedAction` is `removable`, offer to
-  remove the shipped worktree and archive its meta instead of switching (`external` candidates are surfaced,
-  not acted on).
+- `resolved` + `proposedAction: switch` + `dirty.value.state == "clean"` — switch and report it in
+  orientation rather than prompting. Step 7 designates a cleanly-resolved roster mismatch
+  auto-recover-with-notice and names this mechanism as its own example; the switch is reversible in one turn
+  and no uncommitted work is at risk.
+- `resolved` on any other `proposedAction`, or against a dirty tree — offer the one candidate directly; when
+  its `proposedAction` is `removable`, offer to remove the shipped worktree and archive its meta instead of
+  switching (`external` candidates are surfaced, not acted on).
 - `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
 - `main-fallback` — offer `main`.
 
@@ -165,8 +169,9 @@ passes over that result:
 
 ### Entry dispatch
 
-Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
-not run your own fetch / `git worktree list` / meta reads):
+Select the entry mode from `active.value.resolution` and `worktree.value`. Where those slots resolved they are
+authoritative — do not re-derive them with your own fetch, `git worktree list`, or meta reads. Where the probe
+failed or left a slot unresolved, Step 1's fallback prescribes those same commands:
 
 An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
@@ -266,10 +271,14 @@ signal calls for it — the single load satisfies both, so they never double-run
 
 Both gate on `session.init_load.notes`, so they agree on the action — dispatch on it:
 
-- `always` — fire `arc user load` immediately, **except** when `dirty.value.state === "dirty"`. Under
-  a dirty tree, `always` degrades to `prompt` with a "stash or commit local edits before loading"
-  warning prepended to the offer text. The pre-load backup that ships with `arc user load` is the
-  safety net for the auto-action case.
+- `always` — fire `arc user load` immediately. Degrade to `prompt` only when the dirt sits where the
+  load writes: the command writes under the resolved user directory alone, so a dirty `src/` is not
+  exposed to it. The `dirty` slot is the wrong instrument for that test — it reports the current
+  worktree, while under linked-worktree operation the resolved directory lives in the primary. Take
+  the directory from the load set's `WORKING-MEMORY` entry, run one `git status --porcelain` in the
+  worktree holding it, and prompt only on an intersecting path, with the "stash or commit local edits
+  before loading" warning prepended to the offer text. The pre-load backup that ships with
+  `arc user load` is the safety net for the auto-action case.
 - `prompt` — ask before running `arc user load` (use the firing channel's `recommendedPromptText`).
   Dirty-tree-aware; the agent owns the prompt.
 - `manual` — surface in Step 6 orientation only (no prompt, no run); the retired-subdir slot's
@@ -490,9 +499,10 @@ freshness-check commands below), not from SESSION-NOTES prose.
       `taskCursor.value.cursor.section` as the lookup anchor for the section read, and keep
       `taskCursor.value.cursor.leaf` only as the in-section current executable. If the cursor reports
       `no-open-task`, skip the partial read and surface that no executable checkbox is currently open.
-      If the cursor is malformed or the `taskCursor` probe failed, stop and surface the diagnostic. Do not
-      enter the graduated lookup without a chosen anchor. This is a deterministic line-anchor helper only,
-      not thought-state.
+      If the cursor is malformed or the `taskCursor` probe failed, skip the partial read and surface the
+      diagnostic — the task list is reference material read on demand during work, so a lost anchor costs a
+      read rather than the session. Do not enter the graduated lookup without a chosen anchor. This is a
+      deterministic line-anchor helper only, not thought-state.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current section anchor by

@@ -1,14 +1,14 @@
-# Metadata: judgment-authority-model
+# Metadata: planning-lane-relief
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Novel`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-judgment-authority-model.md`
+- **Design:** `draft-planning-lane-relief.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

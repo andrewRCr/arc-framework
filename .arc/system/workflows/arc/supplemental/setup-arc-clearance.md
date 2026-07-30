@@ -48,8 +48,8 @@ environment and branch-protection steps below are completed.
 
 ## 3. Require both writers on the default branch
 
-Resolve the repository and default branch with `gh repo view`. Confirm the workflow is present on the default
-branch, not only in the working branch, and that its live content retains both event types:
+Resolve the repository and default branch with `gh repo view`. **Confirm the workflow is present on the default
+branch, not only in the working branch, and that its live content retains both event types** · `[invariant]`:
 
 ```bash
 gh api "repos/{owner}/{repo}/contents/.github/workflows/arc-clearance.yml?ref={default-branch}"
@@ -71,8 +71,8 @@ Create or update only the `arc-clearance` environment when state differs. Preser
 repository settings. The environment is secretless; do not add credentials or reviewers.
 
 If `gh` reports missing admin access, use the guided-manual fallback: Settings → Environments → New environment
-`arc-clearance`; leave required reviewers empty, allow only the default branch, and add no secrets. Re-run the
-detection queries afterward and stop until they confirm the required state.
+`arc-clearance`; leave required reviewers empty, allow only the default branch, and add no secrets. **Re-run the
+detection queries afterward and stop until they confirm the required state** · `[invariant]`.
 
 ## 5. Add the required context
 

@@ -13,8 +13,8 @@ fallback when a developer notices compaction erased ARC operating context. Recov
 the context-load layer from live state plus the latest compaction seed. It does not reconstruct
 the just-before-compaction action; the harness compaction summary owns that volatile current
 leaf — but that precedence governs reconciliation _after_ the audit, and is never grounds to skip
-recovery. Run the audit whenever a compaction injection fires, even if your remaining context feels
-sufficient: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
+recovery. **Run the audit whenever a compaction injection fires, even if your remaining context feels
+sufficient** · `[invariant]`: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
 does not run session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a
 clean path.
 
@@ -108,14 +108,19 @@ Apply each entry's `readMode`:
        checkbox inside that section.
 
   If offsets are needed, build one structural map from phase/task headings rather than repeated
-  ad hoc searches. Stop if any required slice cannot be located.
+  ad hoc searches. Stop if the current task section cannot be located — the verified anchor is
+  then wrong, which is not yours to resolve. A missing header or phase preamble is a
+  structural-convention miss instead: surface it and continue with the slices that resolved.
 
 Preserve the manifest order when reconciling loaded content and deciding what procedural
 context applies, even when the reads complete out of order.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
-one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
-and surface the missing workflow pointer. For planning recovery, do not treat `Current Workflow`
+one. For an execution or integration resume the mapping is a deterministic shipped table, so an
+absent entry is a projection defect rather than a missing decision: load the mapped workflow and
+surface the omission rather than stopping — the gap is itself a signal about the audit that
+produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
+and keeps its stop. For planning recovery, do not treat `Current Workflow`
 as authoritative by itself; if the stage is unclear from deterministic state plus the harness
 summary, stop for direction.
 

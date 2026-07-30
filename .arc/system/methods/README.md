@@ -5,7 +5,9 @@ Per-file method defaults and overrides. Each method defines a contract (what mus
 
 **How overrides work:** To replace a default, populate the method's `.override` section with your team's
 implementation. For each method, the agent checks `.override` first — if populated, follow the override and skip
-`.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
+`.default`. An override replaces _how_ the method is accomplished, never _what_ it must accomplish: the contract
+is the invariant both the default and any override satisfy. Nothing mechanically enforces that, which leaves it
+unchecked rather than optional.
 
 An optional `override-mode` frontmatter field selects the disposition when `.override` is populated. `replace`
 (the default; absent ⇒ this) stands alone — follow the override and skip `.default`. `extend` applies `.default`

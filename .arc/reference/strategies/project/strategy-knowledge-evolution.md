@@ -64,8 +64,8 @@ Discipline that keeps interim work composing toward the target without locking i
 ### 1. Place by miss-cost; constraints never go on-demand
 
 A hard invariant (safety rule, non-negotiable, destructive-operation guard) belongs in an always-loaded
-rules surface or at the fire site gating the operation it protects — never mid-document in an on-demand
-file, never index-only. When a plan adds a constraint, place it where its operation fires.
+rules surface or at the fire site gating the operation it protects — **never mid-document in an on-demand
+file, never index-only** · `[invariant]`. When a plan adds a constraint, place it where its operation fires.
 **Anti-pattern:** burying a new invariant in a strategy section because the strategy "owns the domain."
 
 ### 2. Author trigger surfaces as directive firing conditions

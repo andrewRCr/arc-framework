@@ -144,9 +144,9 @@ npm run build
 
 ## Quality Gate Commands
 
-Reference commands for the DEV-RULES.PROJECT quality gates. **Which** of them a given change has to run is
-DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions); the tier model itself is the
-[Quality Gates Strategy][quality-gates].
+The project's quality gates and the commands that run them. **Which** of them a given change has to run is
+DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions), which also carries the standards each
+gate enforces; the tier model itself is the [Quality Gates Strategy][quality-gates].
 
 **Parity with CI.** The full-suite set below tracks the required workflow in `.github/workflows/ci.yml`. The
 `lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
@@ -169,6 +169,25 @@ full suite — the expensive checks narrow by an order of magnitude, and the ARC
 | `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
 | `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
 | `build`                 | 5.7s         | not narrowable                              |
+
+### The gates
+
+Zero violations or errors on each. Commands, config, and tooling:
+
+- **Markdown lint** — `lint:md` over the worktree; `lint:md:staged` certifies the index and is authoritative at
+  pre-commit. Config `.markdownlint-cli2.jsonc`.
+- **Code lint** — `lint:ts`, config `packages/arc-framework/eslint.config.js` (typescript-eslint
+  recommended-type-checked); `lint:sh`, which requires a system-installed `shellcheck` on developer machines.
+- **Type checking** — `typecheck` for source (`packages/arc-framework/tsconfig.json`, strict, excludes
+  `__tests__`), `typecheck:test` for tests (`tsconfig.test.json`), or `typecheck:all` for both.
+- **Tests** — `npm test` for the full suite, `test:unit` for unit only. Vitest, config
+  `packages/arc-framework/vitest.config.ts`.
+- **Build** — `build`. Tooling is tsup, emitting ESM output, declarations, and an injected shebang.
+- **ARC contract checks** — `lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`. Corpus-wide by
+  design and required in CI.
+
+Invocation detail for the Markdown gates — `lint:md:staged`, `lint:md:fix:file`, `format:tables`, the `--no-globs`
+rule, and the MD060 caveat — stays in § Markdown Linting above rather than being restated here.
 
 ### Incremental — Tier 1 (per-task)
 

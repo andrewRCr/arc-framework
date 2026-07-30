@@ -12,6 +12,7 @@ arc:
     - review-triage
     - review-response
     - commit-footer
+    - quality-gate-commands
   extensions:
     - pre-pr-open
     - post-pr-open
@@ -178,9 +179,9 @@ injected from the immutable operation. Any supplied compatibility binding must m
 For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
 severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
 any finding-driven fix, durable deferral, channel settlement, or other mutation/commitment. A complete no-action
-record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates, commit atomically,
-push through the workflow contract, and produce a new target; apply Step 4's review applicability judgment rather
-than carrying clearance or merge authority.
+record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates (commands per the
+[quality-gate-commands method][arc-methods-qg]), commit atomically, push through the workflow contract, and produce
+a new target; apply Step 4's review applicability judgment rather than carrying clearance or merge authority.
 
 Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
 authority.
@@ -336,8 +337,8 @@ unlike Step 8's Release Notes. Leave it uncommitted until Step 10.
 
 ### 10) Commit completion content
 
-Run the applicable quality gates and stop on failure. Bundle the composition edits under the provisional-candidate
-exception; this commit does not make the branch merge-ready.
+Run the applicable quality gates ([`quality-gate-commands`][arc-methods-qg]) and stop on failure. Bundle the
+composition edits under the provisional-candidate exception; this commit does not make the branch merge-ready.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -400,8 +401,10 @@ unrecognized, malformed, or non-JSON result stops integration — surface its ty
 
 On `reconcile`, continue autonomously only when the typed result carries a validated `baseOid`, complete integration
 evidence, `overlap.status: available`, and an empty `substantivePaths` set. Re-read canonical host mergeability;
-a base conflict stops, and any analyzer/host disagreement stops. Unavailable overlap, incomplete evidence, or a
-substantive interaction also stops rather than weakening the reconcile.
+a base conflict stops, and an analyzer/host disagreement stops unless the conflicting path set is wholly
+regenerable — the same line Step 4's advisory read draws, and the append-only merge below is the authoritative
+test either way. Merging the base **in** is reversible; the merge this step later authorizes is not. Unavailable
+overlap, incomplete evidence, or a substantive interaction also stops rather than weakening the reconcile.
 
 Immediately refresh `arc base drift --json`. A `clean` result skips the merge; a changed `baseOid` restarts this same
 read. When the identical OID still has the safe typed disjoint result, merge it append-only:
@@ -605,6 +608,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
+[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md

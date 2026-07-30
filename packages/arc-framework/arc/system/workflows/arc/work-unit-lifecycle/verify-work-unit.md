@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - adversarial-review
+    - quality-gate-commands
 ---
 
 # Workflow: Verify Completion
@@ -20,9 +21,9 @@ member integrates.
 
 ## Step 1 — Tier 3 Quality Gates
 
-Run the full quality gate suite as defined by the project's
-[Quality Gates Strategy][quality-gates]. Even when incremental checks have been clean throughout
-implementation, the full-suite run serves as attestation that everything passes as a whole.
+Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
+[quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
+clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
 
 ## Step 2 — Validate Success Criteria Against Design Artifact
 
@@ -103,6 +104,7 @@ verification-task exception). Cover both:
 ---
 
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
+[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [integrate-work-unit]: integrate-work-unit.md
 [session-handoff]: ../session-lifecycle/session-handoff.md

@@ -1,8 +1,8 @@
 # User Notes Concurrency Strategy
 
 User notes are identity-scoped shared state. Same-machine sibling worktrees, separate machines, and session-init
-probes can all touch the same notes ref or its supporting state, so every mutator needs one explicit write
-discipline.
+probes can all touch the same notes ref or its supporting state, so **every mutator adopts one of the three
+explicit write disciplines below** · `[invariant]`.
 
 Consult this strategy before adding or modifying any mutator of shared user-notes state: the canonical notes ref,
 identity-global user files, `.sync-state.json`, partial-push markers, sync-state refs, temp refs, or notes locks.

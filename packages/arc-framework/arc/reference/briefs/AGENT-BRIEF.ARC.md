@@ -18,8 +18,8 @@ loaded when workflow YAML frontmatter declares them.
 
 **Review authority:** Agent-side review methods and extensions are best-effort ergonomics. They improve a change
 and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.
-Only a configured required host-side check structurally enforces merge safety; never infer that guarantee from
-`self-review`, `frontline-review`, a clean report, or passing local checks.
+Only a configured required host-side check structurally enforces merge safety; **never infer that guarantee from
+`self-review`, `frontline-review`, a clean report, or passing local checks** · `[invariant]`.
 
 **Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
 `quality-gate-commands` method.
@@ -61,11 +61,22 @@ Precise meanings — assume the technical sense.
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A
   descriptor, not a wrapper; inboxes route by _fate_ (Errand vs WU), not character. Not the concurrency sense.
+- **Default:** A rule the agent may set aside in the moment by naming the fact that discharges it and disclosing
+  that fact where the developer is already reading. Every rule ARC states is one unless marked `[invariant]`; see
+  DEV-RULES.ARC § Rule Authority for the reading that classifies an unmarked rule and the discharge protocol. Not
+  "optional" — silent divergence is a violation, not a discharge.
+- **Invariant:** A rule the agent may not set aside on its own authority, marked `[invariant]` where the classifying
+  reading does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant
+  has a **holder**, and that holder making the reserved decision is the rule working rather than a waiver.
+  Orthogonal to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
+- **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
+  to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
+  said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
 - **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
-  commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
+  commit invocation, wrapped or raw. Applies
   universally — task list work, off-task / incidental, workflow stages.
   **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
   or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock

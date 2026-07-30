@@ -8,26 +8,21 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 ---
 
-## Contents
-
-- [Quality Gates](#quality-gates) — checks and enforcement
-- [Testing Requirements](#testing-requirements) — test strategy and coverage
-- [Code Quality Principles](#code-quality-principles) — engineering standards
-- [Documentation Standards](#documentation-standards) — markdown quality, style conventions
-- [Commit Conventions (self-hosting)](#commit-conventions-self-hosting) — scope and type adherence in this repo
-- [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
-- [Audience Boundaries](#audience-boundaries) — adopter-facing vs. internal-dev-facing surfaces
-- [Capture Routing](#capture-routing) — where deferred issues go
-- [Architecture Documentation](#architecture-documentation) — ADRs and design records
-
----
-
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
+**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
 
 **Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
-Commands and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+
+Four gate behaviors that reference does not carry, each of which fails quietly:
+
+- `lint:md:staged` certifies the **git index**, not the worktree — the false-green trap is index-versus-worktree
+  bytes, not a second rule set; **re-stage after every fix**, or findings target already-corrected lines.
+- `lint:md` **fails closed** when a staged Markdown-gate path still differs in the worktree, so a green worktree
+  run cannot hide a dirty index.
+- Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
+  test-only type error passes a source-only check and surfaces only at commit.
 
 ### Selecting what to run
 
@@ -61,71 +56,16 @@ running a tier partially, and Tier 3 in particular is still run whole.
 Re-running **is** warranted after a base merge, after any review-driven fix, and at the first full-suite
 attestation of composed work — each introduces state no prior run saw.
 
-1. **Markdown Linting**: Zero violations
-    - **Authoritative gate (pre-commit):** `npm run -s lint:md:staged` — certifies the **git index** (what will
-      commit), not the worktree. Same rule config as the worktree run (`.markdownlint-cli2.jsonc`); the false-
-      green trap is **index vs worktree bytes**, not a second rule set. After every fix, **re-stage** before
-      re-running — otherwise findings target already-corrected worktree lines and look spurious.
-    - Worktree check: `npm run -s lint:md` — mid-edit composition over worktree files. On a clean lint it also
-      **fails closed** when any staged Markdown-gate path still differs in the worktree (so a green worktree
-      run cannot hide a dirty index). Still not a substitute for `lint:md:staged` before commit when you want
-      the full index certification (deps + checker alignment).
-    - Auto-fix: `npm run -s lint:md:fix` clears many rules (including MD049 emphasis-style) but **not**
-      MD060 table alignment — use `npm run format:tables -- <file> [<file> ...]` (explicit tracked paths;
-      source-first Framework projection; does not rewrite surrounding prose).
-    - Config: `.markdownlint-cli2.jsonc`
-
-2. **Code Linting**: Zero violations
-    - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
-      (typescript-eslint recommended-type-checked)
-    - Shell: `npm run lint:sh` — requires system-installed `shellcheck` on developer machines
-
-3. **TypeScript Type Checking**: Zero errors
-    - Source: `npm run typecheck` — config `packages/arc-framework/tsconfig.json` (strict; excludes `__tests__`)
-    - Tests: `npm run typecheck:test` — config `packages/arc-framework/tsconfig.test.json`
-    - Both at once: `npm run typecheck:all`
-    - Test files typecheck under a separate config; Vitest's esbuild transpile skips type-checking, so a
-      test-only type error passes a source-only check and surfaces only at commit. Run both before declaring
-      types green — especially after editing a shared or exported type.
-
-4. **Tests**: All pass
-    - Command: `npm test` (full suite), `npm run test:unit` (unit only)
-    - Framework: Vitest
-    - Config: `packages/arc-framework/vitest.config.ts`
-
-5. **Build**: Succeeds
-    - Command: `npm run build`
-    - Tooling: tsup (ESM output, declarations, shebang injection)
-
-6. **ARC Contract Checks**: Zero violations
-    - Commands: `npm run -s lint:arc:triggers`, `npm run -s lint:arc:domain-rules`,
-      `npm run -s lint:arc:section-refs`
-    - Validate methodology artifacts — declared method fire-points, domain-rules frontmatter, and `§` section
-      references across the corpus. **Required in CI**, and the family most often missed locally; see
-      [QUICK-REFERENCE][quick-ref] § Quality Gate Commands for the parity rule.
-
 ## Testing Requirements
-
-**Test framework:** Vitest. Three test tiers under `packages/arc-framework/__tests__/`
-(unit / integration / e2e).
 
 **Coverage expectations:** Business logic and core libraries should have unit test coverage.
 Commands are validated through integration and E2E tests. No hard coverage percentage target —
 meaningful assertions over line counting.
 
-**Testing methodology:** Operational rules live in the methods — [`test-first`][test-first] (planning-time
-test sequencing) and [`testing-standards`][testing-standards] (execution-time assertion / mocking / isolation
-discipline). See [Testing Methodology Strategy][testing-methodology] for the deep-dive — rationale, tier
-details, and worked examples.
+## Engineering Standards
 
-## Code Quality Principles
-
-Apply standard software engineering principles:
-
-- **DRY** (don't repeat yourself)
-- **SOLID** (single responsibility, open/closed, dependency inversion)
-- **KISS** (keep it simple)
-- **YAGNI** (you aren't gonna need it)
+**Scope discipline:** Don't build what wasn't asked for. Speculative abstraction and unrequested capability are
+scope decisions rather than engineering taste, and they belong to whoever set the scope.
 
 **Pre-public-release compatibility posture:** ARC is currently pre-public-release. Until its first public release,
 unpublished project-owned contracts and development-only persisted state may change in place. Do not add
@@ -147,57 +87,40 @@ instead.
 
 ### Markdown quality
 
-- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
 - Template-first documents with comprehensive inline guidance and framework defaults
 - READMEs required for each directory
-- Always run markdown linting after updating documentation files
 - **Line length**: 120 characters — wrap at natural phrase boundaries near the target width. Linting catches
   overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
   Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
 
 ### Documentation style
 
-- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
-  perspective — not as a transcript of human-AI interaction. Write as the work's author would.
-    - ❌ "The user approved the approach", "Pending user review", "User requested we defer this"
-    - ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
+- **Collaborative voice**: Commits, task lists, and project docs read as the work's author would write them — an
+  author or team perspective, never a transcript of human-AI interaction. "Approved after review", "Pending
+  review", "Decided to defer this" — not "The user approved the approach", "Pending user review".
 
-- **Reference-style links**: Prefer reference-style links for cross-file references. Collect link definitions at
-  the end of the file after a `---` separator. The separator doubles as a consistent EOF indicator — link
-  definitions are invisible in rendered output, so the horizontal rule is the last visible element.
-    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
-    - One `---` + link block per file, always at the very end
-    - Short links (same directory or one level up) may remain inline at author discretion
-    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
+- **Reference-style links**: Prefer reference-style links for cross-file references, with the definitions collected
+  after one trailing `---` per file — the separator doubles as the EOF indicator, since link definitions render
+  invisibly. Names are lowercase, descriptive, hyphenated (`[dev-rules]`); short links (same directory or one level
+  up) may stay inline; movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc].
 
 ### Workflow prose economy
 
-When authoring or editing a workflow, write for the agent _executing_ it, not a reader evaluating the
-design. Judge each line by one test: **does a session executing this need it to act correctly?** Keep
-procedure and load-bearing constraints — the rule, the format, when to skip; cut author-facing justification
-— "what this is / isn't" framing, why-a-rule-exists rationale, and restatements an adjacent inline hint
-already carries. Full convention: [strategy-workflow-authoring][workflow-authoring] § Body Conventions
-(Prose economy).
+Write workflow prose for the executing session — full convention in [strategy-workflow-authoring][workflow-authoring].
 
 ### Verbs over mechanics — the framework-author degree of freedom
 
-The shipped rule ([strategy-workflow-authoring][workflow-authoring] § Body Conventions, Verbs over
-mechanics) gets one extra degree of freedom here that adopters lack: the `arc` CLI is ours to grow. A
-mechanics-narrating line that exists because no verb covers the operation is a **verb-gap signal** — surface
-it for potential `arc-inbox` capture rather than accepting the coupling as permanent.
+A mechanics-narrating line no verb covers is a **verb-gap signal** — surface it for `arc-inbox` capture.
 
 ## Commit Conventions (self-hosting)
 
-The universal format lives in the [commit-format][commit-format] and [commit-footer][commit-footer] methods.
-One project-specific adherence rule applies on top, because this repository is ARC:
+The universal format lives in the [commit-format][commit-format] and [commit-footer][commit-footer] methods. One
+project-specific adherence rule applies on top, because this repository is ARC:
 
-**`(arc)` is not the default scope here.** `commit-format` § Subject scope reserves `(arc)` for cross-cutting
-framework concerns and ARC lifecycle-ceremony invocations — "not a default-when-uncertain catch-all." In an
-adopter repo `(arc)` carries real signal (it scopes edits to installed ARC artifacts); **in this repo everything
-is ARC, so it carries none.** Prefer the narrowest descriptive locus: `fix(brief)`, `fix(hook)`, `fix(strategy)`,
-`fix(method)`, `chore(backlog)`, `feat(status)`, `feat(session-init)`. Reserve `(arc)` for genuinely cross-cutting
-changes with no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/activate/archive/handoff
-…`) remain a legitimate use.
+**`(arc)` is not the default scope here.** It marks edits to installed ARC artifacts, which is no signal in a repo
+where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`, `fix(hook)`, `fix(strategy)`,
+`fix(method)`, `chore(backlog)`, `feat(session-init)` — and reserve `(arc)` for genuinely cross-cutting changes with
+no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) remain legitimate.
 
 **`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
 are `fix` / `refactor` / `feat` by intent, never `docs`.
@@ -210,20 +133,9 @@ go through the package source and sync to `.arc/` — not the other way around. 
 are edited in `.arc/` (project-specific sections) or package source (framework sections); never
 `cp` between copies — that overwrites project-specific overrides silently.
 
-Pre-commit hooks (a) warn when Framework files are edited in `.arc/` without the package
-counterpart staged, and (b) error when a Configurable file in `.arc/` is staged byte-identical to
-the package source after diverging at HEAD (the blind-`cp` signature). See
-[Package-Project Sync Strategy][package-sync] for the full architecture, dependency map, and
-template handling guidance.
-
-**Self-hosting skill-file drift:** The harness-local skill directories (`.claude/skills/`,
-`.codex/skills/`, `.gemini/skills/`, etc. — all gitignored) are regenerated deterministically by
-`arc update` for adopters. This repo doesn't run `arc update` against itself, so those harness
-copies can drift from canonical sources in `.arc/system/.internal/skills/` and
-`packages/arc-framework/arc/system/.internal/skills/` when canonical content changes. On a fresh
-self-hosting session, if a skill's behavior surprises you, suspect drift — hand-sync by copying
-the canonical `SKILL.md` into the harness subdirectory. Adopters aren't affected; their harness
-copies regenerate on every `arc update`.
+Pre-commit hooks catch the two mechanical failures of that rule. See [Package-Project Sync
+Strategy][package-sync] for what they check, the harness skill-directory drift hazard, the file
+inventory and dependency map, and template handling.
 
 **npm spikes rewrite the root `package.json` under workspaces:** a throwaway `npm init` / `install` run from the
 repo root rewrites the workspaces root `package.json` (injecting the flattened dep tree and a wrong
@@ -277,6 +189,14 @@ Route such concerns to internal-dev surfaces instead: WU notes for in-flight con
 PROJECT-PRD for directional decisions; project strategies for conventions that don't apply to
 adopters.
 
+### Referencing across the boundary
+
+Adopter-facing content cannot reference an internal-only surface — an ADR, a `strategies/project/` document — because
+the reader doesn't have it and the link goes nowhere. `strategies/arc/**` is packaged via `npx arc update`, so it is
+bound by this too; `strategies/project/` ships as an empty surface and may reference internal material freely.
+Operational rationale adopters need must stand alone in the adopter-facing source; rationale that doesn't earn that
+placement stays in the ADR itself, or routes to whatever capture surface the project uses for docs-site content.
+
 ### Package-source mirror inheritance
 
 Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
@@ -284,12 +204,7 @@ The `.arc/` copy inherits the classification.
 
 ### Relationship to DEV-RULES.ARC § Documentation Boundaries
 
-Planning-artifact references — task IDs, R-IDs, phase numbers, ADR numbers, named processes /
-methods / workflows, `.arc/` doc paths — are handled by DEV-RULES.ARC § Documentation
-Boundaries; that rule prohibits them across code, tests, and durable documentation including
-strategies. This section adds the orthogonal **adopter vs. internal-dev** concerns above
-(transitional framing, project-internal migration, future-scope pointers) within methodology
-surfaces. Both apply.
+DEV-RULES.ARC § Documentation Boundaries and § Audience Boundaries above both apply, on orthogonal concerns.
 
 ---
 
@@ -300,16 +215,11 @@ See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routi
 
 ### Surface agent-side friction and idiom divergence
 
-**Dev-internal to this repository only** — never carry this to other ARC projects, where an
-ARC-improvement observation is something the reader cannot act on. Two trigger classes:
-
-- **Friction (factual).** The harness or methodology made the job measurably harder — you had to hunt for
-  something, a surface misled you, a workaround or retry loop was needed. Floor: systemic or likely-recurring,
-  never one-off trivia.
-- **Idiom divergence (opinion — stricter floor).** ARC's design departs from established industry idiom _at an
-  observable cost_, or leaves unhandled a case the norm covers. Never aesthetic preference. Engage any recorded
-  rationale (ADRs, strategies) before raising it — an observation that ignores a recorded decision is noise; one
-  that engages it is signal. Mark these as judgment, not fact.
+**Dev-internal to this repository only** — elsewhere an ARC-improvement observation is something the reader cannot
+act on. Two trigger classes, both floored at systemic or likely-recurring rather than one-off trivia: **friction**
+(factual — the harness or methodology made the job measurably harder) and **idiom divergence** (marked as judgment,
+stricter floor — ARC departs from established industry idiom _at an observable cost_ or leaves unhandled a case the
+norm covers, never aesthetic preference, and never before engaging the recorded rationale in ADRs and strategies).
 
 **Protocol:** batch to the next natural report boundary (completion report, handoff) as one proposed line each —
 "hit friction X — capture?" — never a mid-execution interrupt. On confirmation, route via `arc-inbox`. When
@@ -320,18 +230,8 @@ never loses the thought.
 
 ### Architecture Decision Records (ADRs)
 
-Document significant architectural decisions as ADRs in `.arc/reference/adr/`.
-See [ADR Methodology Strategy][adr-methodology] — decision criteria, three-tier stability model,
-amendment vs. supersession.
-
-**ADRs are internal-only.** They live in `.arc/reference/adr/` and don't ship to adopters. Don't
-reference ADRs from `strategies/arc/` (packaged via `npx arc update`), docs-site content, or any
-other adopter-facing material — adopters don't have them and following the link goes nowhere.
-Project strategies (`strategies/project/`) and other internal-only docs may reference ADRs freely;
-that directory ships to adopters as an empty surface for their own strategies. Operational
-rationale that adopters need must stand alone in the adopter-facing source; rationale that doesn't
-earn that placement stays in the ADR itself or routes to whatever capture surface the project uses
-for docs-site content.
+Document significant architectural decisions as ADRs in `.arc/reference/adr/`. See [ADR Methodology
+Strategy][adr-methodology] for decision criteria, the three-tier stability model, and amendment vs. supersession.
 
 ---
 
@@ -339,9 +239,6 @@ for docs-site content.
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
-[testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
-[test-first]: ../methods/test-first.md
-[testing-standards]: ../methods/testing-standards.md
 [commit-format]: ../methods/commit-format.md
 [commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md

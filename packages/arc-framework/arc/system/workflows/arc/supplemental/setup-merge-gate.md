@@ -135,9 +135,10 @@ malformed output must not arm auto-merge.
 Summarize what landed: the `merge-ok` gate in the CI workflow, the CODEOWNERS location + reviewers, the
 required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch only a supported
 planning artifact) and confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR
-touching a constitutional path (a rule, ADR, or strategy) should require owner review. Also verify a mode-only
-change or malformed planning-looking filename classifies `reviewed` and is not armed. If `arc-cleared` is
-independently installed and required, confirm that reviewed head remains structurally locked as well.
+touching a constitutional path (a rule, ADR, or strategy) should require owner review. **Also verify a mode-only
+change or malformed planning-looking filename classifies `reviewed` and is not armed** · `[invariant]`. If
+`arc-cleared` is independently installed and required, confirm that reviewed head remains structurally locked as
+well.
 
 A second run of this workflow detects each piece already in place and confirms rather than duplicating.
 

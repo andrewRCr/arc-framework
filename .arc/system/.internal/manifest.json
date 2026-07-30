@@ -141,6 +141,11 @@
       "layer": "core",
       "pristine_hash": "74fe00915f49b88b0e553be2be6cb7bf0f4e107541a9e963104c1e7078092697"
     },
+    "reference/strategies/arc/strategy-concurrent-work.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "97d03d78179e883352733995f1ab2451af2d6ee9e7b90a0967fcdfa92fb051af"
+    },
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
@@ -150,6 +155,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "8ab46661dfde22f1d557e1ba2be2f76616215d8757ae99fee132073a10d031da"
+    },
+    "reference/strategies/arc/strategy-interlock-release-wrappers.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "e446e0ba175843674231d71b5e1297f057b60398134d5b0b9143b9120d6299c4"
     },
     "reference/strategies/arc/strategy-quality-gates.md": {
       "classification": "Framework",
@@ -175,6 +185,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "0a573443996042c26991ab09630a8ccda190b016b5c5673646fc273bf7513fc4"
+    },
+    "reference/strategies/arc/strategy-workflow-authoring.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "d7957c111845c5722b5fcf57023321dfdd68e73a72c34d65499f98d2c76df62a"
     },
     "reference/strategies/project/README.md": {
       "classification": "Framework",
@@ -640,6 +655,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "455b827457bceca94611d6bf88534f69fccbe5fec7f3b1b3d5e74f51c2e68186"
+    },
+    "system/workflows/arc/supplemental/drain-inbox.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "413854118aabab22820dac4d54e58f93f9bd6ee94b3684362378f9a282fc8cb4"
     },
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md": {
       "classification": "Framework",
