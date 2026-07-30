@@ -242,6 +242,27 @@ Six properties the realization must preserve:
 
   Any block that later demotes is a credit against Success Criterion 3's ledger and shrinks D1's debit accordingly.
 
+#### D1 amendment — the shape axis (Phase 5.R, 2026-07-30)
+
+Amending forward rather than editing the block above, which stands as first authored. Three paragraphs entered
+§ Rule Authority after that block was settled and are normative alongside it:
+
+- **`pre-commitment text`** (Task 4.6.a) — one of the two parentless rule families needed a constitutional
+  statement, and the backstop's third limb is where it landed. Carries its own `[invariant]`.
+- **`Emphasis is not a marker`** and **`A stop with one answer`** (Task 5.R.a) — the remedial phase's two clauses.
+  Approved phrasing and the three settled decisions inside it live in `notes-judgment-authority-model.md`
+  § The two clauses; Clause B ships with one approved amendment to its exclusion sentence, recorded there.
+
+**What prompted the amendment.** § Rule Authority as first authored derives **force** — whether a rule binds —
+and says nothing about **shape**: when a rule does bind, whether the right move is stop-and-ask or act-and-report.
+Two live failures surfaced during this work unit's own integration, and the corpus was found to have made the
+shape call correctly in at least six places without ever generalizing it — the same propagation gap the
+Introduction catalogues, on a second axis. The remedial phase is recorded in full at
+`notes-judgment-authority-model.md` § Remedial phase.
+
+Surfaced by the verification-boundary adversarial pass, which found the shipped section had drifted from this
+block with no amendment recorded — the obligation this very subsection discharges.
+
 ### D2 — The anchoring ADR
 
 One ADR under `reference/adr/` anchoring `adr-016`, `adr-020`, and `adr-029` under a single model —
@@ -873,6 +894,21 @@ compatibility posture applies, so no back-compat aliases are added for the renam
    debit and relocates the read instead of removing it, so counting it toward the net figure would certify a wash
    as a credit. Falsifiable per entry — name the leaner surface, or show none exists. The same bound reaches the
    register rows routed behind such an entry, which may carry only what the scoped trigger actually reaches.
+
+### Criteria amendment — the shape axis (Phase 5.R, 2026-07-30)
+
+Criteria 1–3 above stand as first authored. The remedial phase adds a fourth, which the task list has been
+carrying alone:
+
+4. **Shape.** The stop-shape axis resolves from § Rule Authority the way the force axis does: every audited stop
+   either fires on a condition the agent cannot establish for itself, or is recorded in
+   `notes-judgment-authority-model.md` as a rejected narrowing with its reasoning. Judged on whether a reader
+   could reach the same disposition from the section, never on whether a clause was written — the same
+   reachability test Criterion 1 uses, applied to shape.
+
+Criterion 1's coverage set is unchanged; the amended § Rule Authority text is what its cases now resolve against
+(see § D1 amendment). Criterion 3's ledger is re-derived rather than adjusted, so the amendment's own tier-1
+debit is measured with everything else.
 
 ## Open Questions
 
