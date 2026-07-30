@@ -22,7 +22,7 @@ transition patch, hook verdicts, ROADMAP overlay, and typed recovery actions.
 
 ## Goals
 
-1. Refresh a committed but unlanded full-protection candidate through one append-only base merge.
+1. Advance a committed but unlanded full-protection candidate across base movement through one append-only merge.
 2. Admit landing over an exact descendant base only when the recorded patch and dependencies still replay exactly.
 3. Bind every decision to one immutable base/head pair and fail closed on movement.
 4. Extend the core integration-anchor fact to a live descendant current base.
@@ -46,24 +46,30 @@ Mobility consumes the core's finalized v3 receipt, mode-aware transition patch, 
 through injected readers but never recomputes canonical identities, parses receipt JSON independently, or judges
 semantic destination content.
 
-### Append-only committed-unlanded refresh
+### Append-only committed-unlanded base advancement
 
 The explicit route is:
 
 ```text
-arc decompose <origin> --refresh <receipt-id>
+arc decompose <origin> --advance-base <receipt-id>
 ```
 
-It exists only under full protection. The command requires the exact clean deterministic candidate, proves that
-its canonical receipt commit is not reachable from the configured base, pins the live base, and merges that base
-into the candidate without rebase, amend, or force-push.
+The mode is named for base advancement rather than refresh. The core already owns an uncommitted `refreshed`
+finalization state that replaces staged receipt bytes at the same path against an unchanged result base, with its
+own `refresh-*` refusal codes. This mode is the committed, base-advancing sibling of that operation; the two must
+stay distinguishable at the command surface and in every refusal code.
+
+It exists only under full protection and is mutually exclusive with every other decomposition mode. The command
+requires the exact clean deterministic candidate, proves that its canonical receipt commit is not reachable from
+the configured base, pins the live base, and merges that base into the candidate without rebase, amend, or
+force-push.
 
 Only canonical ROADMAP regeneration may be resolved automatically. Any other conflict, path/type/mode overlap,
 dependency drift, or ref movement aborts and restores the bounded pre-merge candidate. After the merge, the command
 preserves all semantic destination bytes and modes, regenerates ROADMAP through its existing owner, and stages one
 same-path current receipt accepted by the core hook verdict.
 
-Partial protection commits directly on the configured base and has no committed-unlanded refresh state.
+Partial protection commits directly on the configured base and has no committed-unlanded state to advance.
 
 ### Descendant-base landing
 
@@ -85,10 +91,19 @@ The validator is host-neutral. Exact-ref review and optional clearance wiring be
 
 ### Descendant-current integration anchor
 
-The core defines `DecompositionIntegrationAnchor` and derives it for an exact prepared base. Mobility reuses that
-shape and extends its derivation to the current configured base after the descendant validator proves the same
-canonical receipt and transition against the immutable live base/head pair. It does not define another fact or
-consumer interface.
+The core defines `DecompositionIntegrationAnchor` and derives it only where the current configured base _is_ the
+landing commit. Mobility reuses that shape unchanged — it already carries `currentBaseHead` and `landedCommitHead`
+as separate fields, so a descendant current base needs no new field, fact, or consumer interface — and extends the
+derivation at two named points:
+
+- the **pure producer**, which today refuses a descendant current base outright and grants no descendant mobility
+  by construction; and
+- the **configured-base Git adapter**, whose landing detection today admits only a base commit whose first parent
+  is the recorded prepared base.
+
+The extension applies only after the descendant validator proves the same canonical receipt and transition against
+the immutable live base/head pair. Existing exact-base callers keep their current verdicts unchanged, and the
+anchor's structural consumers are unmodified.
 
 A result-branch commit, staged receipt, remote branch, clearance status, or old receipt in unlanded ancestry is
 not an anchor. The adapter uses pin, validate, and reread; movement, deletion, or history replacement invalidates
@@ -99,15 +114,23 @@ or durable publication ledger is introduced.
 
 ### One recovery vocabulary
 
-Mobility returns the core action vocabulary: `retry`, `refresh-base`, `re-preflight`, or `reauthor`, with the
-stable mismatch locus. It adds no prose-based remedy classifier. A host unable to retain an immutable base/head
-pair returns the core `refresh-base` action, executed through this work unit's append-only refresh command.
+The core's closed recovery union is `retry`, `discard`, `re-preflight`, `reauthor`, and prose-only `guidance`.
+Mobility consumes that vocabulary unchanged and adds exactly one arm — `advance-base` — carrying only the origin
+and receipt facts that authorize this work unit's command. It adds no second remedy classifier, no prose-derived
+remedy, and no parallel mapper. Mismatch loci remain diagnostics and never become command operands.
+
+The new arm's principal duty is to convert one existing dead end. The core refuses a committed candidate parent
+with a `committed-candidate` cause that resolves to prose `guidance` — inspect the committed state instead of
+retrying or discarding it — because at core scope no safe route exists. That is precisely the state this work unit
+repairs, so the cause resolves to `advance-base` whenever the established facts authorize the command, and falls
+back to the existing guidance when they do not. A host unable to retain an immutable base/head pair resolves to
+the same arm.
 
 ## Alternatives & Rationale
 
 ### Require every candidate to restart from the new base
 
-Safe but needlessly destructive after semantic authoring and review. Exact append-only refresh retains the
+Safe but needlessly destructive after semantic authoring and review. Exact append-only advancement retains the
 candidate and preserves reviewable history while refusing real overlap.
 
 ### Rebase or amend the receipt commit
@@ -128,20 +151,25 @@ Rejected. Exact refs, canonical evidence, bounded Git state, and idempotent retr
 - **Security:** every mutation follows an immutable source/base/candidate proof; races fail closed.
 - **Compatibility:** only canonical v3 evidence receives mobility; obsolete development schemas grant no
   authority.
-- **Testing:** focused real-Git DAGs own refresh, descendant replay, ref races, and anchor reachability.
+- **Testing:** focused real-Git DAGs own base advancement, descendant replay, ref races, and anchor reachability.
 - **Rollout:** the core exact-base transform remains safe before this member lands.
 - **Performance:** validation is proportional to recorded touched paths and dependencies, not repository size.
 
 ## Success Criteria
 
-- A canonical full-protection candidate refreshes across unrelated base advancement through one append-only merge.
+- A canonical full-protection candidate advances across unrelated base movement through one append-only merge.
 - ROADMAP is the only automatically resolved conflict; every other conflict restores the bounded candidate.
-- The same-path refreshed receipt passes the core hook and remains the sole live current receipt.
+- The restaged same-path receipt passes the core hook and remains the sole live current receipt.
 - Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
 - The shared integration anchor extends to a descendant current base only after the canonical receipt and
   transition validate against the reread configured base.
 - Ref movement, divergence, overlap, or unavailable immutable-pair binding produces one typed recovery action.
-- No rebase, amend, force-push, mobility ledger, host-policy grant, or duplicate validator is added.
+- A committed candidate parent resolves to the actionable `advance-base` arm instead of terminal prose guidance
+  whenever the established facts authorize the command.
+- The base-advancing mode stays distinguishable from the core's uncommitted same-base receipt refresh at the
+  command surface and in every refusal code.
+- No rebase, amend, force-push, mobility ledger, host-policy grant, second anchor shape, or duplicate validator is
+  added.
 
 ## Open Questions
 
