@@ -834,7 +834,7 @@ ledger in the next safe pre-review commit.
 | ----- | -------------- | ---- | ---------------- |
 | S0    | landed         | #395 | `bb6803b62`      |
 | S1    | landed         | #396 | `56d52f013`      |
-| S2    | review repair  | #397 | —                |
+| S2    | closure review | #397 | —                |
 | S3    | blocked by S2  | —    | —                |
 | S4    | blocked by S3  | —    | —                |
 | S5    | blocked by S4  | —    | —                |
@@ -964,11 +964,15 @@ dispositions to the PR rather than copying them here.
   with 8,452 tests and one skip; the BSD regression first returned `unverifiable` against the pre-fix adapter, then
   passed. The two exact-head lifecycle failures provide the fail-first evidence for its fixture-specific 150-second
   correction. That correction passed its focused installed-surface fixture and the complete local gate with 8,452
-  tests and one skip.
-- **State:** PR #397 remains in review repair. The fixture-specific lifecycle timeout correction is locally green
-  and awaits commit, push, one exact-head full CI run, and a green Windows/macOS portability dispatch. Closure then
-  requires only an incremental CodeRabbit review from `14f3e23b3` through the successor head: it composes with the
-  whole-target `56d52f013..9b22f5637` review and its already-approved repair.
+  tests and one skip. It landed as code candidate `d3dfdad67`, whose exact-head self-hosted run `30509674582`
+  passed every lane, including the lifecycle fixture without retry. Hosted dispatch `30510148067` passed macOS.
+  Its first Windows attempt showed platform-wide runner degradation — 22 failures across unrelated process and Git
+  suites plus unavailable CIM inspection — rather than the prior narrow contract failure. A retry of only that
+  Windows job on the same SHA passed in 2 minutes 7 seconds, confirming the first attempt as transient.
+- **State:** PR #397 is in closure review. The implementation and exact code-head gates are green; this note-only
+  status successor must pass its exact-head checks. Closure then requires only an incremental CodeRabbit review
+  from `14f3e23b3` through the successor head: it composes with the whole-target
+  `56d52f013..9b22f5637` review and its already-approved repair.
 
 ### Resume protocol
 
