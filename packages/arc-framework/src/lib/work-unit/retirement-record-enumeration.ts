@@ -37,7 +37,8 @@ export interface EnumeratedRetirementRecord {
 export type RetirementRecordEnumerationResult =
   | { status: "valid"; records: readonly EnumeratedRetirementRecord[] }
   | { status: "version-conflict"; id: CanonicalDigest }
-  | { status: "namespace-corrupt" };
+  /** The complete namespace is unusable; `filename` identifies the rejected entry when available. */
+  | { status: "namespace-corrupt"; filename?: string };
 
 const RECORD_FILENAME_PATTERN = /^(sha256-[0-9a-f]{64})\.json$/u;
 
@@ -52,15 +53,19 @@ export function validateRetirementRecordEnumeration(
 ): RetirementRecordEnumerationResult {
   const records = new Map<CanonicalDigest, EnumeratedRetirementRecord>();
   for (const entry of entries) {
-    if (entry.mode !== "100644" || entry.type !== "blob") return { status: "namespace-corrupt" };
+    if (entry.mode !== "100644" || entry.type !== "blob") {
+      return { status: "namespace-corrupt", filename: entry.filename };
+    }
     const match = RECORD_FILENAME_PATTERN.exec(entry.filename);
-    if (match === null || match[1] === undefined) return { status: "namespace-corrupt" };
+    if (match === null || match[1] === undefined) {
+      return { status: "namespace-corrupt", filename: entry.filename };
+    }
 
     let id: CanonicalDigest;
     try {
       id = decodeRetirementRecordKey(match[1]);
     } catch {
-      return { status: "namespace-corrupt" };
+      return { status: "namespace-corrupt", filename: entry.filename };
     }
     const decoded = parseRetirementRecord(entry.content);
     const receipt = decoded?.kind === "retained" ? decoded.receipt : null;
@@ -83,7 +88,9 @@ export function validateRetirementRecordEnumeration(
                 record: { kind: "v3-decomposition-receipt", value: v3Receipt },
               }
         : null;
-    if (record === null) return { status: "namespace-corrupt" };
+    if (record === null) {
+      return { status: "namespace-corrupt", filename: entry.filename };
+    }
 
     const previous = records.get(id);
     if (previous !== undefined && previous.content !== entry.content) {

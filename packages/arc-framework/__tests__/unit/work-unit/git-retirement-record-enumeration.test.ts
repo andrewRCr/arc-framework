@@ -92,7 +92,8 @@ describe("Git retirement record enumeration", () => {
   });
 
   it("fails globally for a reachable symlink record", async () => {
+    const filename = `${encodeRetirementRecordKey(receipt().receiptId)}.json`;
     await expect(enumerateGitRetirementRecords(enumerationExec({ canonicalMode: "120000" }), "HEAD"))
-      .resolves.toEqual({ status: "namespace-corrupt" });
+      .resolves.toEqual({ status: "namespace-corrupt", filename });
   });
 });
