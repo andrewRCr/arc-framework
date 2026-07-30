@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acquireLocusEvidence,
+  createLocusEvidenceScheduler,
   type LocusEvidenceIO,
 } from "../../../src/lib/locus/evidence.js";
 import type { LocusLockHolder } from "../../../src/lib/locus/lock.js";
@@ -152,9 +153,69 @@ describe("locus evidence acquisition", () => {
       identity: "andrew",
       pathFlavor: "posix",
       concurrency: 2,
-      io: io({ canonicalPath }),
+      io: io({
+        scanWorktrees: async () => ({
+          ok: true,
+          worktrees: Array.from({ length: 6 }, (_, index) => ({
+            path: index === 0 ? "/repo" : `/repo-wt-${index}`,
+            head: String(index).repeat(40),
+            branch: index === 0 ? "main" : `chore/demo-${index}`,
+            detached: false,
+            primary: index === 0,
+          })),
+        }),
+        canonicalPath,
+      }),
     });
     expect(maximum).toBe(2);
+  });
+
+  it("hands a released slot to the oldest waiter before a fresh caller", async () => {
+    const run = createLocusEvidenceScheduler(1);
+    let releaseFirst = (): void => {};
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let releaseFresh = (): void => {};
+    const freshGate = new Promise<void>((resolve) => {
+      releaseFresh = resolve;
+    });
+    let active = 0;
+    let maximum = 0;
+    const order: string[] = [];
+    const operation = async (name: string, gate?: Promise<void>): Promise<void> => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      order.push(name);
+      if (gate !== undefined) await gate;
+      active -= 1;
+    };
+
+    let fresh: Promise<void> | undefined;
+    let markFreshLaunched = (): void => {};
+    const freshLaunched = new Promise<void>((resolve) => {
+      markFreshLaunched = resolve;
+    });
+    const first = run(async () => {
+      await operation("first", firstGate);
+      queueMicrotask(() => {
+        queueMicrotask(() => {
+          fresh = run(() => operation("fresh", freshGate));
+          markFreshLaunched();
+        });
+      });
+    });
+    const waiting = run(() => operation("waiting"));
+
+    releaseFirst();
+    await freshLaunched;
+    await Promise.resolve();
+    releaseFresh();
+    if (fresh === undefined) throw new Error("fresh operation was not scheduled");
+    await Promise.all([first, waiting, fresh]);
+
+    expect(maximum).toBe(1);
+    expect(order).toEqual(["first", "waiting", "fresh"]);
   });
 
   it("contains an unreadable checkout metadata root to that checkout", async () => {

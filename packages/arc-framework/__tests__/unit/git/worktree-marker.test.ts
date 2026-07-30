@@ -154,6 +154,26 @@ describe("worktree-marker", () => {
       path: "/work/marker.json",
       message: "invalid marker",
     })).toEqual({ kind: "malformed", message: "invalid marker" });
+    const legacy = { kind: "errand", slug: "refresh-fixtures" } as const;
+    expect(classifyTransientWorktreeProvenance({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: legacy,
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-25T00:00:00.000Z",
+      },
+    })).toEqual({ kind: "legacy", subject: legacy });
+    expect(classifyTransientWorktreeProvenance({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: { kind: "work-unit", name: "demo" },
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-25T00:00:00.000Z",
+      },
+    })).toBeNull();
+    expect(classifyTransientWorktreeProvenance({ kind: "absent" })).toBeNull();
   });
 
   it("rejects incomplete or malformed transient claim provenance", async () => {

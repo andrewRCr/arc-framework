@@ -35,12 +35,17 @@ describe("worktree porcelain -z parser", () => {
   });
 
   it("rejects missing, duplicate, conflicting, and truncated fields", () => {
-    const fixtures = [
+    expect(() => parseGitWorktreePorcelainZ(
       stanza("/repo", "branch refs/heads/main"),
+    )).toThrow(/head: required for a non-bare worktree/u);
+    expect(() => parseGitWorktreePorcelainZ(
       stanza("/repo", `HEAD ${"a".repeat(40)}`, `HEAD ${"b".repeat(40)}`),
+    )).toThrow(/HEAD: duplicate field/u);
+    expect(() => parseGitWorktreePorcelainZ(
       stanza("/repo", `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "detached"),
+    )).toThrow(/branch and detached fields conflict/u);
+    expect(() => parseGitWorktreePorcelainZ(
       `worktree /repo\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0`,
-    ];
-    for (const fixture of fixtures) expect(() => parseGitWorktreePorcelainZ(fixture)).toThrow();
+    )).toThrow(/truncated NUL-delimited output/u);
   });
 });

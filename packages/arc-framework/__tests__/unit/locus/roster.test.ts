@@ -373,7 +373,7 @@ describe("provisional roster classification", () => {
         projections: new Map([["tail", identity]]),
         diagnostics: [],
       },
-    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    } satisfies Extract<LocusEvidenceResult, { kind: "complete" }>;
     expect(projectProvisionalRoster({ evidence, subjects: new Map() }).rows.map((row) => row.kind))
       .toEqual(["unmanaged-checkout", "free-primary", "identity-only"]);
   });
@@ -421,7 +421,7 @@ describe("provisional roster classification", () => {
       lockEntries: [],
       locks: [],
       identities: { kind: "absent" },
-    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    } satisfies Extract<LocusEvidenceResult, { kind: "complete" }>;
     const subject: SubjectMetaProjection = RESOLVED_META;
     const result = projectProvisionalRoster({
       evidence,
@@ -480,7 +480,7 @@ describe("provisional roster classification", () => {
         projections: new Map(),
         diagnostics: [{ kind: "malformed", key: "bad-id", message: "bad identity" }],
       },
-    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    } satisfies Extract<LocusEvidenceResult, { kind: "complete" }>;
     const result = projectProvisionalRoster({ evidence, subjects: new Map() });
     expect(result.rows.map((row) => row.checkoutPath)).toEqual([
       "/a", "/broken", "/e\u0301", "/z", "/é", "/😀",
@@ -511,7 +511,7 @@ describe("provisional roster classification", () => {
       topology: { ok: true, worktrees: checkouts.map((item) => item.worktree) },
       checkouts,
       recordEntries: [], records: [], lockEntries: [], locks: [], identities: { kind: "absent" },
-    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    } satisfies Extract<LocusEvidenceResult, { kind: "complete" }>;
     expect(projectProvisionalRoster({ evidence, subjects: new Map() }).rows).toMatchObject([
       { kind: "duplicate-locus", checkoutPath: "/alias" },
       { kind: "duplicate-locus", checkoutPath: "/alias-link" },

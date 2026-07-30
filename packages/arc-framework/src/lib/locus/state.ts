@@ -23,6 +23,14 @@ export interface LocusOperationalDerivation {
   readonly recovery: LocusStateV1["recovery"];
 }
 
+type TrustedAuthorityCoordinates = {
+  readonly recordId: string;
+  readonly checkoutPath: string;
+  readonly role: NonNullable<LocusRowAuthorityInputs["role"]>;
+};
+
+type TrustedProvisionalLocusRow = ProvisionalLocusRow & TrustedAuthorityCoordinates;
+
 /** Narrow safety contract consumed before the allocation module lands. */
 export type LocusPrimarySafetyResult =
   | { kind: "complete"; clean: boolean; onBase: boolean; branch: string | null }
@@ -164,7 +172,9 @@ function isStrandedSelfHeld(row: LocusRowV1): boolean {
 }
 
 /** Authority established, over the inputs a row carries before and after publication. */
-function isTrusted(row: LocusRowAuthorityInputs): boolean {
+function isTrusted(
+  row: LocusRowAuthorityInputs,
+): row is LocusRowAuthorityInputs & TrustedAuthorityCoordinates {
   return locusRowAuthorityReasons(row).length === 0;
 }
 
@@ -238,24 +248,22 @@ function sortStopReasons(reasons: readonly LocusStopReason[]): LocusStopReason[]
 /** Assemble the single public roster/state value from pure derivation inputs. */
 export function assembleLocusState(options: {
   primaryPath: string;
-  rows: readonly ProvisionalLocusRow[];
+  frames: LocusFrameDerivation;
   diagnostics: readonly LocusDiagnosticV1[];
-  enteringAnchor: LocusAnchor;
   primaryAvailability: LocusStateV1["primaryAvailability"];
   inFlightIdentities: LocusStateV1["inFlightIdentities"];
   recovery: LocusStateV1["recovery"];
   reconciliation: LocusStateV1["reconciliation"];
 }): LocusStateV1 {
-  const frames = deriveLocusFrames(options);
   return {
     roster: {
       mode: "locus",
       ok: true,
       primaryPath: options.primaryPath,
-      rows: [...frames.rows],
+      rows: [...options.frames.rows],
       diagnostics: [...options.diagnostics],
     },
-    current: frames.current,
+    current: options.frames.current,
     primaryAvailability: options.primaryAvailability,
     inFlightIdentities: [...options.inFlightIdentities],
     recovery: options.recovery,
@@ -318,15 +326,15 @@ function resolveCurrent(
   // refuses, and leaves the recovery verdict either agreeing with a lie or disagreeing with the
   // frame. Reading it here makes all three verdicts agree by construction rather than by each
   // consumer remembering to check.
-  const matching = rows.filter((row) =>
+  const matching = rows.filter((row): row is TrustedProvisionalLocusRow =>
     row.lease?.state === "live"
     && sameProcessAnchor(row.leaseAnchor, enteringAnchor)
     && isTrusted(row));
-  const transients = matching.filter((row) => row.role?.kind !== "work-unit");
+  const transients = matching.filter((row) => row.role.kind !== "work-unit");
   if (transients.length > 1) return ambiguous(transients);
   const transient = transients[0];
   if (transient !== undefined) {
-    const parentPath = transient.role?.parentCheckoutPath ?? null;
+    const parentPath = transient.role.parentCheckoutPath;
     const parents = parentPath === null
       ? []
       : rows.filter((row) => isRetainedWorkUnit(row) && row.checkoutPath === parentPath);
@@ -334,14 +342,14 @@ function resolveCurrent(
     const parent = parents[0] ?? null;
     return resolved(transient, parent, rows);
   }
-  const workUnits = matching.filter((row) => row.role?.kind === "work-unit");
+  const workUnits = matching.filter((row) => row.role.kind === "work-unit");
   if (workUnits.length > 1) return ambiguous(workUnits);
   const workUnit = workUnits[0];
   return workUnit === undefined ? { kind: "none" } : resolved(workUnit, null, rows);
 }
 
 function resolved(
-  active: ProvisionalLocusRow,
+  active: TrustedProvisionalLocusRow,
   parent: ProvisionalLocusRow | null,
   rows: readonly ProvisionalLocusRow[],
 ): Extract<LocusStateV1["current"], { kind: "resolved" }> {
@@ -352,7 +360,7 @@ function resolved(
   return {
     kind: "resolved",
     sessionHomeRecordId: sessionHome?.recordId ?? null,
-    activeRecordId: active.recordId as string,
+    activeRecordId: active.recordId,
     parentRecordId: parent?.recordId ?? null,
   };
 }

@@ -16,6 +16,7 @@ import {
   acquireDecomposeTransientClaim,
   decomposeTransientClaimId,
 } from "../../../src/lib/work-unit/decompose-transient-claim.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -121,9 +122,9 @@ function makeExec(opts: {
         : (worktreeSnapshots[Math.min(worktreeReadCount, worktreeSnapshots.length - 1)] ?? []);
       worktreeReadCount += 1;
       const stdout = selected
-        .map((wt) => `worktree ${wt.path}\nbranch refs/heads/${wt.branch}\n`)
-        .join("\n");
-      return { stdout, stderr: "" };
+        .map((wt) => `worktree ${wt.path}\nHEAD ${defaultSha}\nbranch refs/heads/${wt.branch}\n`)
+        .join("\n\n");
+      return { stdout: worktreePorcelainZ(stdout), stderr: "" };
     }
     if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
       const ancestor = args[2] ?? "";

@@ -19,6 +19,7 @@ import type {
   LocusRecordV1,
   LocusRowV1,
 } from "./schema/index.js";
+import { MAX_LOCUS_OPAQUE_CHARS } from "./schema/index.js";
 import type { SubjectMetaProjection } from "./subject-meta.js";
 
 export type ManagedSubjectProjection =
@@ -462,7 +463,7 @@ function diagnostic(
   key: string,
   message: string,
 ): LocusDiagnosticV1 {
-  return { code, source: { kind, key }, message: message.slice(0, 4096) || code };
+  return { code, source: { kind, key }, message: message.slice(0, MAX_LOCUS_OPAQUE_CHARS) || code };
 }
 
 function compareRows(left: ProvisionalLocusRow, right: ProvisionalLocusRow): number {

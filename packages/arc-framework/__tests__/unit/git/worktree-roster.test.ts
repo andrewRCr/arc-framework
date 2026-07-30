@@ -134,7 +134,7 @@ describe("runIdentityScopedWorktreeRoster", () => {
 describe("runWorktreeRoster", () => {
   it("propagates malformed successful porcelain as a domain validation error", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     await expect(runWorktreeRoster({ exec, fs: buildFs({}) })).rejects.toMatchObject({
@@ -159,7 +159,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/main\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/main\0\0",
         stderr: "",
       },
     });
@@ -175,7 +175,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -211,7 +211,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -233,8 +233,8 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-b\nHEAD ccc\nbranch refs/heads/feature/b\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-b\0HEAD ccc\0branch refs/heads/feature/b\0\0",
         stderr: "",
       },
     });
@@ -260,7 +260,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -278,7 +278,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -296,7 +296,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -315,8 +315,8 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n" +
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0" +
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0",
         stderr: "",
       },
     });
@@ -342,8 +342,8 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-b\nHEAD ccc\nbranch refs/heads/feature/b\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-b\0HEAD ccc\0branch refs/heads/feature/b\0\0",
         stderr: "",
       },
     });
@@ -380,8 +380,8 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-detached\nHEAD zzz\ndetached\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-detached\0HEAD zzz\0detached\0\0",
         stderr: "",
       },
     });
@@ -409,7 +409,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -434,7 +434,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -460,7 +460,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
@@ -547,8 +547,8 @@ describe("resolvePrimaryWorktreePath", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.wu-a\0HEAD bbb\0branch refs/heads/feat/wu-a\0\0",
       },
     });
 
@@ -563,7 +563,7 @@ describe("resolvePrimaryWorktreePath", () => {
 
   it("degrades malformed successful output to null", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0" },
     });
 
     expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
@@ -575,8 +575,8 @@ describe("resolveWorktreePathsByBranchResult", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.wu-a\0HEAD bbb\0branch refs/heads/feat/wu-a\0\0",
         stderr: "",
       },
     });
@@ -605,7 +605,7 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
   it("degrades malformed successful output to an unsuccessful empty map", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     const result = await resolveWorktreePathsByBranchResult(exec);
@@ -619,8 +619,8 @@ describe("scanRegisteredWorktrees", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.husk\nHEAD bbb\ndetached\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.husk\0HEAD bbb\0detached\0\0",
         stderr: "",
       },
     });
@@ -653,20 +653,20 @@ describe("scanRegisteredWorktrees", () => {
   it("fails closed when a topology stanza omits HEAD", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo.husk\ndetached\n",
+        stdout: "worktree /home/dev/repo.husk\0detached\0\0",
         stderr: "",
       },
     });
 
     expect(await scanRegisteredWorktrees(exec)).toEqual({
       ok: false,
-      message: "worktree listing omitted HEAD for /home/dev/repo.husk",
+      message: "invalid git worktree porcelain: stanzas.0.head: required for a non-bare worktree",
     });
   });
 
   it("surfaces malformed successful output as an explicit topology failure", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     const result = await scanRegisteredWorktrees(exec);
@@ -680,7 +680,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("recovers backticked, table-rendered fields via the shared meta reader", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/x\0\0",
         stderr: "",
       },
     });
@@ -707,7 +707,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("matches by Branch in a multi-meta worktree when the field is table-rendered (backticked)", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/b\0\0",
         stderr: "",
       },
     });
@@ -737,7 +737,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("keeps the matched entry and surfaces malformed-peer warnings in multi-meta mode", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/b\0\0",
         stderr: "",
       },
     });
@@ -765,7 +765,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("degrades to a bare entry with a warning when the core table is malformed", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/x\0\0",
         stderr: "",
       },
     });

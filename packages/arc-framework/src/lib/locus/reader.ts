@@ -119,9 +119,8 @@ export async function readLocusState(options: ReadLocusEnvelopeOptions & {
   });
   return LocusStateV1Schema.parse(assembleLocusState({
     primaryPath: evidence.root.primaryPath,
-    rows: provisional.rows,
+    frames,
     diagnostics: provisional.diagnostics,
-    enteringAnchor: options.enteringAnchor,
     ...operational,
     reconciliation: reconciliation.reconciliation,
   }));

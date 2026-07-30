@@ -8,6 +8,7 @@ import type {
 } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const PRESENT_MARKER: WorktreeMarkerReadResult = {
   kind: "present",
@@ -37,7 +38,9 @@ function buildExec(opts: { dirty?: Set<string>; merged?: Set<string> } = {}): Gi
     }
     if (args[0] === "worktree" && args[1] === "list") {
       return {
-        stdout: "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        stdout: worktreePorcelainZ(
+          "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        ),
         stderr: "",
       };
     }

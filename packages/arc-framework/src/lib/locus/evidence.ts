@@ -180,9 +180,11 @@ async function readCheckoutEvidence(
     ))),
   ]);
   const metas = await Promise.all(
-    metaListings.flatMap((listing) => listing.names
-      .filter((name) => /^meta-.*\.md$/u.test(name))
-      .map((name) => ({ root: listing.path, name })))
+    metaListings.flatMap((listing) => listing.kind === "listed"
+      ? listing.names
+        .filter((name) => /^meta-.*\.md$/u.test(name))
+        .map((name) => ({ root: listing.path, name }))
+      : [])
       .map(async ({ root, name }): Promise<MetaEvidence> => {
         const path = join(root, name);
         try {
@@ -280,13 +282,20 @@ export function createLocusEvidenceScheduler(concurrency = 8): LocusEvidenceSche
   let active = 0;
   const pending: Array<() => void> = [];
   return async <T>(operation: () => Promise<T>): Promise<T> => {
-    if (active >= limit) await new Promise<void>((resolve) => pending.push(resolve));
-    active += 1;
+    if (active < limit) {
+      active += 1;
+    } else {
+      await new Promise<void>((resolve) => pending.push(resolve));
+    }
     try {
       return await operation();
     } finally {
-      active -= 1;
-      pending.shift()?.();
+      const next = pending.shift();
+      if (next === undefined) {
+        active -= 1;
+      } else {
+        next();
+      }
     }
   };
 }

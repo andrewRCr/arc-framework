@@ -4,10 +4,10 @@ import { join, relative, sep } from "node:path";
 
 import {
   inferSessionType,
-  resolvePlanningStage,
   resolveTaskListPath,
 } from "../../commands/active/status.js";
 import type { SessionType } from "../../commands/active/types.js";
+import { resolvePlanningStage } from "../active/current-workflow-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";

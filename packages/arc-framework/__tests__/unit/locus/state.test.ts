@@ -101,11 +101,11 @@ describe("locus frame derivation", () => {
 
   it("assembles one public envelope and strips private lease anchors", () => {
     const managed = row({ id: "1", path: "/repo", lease: "live" });
+    const frames = deriveLocusFrames({ rows: [managed], enteringAnchor: ANCHOR });
     const state = assembleLocusState({
       primaryPath: "/repo",
-      rows: [managed],
+      frames,
       diagnostics: [],
-      enteringAnchor: ANCHOR,
       primaryAvailability: { kind: "occupied", checkoutPath: "/repo", recordId: managed.recordId ?? "", leaseState: "live" },
       inFlightIdentities: [],
       recovery: { kind: "none" },

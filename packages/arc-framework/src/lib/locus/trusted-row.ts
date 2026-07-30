@@ -73,7 +73,7 @@ export function projectTrustedLocusRow(row: LocusRowV1): TrustedLocusRowResult {
 
   const { recordId, checkoutPath, role } = row;
   if (recordId === null || checkoutPath === null || role === null) {
-    return { kind: "untrusted", reasons: [ROW_KIND_REASON["stale-record"]] };
+    return { kind: "untrusted", reasons: ["record-malformed"] };
   }
   return { kind: "trusted", value: { row, recordId, checkoutPath, role } };
 }

@@ -12,6 +12,7 @@ import {
   type ParkLandingTransition,
   type ParkPlanningLandingContext,
 } from "../../../src/lib/work-unit/park-planning-landing.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const sourceDigest = canonicalDigest("source");
 const patchDigest = canonicalDigest("patch");
@@ -110,13 +111,13 @@ function productionHarness(options: {
     }
     if (args[0] === "worktree" && args[1] === "list") {
       return {
-        stdout: [
+        stdout: worktreePorcelainZ([
           `worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n`,
           ...(ownerPresent
             ? [`worktree /repo-solo\nHEAD ${planTip}\nbranch refs/heads/plan/solo\n`]
             : []),
           "",
-        ].join("\n"),
+        ].join("\n")),
       };
     }
     if (args[0] === "write-tree") {

@@ -18,7 +18,6 @@ import {
 
 import type { GitExec } from "./exec.js";
 import {
-  parseGitWorktreePorcelain,
   parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
 } from "./worktree-porcelain.js";
@@ -407,9 +406,7 @@ function buildEntry(
 }
 
 function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return result.stdout.includes("\0")
-    ? parseGitWorktreePorcelainZ(result.stdout)
-    : parseGitWorktreePorcelain(result.stdout);
+  return parseGitWorktreePorcelainZ(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {
