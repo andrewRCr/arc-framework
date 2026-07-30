@@ -17,9 +17,8 @@ import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
-import { isPlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
+import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
-import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type {
@@ -34,9 +33,6 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
-
-/** The planning entry stage — the default sub-stage when a meta carries no `Current Workflow` field. */
-const PLANNING_ENTRY_STAGE: PlanningWorkflow = "draft-design";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -298,32 +294,11 @@ async function resolveSessionInit(
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
       result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
-      result.planningStage = resolvePlanningStage(only, fields.sessionType);
+      result.planningStage = resolvePlanningStage(result.currentWorkflow, fields.sessionType);
     }
   }
 
   return result;
-}
-
-/**
- * Resolve the planning sub-stage for a single-candidate session by reading the
- * meta's `Current Workflow` field directly. Returns `null` outside a planning
- * session (only planning loads a sub-stage workflow).
- *
- * A meta carrying no usable field value — absent, `[none]`, or any non-stage
- * token — resolves to the `draft-design` entry stage. This covers a fresh
- * in-place scaffold (which starts at `draft-design` anyway) and any legacy meta
- * predating the field; the executor writes the real stage at the next planning
- * transition, and the encoding-consistency check guards drift on the write side.
- */
-function resolvePlanningStage(
-  candidate: MetaFileCandidate,
-  sessionType: SessionType | null,
-): PlanningWorkflow | null {
-  if (sessionType !== "planning") return null;
-  return isPlanningWorkflow(candidate.currentWorkflow)
-    ? candidate.currentWorkflow
-    : PLANNING_ENTRY_STAGE;
 }
 
 export function resolveTaskListPath(

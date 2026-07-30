@@ -97,8 +97,14 @@ export interface RoadmapIndexViewResult {
   indeterminate: boolean;
 }
 
-const RETIREMENT_RECORD_PATH_RE =
-  /^\.arc\/system\/\.internal\/retirement-receipts\/sha256-[0-9a-f]{64}\.json$/u;
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+const RETIREMENT_RECORD_PATH_RE = new RegExp(
+  `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/sha256-[0-9a-f]{64}\\.json$`,
+  "u",
+);
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
 
 class IndexDirEntry implements ProjectViewDirEntry {

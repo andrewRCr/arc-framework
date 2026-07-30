@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { runStatusUserView } from "../../../src/lib/status/user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const LIVE_REMOTE_TIP = "a".repeat(40);
 
@@ -60,7 +61,9 @@ function makeExec(opts: {
       return { stdout: opts.lsRemote ?? "", stderr: "" };
     }
     if (args[0] === "for-each-ref") return { stdout: opts.forEachRef ?? "", stderr: "" };
-    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
+    if (args[0] === "worktree") {
+      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
+    }
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)

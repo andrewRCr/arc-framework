@@ -11,6 +11,7 @@ import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import type { CanonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import type { GitMergeTransitionOverlayResult } from "../../../src/lib/work-unit/git-merge-transition-overlay.js";
 import { createValidatedTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function isStagedReceiptList(args: readonly string[]): boolean {
   return args.join("\0") === [
@@ -115,7 +116,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
       if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
       if (args[0] === "worktree") {
         return {
-          stdout: [
+          stdout: worktreePorcelainZ([
             "worktree /tmp/origin",
             `HEAD ${"a".repeat(40)}`,
             "branch refs/heads/plan/origin",
@@ -123,7 +124,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
             "worktree /tmp/sibling",
             `HEAD ${"b".repeat(40)}`,
             "branch refs/heads/feat/sibling",
-          ].join("\n"),
+          ].join("\n")),
           stderr: "",
         };
       }

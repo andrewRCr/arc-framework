@@ -16,6 +16,7 @@ import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-au
 import {
   resolveRetirementRecordRelativePath,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -61,8 +62,9 @@ function isStagedReceiptList(args: readonly string[]): boolean {
   ].join("\0");
 }
 
-function retainedReceipt(): RetirementReceipt {
-  const subject = { kind: "work-unit" as const, name: "retired" };
+function retainedReceipt(
+  subject: RetirementReceipt["subject"] = { kind: "work-unit", name: "retired" },
+): RetirementReceipt {
   const source = {
     branch: "plan/retired",
     head: "a".repeat(40),
@@ -87,15 +89,29 @@ function retainedReceipt(): RetirementReceipt {
   };
 }
 
-function makeStagedReceiptExec(receipt: RetirementReceipt): GitExec {
-  const path = resolveRetirementRecordRelativePath(receipt.receiptId);
+interface StagedReceipt {
+  receipt: RetirementReceipt;
+  path: string;
+}
+
+function makeStagedReceiptsExec(receipts: readonly StagedReceipt[]): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
-    if (args[0] === "show" && args[1] === `:${path}`) {
-      return { stdout: canonicalize(receipt), stderr: "" };
+    if (isStagedReceiptList(args)) {
+      return { stdout: receipts.map(({ path }) => path).join("\0") + "\0", stderr: "" };
+    }
+    if (args[0] === "show") {
+      const record = receipts.find(({ path }) => args[1] === `:${path}`);
+      if (record !== undefined) return { stdout: canonicalize(record.receipt), stderr: "" };
     }
     throw new Error(`unexpected git args: ${args.join(" ")}`);
   });
+}
+
+function makeStagedReceiptExec(
+  receipt: RetirementReceipt,
+  path = resolveRetirementRecordRelativePath(receipt.receiptId),
+): GitExec {
+  return makeStagedReceiptsExec([{ receipt, path }]);
 }
 
 function makeIndexExec(files: Record<string, string>): GitExec {
@@ -158,7 +174,9 @@ function makeTransitionExec(
     }
     if (args[0] === "worktree") {
       return {
-        stdout: `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        stdout: worktreePorcelainZ(
+          `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        ),
         stderr: "",
       };
     }
@@ -247,6 +265,42 @@ describe("resolveStagedRetirementTransitionOverlay", () => {
       origin: "retired",
       sourceBranch: "plan/retired",
     });
+  });
+
+  it("rejects suppression authority when the staged path does not match the receipt identity", async () => {
+    const receipt = retainedReceipt();
+    const mismatchedPath = resolveRetirementRecordRelativePath(
+      retainedReceipt({ kind: "work-unit", name: "other" }).receiptId,
+    );
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt, mismatchedPath),
+    })).resolves.toBeUndefined();
+  });
+
+  it("skips retained retirement receipts outside the work-unit subject domain", async () => {
+    const receipt = retainedReceipt({ kind: "branch", ref: "refs/heads/retired" });
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt),
+    })).resolves.toBeUndefined();
+  });
+
+  it("rejects multiple finalized work-unit retirements in one staged render", async () => {
+    const receipts = [
+      retainedReceipt(),
+      retainedReceipt({ kind: "work-unit", name: "other" }),
+    ];
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptsExec(receipts.map((receipt) => ({
+        receipt,
+        path: resolveRetirementRecordRelativePath(receipt.receiptId),
+      }))),
+    })).rejects.toThrow("staged ROADMAP render found multiple finalized retirement receipts");
   });
 });
 

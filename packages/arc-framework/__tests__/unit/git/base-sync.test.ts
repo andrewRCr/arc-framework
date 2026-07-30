@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { syncLocalBase } from "../../../src/lib/git/base-sync.js";
 
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 interface RepoState {
   base?: string;
@@ -60,7 +61,7 @@ function fakeRepo(initial: RepoState): {
       const roster = state.baseWorktree === undefined
         ? ""
         : `worktree ${state.baseWorktree}\nHEAD ${state.local ?? state.remote}\nbranch refs/heads/${base}\n`;
-      return ok(roster);
+      return ok(worktreePorcelainZ(roster));
     }
     if (args[0] === "worktree" && args[1] === "add") {
       if (state.managedAddFails) {
