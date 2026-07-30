@@ -2164,6 +2164,11 @@ different axis.
 The wording below is settled and approved; only the indentation and line wrapping are artifacts of recording it
 here. Re-wrap at 120 on insertion and drop the indent.
 
+**Clause B carries one approved amendment not shown in the block below** — its exclusion sentence became
+_acts that cannot be undone **or unspent**_, with **a costly pass** joining merge, publish, and deletion as a
+fourth example. See § Verification outcome for what prompted it. The block stays as first approved rather than
+being edited into agreement; insertion takes the amended form.
+
 **Clause A**, into § Rule Authority immediately before "Reading an unmarked rule":
 
     **Emphasis is not a marker** — `never`, `must not`, and categorical phrasing are how rules are ordinarily
