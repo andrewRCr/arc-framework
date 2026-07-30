@@ -25,7 +25,8 @@ describe("native process execution", () => {
   const exec = createProcessExec();
 
   it("classifies a genuinely missing executable", async () => {
-    const missingExecutable = join(tmpdir(), `arc-missing-executable-${randomUUID()}`);
+    const executableSuffix = process.platform === "win32" ? ".exe" : "";
+    const missingExecutable = join(tmpdir(), `arc-missing-executable-${randomUUID()}${executableSuffix}`);
 
     await expect(exec(missingExecutable, [])).resolves.toMatchObject({ kind: "missing" });
   });

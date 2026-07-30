@@ -124,15 +124,51 @@ describe("BSD process inspector", () => {
     );
   });
 
+  it("confirms a diagnostic nonzero result as absent only when signal zero proves ESRCH", async () => {
+    const exec: ProcessExec = async () => ({
+      kind: "nonzero", stdout: "", stderr: "ps: process does not exist", exitCode: 1,
+    });
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("gone"), { code: "ESRCH" });
+    });
+
+    try {
+      await expect(createBsdProcessInspector(exec).inspect(42)).resolves.toEqual({ kind: "absent" });
+    } finally {
+      kill.mockRestore();
+    }
+  });
+
+  it.each(["EPERM", "EINVAL"])("keeps a diagnostic nonzero result unknown when signal zero fails with %s", async (code) => {
+    const exec: ProcessExec = async () => ({
+      kind: "nonzero", stdout: "", stderr: "ps: query failed", exitCode: 1,
+    });
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error(code), { code });
+    });
+
+    try {
+      await expect(createBsdProcessInspector(exec).inspect(42))
+        .resolves.toMatchObject({ kind: "unverifiable" });
+    } finally {
+      kill.mockRestore();
+    }
+  });
+
   it("degrades malformed, denied, and unavailable output safely", async () => {
     const fixtures = [
       { kind: "success" as const, stdout: "localized nonsense", stderr: "", exitCode: 0 as const },
       { kind: "nonzero" as const, stdout: "", stderr: "permission denied", exitCode: 1 },
       { kind: "missing" as const, message: "missing" },
     ];
-    for (const fixture of fixtures) {
-      await expect(createBsdProcessInspector(async () => fixture).inspect(42))
-        .resolves.toMatchObject({ kind: "unverifiable" });
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      for (const fixture of fixtures) {
+        await expect(createBsdProcessInspector(async () => fixture).inspect(42))
+          .resolves.toMatchObject({ kind: "unverifiable" });
+      }
+    } finally {
+      kill.mockRestore();
     }
   });
 });

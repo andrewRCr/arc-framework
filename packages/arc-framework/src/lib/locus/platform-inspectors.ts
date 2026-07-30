@@ -132,7 +132,7 @@ export function createBsdProcessInspector(exec: ProcessExec = createProcessExec(
         env: { LC_ALL: "C", LANG: "C" },
       });
       if (result.kind === "nonzero") {
-        return result.stdout.trim() === "" && result.stderr.trim() === ""
+        return result.stdout.trim() === "" && signalZeroProvesAbsence(pid)
           ? { kind: "absent" }
           : unknownInspection("BSD process query failed");
       }
@@ -372,6 +372,15 @@ function isShellIdentity(identity: string): boolean {
 
 function errorCode(value: unknown): string | undefined {
   return isRecord(value) && typeof value.code === "string" ? value.code : undefined;
+}
+
+function signalZeroProvesAbsence(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return errorCode(error) === "ESRCH";
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

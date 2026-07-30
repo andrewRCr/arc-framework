@@ -918,7 +918,7 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact repaired measurement:** 1,824 additions plus 36 deletions (1,860 changed lines) across twelve files
+- **Exact repaired measurement:** 1,910 additions plus 36 deletions (1,946 changed lines) across fourteen files
   against `56d52f013`.
 - **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
   preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
@@ -936,6 +936,14 @@ dispositions to the PR rather than copying them here.
   exact shell `-c`/`-lc` operand for snapshot-wrapper recognition, and removes the test helper's `process` shadow.
   The nonblocking documentation-coverage warning was declined because the project has no percentage target and the
   exported surface already carries the required TSDoc.
+- **Hosted portability repair:** The six-finding repair landed on the branch as `14f3e23b3`. Deferred run
+  `30504442674` behaved as designed, and the one full run triggered by removing `ci-defer-heavy`,
+  `30504638253`, passed at that exact head. Hosted dispatch `30505257563` then exposed two platform-specific
+  contract gaps: unresolved Windows commands reached `cmd.exe` and produced ordinary nonzero results, while macOS
+  `ps` emitted a diagnostic nonzero result for the missing PID. The accepted correction resolves Windows commands
+  through the same executable lookup Execa uses and classifies an unresolved native `.exe` as missing before
+  invocation. It also requires a signal-zero `ESRCH` result before a BSD diagnostic nonzero query may establish
+  absence; successful, permission-denied, and other signal probes remain unknown-safe.
 - **Gate evidence:** The complete local gate set passed on both review-repair trees: 8,444 tests passed and one
   skipped, with TypeScript and shell lint, both typechecks, and the build green. Full exact-head CI run
   `30502568032` is green at whole-target review head `9b22f5637` after the unchanged lifecycle-exit timeout passed
@@ -943,10 +951,12 @@ dispositions to the PR rather than copying them here.
   temporarily removed native cancel binding before passing against the restored production boundary. The
   six-finding repair's complete local gate passed with 8,449 tests and one skip; its aggregate-output regression
   first returned cancellation against the pre-fix native boundary, then passed as an in-flight output-limit proof.
-- **State:** PR #397 remains in review repair. The six-finding repair is locally green and awaits commit, push,
-  deferred-CI observation, one full-CI trigger, the exact-head Windows/macOS portability pair, and a fresh
-  whole-target CodeRabbit review. CodeRabbit's review event restored `ci-defer-heavy`; leave it in place through
-  the fix push, then remove it once to trigger the full run.
+  The hosted-portability repair's complete local code tier passed with 8,452 tests and one skip; its BSD regression
+  first returned `unverifiable` against the pre-fix adapter, then passed with the signal-zero boundary restored.
+- **State:** PR #397 remains in review repair. The hosted-portability correction is locally green and awaits
+  review, commit, push, one exact-head full CI run, and a green Windows/macOS portability dispatch. Closure then
+  requires only an incremental CodeRabbit review from `14f3e23b3` through the successor head: it composes with the
+  whole-target `56d52f013..9b22f5637` review and its already-approved repair.
 
 ### Resume protocol
 

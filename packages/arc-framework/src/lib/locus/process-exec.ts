@@ -1,6 +1,7 @@
 /** Bounded argument-array executor for native process inspection. */
 
 import { execa } from "execa";
+import { whichCommand, type Options as WhichCommandOptions } from "which-command";
 
 export const MAX_PROCESS_OUTPUT_BYTES = 64 * 1024;
 export const PROCESS_INSPECTION_TIMEOUT_MS = 5_000;
@@ -78,8 +79,11 @@ async function runNativeProcess(
   args: readonly string[],
   options: ProcessExecOptions & { readonly maxOutputBytes: number },
 ): Promise<NativeProcessRunResult> {
+  const executable = process.platform === "win32"
+    ? await resolveWindowsExecutable(command, options)
+    : command;
   const perStreamMaxOutputBytes = Math.floor(options.maxOutputBytes / 2);
-  const result = await execa(command, [...args], {
+  const result = await execa(executable, [...args], {
     reject: false,
     shell: false,
     cwd: options.cwd,
@@ -103,6 +107,29 @@ async function runNativeProcess(
     stderr: Buffer.from(result.stderr).toString("utf8"),
     exitCode: result.exitCode,
   };
+}
+
+async function resolveWindowsExecutable(
+  command: string,
+  options: ProcessExecOptions,
+): Promise<string> {
+  const searchPath = environmentValue(options.env, "PATH");
+  const pathExtensions = environmentValue(options.env, "PATHEXT");
+  const resolutionOptions = {
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+    ...(searchPath === undefined ? {} : { path: searchPath }),
+    ...(pathExtensions === undefined ? {} : { pathExt: pathExtensions }),
+  } satisfies WhichCommandOptions;
+  const executable = await whichCommand(command, resolutionOptions);
+  if (executable !== undefined) return executable;
+  throw Object.assign(new Error(`Native process executable is unavailable: ${command}`), { code: "ENOENT" });
+}
+
+function environmentValue(
+  environment: Readonly<Record<string, string>> | undefined,
+  name: string,
+): string | undefined {
+  return Object.entries(environment ?? {}).find(([key]) => key.toUpperCase() === name)?.[1];
 }
 
 function hasCode(value: unknown, code: string): boolean {
