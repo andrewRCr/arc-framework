@@ -1374,7 +1374,8 @@ reversible. Two audit proposals were rejected exactly there and are kept as the 
 audit ran as five delegated read-only regional passes and its output was advisory throughout; verification
 against source rejected four of its twenty proposals, two because they re-opened decisions Phase 4 had already
 settled the other way. Full inputs, dispositions, and reasoning live in `notes-judgment-authority-model.md`
-§ Remedial phase.
+§ Remedial phase. Task 5.R.f is off that concern — it closes the two template-only items Phase 5 measured and
+parked, which would otherwise ship a second time unrecorded.
 
 ### `[x]` **5.R.a Land the two clauses and reconcile the always-loaded surface**
 
@@ -1402,29 +1403,33 @@ settled the other way. Full inputs, dispositions, and reasoning live in `notes-j
   requirements trigger each added a line back. The estimate was never load-bearing: Task 5.R.e re-derives the
   ledger by measurement. This is the phase's only task touching a tier-1 file, so that measurement stays single.
 
-### `[ ]` **5.R.b Narrow the session-lifecycle stops**
+### `[x]` **5.R.b Narrow the session-lifecycle stops**
 
 - _Goal:_ Session entry and post-compaction recovery stop only where the deciding fact is not the agent's to
   establish, and degrade consistently everywhere else.
 
-    - `session-init` § Conditional sync pulls: the `always` → `prompt` degrade fires on any dirty tree, but the
-      load writes only under the resolved user directory. Gate it on the dirty path set intersecting that
-      directory — the **resolved** one, since linked-worktree operation puts it in the primary.
-    - `session-init` § Branch-gone recovery prompts on every `recovery.kind`, while Step 7 designates a clean
-      authoritative resolution auto-recover-with-notice and cites this same mechanism as its example. Scope the
-      auto-recovery to `resolved` + `proposedAction: switch` + a clean tree, reported in orientation; `removable`,
-      `external`, `surface`, and `main-fallback` keep the prompt.
-    - `session-init` item 9's malformed-cursor "stop and surface the diagnostic" reads as halting init, while every
-      neighbouring degradation skips-and-surfaces. Scope it to the task-list read.
-    - `session-init` § Entry dispatch's "do not run your own fetch / `git worktree list` / meta reads" is
-      categorical, while the probe-failure fallback prescribes those exact commands. Scope it to resolved slots.
-    - `session-recover` Step 3's missing-lifecycle-workflow stop covers a deterministic shipped mapping for
-      `execution` and `integration`. Load and surface the omission rather than stopping — the omission is also a
-      signal about the audit that produced the load set, so it is reported, not swallowed. The `planning` limb is
-      genuinely unmapped and keeps its stop.
-    - `session-recover` Step 3's "stop if any required slice cannot be located" is right for the current-task
-      slice, whose failure means the verified anchor is wrong, and wrong for the header and phase preamble, whose
-      failure is a structural-convention miss.
+    - `session-init` § Conditional sync pulls: the notes-load degrade now fires on the dirt intersecting the
+      resolved user directory rather than on any dirty tree. The `dirty` slot could not carry the narrowing —
+      it reports the current worktree and holds no path set, while under linked-worktree operation the resolved
+      directory lives in the primary — so the clause names its own instrument: take the directory from the load
+      set's `WORKING-MEMORY` entry and run one `git status --porcelain` in the worktree holding it.
+    - `session-init` § Branch-gone recovery gained an auto-recover arm at `resolved` + `proposedAction: switch` +
+      clean tree, reported in orientation rather than prompted. `removable`, `external`, `surface`,
+      `main-fallback`, and any dirty tree keep the prompt.
+    - `session-init` item 9's malformed-cursor stop is scoped to the task-list read, matching every neighbouring
+      degradation; the diagnostic still surfaces.
+    - `session-init` § Entry dispatch's no-own-fetch rule is scoped to resolved slots, so it no longer reads as
+      forbidding the commands Step 1's probe-failure fallback prescribes.
+    - `session-recover` Step 3 loads the mapped workflow and surfaces the omission for an `execution` or
+      `integration` resume; `planning` is genuinely unmapped and keeps its stop.
+    - `session-recover` Step 3's slice stop is scoped to the current task section, whose failure means the
+      verified anchor is wrong. A missing header or phase preamble surfaces and the read continues.
+
+- _Outcome:_ Five of the six narrowings were pure rescoping — the stop already had a limb that resolved it, and
+  the edit stated the limb. The notes-load one was not: its condition had no instrument, since `dirty` answers
+  for the wrong worktree and carries no paths, so the narrowing had to specify a probe rather than reference a
+  slot. That is the shape to expect wherever a stop keys on a coarse signal the envelope happens to expose —
+  the coarse signal is the reason the stop is degenerate, and it cannot also be the fix.
 
 ### `[ ]` **5.R.c Narrow the lifecycle and planning-stage stops**
 
@@ -1482,6 +1487,26 @@ settled the other way. Full inputs, dispositions, and reasoning live in `notes-j
     - Re-check the meta file's `## Release Notes Entry` and `## Completion Notes`, both composed at the first
       integration pass and both citing the superseded figure. They will not look stale, which is the risk.
 
+### `[ ]` **5.R.f Close Phase 5's parked template-only items**
+
+- _Goal:_ The two items Task 5.1 measured as template-only and handed to the phase close are decided rather than
+  left open a second time.
+
+- _Note:_ Off the stop-shape concern — a carried Phase 5 item, folded here because Phase 5 closed without
+  recording a verdict on either. Moves no tier-1 figure: the template is not in Task 5.7's measured set, so
+  Task 5.R.e is unaffected whichever way this lands.
+
+    - Cut the shipped template's "**Write an ADR when:**" / "**Don't write an ADR for:**" criteria (13 nb of its
+      89) down to the instance's pointer shape. Reachability holds without authoring anything: `STRATEGY-INDEX` is
+      always-loaded in every project and its entry already names the residual question — "deciding whether a
+      decision warrants one" — rather than the domain, and `strategy-adr-methodology.md` resolves in
+      `init-recipe.json`. The instance carries no counterpart, so this is a template-only edit.
+    - Assess § File Organization, the second parked item, under the same test and record the verdict either way.
+      Template scaffolding a project fills in is a different class from inert generic guidance, so a keep is a
+      legitimate outcome — an unrecorded one is not.
+    - Both are constraint-or-not determinations in the register's sense; record them alongside the Phase 5 rows
+      rather than only in this task's outcome.
+
 ## **Phase 6:** Verification
 
 ### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -1534,17 +1559,19 @@ settled the other way. Full inputs, dispositions, and reasoning live in `notes-j
     - Re-open: Phase 5.R adds shipped surface to the set, so the figure is re-derived at Task 5.R.e rather than
       adjusted from the 828 → 716 the first pass measured.
 
-- `[x]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
+- `[ ]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
   is operation-anchored, does not key on the agent estimating its own state, and carries a recorded
   constraint-or-not determination
     - Task 5.7. One limit the columns cannot express surfaced at Task 5.5 — a destination can be reachable and
       still be the wrong audience.
+    - Re-open: Task 5.R.f demotes shipped template content, which owes the same determination.
 
-- `[x]` Every destination this register demotes into is a file projects actually receive — verified against the
+- `[ ]` Every destination this register demotes into is a file projects actually receive — verified against the
   install recipe, not against the package tree — or the row was re-derived rather than demoted
     - Task 2.1 added four destinations to `init-recipe.json` and `manifest.json`; Task 5.5 re-confirmed
       `strategy-workflow-authoring` resolves in both, and that `strategy-package-project-sync` is correctly
       instance-only rather than a recipe omission.
+    - Re-open: Task 5.R.f adds `strategy-adr-methodology` as a destination.
 
 - `[x]` Every heading this work unit moved, renamed, or emptied has had its inbound `§` citations swept and
   updated across both copies
