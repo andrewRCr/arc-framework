@@ -834,8 +834,8 @@ ledger in the next safe pre-review commit.
 | ----- | -------------- | ---- | ---------------- |
 | S0    | landed         | #395 | `bb6803b62`      |
 | S1    | landed         | #396 | `56d52f013`      |
-| S2    | closure review | #397 | —                |
-| S3    | blocked by S2  | —    | —                |
+| S2    | landed         | #397 | `6eebb7f31`      |
+| S3    | construction   | —    | —                |
 | S4    | blocked by S3  | —    | —                |
 | S5    | blocked by S4  | —    | —                |
 | S6    | blocked by S5  | —    | —                |
@@ -909,7 +909,7 @@ dispositions to the PR rather than copying them here.
   incremental fix reviews, then approved exact accepted head `c055a31cf`.
 - **State:** PR #396 accepted head `c055a31cf` and landed through merge commit `56d52f013`.
 
-#### S2 process and platform inspection — closure repair
+#### S2 process and platform inspection — landed
 
 - **Entry base:** `origin/main` `56d52f013`, the S1 merge.
 - **Capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
@@ -977,9 +977,29 @@ dispositions to the PR rather than copying them here.
   The final measurement stays fifteen files and both the ledger and PR summary must use the same exact target.
   The request to replace conservative half-per-stream caps was declined: Execa applies `maxBuffer` per descriptor,
   so allowing either stream the full limit would permit twice the aggregate memory budget.
-- **State:** PR #397 is in closure repair. The complete local mixed gate passes with 8,458 tests and one skip.
-  Closure requires commit and push, exact-head CI, and one final incremental CodeRabbit review from `ce68d9932`
-  through the repair head.
+- **State:** PR #397 accepted head `6b699eff1` after the final incremental CodeRabbit review found no new issues
+  and landed through merge commit `6eebb7f31`.
+
+#### S3 lock and mutation protocol — construction
+
+- **Entry base:** `origin/main` `6eebb7f31`, the S2 merge.
+- **Capability:** Record-scoped locks serialize exact-generation replacement and removal, reclaiming a holder only
+  after its stable process anchor is conclusively dead.
+- **Whole-file donor manifest:** `locus/{root,lock,mutation-anchor,mutation}.ts` and their direct unit tests.
+  `locus/record-store.ts` and its unit test are layered as owned S3 additions on the landed S1 files rather than
+  restored wholesale.
+- **Proved exclusion:** `locus-mutations.e2e.test.ts` depends on the later public command surface and stays with
+  that wiring slice.
+- **Owned residual correction:** Replacement and removal require both the matching held record lock and the exact
+  expected bytes. Layering preserves S1's atomic complete-write mint and its interrupted/concurrent mint proofs,
+  which the older donor copy predates.
+- **Focused evidence:** The four direct unit suites pass with 38 tests, including matching-lock success,
+  wrong/released-lock refusal, live contention, stale-generation replacement/removal refusal, and stale-break
+  behavior.
+- **Exact review-target measurement:** 2,240 additions plus 20 deletions (2,260 changed lines) across twelve files
+  against `6eebb7f31`.
+- **State:** Construction is complete. The complete local gate passes with 8,490 tests and one skip; task approval
+  precedes commit and publication.
 
 ### Resume protocol
 

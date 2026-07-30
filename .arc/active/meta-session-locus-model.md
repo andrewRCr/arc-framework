@@ -1,8 +1,8 @@
 # Metadata: session-locus-model
 
-| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
-| --------- | --------- | ------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/locus-process-inspection` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/locus-mutation-protocol` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** S1 merged through PR #396 as `56d52f013`
-- **Next Task:** Task 7.P.b — S2 — Process and platform inspection (line ~2127)
+- **Last Completed:** S2 merged through PR #397 as `6eebb7f31`
+- **Next Task:** Task 7.P.c — S3 — Lock and mutation protocol (line ~2140)
 - **Blockers:** [none]
 
-- **Next Action:** Build the S2 process/platform inspection manifest from
-  `archive/session-locus-model-donor-fa3c10f0e`, complete Task 7.P.b.i, run the complete exact-base gates, and
+- **Next Action:** Complete and verify the S3 lock/mutation manifest from
+  `archive/session-locus-model-donor-fa3c10f0e`, run the complete exact-base gates, and
   prepare the direct-to-`main` CodeRabbit target
 
 - **PR URL:** [none]
