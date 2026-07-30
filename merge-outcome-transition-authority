@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "merge-outcome-transition-authority",
-  "origin": "description",
-  "intent": "Evaluate merge transition authority against the merge outcome, not pre-merge HEAD",
-  "branch": "fix/merge-outcome-transition-authority",
-  "createdAt": "2026-07-30T20:11:13.605Z",
-  "returnBranch": "main"
-}
