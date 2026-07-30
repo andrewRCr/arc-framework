@@ -35,9 +35,10 @@ export interface ConfiguredBaseDecompositionAnchorDependencies {
 export type ConfiguredBaseDecompositionAnchorResult =
   | DecompositionIntegrationAnchorResult
   | { status: "stale"; reason: "configured-base-raced" }
+  | { status: "refused"; reason: "git-read-failed" }
   | {
       status: "refused";
-      reason: "git-read-failed" | "namespace-corrupt";
+      reason: "namespace-corrupt";
       /** Exact configured-base commit whose namespace was rejected. */
       ref?: string;
       /** Repository-relative retirement-record path rejected at `ref`. */

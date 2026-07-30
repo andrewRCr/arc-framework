@@ -51,9 +51,10 @@ export interface GitMergeTransitionOverlayDependencies {
 export type GitMergeTransitionOverlayResult =
   | MergeTransitionOverlaySelection
   | { status: "stale"; reason: "snapshot-raced" }
+  | { status: "refused"; reason: "git-read-failed" }
   | {
       status: "refused";
-      reason: "git-read-failed" | "namespace-corrupt";
+      reason: "namespace-corrupt";
       /** Exact pinned tree or commit whose namespace/path evidence was rejected. */
       ref?: string;
       /** Repository-relative retirement-record path rejected at `ref`. */
