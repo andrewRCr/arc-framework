@@ -1,8 +1,8 @@
 # Metadata: judgment-authority-model
 
-| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
-| --------- | --------- | ------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/judgment-authority-model` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/judgment-authority-model` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — verification: Tier 3 run whole, all thirteen success criteria disposed, and one
-  adversarial verify pass run and its five findings verified and applied
-- **Next Task:** [none] — verification complete
+- **Last Completed:** Task 6.1 — verification: Tier 3 run whole, all thirteen success criteria disposed, and five
+  adversarial-pass findings verified and applied
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** refresh PR #398, then compose the archive-phase content
 
 - **PR URL:** [none]
 - **Completed:** [none]
