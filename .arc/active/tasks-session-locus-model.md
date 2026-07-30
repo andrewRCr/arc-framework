@@ -2137,14 +2137,17 @@ triage before implementing.
 - _Outcome:_ Linux, BSD, and Windows adapters expose one PID-plus-start-token liveness contract with unknown-safe
   failure behavior, while bounded ancestry selects the durable harness or directly verified interactive shell.
 
-### `[ ]` **7.P.c S3 — Lock and mutation protocol**
+### `[x]` **7.P.c S3 — Lock and mutation protocol**
 
 - _Goal:_ Record mutation is serialized by an owned lock, refuses on generation mismatch, and reclaims only
   proven-dead locks.
 
-    - `[ ]` **7.P.c.i Bind replacement and pop to the held record lock**
-        - Add replace and remove only with the lock-backed mutation boundary that makes exact-generation safety
-          true, and prove concurrent contenders cannot clobber or delete a newer record generation.
+    - `[x]` **7.P.c.i Bind replacement and pop to the held record lock**
+        - Replacement and removal now require the matching live lock handle and exact record bytes; contention
+          coverage proves a blocked or stale generation cannot clobber or delete the successor's record.
+
+- _Outcome:_ Record-scoped locks serialize exact-generation mutation, reclaim only stable dead holders through a
+  secondary lock, and preserve the atomic no-clobber mint guarantees established by the record substrate.
 
 ### `[ ]` **7.P.d S4 — Transient identity core**
 

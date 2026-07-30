@@ -1,9 +1,10 @@
-/** Bounded reads and exclusive creation for per-checkout locus records. */
+/** Bounded, exact-generation persistence for per-checkout locus records. */
 
 import { randomUUID } from "node:crypto";
-import { link, mkdir, open, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { link, mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
+import { ownsLocusLock, type LocusLockHandle } from "./lock.js";
 import { deriveLocusRecordId, type PathFlavor } from "./path-identity.js";
 import {
   MAX_LOCUS_JSON_BYTES,
@@ -136,6 +137,72 @@ export async function mintLocusRecord(
   options: Parameters<LocusRecordMinter>[0],
 ): ReturnType<LocusRecordMinter> {
   return nodeLocusRecordMinter(options);
+}
+
+/** Atomically replace a record only while its exact byte and lock generations remain current. */
+export async function replaceLocusRecord(options: {
+  path: string;
+  expectedBytes: Buffer;
+  record: LocusRecordV1;
+  lock: LocusLockHandle;
+}): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
+    return { kind: "generation-mismatch" };
+  }
+  let current: Buffer;
+  try {
+    current = await readFile(options.path);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
+  if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
+
+  const bytes = serializeRecord(options.path, options.record);
+  const temporaryPath = `${options.path}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+    const recheck = await readFile(options.path);
+    if (!recheck.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
+      return { kind: "generation-mismatch" };
+    }
+    await rename(temporaryPath, options.path);
+    return { kind: "replaced", bytes };
+  } finally {
+    await unlink(temporaryPath).catch((error: unknown) => {
+      if (errorCode(error) !== "ENOENT") throw error;
+    });
+  }
+}
+
+/** Remove a record only while its exact byte and lock generations remain current. */
+export async function removeLocusRecord(options: {
+  path: string;
+  expectedBytes: Buffer;
+  lock: LocusLockHandle;
+}): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }> {
+  if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
+    return { kind: "generation-mismatch" };
+  }
+  let current: Buffer;
+  try {
+    current = await readFile(options.path);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
+  if (!current.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
+    return { kind: "generation-mismatch" };
+  }
+  await unlink(options.path);
+  return { kind: "removed" };
+}
+
+function isLockForRecord(recordPath: string, lock: LocusLockHandle): boolean {
+  const match = /^locus-([0-9a-f]{64})\.json$/u.exec(basename(recordPath));
+  if (match?.[1] === undefined) return false;
+  const expected = join(dirname(recordPath), ".locks", `locus-${match[1]}.lock`);
+  return resolve(lock.path) === resolve(expected);
 }
 
 function serializeRecord(path: string, value: LocusRecordV1): Buffer {
