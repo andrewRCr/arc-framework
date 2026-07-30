@@ -1431,29 +1431,32 @@ parked, which would otherwise ship a second time unrecorded.
   slot. That is the shape to expect wherever a stop keys on a coarse signal the envelope happens to expose —
   the coarse signal is the reason the stop is degenerate, and it cannot also be the fix.
 
-### `[ ]` **5.R.c Narrow the lifecycle and planning-stage stops**
+### `[x]` **5.R.c Narrow the lifecycle and planning-stage stops**
 
 - _Goal:_ The lifecycle and planning stages stop on material disagreement and genuine novelty rather than on a
   proxy signal whose cause the agent can resolve.
 
-    - `integrate-work-unit` Step 13's "any analyzer/host disagreement stops" is stricter than the same file's
-      advisory read at Step 4, which keeps regenerable-only drift silent. Condition it on the conflicting path set
-      not being wholly regenerable. The narrowing is safe because the append-only merge below it is the
-      authoritative test and keeps its own conflict stop, and because merging the base **in** is reversible —
-      unlike the merge this step later authorizes. Leave the unavailable-overlap, incomplete-evidence, and
-      substantive-interaction stops untouched.
-    - `activate-work-unit` § PROJECT-PRD reads "Soft check; rarely blocks" and then "on conflict, halt and ask",
-      which always blocks. Add the materiality qualifier `integrate-work-unit` already carries for the same family.
-    - `create-spec` § TECHNICAL-OVERVIEW halts when a spec names tech absent from the document, which triggers on
-      doc absence rather than novelty — the common hit is a stale document describing tech the project already
-      has. Condition the halt on genuine novelty and fail closed: anything not confirmable as already present in
-      the project's technical surface still halts.
-    - `generate-tasks` § entry stops on unresolved blockers read from `**Related Work:**`, the field most prone to
-      staleness — the state-blind read § Verify before assuming already forbids. Resolve each blocker against live
-      work-unit state first, then stop only on a genuine one.
-    - `process-task-loop`'s gate-failure prompt ends `Investigate?` for a failure defined as non-obvious, where
-      the alternative is unavailable and the real fork — fix now or defer — cannot be posed until the diagnosis
-      exists. Diagnose read-only, then pose that fork. The mandatory stop is untouched.
+    - `integrate-work-unit` Step 13 now stops on an analyzer/host disagreement unless the conflicting path set is
+      wholly regenerable — the line Step 4's advisory read already drew — and states why the narrowing is safe:
+      the append-only merge below is the authoritative test and keeps its own conflict stop, and merging the base
+      **in** is reversible, unlike the merge the step later authorizes. The unavailable-overlap,
+      incomplete-evidence, and substantive-interaction stops are untouched.
+    - `activate-work-unit` § PROJECT-PRD now halts on **material** disagreement, matching the qualifier
+      `integrate-work-unit` carries for the same family; the section no longer says "rarely blocks" and then
+      blocks always.
+    - `create-spec` § TECHNICAL-OVERVIEW halts on tech genuinely new to the project. Absence from the document is
+      the trigger to look rather than the finding, presence is confirmed against manifests, lockfiles, config, and
+      existing code, and the halt fails closed on anything not confirmable.
+    - `generate-tasks` resolves each named blocker against live work-unit state before stopping, rather than
+      reading `**Related Work:**` — the state-blind read § Verify before assuming already forbids.
+    - `process-task-loop` diagnoses a non-obvious gate failure read-only and then poses fix-now-or-defer, in place
+      of an `Investigate?` prompt whose alternative did not exist. The mandatory stop is untouched.
+
+- _Outcome:_ Four of the five stops had their own narrowing already written down elsewhere in the same file or
+  family — Step 4's regenerable-only line, `integrate-work-unit`'s materiality qualifier, § Verify before
+  assuming's ban on state-blind reads — so the edits are propagation, not new policy. That is the same
+  propagation gap the work unit's Introduction catalogues, on the shape axis: the corpus keeps making the call
+  correctly in one place and not carrying it to the next.
 
 ### `[ ]` **5.R.d Close the method region and record the sweep**
 
@@ -1541,6 +1544,12 @@ parked, which would otherwise ship a second time unrecorded.
       guard touched.** The regression floor was written before the retarget's fire sites were known, and the spec
       itself records that scoping the safety check to these two files alone would make the criterion
       unfalsifiable — the governed-surface arm carries the weight.
+    - **Second deviation, and this one is not additive.** Task 5.R.c narrows `integrate-work-unit` Step 13's
+      analyzer/host stop to a conflicting path set that is not wholly regenerable. Phase 5.R was authored naming
+      that edit, so it is an approved change to the floor rather than a breach discovered after the fact. What the
+      floor was protecting still holds: the append-only merge below keeps its own conflict stop and remains the
+      authoritative test, the unavailable-overlap / incomplete-evidence / substantive-interaction stops are
+      untouched, and the merge gate itself is unmoved. `verify-work-unit` is unchanged by this task.
 
 - `[x]` Every rule-carrying method, strategy, workflow, and extension document in the **shipped** corpus is read
   for imperatives the default-unless-marked reading would reclassify, and each one found either takes a marker or
