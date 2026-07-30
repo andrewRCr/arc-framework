@@ -1,8 +1,8 @@
 # Metadata: judgment-authority-model
 
-| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/judgment-authority-model` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
+| --------- | --------- | ------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/judgment-authority-model` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
 - **PR URL:** [none]
 - **Completed:** [none]
