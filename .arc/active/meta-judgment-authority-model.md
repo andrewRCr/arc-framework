@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.3 — the firm and decided tiers landed; instance file 255 → 198 nb
-- **Next Task:** Task 5.4 — Authoring tier — compress in place (line ~1218)
+- **Last Completed:** Task 6.1 — verification; Tier 3 green, 12 success criteria met (one with a deviation)
+- **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
