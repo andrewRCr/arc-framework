@@ -1481,15 +1481,22 @@ parked, which would otherwise ship a second time unrecorded.
   not its record re-opens decisions the record closed, and the re-openings are shaped exactly like findings. Only
   verification against the record separates them, which is why that pass is not delegable.
 
-### `[ ]` **5.R.e Re-derive the always-loaded ledger against base**
+### `[x]` **5.R.e Re-derive the always-loaded ledger against base**
 
 - _Goal:_ The compression claim reflects what this branch actually ships, measured rather than adjusted.
 
-    - Re-measure the tier-1 full-read set end to end against `origin/main`, the way Task 5.7 did. Never adjust the
-      recorded 828 → 716 by arithmetic — the estimate that the clauses and consistency edits land near +4 net is
-      an estimate, and the number that ships is the one the measurement returns.
-    - Re-check the meta file's `## Release Notes Entry` and `## Completion Notes`, both composed at the first
-      integration pass and both citing the superseded figure. They will not look stale, which is the risk.
+    - Re-measured end to end against `origin/main`: **828 → 724 nb, −104, −12.6%**, against the first pass's
+      −112 / −13.5%. The whole difference is Task 5.R.a's +8 on `DEV-RULES.ARC`; the base column reproduces
+      Task 5.7's figure file for file. Recorded in `notes-judgment-authority-model.md` § The ledger, re-derived.
+    - The meta file's `## Release Notes Entry` and `## Completion Notes` now carry the measured figure in place
+      of the superseded one.
+
+- _Outcome:_ Not adjusting by arithmetic earned its keep twice. The § Remedial phase estimate was internally
+  inconsistent — "+4 lines net" in one place, a 724 landing in another — so either number would have shipped a
+  figure with nothing behind it, and they disagree. And the exclusion convention had to be stated rather than
+  inferred: Task 3.1 excludes a trailing **link-definition** block, not everything after the last `---`. Both
+  briefs end in a prose footer, so a mechanical rule drops 4 nb from each and moves the base off 828, which is
+  exactly the kind of error that looks like a result.
 
 ### `[ ]` **5.R.f Close Phase 5's parked template-only items**
 
@@ -1564,10 +1571,10 @@ parked, which would otherwise ship a second time unrecorded.
   `notes-judgment-authority-model.md` as a rejected narrowing with its reasoning — judged on whether a reader
   could reach the same disposition from the section, never on whether a clause was written
 
-- `[ ]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
+- `[x]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
   `AGENT-BRIEF.ARC`
-    - Re-open: Phase 5.R adds shipped surface to the set, so the figure is re-derived at Task 5.R.e rather than
-      adjusted from the 828 → 716 the first pass measured.
+    - Re-derived at Task 5.R.e against `origin/main`: 828 → 724 nb, −104 (−12.6%). The first pass's −112 is
+      superseded; the base column reproduces file for file, so the two measurements are comparable.
 
 - `[ ]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
   is operation-anchored, does not key on the agent estimating its own state, and carries a recorded

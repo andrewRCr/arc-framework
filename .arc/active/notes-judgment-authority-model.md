@@ -2429,6 +2429,31 @@ output but not its record will re-open decisions the record closed, and the re-o
 findings.** The audits were handed the two clauses and the two motivating failures, not the sweep record, so
 they could not have known. Verification against the record is what separated them, and it is not delegable.
 
+### The ledger, re-derived after the remedial phase (Task 5.R.e)
+
+Re-measured end to end against `origin/main`, not adjusted from the first pass's figure:
+
+| Tier-1 surface        | base    | now     | Δ        |
+| --------------------- | ------- | ------- | -------- |
+| `DEV-RULES.ARC`       | 398     | 357     | −41      |
+| `DEV-RULES.PROJECT`   | 255     | 166     | −89      |
+| `STRATEGY-INDEX`      | 62      | 77      | +15      |
+| `AGENT-BRIEF.ARC`     | 84      | 95      | +11      |
+| `AGENT-BRIEF.PROJECT` | 29      | 29      | 0        |
+| **Total**             | **828** | **724** | **−104** |
+
+**−104 nb, 12.6%**, against the first pass's −112 / 13.5%. The whole difference is Task 5.R.a's +8 on
+`DEV-RULES.ARC`; no other surface moved, and the base column reproduces Task 5.7's figure file for file, which
+both validates the convention and confirms no tier-1 file changed on `origin/main` in the interval.
+
+Two things the re-derivation settled that arithmetic would have missed. The § Remedial phase estimate was
+internally inconsistent — it recorded "+4 lines net" in one place and a 724 landing in another, which is +8 — so
+adjusting from either number would have produced a figure with no measurement behind it, and the two would have
+disagreed. And the exclusion convention needed stating rather than inferring: Task 3.1 excludes a **trailing
+link-definition block**, which is not the same as excluding everything after the last `---`. The two briefs end
+in a prose footer instead, and a mechanical last-`---` rule silently drops 4 nb from each — enough to move the
+base off 828 and make the whole comparison unreproducible.
+
 ### Lifecycle state at handoff
 
 The WU was archived to `completed/2026-q3/40_judgment-authority-model/` and then restored by reverting that commit,
