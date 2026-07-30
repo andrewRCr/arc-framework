@@ -835,7 +835,7 @@ ledger in the next safe pre-review commit.
 | S0    | landed         | #395 | `bb6803b62`      |
 | S1    | landed         | #396 | `56d52f013`      |
 | S2    | landed         | #397 | `6eebb7f31`      |
-| S3    | construction   | —    | —                |
+| S3    | review prep    | #399 | —                |
 | S4    | blocked by S3  | —    | —                |
 | S5    | blocked by S4  | —    | —                |
 | S6    | blocked by S5  | —    | —                |
@@ -997,9 +997,9 @@ dispositions to the PR rather than copying them here.
   wrong/released-lock refusal, live contention, stale-generation replacement/removal refusal, and stale-break
   behavior.
 - **Exact review-target measurement:** 2,240 additions plus 20 deletions (2,260 changed lines) across twelve files
-  against `6eebb7f31`.
-- **State:** Construction is complete. The complete local gate passes with 8,490 tests and one skip; task approval
-  precedes commit and publication.
+  against `6eebb7f31`; the two-commit construction head before this status update is `f01592e7c`.
+- **State:** PR #399 is a draft. The complete local gate passes with 8,490 tests and one skip; the final ledger head
+  will be marked ready for initial hosted review.
 
 ### Resume protocol
 
