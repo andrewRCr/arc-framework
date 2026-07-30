@@ -38,4 +38,9 @@ describe("locus root resolution", () => {
         .resolves.toMatchObject({ ok: false });
     }
   });
+
+  it("fails closed when no topology reader is supplied", async () => {
+    await expect(resolveLocusRoot({ identity: "andrew" }))
+      .resolves.toMatchObject({ ok: false });
+  });
 });

@@ -170,7 +170,7 @@ export async function breakDeadLocusLock(options: {
   } catch (error) {
     return errorCode(error) === "ENOENT" ? { kind: "already-absent" } : { kind: "unknown" };
   } finally {
-    await releaseExactFile(breakPath, breakBytes);
+    await releaseExactFile(breakPath, breakBytes).catch(() => undefined);
   }
 }
 

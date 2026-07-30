@@ -145,6 +145,7 @@ export async function replaceLocusRecord(options: {
   expectedBytes: Buffer;
   record: LocusRecordV1;
   lock: LocusLockHandle;
+  beforeReplaceRecheck?: () => Promise<void>;
 }): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
   if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
     return { kind: "generation-mismatch" };
@@ -162,16 +163,21 @@ export async function replaceLocusRecord(options: {
   const temporaryPath = `${options.path}.tmp-${process.pid}-${randomUUID()}`;
   try {
     await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
-    const recheck = await readFile(options.path);
+    await options.beforeReplaceRecheck?.();
+    let recheck: Buffer;
+    try {
+      recheck = await readFile(options.path);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+      throw error;
+    }
     if (!recheck.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
       return { kind: "generation-mismatch" };
     }
     await rename(temporaryPath, options.path);
     return { kind: "replaced", bytes };
   } finally {
-    await unlink(temporaryPath).catch((error: unknown) => {
-      if (errorCode(error) !== "ENOENT") throw error;
-    });
+    await unlink(temporaryPath).catch(() => undefined);
   }
 }
 
@@ -204,21 +210,25 @@ export async function removeLocusRecord(options: {
 }
 
 function isLockForRecord(recordPath: string, lock: LocusLockHandle): boolean {
-  const match = /^locus-([0-9a-f]{64})\.json$/u.exec(basename(recordPath));
-  if (match?.[1] === undefined) return false;
-  const expected = join(dirname(recordPath), ".locks", `locus-${match[1]}.lock`);
+  const digest = recordDigest(recordPath);
+  if (digest === null) return false;
+  const expected = join(dirname(recordPath), ".locks", `locus-${digest}.lock`);
   return resolve(lock.path) === resolve(expected);
 }
 
 function serializeRecord(path: string, value: LocusRecordV1): Buffer {
   const record = LocusRecordV1Schema.parse(value);
-  const match = /^locus-([0-9a-f]{64})\.json$/u.exec(basename(path));
-  if (match?.[1] === undefined || record.recordId !== `sha256:${match[1]}`) {
+  const digest = recordDigest(path);
+  if (digest === null || record.recordId !== `sha256:${digest}`) {
     throw new Error("Record target and recordId do not match");
   }
   const bytes = Buffer.from(`${JSON.stringify(record, null, 2)}\n`, "utf8");
   if (bytes.length > MAX_LOCUS_JSON_BYTES) throw new Error("Session locus record exceeds maximum size");
   return bytes;
+}
+
+function recordDigest(path: string): string | null {
+  return /^locus-([0-9a-f]{64})\.json$/u.exec(basename(path))?.[1] ?? null;
 }
 
 async function boundedRead(path: string): Promise<

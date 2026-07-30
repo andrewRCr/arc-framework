@@ -150,6 +150,22 @@ describe("locus record store", () => {
     });
   });
 
+  it("maps disappearance during the replacement recheck to a generation mismatch", async () => {
+    const root = await temporaryRoot();
+    const path = join(root, `locus-${identity.digest}.json`);
+    const lock = await acquireRecordLock(recordLockPath(root), "a".repeat(32));
+    const minted = await mintLocusRecord({ path, record: record() });
+    if (minted.kind !== "created") throw new Error("fixture mint failed");
+
+    await expect(replaceLocusRecord({
+      path,
+      expectedBytes: minted.bytes,
+      record: record("fedcba9876543210fedcba9876543210"),
+      lock,
+      beforeReplaceRecheck: async () => unlink(path),
+    })).resolves.toEqual({ kind: "generation-mismatch" });
+  });
+
   it("refuses replacement under a lock held for a different record", async () => {
     const root = await temporaryRoot();
     const path = join(root, `locus-${identity.digest}.json`);
@@ -272,6 +288,16 @@ describe("locus record store", () => {
       lock: contender.handle,
     })).resolves.toEqual({ kind: "generation-mismatch" });
     await expect(readFile(path)).resolves.toEqual(replaced.bytes);
+
+    const current = await replaceLocusRecord({
+      path,
+      expectedBytes: replaced.bytes,
+      record: record(),
+      lock: contender.handle,
+    });
+    expect(current).toMatchObject({ kind: "replaced" });
+    if (current.kind !== "replaced") throw new Error("fixture contender replacement failed");
+    await expect(readFile(path)).resolves.toEqual(current.bytes);
   });
 
   it("keeps an incomplete staged generation invisible to readers", async () => {

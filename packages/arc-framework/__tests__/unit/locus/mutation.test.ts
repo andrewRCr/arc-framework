@@ -263,6 +263,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: "2026-07-20T01:00:00.000Z",
       heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     } as const;
@@ -296,6 +297,7 @@ describe("durable locus role minting", () => {
       },
       attachedAt: "2026-07-20T01:00:00.000Z",
       heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -321,6 +323,7 @@ describe("durable locus role minting", () => {
         leaseId: "a".repeat(32),
         attachedAt: "2026-07-20T01:00:00.000Z",
         heartbeatAt: "2026-07-20T01:00:00.000Z",
+        observedLeaseId: null,
         observedLiveness: null,
         io: store.io,
       });
@@ -333,6 +336,7 @@ describe("durable locus role minting", () => {
       leaseId: "b".repeat(32),
       attachedAt: "2026-07-20T02:00:00.000Z",
       heartbeatAt: "2026-07-20T02:00:00.000Z",
+      observedLeaseId: "a".repeat(32),
     } as const;
 
     const deadWorkUnit = await seeded({ kind: "work-unit", key: "demo" });
@@ -346,6 +350,45 @@ describe("durable locus role minting", () => {
     const deadTransient = await seeded({ kind: "identity", identity: errandIdentity("errand") });
     expect(await attachLocusLease({ ...request, observedLiveness: "dead", io: deadTransient.io }))
       .toEqual({ kind: "refused", reason: "role-conflict" });
+  });
+
+  it("binds a dead occupancy verdict to the observed lease generation", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "work-unit", key: "demo" },
+      io: store.io,
+    });
+    const anchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "start",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor,
+      leaseId: "c".repeat(32),
+      attachedAt: BASE.establishedAt,
+      heartbeatAt: BASE.establishedAt,
+      observedLeaseId: null,
+      observedLiveness: null,
+      io: store.io,
+    });
+
+    await expect(attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor: { ...anchor, pid: 43 },
+      leaseId: "b".repeat(32),
+      attachedAt: BASE.establishedAt,
+      heartbeatAt: BASE.establishedAt,
+      observedLeaseId: "a".repeat(32),
+      observedLiveness: "dead",
+      io: store.io,
+    })).resolves.toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
   });
 
   it("refreshes only state-touching calls with the exact lease token and anchor", async () => {
@@ -369,6 +412,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: "2026-07-20T01:00:00.000Z",
       heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -412,6 +456,7 @@ describe("durable locus role minting", () => {
         leaseId: "a".repeat(32),
         attachedAt: "2026-07-20T01:00:00.000Z",
         heartbeatAt: "2026-07-20T01:00:00.000Z",
+        observedLeaseId: null,
         observedLiveness: null,
         io: store.io,
       });
@@ -459,6 +504,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: "2026-07-20T01:00:00.000Z",
       heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -539,6 +585,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: BASE.establishedAt,
       heartbeatAt: BASE.establishedAt,
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -602,6 +649,30 @@ describe("durable locus role minting", () => {
     })).resolves.toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
   });
 
+  it("refuses a session-home rebase when the directed role is unleased", async () => {
+    const store = memoryIO();
+    const identity = errandIdentity("errand");
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity },
+      io: store.io,
+    });
+    const current = store.current();
+    if (current.kind !== "valid") throw new Error("expected seeded record");
+
+    await expect(updateLocusRole({
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: current.record.role,
+      expectedLeaseId: null,
+      authority: { kind: "work-unit", key: "promoted" },
+      parentCheckoutPath: null,
+      sessionHomePath: BASE.checkoutPath,
+      establishedAt: BASE.establishedAt,
+      io: store.io,
+    })).resolves.toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+  });
+
   it("pops the exact unleased role generation and replays an already-absent pop", async () => {
     const store = memoryIO();
     await mintDurableLocusRole({
@@ -659,6 +730,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: "2026-07-20T01:00:00.000Z",
       heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -697,6 +769,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: BASE.establishedAt,
       heartbeatAt: BASE.establishedAt,
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -753,6 +826,7 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       attachedAt: BASE.establishedAt,
       heartbeatAt: BASE.establishedAt,
+      observedLeaseId: null,
       observedLiveness: null,
       io: store.io,
     });
@@ -809,6 +883,7 @@ describe("durable locus role minting", () => {
         leaseId: "a".repeat(32),
         attachedAt: "2026-07-20T01:00:00.000Z",
         heartbeatAt: "2026-07-20T01:00:00.000Z",
+        observedLeaseId: null,
         observedLiveness: null,
         io: store.io,
       });

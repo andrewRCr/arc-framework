@@ -114,6 +114,7 @@ export async function attachLocusLease(options: {
   leaseId?: string;
   attachedAt: string;
   heartbeatAt: string;
+  observedLeaseId: string | null;
   observedLiveness: ProcessLiveness | null;
   io: LocusLeaseMutationIO;
 }): Promise<LocusLeaseMutationResult> {
@@ -125,6 +126,9 @@ export async function attachLocusLease(options: {
   const lease = existing.record.lease;
   if (lease !== null && lease.leaseId === leaseId && isDeepStrictEqual(lease.anchor, options.anchor)) {
     return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
+  }
+  if ((lease?.leaseId ?? null) !== options.observedLeaseId) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
   }
   if (lease !== null) {
     if (options.observedLiveness === "live") return { kind: "refused", reason: "lease-live" };
@@ -276,6 +280,9 @@ export async function updateLocusRole(options: {
     return { kind: "refused", reason: "record-malformed" };
   }
   if ((existing.record.lease?.leaseId ?? null) !== options.expectedLeaseId) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
+  }
+  if (options.sessionHomePath !== undefined && existing.record.lease === null) {
     return { kind: "refused", reason: "lease-generation-mismatch" };
   }
   const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);

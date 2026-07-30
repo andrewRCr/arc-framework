@@ -30,7 +30,12 @@ export async function selectLocusMutationAnchor(
   const selected = await acquireSessionAnchor(process.pid, ancestryInspector);
   if (selected.kind === "process") return selected;
   const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") throw new Error(`${diagnostic}: ${selected.reason}`);
+  if (command.kind !== "present") {
+    const fallback = command.kind === "unverifiable"
+      ? command.reason
+      : "command process is absent";
+    throw new Error(`${diagnostic}: ${selected.reason} (command fallback: ${fallback})`);
+  }
   return {
     kind: "process",
     pid: command.pid,

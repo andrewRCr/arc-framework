@@ -1,6 +1,6 @@
 /** Record-scoped lock and stale-break coverage. */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   acquireLocusLock,
   breakDeadLocusLock,
+  ownsLocusLock,
   readLocusLockHolder,
   releaseLocusLock,
   serializeLocusLockHolder,
@@ -151,7 +152,7 @@ describe("locus record lock", () => {
         }
       },
     });
-    expect(result).toMatchObject({ kind: "refused" });
+    expect(result).toEqual({ kind: "refused", reason: "unknown" });
     expect(await readFile(path)).toEqual(replacement);
   });
 
@@ -178,6 +179,27 @@ describe("locus record lock", () => {
     expect(secondary).toMatchObject({ kind: "valid", holder: { token: "b".repeat(32), anchor: breakerAnchor } });
     await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(`${path}.break`)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("preserves a completed break when secondary-lock cleanup fails", async () => {
+    const path = await lockPath();
+    const bytes = serializeLocusLockHolder({ token: "a".repeat(32), anchor, createdAt: timestamp });
+    await writeFile(path, bytes);
+    const observed = await readLocusLockHolder(path);
+    if (observed.kind !== "valid") throw new Error("expected valid holder");
+
+    await expect(breakDeadLocusLock({
+      path,
+      observed,
+      inspector: inspector("dead"),
+      breakerToken: "b".repeat(32),
+      breakerAnchor: { ...anchor, pid: 43, startToken: "start-43" },
+      beforeBreakRecheck: async () => {
+        await rm(`${path}.break`);
+        await mkdir(`${path}.break`);
+      },
+    })).resolves.toEqual({ kind: "broken" });
+    await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("reclaims secondary-lock residue left by a conclusively dead breaker", async () => {
@@ -243,6 +265,27 @@ describe("locus record lock", () => {
     expect(await readFile(path)).toEqual(replacement);
     await rm(path);
     await expect(releaseLocusLock(result.handle)).resolves.toEqual({ kind: "released" });
+  });
+
+  it("reports ownership only for the exact held generation", async () => {
+    const path = await lockPath();
+    const result = await acquireLocusLock({
+      path,
+      anchor,
+      inspector: inspector("live"),
+      token: "a".repeat(32),
+    });
+    if (result.kind !== "acquired") throw new Error("fixture acquisition failed");
+
+    await expect(ownsLocusLock(result.handle)).resolves.toBe(true);
+    await writeFile(path, serializeLocusLockHolder({
+      token: "b".repeat(32),
+      anchor,
+      createdAt: timestamp,
+    }));
+    await expect(ownsLocusLock(result.handle)).resolves.toBe(false);
+    await rm(path);
+    await expect(ownsLocusLock(result.handle)).resolves.toBe(false);
   });
 });
 

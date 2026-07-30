@@ -980,7 +980,7 @@ dispositions to the PR rather than copying them here.
 - **State:** PR #397 accepted head `6b699eff1` after the final incremental CodeRabbit review found no new issues
   and landed through merge commit `6eebb7f31`.
 
-#### S3 lock and mutation protocol — construction
+#### S3 lock and mutation protocol — repair ready
 
 - **Entry base:** `origin/main` `6eebb7f31`, the S2 merge.
 - **Capability:** Record-scoped locks serialize exact-generation replacement and removal, reclaiming a holder only
@@ -1005,8 +1005,17 @@ dispositions to the PR rather than copying them here.
   refusal reasons and helper types, and close the missing ownership and absence coverage. The advisory 80% docstring
   warning was declined because the project defines no percentage target and every new exported function has TSDoc.
 - **Exact first-fix measurement:** 2,493 additions plus 20 deletions (2,513 changed lines) across thirteen files.
-- **State:** The first hosted-review repair passed the complete local gate set: 8,496 tests passed and one skipped,
-  with lint, both type-check layers, the build, and all ARC contract checks green.
+- **Whole-target closure review:** The incremental repair pass approved `4624ada5f` but skipped eight of its ten
+  files as similar, so the coverage-doubt rule triggered a fresh whole-target review. That pass covered all
+  thirteen files and opened five actionable threads plus nine nitpicks. The accepted repair binds liveness to the
+  exact observed lease generation, preserves typed outcomes across record and cleanup races, rejects an impossible
+  unleased session-home rebase, improves fallback diagnostics, consolidates record-digest parsing, and closes the
+  requested direct coverage. Explicit lock-field serialization order was declined because ownership compares
+  retained original bytes; parsed holders are never reserialized for comparison.
+- **Exact second-fix measurement:** 2,717 additions plus 22 deletions (2,739 changed lines) across thirteen files.
+- **State:** The second hosted-review repair passes Markdown and code lint, all three ARC contract checks, source
+  and test typechecks, build, and the full suite at 657 passed plus one skipped file / 8,504 passed plus one skipped
+  test. It is ready for the review-increment commit.
 
 ### Resume protocol
 
