@@ -918,7 +918,7 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact repaired measurement:** 1,695 additions plus 35 deletions (1,730 changed lines) across eleven files
+- **Exact repaired measurement:** 1,824 additions plus 36 deletions (1,860 changed lines) across twelve files
   against `56d52f013`.
 - **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
   preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
@@ -928,15 +928,25 @@ dispositions to the PR rather than copying them here.
   rationale was added. The incremental `0ade00809..a70ca7d4a` follow-up found one further test gap: its native
   cancellation proof aborted before the child started. The accepted repair now waits for a real child-start marker
   before aborting. That incremental pass skipped three similar repair files, including the critical
-  `process-exec.ts` correction, so the final head requires a fresh whole-target review rather than another
-  incremental composition.
+  `process-exec.ts` correction, so a fresh whole-target review replaced incremental composition.
+- **Whole-target review repair:** CodeRabbit then covered exact target `56d52f013..9b22f5637` and requested six
+  corrections. The accepted repair adds the native process contract to the existing Windows/macOS portability
+  pair, enforces the aggregate output budget as bytes with conservative half-per-stream caps, inlines validated
+  PIDs into final-position PowerShell commands, composes caller cancellation with the inspection deadline, uses the
+  exact shell `-c`/`-lc` operand for snapshot-wrapper recognition, and removes the test helper's `process` shadow.
+  The nonblocking documentation-coverage warning was declined because the project has no percentage target and the
+  exported surface already carries the required TSDoc.
 - **Gate evidence:** The complete local gate set passed on both review-repair trees: 8,444 tests passed and one
   skipped, with TypeScript and shell lint, both typechecks, and the build green. Full exact-head CI run
-  `30501076746` is green at first-repair head `a70ca7d4a`; the in-flight cancellation test additionally proved
-  sensitive by failing against a temporarily removed native cancel binding before passing against the restored
-  production boundary.
-- **State:** PR #397 remains at published head `a70ca7d4a`; the accepted test-only follow-up is local and awaits
-  its commit, push, exact-head CI, and fresh whole-target CodeRabbit review.
+  `30502568032` is green at whole-target review head `9b22f5637` after the unchanged lifecycle-exit timeout passed
+  on its one failed-job rerun; the in-flight cancellation test additionally proved sensitive by failing against a
+  temporarily removed native cancel binding before passing against the restored production boundary. The
+  six-finding repair's complete local gate passed with 8,449 tests and one skip; its aggregate-output regression
+  first returned cancellation against the pre-fix native boundary, then passed as an in-flight output-limit proof.
+- **State:** PR #397 remains in review repair. The six-finding repair is locally green and awaits commit, push,
+  deferred-CI observation, one full-CI trigger, the exact-head Windows/macOS portability pair, and a fresh
+  whole-target CodeRabbit review. CodeRabbit's review event restored `ci-defer-heavy`; leave it in place through
+  the fix push, then remove it once to trigger the full run.
 
 ### Resume protocol
 

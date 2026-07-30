@@ -256,10 +256,30 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   // Agent-harness tool shells source a session snapshot, then eval the requested
   // command; the arc invocation sits inside the eval payload, not after -c.
   if ((executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash")
-    && /\s-c\s+source\s+\S*[\\/]shell-snapshots[\\/]snapshot-\S+\.sh(?:\s|$)/u.test(commandLine)
-    && /\beval\s+["'](?:[\s\S]*?(?:&&|;|\|)\s*)?(?:npx\s+arc\b|arc\b|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u
-      .test(commandLine)) return true;
+    && isAgentSnapshotShell(snapshot, commandLine)) return true;
   return isShellIdentity(executable) && args !== null && isShellArcInvocation(args);
+}
+
+function isAgentSnapshotShell(snapshot: AncestorProcessSnapshot, commandLine: string): boolean {
+  if (snapshot.commandArguments === undefined && !/\s-(?:l)?c\s+source\b/u.test(commandLine)) return false;
+  const command = snapshot.commandArguments === undefined
+    ? commandLine
+    : shellCommandOperand(snapshot.commandArguments);
+  if (command === null) return false;
+  const source = /\bsource\s+('[^']+'|"[^"]+"|\S+)/u.exec(command)?.[1];
+  if (source === undefined) return false;
+  const snapshotPath = source.replace(/^(['"])([\s\S]*)\1$/u, "$2").replaceAll("\\", "/");
+  if (!/[\\/]shell-snapshots[\\/]snapshot-[^/]+\.sh$/u.test(snapshotPath)) return false;
+  return /\beval\s+["'](?:[\s\S]*?(?:&&|;|\|)\s*)?(?:npx\s+arc\b|arc\b|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u
+    .test(command);
+}
+
+function shellCommandOperand(args: readonly string[]): string | null {
+  const optionIndex = args.findIndex((arg) => {
+    const option = arg.toLowerCase();
+    return option === "-c" || option === "-lc";
+  });
+  return optionIndex < 0 ? null : args[optionIndex + 1] ?? null;
 }
 
 function isArcNodeInvocation(args: readonly string[]): boolean {

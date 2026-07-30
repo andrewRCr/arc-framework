@@ -44,7 +44,10 @@ export type NativeProcessRunner = (
 export function createProcessExec(runner: NativeProcessRunner = runNativeProcess): ProcessExec {
   return async (command, args, options = {}) => {
     const maxOutputBytes = options.maxOutputBytes ?? MAX_PROCESS_OUTPUT_BYTES;
-    const signal = options.signal ?? AbortSignal.timeout(PROCESS_INSPECTION_TIMEOUT_MS);
+    const timeoutSignal = AbortSignal.timeout(PROCESS_INSPECTION_TIMEOUT_MS);
+    const signal = options.signal === undefined
+      ? timeoutSignal
+      : AbortSignal.any([options.signal, timeoutSignal]);
     try {
       const result = await runner(command, args, { ...options, signal, maxOutputBytes });
       const capturedBytes = Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
@@ -75,14 +78,18 @@ async function runNativeProcess(
   args: readonly string[],
   options: ProcessExecOptions & { readonly maxOutputBytes: number },
 ): Promise<NativeProcessRunResult> {
+  const perStreamMaxOutputBytes = Math.floor(options.maxOutputBytes / 2);
   const result = await execa(command, [...args], {
     reject: false,
     shell: false,
     cwd: options.cwd,
     env: options.env,
     cancelSignal: options.signal,
-    maxBuffer: options.maxOutputBytes,
-    encoding: "utf8",
+    maxBuffer: {
+      stdout: perStreamMaxOutputBytes,
+      stderr: perStreamMaxOutputBytes,
+    },
+    encoding: "buffer",
   });
   if (result.exitCode === undefined
     || hasTrue(result, "isCanceled")
@@ -92,8 +99,8 @@ async function runNativeProcess(
     throw new Error("Native process failure metadata is malformed");
   }
   return {
-    stdout: result.stdout,
-    stderr: result.stderr,
+    stdout: Buffer.from(result.stdout).toString("utf8"),
+    stderr: Buffer.from(result.stderr).toString("utf8"),
     exitCode: result.exitCode,
   };
 }

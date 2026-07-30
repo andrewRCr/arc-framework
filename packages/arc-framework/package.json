@@ -15,7 +15,7 @@
     "test:integration": "vitest run --project integration",
     "test:arc-contracts": "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
     "test:e2e": "vitest run --project e2e",
-    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor",
+    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor process-inspector-native",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",

@@ -70,6 +70,18 @@ describe("native process execution", () => {
       { maxOutputBytes: 16 },
     )).resolves.toMatchObject({ kind: "output-limit" });
   });
+
+  it("enforces an aggregate byte limit while the native process is still running", async () => {
+    await expect(exec(
+      process.execPath,
+      [
+        "--eval",
+        "process.stdout.write('😀'.repeat(5_000)); "
+          + "process.stderr.write('😀'.repeat(5_000)); setInterval(() => {}, 10_000)",
+      ],
+      { maxOutputBytes: 32 * 1_024 },
+    )).resolves.toMatchObject({ kind: "output-limit" });
+  }, 7_000);
 });
 
 async function waitForPath(path: string): Promise<void> {

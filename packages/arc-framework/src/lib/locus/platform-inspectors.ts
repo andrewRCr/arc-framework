@@ -198,20 +198,6 @@ export function createBsdProcessAncestryInspector(
   };
 }
 
-const WINDOWS_CIM_SCRIPT = [
-  "$targetPid = [uint32]$args[0]",
-  "$process = Get-CimInstance Win32_Process -Filter \"ProcessId = $targetPid\" -ErrorAction Stop",
-  "if ($null -eq $process) { 'null'; exit 0 }",
-  "$process | Select-Object ParentProcessId,ExecutablePath,CreationDate | ConvertTo-Json -Compress",
-].join("; ");
-
-const WINDOWS_ANCESTRY_SCRIPT = [
-  "$targetPid = [uint32]$args[0]",
-  "$process = Get-CimInstance Win32_Process -Filter \"ProcessId = $targetPid\" -ErrorAction Stop",
-  "if ($null -eq $process) { 'null'; exit 0 }",
-  "$process | Select-Object ParentProcessId,ExecutablePath,CreationDate,CommandLine | ConvertTo-Json -Compress",
-].join("; ");
-
 /**
  * Build the PowerShell/CIM Windows adapter.
  *
@@ -222,8 +208,10 @@ export function createWindowsProcessInspector(exec: ProcessExec = createProcessE
   return {
     kind: "windows-cim",
     async inspect(pid): Promise<ProcessInspection> {
+      const script = windowsCimScript(pid, false);
+      if (script === null) return unknownInspection("Windows process PID is invalid");
       const result = await exec("powershell.exe", [
-        "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_CIM_SCRIPT, String(pid),
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script,
       ]);
       if (result.kind !== "success") return unknownInspection("Windows CIM query is unavailable");
       let value: unknown;
@@ -264,8 +252,10 @@ export function createWindowsProcessAncestryInspector(
   return {
     kind: "windows-cim",
     async inspectAncestor(pid): Promise<AncestorProcessInspection> {
+      const script = windowsCimScript(pid, true);
+      if (script === null) return unknownAncestor("Windows process PID is invalid");
       const result = await exec("powershell.exe", [
-        "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_ANCESTRY_SCRIPT, String(pid),
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script,
       ]);
       if (result.kind !== "success") return unknownAncestor("Windows CIM ancestry query is unavailable");
       let value: unknown;
@@ -390,4 +380,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function windowsCimScript(pid: number, includeCommandLine: boolean): string | null {
+  if (!Number.isSafeInteger(pid) || pid < 0 || pid > 0xffff_ffff) return null;
+  const fields = includeCommandLine
+    ? "ParentProcessId,ExecutablePath,CreationDate,CommandLine"
+    : "ParentProcessId,ExecutablePath,CreationDate";
+  return [
+    `$process = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" -ErrorAction Stop`,
+    "if ($null -eq $process) { 'null'; exit 0 }",
+    `$process | Select-Object ${fields} | ConvertTo-Json -Compress`,
+  ].join("; ");
 }

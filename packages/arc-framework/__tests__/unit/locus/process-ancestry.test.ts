@@ -113,6 +113,47 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("uses the exact shell operand when snapshot and working paths contain spaces", async () => {
+    const command = "source '/home/dev/ARC Project/.claude/shell-snapshots/snapshot-bash-1.sh'"
+      + " 2>/dev/null || true && eval 'cd \"/home/dev/ARC Project\" && npx arc status' < /dev/null";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, {
+        kind: "present",
+        snapshot: {
+          ...snapshot(20, 10, "/usr/bin/bash", `/usr/bin/bash -c ${command}`),
+          commandArguments: ["/usr/bin/bash", "-c", command],
+        },
+      }],
+      [10, {
+        kind: "present",
+        snapshot: snapshot(10, 1, "/home/dev/.local/share/claude/versions/2.1.217", "claude"),
+      }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "claude",
+    });
+  });
+
+  it("does not trust ARC text outside the exact snapshot-shell operand", async () => {
+    const commandLine = "/usr/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh"
+      + " && eval 'npx arc status'";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, {
+        kind: "present",
+        snapshot: {
+          ...snapshot(20, 10, "/usr/bin/bash", commandLine),
+          commandArguments: ["/usr/bin/bash", "-c", "printf harmless"],
+        },
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: "Unrecognized process boundary: /usr/bin/bash",
+    });
+  });
+
   it("refuses the agent tool shell when its eval payload does not invoke arc", async () => {
     const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh 2>/dev/null || true"
       + " && eval 'cd /repo/arc-framework && make build' < /dev/null";

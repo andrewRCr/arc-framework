@@ -138,7 +138,7 @@ describe("BSD process inspector", () => {
 });
 
 describe("Windows process inspector", () => {
-  it("passes the PID separately and maps compressed CIM JSON", async () => {
+  it("embeds a validated PID in the final PowerShell command and maps compressed CIM JSON", async () => {
     const exec = vi.fn<ProcessExec>(async () => ({
       kind: "success",
       stdout: JSON.stringify({ ParentProcessId: 7, ExecutablePath: "C:\\Tools\\codex.exe", CreationDate: "20260718000000.000000-000" }),
@@ -150,11 +150,14 @@ describe("Windows process inspector", () => {
     });
     const call = vi.mocked(exec).mock.calls[0];
     expect(call?.[0]).toBe("powershell.exe");
-    expect(call?.[1].at(-1)).toBe("42");
+    expect(call?.[1].at(-2)).toBe("-Command");
+    expect(call?.[1].at(-1)).toContain('ProcessId = 42');
+    expect(call?.[1].at(-1)).not.toContain("$args");
+    expect(call?.[1]).not.toContain("42");
   });
 
   it("captures the CIM command line for ancestry selection", async () => {
-    const exec: ProcessExec = async () => ({
+    const exec = vi.fn<ProcessExec>(async () => ({
       kind: "success",
       stdout: JSON.stringify({
         ParentProcessId: 7,
@@ -164,10 +167,23 @@ describe("Windows process inspector", () => {
       }),
       stderr: "",
       exitCode: 0,
-    });
+    }));
     await expect(createWindowsProcessAncestryInspector(exec).inspectAncestor(42)).resolves.toMatchObject({
       kind: "present", snapshot: { commandLine: "codex --session x" },
     });
+    const args = vi.mocked(exec).mock.calls[0]?.[1];
+    expect(args?.at(-2)).toBe("-Command");
+    expect(args?.at(-1)).toContain('ProcessId = 42');
+    expect(args?.at(-1)).not.toContain("$args");
+    expect(args).not.toContain("42");
+  });
+
+  it("refuses to interpolate an invalid PID", async () => {
+    const exec = vi.fn<ProcessExec>();
+
+    await expect(createWindowsProcessInspector(exec).inspect(Number.NaN))
+      .resolves.toMatchObject({ kind: "unverifiable" });
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it("maps null to absence and every untrusted failure to unknown", async () => {

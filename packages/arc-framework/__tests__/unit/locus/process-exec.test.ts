@@ -41,4 +41,24 @@ describe("locus process execution", () => {
     expect(options?.signal?.aborted).toBe(false);
     expect(PROCESS_INSPECTION_TIMEOUT_MS).toBeGreaterThan(0);
   });
+
+  it("composes caller cancellation with the inspection deadline", async () => {
+    const caller = new AbortController();
+    const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    const runner = vi.fn<NativeProcessRunner>(async () => ({ stdout: "", stderr: "", exitCode: 0 }));
+
+    try {
+      await expect(createProcessExec(runner)("ps", ["-p", "42"], { signal: caller.signal }))
+        .resolves.toMatchObject({ kind: "success" });
+
+      const composed = vi.mocked(runner).mock.calls[0]?.[2].signal;
+      expect(timeout).toHaveBeenCalledWith(PROCESS_INSPECTION_TIMEOUT_MS);
+      expect(composed).not.toBe(caller.signal);
+      caller.abort();
+      expect(composed?.aborted).toBe(true);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
 });
