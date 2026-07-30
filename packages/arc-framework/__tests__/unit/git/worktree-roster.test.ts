@@ -99,7 +99,7 @@ function hasAnyKeyUnder(tree: Record<string, string>, prefix: string): boolean {
   return Object.keys(tree).some((k) => k.startsWith(prefix));
 }
 
-const WORKTREE_LIST = "worktree list --porcelain";
+const WORKTREE_LIST = "worktree list --porcelain -z";
 
 describe("runIdentityScopedWorktreeRoster", () => {
   it("does not read private worktree metadata when team identity is unresolved", async () => {
@@ -146,7 +146,7 @@ describe("runWorktreeRoster", () => {
     const processError = new GitProcessError({
       kind: "nonzero-exit",
       command: "git",
-      args: ["worktree", "list", "--porcelain"],
+      args: ["worktree", "list", "--porcelain", "-z"],
       exitCode: 1,
       stderr: "fatal",
     });

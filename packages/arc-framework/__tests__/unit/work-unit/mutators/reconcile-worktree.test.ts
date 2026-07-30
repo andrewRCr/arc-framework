@@ -84,16 +84,8 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
 
 /** Minimal `git worktree list --porcelain` with `primary` listed first. */
 function porcelain(primary: string, linked: string): string {
-  return [
-    `worktree ${primary}`,
-    "HEAD 1111111111111111111111111111111111111111",
-    "branch refs/heads/main",
-    "",
-    `worktree ${linked}`,
-    "HEAD 2222222222222222222222222222222222222222",
-    "branch refs/heads/feat/demo-wu",
-    "",
-  ].join("\n");
+  return `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
+    + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo-wu\0\0`;
 }
 
 describe("nodeReconcileWorktreeFs.copyDirectory", () => {
@@ -675,7 +667,7 @@ describe("reconcileWorktree — teardown", () => {
 
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
     expect(events).toEqual([
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "worktree", "remove", worktreePath],
     ]);
   });
@@ -700,7 +692,7 @@ describe("reconcileWorktree — teardown", () => {
       }),
     ).rejects.toThrow(/identity-global user surface/iu);
 
-    expect(events).toEqual([["git", "worktree", "list", "--porcelain"]]);
+    expect(events).toEqual([["git", "worktree", "list", "--porcelain", "-z"]]);
   });
 
   it("refuses oracle-approved husk removal from inside the target", async () => {
@@ -731,7 +723,7 @@ describe("reconcileWorktree — teardown", () => {
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
     expect(events).toEqual([
       ["git", "status", "--porcelain"],
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "worktree", "remove", worktreePath],
     ]);
   });
@@ -762,7 +754,7 @@ describe("reconcileWorktree — teardown", () => {
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
     expect(events).toEqual([
       ["git", "status", "--porcelain"],
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["chdir", primary],
       ["git", "worktree", "remove", worktreePath],
     ]);

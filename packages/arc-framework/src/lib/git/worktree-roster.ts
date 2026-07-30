@@ -19,6 +19,7 @@ import {
 import type { GitExec } from "./exec.js";
 import {
   parseGitWorktreePorcelain,
+  parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
 } from "./worktree-porcelain.js";
 
@@ -91,7 +92,7 @@ export async function runWorktreeRoster(
   options: RunWorktreeRosterOptions,
 ): Promise<WorktreeRosterResult> {
   const { exec, fs } = options;
-  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   const branched = worktrees.filter(
     (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
@@ -164,7 +165,7 @@ export function filterRosterByIdentity(
  */
 export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string | null> {
   try {
-    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
     return worktrees[0]?.path ?? null;
   } catch {
     return null;
@@ -204,7 +205,7 @@ export async function resolveWorktreePathsByBranchResult(
 ): Promise<WorktreePathsByBranchResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch {
     return { ok: false, paths: new Map() };
   }
@@ -224,7 +225,7 @@ export async function resolveWorktreePathsByBranchResult(
 export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -406,7 +407,9 @@ function buildEntry(
 }
 
 function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return parseGitWorktreePorcelain(result.stdout);
+  return result.stdout.includes("\0")
+    ? parseGitWorktreePorcelainZ(result.stdout)
+    : parseGitWorktreePorcelain(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

@@ -55,7 +55,7 @@ function matchKey(
 const GET_ORIGIN = "remote get-url origin";
 const FETCH_BASE = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
-const WORKTREE_LIST = "worktree list --porcelain";
+const WORKTREE_LIST = "worktree list --porcelain -z";
 const REV_PARSE_TOP = "rev-parse --show-toplevel";
 
 /** Default topology: current worktree on feat; base (main) not checked out. */
