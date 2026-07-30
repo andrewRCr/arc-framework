@@ -1376,34 +1376,31 @@ against source rejected four of its twenty proposals, two because they re-opened
 settled the other way. Full inputs, dispositions, and reasoning live in `notes-judgment-authority-model.md`
 § Remedial phase.
 
-### `[ ]` **5.R.a Land the two clauses and reconcile the always-loaded surface**
+### `[x]` **5.R.a Land the two clauses and reconcile the always-loaded surface**
 
 - _Goal:_ The shape rule is readable from § Rule Authority itself, and the always-loaded surfaces that restate or
   collide with it stop contradicting it.
 
-- _Note:_ Every edit here lands on a tier-1 full-read file, so this is the phase's only task with ledger impact —
-  which is what lets Task 5.R.e re-derive in one measurement.
+    - Clause A sits in § Rule Authority immediately before "Reading an unmarked rule", verbatim as approved.
+    - Clause B sits immediately after "Discharging a default", in the amended form: the exclusion reads _acts that
+      cannot be undone or unspent_ and carries a costly pass as a fourth example beside merge, publish, and
+      deletion. The closing interlock-firewall sentence is unchanged.
+    - `AGENT-BRIEF.ARC`'s `Invariant` entry now reads "where the classifying reading does not settle it", pointing
+      at the reading the adjacent `Default` entry already cites rather than at the rule's own text; zero line delta.
+    - § Verify before assuming stops only on requirements and says why they are undischargeable; implementation
+      details, file locations, and existing content route to the source instead.
+    - § Review finding mutation guard's approval half carries its own `[invariant]` — load-bearing for the
+      `task-audit` counter-finding, whose "this reaches no invariant" escape reads by inference without it.
+    - § Quality gate failure dropped "there is nothing to report and"; § Leave it cleaner dropped "rather than
+      spending a turn to ask". Both are Clause B's job now.
+    - `DEV-RULES.PROJECT` § Quality Gates marks the zero-tolerance sentence rather than the heading, so
+      § Selecting what to run's re-execution narrowing survives it. The sentence is identical in the shipped
+      template, so Phase 5's mirror rule applied and both copies carry the marker.
 
-    - Clause A into § Rule Authority immediately before "Reading an unmarked rule": emphasis and categorical
-      phrasing are how rules are ordinarily written, never how they are classified.
-    - Clause B immediately after "Discharging a default": a stop with one defensible outcome discharges on
-      **reversibility**, never on the reading that the answer is obvious. Acts that cannot be undone or unspent
-      stop regardless — the exclusion covers material cost as well as irreversibility, since declining a costly
-      pass is a spend that cannot be recovered by discarding its output. The closing sentence excludes always-stop
-      interlocks as withheld authorizations rather than degenerate forks.
-    - `AGENT-BRIEF.ARC`'s `Invariant` entry qualifies the marker with "where the rule's own text does not settle
-      it" — which says a rule's text can classify itself, exactly what Clause A denies, on the surface read first.
-      Point the qualifier at the reading instead; zero line delta.
-    - § Verify before assuming's "stop and ask" names three triggers the bullets two lines below tell you to
-      resolve yourself. Keep the requirements trigger, which lives with the user and is undischargeable.
-    - § Review finding mutation guard's `[invariant]` covers verifying findings but not obtaining approval before
-      applying them. Extend it: `review-triage` § Approve before mutation already states that half categorically,
-      and the `task-audit` counter-case depends on it reading as invariant rather than by inference.
-    - § Quality gate failure's "there is nothing to report and" collides with Clause B's surfacing mandate, and
-      § Leave it cleaner's "rather than spending a turn to ask" becomes the general clause's job. Compress both.
-    - `DEV-RULES.PROJECT` § Quality Gates' "No exceptions" is bare emphasis, which Clause A says carries no
-      classifying weight; the reading lands it on invariant regardless. Mark the sentence rather than the heading,
-      so § Selecting what to run's re-execution narrowing survives the marker.
+- _Outcome:_ The always-loaded set takes **+8 nb**, not the notes' estimated +4 — the two clauses cost 9 and the
+  three consistency edits net −1 rather than −5, since extending the mutation-guard marker and splitting the
+  requirements trigger each added a line back. The estimate was never load-bearing: Task 5.R.e re-derives the
+  ledger by measurement. This is the phase's only task touching a tier-1 file, so that measurement stays single.
 
 ### `[ ]` **5.R.b Narrow the session-lifecycle stops**
 

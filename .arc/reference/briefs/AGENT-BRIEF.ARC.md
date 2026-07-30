@@ -65,10 +65,10 @@ Precise meanings — assume the technical sense.
   that fact where the developer is already reading. Every rule ARC states is one unless marked `[invariant]`; see
   DEV-RULES.ARC § Rule Authority for the reading that classifies an unmarked rule and the discharge protocol. Not
   "optional" — silent divergence is a violation, not a discharge.
-- **Invariant:** A rule the agent may not set aside on its own authority, marked `[invariant]` where the rule's own
-  text does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant has
-  a **holder**, and that holder making the reserved decision is the rule working rather than a waiver. Orthogonal
-  to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
+- **Invariant:** A rule the agent may not set aside on its own authority, marked `[invariant]` where the classifying
+  reading does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant
+  has a **holder**, and that holder making the reserved decision is the rule working rather than a waiver.
+  Orthogonal to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
 - **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
   to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
   said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).

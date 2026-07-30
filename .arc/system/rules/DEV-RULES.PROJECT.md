@@ -10,7 +10,7 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
+**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
 
 **Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
 Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.

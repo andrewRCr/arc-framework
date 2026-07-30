@@ -22,6 +22,10 @@ unless marked **invariant**.
 **`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
 whether the _agent_ may set it aside in the moment. Configurability is never itself a discharge.
 
+**Emphasis is not a marker** — `never`, `must not`, and categorical phrasing are how rules are ordinarily written,
+never how they are classified. An emphatic unmarked rule is still unmarked, and the reading below may still land it
+on invariant.
+
 **Reading an unmarked rule.** Ask whether you can name a fact that, if true, means the rule's concern does
 not arise here.
 
@@ -61,6 +65,13 @@ does is move that decision to the agent.
 **Discharging a default.** Name the rule and the fact that discharges it, surface it where the developer is
 already reading — the gate or the completion report, never a log — leave it reversible in one turn, and
 proceed. Raise it once per instance: a reaffirmation is a decision, not an invitation to re-raise.
+
+**A stop with one answer.** A default sometimes stops for a decision with one defensible outcome — you can name the
+alternatives and name them strictly worse. Asking there spends a turn and returns nothing: discharge it as above.
+The discharging fact is that **the action is reversible in one turn**, never your reading that the answer is
+obvious — that reading is what makes you look, not what settles it. Acts that cannot be undone or unspent — a
+merge, a publish, a deletion, a costly pass — stop even when the answer is plain. This reaches no invariant: an
+always-stop interlock is not a one-answer fork, it is an authorization withheld.
 
 **Whose call.** Authority resolves from the actor's role and the surface the rule governs; no rule declares its
 own authority. The owner of the governed surface may discharge a default over it; a rule governing a surface
@@ -238,8 +249,8 @@ manual fresh-session pass; never a primary-context self-pass presented as indepe
 ### Review finding mutation guard
 
 **Verify every review finding against source with your own judgment** · `[invariant]`; reviewer or delegated output
-remains advisory. Present the complete proposed disposition set and obtain approval before applying any
-finding-driven fix. This constraint applies regardless of who reviewed the change or where the findings arrived.
+remains advisory. Present the complete proposed disposition set and obtain approval before applying any finding-driven
+fix · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
 
 ### Task granularity
 
@@ -252,8 +263,7 @@ Break down a task into subtasks if it requires:
 
 If quality gates fail after task completion:
 
-- **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to
-  report and nothing to decide.
+- **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to decide.
 - **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
   auto-fixable lint): fix and re-run immediately; report the correction.
 - **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
@@ -285,9 +295,8 @@ The behavioral floor for everything below — what to do with a concern the mome
 via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
 _same-concern_ cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
 
-**Propose placement before acting** — the agent suggests, the user decides. A deterministic same-concern
-cleanup inside the change already under review discharges that: fix it and name the correction in the
-completion report, rather than spending a turn to ask.
+**Propose placement before acting** — the agent suggests, the user decides. A deterministic same-concern cleanup
+inside the change already under review discharges that: fix it and name the correction in the completion report.
 
 ### Route by urgency × isolation
 
@@ -374,7 +383,8 @@ handoff.
 
 ### Verify before assuming
 
-**When uncertain about implementation details, file locations, or existing content:** stop and ask.
+**When uncertain about requirements:** stop and ask — they live with the user, so no work of yours settles them.
+Implementation details, file locations, and existing content are yours to establish: resolve them at the source.
 
 **Never generate or assume:**
 

@@ -20,7 +20,7 @@ Use this when a domain's rules are substantial enough to warrant separation.
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
+**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
 
 **Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
 integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
