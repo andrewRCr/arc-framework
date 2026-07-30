@@ -401,8 +401,10 @@ unrecognized, malformed, or non-JSON result stops integration — surface its ty
 
 On `reconcile`, continue autonomously only when the typed result carries a validated `baseOid`, complete integration
 evidence, `overlap.status: available`, and an empty `substantivePaths` set. Re-read canonical host mergeability;
-a base conflict stops, and any analyzer/host disagreement stops. Unavailable overlap, incomplete evidence, or a
-substantive interaction also stops rather than weakening the reconcile.
+a base conflict stops, and an analyzer/host disagreement stops unless the conflicting path set is wholly
+regenerable — the same line Step 4's advisory read draws, and the append-only merge below is the authoritative
+test either way. Merging the base **in** is reversible; the merge this step later authorizes is not. Unavailable
+overlap, incomplete evidence, or a substantive interaction also stops rather than weakening the reconcile.
 
 Immediately refresh `arc base drift --json`. A `clean` result skips the merge; a changed `baseOid` restarts this same
 read. When the identical OID still has the safe typed disjoint result, merge it append-only:

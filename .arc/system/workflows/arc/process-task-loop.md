@@ -142,10 +142,11 @@ arc:
      ```
 
      If any item is unchecked, complete it before proceeding. For quality gate failures: fix
-     obvious issues (lint, type errors) and re-run; for non-obvious failures, end the completion
-     report with the structured-prompt variant `Quality gates failed: <details>. Investigate?
-     (y / iterate)` — first-word `y` enters investigation; `iterate` retries the gates after a
-     fix.
+     obvious issues (lint, type errors) and re-run. A non-obvious failure is diagnosed before it
+     is posed — nobody declines a read-only diagnosis, and the fork that matters cannot be stated
+     until the cause is known. Investigate without changing anything, then end the completion
+     report with the structured-prompt variant `Quality gates failed: <details>. <cause>. Fix now
+     or defer? (fix / defer)`. Diagnosis that reaches no cause says so and asks for direction.
 
      **Deferred review:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between

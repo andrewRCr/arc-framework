@@ -159,7 +159,11 @@ problem / scope / principles; TECHNICAL-OVERVIEW covers technical surfaces. A si
 or neither.
 
 **Halt-and-ask condition:** The spec introduces tech (component, framework, dependency, infrastructure choice)
-not in TECHNICAL-OVERVIEW. On detection, halt and surface the drift — user direction needed before save.
+genuinely new to the project. Absence from TECHNICAL-OVERVIEW is the trigger to look, not the finding — the
+common hit is a stale document describing tech the project already carries. Confirm presence against the
+project's technical surface (manifests, lockfiles, config, existing code); on confirmation, note the document's
+staleness and continue. Fail closed: anything not confirmable as already present halts and surfaces the drift —
+user direction needed before save.
 
 The companion downstream condition ("TECHNICAL-OVERVIEW edited since the spec was approved") fires at
 [`activate-work-unit.md`][activate-work-unit] and [`integrate-work-unit.md`][integrate-work-unit], not here — at
