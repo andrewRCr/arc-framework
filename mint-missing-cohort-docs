@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "mint-missing-cohort-docs",
-  "origin": "description",
-  "intent": "Mint the missing configuration and release-readiness cohort coordination docs",
-  "branch": "chore/mint-missing-cohort-docs",
-  "createdAt": "2026-07-30T21:17:33.954Z",
-  "returnBranch": "main"
-}
