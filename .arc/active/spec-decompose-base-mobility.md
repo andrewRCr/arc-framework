@@ -69,12 +69,33 @@ requires the exact clean deterministic candidate, proves that its canonical rece
 the configured base, pins the live base, and merges that base into the candidate without rebase, amend, or
 force-push.
 
-Only canonical ROADMAP regeneration may be resolved automatically. Any other conflict, path/type/mode overlap,
-dependency drift, ref movement, or raised resolution aborts and restores the bounded pre-merge candidate. After the
-merge, the command preserves all semantic destination bytes and modes, regenerates ROADMAP, and stages one
-same-path current receipt accepted by the core hook verdict.
+Only canonical ROADMAP regeneration may be resolved automatically. Recorded path, type, and mode overlap and
+dependency drift are refused ahead of the merge by the landing verdict below, so they abort without mutating
+anything; any other conflict or ref movement, arising once the merge is under way, aborts and restores the bounded
+pre-merge candidate. After the merge, the command preserves all semantic destination bytes and modes, regenerates
+ROADMAP, and stages one same-path current receipt accepted by the core hook verdict.
+
+Repetition follows the same authority rather than a one-shot guard. Re-invocation while the recorded result base
+is still the live base is a no-op over an already-advanced candidate; a base that has advanced again runs the same
+append-only merge again. The candidate stays committed-unlanded across both, so the precondition holds on every
+pass and the recorded-versus-live base comparison distinguishes the two cases without an advancement ledger. A
+one-shot guard would instead defeat the goal wherever a review window is long enough for the base to move twice.
 
 Partial protection commits directly on the configured base and has no committed-unlanded state to advance.
+
+#### The landing verdict gates the merge, and the merge is not a second overlap authority
+
+The command establishes authority before it mutates anything. It validates the finalized receipt canonically —
+the same validation that mints the transition overlay this operation later supplies to ROADMAP regeneration — and
+then runs the descendant-base landing validator over the pinned base and candidate head. A refusal from either
+aborts before any mutation, so the ordinary refusal costs no restore at all.
+
+Only once both admit does the merge run. The two are not redundant and neither subsumes the other: the validator
+is the semantic overlap authority over recorded paths, modes, types, and dependencies, while the merge can still
+conflict on a path the recorded transition never touched. A conflict surviving a clean landing verdict is
+therefore a genuine surprise rather than the expected refusal, and — ROADMAP excepted — it restores rather than
+resolving. Overlap the validator refuses never reaches the merge; overlap only the merge can see never becomes an
+automatic resolution.
 
 #### ROADMAP regeneration supplies its overlay rather than discovering one
 
@@ -88,20 +109,31 @@ with the overlay **supplied**, skipping only the discovery and selection layer t
 That adds no second renderer and no second conflict classifier; the generic remedy keeps its own path unchanged for
 every caller that must still discover.
 
-#### Advancing the base re-derives machine facts and never the cut
+#### Advancing the base re-derives every base-dependent fact and never the cut
 
-The recorded result base is machine-derived, so advancement must restate it. The authored half of the cut map is
-not: it is a separate block whose bytes carry every semantic decision a human made and approved.
+The recorded result base is machine-derived, so advancement must restate it. The authored cut is not: it is a
+separate block whose bytes carry every semantic decision a human made and approved.
 
-The operation therefore substitutes the proven-safe base into the machine facts and re-derives the dependent
-identities through the core's own digest helpers, gated on the landing validator's verdict. It does not re-run
-plan composition, because there is no new plan to compose — and the guards that refuse a moved result base exist
-to stop a plan executing against a base it was not composed for, a doubt the validator has already discharged.
+Restating the base is not a local substitution. The record's identity chain runs from the base through the
+preflight identity, the plan identity, and the preparation identity — and a fourth family of facts, the
+prospective projection carrying the plan-bound overlay and the ROADMAP before/after pair, belongs to neither the
+machine nor the authored block and must move as well, because this command regenerates ROADMAP. Substituting the
+base and re-deriving a chosen few digests would leave the remainder inconsistent and the record unparseable by
+the core's own validator.
 
-One invariant governs the whole operation: **the machine half may advance; the authored half must remain
-byte-identical.** A digest inequality over the authored block aborts and restores. The receipt identity is
-unaffected either way, being derived from origin, source branch, and source head alone, which is what keeps the
-refreshed receipt on its original path.
+The operation therefore re-runs the existing derivation instead of patching its outputs. It restates the result
+base and preflight identity on the recorded cut map, re-composes the repository plan against the proven-safe base
+from that unchanged authored cut, and re-assembles the preparation facts through the same constructor that built
+them the first time. Every base-dependent identity is produced by the producer that owns it, and the core's
+existing cross-checks between plan, map, and facts hold unchanged. Re-composition is not a second decision point:
+the authored cut it composes from is byte-identical, and the incoming edges it reads at the new base are the ones
+the landing validator has already cleared.
+
+One invariant governs the whole operation: **the authored cut must remain byte-identical, and every fact derived
+from the base is re-derived by its own producer.** A digest inequality over the authoring block, or a receipt
+identity that moves, aborts and restores. Receipt identity is what makes the second half of that check meaningful
+— derived from origin, source branch, and source head alone, it is invariant under base movement, which is what
+keeps the refreshed receipt on its original path.
 
 ### Descendant-base landing
 
@@ -125,8 +157,9 @@ The validator is host-neutral. Exact-ref review and optional clearance wiring be
 
 The core defines `DecompositionIntegrationAnchor` and derives it only where the current configured base _is_ the
 landing commit. Mobility reuses that shape unchanged — it already carries `currentBaseHead` and `landedCommitHead`
-as separate fields, so a descendant current base needs no new field, fact, or consumer interface — and extends the
-derivation at two named points:
+as separate fields, so a descendant current base needs no new field on the anchor itself, no second anchor fact,
+and no consumer interface. What the derivation gains is an input, not an output: the producer takes the descent
+relation as a supplied fact (below). It extends at two named points:
 
 - the **pure producer**, which today refuses a descendant current base outright and grants no descendant mobility
   by construction; and
@@ -144,6 +177,13 @@ The anchor's proof is therefore its own: locate the landing commit beneath the a
 base descends from it, and confirm the recorded transition holds between the prepared base and that landing commit.
 Both proofs bind an immutable base/head pair and fail closed on movement; neither substitutes for the other.
 
+The producer performs no ref or history lookup of its own, so descent reaches it as a supplied fact bound to the
+exact landing/current pair it describes; a proof naming any other pair authorizes nothing. What that supplied
+descent replaces is only the producer's exact-equality refusal. The adapter's separate insistence that the
+candidate tree equal the _current base_ tree is not relaxed but retired: read against the located landing commit
+instead, it is already the producer's own landing-tree equality, and duplicating it against a base that has since
+advanced would refuse every descendant case by construction.
+
 Existing exact-base callers keep their current verdicts unchanged, and the anchor's structural consumers are
 unmodified.
 
@@ -155,6 +195,17 @@ The fact is consumer-blind, so descendant reach extends to every consumer at onc
 claim-retirement gate, landed-handoff emission, and the graduation transaction behind work-unit launch. Branching
 it by consumer would mint the second consumer interface this design forbids. The mobility layer performs no
 teardown of its own, and no second receipt or durable publication ledger is introduced.
+
+Consumer-blindness carries a cost that is paid rather than avoided. The producer is reached from two call sites,
+not one — the configured-base adapter and the pure landed-handoff resolver — so the descent fact is a **required**
+input and the handoff path supplies it too: its Git adapter derives the relation exactly as the configured-base
+adapter does, leaving the pure resolver a pass-through that still performs no history search of its own. An
+optional fact defaulting to exact is the cheaper edit and the wrong one, granting descendant reach to one consumer
+while withholding it from another — precisely the per-consumer branching this design forbids.
+
+That distinction reads as a contradiction unless stated precisely. What is unmodified is how the four consumers
+_consume_ a resolved anchor: their code, their contracts, and their refusal reasons. The handoff's own plumbing
+changes because it is a second _producer_ call site, not because the fact was branched for it.
 
 ### Recovery must be able to finish what it starts
 
@@ -184,10 +235,17 @@ remedy, and no parallel mapper. Mismatch loci remain diagnostics and never becom
 
 The new arm's principal duty is to convert one existing dead end. The core refuses a committed candidate parent
 with a `committed-candidate` cause that resolves to prose `guidance` — inspect the committed state instead of
-retrying or discarding it — because at core scope no safe route exists. That is precisely the state this work unit
-repairs, so the cause resolves to `advance-base` whenever the established facts authorize the command, and falls
-back to the existing guidance when they do not. A host unable to retain an immutable base/head pair resolves to
-the same arm.
+retrying or discarding it — because at core scope no safe route exists.
+
+Only one of the states behind that refusal is repairable here. The same refusal fires for a committed preparation
+and for an unparseable record as well as for a committed receipt, and the authorizing facts are identical in all
+three, so authority alone cannot discriminate. The refusal therefore carries the decoded record kind, and only the
+committed-receipt case resolves to `advance-base`; the other two keep the existing guidance, which for them stays
+the honest answer. Routing all three would replace a true dead end with an invocation that refuses later.
+
+Binding unavailability resolves to the same arm through a cause of its own. The action vocabulary gains exactly
+one arm; the cause vocabulary gains one too, because no existing cause represents a host unable to retain an
+immutable base/head pair, and neither a mismatch locus nor a validator-constructed action may carry it.
 
 ## Alternatives & Rationale
 
@@ -227,12 +285,13 @@ Rejected. Exact refs, canonical evidence, bounded Git state, and idempotent retr
 - The shared integration anchor extends to a descendant current base only after the canonical receipt and
   transition validate against the reread configured base.
 - Ref movement, divergence, overlap, or unavailable immutable-pair binding produces one typed recovery action.
-- A committed candidate parent resolves to the actionable `advance-base` arm instead of terminal prose guidance
-  whenever the established facts authorize the command.
+- A committed receipt parent resolves to the actionable `advance-base` arm instead of terminal prose guidance,
+  while a committed preparation or unparseable record keeps its existing guidance.
 - The base-advancing mode stays distinguishable from the core's uncommitted same-base receipt refresh at the
   command surface and in every refusal code.
-- Advancement restates only machine-derived facts; a change to the authored half of the cut map aborts and
-  restores.
+- The landing verdict gates the merge; a refused verdict aborts before any repository mutation.
+- Advancement re-derives every base-dependent fact through its own producer; a change to the authored cut, or a
+  receipt identity that moves, aborts and restores.
 - ROADMAP regenerates through the shared renderer with a supplied overlay, leaving the discovery-based remedy
   unchanged for its own callers.
 - Candidate teardown completes from any partial state, and no terminal refusal advertises a retry that re-enters
