@@ -172,8 +172,14 @@ function anchorRefusal(result: Exclude<ConfiguredBaseDecompositionAnchorResult, 
       return "the decomposition is not landed on the exact configured base";
     case "stale":
       return "the configured base moved during decomposition cleanup selection";
-    case "refused":
-      return `decomposition cleanup authority is unavailable (${result.reason})`;
+    case "refused": {
+      const location = result.reason === "namespace-corrupt"
+        && result.ref !== undefined
+        && result.record !== undefined
+        ? ` at ref ${result.ref}, record ${result.record}`
+        : "";
+      return `decomposition cleanup authority is unavailable (${result.reason}${location})`;
+    }
   }
 }
 
