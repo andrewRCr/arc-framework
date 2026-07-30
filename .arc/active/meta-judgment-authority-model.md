@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — verification; Tier 3 green, 12 success criteria met (one with a recorded deviation)
-- **Next Task:** [none]
+- **Last Completed:** Integration ran to the merge gate, then reopened — a stop-shape gap in the shipped register
+- **Next Task:** [none] — Phase 5.R not yet authored
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Verify the audit findings, then author Phase 5.R and re-open the affected success criteria —
+  inputs in `notes-judgment-authority-model.md` § Remedial phase
 
 - **PR URL:** [none]
 - **Completed:** [none]
