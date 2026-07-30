@@ -274,8 +274,14 @@ function transitionOverlayForRoadmap(
       throw new Error("Merge transition authority is ambiguous");
     case "stale":
       throw new Error(`Merge transition authority is stale: ${result.reason}`);
-    case "refused":
-      throw new Error(`Merge transition authority was refused: ${result.reason}`);
+    case "refused": {
+      const location = result.reason === "namespace-corrupt"
+        && result.ref !== undefined
+        && result.record !== undefined
+        ? ` (ref ${result.ref}, record ${result.record})`
+        : "";
+      throw new Error(`Merge transition authority was refused: ${result.reason}${location}`);
+    }
   }
 }
 

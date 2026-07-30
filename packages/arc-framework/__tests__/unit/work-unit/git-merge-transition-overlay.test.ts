@@ -325,7 +325,12 @@ describe("resolveGitMergeTransitionOverlay", () => {
 
     const result = await resolveGitMergeTransitionOverlay("refs/heads/main", dependencies());
 
-    expect(result).toEqual({ status: "refused", reason: "namespace-corrupt" });
+    expect(result).toEqual({
+      status: "refused",
+      reason: "namespace-corrupt",
+      ref: HEAD_OID,
+      record: receiptPath,
+    });
   });
 
   it("returns no partial overlay when a pinned object read fails", async () => {
