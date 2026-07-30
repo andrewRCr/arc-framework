@@ -2136,9 +2136,9 @@ recorded twice, and `orientation-surface-compression` inherits the first one.
 ## Remedial phase — the stop-shape gap (Phase 5.R, 2026-07-30)
 
 Surfaced during this WU's own integration, after verification passed and after the archive sweep ran. The WU was
-un-archived and reopened to `Active` to take it. Everything below is **unverified advisory input** — five delegated
-read-only audits, no finding checked against source yet. The verification pass is the first task of the phase, and
-nothing here may be applied before its disposition set is approved.
+un-archived and reopened to `Active` to take it. The sections below record the five delegated read-only audits as
+they arrived — advisory input, not findings. § Verification outcome at the end of this section carries the
+approved dispositions and is the authority on what Phase 5.R lands; where the two differ, it wins.
 
 ### What the gap is
 
@@ -2328,6 +2328,58 @@ adjusted by arithmetic — the same rule the earlier re-measurements followed.
 Success criteria to re-open: SC1 (the six-enactments test runs against § Rule Authority, which is changing), SC5
 (re-measure), SC10 (both-copies sync), SC11 (gates), SC12 (ready for integration), plus Task 6.1. SC4 stays met —
 the force-classification sweep is unaffected. One new criterion is needed for the stop-shape sweep.
+
+### Verification outcome (2026-07-30)
+
+Every cited locus was read against source. Locations were accurate except two `draft-design` citations off by one
+line, whose content verified. Sixteen of the twenty proposals were taken; four were rejected. The approved set is
+what Phase 5.R's task bodies carry — this subsection records only what verification added or overturned.
+
+**Two source claims the audits asserted, both confirmed.** `arc user load` writes only under the resolved user
+directory: `deserialize` in `src/lib/git/user-sync.ts` takes `userDir` as its write root and rejects traversal
+segments, so dirt outside that tree genuinely cannot be clobbered by a load. And `session-init` Step 7 does
+designate a cleanly-resolved roster mismatch auto-recover-with-notice, naming branch-gone recovery as its own
+example, which is what makes the `resolved` + `switch` + clean-tree arm a narrowing rather than a loosening.
+
+**Four rejections, in two pairs.**
+
+The first pair is Clause B's firewall working. `generate-tasks`' per-phase confirm gate is a `workflow-interlock`,
+and `AGENT-BRIEF.ARC` classes `workflow-` as always-stop; the closing sentence excludes it by construction.
+`task-audit`'s no-implementing-fixes rule was already held as a counter-finding for the same reason. Keeping both
+as recorded regression cases is the point: the firewall has to be shown holding against a proposal that reached
+it, not only against one nobody made.
+
+The second pair is re-litigation the audits could not have known they were doing — they were given the clauses
+and the two failures, not this work unit's own sweep record. `verify-work-unit`'s criterion-text rule is a family
+`K2` instance, and Task 4.5.a.ii chose "a constitutional statement rather than seven markers"; that statement
+landed in § Rule Authority's pre-commitment-text limb, so marking the site now reverses a settled call and
+re-incurs the concentration cost D3 priced. `draft-design`'s consolidation limb is stronger still: Task 4.6.b
+considered this exact remedy — split the limb out and mark it — and rejected it in those words, fixing the real
+defect instead by stating the discharge and retitling to "No silent detail loss". The audit read the post-fix text
+and re-raised the pre-fix finding; the bullet's own closing sentence already defeats its premise.
+
+The general lesson is cheap to state and was expensive to catch: a delegated audit given a work unit's _output_
+but not its _record_ will re-open decisions the record closed, and the re-openings look exactly like findings.
+
+**Two items the audits did not raise.**
+
+Clause B's exclusion set named only irreversibility, while the `verify-work-unit` / `adversarial-review` counter
+turns on declining a pass being a _material cost_ decision — state-reversible, since the output can be discarded,
+but not cost-reversible. Both live sites defend themselves with categorical phrasing today, so this was not
+urgent, but the whole thesis is that force and shape should be readable without inference. Approved as a forward
+amendment folded into the existing exclusion sentence rather than added as a new one, so the always-loaded delta
+stays near zero: _acts that cannot be undone or unspent_, with a costly pass joining merge, publish, and deletion
+as its fourth example.
+
+The family-`I` record is internally inconsistent. Task 4.1's table parents it at § Rule Authority's backstop limb
+two, while the same section's region-local list — defined as sites whose rule exists nowhere else — names
+`assess-parallel-fit` as site 4. No marker landed in either copy. The parent genuinely covers it, since
+foreign-owned overlap is a decision that commits another person, so no marker is owed and SC4 stands; the
+region-local list is what is wrong. Task 5.R.d corrects the list rather than the markers.
+
+**One coupling worth not losing.** The `task-audit` counter's "this reaches no invariant" escape only works if the
+approval half of § Review finding mutation guard reads as invariant, and today the marker sits on the verification
+half alone. Task 5.R.a's marker extension is therefore load-bearing for a counter-finding, not merely tidy.
 
 ### Lifecycle state at handoff
 

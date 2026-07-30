@@ -1357,26 +1357,152 @@ Requirements alone orphans three.
     - **One determination the columns cannot express** surfaced at Task 5.5: a destination can be reachable and
       still be the wrong audience, which no `C?` or destination value encodes.
 
+## **Phase 5.R:** Stop shape — the second axis
+
+_Purpose:_ § Rule Authority derives whether a rule binds and says nothing about what binding looks like. Two live
+failures show the shape axis is the one still costing turns — an agent stopping on an analyzer/host disagreement
+whose entire cause it could establish, and another asking permission to drop a CI-defer flag and run the full
+suite, where there is no answer but yes. This phase states the shape rule as two clauses in the same section,
+narrows the stops across the core operation substrate those clauses reclassify, and re-derives the ledger the
+additions move.
+
+_Design decisions:_ **Reversibility is the discharging fact**, not the reading that the answer is obvious — the
+inverse weighting is the intuitive one and it is the one this work unit's own demotion columns reject, since
+"there is only one answer here" is the agent estimating its own state. Clause B's closing sentence is the
+**interlock firewall**: without it, "reversible in one turn" reaches the task-interlock, because a commit is
+reversible. Two audit proposals were rejected exactly there and are kept as the firewall's regression cases. The
+audit ran as five delegated read-only regional passes and its output was advisory throughout; verification
+against source rejected four of its twenty proposals, two because they re-opened decisions Phase 4 had already
+settled the other way. Full inputs, dispositions, and reasoning live in `notes-judgment-authority-model.md`
+§ Remedial phase.
+
+### `[ ]` **5.R.a Land the two clauses and reconcile the always-loaded surface**
+
+- _Goal:_ The shape rule is readable from § Rule Authority itself, and the always-loaded surfaces that restate or
+  collide with it stop contradicting it.
+
+- _Note:_ Every edit here lands on a tier-1 full-read file, so this is the phase's only task with ledger impact —
+  which is what lets Task 5.R.e re-derive in one measurement.
+
+    - Clause A into § Rule Authority immediately before "Reading an unmarked rule": emphasis and categorical
+      phrasing are how rules are ordinarily written, never how they are classified.
+    - Clause B immediately after "Discharging a default": a stop with one defensible outcome discharges on
+      **reversibility**, never on the reading that the answer is obvious. Acts that cannot be undone or unspent
+      stop regardless — the exclusion covers material cost as well as irreversibility, since declining a costly
+      pass is a spend that cannot be recovered by discarding its output. The closing sentence excludes always-stop
+      interlocks as withheld authorizations rather than degenerate forks.
+    - `AGENT-BRIEF.ARC`'s `Invariant` entry qualifies the marker with "where the rule's own text does not settle
+      it" — which says a rule's text can classify itself, exactly what Clause A denies, on the surface read first.
+      Point the qualifier at the reading instead; zero line delta.
+    - § Verify before assuming's "stop and ask" names three triggers the bullets two lines below tell you to
+      resolve yourself. Keep the requirements trigger, which lives with the user and is undischargeable.
+    - § Review finding mutation guard's `[invariant]` covers verifying findings but not obtaining approval before
+      applying them. Extend it: `review-triage` § Approve before mutation already states that half categorically,
+      and the `task-audit` counter-case depends on it reading as invariant rather than by inference.
+    - § Quality gate failure's "there is nothing to report and" collides with Clause B's surfacing mandate, and
+      § Leave it cleaner's "rather than spending a turn to ask" becomes the general clause's job. Compress both.
+    - `DEV-RULES.PROJECT` § Quality Gates' "No exceptions" is bare emphasis, which Clause A says carries no
+      classifying weight; the reading lands it on invariant regardless. Mark the sentence rather than the heading,
+      so § Selecting what to run's re-execution narrowing survives the marker.
+
+### `[ ]` **5.R.b Narrow the session-lifecycle stops**
+
+- _Goal:_ Session entry and post-compaction recovery stop only where the deciding fact is not the agent's to
+  establish, and degrade consistently everywhere else.
+
+    - `session-init` § Conditional sync pulls: the `always` → `prompt` degrade fires on any dirty tree, but the
+      load writes only under the resolved user directory. Gate it on the dirty path set intersecting that
+      directory — the **resolved** one, since linked-worktree operation puts it in the primary.
+    - `session-init` § Branch-gone recovery prompts on every `recovery.kind`, while Step 7 designates a clean
+      authoritative resolution auto-recover-with-notice and cites this same mechanism as its example. Scope the
+      auto-recovery to `resolved` + `proposedAction: switch` + a clean tree, reported in orientation; `removable`,
+      `external`, `surface`, and `main-fallback` keep the prompt.
+    - `session-init` item 9's malformed-cursor "stop and surface the diagnostic" reads as halting init, while every
+      neighbouring degradation skips-and-surfaces. Scope it to the task-list read.
+    - `session-init` § Entry dispatch's "do not run your own fetch / `git worktree list` / meta reads" is
+      categorical, while the probe-failure fallback prescribes those exact commands. Scope it to resolved slots.
+    - `session-recover` Step 3's missing-lifecycle-workflow stop covers a deterministic shipped mapping for
+      `execution` and `integration`. Load and surface the omission rather than stopping — the omission is also a
+      signal about the audit that produced the load set, so it is reported, not swallowed. The `planning` limb is
+      genuinely unmapped and keeps its stop.
+    - `session-recover` Step 3's "stop if any required slice cannot be located" is right for the current-task
+      slice, whose failure means the verified anchor is wrong, and wrong for the header and phase preamble, whose
+      failure is a structural-convention miss.
+
+### `[ ]` **5.R.c Narrow the lifecycle and planning-stage stops**
+
+- _Goal:_ The lifecycle and planning stages stop on material disagreement and genuine novelty rather than on a
+  proxy signal whose cause the agent can resolve.
+
+    - `integrate-work-unit` Step 13's "any analyzer/host disagreement stops" is stricter than the same file's
+      advisory read at Step 4, which keeps regenerable-only drift silent. Condition it on the conflicting path set
+      not being wholly regenerable. The narrowing is safe because the append-only merge below it is the
+      authoritative test and keeps its own conflict stop, and because merging the base **in** is reversible —
+      unlike the merge this step later authorizes. Leave the unavailable-overlap, incomplete-evidence, and
+      substantive-interaction stops untouched.
+    - `activate-work-unit` § PROJECT-PRD reads "Soft check; rarely blocks" and then "on conflict, halt and ask",
+      which always blocks. Add the materiality qualifier `integrate-work-unit` already carries for the same family.
+    - `create-spec` § TECHNICAL-OVERVIEW halts when a spec names tech absent from the document, which triggers on
+      doc absence rather than novelty — the common hit is a stale document describing tech the project already
+      has. Condition the halt on genuine novelty and fail closed: anything not confirmable as already present in
+      the project's technical surface still halts.
+    - `generate-tasks` § entry stops on unresolved blockers read from `**Related Work:**`, the field most prone to
+      staleness — the state-blind read § Verify before assuming already forbids. Resolve each blocker against live
+      work-unit state first, then stop only on a genuine one.
+    - `process-task-loop`'s gate-failure prompt ends `Investigate?` for a failure defined as non-obvious, where
+      the alternative is unavailable and the real fork — fix now or defer — cannot be posed until the diagnosis
+      exists. Diagnose read-only, then pose that fork. The mandatory stop is untouched.
+
+### `[ ]` **5.R.d Close the method region and record the sweep**
+
+- _Goal:_ The method region's two live defects are fixed, and every audit proposal — taken or rejected — has its
+  disposition and reasoning recorded where the new success criterion can be validated against it.
+
+    - `testing-standards` `.override`: the CLI destructive-verb clause and the prove-fail-first-after-a-fix clause
+      are the project instantiation of two `.default` rules that carry `[invariant]`, and sit unmarked. Residing
+      in an override section is not a reason to omit the marker — configurability is a different axis. This is an
+      instance-only edit; the package copy carries `[No override configured]`, so it does not mirror.
+    - `assess-parallel-fit`: one sentence, repeated in § The overlap rubric and § Self/foreign asymmetry, carries
+      invariant-strength phrasing across two different acts — reordering a foreign-owned work unit, which commits
+      another person, and starting your own work against an overlapping surface, which commits nobody and which
+      the same file calls advisory and never hard-blocking. Split the two; add no marker.
+    - Record the complete disposition set, including the four rejections with their reasoning: the `generate-tasks`
+      per-phase confirm gate and `task-audit`'s no-implementing-fixes rule as Clause B's two firewall regression
+      cases, and `verify-work-unit`'s criterion-text rule and `draft-design`'s consolidation limb as re-openings of
+      decisions Tasks 4.5.a and 4.6.b settled the other way.
+    - Correct the family-`I` record: Task 4.1's table parents it at § Rule Authority's backstop limb two while the
+      same section's region-local list names `assess-parallel-fit` as a site needing its own marker. The parent
+      covers it — foreign-owned overlap is a decision that commits another person — so no marker is owed, and the
+      list is what is wrong.
+
+### `[ ]` **5.R.e Re-derive the always-loaded ledger against base**
+
+- _Goal:_ The compression claim reflects what this branch actually ships, measured rather than adjusted.
+
+    - Re-measure the tier-1 full-read set end to end against `origin/main`, the way Task 5.7 did. Never adjust the
+      recorded 828 → 716 by arithmetic — the estimate that the clauses and consistency edits land near +4 net is
+      an estimate, and the number that ships is the one the measurement returns.
+    - Re-check the meta file's `## Release Notes Entry` and `## Completion Notes`, both composed at the first
+      integration pass and both citing the superseded figure. They will not look stale, which is the risk.
+
 ## **Phase 6:** Verification
 
-### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Tier 3 whole — Markdown lint (649 files), all three ARC contract checks, TypeScript and shell
-  lint, source and test type checks, 8,373 tests (1 skipped), and the build. All passed.
-- _Success criteria:_ 12 criteria, all met, one with a deviation — the no-bias-guard criterion's regression floor
-  named `integrate-work-unit` and `verify-work-unit` as unchanged, and Task 5.2's quality-gate retarget added
-  fire-point wiring to both. Additive only; no guard removed or weakened. The adversarial verify was offered at
-  `Heavy` and declined.
+- _Note:_ Re-opened for Phase 5.R. The base merge brought `session-locus-model`'s first carve into the tree, so
+  § Selecting what to run resolves to "everything" — the Markdown-only narrowing the first pass used no longer
+  applies.
 
 ---
 
 ## Success Criteria
 
-- `[x]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
+- `[ ]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
   resolve from § Rule Authority with no new per-case rule — judged on whether a reader could reach the same answer
   from the section, never on whether a clause was written
     - The section reproduces the spec's settled normative text byte-for-byte in both copies (Task 1.1), and an
       independent read that did not author it returned nineteen findings, eleven confirmed (Task 1.6).
+    - Re-open: Phase 5.R adds two clauses to the section, so the enactments resolve against changed text.
 
 - `[x]` Autonomous `WORKING-MEMORY` additions resolve to propose-don't-self-add via backstop limb two, **against**
   the satisfaction test's own `default` verdict — the reserved case that tests whether the backstop can overturn
@@ -1401,9 +1527,15 @@ Requirements alone orphans three.
       workflows, 13 extensions. The strategy region re-derived to 21 against the spec's 20, which the criterion's
       re-derive-at-execution wording anticipates.
 
-- `[x]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
+- `[ ]` The stop-shape axis resolves from § Rule Authority the way the force axis does: every audited stop either
+  fires on a condition the agent cannot establish for itself, or is recorded in
+  `notes-judgment-authority-model.md` as a rejected narrowing with its reasoning — judged on whether a reader
+  could reach the same disposition from the section, never on whether a clause was written
+
+- `[ ]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
   `AGENT-BRIEF.ARC`
-    - 828 → 716 nb, **−112 (13.5%)**, re-derived against base rather than carried forward (Task 5.7).
+    - Re-open: Phase 5.R adds shipped surface to the set, so the figure is re-derived at Task 5.R.e rather than
+      adjusted from the 828 → 716 the first pass measured.
 
 - `[x]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
   is operation-anchored, does not key on the agent estimating its own state, and carries a recorded
@@ -1427,16 +1559,18 @@ Requirements alone orphans three.
     - The passthrough is identical in both copies of the method, and § Quality Gate Commands carries commands in
       `QUICK-REFERENCE.md` and in the shipped `QUICK-REFERENCE.template.md`.
 
-- `[x]` Every Framework edit was authored in the package source and synced; every Configurable and
+- `[ ]` Every Framework edit was authored in the package source and synced; every Configurable and
   manifest-unclassified edit reached both copies by hand
     - Every changed file with a counterpart is byte-identical across the copies, except the three
       manifest-unclassified ones — `STRATEGY-INDEX`, `testing-standards`, `DEV-RULES.PROJECT` — each of which
       carries this branch's edits in both copies, which is the expected shape rather than drift.
+    - Re-open: Phase 5.R edits eleven further files, including one instance-only edit inside
+      `testing-standards`' `.override`, whose package counterpart carries no override block to mirror.
 
-- `[x]` All quality gates pass (tests, linting, type checking)
-    - Tier 3 whole: Markdown lint over 649 files, all three ARC contract checks, TypeScript and shell lint, both
-      type checks, 8,373 tests, and the build.
+- `[ ]` All quality gates pass (tests, linting, type checking)
+    - Re-open: Tier 3 runs whole again at Task 6.1, over a tree that now carries TypeScript no gate run on this
+      branch has seen.
 
-- `[x]` Ready for integration
+- `[ ]` Ready for integration
 
 ---
