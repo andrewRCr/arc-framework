@@ -311,12 +311,13 @@ export function deriveLocusReconciliation(options: {
   }
   for (const row of options.rows) {
     if (row.kind !== "stale-record" || row.recordId === null || row.lease?.state !== "dead") continue;
-    const entry = options.records.find((candidate) =>
-      `sha256:${candidate.digest}` === row.recordId
-      && candidate.result.kind === "valid"
-      && candidate.liveness === "dead");
-    if (entry?.result.kind !== "valid") {
+    const entry = options.records.find((candidate) => `sha256:${candidate.digest}` === row.recordId);
+    if (entry === undefined || entry.result.kind !== "valid") {
       derivationStops.push("record-malformed");
+      continue;
+    }
+    if (entry.liveness !== "dead") {
+      derivationStops.push(entry.liveness === "live" ? "lease-live" : "lease-unknown");
       continue;
     }
     internalActions.push({
@@ -407,10 +408,9 @@ export function deriveLocusReconciliation(options: {
       stopReasons.push("lease-unknown");
     }
   }
-  const currentRecordId = options.current.kind === "resolved" ? options.current.activeRecordId : null;
   for (const lock of options.locks) {
     const recordId = `sha256:${lock.digest}`;
-    if (!relevantRecordIds.has(recordId) || recordId === currentRecordId) continue;
+    if (!relevantRecordIds.has(recordId)) continue;
     if (lock.liveness === "live") stopReasons.push("lock-live");
     else if (lock.liveness === "unknown" || lock.result.kind !== "valid") stopReasons.push("lock-unknown");
   }
@@ -452,15 +452,26 @@ function rowStopReasons(row: LocusRowV1): LocusStopReason[] {
   return reasons;
 }
 
-const STOP_REASON_ORDER: readonly LocusStopReason[] = [
-  "primary-dirty", "primary-off-base", "lease-live", "lease-unknown", "lock-live", "lock-unknown",
-  "role-conflict", "record-malformed", "unsupported-version", "identity-malformed", "path-unavailable",
-  "duplicate-locus", "cross-identity", "marker-missing", "subject-unresolved",
-];
+const STOP_REASON_RANK: Record<LocusStopReason, number> = {
+  "primary-dirty": 0,
+  "primary-off-base": 1,
+  "lease-live": 2,
+  "lease-unknown": 3,
+  "lock-live": 4,
+  "lock-unknown": 5,
+  "role-conflict": 6,
+  "record-malformed": 7,
+  "unsupported-version": 8,
+  "identity-malformed": 9,
+  "path-unavailable": 10,
+  "duplicate-locus": 11,
+  "cross-identity": 12,
+  "marker-missing": 13,
+  "subject-unresolved": 14,
+};
 
 function sortStopReasons(reasons: readonly LocusStopReason[]): LocusStopReason[] {
-  const unique = new Set(reasons);
-  return STOP_REASON_ORDER.filter((reason) => unique.has(reason));
+  return [...new Set(reasons)].sort((left, right) => STOP_REASON_RANK[left] - STOP_REASON_RANK[right]);
 }
 
 function compareInternalActions(

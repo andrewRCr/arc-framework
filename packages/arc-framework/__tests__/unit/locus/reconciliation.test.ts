@@ -172,6 +172,24 @@ describe("locus reconciliation", () => {
     })).toMatchObject({ kind: "blocked", reasons: ["subject-unresolved"] });
   });
 
+  it("accumulates and deduplicates transient authority failures", () => {
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      marker: {
+        ...readyMarker,
+        marker: { ...readyMarker.marker, spawningIdentity: "other" },
+      },
+      checkout: { ...checkout, detached: true, branch: null },
+    })).toMatchObject({ kind: "blocked", reasons: ["cross-identity", "subject-unresolved"] });
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      identities: {
+        ...identities,
+        diagnostics: [{ kind: "malformed", key: "errand", message: "Malformed identity" }],
+      },
+    })).toMatchObject({ kind: "blocked", reasons: ["identity-malformed"] });
+  });
+
   it("reports clean when the bounded snapshot needs no repair", () => {
     expect(deriveLocusReconciliation({
       primaryPath: "/repo",
@@ -297,6 +315,65 @@ describe("locus reconciliation", () => {
         authority: null,
       },
     ]);
+    const lockProof = result.internalActions[2]?.proof;
+    const recordProof = result.internalActions[3]?.proof;
+    if (lockProof?.kind !== "lock-present" || recordProof?.kind !== "record-present") {
+      throw new Error("Expected lock and record generation proofs");
+    }
+    expect(lockProof.bytes).not.toBe(lockBytes);
+    expect(recordProof.bytes).not.toBe(recordBytes);
+  });
+
+  it.each([
+    ["live", "lease-live"],
+    ["unknown", "lease-unknown"],
+  ] as const)("classifies valid %s stale-record evidence by liveness", (liveness, reason) => {
+    const stale = record("5", "/stale");
+    expect(deriveLocusReconciliation({
+      primaryPath: "/repo",
+      rows: [staleRow(stale)],
+      diagnostics: [],
+      current: { kind: "none" },
+      adoptionCandidates: [],
+      records: [{
+        kind: "record",
+        name: `locus-${"5".repeat(64)}.json`,
+        digest: "5".repeat(64),
+        path: "/loci/stale.json",
+        result: { kind: "valid", record: stale, bytes: Buffer.from("record-generation") },
+        liveness,
+      }],
+      locks: [],
+    }).reconciliation).toEqual({ kind: "stop", reasons: [reason] });
+  });
+
+  it("stops for a live lock on the active record", () => {
+    const activeRecordId = `sha256:${"6".repeat(64)}`;
+    expect(deriveLocusReconciliation({
+      primaryPath: "/repo",
+      rows: [],
+      diagnostics: [],
+      current: {
+        kind: "resolved",
+        sessionHomeRecordId: null,
+        activeRecordId,
+        parentRecordId: null,
+      },
+      adoptionCandidates: [],
+      records: [],
+      locks: [{
+        kind: "lock",
+        name: `locus-${"6".repeat(64)}.lock`,
+        digest: "6".repeat(64),
+        path: "/locks/live.lock",
+        result: {
+          kind: "valid",
+          holder: { token: "b".repeat(32), anchor: ANCHOR, createdAt: "2026-07-20T00:00:00.000Z" },
+          bytes: Buffer.from("live"),
+        },
+        liveness: "live",
+      }],
+    }).reconciliation).toEqual({ kind: "stop", reasons: ["lock-live"] });
   });
 
   it("stops on malformed selected evidence but ignores unrelated unmanaged checkouts", () => {
@@ -350,6 +427,99 @@ describe("locus reconciliation", () => {
       ...common,
       selected: { recordIds: [malformed.recordId ?? ""] },
     }).reconciliation).toEqual({ kind: "stop", reasons: ["record-malformed"] });
+  });
+
+  it("seeds relevant evidence from ambiguous current state and explicit selections", () => {
+    const ambiguousRecordId = `sha256:${"7".repeat(64)}`;
+    const ambiguousRow: LocusRowV1 = {
+      kind: "malformed-record",
+      checkoutPath: "/ambiguous",
+      primary: false,
+      recordId: ambiguousRecordId,
+      role: null,
+      identity: null,
+      lease: null,
+      frame: null,
+      derived: null,
+      diagnostics: [{
+        code: "record-malformed",
+        source: { kind: "record", key: "ambiguous" },
+        message: "Malformed ambiguous record",
+      }],
+    };
+    expect(deriveLocusReconciliation({
+      primaryPath: "/repo",
+      rows: [ambiguousRow],
+      diagnostics: [],
+      current: {
+        kind: "ambiguous",
+        recordIds: [ambiguousRecordId],
+        reasons: ["role-conflict"],
+      },
+      adoptionCandidates: [],
+      records: [],
+      locks: [],
+    }).reconciliation).toEqual({
+      kind: "stop",
+      reasons: ["role-conflict", "record-malformed"],
+    });
+
+    const selectedRow: LocusRowV1 = {
+      ...ambiguousRow,
+      kind: "unmanaged-checkout",
+      checkoutPath: "/selected",
+      recordId: null,
+      diagnostics: [{
+        code: "path-unavailable",
+        source: { kind: "checkout", key: "/selected" },
+        message: "Selected checkout path is unavailable",
+      }],
+    };
+    expect(deriveLocusReconciliation({
+      primaryPath: "/repo",
+      rows: [selectedRow],
+      diagnostics: [{
+        code: "identity-malformed",
+        source: { kind: "identity", key: "selected-identity" },
+        message: "Selected identity is malformed",
+      }],
+      current: { kind: "none" },
+      adoptionCandidates: [],
+      records: [],
+      locks: [],
+      selected: {
+        checkoutPaths: ["/selected"],
+        identityKeys: ["selected-identity"],
+      },
+    }).reconciliation).toEqual({
+      kind: "stop",
+      reasons: ["identity-malformed", "path-unavailable"],
+    });
+  });
+
+  it("stops when two applicable candidates derive the same internal action", () => {
+    const duplicateCandidate = {
+      kind: "applicable",
+      action: "adopt-work-unit",
+      checkoutPath: "/wu",
+      recordId: `sha256:${"8".repeat(64)}`,
+      proof: { kind: "record-absent", path: "/loci/wu.json" },
+      marker: "verified",
+      subjectKey: "demo",
+      identityKey: null,
+    } satisfies LocusAdoptionCandidate;
+    expect(deriveLocusReconciliation({
+      primaryPath: "/repo",
+      rows: [],
+      diagnostics: [],
+      current: { kind: "none" },
+      adoptionCandidates: [duplicateCandidate, duplicateCandidate],
+      records: [],
+      locks: [],
+    })).toEqual({
+      reconciliation: { kind: "stop", reasons: ["duplicate-locus"] },
+      internalActions: [],
+    });
   });
 
   it("stops in fixed order for unsafe targets, alias ambiguity, and malformed identity authority", () => {
