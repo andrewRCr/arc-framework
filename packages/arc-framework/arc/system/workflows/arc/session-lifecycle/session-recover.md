@@ -108,14 +108,19 @@ Apply each entry's `readMode`:
        checkbox inside that section.
 
   If offsets are needed, build one structural map from phase/task headings rather than repeated
-  ad hoc searches. Stop if any required slice cannot be located.
+  ad hoc searches. Stop if the current task section cannot be located — the verified anchor is
+  then wrong, which is not yours to resolve. A missing header or phase preamble is a
+  structural-convention miss instead: surface it and continue with the slices that resolved.
 
 Preserve the manifest order when reconciling loaded content and deciding what procedural
 context applies, even when the reads complete out of order.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
-one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
-and surface the missing workflow pointer. For planning recovery, do not treat `Current Workflow`
+one. For an execution or integration resume the mapping is a deterministic shipped table, so an
+absent entry is a projection defect rather than a missing decision: load the mapped workflow and
+surface the omission rather than stopping — the gap is itself a signal about the audit that
+produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
+and keeps its stop. For planning recovery, do not treat `Current Workflow`
 as authoritative by itself; if the stage is unclear from deterministic state plus the harness
 summary, stop for direction.
 
