@@ -69,6 +69,7 @@ describe("review-gate package boundary", () => {
       "neverthrow",
       "semver",
       "string-width",
+      "which-command",
       "zod",
     ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);

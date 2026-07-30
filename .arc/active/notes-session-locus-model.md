@@ -830,22 +830,22 @@ The ledger records durable intent and the last reconciled fact, not live GitHub 
 authoritative for branch heads, checks, reviews, and merges. On a mismatch, proceed from live truth and repair the
 ledger in the next safe pre-review commit.
 
-| Slice | Status                 | PR   | Landed on `main` |
-| ----- | ---------------------- | ---- | ---------------- |
-| S0    | landed                 | #395 | `bb6803b62`      |
-| S1    | awaiting hosted review | #396 | —                |
-| S2    | blocked by S1          | —    | —                |
-| S3    | blocked by S2          | —    | —                |
-| S4    | blocked by S3          | —    | —                |
-| S5    | blocked by S4          | —    | —                |
-| S6    | blocked by S5          | —    | —                |
-| S7    | blocked by S6          | —    | —                |
-| S8    | blocked by S7          | —    | —                |
-| S9    | blocked by S8          | —    | —                |
-| S10   | blocked by S9          | —    | —                |
-| S11   | blocked by S10         | —    | —                |
-| S12   | blocked by S11         | —    | —                |
-| S13   | blocked by S12         | —    | —                |
+| Slice | Status         | PR   | Landed on `main` |
+| ----- | -------------- | ---- | ---------------- |
+| S0    | landed         | #395 | `bb6803b62`      |
+| S1    | landed         | #396 | `56d52f013`      |
+| S2    | closure review | #397 | —                |
+| S3    | blocked by S2  | —    | —                |
+| S4    | blocked by S3  | —    | —                |
+| S5    | blocked by S4  | —    | —                |
+| S6    | blocked by S5  | —    | —                |
+| S7    | blocked by S6  | —    | —                |
+| S8    | blocked by S7  | —    | —                |
+| S9    | blocked by S8  | —    | —                |
+| S10   | blocked by S9  | —    | —                |
+| S11   | blocked by S10 | —    | —                |
+| S12   | blocked by S11 | —    | —                |
+| S13   | blocked by S12 | —    | —                |
 
 **External gate satisfied:** `decompose-transform-integrity` delivery 05 (PR #392) merged as `f69cc4a46`, delivery
 06 (PR #393) merged as `2beef3fa2`, and bespoke closeout PR #394 merged as `b5bf493db`. S0 cuts from that closeout
@@ -875,7 +875,7 @@ dispositions to the PR rather than copying them here.
   including the regenerated `ROADMAP` hunk.
 - **State:** PR #395 accepted head `52693a754` without hosted review and landed through merge commit `bb6803b62`.
 
-#### S1 locus record substrate — constructing
+#### S1 locus record substrate — landed
 
 - **Donor/base proof:** `archive/session-locus-model-donor-fa3c10f0e` ported onto detached `origin/main`
   `62504727c`; the eleven-file baseline is 1,062 additions and its 16 focused tests pass.
@@ -905,9 +905,81 @@ dispositions to the PR rather than copying them here.
 - **Entry base:** `origin/main` `bb6803b62`, the S0 merge.
 - **Gate evidence:** The complete local gate set passed on the second-fix tree after the focused mint-concurrency
   regressions proved both failure modes against the pre-fix behavior.
-- **State:** Draft PR #396 is in its second hosted-review fix round. The base and previously reviewed bytes remain
-  tree-identical, so the next exact head requires another incremental CodeRabbit review; the initial full review
-  plus both incremental ranges retain complete exact-target coverage.
+- **Hosted review:** CodeRabbit covered the complete target through the initial full review and two composable
+  incremental fix reviews, then approved exact accepted head `c055a31cf`.
+- **State:** PR #396 accepted head `c055a31cf` and landed through merge commit `56d52f013`.
+
+#### S2 process and platform inspection — closure repair
+
+- **Entry base:** `origin/main` `56d52f013`, the S1 merge.
+- **Capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
+  durable ARC process rather than an invocation wrapper.
+- **Whole-file donor manifest:** `locus/{platform-inspectors,process-exec,process-inspector}.ts`, their direct unit
+  tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
+- **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
+  `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
+- **Exact closure measurement:** 2,051 additions plus 37 deletions (2,088 changed lines) across fifteen files
+  against `56d52f013`.
+- **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
+  preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
+  interactive shell. The accepted repair also covers the real native binding and reduces BSD ancestry inspection
+  from three process calls to two while keeping command identity independently parseable. The requested duplicate
+  literal `npm exec` test was declined because that exact identity is already covered; no unsupported platform
+  rationale was added. The incremental `0ade00809..a70ca7d4a` follow-up found one further test gap: its native
+  cancellation proof aborted before the child started. The accepted repair now waits for a real child-start marker
+  before aborting. That incremental pass skipped three similar repair files, including the critical
+  `process-exec.ts` correction, so a fresh whole-target review replaced incremental composition.
+- **Whole-target review repair:** CodeRabbit then covered exact target `56d52f013..9b22f5637` and requested six
+  corrections. The accepted repair adds the native process contract to the existing Windows/macOS portability
+  pair, enforces the aggregate output budget as bytes with conservative half-per-stream caps, inlines validated
+  PIDs into final-position PowerShell commands, composes caller cancellation with the inspection deadline, uses the
+  exact shell `-c`/`-lc` operand for snapshot-wrapper recognition, and removes the test helper's `process` shadow.
+  The nonblocking documentation-coverage warning was declined because the project has no percentage target and the
+  exported surface already carries the required TSDoc.
+- **Hosted portability repair:** The six-finding repair landed on the branch as `14f3e23b3`. Deferred run
+  `30504442674` behaved as designed, and the one full run triggered by removing `ci-defer-heavy`,
+  `30504638253`, passed at that exact head. Hosted dispatch `30505257563` then exposed two platform-specific
+  contract gaps: unresolved Windows commands reached `cmd.exe` and produced ordinary nonzero results, while macOS
+  `ps` emitted a diagnostic nonzero result for the missing PID. The accepted correction resolves Windows commands
+  through the same executable lookup Execa uses and classifies an unresolved native `.exe` as missing before
+  invocation. It also requires a signal-zero `ESRCH` result before a BSD diagnostic nonzero query may establish
+  absence; successful, permission-denied, and other signal probes remain unknown-safe. That repair landed as
+  `e68765c32`; exact-head self-hosted run `30506635277` passed after its unrelated 120-second lifecycle fixture
+  cleared on one failed-job rerun. Hosted dispatch `30507550484` proved the BSD correction on macOS and the missing
+  executable correction on Windows, then exposed a harness-only timeout: the stable-generation contract performs
+  four sequential inspections but inherited the same five-second Vitest cap as each individual native invocation.
+  The accepted correction gives that aggregate contract probe 25 seconds without changing the production deadline
+  and landed as `c0269aa5d`. Exact-head run `30508182058` then repeated the unrelated lifecycle fixture failure at
+  121.672 seconds. Its preceding exact run failed at 121.722 seconds, while the intervening success at 119.614
+  seconds left less than one second of headroom. The accepted correction raises only that canonical installed-surface
+  decomposition fixture to 150 seconds; the global E2E timeout and every behavioral assertion remain unchanged.
+- **Gate evidence:** The complete local gate set passed on both review-repair trees: 8,444 tests passed and one
+  skipped, with TypeScript and shell lint, both typechecks, and the build green. Full exact-head CI run
+  `30502568032` is green at whole-target review head `9b22f5637` after the unchanged lifecycle-exit timeout passed
+  on its one failed-job rerun; the in-flight cancellation test additionally proved sensitive by failing against a
+  temporarily removed native cancel binding before passing against the restored production boundary. The
+  six-finding repair's complete local gate passed with 8,449 tests and one skip; its aggregate-output regression
+  first returned cancellation against the pre-fix native boundary, then passed as an in-flight output-limit proof.
+  The hosted-portability repair and 25-second contract-probe timeout tree each passed the complete local code tier
+  with 8,452 tests and one skip; the BSD regression first returned `unverifiable` against the pre-fix adapter, then
+  passed. The two exact-head lifecycle failures provide the fail-first evidence for its fixture-specific 150-second
+  correction. That correction passed its focused installed-surface fixture and the complete local gate with 8,452
+  tests and one skip. It landed as code candidate `d3dfdad67`, whose exact-head self-hosted run `30509674582`
+  passed every lane, including the lifecycle fixture without retry. Hosted dispatch `30510148067` passed macOS.
+  Its first Windows attempt showed platform-wide runner degradation — 22 failures across unrelated process and Git
+  suites plus unavailable CIM inspection — rather than the prior narrow contract failure. A retry of only that
+  Windows job on the same SHA passed in 2 minutes 7 seconds, confirming the first attempt as transient.
+- **Closure review:** CodeRabbit covered exact incremental range `14f3e23b3..ce68d9932` and opened four threads.
+  The accepted repair rejects invalid output limits before native execution and structurally verifies the known
+  top-level snapshot-source and ARC-eval command sequence instead of matching quoted lookalikes. The apparent
+  11-versus-15-file mismatch came from comparing the donor manifest plus inherited planning files with the final
+  target: dependency packaging, its packaging assertion, and the lifecycle fixture legitimately add four files.
+  The final measurement stays fifteen files and both the ledger and PR summary must use the same exact target.
+  The request to replace conservative half-per-stream caps was declined: Execa applies `maxBuffer` per descriptor,
+  so allowing either stream the full limit would permit twice the aggregate memory budget.
+- **State:** PR #397 is in closure repair. The complete local mixed gate passes with 8,458 tests and one skip.
+  Closure requires commit and push, exact-head CI, and one final incremental CodeRabbit review from `ce68d9932`
+  through the repair head.
 
 ### Resume protocol
 
