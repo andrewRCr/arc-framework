@@ -2130,3 +2130,209 @@ clause names `on-task-approval` where `process-task-loop` covers `on-task-approv
 degraded in place, silently, with no gate and no symptom — which is the enabling-content failure mode from Task
 4.5.b arriving in a second guise. Two instances is not yet a pattern worth a mechanism, but the shape is now
 recorded twice, and `orientation-surface-compression` inherits the first one.
+
+---
+
+## Remedial phase — the stop-shape gap (Phase 5.R, 2026-07-30)
+
+Surfaced during this WU's own integration, after verification passed and after the archive sweep ran. The WU was
+un-archived and reopened to `Active` to take it. Everything below is **unverified advisory input** — five delegated
+read-only audits, no finding checked against source yet. The verification pass is the first task of the phase, and
+nothing here may be applied before its disposition set is approved.
+
+### What the gap is
+
+§ Rule Authority derives **force** — whether a rule binds. It says nothing about **shape** — when a rule does bind,
+whether the right move is stop-and-ask or act-and-report. Two live failures show the second axis is the one still
+costing turns:
+
+1. Step 13 of `integrate-work-unit.md` says "any analyzer/host disagreement stops." An agent hit a disagreement
+   whose entire cause it could establish — the only conflicting path was a generated projection with a shipped
+   deterministic regenerator — and stopped anyway.
+2. In an unrelated session, an agent asked permission to remove a CI-defer flag and run the full suite. There is no
+   answer but yes.
+
+The corpus has already made this call correctly at least three times and never generalized it: § Quality gate
+failure's "the gate never ran ... nothing to report and nothing to decide"; § Leave it cleaner's "fix it and name
+the correction in the completion report, rather than spending a turn to ask"; and the discharge protocol itself.
+The audits found three more — `adversarial-review.md:211`, `classify-work-unit.md:89`,
+`resolve-planning-depth.md:78`. That is the same propagation gap this WU's Introduction catalogues, recurring on a
+different axis.
+
+### The two clauses — approved phrasing, verbatim
+
+The wording below is settled and approved; only the indentation and line wrapping are artifacts of recording it
+here. Re-wrap at 120 on insertion and drop the indent.
+
+**Clause A**, into § Rule Authority immediately before "Reading an unmarked rule":
+
+    **Emphasis is not a marker** — `never`, `must not`, and categorical phrasing are how rules are ordinarily
+    written, never how they are classified. An emphatic unmarked rule is still unmarked, and the reading below
+    may still land it on invariant.
+
+**Clause B**, into § Rule Authority immediately after "Discharging a default":
+
+    **A stop with one answer.** A default sometimes stops for a decision with one defensible outcome — you can
+    name the alternatives and name them strictly worse. Asking there spends a turn and returns nothing: discharge
+    it as above. The discharging fact is that **the action is reversible in one turn**, never your reading that
+    the answer is obvious — that reading is what makes you look, not what settles it. Irreversible acts — a merge,
+    a publish, a deletion — stop even when the answer is plain. This reaches no invariant: an always-stop
+    interlock is not a one-answer fork, it is an authorization withheld.
+
+Three settled decisions inside that phrasing, each of which a rewrite would silently undo:
+
+- **Reversibility is the discharging fact; the one-answer reading only triggers the look.** The inverse weighting
+  is the intuitive one and it is wrong — "there is only one answer here" is the agent estimating its own state,
+  which this WU's own demotion columns reject as a trigger. Reversibility is checkable from outside.
+- **"The discharging fact is"** rather than "The license is" — this snaps the clause into § Rule Authority's
+  existing dischargeability frame instead of introducing a second axis beside it. It is also what keeps the
+  `Dischargeable` vocabulary entry accurate with no edit.
+- **The closing sentence is the interlock firewall.** Without it, "reversible in one turn" can be argued to reach
+  the task-interlock, since a commit is reversible. Naming interlocks as withheld authorizations rather than
+  degenerate forks closes that.
+
+Clause B points at "Discharging a default" rather than restating it — an earlier draft repeated two sentences that
+sit within ten lines of the insertion point. Rejected from the audit's proposed wording: "the backstop above
+already catches them," because the backstop catches authorizations reserved to a person, and deleting your own
+local branch is irreversible without being reserved to anyone.
+
+### The one finding that must land or Clause A is defeated
+
+`AGENT-BRIEF.ARC.md:68-69` defines Invariant as "marked `[invariant]` **where the rule's own text does not settle
+it**." That says a rule's own text can settle its classification, which is exactly what Clause A denies. Both
+surfaces are always-loaded and the brief is read first, so as things stand Clause A is defeated at the vocabulary
+entry before `DEV-RULES.ARC` is reached. Reword the qualifier to point at the reading rather than the text; zero
+line delta.
+
+### Audit scope and method
+
+Five delegated read-only agents, one per region, each given both clauses and the two motivating failures, each
+asked for Class B (degenerate stop), Class A (overstated force), and counter-findings. Regions: 26 methods; 12
+work-unit-lifecycle workflows; 6 session-lifecycle workflows; 4 top-level workflows (`process-task-loop`,
+`create-spec`, `draft-design`, `generate-tasks`); 2 rules files + `AGENT-BRIEF.ARC`. Deliberately **out** of scope:
+extensions, strategies, and the rarely-invoked workflows — core operation substrate only.
+
+Totals: ~13 Class B, ~6 Class A (all in the _stricter_ direction — marker gaps, not loosenings), ~20 counters. No
+agent proposed loosening an interlock, the merge gate, a branch deletion, or a force-push guard.
+
+### Class B — proposed narrowings
+
+- **`integrate-work-unit.md:404`** — "a base conflict stops, and any analyzer/host disagreement stops." The same
+  file already draws the right line at `:217-218` ("Keep `clean` and regenerable-only drift silent") and `:219-220`
+  (append-only reconcile "without a permission stop"). Step 13 inherits none of it, so the authoritative read is
+  stricter than the advisory read for a cause both can see. Condition the stop on the conflicting path set not
+  being wholly regenerable.
+- **`session-init.md:268-272`** — `init_load.notes: always` degrades to `prompt` on any dirty tree, but
+  `arc user load` writes only under `.arc/user/{identity}/`, so dirt in `src/` prompts about notes it cannot
+  touch. The clause names its own discharge in the next sentence (a pre-load backup ships with the command).
+  Gate the degrade on the dirty path set intersecting the user tree.
+- **`session-init.md:66-77`** vs **`:1031`** — branch-gone recovery prompts even on `kind: resolved`, while Step 7
+  designates that case auto-recover-with-notice and cites that same mechanism as its example of clean authority.
+  Scope to `resolved` + `proposedAction: switch` + clean tree; every other kind keeps the prompt.
+- **`session-recover.md:116-118`** — stops when no lifecycle workflow is present for an execution or integration
+  resume, though the mapping is a deterministic shipped table (`session-init.md:517-528`). The `planning` limb is
+  genuinely unmapped and keeps its stop.
+- **`session-init.md:493-494`** — a malformed `taskCursor` "stop" reads as halting init over a line hint, while
+  every neighbouring degradation resolves to skip-and-surface. Scope it to the task-list read.
+- **`session-recover.md:111`** — "stop if any required slice cannot be located" is right for the current task
+  section and wrong for the header and phase preamble, which are structural-convention misses.
+- **`DEV-RULES.ARC.md:377`** — "When uncertain about implementation details, file locations, or existing content:
+  stop and ask" contradicts its own bullets two lines later ("read the actual implementation", "resolve it by slug
+  with `arc status <slug>`"). Preserve the fourth trigger: requirements live with the user and are undischargeable.
+- **`activate-work-unit.md:53`** — "Soft check; rarely blocks ... on conflict, halt and ask" is self-contradictory;
+  `integrate-work-unit.md:303` already carries the right qualifier ("material disagreement") for the same family.
+- **`create-spec.md:160-162`** — halts when a spec names tech absent from TECHNICAL-OVERVIEW. Triggers on doc
+  absence rather than novelty; the common hit is a stale doc where the component is already in the lockfile.
+- **`process-task-loop.md:144-148`** — on gate failure the report ends `Investigate?`. Nobody declines a read-only
+  diagnosis, and the real fork cannot be posed until the diagnosis exists. Does not touch the mandatory stop.
+- **`generate-tasks.md:28-31`** — stops on `Related Work:` blockers read from recorded state, the field most prone
+  to staleness. Resolve the blocker against actual WU state first.
+- **`generate-tasks.md:280-281, 307-313`** — the per-phase confirm gate fires even on a phase whose audit returned
+  nothing, voiding its own stated rationale. Weaker: a progress checkpoint has independent value.
+- **`issue-triage.md:34-35`** — self-flagged as lowest confidence. The cross-module ask presents a fork the method
+  itself has already ranked, but scope-purity is a real standing operator preference. May drop out on verification.
+
+### Class A — proposed marker additions and one split
+
+All in the stricter direction. These are gaps the force sweep left, not loosenings.
+
+- **`DEV-RULES.ARC.md:240-242`** — `[invariant]` attaches to the "verify every finding" sentence but not to the
+  adjacent "obtain approval before applying any finding-driven fix." Post-Clause-B this is the likeliest misread in
+  the file, and closing it costs ~14 characters.
+- **`testing-standards.md:36, 39-41`** — the `.default` block below carries three `[invariant]` markers including
+  "See it fail first"; these two clauses are that rule's teeth and sit unmarked in `.override`. Residing in an
+  override section is not a reason to omit the marker — configurability is a different axis.
+- **`DEV-RULES.PROJECT.md:13`** — "No exceptions" is bare emphasis, so Clause A says it carries no classifying
+  weight; the reading lands it on invariant anyway. The inverse risk: a reader applying Clause A concludes the
+  emphasis is decorative. § Selecting what to run's scope narrowing must survive any marker.
+- **`verify-work-unit.md:41`** — "Criterion text is immutable" echoes the pre-commitment-text invariant unmarked.
+  Optional; the central rule already governs.
+- **`assess-parallel-fit.md:58-60, 84-85`** — not a marker but a **split**. One sentence carries
+  invariant-strength phrasing across two acts: reordering a foreign-owned WU (commits another person — correctly
+  invariant) and starting your own parallel WU against an overlapping surface (commits nobody, and the same file
+  says the read is "advisory, never gating" at `:18` and "never hard-blocks" at `:92`).
+- **`session-init.md:168-169`** — "do not run your own fetch / `git worktree list` / meta reads" is categorical and
+  unmarked, while `:48-52` prescribes those very commands as the probe-failure fallback. Scope to resolved slots.
+- **`draft-design.md:157, 164-166`** — "No silent detail loss" is categorical but sits under a "three leans, never
+  hard gates" header, which reads as licensing the loss. Separate it out of the lean set.
+
+### Counter-findings worth keeping
+
+The one that matters most: **`task-audit.md:92`** ("Do not implement fixes — present findings and let the caller
+decide"). The edit is reversible in one turn and the fix is often obvious, so Clause B's criterion appears to reach
+it. It must not: a task line is pre-commitment text, already `[invariant]`. **This is the case that proves
+reversibility is necessary but not sufficient — the invariant check runs first.** Clause B as phrased handles it
+via its closing sentence, so this is a passed stress test rather than a needed change; keep it as the phrase's
+regression case.
+
+Others held for the same reason and should not be revisited: the task / workflow / integration interlocks; merge
+authority; `review-triage.md:57-62` and `self-review.md:53-54` (rejecting a valid finding is grading your own
+work); `deactivate-work-unit.md:203` and `:41` (branch deletion, shared branches); `session-init.md:692` (`--hard`
+reset also discards uncommitted work), `:760-764` (notes compaction rewrites a shared ref), `:752` (force-push);
+`session-state.md:28` (a notes push publishes to a shared ref, and the prompt is a configured preference);
+`verify-work-unit.md:66-68` and `adversarial-review.md:155-163` (declining an adversarial pass is a **material
+cost** decision — a distinct exclusion from reversibility, and worth remembering as one).
+
+### Consistency edits — net token win
+
+Beyond the `AGENT-BRIEF.ARC` contradiction above, the always-loaded surface can pay for most of the two clauses:
+
+- **`DEV-RULES.ARC.md:255-256`** — "there is nothing to report and nothing to decide" collides with Clause B's
+  surfacing mandate. Reconcilable on reflection (a wrong invocation sets no rule aside, so there is no discharge to
+  disclose), but the two sit in the same always-loaded file. Dropping "there is nothing to report and" removes the
+  collision and shortens.
+- **`DEV-RULES.ARC.md:288-290`** — § Leave it cleaner's "rather than spending a turn to ask" becomes the general
+  clause's job once Clause B states it. Compress; keep the quality-gate bullet at `:257-258`, which is
+  operationally distinct.
+- No change needed to § Recommend on advisory forks or § Clarifying questions: a fork with one defensible option
+  is not an advisory fork, and the latter is already scoped by "design alternatives **that need decisions**."
+
+Estimated landing: **+4 lines net** on the always-loaded set rather than +9.
+
+### Ledger consequence
+
+The measured compression was 828 → 716 nb (−112, −13.5%). The clauses plus consistency edits move it to roughly
+724 (−104, −12.6%). SC5's "net shorter" still holds, but the number must be **re-derived at execution**, never
+adjusted by arithmetic — the same rule the earlier re-measurements followed.
+
+### Phase plan
+
+1. Verify every finding above against source. Judgment, not delegable; the agents' output is advisory. Then present
+   the complete proposed disposition set and obtain approval before applying anything.
+2. Land Clause A, Clause B, and the `AGENT-BRIEF.ARC` reword in both copies.
+3. Apply the approved narrowings and marker additions in both copies.
+4. Re-derive the always-loaded ledger against base.
+5. Re-run Tier 3 whole. The base merge brought `session-locus-model`'s D1 carve into the tree, so the relevance
+   table now reads "everything" — the earlier Markdown-only narrowing no longer applies.
+
+Success criteria to re-open: SC1 (the six-enactments test runs against § Rule Authority, which is changing), SC5
+(re-measure), SC10 (both-copies sync), SC11 (gates), SC12 (ready for integration), plus Task 6.1. SC4 stays met —
+the force-classification sweep is unaffected. One new criterion is needed for the stop-shape sweep.
+
+### Lifecycle state at handoff
+
+The WU was archived to `completed/2026-q3/40_judgment-authority-model/` and then restored by reverting that commit,
+so the archive numbering and the Release Notes / Completion Notes composition are already written and will need
+re-checking against whatever this phase changes. PR #398 is open as a **draft**. `arc reopen` could not run — its
+merge-state probe times out on this repository — so the reopen was performed by hand and the defect is captured to
+`USER-INBOX § Errand`. `ROADMAP` still reads `Integrating`; it regenerates at the next `arc integrate`.
