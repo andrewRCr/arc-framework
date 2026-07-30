@@ -17,8 +17,7 @@
 - **Next Task:** Task 5.4 — Authoring tier — compress in place (line ~1218)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.4 — compress four sections in place with no constraint leaving the file; only
-  5.4.a mirrors to the template, and 5.4.d also relocates the leak rule within the file
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

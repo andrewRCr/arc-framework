@@ -1359,48 +1359,84 @@ Requirements alone orphans three.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 whole — Markdown lint (649 files), all three ARC contract checks, TypeScript and shell
+  lint, source and test type checks, 8,373 tests (1 skipped), and the build. All passed.
+- _Success criteria:_ 12 criteria, all met, one with a deviation — the no-bias-guard criterion's regression floor
+  named `integrate-work-unit` and `verify-work-unit` as unchanged, and Task 5.2's quality-gate retarget added
+  fire-point wiring to both. Additive only; no guard removed or weakened. The adversarial verify was offered at
+  `Heavy` and declined.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
+- `[x]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
   resolve from § Rule Authority with no new per-case rule — judged on whether a reader could reach the same answer
   from the section, never on whether a clause was written
+    - The section reproduces the spec's settled normative text byte-for-byte in both copies (Task 1.1), and an
+      independent read that did not author it returned nineteen findings, eleven confirmed (Task 1.6).
 
-- `[ ]` Autonomous `WORKING-MEMORY` additions resolve to propose-don't-self-add via backstop limb two, **against**
+- `[x]` Autonomous `WORKING-MEMORY` additions resolve to propose-don't-self-add via backstop limb two, **against**
   the satisfaction test's own `default` verdict — the reserved case that tests whether the backstop can overturn
   its primary test
+    - Task 1.6.c verified corpus-independence directly: no propose-versus-self-add rule ships anywhere in the
+      package tree. Every operative clause had been rule-indexed, so the falsifier did not run until
+      `Both limbs reach acts, not only rules` closed the act-versus-rule gap.
 
-- `[ ]` No bias-guard is cut or weakened in `DEV-RULES.ARC` or `DEV-RULES.PROJECT`, and `integrate-work-unit` and
+- `[x]` No bias-guard is cut or weakened in `DEV-RULES.ARC` or `DEV-RULES.PROJECT`, and `integrate-work-unit` and
   `verify-work-unit` survive unchanged
+    - **Deviation.** The first clause holds; the second is literally breached. Task 5.2's quality-gate retarget
+      edited both workflows in both copies — 12 and 8 lines — to add a `quality-gate-commands` declaration, three
+      fire-point references, and two link definitions. **Purely additive: nothing removed, nothing weakened, no
+      guard touched.** The regression floor was written before the retarget's fire sites were known, and the spec
+      itself records that scoping the safety check to these two files alone would make the criterion
+      unfalsifiable — the governed-surface arm carries the weight.
 
-- `[ ]` Every rule-carrying method, strategy, workflow, and extension document in the **shipped** corpus is read
+- `[x]` Every rule-carrying method, strategy, workflow, and extension document in the **shipped** corpus is read
   for imperatives the default-unless-marked reading would reclassify, and each one found either takes a marker or
   is recorded as an accepted reclassification with its reasoning, in `notes-judgment-authority-model.md`
+    - All four regions swept and recorded, corpora re-derived at execution: 25 methods, 21 strategies, 36
+      workflows, 13 extensions. The strategy region re-derived to 21 against the spec's 20, which the criterion's
+      re-derive-at-execution wording anticipates.
 
-- `[ ]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
+- `[x]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
   `AGENT-BRIEF.ARC`
+    - 828 → 716 nb, **−112 (13.5%)**, re-derived against base rather than carried forward (Task 5.7).
 
-- `[ ]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
+- `[x]` No constraint left the always-loaded set; every demoted line lands at a destination whose summoner fires,
   is operation-anchored, does not key on the agent estimating its own state, and carries a recorded
   constraint-or-not determination
+    - Task 5.7. One limit the columns cannot express surfaced at Task 5.5 — a destination can be reachable and
+      still be the wrong audience.
 
-- `[ ]` Every destination this register demotes into is a file projects actually receive — verified against the
+- `[x]` Every destination this register demotes into is a file projects actually receive — verified against the
   install recipe, not against the package tree — or the row was re-derived rather than demoted
+    - Task 2.1 added four destinations to `init-recipe.json` and `manifest.json`; Task 5.5 re-confirmed
+      `strategy-workflow-authoring` resolves in both, and that `strategy-package-project-sync` is correctly
+      instance-only rather than a recipe omission.
 
-- `[ ]` Every heading this work unit moved, renamed, or emptied has had its inbound `§` citations swept and
+- `[x]` Every heading this work unit moved, renamed, or emptied has had its inbound `§` citations swept and
   updated across both copies
+    - Swept per task at the moment of each cut, and `lint:arc:section-refs` validates the whole corpus clean over
+      1328 files.
 
-- `[ ]` `quality-gate-commands` resolves to a section carrying commands in both copies and in the shipped
+- `[x]` `quality-gate-commands` resolves to a section carrying commands in both copies and in the shipped
   template, and every site it fires from was verified by hand
+    - The passthrough is identical in both copies of the method, and § Quality Gate Commands carries commands in
+      `QUICK-REFERENCE.md` and in the shipped `QUICK-REFERENCE.template.md`.
 
-- `[ ]` Every Framework edit was authored in the package source and synced; every Configurable and
+- `[x]` Every Framework edit was authored in the package source and synced; every Configurable and
   manifest-unclassified edit reached both copies by hand
+    - Every changed file with a counterpart is byte-identical across the copies, except the three
+      manifest-unclassified ones — `STRATEGY-INDEX`, `testing-standards`, `DEV-RULES.PROJECT` — each of which
+      carries this branch's edits in both copies, which is the expected shape rather than drift.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
+    - Tier 3 whole: Markdown lint over 649 files, all three ARC contract checks, TypeScript and shell lint, both
+      type checks, 8,373 tests, and the build.
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 ---
