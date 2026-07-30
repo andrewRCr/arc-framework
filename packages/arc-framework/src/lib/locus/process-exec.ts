@@ -45,6 +45,9 @@ export type NativeProcessRunner = (
 export function createProcessExec(runner: NativeProcessRunner = runNativeProcess): ProcessExec {
   return async (command, args, options = {}) => {
     const maxOutputBytes = options.maxOutputBytes ?? MAX_PROCESS_OUTPUT_BYTES;
+    if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes <= 0) {
+      return { kind: "failed", message: "Native process output limit is invalid" };
+    }
     const timeoutSignal = AbortSignal.timeout(PROCESS_INSPECTION_TIMEOUT_MS);
     const signal = options.signal === undefined
       ? timeoutSignal

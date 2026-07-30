@@ -42,6 +42,19 @@ describe("locus process execution", () => {
     expect(PROCESS_INSPECTION_TIMEOUT_MS).toBeGreaterThan(0);
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 0, 1.5])(
+    "rejects invalid output limit %s before invoking the runner",
+    async (maxOutputBytes) => {
+      const runner = vi.fn<NativeProcessRunner>(async () => ({ stdout: "", stderr: "", exitCode: 0 }));
+
+      await expect(createProcessExec(runner)("ps", [], { maxOutputBytes })).resolves.toEqual({
+        kind: "failed",
+        message: "Native process output limit is invalid",
+      });
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
+
   it("composes caller cancellation with the inspection deadline", async () => {
     const caller = new AbortController();
     const deadline = new AbortController();
