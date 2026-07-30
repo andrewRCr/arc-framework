@@ -909,7 +909,7 @@ dispositions to the PR rather than copying them here.
   incremental fix reviews, then approved exact accepted head `c055a31cf`.
 - **State:** PR #396 accepted head `c055a31cf` and landed through merge commit `56d52f013`.
 
-#### S2 process and platform inspection — review repair
+#### S2 process and platform inspection — closure repair
 
 - **Entry base:** `origin/main` `56d52f013`, the S1 merge.
 - **Capability:** Platform-correct, unknown-safe process inspection plus a session anchor bound to the
@@ -918,7 +918,7 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact repaired measurement:** 1,923 additions plus 37 deletions (1,960 changed lines) across fifteen files
+- **Exact closure measurement:** 2,051 additions plus 37 deletions (2,088 changed lines) across fifteen files
   against `56d52f013`.
 - **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
   preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
@@ -969,10 +969,17 @@ dispositions to the PR rather than copying them here.
   Its first Windows attempt showed platform-wide runner degradation — 22 failures across unrelated process and Git
   suites plus unavailable CIM inspection — rather than the prior narrow contract failure. A retry of only that
   Windows job on the same SHA passed in 2 minutes 7 seconds, confirming the first attempt as transient.
-- **State:** PR #397 is in closure review. The implementation and exact code-head gates are green; this note-only
-  status successor must pass its exact-head checks. Closure then requires only an incremental CodeRabbit review
-  from `14f3e23b3` through the successor head: it composes with the whole-target
-  `56d52f013..9b22f5637` review and its already-approved repair.
+- **Closure review:** CodeRabbit covered exact incremental range `14f3e23b3..ce68d9932` and opened four threads.
+  The accepted repair rejects invalid output limits before native execution and structurally verifies the known
+  top-level snapshot-source and ARC-eval command sequence instead of matching quoted lookalikes. The apparent
+  11-versus-15-file mismatch came from comparing the donor manifest plus inherited planning files with the final
+  target: dependency packaging, its packaging assertion, and the lifecycle fixture legitimately add four files.
+  The final measurement stays fifteen files and both the ledger and PR summary must use the same exact target.
+  The request to replace conservative half-per-stream caps was declined: Execa applies `maxBuffer` per descriptor,
+  so allowing either stream the full limit would permit twice the aggregate memory budget.
+- **State:** PR #397 is in closure repair. The complete local mixed gate passes with 8,458 tests and one skip.
+  Closure requires commit and push, exact-head CI, and one final incremental CodeRabbit review from `ce68d9932`
+  through the repair head.
 
 ### Resume protocol
 
