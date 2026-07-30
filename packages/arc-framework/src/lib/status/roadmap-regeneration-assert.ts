@@ -14,7 +14,16 @@ import type { GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
-import type { TransitionOverlayCompositionInput } from "../work-unit/transition-overlay.js";
+import {
+  resolveRetirementRecordRelativePath,
+  RETIREMENT_RECORD_NAMESPACE,
+} from "../work-unit/retirement-record-store.js";
+import { parseRetirementReceiptRecord } from "../work-unit/retirement-receipt-codec.js";
+import {
+  createValidatedTransitionOverlay,
+  type TransitionOverlayCompositionInput,
+  type ValidatedTransitionOverlay,
+} from "../work-unit/transition-overlay.js";
 
 import {
   composeProjectReadinessViewResult,
@@ -88,6 +97,14 @@ export interface RoadmapIndexViewResult {
   indeterminate: boolean;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+const RETIREMENT_RECORD_PATH_RE = new RegExp(
+  `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/sha256-[0-9a-f]{64}\\.json$`,
+  "u",
+);
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
 
 class IndexDirEntry implements ProjectViewDirEntry {
@@ -163,6 +180,53 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
       return stdout;
     },
   };
+}
+
+/**
+ * Resolve one finalized retirement staged with the prospective ROADMAP tree.
+ *
+ * This adapter authenticates the added record's canonical envelope and
+ * path-bound identity before granting transition-overlay authority. The
+ * commit-time retirement-record gate separately proves that the record covers
+ * the complete staged write set.
+ *
+ * @param options - Repository root and Git executor for the staged index.
+ * @returns Validated suppression authority, or `undefined` without a staged retirement.
+ */
+export async function resolveStagedRetirementTransitionOverlay(
+  options: IndexProjectViewFsOptions,
+): Promise<ValidatedTransitionOverlay | undefined> {
+  const { stdout } = await options.exec("git", [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=A",
+    "-z",
+    "--",
+    RETIREMENT_RECORD_NAMESPACE,
+  ], { cwd: options.cwd });
+  const recordPaths = stdout.split("\0").filter((path) => RETIREMENT_RECORD_PATH_RE.test(path));
+  const overlays = (await Promise.all(recordPaths.map(async (path) => {
+    const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
+    const record = parseRetirementReceiptRecord(content);
+    if (record === null || path !== resolveRetirementRecordRelativePath(record.receipt.receiptId)) {
+      return null;
+    }
+    if (record.kind === "retained") {
+      return record.receipt.subject.kind === "work-unit"
+        ? createValidatedTransitionOverlay({
+            origin: record.receipt.subject.name,
+            sourceBranch: record.receipt.source.branch,
+          })
+        : null;
+    }
+    const { origin, sourceBranch } = record.receipt.prepared.prospectiveProjection.overlay;
+    return createValidatedTransitionOverlay({ origin, sourceBranch });
+  }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
+  if (overlays.length > 1) {
+    throw new Error("staged ROADMAP render found multiple finalized retirement receipts");
+  }
+  return overlays[0];
 }
 
 /**

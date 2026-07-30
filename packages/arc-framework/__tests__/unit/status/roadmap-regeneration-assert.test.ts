@@ -1,14 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
   renderRoadmapFromIndexViewResult,
+  resolveStagedRetirementTransitionOverlay,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
+import {
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
@@ -53,6 +60,58 @@ function isStagedReceiptList(args: readonly string[]): boolean {
     "--",
     ".arc/system/.internal/retirement-receipts",
   ].join("\0");
+}
+
+function retainedReceipt(
+  subject: RetirementReceipt["subject"] = { kind: "work-unit", name: "retired" },
+): RetirementReceipt {
+  const source = {
+    branch: "plan/retired",
+    head: "a".repeat(40),
+    artifactDigest: canonicalDigest("retired source"),
+  };
+  return {
+    schemaVersion: 1,
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "abandon",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    }),
+    subject,
+    transition: "abandon",
+    source,
+    transitionPatchDigest: canonicalDigest("retirement patch"),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "discard-confirmed",
+    result: { kind: "discard", artifactDigest: "absent" },
+  };
+}
+
+interface StagedReceipt {
+  receipt: RetirementReceipt;
+  path: string;
+}
+
+function makeStagedReceiptsExec(receipts: readonly StagedReceipt[]): GitExec {
+  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (isStagedReceiptList(args)) {
+      return { stdout: receipts.map(({ path }) => path).join("\0") + "\0", stderr: "" };
+    }
+    if (args[0] === "show") {
+      const record = receipts.find(({ path }) => args[1] === `:${path}`);
+      if (record !== undefined) return { stdout: canonicalize(record.receipt), stderr: "" };
+    }
+    throw new Error(`unexpected git args: ${args.join(" ")}`);
+  });
+}
+
+function makeStagedReceiptExec(
+  receipt: RetirementReceipt,
+  path = resolveRetirementRecordRelativePath(receipt.receiptId),
+): GitExec {
+  return makeStagedReceiptsExec([{ receipt, path }]);
 }
 
 function makeIndexExec(files: Record<string, string>): GitExec {
@@ -191,6 +250,57 @@ describe("createIndexProjectViewFs", () => {
       "show",
       ":.arc/backlog/planned/ready/meta-ready.md",
     ], { cwd: "/repo" });
+  });
+});
+
+describe("resolveStagedRetirementTransitionOverlay", () => {
+  it("derives suppression authority from a path-bound generic work-unit retirement", async () => {
+    const receipt = retainedReceipt();
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt),
+    })).resolves.toMatchObject({
+      kind: "validated",
+      origin: "retired",
+      sourceBranch: "plan/retired",
+    });
+  });
+
+  it("rejects suppression authority when the staged path does not match the receipt identity", async () => {
+    const receipt = retainedReceipt();
+    const mismatchedPath = resolveRetirementRecordRelativePath(
+      retainedReceipt({ kind: "work-unit", name: "other" }).receiptId,
+    );
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt, mismatchedPath),
+    })).resolves.toBeUndefined();
+  });
+
+  it("skips retained retirement receipts outside the work-unit subject domain", async () => {
+    const receipt = retainedReceipt({ kind: "branch", ref: "refs/heads/retired" });
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt),
+    })).resolves.toBeUndefined();
+  });
+
+  it("rejects multiple finalized work-unit retirements in one staged render", async () => {
+    const receipts = [
+      retainedReceipt(),
+      retainedReceipt({ kind: "work-unit", name: "other" }),
+    ];
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptsExec(receipts.map((receipt) => ({
+        receipt,
+        path: resolveRetirementRecordRelativePath(receipt.receiptId),
+      }))),
+    })).rejects.toThrow("staged ROADMAP render found multiple finalized retirement receipts");
   });
 });
 

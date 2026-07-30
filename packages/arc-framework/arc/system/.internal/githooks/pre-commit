@@ -533,10 +533,12 @@ fi
 # CHECK 19: ROADMAP regenerated assert (arc-in-git only)
 # ============================================================================
 # Validates a staged ROADMAP as a derived artifact: staged blob versus a fresh
-# staged-index render, plus an unconditional conflict-marker scan. Mismatch
-# rejects when the render snapshot is determinate; an indeterminate snapshot
-# warns and allows. GitHub-side conflict resolution does not run local hooks;
-# the next local commit that stages ROADMAP does.
+# staged-index render, with a finalized retirement staged in the same index
+# suppressing its still-local source branch, plus an unconditional
+# conflict-marker scan. Mismatch rejects when the render snapshot is
+# determinate; an indeterminate snapshot warns and allows.
+# GitHub-side conflict resolution does not run local hooks; the next local
+# commit that stages ROADMAP does.
 if [ "$pm_mode" = "arc-in-git" ]; then
     roadmap_assert_candidate=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
