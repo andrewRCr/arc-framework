@@ -1,14 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
   renderRoadmapFromIndexViewResult,
+  resolveStagedRetirementTransitionOverlay,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
+import {
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -52,6 +59,43 @@ function isStagedReceiptList(args: readonly string[]): boolean {
     "--",
     ".arc/system/.internal/retirement-receipts",
   ].join("\0");
+}
+
+function retainedReceipt(): RetirementReceipt {
+  const subject = { kind: "work-unit" as const, name: "retired" };
+  const source = {
+    branch: "plan/retired",
+    head: "a".repeat(40),
+    artifactDigest: canonicalDigest("retired source"),
+  };
+  return {
+    schemaVersion: 1,
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "abandon",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    }),
+    subject,
+    transition: "abandon",
+    source,
+    transitionPatchDigest: canonicalDigest("retirement patch"),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "discard-confirmed",
+    result: { kind: "discard", artifactDigest: "absent" },
+  };
+}
+
+function makeStagedReceiptExec(receipt: RetirementReceipt): GitExec {
+  const path = resolveRetirementRecordRelativePath(receipt.receiptId);
+  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
+    if (args[0] === "show" && args[1] === `:${path}`) {
+      return { stdout: canonicalize(receipt), stderr: "" };
+    }
+    throw new Error(`unexpected git args: ${args.join(" ")}`);
+  });
 }
 
 function makeIndexExec(files: Record<string, string>): GitExec {
@@ -188,6 +232,21 @@ describe("createIndexProjectViewFs", () => {
       "show",
       ":.arc/backlog/planned/ready/meta-ready.md",
     ], { cwd: "/repo" });
+  });
+});
+
+describe("resolveStagedRetirementTransitionOverlay", () => {
+  it("derives suppression authority from a path-bound generic work-unit retirement", async () => {
+    const receipt = retainedReceipt();
+
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: makeStagedReceiptExec(receipt),
+    })).resolves.toMatchObject({
+      kind: "validated",
+      origin: "retired",
+      sourceBranch: "plan/retired",
+    });
   });
 });
 
