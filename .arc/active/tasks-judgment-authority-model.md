@@ -1525,22 +1525,43 @@ parked, which would otherwise ship a second time unrecorded.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ Re-opened for Phase 5.R. The base merge brought `session-locus-model`'s first carve into the tree, so
-  § Selecting what to run resolves to "everything" — the Markdown-only narrowing the first pass used no longer
-  applies.
+- _Quality gates:_ Tier 3 run whole over the full tree, the Markdown-only narrowing no longer applying — Markdown
+  lint, all three ARC contract checks over 1,339 files, TypeScript and shell lint, source and test type checks,
+  8,393 tests passing with one intentional skip across 648 files, and the build. All passed.
+
+- _Success criteria:_ Thirteen criteria, all met — two carrying deviations (the regression floor, breached twice:
+  additively by the quality-gate retarget and substantively by the approved Step 13 narrowing; and the
+  package-source authoring direction, where seven files were mirrored the other way with byte-identical results).
+  One adversarial verify pass ran at the boundary with markings withheld: five findings, all five verified against
+  source and confirmed, all five applied. The two `major` ones were spec-artifact integrity rather than
+  implementation — § Rule Authority had drifted three paragraphs from the spec's normative D1 block with no
+  amendment recorded, which the spec's own text calls a spec amendment rather than an authoring choice. Amended
+  forward, and the stop-shape criterion the task list had been carrying alone is now the spec's fourth. Also
+  reverted an `[invariant]` marker on § Sub-agent scope, a section the spec's Non-Goals reserve untouched for
+  `execution-delegation-doctrine`.
+
+- _Note:_ `arc finalize verify` could not run — it needs exactly one active work unit and takes no slug, and the
+  sibling `session-locus-model` meta on `main` makes the resolution ambiguous. It failed safe, writing nothing.
+  The integration-handoff pointer was written to the meta by hand in the form the command emits.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
+- `[x]` Each of the six prior enactments, the three recorded live failures, and the forgeable self-report shape
   resolve from § Rule Authority with no new per-case rule — judged on whether a reader could reach the same answer
   from the section, never on whether a clause was written
     - The section reproduces the spec's settled normative text byte-for-byte in both copies (Task 1.1), and an
       independent read that did not author it returned nineteen findings, eleven confirmed (Task 1.6).
-    - Re-open: Phase 5.R adds two clauses to the section, so the enactments resolve against changed text.
+    - Re-checked at Task 6.1 against the changed text — all ten cases plus the two base arrivals still resolve, and
+      neither clause disturbs one. Clause A removes emphasis as a classifier without removing force: an emphatic
+      rule still reaches invariant through the reading, which is why `DEV-RULES.PROJECT`'s zero-tolerance sentence
+      took an explicit marker rather than relying on its own "no exceptions". Clause B **strengthens** two cases
+      rather than leaving them level — `adr-016`'s interlock sort and the `run-errand` capability failure both turn
+      on an interlock being an authorization withheld, which the clause's closing sentence now says in the section
+      itself instead of leaving to the backstop limb.
 
 - `[x]` Autonomous `WORKING-MEMORY` additions resolve to propose-don't-self-add via backstop limb two, **against**
   the satisfaction test's own `default` verdict — the reserved case that tests whether the backstop can overturn
@@ -1563,6 +1584,15 @@ parked, which would otherwise ship a second time unrecorded.
       floor was protecting still holds: the append-only merge below keeps its own conflict stop and remains the
       authoritative test, the unavailable-overlap / incomplete-evidence / substantive-interaction stops are
       untouched, and the merge gate itself is unmoved. `verify-work-unit` is unchanged by this task.
+    - The verification-boundary adversarial pass reproduced both deviations independently, with the markings
+      withheld, and raised one point they had not answered: whether the Step 13 narrowing lets the agent judge
+      that a check does not apply to its own work, which § Rule Authority's first backstop limb forbids. It does
+      not — the narrowing conditions on the conflicting path set being wholly regenerable, a determinate fact read
+      off the analyzer's own output, not an assessment of whether the check is relevant here.
+    - Task 6.1 also reverted an edit this criterion's sibling Non-Goal forbade: § Sub-agent scope's Judgment leg
+      had taken an `[invariant]` marker at Task 4.1, and the spec reserves that section untouched for
+      `execution-delegation-doctrine`'s prohibition → conditions rewrite. Reverted in both copies rather than
+      recorded as accepted — the marker is cheap to re-add once that work unit reshapes the bullet.
 
 - `[x]` Every rule-carrying method, strategy, workflow, and extension document in the **shipped** corpus is read
   for imperatives the default-unless-marked reading would reclassify, and each one found either takes a marker or
@@ -1571,10 +1601,17 @@ parked, which would otherwise ship a second time unrecorded.
       workflows, 13 extensions. The strategy region re-derived to 21 against the spec's 20, which the criterion's
       re-derive-at-execution wording anticipates.
 
-- `[ ]` The stop-shape axis resolves from § Rule Authority the way the force axis does: every audited stop either
+- `[x]` The stop-shape axis resolves from § Rule Authority the way the force axis does: every audited stop either
   fires on a condition the agent cannot establish for itself, or is recorded in
   `notes-judgment-authority-model.md` as a rejected narrowing with its reasoning — judged on whether a reader
   could reach the same disposition from the section, never on whether a clause was written
+    - Twenty proposals: sixteen narrowed, four rejected with reasoning, plus twenty counter-findings held with
+      theirs. Each rejection's reasoning is a section derivation rather than a preference — a `workflow-interlock`
+      is always-stop, a task line is pre-commitment text, a fork with two live options is not degenerate — so a
+      reader reaches the same disposition without the record. Recorded in § The complete disposition set.
+    - The accounting was wrong when Task 6.1 checked it and is now corrected: `issue-triage` had been described as
+      dropping out while the rejection count still read four, which left it in neither column. It is the fourth
+      rejection; `task-audit` is a counter-finding rather than a proposal and is named as such.
 
 - `[x]` The always-loaded set ends net shorter, measured across both rules files, `STRATEGY-INDEX`, and
   `AGENT-BRIEF.ARC`
@@ -1608,18 +1645,31 @@ parked, which would otherwise ship a second time unrecorded.
     - The passthrough is identical in both copies of the method, and § Quality Gate Commands carries commands in
       `QUICK-REFERENCE.md` and in the shipped `QUICK-REFERENCE.template.md`.
 
-- `[ ]` Every Framework edit was authored in the package source and synced; every Configurable and
+- `[x]` Every Framework edit was authored in the package source and synced; every Configurable and
   manifest-unclassified edit reached both copies by hand
     - Every changed file with a counterpart is byte-identical across the copies, except the three
       manifest-unclassified ones — `STRATEGY-INDEX`, `testing-standards`, `DEV-RULES.PROJECT` — each of which
       carries this branch's edits in both copies, which is the expected shape rather than drift.
-    - Re-open: Phase 5.R edits eleven further files, including one instance-only edit inside
-      `testing-standards`' `.override`, whose package counterpart carries no override block to mirror.
+    - Task 6.1 re-ran the parity check over all 34 changed `.arc/` files with a counterpart: 28 byte-identical,
+      6 diverging with a classified cause. The manifest sharpens the earlier note — only `testing-standards` is
+      genuinely unclassified; `STRATEGY-INDEX`, `DEV-RULES.PROJECT`, and `QUICK-REFERENCE` are **Configurable**
+      and `ROADMAP` is **Scaffolded**, so their divergence is the classification working. `session-init` is
+      Framework but template-paired, and diverges by exactly its two untouched `pm.mode` conditional blocks.
+    - **Deviation.** Six Phase 5.R files were authored in the instance and mirrored to the package rather than
+      the reverse — `session-recover`, `create-spec`, `generate-tasks`, `process-task-loop`,
+      `activate-work-unit`, `integrate-work-unit`, plus `assess-parallel-fit`. The end state is byte-identical
+      and both copies were staged together, so the hazard the direction rule guards — a forgotten package copy —
+      did not occur; the authoring order still departed from the rule as written.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
-    - Re-open: Tier 3 runs whole again at Task 6.1, over a tree that now carries TypeScript no gate run on this
-      branch has seen.
+- `[x]` All quality gates pass (tests, linting, type checking)
+    - Tier 3 run whole at Task 6.1: Markdown lint, all three ARC contract checks, TypeScript and shell lint,
+      source and test type checks, 8,393 tests passing with one intentional skip across 648 files, and the build.
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
+    - Verification closed at Task 6.1 with every criterion disposed, Tier 3 green whole, and the adversarial pass's
+      findings applied. Two items travel to the integration ceremony rather than blocking here: the meta's
+      `## Release Notes Entry` and `## Completion Notes` still describe only the two original halves and need
+      recomposing for the stop-shape work, and the base is one integration ahead, which integration requires
+      merging in.
 
 ---

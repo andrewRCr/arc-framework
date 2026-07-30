@@ -13,13 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Stop-shape audit verified against source and the remedial phase authored; five criteria and
-  the verification task re-opened, one criterion added
-- **Next Task:** Task 5.R.a — Land the two clauses and reconcile the always-loaded surface (line ~1379)
+- **Last Completed:** Task 6.1 — verification: Tier 3 run whole, all thirteen success criteria disposed, and one
+  adversarial verify pass run and its five findings verified and applied
+- **Next Task:** [none] — verification complete
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.R.a — approved dispositions in `notes-judgment-authority-model.md`
-  § Verification outcome, which supersedes the advisory audit sections above it
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

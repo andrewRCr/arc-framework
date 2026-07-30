@@ -146,6 +146,19 @@ bullet granularity, run over the authored text before it landed. Authored at 46 
 | Whose call — resolution rule       | 5→3 | yes | keep the role × surface read; cut the solo-collapse concession and distributed-roles gloss      | T1 — cross-owner case; see below                       | 2   |
 | Whose call — holder ¶              | 5→0 | yes | relocated into the invariant block                                                              | —                                                      | 5   |
 
+**Three blocks entered after this table closed, and carry the same determination** (added at Task 6.1, which is
+where the gap surfaced — the table audited the section at 31 nb while the shipped section is 50). Every one is a
+constraint, so the pattern above holds: what enters the always-loaded set here is rule, not rationale.
+
+| Block                               | nb | C?  | Disposition                                                                         | Entered at | Δnb |
+| ----------------------------------- | -- | --- | ----------------------------------------------------------------------------------- | ---------- | --- |
+| Pre-commitment text (limb three)    | 4  | yes | keep — constitutional statement for a parentless family; carries `[invariant]`      | Task 4.6.a | 0   |
+| Emphasis is not a marker (Clause A) | 3  | yes | keep — classification rule; removes emphasis as a classifier without removing force | Task 5.R.a | 0   |
+| A stop with one answer (Clause B)   | 6  | yes | keep — the shape rule, with the interlock firewall as its closing sentence          | Task 5.R.a | 0   |
+
+Their ledger debit is not absorbed: all 13 nb are inside Task 5.R.e's re-derived 724, and the +8 that separates
+it from the first pass's 716 is Clause A and Clause B net of the consistency edits.
+
 **Nothing demoted, and that is the finding.** Every block carrying a rule returned `constraint → stays`. The 15 nb
 removed was justification for rules that stayed, plus one clause stating the same rule twice — content with no
 demotion destination, because nothing summons a rationale. What earns keeping went to the anchoring ADR.
@@ -635,6 +648,15 @@ not settle it. That reads as self-assessment and is not, because both name the r
 the dash **and** name the routine cover that handles the rest. The question the agent answers is whether the
 document in front of it settled a named question — checkable against text — not whether it feels uninformed.
 A trigger phrased as "load when unsure" would fail this; none is.
+
+**Two entries discharge the scoping test by the first arm, and that showing was missing** (added at Task 6.1).
+Five of the seven name their leaner surface in the entry text. `strategy-workflow-authoring` and
+`strategy-team-coordination` name none because none exists, which is the test's other arm and needed stating
+rather than leaving to inference: there is no workflow-authoring method or workflow anywhere in the corpus — the
+`arc.methods` / `arc.extensions` frontmatter is a declaration mechanism, not guidance on authoring one — and the
+team-coordination content was demoted **into** `strategy-team-coordination` by Task 3.4.e, so the always-loaded
+surface that would have been the leaner one is exactly what the demotion emptied. Neither entry relocates a read
+that a cheaper surface was already serving.
 
 **The operation-locality test holds for every Phase 5 destination.** Its failure mode is content demoted into a
 workflow that the content must outlive — the P3 disqualification that cost two of five workflow destinations
@@ -1392,6 +1414,12 @@ Five of Task 4.1's eight survive as genuinely region-local: `branch-format`'s `p
 rebase or otherwise rewrite a _pushed_ branch"). Family N has no marked home, even though the adjacent _Amend scope_
 clause is marked `[invariant]`. That joins Task 4.1's three (§ Review authority, § Sub-agent scope's judgment leg,
 § Scaled Process) and § Discovered Work Routing, which finding 3 already called the sharpest.
+
+_(Task 6.1 correction: § Sub-agent scope's judgment leg took its marker and then lost it again. The spec's
+Non-Goals reserve that section untouched for `execution-delegation-doctrine`, and the adversarial pass caught the
+crossing. The marker was reverted in both copies; the family-D parent is therefore § Review finding mutation
+guard alone, which is marked. The judgment leg's force is unchanged — it reads categorically and the reading
+lands it on invariant — so what was lost is the marker, not the rule.)_
 
 **Revised Task 4.5.a footprint.** Task 4.1 proposed eleven. After this region: **four unmarked parents + five
 surviving method-region-local + nine strategy-region-local = eighteen**, with item 6 above pending Task 4.3. Two of the
@@ -2395,28 +2423,36 @@ half alone. Task 5.R.a's marker extension is therefore load-bearing for a counte
 
 ### The complete disposition set (Task 5.R.d)
 
-Twenty proposals reached verification. Sixteen were taken and landed across Tasks 5.R.a–d; the four rejections are
-recorded here in full, because a rejection with no reasoning is indistinguishable from an oversight and the two
-pairs fail for different reasons.
+The audit's twenty proposals are the thirteen Class B narrowings plus the seven Class A marker items. Sixteen were
+taken and landed across Tasks 5.R.a–d; four were rejected. The rejections are recorded in full, because a
+rejection with no reasoning is indistinguishable from an oversight.
 
-**Taken (16).** Clause A, Clause B, and the `AGENT-BRIEF.ARC` reword; four `DEV-RULES.ARC` consistency edits
-(§ Verify before assuming, § Review finding mutation guard, § Quality gate failure, § Leave it cleaner);
-`DEV-RULES.PROJECT` § Quality Gates' marker; four `session-init` narrowings and two `session-recover` ones; five
-lifecycle and planning-stage narrowings (`integrate-work-unit`, `activate-work-unit`, `create-spec`,
-`generate-tasks`, `process-task-loop`); the two `testing-standards` `.override` markers; and the
-`assess-parallel-fit` split. `issue-triage`'s cross-module ask, self-flagged as the audit's lowest-confidence
-item, dropped out at verification — scope purity is a standing operator preference, not a degenerate fork.
+**Taken (16).** Eleven of the thirteen Class B narrowings — `integrate-work-unit`, `activate-work-unit`,
+`create-spec`, `generate-tasks`' blocker read, `process-task-loop`, `DEV-RULES.ARC` § Verify before assuming,
+four `session-init` items, and two `session-recover` items. Five of the seven Class A items — § Review finding
+mutation guard's approval half, the `testing-standards` `.override` pair, `DEV-RULES.PROJECT` § Quality Gates,
+`session-init` § Entry dispatch, and the `assess-parallel-fit` split.
 
-**Rejected pair one — Clause B's firewall holding.** `generate-tasks`' per-phase confirm gate is a
-`workflow-interlock`, and `AGENT-BRIEF.ARC` classes `workflow-` as always-stop, so Clause B's closing sentence
-excludes it by construction. `task-audit`'s no-implementing-fixes rule reaches the same exclusion by a different
-route: a task line is pre-commitment text, already invariant under the backstop's third limb, and the invariant
-check runs before the reversibility test. Both are kept as regression cases rather than fixed, because the
-firewall has to be shown holding against a proposal that actually reached it. The `task-audit` case additionally
-depends on § Review finding mutation guard's approval half reading as invariant — which is why Task 5.R.a's
-marker extension is load-bearing for a counter-finding rather than merely tidy.
+Three further edits landed that are **not** among the twenty, and are not counted toward it: Clause A, Clause B,
+and the `AGENT-BRIEF.ARC` reword came from the phase's own design rather than the audit, and the three
+`DEV-RULES.ARC` consistency edits (§ Quality gate failure, § Leave it cleaner, and the reword's zero-delta
+qualifier) were recorded separately as § Consistency edits.
 
-**Rejected pair two — re-openings of settled decisions.** `verify-work-unit`'s criterion-text rule is a family
+**Rejected (4), in two pairs.**
+
+**Pair one — Clause B's firewall holding.** `generate-tasks`' per-phase confirm gate is a `workflow-interlock`,
+and `AGENT-BRIEF.ARC` classes `workflow-` as always-stop, so Clause B's closing sentence excludes it by
+construction. `issue-triage`'s cross-module ask — the audit's self-flagged lowest-confidence item, which it
+predicted might not survive — fails a different way: scope purity is a standing operator preference, so the fork
+has two live options and is not degenerate at all. `task-audit`'s no-implementing-fixes rule sits beside the
+first of these as the firewall's second regression case, though it was a **counter-finding rather than a
+proposal** and so is not one of the four: a task line is pre-commitment text, already invariant under the
+backstop's third limb, and the invariant check runs before the reversibility test. Keeping it matters because the
+firewall has to be shown holding against something that actually reached it. That case additionally depends on
+§ Review finding mutation guard's approval half reading as invariant — which is why Task 5.R.a's marker extension
+is load-bearing for a counter-finding rather than merely tidy.
+
+**Pair two — re-openings of settled decisions.** `verify-work-unit`'s criterion-text rule is a family
 `K2` instance, and Task 4.5.a.ii chose a constitutional statement over seven markers; that statement landed in
 § Rule Authority's pre-commitment-text limb, so marking the site now reverses a settled call and re-incurs the
 concentration cost D3 priced. `draft-design`'s consolidation limb is stronger still: Task 4.6.b considered this
@@ -2460,10 +2496,10 @@ Task 5.1 measured both as template-only — no instance counterpart, so no regis
 the call to Phase 5's close, which recorded neither. Both now carry a disposition on the same two columns every
 register row does.
 
-| Template section              | nb | C?  | Disposition                                                | Destination                    | Δnb |
-| ----------------------------- | -- | --- | ---------------------------------------------------------- | ------------------------------ | --- |
-| Architecture Decision Records | 16 | no  | demote to the instance's pointer shape                     | `strategy-adr-methodology`     | 14  |
-| File Organization             | 5  | n/a | **keep** — fill-in scaffold, not content                   | none                           | 0   |
+| Template section              | nb | C?  | Disposition                              | Destination                | Δnb |
+| ----------------------------- | -- | --- | ---------------------------------------- | -------------------------- | --- |
+| Architecture Decision Records | 16 | no  | demote to the instance's pointer shape   | `strategy-adr-methodology` | 14  |
+| File Organization             | 5  | n/a | **keep** — fill-in scaffold, not content | none                       | 0   |
 
 **The ADR criteria demote on both preconditions, not one.** Reachability holds without authoring anything:
 `STRATEGY-INDEX` is always-loaded in every project and its entry already names the residual question — "deciding
@@ -2478,6 +2514,33 @@ authoring comment and three placeholder rows is the opposite: it holds no rule t
 project-specific and unknowable from here, and no destination exists to demote it to. Keeping it is not a
 concession that scaffold sections earn always-loaded placement in general — that question belongs to whoever
 revisits the template's scaffold model, and this work unit's register never opened it.
+
+### Delivery integrity at verification (Task 6.1)
+
+The three boundary checks, answered rather than assumed.
+
+**No executable check fails when the top-level intent is missed, and none can today.** The work unit's intent is
+that a reader reaches the right force and shape verdict from § Rule Authority — a judgment-layer property. What
+the suite does enforce is adjacent and real: `lint:arc:section-refs` fails on a citation this register broke,
+`lint:arc:triggers` fails on a method or extension with no declaration, and the framework-sync tests fail when a
+shipped file's two copies drift. None of them can fail on a rule that is present, well-cited, synced, and read the
+wrong way. The instrument that would is a judgment-layer adherence harness, which `workflow-eval-harness` owns and
+has not shipped; `analysis-load-set-scoping` records the same absence blocking its own central question. Named
+here as the forcing gap rather than left implicit — this work unit's claims about how a rule will be read are
+verified by argument and review, not by a check.
+
+**The completion claims are not yet split by proof status.** The meta's `## Release Notes Entry` and
+`## Completion Notes` were composed at the first integration pass and describe the two original halves only; Task
+5.R.e corrected the compression figure inside them but deliberately left the narrative alone. They therefore
+claim less than the branch delivers rather than more, which is the safe direction, but recomposing them at the
+re-run integration ceremony is required before the PR is accurate.
+
+**Deferred intent and its owners.** Two items are deferred with owners: the `arc reopen` merge-state probe
+timeout is captured to `USER-INBOX § Errand`, and the template's scaffold-section model — whether a fill-in
+section earns always-loaded placement at all — is recorded at Task 5.R.f as **unowned and deliberately unopened**.
+The second is not essential to this work unit's intent and is not resting on an assumed Errand; it is a question
+this register declined to open, stated so a later reader does not mistake the § File Organization keep for a
+verdict on the general case.
 
 ### Lifecycle state at handoff
 
