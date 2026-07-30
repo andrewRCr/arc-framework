@@ -142,7 +142,7 @@ describe.runIf(SUPPORTED_PLATFORMS.includes(process.platform))(`native process i
     await expect(verifyProcessAnchor(anchor, inspector)).resolves.toBe("live");
     await expect(verifyProcessAnchor({ ...anchor, startToken: `${anchor.startToken}-reused` }, inspector))
       .resolves.toBe("dead");
-  });
+  }, 25_000);
 
   it("reports a missing native PID as dead", async () => {
     const inspector = createPlatformProcessInspector();

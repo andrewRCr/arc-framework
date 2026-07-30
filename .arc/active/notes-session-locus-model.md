@@ -918,7 +918,7 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact repaired measurement:** 1,910 additions plus 36 deletions (1,946 changed lines) across fourteen files
+- **Exact repaired measurement:** 1,915 additions plus 36 deletions (1,951 changed lines) across fourteen files
   against `56d52f013`.
 - **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
   preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
@@ -943,7 +943,12 @@ dispositions to the PR rather than copying them here.
   `ps` emitted a diagnostic nonzero result for the missing PID. The accepted correction resolves Windows commands
   through the same executable lookup Execa uses and classifies an unresolved native `.exe` as missing before
   invocation. It also requires a signal-zero `ESRCH` result before a BSD diagnostic nonzero query may establish
-  absence; successful, permission-denied, and other signal probes remain unknown-safe.
+  absence; successful, permission-denied, and other signal probes remain unknown-safe. That repair landed as
+  `e68765c32`; exact-head self-hosted run `30506635277` passed after its unrelated 120-second lifecycle fixture
+  cleared on one failed-job rerun. Hosted dispatch `30507550484` proved the BSD correction on macOS and the missing
+  executable correction on Windows, then exposed a harness-only timeout: the stable-generation contract performs
+  four sequential inspections but inherited the same five-second Vitest cap as each individual native invocation.
+  The accepted correction gives that aggregate contract probe 25 seconds without changing the production deadline.
 - **Gate evidence:** The complete local gate set passed on both review-repair trees: 8,444 tests passed and one
   skipped, with TypeScript and shell lint, both typechecks, and the build green. Full exact-head CI run
   `30502568032` is green at whole-target review head `9b22f5637` after the unchanged lifecycle-exit timeout passed
@@ -951,11 +956,11 @@ dispositions to the PR rather than copying them here.
   temporarily removed native cancel binding before passing against the restored production boundary. The
   six-finding repair's complete local gate passed with 8,449 tests and one skip; its aggregate-output regression
   first returned cancellation against the pre-fix native boundary, then passed as an in-flight output-limit proof.
-  The hosted-portability repair's complete local code tier passed with 8,452 tests and one skip; its BSD regression
-  first returned `unverifiable` against the pre-fix adapter, then passed with the signal-zero boundary restored.
-- **State:** PR #397 remains in review repair. The hosted-portability correction is locally green and awaits
-  review, commit, push, one exact-head full CI run, and a green Windows/macOS portability dispatch. Closure then
-  requires only an incremental CodeRabbit review from `14f3e23b3` through the successor head: it composes with the
+  The hosted-portability repair and final harness-timeout tree each passed the complete local code tier with 8,452
+  tests and one skip; the BSD regression first returned `unverifiable` against the pre-fix adapter, then passed.
+- **State:** PR #397 remains in review repair. The final harness-timeout correction is locally green and awaits
+  commit, push, one exact-head full CI run, and a green Windows/macOS portability dispatch. Closure then requires
+  only an incremental CodeRabbit review from `14f3e23b3` through the successor head: it composes with the
   whole-target `56d52f013..9b22f5637` review and its already-approved repair.
 
 ### Resume protocol
