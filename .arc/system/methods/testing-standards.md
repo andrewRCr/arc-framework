@@ -32,11 +32,12 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
   into a typed context object (the `IOContext{fs,git}` pattern), so tests construct a partial context with only
   the mocks they need.
 - **CLI handler-seam + destructive-verb discipline** — integration tests drive verb cores through
-  CLI-generated inputs (exercise the handler seam, not a hand-built argument object); a destructive verb
-  (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only proof.
+  CLI-generated inputs (exercise the handler seam, not a hand-built argument object); **a destructive verb
+  (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only
+  proof** · `[invariant]`.
 - **Fixtures and naming** — reusable multi-file fixtures live in `__tests__/fixtures/`; prefer inline data for
   simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`).
-- **Prove fail-first after a fix** — when the test is written after the implementation, reconstruct pre-fix
+- **Prove fail-first after a fix** · `[invariant]` — when the test is written after the implementation, reconstruct pre-fix
   source (only the behavior under test; keep exports/signatures the test needs) and re-run. A compile or import
   error is not a behavioral fail-first proof.
 
