@@ -918,18 +918,25 @@ dispositions to the PR rather than copying them here.
   tests, the separate process-ancestry unit suite, and the native process-inspector integration suite.
 - **Finding correction:** L3-F1 and L3-F2 remain in S2. L3-F4 moves to `7.P.f.ii`: its stable locus is
   `reader.ts`, whose import closure enters with S6 rather than the process/platform slice.
-- **Exact repaired measurement:** 1,650 additions plus 35 deletions (1,685 changed lines) across eleven files
+- **Exact repaired measurement:** 1,695 additions plus 35 deletions (1,730 changed lines) across eleven files
   against `56d52f013`.
 - **Hosted review:** CodeRabbit reviewed the complete `56d52f013..0ade00809` target and requested two corrections:
   preserve execa boundary-failure metadata without collapsing genuine nonzero exits, and recognize `dash` as an
   interactive shell. The accepted repair also covers the real native binding and reduces BSD ancestry inspection
   from three process calls to two while keeping command identity independently parseable. The requested duplicate
   literal `npm exec` test was declined because that exact identity is already covered; no unsupported platform
-  rationale was added.
-- **Gate evidence:** The complete local gate set passed on the review-repair tree: 8,444 tests passed and one
-  skipped, with Markdown and ARC contracts, TypeScript and shell lint, both typechecks, and the build green.
-- **State:** PR #397 remains at published head `0ade00809`; the accepted review repair is local and awaits its
-  commit, push, exact-head CI, and CodeRabbit follow-up review.
+  rationale was added. The incremental `0ade00809..a70ca7d4a` follow-up found one further test gap: its native
+  cancellation proof aborted before the child started. The accepted repair now waits for a real child-start marker
+  before aborting. That incremental pass skipped three similar repair files, including the critical
+  `process-exec.ts` correction, so the final head requires a fresh whole-target review rather than another
+  incremental composition.
+- **Gate evidence:** The complete local gate set passed on both review-repair trees: 8,444 tests passed and one
+  skipped, with TypeScript and shell lint, both typechecks, and the build green. Full exact-head CI run
+  `30501076746` is green at first-repair head `a70ca7d4a`; the in-flight cancellation test additionally proved
+  sensitive by failing against a temporarily removed native cancel binding before passing against the restored
+  production boundary.
+- **State:** PR #397 remains at published head `a70ca7d4a`; the accepted test-only follow-up is local and awaits
+  its commit, push, exact-head CI, and fresh whole-target CodeRabbit review.
 
 ### Resume protocol
 

@@ -1,6 +1,7 @@
 /** Native operating-system process-inspector contract probes. */
 
 import { randomUUID } from "node:crypto";
+import { access, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,11 +40,27 @@ describe("native process execution", () => {
   });
 
   it("classifies native cancellation", async () => {
-    await expect(exec(
+    const startedMarker = join(tmpdir(), `arc-started-process-${randomUUID()}`);
+    const controller = new AbortController();
+    const result = exec(
       process.execPath,
-      ["--eval", "setInterval(() => {}, 10_000)"],
-      { signal: AbortSignal.abort() },
-    )).resolves.toMatchObject({ kind: "canceled" });
+      [
+        "--eval",
+        `require("node:fs").writeFileSync(${JSON.stringify(startedMarker)}, "started"); `
+          + "setTimeout(() => process.exit(0), 2_000); setInterval(() => {}, 10_000)",
+      ],
+      { signal: controller.signal },
+    );
+
+    try {
+      await waitForPath(startedMarker);
+      controller.abort();
+      await expect(result).resolves.toMatchObject({ kind: "canceled" });
+    } finally {
+      controller.abort();
+      await result;
+      await rm(startedMarker, { force: true });
+    }
   });
 
   it("classifies the native output limit", async () => {
@@ -54,6 +71,19 @@ describe("native process execution", () => {
     )).resolves.toMatchObject({ kind: "output-limit" });
   });
 });
+
+async function waitForPath(path: string): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      await access(path);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  throw new Error(`Timed out waiting for child-process marker: ${path}`);
+}
 
 function nativeFailureInspector(failure: "permission" | "malformed") {
   if (process.platform === "linux") {
