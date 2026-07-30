@@ -5,7 +5,6 @@
 import {
   canonicalize,
   digestBytes,
-  type CanonicalDigest,
 } from "../canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -30,7 +29,10 @@ import {
   type EnumeratedRetirementRecord,
   type RetirementRecordEnumerationEntry,
 } from "./retirement-record-enumeration.js";
-import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
+import {
+  encodeRetirementRecordKey,
+  RETIREMENT_RECORD_NAMESPACE,
+} from "./retirement-record-store.js";
 
 /** Filesystem boundary used to read repository operation markers. */
 export interface GitMergeTransitionOverlayFs {
@@ -49,7 +51,14 @@ export interface GitMergeTransitionOverlayDependencies {
 export type GitMergeTransitionOverlayResult =
   | MergeTransitionOverlaySelection
   | { status: "stale"; reason: "snapshot-raced" }
-  | { status: "refused"; reason: "git-read-failed" | "namespace-corrupt" };
+  | {
+      status: "refused";
+      reason: "git-read-failed" | "namespace-corrupt";
+      /** Exact pinned tree or commit whose namespace/path evidence was rejected. */
+      ref?: string;
+      /** Repository-relative retirement-record path rejected at `ref`. */
+      record?: string;
+    };
 
 const OPERATION_MARKERS = [
   ["MERGE_HEAD", "merge"],
@@ -76,7 +85,15 @@ interface PinnedNamespace {
   records: readonly EnumeratedRetirementRecord[];
 }
 
-class NamespaceCorruptError extends Error {}
+class NamespaceCorruptError extends Error {
+  constructor(
+    message: string,
+    readonly ref: string,
+    readonly record: string,
+  ) {
+    super(message);
+  }
+}
 
 async function readOptionalFile(
   fs: GitMergeTransitionOverlayFs,
@@ -248,8 +265,10 @@ async function readPinnedNamespace(
     if (match?.[1] === undefined
       || match[2] === undefined
       || match[3] === undefined
+      || match[4] === undefined
       || filename === null) {
-      throw new NamespaceCorruptError("Malformed retirement namespace entry");
+      const rawPath = raw.includes("\t") ? raw.slice(raw.indexOf("\t") + 1) : "<malformed-entry>";
+      throw new NamespaceCorruptError("Malformed retirement namespace entry", ref, rawPath);
     }
     let content = "";
     if (match[1] === "100644" && match[2] === "blob") {
@@ -257,7 +276,7 @@ async function readPinnedNamespace(
       try {
         content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       } catch {
-        throw new NamespaceCorruptError("Retirement record is not UTF-8");
+        throw new NamespaceCorruptError("Retirement record is not UTF-8", ref, match[4]);
       }
     }
     entries.push({
@@ -268,23 +287,19 @@ async function readPinnedNamespace(
     });
   }
   const validated = validateRetirementRecordEnumeration(entries);
-  if (validated.status !== "valid") {
-    throw new NamespaceCorruptError("Retirement namespace is not canonical");
+  if (validated.status === "namespace-corrupt") {
+    const record = validated.filename === undefined
+      ? RETIREMENT_RECORD_NAMESPACE
+      : `${RETIREMENT_RECORD_NAMESPACE}/${validated.filename}`;
+    throw new NamespaceCorruptError("Retirement namespace is not canonical", ref, record);
+  }
+  if (validated.status === "version-conflict") {
+    const record = `${RETIREMENT_RECORD_NAMESPACE}/${
+      encodeRetirementRecordKey(validated.id)
+    }.json`;
+    throw new NamespaceCorruptError("Retirement record identity has conflicting bytes", ref, record);
   }
   return { records: validated.records };
-}
-
-function assertNoCrossTreeRecordConflict(namespaces: readonly PinnedNamespace[]): void {
-  const contents = new Map<CanonicalDigest, string>();
-  for (const namespace of namespaces) {
-    for (const record of namespace.records) {
-      const previous = contents.get(record.id);
-      if (previous !== undefined && previous !== record.content) {
-        throw new NamespaceCorruptError("Retirement record identity has conflicting bytes");
-      }
-      contents.set(record.id, record.content);
-    }
-  }
 }
 
 async function changedPaths(
@@ -405,24 +420,61 @@ async function buildCandidate(
   };
 }
 
-function matchingParentProvenance(
+async function parentReceiptState(
+  record: EnumeratedRetirementRecord,
+  ref: string,
+  deps: GitMergeTransitionOverlayDependencies,
+): Promise<"absent" | "matching" | "conflicting"> {
+  const path = v3DecomposeReceiptPath(record.id);
+  const { stdout } = await deps.exec("git", [
+    "ls-tree",
+    "-z",
+    ref,
+    "--",
+    `:(literal)${path}`,
+  ], { cwd: deps.cwd });
+  if (stdout === "") return "absent";
+  const records = stdout.split("\0").filter(Boolean);
+  const match = records.length === 1 ? TREE_ENTRY_PATTERN.exec(records[0] ?? "") : null;
+  if (match?.[1] !== "100644" || match[2] === undefined || match[3] !== path) {
+    return "conflicting";
+  }
+  const bytes = await deps.readBlob(match[2]);
+  return Buffer.compare(Buffer.from(bytes), Buffer.from(record.content, "utf8")) === 0
+    ? "matching"
+    : "conflicting";
+}
+
+async function matchingParentProvenance(
   record: EnumeratedRetirementRecord,
   snapshot: PinnedMergeSnapshot,
-  head: PinnedNamespace,
-  mergeHeads: readonly PinnedNamespace[],
-): PinnedMergeReceiptProvenance[] {
+  deps: GitMergeTransitionOverlayDependencies,
+): Promise<PinnedMergeReceiptProvenance[]> {
   const provenance: PinnedMergeReceiptProvenance[] = [{ kind: "candidate-tree" }];
-  if (head.records.some((candidate) =>
-    candidate.id === record.id && candidate.content === record.content)) {
+  const headState = await parentReceiptState(record, snapshot.operation.headOid, deps);
+  if (headState === "conflicting") {
+    throw new NamespaceCorruptError(
+      "Retirement record identity has conflicting bytes",
+      snapshot.operation.headOid,
+      v3DecomposeReceiptPath(record.id),
+    );
+  }
+  if (headState === "matching") {
     provenance.push({ kind: "head", commitOid: snapshot.operation.headOid });
   }
-  mergeHeads.forEach((namespace, index) => {
-    if (namespace.records.some((candidate) =>
-      candidate.id === record.id && candidate.content === record.content)) {
-      const commitOid = snapshot.operation.mergeHeadOids[index];
-      if (commitOid !== undefined) provenance.push({ kind: "merge-head", index, commitOid });
+  for (const [index, commitOid] of snapshot.operation.mergeHeadOids.entries()) {
+    const state = await parentReceiptState(record, commitOid, deps);
+    if (state === "conflicting") {
+      throw new NamespaceCorruptError(
+        "Retirement record identity has conflicting bytes",
+        commitOid,
+        v3DecomposeReceiptPath(record.id),
+      );
     }
-  });
+    if (state === "matching") {
+      provenance.push({ kind: "merge-head", index, commitOid });
+    }
+  }
   return provenance;
 }
 
@@ -430,24 +482,21 @@ async function materializePinnedFacts(
   snapshot: PinnedMergeSnapshot,
   deps: GitMergeTransitionOverlayDependencies,
 ): Promise<PinnedMergeValidationFacts> {
-  const [candidateChangedPaths, candidate, head, ...mergeHeads] = await Promise.all([
+  const [candidateChangedPaths, candidate] = await Promise.all([
     changedPaths(
       snapshot.operation.configuredBase.oid,
       snapshot.operation.candidateTreeOid,
       deps,
     ),
     readPinnedNamespace(snapshot.operation.candidateTreeOid, deps),
-    readPinnedNamespace(snapshot.operation.headOid, deps),
-    ...snapshot.operation.mergeHeadOids.map(async (oid) => await readPinnedNamespace(oid, deps)),
   ]);
-  assertNoCrossTreeRecordConflict([candidate, head, ...mergeHeads]);
   const records = candidate.records.filter(({ record }) =>
     record.kind === "v3-decomposition-receipt")
     .filter(({ id }) => candidateChangedPaths.includes(v3DecomposeReceiptPath(id)));
   const candidates = await Promise.all(records.map(async (record) =>
     await buildCandidate(
       record,
-      matchingParentProvenance(record, snapshot, head, mergeHeads),
+      await matchingParentProvenance(record, snapshot, deps),
       snapshot.operation.candidateTreeOid,
       deps,
     )));
@@ -492,7 +541,12 @@ export async function resolveGitMergeTransitionOverlay(
       : { status: "stale", reason: "snapshot-raced" };
   } catch (error) {
     if (error instanceof NamespaceCorruptError) {
-      return { status: "refused", reason: "namespace-corrupt" };
+      return {
+        status: "refused",
+        reason: "namespace-corrupt",
+        ref: error.ref,
+        record: error.record,
+      };
     }
     return { status: "refused", reason: "git-read-failed" };
   }

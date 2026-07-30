@@ -10,6 +10,10 @@ import {
 import { enumerateGitRetirementRecords } from "./git-retirement-record-enumeration.js";
 import { v3DecomposeReceiptPath } from "./decompose-v3-preparation.js";
 import type { V3DecomposeReceipt, V3ManagedPathResult } from "./decompose-v3-receipt.js";
+import {
+  encodeRetirementRecordKey,
+  RETIREMENT_RECORD_NAMESPACE,
+} from "./retirement-record-store.js";
 
 interface GitCommit {
   head: string;
@@ -31,7 +35,14 @@ export interface ConfiguredBaseDecompositionAnchorDependencies {
 export type ConfiguredBaseDecompositionAnchorResult =
   | DecompositionIntegrationAnchorResult
   | { status: "stale"; reason: "configured-base-raced" }
-  | { status: "refused"; reason: "git-read-failed" | "namespace-corrupt" };
+  | {
+      status: "refused";
+      reason: "git-read-failed" | "namespace-corrupt";
+      /** Exact configured-base commit whose namespace was rejected. */
+      ref?: string;
+      /** Repository-relative retirement-record path rejected at `ref`. */
+      record?: string;
+    };
 
 const COMMIT_LINE = /^([0-9a-f]{40}|[0-9a-f]{64})(?: ([0-9a-f ]+))?$/u;
 const TREE_LINE = /^([0-7]{6}) ([^ ]+) ([0-9a-f]+)\t(.+)$/u;
@@ -155,8 +166,23 @@ function selectReceipt(
 ): { status: "selected"; receipt: V3DecomposeReceipt }
   | { status: "absent" }
   | { status: "ambiguous" }
-  | { status: "corrupt" } {
-  if (records.status !== "valid") return { status: "corrupt" };
+  | { status: "corrupt"; record?: string } {
+  if (records.status === "namespace-corrupt") {
+    return {
+      status: "corrupt",
+      ...(records.filename === undefined
+        ? {}
+        : { record: `${RETIREMENT_RECORD_NAMESPACE}/${records.filename}` }),
+    };
+  }
+  if (records.status === "version-conflict") {
+    return {
+      status: "corrupt",
+      record: `${RETIREMENT_RECORD_NAMESPACE}/${
+        encodeRetirementRecordKey(records.id)
+      }.json`,
+    };
+  }
   const receipts = records.records.flatMap(({ record }) =>
     record.kind === "v3-decomposition-receipt"
       && matches(record.value)
@@ -215,7 +241,14 @@ async function resolveConfiguredBaseAnchor(
   const selected = selectReceipt(namespace, matches);
   if (selected.status === "absent") return { status: "absent" };
   if (selected.status === "ambiguous") return { status: "ambiguous" };
-  if (selected.status === "corrupt") return { status: "refused", reason: "namespace-corrupt" };
+  if (selected.status === "corrupt") {
+    return {
+      status: "refused",
+      reason: "namespace-corrupt",
+      ref: baseHead,
+      ...(selected.record === undefined ? {} : { record: selected.record }),
+    };
+  }
   const receipt = selected.receipt;
   const base = await readCommit(deps.exec, baseHead);
   if (base === null) return { status: "refused", reason: "git-read-failed" };

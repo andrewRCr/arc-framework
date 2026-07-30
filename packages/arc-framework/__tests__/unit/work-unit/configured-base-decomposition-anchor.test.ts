@@ -13,6 +13,7 @@ import { v3DecomposeReceiptPath } from "../../../src/lib/work-unit/decompose-v3-
 import {
   composeLandedDecompositionHandoff,
 } from "../../../src/lib/work-unit/landed-decomposition-handoff.js";
+import { RETIREMENT_RECORD_NAMESPACE } from "../../../src/lib/work-unit/retirement-record-store.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const PREPARED_BASE = "b".repeat(40);
@@ -22,6 +23,10 @@ const MERGE_HEAD = "e".repeat(40);
 const DESCENDANT_HEAD = "6".repeat(40);
 const BASE_REF = "refs/heads/main";
 const RECORD_OID = "1".repeat(40);
+const CORRUPT_RECORD_OID = "9".repeat(40);
+const CORRUPT_RECORD_PATH = `${
+  RETIREMENT_RECORD_NAMESPACE
+}/sha256-${"0".repeat(64)}.json`;
 
 function harness(options: {
   landing?: "fast-forward" | "merge" | "unlanded" | "descendant" | "prepared-only" | "candidate-only";
@@ -82,10 +87,16 @@ function harness(options: {
           if (options.namespace === "absent"
             || landing === "prepared-only"
             || landing === "candidate-only") return { stdout: "" };
-          if (options.namespace === "corrupt") return { stdout: "bad\0" };
+          if (options.namespace === "corrupt") {
+            return {
+              stdout: `100644 blob ${CORRUPT_RECORD_OID}\t${CORRUPT_RECORD_PATH}\0`,
+            };
+          }
           return { stdout: namespaceLine };
         }
-        if (args[0] === "show") return { stdout: canonicalize(receipt) };
+        if (args[0] === "show") {
+          return { stdout: args[1] === CORRUPT_RECORD_OID ? "{}" : canonicalize(receipt) };
+        }
         if (args[0] === "rev-list") {
           if (landing === "descendant") {
             return { stdout: `${DESCENDANT_HEAD} ${CANDIDATE_HEAD}\n` };
@@ -216,7 +227,12 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
       BASE_REF,
       "origin",
       harness({ namespace: "corrupt" }).deps,
-    )).toEqual({ status: "refused", reason: "namespace-corrupt" });
+    )).toEqual({
+      status: "refused",
+      reason: "namespace-corrupt",
+      ref: CANDIDATE_HEAD,
+      record: CORRUPT_RECORD_PATH,
+    });
     expect(await resolveConfiguredBaseDecompositionAnchor(
       BASE_REF,
       "origin",
