@@ -126,6 +126,7 @@ const nodeLocusRecordMinter = createLocusRecordMinter({
   unlink,
   randomId: randomUUID,
 });
+const recordMutationTails = new Map<string, Promise<void>>();
 
 /**
  * Exclusively publish a complete record without replacing an existing generation.
@@ -147,38 +148,40 @@ export async function replaceLocusRecord(options: {
   lock: LocusLockHandle;
   beforeReplaceRecheck?: () => Promise<void>;
 }): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
-  if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
-    return { kind: "generation-mismatch" };
-  }
-  let current: Buffer;
-  try {
-    current = await readFile(options.path);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
-    throw error;
-  }
-  if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
-
-  const bytes = serializeRecord(options.path, options.record);
-  const temporaryPath = `${options.path}.tmp-${process.pid}-${randomUUID()}`;
-  try {
-    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
-    await options.beforeReplaceRecheck?.();
-    let recheck: Buffer;
+  return withSerializedRecordMutation(options.lock, async () => {
+    if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
+      return { kind: "generation-mismatch" };
+    }
+    let current: Buffer;
     try {
-      recheck = await readFile(options.path);
+      current = await readFile(options.path);
     } catch (error) {
       if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
       throw error;
     }
-    if (!recheck.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
-      return { kind: "generation-mismatch" };
+    if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
+
+    const bytes = serializeRecord(options.path, options.record);
+    const temporaryPath = `${options.path}.tmp-${process.pid}-${randomUUID()}`;
+    try {
+      await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+      await options.beforeReplaceRecheck?.();
+      let recheck: Buffer;
+      try {
+        recheck = await readFile(options.path);
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+        throw error;
+      }
+      if (!recheck.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
+        return { kind: "generation-mismatch" };
+      }
+      await rename(temporaryPath, options.path);
+      return { kind: "replaced", bytes };
+    } finally {
+      await unlink(temporaryPath).catch(() => undefined);
     }
-    await rename(temporaryPath, options.path);
-    return { kind: "replaced", bytes };
-  } finally {
-    await unlink(temporaryPath).catch(() => undefined);
-  }
+  });
 }
 
 /** Remove a record only while its exact byte and lock generations remain current. */
@@ -187,26 +190,49 @@ export async function removeLocusRecord(options: {
   expectedBytes: Buffer;
   lock: LocusLockHandle;
 }): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }> {
-  if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
-    return { kind: "generation-mismatch" };
-  }
-  let current: Buffer;
+  return withSerializedRecordMutation(options.lock, async () => {
+    if (!isLockForRecord(options.path, options.lock) || !await ownsLocusLock(options.lock)) {
+      return { kind: "generation-mismatch" };
+    }
+    let current: Buffer;
+    try {
+      current = await readFile(options.path);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+      throw error;
+    }
+    if (!current.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
+      return { kind: "generation-mismatch" };
+    }
+    try {
+      await unlink(options.path);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+      throw error;
+    }
+    return { kind: "removed" };
+  });
+}
+
+async function withSerializedRecordMutation<T>(
+  lock: LocusLockHandle,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const key = resolve(lock.path);
+  const previous = recordMutationTails.get(key) ?? Promise.resolve();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolveGate) => {
+    release = resolveGate;
+  });
+  const current = previous.then(() => gate);
+  recordMutationTails.set(key, current);
+  await previous;
   try {
-    current = await readFile(options.path);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
-    throw error;
+    return await operation();
+  } finally {
+    release();
+    if (recordMutationTails.get(key) === current) recordMutationTails.delete(key);
   }
-  if (!current.equals(options.expectedBytes) || !await ownsLocusLock(options.lock)) {
-    return { kind: "generation-mismatch" };
-  }
-  try {
-    await unlink(options.path);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
-    throw error;
-  }
-  return { kind: "removed" };
 }
 
 function isLockForRecord(recordPath: string, lock: LocusLockHandle): boolean {

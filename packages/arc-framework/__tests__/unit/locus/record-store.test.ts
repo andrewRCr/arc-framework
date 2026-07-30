@@ -150,6 +150,54 @@ describe("locus record store", () => {
     });
   });
 
+  it("allows only one concurrent replacement for one expected generation and lock", async () => {
+    const root = await temporaryRoot();
+    const path = join(root, `locus-${identity.digest}.json`);
+    const lock = await acquireRecordLock(recordLockPath(root), "a".repeat(32));
+    const minted = await mintLocusRecord({ path, record: record() });
+    if (minted.kind !== "created") throw new Error("fixture mint failed");
+
+    let arrivals = 0;
+    let signalFirstArrival = (): void => undefined;
+    const firstArrival = new Promise<void>((resolve) => {
+      signalFirstArrival = resolve;
+    });
+    let releaseRechecks = (): void => undefined;
+    const rechecksReleased = new Promise<void>((resolve) => {
+      releaseRechecks = resolve;
+    });
+    const beforeReplaceRecheck = async (): Promise<void> => {
+      arrivals += 1;
+      if (arrivals === 1) signalFirstArrival();
+      if (arrivals === 2) releaseRechecks();
+      await rechecksReleased;
+    };
+
+    const first = replaceLocusRecord({
+      path,
+      expectedBytes: minted.bytes,
+      record: record("1".repeat(32)),
+      lock,
+      beforeReplaceRecheck,
+    });
+    await firstArrival;
+    const second = replaceLocusRecord({
+      path,
+      expectedBytes: minted.bytes,
+      record: record("2".repeat(32)),
+      lock,
+      beforeReplaceRecheck,
+    });
+    const releaseTimeout = setTimeout(releaseRechecks, 100);
+    const results = await Promise.all([first, second]);
+    clearTimeout(releaseTimeout);
+
+    const replaced = results.filter((result) => result.kind === "replaced");
+    expect(replaced).toHaveLength(1);
+    expect(results.filter((result) => result.kind === "generation-mismatch")).toHaveLength(1);
+    await expect(readFile(path)).resolves.toEqual(replaced[0]?.bytes);
+  });
+
   it("maps disappearance during the replacement recheck to a generation mismatch", async () => {
     const root = await temporaryRoot();
     const path = join(root, `locus-${identity.digest}.json`);
