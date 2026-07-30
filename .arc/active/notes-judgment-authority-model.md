@@ -1128,17 +1128,24 @@ economical footprint is the parent plus the sites with no parent:
 | I          | § Rule Authority's own backstop limb two — no separate rule states it          | n/a           |
 | J, K, L, M | no constitutional parent — see the region-local set below                      | n/a           |
 
-**The eight region-local markers** — sites whose rule exists nowhere else, so the marker has to land in the method:
+**The seven region-local markers** — sites whose rule exists nowhere else, so the marker has to land in the method:
 
 1. `branch-format` — the `plan/` prefix (J).
 2. `classify-work-unit` — the realized-design ratchet (K).
 3. `resolve-planning-depth` — the down-switch floor (K); may ride 2's marker through the cross-reference it already
    carries.
-4. `assess-parallel-fit` — foreign-owned overlap (I).
-5. `assess-draft-readiness` — the three-criterion bar (A), the only planning-stage gate in the set.
-6. `testing-standards` — see it fail first (M).
-7. `testing-standards` — do not assert on spy or call args as the outcome (M).
-8. `testing-standards` — keep mocked boundaries and fixtures faithful (M).
+4. `assess-draft-readiness` — the three-criterion bar (A), the only planning-stage gate in the set.
+5. `testing-standards` — see it fail first (M).
+6. `testing-standards` — do not assert on spy or call args as the outcome (M).
+7. `testing-standards` — keep mocked boundaries and fixtures faithful (M).
+
+_(Corrected at Task 5.R.d: the list ran to eight and included `assess-parallel-fit` — foreign-owned overlap (I) —
+which contradicts the table directly above it, where family `I` is parented at § Rule Authority's backstop limb
+two. The parent genuinely covers it: reordering a foreign-owned work unit is a decision that commits another
+person. No marker was ever owed, none landed in either copy, and SC4 stands; the list was the error. Task 5.R.d
+also split the sentence that made the conflation readable — the same phrasing covered reordering someone else's
+work, which is theirs to decide, and starting your own against a shared surface, which the method's own
+proportionality guard calls advisory.)_
 
 ### Findings
 
@@ -2385,6 +2392,42 @@ region-local list is what is wrong. Task 5.R.d corrects the list rather than the
 **One coupling worth not losing.** The `task-audit` counter's "this reaches no invariant" escape only works if the
 approval half of § Review finding mutation guard reads as invariant, and today the marker sits on the verification
 half alone. Task 5.R.a's marker extension is therefore load-bearing for a counter-finding, not merely tidy.
+
+### The complete disposition set (Task 5.R.d)
+
+Twenty proposals reached verification. Sixteen were taken and landed across Tasks 5.R.a–d; the four rejections are
+recorded here in full, because a rejection with no reasoning is indistinguishable from an oversight and the two
+pairs fail for different reasons.
+
+**Taken (16).** Clause A, Clause B, and the `AGENT-BRIEF.ARC` reword; four `DEV-RULES.ARC` consistency edits
+(§ Verify before assuming, § Review finding mutation guard, § Quality gate failure, § Leave it cleaner);
+`DEV-RULES.PROJECT` § Quality Gates' marker; four `session-init` narrowings and two `session-recover` ones; five
+lifecycle and planning-stage narrowings (`integrate-work-unit`, `activate-work-unit`, `create-spec`,
+`generate-tasks`, `process-task-loop`); the two `testing-standards` `.override` markers; and the
+`assess-parallel-fit` split. `issue-triage`'s cross-module ask, self-flagged as the audit's lowest-confidence
+item, dropped out at verification — scope purity is a standing operator preference, not a degenerate fork.
+
+**Rejected pair one — Clause B's firewall holding.** `generate-tasks`' per-phase confirm gate is a
+`workflow-interlock`, and `AGENT-BRIEF.ARC` classes `workflow-` as always-stop, so Clause B's closing sentence
+excludes it by construction. `task-audit`'s no-implementing-fixes rule reaches the same exclusion by a different
+route: a task line is pre-commitment text, already invariant under the backstop's third limb, and the invariant
+check runs before the reversibility test. Both are kept as regression cases rather than fixed, because the
+firewall has to be shown holding against a proposal that actually reached it. The `task-audit` case additionally
+depends on § Review finding mutation guard's approval half reading as invariant — which is why Task 5.R.a's
+marker extension is load-bearing for a counter-finding rather than merely tidy.
+
+**Rejected pair two — re-openings of settled decisions.** `verify-work-unit`'s criterion-text rule is a family
+`K2` instance, and Task 4.5.a.ii chose a constitutional statement over seven markers; that statement landed in
+§ Rule Authority's pre-commitment-text limb, so marking the site now reverses a settled call and re-incurs the
+concentration cost D3 priced. `draft-design`'s consolidation limb is stronger still: Task 4.6.b considered this
+exact remedy — split the limb out and mark it — rejected it in those words, and fixed the real defect by stating
+the discharge and retitling to "No silent detail loss". The audit read the post-fix text and re-raised the
+pre-fix finding, and the bullet's own closing sentence already defeats its premise.
+
+Both rejections in pair two share one cause, worth carrying forward: **a delegated audit given a work unit's
+output but not its record will re-open decisions the record closed, and the re-openings are shaped exactly like
+findings.** The audits were handed the two clauses and the two motivating failures, not the sweep record, so
+they could not have known. Verification against the record is what separated them, and it is not delegable.
 
 ### Lifecycle state at handoff
 

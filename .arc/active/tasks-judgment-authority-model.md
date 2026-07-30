@@ -1458,27 +1458,28 @@ parked, which would otherwise ship a second time unrecorded.
   propagation gap the work unit's Introduction catalogues, on the shape axis: the corpus keeps making the call
   correctly in one place and not carrying it to the next.
 
-### `[ ]` **5.R.d Close the method region and record the sweep**
+### `[x]` **5.R.d Close the method region and record the sweep**
 
 - _Goal:_ The method region's two live defects are fixed, and every audit proposal — taken or rejected — has its
   disposition and reasoning recorded where the new success criterion can be validated against it.
 
-    - `testing-standards` `.override`: the CLI destructive-verb clause and the prove-fail-first-after-a-fix clause
-      are the project instantiation of two `.default` rules that carry `[invariant]`, and sit unmarked. Residing
-      in an override section is not a reason to omit the marker — configurability is a different axis. This is an
-      instance-only edit; the package copy carries `[No override configured]`, so it does not mirror.
-    - `assess-parallel-fit`: one sentence, repeated in § The overlap rubric and § Self/foreign asymmetry, carries
-      invariant-strength phrasing across two different acts — reordering a foreign-owned work unit, which commits
-      another person, and starting your own work against an overlapping surface, which commits nobody and which
-      the same file calls advisory and never hard-blocking. Split the two; add no marker.
-    - Record the complete disposition set, including the four rejections with their reasoning: the `generate-tasks`
-      per-phase confirm gate and `task-audit`'s no-implementing-fixes rule as Clause B's two firewall regression
-      cases, and `verify-work-unit`'s criterion-text rule and `draft-design`'s consolidation limb as re-openings of
-      decisions Tasks 4.5.a and 4.6.b settled the other way.
-    - Correct the family-`I` record: Task 4.1's table parents it at § Rule Authority's backstop limb two while the
-      same section's region-local list names `assess-parallel-fit` as a site needing its own marker. The parent
-      covers it — foreign-owned overlap is a decision that commits another person — so no marker is owed, and the
-      list is what is wrong.
+    - `testing-standards` `.override` carries `[invariant]` on the destructive-verb clause and on prove-fail-first
+      -after-a-fix, the project instantiations of two `.default` rules that already carry it. Instance-only: the
+      package copy is `[No override configured]`, so there is nothing to mirror.
+    - `assess-parallel-fit`'s repeated sentence is split at both sites. Reordering a foreign-owned work unit stays
+      categorical — it commits another person — while starting your own work against a shared surface is named as
+      the separate act it is, advisory per the file's own proportionality guard. No marker added; the constitutional
+      parent covers the half that binds.
+    - The complete disposition set is recorded in `notes-judgment-authority-model.md` § The complete disposition
+      set — sixteen taken, four rejected in two pairs, each with its reasoning.
+    - The family-`I` record is corrected: the region-local list ran to eight and contradicted the table above it.
+      No marker was owed and none had landed, so SC4 stands and the list was the error.
+
+- _Outcome:_ The two rejection pairs are the phase's most reusable evidence and they say opposite things. Pair one
+  is the design working — Clause B's firewall excluded both proposals by construction, which is only demonstrable
+  because someone proposed them. Pair two is the delegation failure mode: an audit handed a work unit's output but
+  not its record re-opens decisions the record closed, and the re-openings are shaped exactly like findings. Only
+  verification against the record separates them, which is why that pass is not delegable.
 
 ### `[ ]` **5.R.e Re-derive the always-loaded ledger against base**
 
