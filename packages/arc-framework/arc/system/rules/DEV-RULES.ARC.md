@@ -238,7 +238,7 @@ delegates: the human's formative involvement in changes, and judgment staying wi
 - **Execution** — work that lands in the increment: stays with the primary while per-increment
   co-development is in force; delegable only under an explicit, user-approved relaxation — never
   inferred, never self-invoked.
-- **Judgment** · `[invariant]` — validation against ground truth, break-out detection, gates, commits: never
+- **Judgment** — validation against ground truth, break-out detection, gates, commits: never
   delegates, under any mode.
 
 **Harness-conditional clause** (stated once here; callsites reference it, never restate it): use a
