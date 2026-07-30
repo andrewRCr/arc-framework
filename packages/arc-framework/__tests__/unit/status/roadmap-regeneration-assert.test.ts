@@ -9,6 +9,7 @@ import {
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -114,7 +115,9 @@ function makeTransitionExec(
     }
     if (args[0] === "worktree") {
       return {
-        stdout: `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        stdout: worktreePorcelainZ(
+          `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        ),
         stderr: "",
       };
     }

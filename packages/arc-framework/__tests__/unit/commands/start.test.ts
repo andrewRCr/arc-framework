@@ -24,6 +24,7 @@ import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 /** A recording mock exec that resolves every call (success). */
 function recordingExec(): { exec: GitExec; calls: string[][] } {
@@ -45,7 +46,9 @@ function recordingExecWithPrimary(primaryPath: string): { exec: GitExec; calls: 
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     if (args[0] === "worktree" && args[1] === "list") {
-      return { stdout: `worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n` };
+      return {
+        stdout: worktreePorcelainZ(`worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n`),
+      };
     }
     if (args[0] === "rev-parse" && args[1] === "--git-path") {
       return { stdout: join(primaryPath, ".git", "info", "exclude") };
@@ -667,7 +670,9 @@ describe("runCreateNew — create-new worktree spawn", () => {
     // convert it to a refusal rather than throw, honoring the no-throw contract.
     const exec: GitExec = async (cmd, args) => {
       if (args[0] === "worktree" && args[1] === "list") {
-        return { stdout: `worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n` };
+        return {
+          stdout: worktreePorcelainZ(`worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n`),
+        };
       }
       if (args[0] === "worktree" && args[1] === "add") {
         throw new Error("fatal: a branch named 'plan/widget' already exists");

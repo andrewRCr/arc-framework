@@ -9,6 +9,7 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
@@ -110,7 +111,9 @@ function buildExec(opts: { clean: boolean; merged: boolean; shippedFromRef?: boo
     }
     if (args[0] === "worktree" && args[1] === "list") {
       return {
-        stdout: "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        stdout: worktreePorcelainZ(
+          "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        ),
         stderr: "",
       };
     }

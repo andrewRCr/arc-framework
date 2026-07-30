@@ -14,6 +14,7 @@ import {
   resolveComposedLifecycleIndex,
 } from "../../../src/lib/work-unit/composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
 
@@ -77,7 +78,7 @@ function makeInFlightExec(options: {
     }
     if (args[0] === "worktree") {
       if (options.worktreeError === true) throw new Error("worktree list failed");
-      return { stdout: worktreeList, stderr: "" };
+      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
     }
     if (args[0] === "ls-remote") {
       if (options.liveRefs === undefined) throw new Error("network unavailable");

@@ -45,6 +45,9 @@ export const BEGIN_CURRENT_WORKFLOW_SENTINEL = "[begin current workflow]";
 /** A single planning-stage workflow basename. */
 export type PlanningWorkflow = (typeof PLANNING_WORKFLOWS)[number];
 
+/** The default sub-stage when a planning meta carries no usable `Current Workflow` field. */
+export const PLANNING_ENTRY_STAGE: PlanningWorkflow = "draft-design";
+
 /**
  * The parsed `(State, Current Workflow, Design)` tuple the validator reasons
  * over — semantic values recovered by the shared meta adapter.
@@ -61,6 +64,23 @@ export interface CurrentWorkflowConsistencyInput {
 /** Whether `value` is one of the three planning-stage workflow basenames. */
 export function isPlanningWorkflow(value: string | null): value is PlanningWorkflow {
   return value !== null && (PLANNING_WORKFLOWS as readonly string[]).includes(value);
+}
+
+/**
+ * Resolve the planning sub-stage for a single-candidate session.
+ *
+ * @param currentWorkflow - Normalized workflow pointer from the selected meta.
+ * @param sessionType - Session classification for the selected meta.
+ * @returns The selected planning workflow, its entry stage, or `null` outside planning.
+ */
+export function resolvePlanningStage(
+  currentWorkflow: string | null,
+  sessionType: string | null,
+): PlanningWorkflow | null {
+  if (sessionType !== "planning") return null;
+  return isPlanningWorkflow(currentWorkflow)
+    ? currentWorkflow
+    : PLANNING_ENTRY_STAGE;
 }
 
 /**

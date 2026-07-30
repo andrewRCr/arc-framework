@@ -22,6 +22,7 @@ import {
   createValidatedTransitionOverlay,
   transitionOverlayCompositionInput,
 } from "../../../src/lib/work-unit/transition-overlay.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
 
@@ -95,7 +96,9 @@ function makeInFlightExec(opts: {
         stderr: "",
       };
     }
-    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
+    if (args[0] === "worktree") {
+      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
+    }
     if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
@@ -690,11 +693,11 @@ describe("composeProjectReadinessView", () => {
       }
       if (args[0] === "worktree") {
         return {
-          stdout: [
+          stdout: worktreePorcelainZ([
             "worktree /repo",
             "HEAD 1111111111111111111111111111111111111111",
             "branch refs/heads/feat/moving",
-          ].join("\n"),
+          ].join("\n")),
           stderr: "",
         };
       }
