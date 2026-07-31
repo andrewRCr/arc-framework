@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "stale-roadmap-remedy-build",
+  "claimId": "aa0a0cf4c4b9be4b1b080fe46bd05799",
+  "createdAt": "2026-07-31T18:31:56.966Z",
+  "updatedAt": "2026-07-31T18:31:56.966Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the ROADMAP conflict remedy fail closed when the development build is stale",
+  "branch": "chore/stale-roadmap-remedy-build",
+  "origin": "inbox",
+  "originEntry": "Make the ROADMAP conflict auto-remedy refuse on a stale dev build rather than warn",
+  "originEntrySourceDigest": "sha256:dff13dcad14f5694771fedfb3119b2ba0391b8fbcead8ae120576a0c4d0c69e1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
