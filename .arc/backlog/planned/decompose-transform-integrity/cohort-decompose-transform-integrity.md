@@ -68,8 +68,12 @@ frontier without a scheduler or status record.
 
 ### `decompose-base-mobility`
 
-_Exposes:_ append-only committed-unlanded refresh, descendant-base landing, and descendant-current-base extension
-of the shared integration anchor.
+_Exposes:_ append-only committed-unlanded base advancement, descendant-base landing, and descendant-current-base
+extension of the shared integration anchor — including the landing relation for a candidate that has absorbed the
+base, and an authorized advancing-shape arm on the finalized-record commit gate. Both extensions name states only
+this member can produce, so no existing verdict moves. Named for advancement rather than refresh: the core owns an
+uncommitted same-base receipt refresh, and the two stay distinguishable at the command surface and in every
+refusal code.
 
 _Consumes:_ canonical v3 evidence, transition patch, validation verdicts, and typed recovery actions from
 `decompose-transform-integrity`.

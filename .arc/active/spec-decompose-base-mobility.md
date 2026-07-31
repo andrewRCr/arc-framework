@@ -22,7 +22,8 @@ transition patch, hook verdicts, ROADMAP overlay, and typed recovery actions.
 
 ## Goals
 
-1. Advance a committed but unlanded full-protection candidate across base movement through one append-only merge.
+1. Advance a committed but unlanded full-protection candidate — one whose recorded source snapshot is independent
+   of the base — across base movement through one append-only merge.
 2. Admit landing over an exact descendant base only when the recorded patch and dependencies still replay exactly.
 3. Bind every decision to one immutable base/head pair and fail closed on movement.
 4. Make a descendant current base the baseline for the integration-anchor fact, which exact-base-only anchoring
@@ -40,6 +41,13 @@ transition patch, hook verdicts, ROADMAP overlay, and typed recovery actions.
   restore path is bounded by the merge it performs and leaves the candidate committed, exactly as it found it.
 - Grant planning-lane or CODEOWNERS authority; `decompose-planning-lane` owns that optional host policy.
 - Add a pending record, refresh ledger, landing transaction, cache, token, or operator-authored Git proof.
+  Restating a live candidate claim's own binding is none of these — it rewrites one field pair on a record that
+  already exists, rather than introducing a second record or a durable transaction — and is in scope below.
+- Advance a candidate whose recorded source ref is the result-base ref. Such a source head moves with every base
+  advance, and restating it is closed off by receipt identity. The test is structural — recorded source ref equal
+  to recorded result-base ref — not a source-kind check: a backlog-stub origin always lands in that state, and a
+  started-planning origin whose planning branch _is_ the base lands in it too, so keying on kind would build a
+  different gate than the one this reasoning justifies.
 - Treat rebase, cherry-pick, or revert state as merge-parent authority.
 - Advance a **prepared but unfinalized** candidate across base movement. The mechanism generalizes — the same
   append-only merge applies, and the authored-half invariant above is what would license it — but no observed
@@ -52,8 +60,9 @@ transition patch, hook verdicts, ROADMAP overlay, and typed recovery actions.
 
 Mobility consumes the core's finalized v3 receipt, mode-aware transition patch, dependency inventory,
 `ValidatedTransitionOverlay`, and typed mismatch/action result. It supplies exact Git objects and path states
-through injected readers but never recomputes canonical identities, parses receipt JSON independently, or judges
-semantic destination content.
+through injected readers but never **reimplements** canonical identity computation, parses receipt JSON
+independently, or judges semantic destination content. It does re-derive base-dependent identities when the base
+moves — through the core's own producers, never a substitute of its own (below).
 
 #### What reuse reaches, and where it stops
 
@@ -61,9 +70,14 @@ The reuse boundary is not a module boundary. It falls between the machinery that
 and pure facts** and the machinery that manages a **live, uncommitted candidate**, and only the first half is
 available here.
 
-Reusable, because it operates on committed objects or pure inputs: canonical receipt validation, repository-plan
-composition, preparation-fact assembly, the integration-anchor producer and its configured-base adapter, and the
-ROADMAP regeneration remedy. None of these reads a candidate worktree or index.
+Reusable, because it derives from committed objects or pure inputs rather than from an expected candidate shape:
+canonical receipt validation, repository-plan composition — including the ROADMAP render it performs —
+preparation-fact assembly, and the integration-anchor producer with its configured-base adapter. None of these
+requires the candidate to look any particular way.
+
+The discriminator is **not** "touches the index." The ROADMAP regeneration remedy reads and writes the index by
+design, and mobility still cannot use it — not because of what it touches, but because it discovers authority
+mobility already holds, and renders from inputs the plan does not own (below).
 
 Not reusable, because it is uncommitted-only by construction: candidate occupation, candidate inspection, and
 candidate discard. Each re-derives an expected candidate shape and requires the on-disk candidate to match it,
@@ -93,11 +107,12 @@ requires the exact clean deterministic candidate, proves that its canonical rece
 the configured base, pins the live base, and merges that base into the candidate without rebase, amend, or
 force-push.
 
-Only canonical ROADMAP regeneration may be resolved automatically. Recorded path, type, and mode overlap and
-dependency drift are refused ahead of the merge by the landing verdict below, so they abort without mutating
-anything; any other conflict or ref movement, arising once the merge is under way, aborts and restores the bounded
-pre-merge candidate. After the merge, the command preserves all semantic destination bytes and modes, regenerates
-ROADMAP, and stages one same-path current receipt accepted by the core hook verdict.
+The only path resolved automatically is a regenerable projection, and it is re-derived rather than merged.
+Recorded semantic-path, type, and mode overlap and dependency drift are refused ahead of the merge by the landing
+verdict below, so they abort without mutating anything; any other conflict or ref movement, arising once the merge
+is under way, aborts and restores the bounded pre-merge candidate. After the merge, the command preserves all
+semantic destination bytes and modes, re-derives ROADMAP from the restated record, and stages one same-path current
+receipt accepted by the core hook verdict.
 
 Repetition follows the same authority rather than a one-shot guard. Re-invocation while the recorded result base
 is still the live base is a no-op over an already-advanced candidate; a base that has advanced again runs the same
@@ -127,19 +142,42 @@ origin's own predecessor state, the receipt path, ROADMAP, cohort topology, and 
 still conflict on a path none of them recorded. None subsumes another — in particular, re-derivation's predecessor
 equality is a three-way test against a recomputed merge base, anchored differently from the validator's per-path
 replay, and each admits cases the other refuses. A conflict surviving all three is a genuine surprise rather than
-the expected refusal, and — ROADMAP excepted — it restores rather than resolving.
+the expected refusal, and — regenerable projections excepted — it restores rather than resolving.
 
-#### ROADMAP regeneration supplies its overlay rather than discovering one
+#### ROADMAP is re-derived by the plan that owns it, not resolved by the shared remedy
 
-The shared merge-conflict remedy discovers transition authority from a pinned snapshot and requires the receipt's
-recorded result base to equal the live configured base. Advancement is precisely the state where those differ, so
-that discovery path refuses by construction and cannot serve this command.
+ROADMAP is a regenerable projection of operational state that happens, for now, to be a tracked file. Advancement
+treats it as exactly that: not content to be preserved across a merge, but a view to be re-derived from the record
+the operation just restated. The plan re-composition already renders it — that render is how the plan knows
+ROADMAP's post-transition state at all — so advancement stages those bytes as the resolution and is done.
 
-The remedy exists because a commit hook must _find_ authority it was not given. This command already holds
-validated authority for the exact receipt it was invoked with, so it regenerates through the same ROADMAP renderer
-with the overlay **supplied**, skipping only the discovery and selection layer that has nothing to decide here.
-That adds no second renderer and no second conflict classifier; the generic remedy keeps its own path unchanged for
-every caller that must still discover.
+The shared merge-conflict remedy is not used, for two independent reasons. It discovers transition authority from a
+pinned snapshot and requires the receipt's recorded result base to equal the live configured base, which is
+precisely the state advancement is not in — so its discovery half refuses by construction. And its resolution half
+renders from inputs the plan does not own: its render stamp resolves against the worktree head rather than the
+result base, so its bytes and the plan's diverge exactly when the two differ, which under advancement is always.
+
+Using the plan's own render is not a second renderer — it is the renderer the plan already runs, producing the
+bytes the plan already projected. It is what keeps the projection truthful: the core's own finalization admits a
+candidate only when its ROADMAP equals a render stamped at the result base, and re-deriving through the plan is
+what preserves that standard for an advanced receipt instead of quietly exempting it. The generic remedy keeps its
+own path unchanged for every caller that must still discover.
+
+**One precondition this operation does not own.** The pre-commit regeneration assert re-renders the staged
+projection with its own inputs and demands byte equality, and it anchors its render stamp to `HEAD` rather than to
+the result base. Every other operation escapes that divergence structurally: finalization refuses unless the
+candidate head equals the result base, so the two stamps are identical by construction. Advancement is the first
+operation to commit from a candidate whose head is _not_ the result base, so it is the first for which they differ
+— and the stamp is the only render input that reaches the compared bytes, the remaining differences affecting only
+residue warnings the composer returns separately and never renders. Advancement is therefore correct as designed
+but uncommittable until the projection's render stamp stops being anchored to `HEAD`. That correction is recorded
+against the projection's own owner, not taken here, and implementation waits on it.
+
+**Interim by construction.** This whole surface exists because ROADMAP is currently carried on every branch. The
+project's storage direction moves operational-state projections off the tracked tier, at which point ROADMAP is not
+an allowed path, not in the transition patch, and has no merge behavior to resolve. The design is deliberately
+shaped so that arriving there is a deletion — one excluded path and one render call — rather than an unpicking of
+ROADMAP-specific reasoning spread across the landing verdict, the seal, and the merge.
 
 #### Advancing the base re-derives every base-dependent fact and never the cut
 
@@ -159,10 +197,23 @@ from that unchanged authored cut, and re-assembles the preparation facts through
 them the first time. Every base-dependent identity is produced by the producer that owns it, and the core's
 existing cross-checks between plan, map, and facts hold unchanged.
 
-Two properties make this safe to run before the merge. Composition pins the base by requiring the restated head to
-be the live tip of the recorded base ref — exactly what advancement restates it to — and it reads only committed
-trees, never the candidate. So the whole re-derivation is provable against the live base while the candidate still
-sits untouched.
+The origin's own source snapshot must also still be pinned, which bounds where advancement applies. Composition
+pins two refs, not one: it requires the recorded source ref to still resolve to the recorded source head, exactly
+as it requires that of the base. Where the source is an independent planning branch, that holds across base
+movement. Where the recorded source ref _is_ the result-base ref, it cannot — the source head moves with the base,
+and restating it is not available, because receipt identity digests it and a moved identity moves the receipt path.
+Such a candidate is refused on its precondition rather than advanced, and refused there rather than left to surface
+as an opaque composition failure once the operation is under way.
+
+Two properties make the re-derivation safe to run before the merge. Composition pins the base by requiring the
+restated head to be the live tip of the recorded base ref — exactly what advancement restates it to — and it
+**mutates nothing and reads no candidate worktree or index**. So the whole re-derivation is provable against the
+live base while the candidate still sits untouched, and a refusal costs no restore.
+
+It is not, however, a pure function of committed trees. The projection render it performs consumes live local-ref
+and decomposition-claim state alongside the trees it reads. That is a real dependency rather than an incidental
+one — it is the same live state advancement itself operates in — and it is why the projection's bytes are settled
+by the render, not by the merge.
 
 Re-composition is not a second **semantic** decision point: the authored cut it composes from is byte-identical,
 so no allocation, destination, or disposition is re-decided. It is emphatically a second **admission** point.
@@ -177,6 +228,71 @@ identity that moves, aborts and restores. Receipt identity is what makes the sec
 — derived from origin, source branch, and source head alone, it is invariant under base movement, which is what
 keeps the refreshed receipt on its original path.
 
+The receipt is re-sealed on that path, and that is not optional bookkeeping: a receipt's finalized half is bound
+to its preparation's allowed paths by canonical equality, and ROADMAP is one of those paths with its prior state
+read at the result base — so advancement moves the transition patch and its digest, and the recorded finalized
+half cannot be re-paired with the restated preparation. Sealing happens **after** the merge, through the same
+receipt constructor finalization uses and from the same live path reads, carrying the recorded distribution
+choice forward untouched: advancement re-derives base-dependent facts and decides nothing about distribution.
+
+Sealing after the merge rather than before it is deliberate, and it costs the operation nothing it claimed. What
+precedes the merge is the **admission** decision — the three refusals above — and the plan re-composition that
+proves the advanced base still admits this cut. The receipt then records what the merge produced, read live, which
+is the same discipline core finalization already follows.
+
+The merged result is held to the plan's projection on every allowed path, projections included. Because ROADMAP is
+re-derived through the plan's own render rather than resolved by a foreign one, its merged bytes and its projected
+bytes are the same bytes by construction — so the equality is a real check on every path rather than a check with a
+hole in it. That is what keeps an advanced receipt satisfying the same invariant core finalization enforces on
+every other receipt: its `prospectiveProjection` describes a tree that actually existed. A divergence anywhere
+restores rather than staging a record the tree does not match.
+
+#### The commit gate assumes a candidate that has not committed, so it must name the advancing shape
+
+The core's finalized-record commit gate refuses this operation's commit on three independent arms, and each refusal
+traces to one assumption: that a candidate's head equals its prepared base, so its receipt is always being **added**
+for the first time. A merge may not introduce a retirement record at all. A record change must be an addition, with
+nothing at that path in `HEAD`. And the staged write set must equal the receipt path plus its transition patch
+exactly.
+
+Every one of those holds for the core, because the core commits a candidate exactly once, from a worktree whose
+head is still the prepared base. Advancement commits a candidate that has already committed: its receipt is at
+`HEAD`, so the change is a modification; the commit is a merge, because that is the whole mechanism; and a merge's
+change set carries inherited paths the exact-write-set rule was never written against. Splitting the operation
+into two commits does not escape it — the modified-not-added refusal fires on an ordinary commit too.
+
+The gate therefore gains an authorized arm for the advancing shape: a base-advancing merge whose record change is a
+**restatement** of the receipt already at that path, under the same receipt identity, with a write set that admits
+the merge's inherited paths. Distinguishing a restatement from an amendment is what the arm must actually decide,
+and receipt identity is what lets it: an advanced receipt keeps its identity and its path while its preparation
+identity moves, where an amendment would move both or neither.
+
+This extends the gate rather than redefining it. No existing caller's verdict changes, because no existing caller
+can produce the shape — only advancement commits a candidate whose receipt already exists. It is the same boundary
+the landing relation sits on: the cohort reserves the core's authority to _define_ evidence and finalization, not
+to foreclose a member naming a state the core cannot reach.
+
+#### The candidate's claim is bound to the base it was cut against, so advancement restates it
+
+Under full protection the candidate is held by a transient claim whose binding records the result base head and
+the cut-map digest alongside the origin, candidate branch, and source head. Both of the first two move under
+advancement — the base head by definition, the digest because it covers the machine block the base sits in. The
+claim record is written once at acquisition and its binding is immutable thereafter. The binding is a closed
+shape, and every transition the state machine offers either moves the claim's own lifecycle — acquire, occupy,
+retire — or the worktree reservation beside it; none updates the binding. Acquiring over a live claim with a
+changed binding is a conflict rather than an update.
+
+Left alone, that is a silent stranding rather than a refusal. Receipt-backed cleanup admits only a claim whose
+binding matches the anchor's facts, so an advanced-and-landed candidate would pass every gate this work unit adds
+and then fail the one that reclaims it — the candidate branch and worktree would survive indefinitely, with no
+step in the transform reporting anything wrong.
+
+Advancement therefore restates the binding as part of the same authority that restates the record: same claim, same
+generation, same candidate — one field pair rewritten to the values re-derivation just produced. The alternative,
+narrowing the cleanup gate to compare only base-invariant facts, would buy the same result by weakening the gate
+for every caller, including the exact-base ones that have no base movement to tolerate. The two fields are there
+to bind a claim to an exact cut; advancement moves the cut's base and so owns moving them with it.
+
 ### Descendant-base landing
 
 A small read-only validator consumes `{receipt, currentBaseOid, candidateHeadOid}` plus exact commit, path-state,
@@ -190,9 +306,21 @@ It accepts:
 
 It refuses regressed or divergent history; changed creates/writes/deletes; content-equal mode changes; non-regular
 objects; new dependencies on the retired origin; extra transition paths; or stale base/head observations. The
-recorded transition patch is the complete overlap model **for the paths the transition touches**. Non-touched paths
-are ignored by construction, and drift in the origin's own predecessor state is not this validator's question —
-re-derivation answers that one.
+recorded transition patch is the complete overlap model **for the semantic paths the transition touches**.
+Non-touched paths are ignored by construction, and drift in the origin's own predecessor state is not this
+validator's question — re-derivation answers that one.
+
+**Regenerable projections are excluded from the overlap model**, and this exclusion is what makes the mode work at
+all rather than a convenience. ROADMAP is a recorded touched path — every decomposition changes it — and the base
+changes it on essentially every advance, since it projects the very lifecycle events that move the base. Treating
+that as overlap would refuse the ordinary case the mode exists to serve, and would refuse it for a file whose
+contents advancement re-derives rather than preserves. The exclusion is keyed off the plan's own projection slot
+rather than a path spelled into the validator, so it names a _class_ — regenerable views — and disappears with that
+class when projections leave the tracked tier.
+
+The distinction the validator draws is therefore preserved-versus-re-derived, not touched-versus-untouched. A
+semantic destination must replay exactly, because advancement must not alter what review approved. A projection
+must not, because advancement recomputes it from the restated record.
 
 The dependency check is a base-to-base comparison, not a comparison against the recorded inventory. Recorded
 incoming edges are derived at the selected source snapshot, which for a started-planning origin is its own branch
@@ -249,12 +377,54 @@ this design exists to admit. Enumerating the commits the base has gained finds i
 how far the base has advanced rather than by repository history, and asks nothing of path-history simplification.
 The landing predicate applied to that set is the core's existing one, unchanged.
 
+Selecting among what that predicate admits is the search's own responsibility, because more than one commit
+satisfies it in the ordinary case. The predicate admits any commit whose first parent is the prepared base, so a
+merge landing matches twice — once as the candidate commit and once as the merge that landed it — and an unrelated
+sibling commit off the prepared base matches too. The search therefore replays every match and keeps only those
+that replay, then takes the one that descends from every other survivor: the landing merge where one exists, the
+candidate itself under a fast-forward landing. Nothing surviving is not-landed; survivors with no ancestry relation
+between them are ambiguous, and both are existing arms. Selecting by enumeration order instead would report a merge
+landing as a fast-forward, moving the recorded landing commit off the base's own history so that one receipt
+carried different anchor facts before and after the base advanced — the second derivation route this design
+forbids.
+
+#### Advancement mints a candidate shape the landing relations do not yet name
+
+The core enumerates two exact landing relations: a fast-forward, where the base head's single parent is the
+prepared base, and a merge, where the base head's **first** parent is. Both name the prepared base in a fixed slot
+of one pinned commit, which is what makes them proofs rather than searches — the recorded principle is that neither
+a candidate tree nor a history-wide receipt search proves landing.
+
+Advancement absorbs the base by merging it into the candidate, so the candidate becomes a two-parent commit whose
+first parent is its own predecessor and whose second is the base. Landing that by merge is unaffected: the landing
+commit's first parent is still the base. Landing it by **fast-forward** is not — the base head then _is_ the
+candidate, with two parents and the prepared base in the second slot, so the fast-forward relation fails on arity
+and the merge relation fails on order. The decomposition has landed and no relation names it.
+
+Fast-forward is not the exotic case here; it is the likely one, because an advanced candidate already contains the
+base and that is what git does by default.
+
+The fast-forward relation therefore generalizes, and the relation set is stated exhaustively so nothing is left to
+reading: a merge landing is arity two with the prepared base in slot zero; a fast-forward landing is arity one with
+the prepared base in slot zero, **or** arity two with it in slot one. Merge is evaluated first, so no existing
+verdict moves, and no other arity is admitted.
+This is an extension of the relation set, not of the anchor: the result shape gains no arm and no field, and the
+four consumers see nothing change — which is what the cohort's no-second-anchor-shape commitment actually
+constrains.
+
+The alternative — refusing a fast-forward landing so the operator sees a fault rather than silence — was rejected
+on its own terms. Refusing it _visibly_ requires detecting the shape, which is the same detection that admits it;
+constraining costs identical machinery and returns a correctly-performed landing refused after the fact, on a
+repository whose merge configuration the operator may not control.
+
 The producer performs no ref or history lookup of its own, so descent reaches it as a supplied fact bound to the
 exact landing/current pair it describes; a proof naming any other pair authorizes nothing. What that supplied
 descent replaces is only the producer's exact-equality refusal. The adapter's separate insistence that the
-candidate tree equal the _current base_ tree is **relocated, not removed**: it is re-read against the located
+candidate tree equal the _current base_ tree is **relocated, not removed**: it is re-read against the selected
 landing commit, where it means what it always meant, rather than against a base that has since advanced — where it
-would refuse every descendant case by construction.
+would refuse every descendant case by construction. It stays a refusal applied after selection rather than a
+survival test within it, so a landing whose tree was altered during resolution is refused rather than passed over
+in favor of a commit whose tree the base does not hold.
 
 Relocating rather than deleting is deliberate. The producer carries an equivalent landing-tree check, so deletion
 looks safe and is not: the adapter's check fires first and refuses as a transition mismatch, while the producer's
@@ -339,18 +509,23 @@ Rejected. Exact refs, canonical evidence, bounded Git state, and idempotent retr
 - **Security:** every mutation follows an immutable source/base/candidate proof; races fail closed.
 - **Compatibility:** only canonical v3 evidence receives mobility; obsolete development schemas grant no
   authority.
-- **Testing:** focused real-Git DAGs own base advancement, descendant replay, ref races, and anchor reachability.
+- **Testing:** focused real-Git DAGs own base advancement, descendant replay, ref races, and anchor reachability,
+  carried through to claim retirement rather than stopping at anchor resolution — a candidate that resolves its
+  anchor and then cannot be reclaimed passes every shallower check.
 - **Rollout:** the core exact-base transform remains safe before this member lands.
 - **Performance:** landing validation is proportional to recorded touched paths and dependencies, not repository
   size. Re-derivation is not — it re-runs the core's own composition, whose cost is the transform's existing cost —
   and the landing-commit search is one bounded enumeration of what the base gained since the prepared base, not a
-  per-commit walk.
+  per-commit walk — guarded by an ancestry check, without which a prepared base whose history was replaced widens
+  the enumeration past the advance it is meant to bound.
 
 ## Success Criteria
 
 - A canonical full-protection candidate advances across unrelated base movement through one append-only merge.
-- ROADMAP is the only automatically resolved conflict; every other conflict restores the bounded candidate.
-- The restaged same-path receipt passes the core hook and remains the sole live current receipt.
+- A regenerable projection is the only automatically resolved path, and it is re-derived rather than merged; every
+  other conflict restores the bounded candidate.
+- The restaged same-path receipt passes the core hook and remains the sole live current receipt, through an
+  authorized advancing-shape arm on the commit gate that leaves every existing caller's verdict unchanged.
 - Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
 - The shared integration anchor resolves over a descendant current base — after the canonical receipt and
   transition validate against the reread configured base — so a member stays launchable across unrelated commits
@@ -366,8 +541,19 @@ Rejected. Exact refs, canonical evidence, bounded Git state, and idempotent retr
   receipt identity that moves, aborts.
 - A base advance that alters the origin's own predecessor state is refused, even where the recorded transition
   patch replays cleanly.
-- ROADMAP regenerates through the shared renderer with a supplied overlay, leaving the discovery-based remedy
-  unchanged for its own callers.
+- ROADMAP is re-derived through the plan's own render and staged as the resolution, leaving the shared
+  discovery-based remedy untouched for its own callers.
+- The advanced receipt is sealed after the merge from live path reads, and every allowed path — projections
+  included — matches the re-composed plan's projection, so an advanced receipt satisfies the same
+  prospective-projection invariant core finalization enforces on every other receipt.
+- Regenerable projections are excluded from the landing verdict's overlap model, so a base advance that changed
+  only ROADMAP is admitted rather than refused.
+- A candidate whose recorded source ref is the result-base ref is refused on its precondition, without mutating the
+  repository, on a structural test rather than a source-kind check.
+- A decomposition landed by fast-forward onto an advanced candidate resolves its anchor, with every pre-existing
+  exact-base verdict unchanged.
+- A landed advanced candidate retires through the ordinary receipt-backed cleanup gate, because advancement
+  restated its claim binding alongside the record rather than leaving the claim bound to the superseded base.
 - A refused advancement leaves the candidate exactly as it found it — committed, unlanded, and no further torn
   down than before the attempt.
 - No rebase, amend, force-push, mobility ledger, host-policy grant, second anchor shape, or duplicate validator is
