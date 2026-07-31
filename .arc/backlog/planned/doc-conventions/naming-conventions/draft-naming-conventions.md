@@ -338,6 +338,18 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 - _Evidence:_ `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, and
   `working-memory-name`; corresponding `scan-result.json#class-*` anchors.
 
+### `[ ]` **Reconcile the `Context:` footer method with its validator**
+
+- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step), housekeep drain (2026-07-30); captured during
+  `decompose-base-mobility` planning.
+- _Concern:_ the prescribed `notes-*` companion family has no valid in-chain footer: the method and validator
+  recognize only task, design, and meta anchors. The validator also rejects `(incidental during …)` on a
+  `spec-*` anchor even though the method and its discreteness test present that parenthetical as anchor-neutral.
+- _Fold-in:_ decide the contract before changing either surface. Give notes companions a chain position with the
+  appropriate parentheticals, or explicitly route them through the meta maintenance rung and make diagnostics
+  say so. Either admit incidental parentheticals on every in-chain anchor or scope the method per anchor. Update
+  the method, validator tables, and refusal suggestions together.
+
 ---
 
 ## Problem / Motivation

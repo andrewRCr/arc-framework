@@ -467,6 +467,43 @@
   that writes the file directly, retiring the redirect idiom. Pairs with the merge-driver auto-resolve item already
   in this buffer — together they close both the awareness gap and the conflict-reconcile gap this incident hit.
 
+### `[ ]` **Make the ROADMAP check reproducible under concurrent sibling sessions**
+
+- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step), housekeep drain (2026-07-30); captured during
+  `decompose-base-mobility` planning.
+- _Concern:_ the regen check compares the staged projection to a fresh render that reads live local refs and
+  decomposition claims. A sibling branch can move between render and commit, invalidating a projection staged
+  moments earlier. The retry remedy races the same mutable input and becomes less reliable as concurrency grows.
+- _Fold-in:_ make the check-side render a pure function of reproducible staged inputs, excluding live-ref-derived
+  rows from the comparison rather than necessarily from the artifact. If that boundary cannot hold, define a
+  bounded re-render/re-compare retry that reports the race explicitly.
+
+### `[ ]` **Gate the ROADMAP regen warning on a real projection difference**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-30); captured
+  during `chunked-delivery` base reconciliation.
+- _Concern:_ the hook warns whenever a render field changes even when the rendered row is byte-identical. Its
+  suggested full regeneration is actively harmful on a branch behind base because unrelated shipped and
+  in-flight rows enter the diff.
+- _Fold-in:_ compare the would-be render with the committed projection and warn only on a real difference.
+  Evaluate scoping that comparison to rows fed by the staged metas so the result remains correct independently
+  of base distance, coordinated with the branch-carried projection retirement already in this draft.
+
+### `[ ]` **Treat the HEAD-pinned render stamp as a composition blocker**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-30); captured
+  during `decompose-base-mobility` planning.
+- _Concern:_ the existing branch-carried-projection entry records per-commit re-render tax, but the stamp now
+  blocks dependent design. Core decomposition finalization expects a projection stamped at
+  `resultBase.head`; the shared conflict remedy stamps worktree `HEAD`. Those values diverge under the exact
+  base-advancement case the remedy is meant to handle, making the paths impossible to compose without weakening
+  an invariant.
+- _Fold-in:_ sharpen the existing branch-carried-projection evidence rather than creating a separate concern.
+  If full projection retirement remains deferred, weigh dropping or read-time deriving the stamp as a focused
+  interim correction; that already-recorded option would dissolve this failure class.
+
+---
+
 ## Problem / Motivation
 
 WOR established the meta files as the single source of truth and codified a deterministic render for

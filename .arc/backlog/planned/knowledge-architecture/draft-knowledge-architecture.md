@@ -106,6 +106,21 @@
 - _Fold-in:_ lifecycle-conditional entry predicates on the always-loaded index surface — distinct from and better
   than `loadset-composition`'s wholesale-demotion lean for this file.
 
+### `[ ]` **Absorb the evergreen half of `analysis-load-set-scoping` into knowledge doctrine**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Phase 2.
+- _Concern:_ the analysis is consumed as doctrine but nothing summons it. Its durable portion is the membership /
+  disposition / depth axes, two-clause demotion precondition, unsafe-versus-pointless distinction, residual-
+  question rule, and adherence bands; repository measurements, schema-version details, and investigation
+  provenance remain instance-bound analysis.
+- _Fold-in:_ absorb the evergreen portion into `strategy-knowledge-evolution` rather than minting another
+  strategy and loading-tier debit. First settle or explicitly preserve the demotion precondition's irrelevance
+  defect: its second independent signal is unproducible for the trigger-less entries the rule is meant to judge.
+  Completing the move satisfies the corresponding `WORKING-MEMORY` removal trigger.
+
+---
+
 ## Problem / Motivation
 
 ARC's _procedural_ content (workflows, methods, extensions) has a heavily developed — partly still
