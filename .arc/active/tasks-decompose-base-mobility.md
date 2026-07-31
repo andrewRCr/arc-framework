@@ -196,7 +196,7 @@ the landing commit itself.
   facts retain their existing check order and verdicts; admitted descendant and descendant-merge facts resolve
   through the unchanged anchor/result shapes, with claim retirement still derived only from receipt ownership.
 
-### `[ ]` **2.2 Extend configured-base landing detection**
+### `[x]` **2.2 Extend configured-base landing detection**
 
 - _Goal:_ The Git adapter locates the landing commit when the configured base has advanced beyond it, and
   invalidates on movement, deletion, or history replacement.
@@ -204,7 +204,7 @@ the landing commit itself.
 - _Context:_ `landingFor` admits only a base commit whose first parent is the recorded prepared base, so an
   advanced base reads as `not-landed` today.
 
-    - `[ ]` **2.2.a Locate the landing commit under an advanced base**
+    - `[x]` **2.2.a Locate the landing commit under an advanced base**
 
         - Preserve the exact path first: when the current base's own first parent is the recorded prepared base,
           the existing detection runs unchanged, including its `transition-tree` refusal on a mismatch. Only when
@@ -353,7 +353,7 @@ the landing commit itself.
 
             - Leaves the exact path's `transition-tree` refusal unchanged.
 
-    - `[ ]` **2.2.b Prove the descendant relation for the producer**
+    - `[x]` **2.2.b Prove the descendant relation for the producer**
 
         - Supply the proofs Task 2.1.a consumes, derived from pinned objects and closed by the existing final
           reread: the `baseDescent` proof naming the located landing commit and the pinned current base, and the
@@ -373,7 +373,12 @@ the landing commit itself.
 
             - Returns `configured-base-raced` when the base moves before the reread.
 
-### `[ ]` **2.3 Preserve exact-base verdicts and extend every consumer unmodified**
+- _Outcome:_ The configured-base adapter preserves direct exact detection, then bounds a full-DAG search by the
+  prepared/current ancestry pair. It replay-filters structural hits, selects the unique ancestry-maximal landing,
+  validates descendant-merge composition with the projection exception, supplies pair-bound producer proofs, and
+  closes the live configured-base race without changing refusal vocabulary.
+
+### `[x]` **2.3 Preserve exact-base verdicts and extend every consumer unmodified**
 
 - _Goal:_ All four anchor consumers gain descendant reach with no change to their own code, contracts, or refusal
   reasons.
@@ -390,7 +395,7 @@ the landing commit itself.
 - _Context:_ the consumers are local cleanup, the claim-retirement gate, the landed-handoff emitter, and the
   graduation transaction behind `arc start`, which resolves the anchor by receipt id.
 
-    - `[ ]` **2.3.a Regress the cleanup consumers unchanged**
+    - `[x]` **2.3.a Regress the cleanup consumers unchanged**
 
         - Build `test-first` (one behavior at a time):
 
@@ -403,7 +408,7 @@ the landing commit itself.
               refusal with its optional `ref` and `record` operands and the split between a corrupt namespace and
               a record version conflict.
 
-    - `[ ]` **2.3.b Extend the handoff and launch consumers unchanged**
+    - `[x]` **2.3.b Extend the handoff and launch consumers unchanged**
 
         - _Note:_ the graduation transaction currently captures an `anchor-policy` refusal whenever the anchor does
           not resolve, so a decomposition-minted work unit stops resolving as soon as anything lands on its base
@@ -417,6 +422,10 @@ the landing commit itself.
             - The graduation transaction resolves its anchor after the base has advanced past the landing commit.
 
             - A genuinely unlanded receipt still captures the existing `anchor-policy` refusal.
+
+- _Outcome:_ Local cleanup, full/partial claim retirement, landed handoff, and graduation consume the same anchor
+  shape after descendant derivation with no production consumer edits. Exact, unlanded, namespace-corrupt, and
+  anchor-policy behavior remains covered through the existing result contracts.
 
 ## **Phase 3:** Append-only base advancement command
 

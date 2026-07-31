@@ -75,6 +75,22 @@ describe("deriveDecompositionLocalCleanupEligibility", () => {
     });
   });
 
+  it("exposes the same cleanup from a descendant-derived shared anchor", () => {
+    const descendantHead = "f".repeat(40);
+    const selection = produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: descendantHead,
+      baseDescent: { kind: "descendant", from: CANDIDATE_HEAD, to: descendantHead },
+    }));
+    const result = deriveDecompositionLocalCleanupEligibility(selection, request());
+
+    expect(result.status).toBe("eligible");
+    if (result.status !== "eligible") return;
+    expect(result.cleanup.integrationAnchor).toMatchObject({
+      currentBaseHead: descendantHead,
+      landedCommitHead: CANDIDATE_HEAD,
+    });
+  });
+
   it("carries the exact full-protection claim arm from a shared merge anchor", () => {
     const fixture = v3DecompositionEvidenceFixture();
     const claimed = {
