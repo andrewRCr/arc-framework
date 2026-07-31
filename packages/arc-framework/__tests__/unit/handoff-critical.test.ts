@@ -17,6 +17,7 @@ function cmd(name: string, parentName: string | undefined, opts: Record<string, 
 describe("isHandoffCritical", () => {
   it("refuses stale dist for cross-machine and gating commands", () => {
     expect(isHandoffCritical(cmd("sync", "arc"))).toBe(true);
+    expect(isHandoffCritical(cmd("hook-remedy-roadmap-conflict", "arc"))).toBe(true);
     expect(isHandoffCritical(cmd("save", "user"))).toBe(true);
     expect(isHandoffCritical(cmd("push", "user"))).toBe(true);
     expect(isHandoffCritical(cmd("sync", "user"))).toBe(true);
