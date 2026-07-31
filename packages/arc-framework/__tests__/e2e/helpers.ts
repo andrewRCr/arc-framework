@@ -23,6 +23,22 @@ export interface RunResult {
   timedOut?: true;
 }
 
+/** Result from several built-CLI invocations sharing one interactive process anchor. */
+export interface AnchoredSequenceResult extends RunResult {
+  results: unknown[];
+}
+
+type AnchoredSequenceLocation =
+  | { cwd: string }
+  | { cwdFromPreviousJson: string }
+  | { reuseResolvedCwd: true };
+
+type AnchoredSequenceEntry =
+  | readonly string[]
+  | { command: readonly string[] }
+  | ({ args: readonly string[] } & AnchoredSequenceLocation)
+  | ({ command: readonly string[] } & AnchoredSequenceLocation);
+
 /**
  * Run Git in an E2E fixture repository with project hooks disabled.
  *
@@ -95,6 +111,90 @@ export async function runArc(
       stderr: e.stderr ?? "",
       exitCode,
       ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
+    };
+  }
+}
+
+/** Invoke ARC beneath one real interactive-shell anchor for locus-aware commands. */
+export async function runArcAnchored(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; env?: Record<string, string> },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
+  const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
+  const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `bash --noprofile --norc -ic ${shellEscape(interactiveCommand)}`, "/dev/null"],
+      { cwd, timeout, env },
+    );
+    return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: normalizeAnchoredOutput(failure.stdout ?? ""),
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+    };
+  }
+}
+
+/** Invoke several ARC commands beneath one persistent interactive-shell anchor. */
+export async function runArcAnchoredSequence(
+  argsList: readonly AnchoredSequenceEntry[],
+  cwd: string,
+  options?: { timeout?: number; env?: Record<string, string>; anchorShellPath?: string },
+): Promise<AnchoredSequenceResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
+  const anchorShell = options?.anchorShellPath ?? "bash";
+  const commands = argsList.map((entry) => {
+    const commandArgs = "command" in entry
+      ? entry.command
+      : [process.execPath, CLI_PATH, ...("args" in entry ? entry.args : entry)];
+    const command = commandArgs.map(shellEscape).join(" ");
+    let prefix = "";
+    let located = command;
+    if ("cwd" in entry) {
+      located = `cd ${shellEscape(entry.cwd)} && ${command}`;
+    } else if ("cwdFromPreviousJson" in entry) {
+      const readField = [
+        process.execPath,
+        "-e",
+        "const fs=require('node:fs');const value=JSON.parse(fs.readFileSync(0,'utf8'));"
+          + "process.stdout.write(String(value[process.argv[1]]));",
+        entry.cwdFromPreviousJson,
+      ].map(shellEscape).join(" ");
+      prefix = `arc_sequence_cwd=$(printf '%s' "$arc_sequence_result" | ${readField}); `;
+      located = `cd "$arc_sequence_cwd" && ${command}`;
+    } else if ("reuseResolvedCwd" in entry) {
+      located = `cd "$arc_sequence_cwd" && ${command}`;
+    }
+    return `${prefix}arc_sequence_result=$(${located}); arc_sequence_status=$?; `
+      + `printf '%s\n' "$arc_sequence_result"; (exit $arc_sequence_status)`;
+  });
+  const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `${shellEscape(anchorShell)} --noprofile --norc -ic ${shellEscape(command)}`, "/dev/null"],
+      { cwd, timeout, env },
+    );
+    const normalized = normalizeAnchoredOutput(stdout);
+    return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
+    return {
+      stdout: normalized,
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+      results: parseJsonLines(normalized),
     };
   }
 }
@@ -226,6 +326,26 @@ function buildScriptCommand(args: string[], useExec = true): string {
 
 function shellEscape(value: string): string {
   return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function normalizeAnchoredOutput(value: string): string {
+  const lines = value.replaceAll("\r", "").split("\n");
+  const lastContent = lines.at(-1) === "" ? lines.length - 2 : lines.length - 1;
+  if (lines[lastContent] === "exit") lines.splice(lastContent, 1);
+  return lines.join("\n");
+}
+
+function parseJsonLines(value: string): unknown[] {
+  const parsed: unknown[] = [];
+  for (const line of value.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    try {
+      parsed.push(JSON.parse(line));
+    } catch {
+      // Transcript noise that resembles JSON must not discard earlier command results.
+    }
+  }
+  return parsed;
 }
 
 /**

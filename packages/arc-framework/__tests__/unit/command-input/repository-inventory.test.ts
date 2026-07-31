@@ -31,9 +31,15 @@ describe("repository command-input inventory", () => {
     );
   });
 
-  it("reconciles every live syntax and interaction site exactly once", () => {
+  it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(
       (count, command) => count + command.operands.length + command.options.length,
+      0,
+    );
+    const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
+      (count, declaration) => count + declaration.sites.filter(
+        (site) => "interaction" in site.source && site.source.interaction !== undefined,
+      ).length,
       0,
     );
     const declaredSemanticSites = inventory.entries
@@ -41,7 +47,7 @@ describe("repository command-input inventory", () => {
       .map((entry) => entry.identity);
 
     expect(inventory.entries).toHaveLength(
-      syntaxCount + snapshot.source.interactions.length + declaredSemanticSites.length,
+      syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
       "join:semantic.identity",
@@ -72,6 +78,16 @@ describe("repository command-input inventory", () => {
         identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
         acquisition: "safe-default",
         noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "errand close:interaction.lib-locus-process-exec.ts-subprocess-execa-1",
+        mutationBoundary: "errand close locus process-inspection boundary",
+        subprocess: "close-stdin",
+      }),
+      expect.objectContaining({
+        identity: "errand abandon:interaction.lib-locus-process-exec.ts-subprocess-execa-1",
+        mutationBoundary: "errand abandon locus process-inspection boundary",
+        subprocess: "close-stdin",
       }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
@@ -170,7 +186,6 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "finalize",
       "repoint-design",
-      "errand retire",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

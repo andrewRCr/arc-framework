@@ -23,12 +23,13 @@ import {
   handleErrandOpen,
   handleErrandLink,
   handleErrandClose,
-  handleErrandRetire,
+  handleErrandAbandon,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
   type ErrandCloseOptions,
+  type ErrandAbandonOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
@@ -496,14 +497,14 @@ errand
 
 errand
   .command("open <slug>")
-  .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
-  .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
+  .description("Open an errand in the free primary or a provisioned transient worktree")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
   ));
 
@@ -513,26 +514,29 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
   ));
 
 errand
   .command("close <slug>")
-  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
-  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
   ));
 
 errand
-  .command("retire <slug>")
-  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
+  .command("abandon <slug>")
+  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string) => handleErrandRetire(slug, context),
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts, context),
   ));
 
 errand

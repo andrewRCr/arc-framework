@@ -1,12 +1,10 @@
 /**
- * Targeted `USER-INBOX` entry inspection and removal for capture adoption and
- * completion.
+ * Pure `USER-INBOX` entry mutation — exact execute-bound marking, unmarking,
+ * and completion removal over title/source-digest-qualified preimages.
  *
- * Manual removal is title-keyed. Completion removal is additionally qualified
- * by the source digest captured at adoption, so a same-title replacement is
- * never deleted. Both are idempotent on absence and targeted — a single entry
- * block is excised and the rest of the file stays byte-stable. The writer
- * mirrors the parser's view of an entry:
+ * Mutations are **title-keyed**, idempotent on exact replay, and targeted: only
+ * selected entry blocks change and every unrelated byte stays stable. The
+ * writer mirrors the parser's view of an entry:
  * an H3 managed-entry within `## Errand` / `## Work Unit`, where the section runs
  * to the next `## ` heading or `---` rule. An H3 beyond that boundary is out of
  * the reader's view, so the writer leaves it untouched too.
@@ -15,8 +13,8 @@
  */
 
 import { matchInboxEntryTitle } from "./parser.js";
-import type { CanonicalDigest } from "../kernel/index.js";
 import { contentDigest } from "../canonical/content-digest.js";
+import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 
 /** Sections whose H3 children are routable inbox entries. */
 const ENTRY_SECTIONS = ["Errand", "Work Unit"];
@@ -29,11 +27,37 @@ export interface RemoveInboxEntryResult {
   removed: boolean;
 }
 
+/** One exact entry mutation in a lock-serialized inbox batch. */
+export type InboxEntryMutation =
+  | { kind: "mark"; title: string; sourceDigest: CanonicalDigest }
+  | { kind: "unmark"; title: string; sourceDigest: CanonicalDigest }
+  | { kind: "remove"; title: string; sourceDigest: CanonicalDigest };
+
+/** Per-entry disposition from an inbox mutation batch. */
+export interface InboxEntryMutationOutcome {
+  title: string;
+  state: "applied" | "already-applied";
+}
+
+/** Exact post-image from an inbox mutation batch. */
+export interface MutateInboxEntriesResult {
+  content: string;
+  digest: CanonicalDigest;
+  changed: boolean;
+  outcomes: InboxEntryMutationOutcome[];
+}
+
 /** Exact unique entry projection used when adopting a capture into an Errand. */
 export interface InspectedInboxEntry {
   title: string;
   sourceDigest: CanonicalDigest;
   executeBound: boolean;
+}
+
+/** One well-formed capture in the global execute-bound queue. */
+export interface ExecuteBoundInboxEntry {
+  title: string;
+  sourceDigest: CanonicalDigest;
 }
 
 interface LocatedInboxEntry {
@@ -42,7 +66,210 @@ interface LocatedInboxEntry {
   title: string;
 }
 
-const EXECUTE_BOUND_DISPOSITION = "- _Disposition:_ `execute-bound`";
+const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
+
+/**
+ * Locate entries without letting one malformed heading discard the rest.
+ *
+ * Boundaries come from the complete heading list, so skipping a malformed heading never widens the
+ * preceding entry's body.
+ */
+function locateInboxEntriesResilient(
+  lines: readonly string[],
+): { entries: LocatedInboxEntry[]; diagnostics: string[] } {
+  const headings = [...entryHeadingLines(lines)];
+  const entries: LocatedInboxEntry[] = [];
+  const diagnostics: string[] = [];
+  for (const [offset, heading] of headings.entries()) {
+    const title = matchInboxEntryTitle(heading.line);
+    let end = heading.index + 1;
+    const next = headings[offset + 1];
+    while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
+    if (title === null) {
+      diagnostics.push(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
+      continue;
+    }
+    entries.push({ start: heading.index, end, title });
+  }
+  return { entries, diagnostics };
+}
+
+/** Locate entries for mutation, where any malformed heading must abort the whole batch. */
+function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
+  const located = locateInboxEntriesResilient(lines);
+  const first = located.diagnostics[0];
+  if (first !== undefined) throw new Error(first);
+  return located.entries;
+}
+
+function executeBoundMark(
+  lines: readonly string[],
+  entry: LocatedInboxEntry,
+): { insertedLineCount: number } | null {
+  const body = lines.slice(entry.start + 1, entry.end);
+  const dispositionIndices = body.flatMap((line, index) => line.startsWith("- _Disposition:_") ? [index] : []);
+  const dispatchIndices = body.flatMap((line, index) => line.startsWith("- _Dispatch:_") ? [index] : []);
+  if (dispositionIndices.length === 0 && dispatchIndices.length === 0) return null;
+  const dispositionIndex = dispositionIndices[0];
+  if (
+    dispositionIndices.length !== 1
+    || dispatchIndices.length !== 0
+    || dispositionIndex !== 1
+    || body[0] !== ""
+    || body[1] !== DISPOSITION_LINE
+  ) {
+    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
+  }
+  return { insertedLineCount: 2 };
+}
+
+function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): string[] {
+  const mark = executeBoundMark(lines, entry);
+  if (mark === null) return [...lines.slice(entry.start, entry.end)];
+  return [
+    ...lines.slice(entry.start, entry.start + 1),
+    ...lines.slice(entry.start + 1 + mark.insertedLineCount, entry.end),
+  ];
+}
+
+function unboundDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
+  const unbound = unboundEntryLines(lines, entry);
+  const normalized = unbound
+    .map((line) => line.replace(/\r$/u, ""))
+    .join("\n")
+    .replace(/\n*$/u, "") + "\n";
+  return contentDigest(Buffer.from(normalized, "utf8"));
+}
+
+/** Resolve the canonical source digest for one unique, well-formed inbox entry. */
+export function inboxEntrySourceDigest(content: string, title: string): CanonicalDigest {
+  const lines = content.split("\n");
+  const matches = locateInboxEntries(lines).filter((entry) => entry.title === title.trim());
+  if (matches.length !== 1) {
+    throw new Error(matches.length === 0
+      ? `Missing USER-INBOX entry '${title.trim()}'.`
+      : `Duplicate USER-INBOX entry title '${title.trim()}'.`);
+  }
+  return unboundDigest(lines, matches[0] as LocatedInboxEntry);
+}
+
+/** Read one unique entry's normalized source digest and execute-bound disposition. */
+export function inspectInboxEntry(content: string, title: string): InspectedInboxEntry {
+  const normalizedTitle = title.trim();
+  const lines = content.split("\n");
+  const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
+  if (matches.length !== 1) {
+    throw new Error(matches.length === 0
+      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
+      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
+  }
+  const entry = matches[0] as LocatedInboxEntry;
+  return {
+    title: entry.title,
+    sourceDigest: unboundDigest(lines, entry),
+    executeBound: executeBoundMark(lines, entry) !== null,
+  };
+}
+
+/** List every well-formed execute-bound capture in file order. */
+export interface ExecuteBoundInboxListing {
+  /** Well-formed execute-bound entries, in file order. */
+  readonly entries: readonly ExecuteBoundInboxEntry[];
+  /** One message per entry that could not be read. */
+  readonly diagnostics: readonly string[];
+}
+
+/**
+ * List the visible execute-bound queue, retaining every entry that reads cleanly.
+ *
+ * A malformed heading or disposition block is reported against that entry alone. Failing the whole
+ * read would let one unrelated capture hide every queued sibling from init and recovery guidance.
+ *
+ * @param content - Complete `USER-INBOX` content.
+ * @returns File-ordered entries plus per-entry diagnostics.
+ */
+export function listExecuteBoundInboxEntries(content: string): ExecuteBoundInboxListing {
+  const lines = content.split("\n");
+  const located = locateInboxEntriesResilient(lines);
+  const entries: ExecuteBoundInboxEntry[] = [];
+  const diagnostics = [...located.diagnostics];
+  for (const entry of located.entries) {
+    try {
+      if (executeBoundMark(lines, entry) !== null) {
+        entries.push({ title: entry.title, sourceDigest: unboundDigest(lines, entry) });
+      }
+    } catch (error) {
+      diagnostics.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return { entries, diagnostics };
+}
+
+/** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */
+export function mutateInboxEntries(
+  content: string,
+  mutations: readonly InboxEntryMutation[],
+): MutateInboxEntriesResult {
+  const titles = mutations.map((mutation) => mutation.title.trim());
+  if (new Set(titles).size !== titles.length) throw new Error("Duplicate USER-INBOX mutation title.");
+  const lines = content.split("\n");
+  const entries = locateInboxEntries(lines);
+  const actions: Array<{
+    entry: LocatedInboxEntry;
+    mutation: InboxEntryMutation;
+    mark: ReturnType<typeof executeBoundMark>;
+  }> = [];
+  const outcomes: InboxEntryMutationOutcome[] = [];
+
+  for (const mutation of mutations) {
+    const title = mutation.title.trim();
+    const matches = entries.filter((entry) => entry.title === title);
+    if (matches.length === 0) {
+      if (mutation.kind === "remove") {
+        outcomes.push({ title, state: "already-applied" });
+        continue;
+      }
+      throw new Error(`Missing USER-INBOX entry '${title}'.`);
+    }
+    if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${title}'.`);
+    const entry = matches[0] as LocatedInboxEntry;
+    const mark = executeBoundMark(lines, entry);
+    if (unboundDigest(lines, entry) !== mutation.sourceDigest) {
+      throw new Error(`USER-INBOX source digest changed for '${title}'.`);
+    }
+    if (mutation.kind === "mark") {
+      if (mark !== null) {
+        outcomes.push({ title, state: "already-applied" });
+        continue;
+      }
+    } else if (mutation.kind === "unmark") {
+      if (mark === null) {
+        outcomes.push({ title, state: "already-applied" });
+        continue;
+      }
+    }
+    actions.push({ entry, mutation, mark });
+    outcomes.push({ title, state: "applied" });
+  }
+
+  for (const { entry, mutation, mark } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
+    if (mutation.kind === "mark") {
+      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE);
+    } else if (mutation.kind === "unmark") {
+      lines.splice(entry.start + 1, mark?.insertedLineCount ?? 0);
+    } else {
+      lines.splice(entry.start, entry.end - entry.start);
+    }
+  }
+
+  const postImage = lines.join("\n");
+  return {
+    content: postImage,
+    digest: contentDigest(Buffer.from(postImage, "utf8")),
+    changed: actions.length > 0,
+    outcomes,
+  };
+}
 
 /** Whether a line ends an entry section or an entry block — the next `## ` heading or `---` rule. */
 function isSectionBoundary(line: string): boolean {
@@ -79,75 +306,6 @@ function* entryHeadingLines(
     if (!inEntrySection || !isEntryHeading(line)) continue;
     yield { index: i, line };
   }
-}
-
-function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
-  const headings = [...entryHeadingLines(lines)];
-  return headings.map((heading, offset) => {
-    const title = matchInboxEntryTitle(heading.line);
-    if (title === null) {
-      throw new Error(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
-    }
-    let end = heading.index + 1;
-    const next = headings[offset + 1];
-    while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
-    return { start: heading.index, end, title };
-  });
-}
-
-function executeBoundLineCount(
-  lines: readonly string[],
-  entry: LocatedInboxEntry,
-): number {
-  const body = lines.slice(entry.start + 1, entry.end);
-  const dispositionIndices = body.flatMap((line, index) => line.startsWith("- _Disposition:_") ? [index] : []);
-  const dispatchIndices = body.flatMap((line, index) => line.startsWith("- _Dispatch:_") ? [index] : []);
-  if (dispositionIndices.length === 0 && dispatchIndices.length === 0) return 0;
-  if (
-    dispositionIndices.length !== 1
-    || dispatchIndices.length !== 0
-    || dispositionIndices[0] !== 1
-    || body[0] !== ""
-    || body[1] !== EXECUTE_BOUND_DISPOSITION
-  ) {
-    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
-  }
-  return 2;
-}
-
-function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): string[] {
-  const markLineCount = executeBoundLineCount(lines, entry);
-  if (markLineCount === 0) return [...lines.slice(entry.start, entry.end)];
-  return [
-    ...lines.slice(entry.start, entry.start + 1),
-    ...lines.slice(entry.start + 1 + markLineCount, entry.end),
-  ];
-}
-
-function sourceDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
-  const normalized = unboundEntryLines(lines, entry)
-    .map((line) => line.replace(/\r$/u, ""))
-    .join("\n")
-    .replace(/\n*$/u, "") + "\n";
-  return contentDigest(Buffer.from(normalized, "utf8"));
-}
-
-/** Read one unique entry's exact source generation and execute-bound state. */
-export function inspectInboxEntry(content: string, title: string): InspectedInboxEntry {
-  const normalizedTitle = title.trim();
-  const lines = content.split("\n");
-  const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
-  if (matches.length !== 1) {
-    throw new Error(matches.length === 0
-      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
-      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
-  }
-  const entry = matches[0] as LocatedInboxEntry;
-  return {
-    title: entry.title,
-    sourceDigest: sourceDigest(lines, entry),
-    executeBound: executeBoundLineCount(lines, entry) > 0,
-  };
 }
 
 /**
@@ -229,7 +387,7 @@ function removeInboxEntryGeneration(
     if (matches.length === 0) return { content, removed: false };
     if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${target}'.`);
     const entry = matches[0] as LocatedInboxEntry;
-    if (sourceDigest(lines, entry) !== expectedSourceDigest) {
+    if (unboundDigest(lines, entry) !== expectedSourceDigest) {
       throw new Error(`USER-INBOX source digest changed for '${target}'.`);
     }
     const kept = [...lines.slice(0, entry.start), ...lines.slice(entry.end)];

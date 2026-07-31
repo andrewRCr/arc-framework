@@ -35,4 +35,32 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       terminalSubprocessPolicy,
     )),
   ],
+}, {
+  commandPath: "errand close",
+  aliases: [],
+  sites: [declareInteractionSite(
+    { file: "lib/locus/process-exec.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+    {
+      acquisition: "subprocess",
+      schemaOwnership: "none",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "errand close locus process-inspection boundary",
+      subprocess: "close-stdin",
+    },
+  )],
+}, {
+  commandPath: "errand abandon",
+  aliases: [],
+  sites: [declareInteractionSite(
+    { file: "lib/locus/process-exec.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+    {
+      acquisition: "subprocess",
+      schemaOwnership: "none",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "errand abandon locus process-inspection boundary",
+      subprocess: "close-stdin",
+    },
+  )],
 }] satisfies readonly CommandInputDeclaration[];
