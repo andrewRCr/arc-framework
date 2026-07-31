@@ -166,16 +166,6 @@ async function readCloseOccupancy(
       readWorktreeMarker(currentCheckoutPath),
     ]);
     const currentBranchName = currentBranch.stdout.trim();
-    if (currentBranchName === options.base
-      && currentBranchName !== record.branch
-      && currentMarker.kind === "absent") {
-      const checkoutIdentity = deriveLocusRecordId(currentCheckoutPath, pathFlavor);
-      baseCheckoutProof = {
-        recordId: checkoutIdentity.recordId,
-        checkoutPath: checkoutIdentity.normalizedPath,
-        identity: projectLocusIdentity(record),
-      };
-    }
     state = await readLocusState({
       identity: options.identity,
       pathFlavor,
@@ -194,6 +184,23 @@ async function readCloseOccupancy(
         exec: options.exec,
       }),
     });
+    const [confirmedBranch, confirmedMarker] = await Promise.all([
+      options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
+      readWorktreeMarker(currentCheckoutPath),
+    ]);
+    const confirmedBranchName = confirmedBranch.stdout.trim();
+    if (currentBranchName === options.base
+      && confirmedBranchName === currentBranchName
+      && currentBranchName !== record.branch
+      && currentMarker.kind === "absent"
+      && confirmedMarker.kind === "absent") {
+      const checkoutIdentity = deriveLocusRecordId(currentCheckoutPath, pathFlavor);
+      baseCheckoutProof = {
+        recordId: checkoutIdentity.recordId,
+        checkoutPath: checkoutIdentity.normalizedPath,
+        identity: projectLocusIdentity(record),
+      };
+    }
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }

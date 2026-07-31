@@ -556,6 +556,88 @@ describe("arc errand close", () => {
     }
   });
 
+  it.runIf(process.platform !== "win32")(
+    "refuses when the checkout leaves base during locus acquisition",
+    async () => {
+      const slug = "merged-v3-displaced-during-read";
+      const gitDir = await mkdtemp(join(tmpdir(), "arc-e2e-git-displacement-"));
+      const triggerPath = join(gitDir, "switch-after-snapshot-branch-read");
+      const realGit = (await execFileAsync("sh", ["-c", "command -v git"])).stdout.trim();
+      const gitWrapper = [
+        "#!/bin/sh",
+        "set -eu",
+        "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] && [ \"$#\" -eq 2 ] \\",
+        "    && [ \"$1\" = rev-parse ] && [ \"$2\" = --show-toplevel ]; then",
+        "  : >\"$ARC_TEST_GIT_OCCUPANCY_STARTED\"",
+        "fi",
+        "if [ -f \"$ARC_TEST_GIT_OCCUPANCY_STARTED\" ] && [ \"$#\" -eq 4 ] \\",
+        "    && [ \"$1\" = worktree ] && [ \"$2\" = list ] \\",
+        "    && [ \"$3\" = --porcelain ] && [ \"$4\" = -z ]; then",
+        "  : >\"$ARC_TEST_GIT_SNAPSHOT_STARTED\"",
+        "fi",
+        "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] \\",
+        "    && [ -f \"$ARC_TEST_GIT_SNAPSHOT_STARTED\" ] && [ \"$#\" -eq 3 ] \\",
+        "    && [ \"$1\" = rev-parse ] && [ \"$2\" = --abbrev-ref ] && [ \"$3\" = HEAD ]; then",
+        "  \"$ARC_TEST_REAL_GIT\" \"$@\" >\"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
+        "  rm \"$ARC_TEST_GIT_SWITCH_TRIGGER\"",
+        "  rm \"$ARC_TEST_GIT_OCCUPANCY_STARTED\"",
+        "  rm \"$ARC_TEST_GIT_SNAPSHOT_STARTED\"",
+        "  \"$ARC_TEST_REAL_GIT\" switch feat/displaced >/dev/null",
+        "  cat \"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
+        "  rm \"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
+        "  exit 0",
+        "fi",
+        "exec \"$ARC_TEST_REAL_GIT\" \"$@\"",
+        "",
+      ].join("\n");
+      await writeFile(join(gitDir, "git"), gitWrapper, "utf-8");
+      await chmod(join(gitDir, "git"), 0o755);
+      await setFullProtection(tmpDir);
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+      await git(tmpDir, ["branch", "feat/displaced"]);
+      const host = await createMergedGhFixture(tmpDir, slug);
+      try {
+        const result = await runArcAnchoredSequence([
+          ["errand", "open", slug, "--json"],
+          { command: ["git", "switch", "main"] },
+          {
+            command: [
+              process.execPath,
+              "-e",
+              `require("node:fs").writeFileSync(${JSON.stringify(triggerPath)}, "")`,
+            ],
+          },
+          ["errand", "close", slug, "--json"],
+        ], tmpDir, {
+          env: {
+            ...host.env,
+            PATH: `${gitDir}:${host.env.PATH}`,
+            ARC_TEST_GIT_SWITCH_TRIGGER: triggerPath,
+            ARC_TEST_GIT_OCCUPANCY_STARTED: `${triggerPath}.occupancy-started`,
+            ARC_TEST_GIT_SNAPSHOT_STARTED: `${triggerPath}.snapshot-started`,
+            ARC_TEST_GIT_BRANCH_OUTPUT: `${triggerPath}.output`,
+            ARC_TEST_REAL_GIT: realGit,
+          },
+          timeout: 60_000,
+        });
+
+        expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+        expect(result.results.at(-1)).toMatchObject({
+          outcome: "refused", operation: "errand-close", reason: "role-conflict",
+        });
+        expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/displaced");
+        expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
+        expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+          .toContain('"state": "open"');
+      } finally {
+        await cleanupTempDir(gitDir);
+        await cleanupTempDir(host.ghDir);
+        await cleanupTempDir(host.remoteDir);
+      }
+    },
+  );
+
   it("refuses base-context finalization when the checkout marker is malformed", async () => {
     const slug = "merged-v3-malformed-marker";
     const markerPath = join(tmpDir, ".arc", "system", ".internal", "worktree-marker.json");
