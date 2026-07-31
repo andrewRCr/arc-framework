@@ -928,8 +928,11 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
 
 function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
+  // The rendered body carries no commit ref. A ref baked into the body makes the
+  // projection a function of whichever commit the renderer observed, so two callers
+  // rendering the same state disagree, and every commit invalidates the last render.
   const lines = [
-    `**Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${resolved.ref}\`.`,
+    "**Generated from meta files — re-render at ceremony boundaries.**",
   ];
   const details: string[] = [];
   if (resolved.scope !== undefined) details.push(`Source scope: ${resolved.scope}.`);
