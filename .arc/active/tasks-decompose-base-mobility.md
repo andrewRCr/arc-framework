@@ -112,7 +112,7 @@ mint the second consumer interface the design forbids, and the launch path benef
 decomposition-minted work unit stays resolvable after its base advances, rather than only while the base head is
 the landing commit itself.
 
-### `[ ]` **2.1 Extend the pure producer to a descendant current base**
+### `[x]` **2.1 Extend the pure producer to a descendant current base**
 
 - _Goal:_ The producer grants authority when the current configured base is a proven safe descendant of the
   landing commit — under any admitted landing relation — while its exact-base verdicts stay byte-identical.
@@ -121,7 +121,7 @@ the landing commit itself.
   `currentBaseHead` differs from the landing result, and its documentation states that it grants no descendant
   mobility. That refusal is the extension point.
 
-    - `[ ]` **2.1.a Admit a proven descendant current base**
+    - `[x]` **2.1.a Admit a proven descendant current base**
 
         - Take the descendant proof as an input rather than deriving it here — the producer stays free of ref and
           history lookup, as its module contract requires.
@@ -182,7 +182,7 @@ the landing commit itself.
 
             - Leaves `claimRetirement` derivation driven solely by the receipt's `candidateOwnership`.
 
-    - `[ ]` **2.1.b Prove the result vocabulary is unchanged**
+    - `[x]` **2.1.b Prove the result vocabulary is unchanged**
 
         - `DecompositionIntegrationAnchorResult` gains no arm. An unproven differing current base still returns
           `stale: "current-base"`; a proven descendant now resolves. Admitting descent is an input-side change, so
@@ -190,7 +190,11 @@ the landing commit itself.
 
         - Build `test-first` (one behavior at a time):
 
-            - Every existing result arm stays reachable with its current meaning after the extension.
+        - Every existing result arm stays reachable with its current meaning after the extension.
+
+- _Outcome:_ The pure producer now consumes required, pair-bound base-descent and landing-relation proofs. Exact
+  facts retain their existing check order and verdicts; admitted descendant and descendant-merge facts resolve
+  through the unchanged anchor/result shapes, with claim retirement still derived only from receipt ownership.
 
 ### `[ ]` **2.2 Extend configured-base landing detection**
 

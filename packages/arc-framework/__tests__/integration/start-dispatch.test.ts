@@ -529,6 +529,8 @@ describe("arc start dispatch — against real worktrees", () => {
       candidateCommit: { head: "c".repeat(40), tree: "d".repeat(40) },
       receiptTransitionTree: "d".repeat(40),
       currentBaseHead: "c".repeat(40),
+      baseDescent: { kind: "exact" },
+      landingRelation: { kind: "exact" },
       landing: {
         kind: "fast-forward",
         beforeHead: receipt.prepared.completedMap.machine.resultBase.head,

@@ -180,6 +180,8 @@ async function resolveConfiguredBaseAnchor(
     candidateCommit: { head: candidate.head, tree: candidate.tree },
     receiptTransitionTree: candidate.tree,
     currentBaseHead: base.head,
+    baseDescent: { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: landing.topology,
   });
   if (result.status !== "resolved") return result;

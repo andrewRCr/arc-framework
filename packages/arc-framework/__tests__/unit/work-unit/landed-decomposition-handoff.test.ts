@@ -68,6 +68,8 @@ function input(
         preparedBaseHead: PREPARED_BASE,
         candidateCommit: { head: BASE_HEAD, tree: CANDIDATE_TREE },
         receiptTransitionTree: CANDIDATE_TREE,
+        baseDescent: { kind: "exact" },
+        landingRelation: { kind: "exact" },
         landing: {
           kind: "fast-forward",
           beforeHead: PREPARED_BASE,

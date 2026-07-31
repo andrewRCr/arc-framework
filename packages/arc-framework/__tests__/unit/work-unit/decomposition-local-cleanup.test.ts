@@ -43,6 +43,8 @@ function facts(
     candidateCommit: { head: CANDIDATE_HEAD, tree: CANDIDATE_TREE },
     receiptTransitionTree: CANDIDATE_TREE,
     currentBaseHead: CANDIDATE_HEAD,
+    baseDescent: { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: {
       kind: "fast-forward",
       beforeHead: PREPARED_BASE,
