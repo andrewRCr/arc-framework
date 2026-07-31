@@ -305,6 +305,12 @@ async function mergePinnedBase(
     exactCommit(dependencies.exec, dependencies.cwd, admission.claim.binding.candidateBranch),
   ]);
   if (baseReread !== admission.currentBaseHead || candidateReread !== admission.candidateHead) return "raced";
+  if (!await candidateIsClean(
+    dependencies,
+    admission.candidatePath,
+    admission.claim.binding.candidateBranch,
+    admission.candidateHead,
+  )) return "raced";
   try {
     await dependencies.exec(
       "git",

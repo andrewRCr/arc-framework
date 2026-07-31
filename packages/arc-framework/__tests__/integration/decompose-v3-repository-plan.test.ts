@@ -1135,6 +1135,47 @@ describe("Git v3 repository plan", () => {
     },
   );
 
+  it("refuses a candidate worktree branch switch before starting the merge", async () => {
+    const { repo, dependencies, candidate, candidateHead, receiptId } =
+      await finalizedCandidateRepository();
+    await write(repo, ".arc/reference/base-before-worktree-race.txt", "base before race\n");
+    await git(repo, ["add", ".arc/reference/base-before-worktree-race.txt"]);
+    await git(repo, ["commit", "-m", "advance base before worktree race"]);
+    const alternateBranch = "chore/decompose-alternate";
+    await git(repo, ["branch", alternateBranch, candidateHead]);
+    let candidateReads = 0;
+    const racingExec: GitExec = async (command, args, options) => {
+      if (args[0] === "rev-parse" && args[1] === "--verify"
+        && args[2] === "chore/decompose-origin^{commit}") {
+        candidateReads += 1;
+        if (candidateReads === 3) await git(candidate, ["switch", alternateBranch]);
+      }
+      return await dependencies.exec(command, args, options);
+    };
+
+    const result = await advanceGitV3DecomposeBase({ ...dependencies, exec: racingExec }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    });
+
+    expect(candidateReads).toBeGreaterThanOrEqual(3);
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "binding-unavailable",
+      recovery: { action: "advance-base" },
+    });
+    expect((await git(candidate, ["symbolic-ref", "--short", "HEAD"])).trim()).toBe(alternateBranch);
+    await expect(execFileAsync("git", ["rev-parse", "--verify", "MERGE_HEAD"], {
+      cwd: candidate,
+      encoding: "utf8",
+    })).rejects.toThrow();
+    expect(await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"])).toBe("");
+    expect((await git(repo, ["rev-parse", "chore/decompose-origin"])).trim()).toBe(candidateHead);
+    expect((await git(repo, ["rev-parse", alternateBranch])).trim()).toBe(candidateHead);
+  });
+
   it("refuses a committed configured-ref source before changing its candidate", async () => {
     const { repo, dependencies, completedMap } = await backlogStubRepository();
     const prepared = await executeGitV3DecomposeOperation({
