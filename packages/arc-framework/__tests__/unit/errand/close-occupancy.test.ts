@@ -41,8 +41,9 @@ function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "n
 function classify(
   value: LocusStateV1,
   claimId: string | null = CLAIM_ID,
+  currentCheckoutRecordId: string | null = `sha256:${"2".repeat(64)}`,
 ): ReturnType<typeof classifyErrandCloseOccupancy> {
-  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId });
+  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId, currentCheckoutRecordId });
 }
 
 describe("classifyErrandCloseOccupancy", () => {
@@ -56,6 +57,24 @@ describe("classifyErrandCloseOccupancy", () => {
     }));
 
     expect(resolved).toEqual({ kind: "clear" });
+  });
+
+  it("clears the exact self-held checkout after it switches back to base", () => {
+    const switched = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+      frame: "residue",
+      diagnostics: [{
+        code: "subject-unresolved",
+        source: { kind: "record", key: RECORD_ID },
+        message: "The checkout branch no longer matches the Errand identity.",
+      }],
+    });
+
+    expect(classify(state([switched]), CLAIM_ID, RECORD_ID)).toEqual({ kind: "clear" });
+    expect(classify(state([switched]), CLAIM_ID, `sha256:${"2".repeat(64)}`)).toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
   });
 
   it("refuses a live foreign session's occupancy", () => {
@@ -85,8 +104,9 @@ describe("classifyErrandCloseOccupancy", () => {
 
   it("refuses an untrusted claim rather than reading it as absence", () => {
     const untrusted = classify(state([errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
       diagnostics: [{ code: "cross-identity", source: { kind: "record", key: RECORD_ID }, message: "Another identity owns the record." }],
-    })]));
+    })]), CLAIM_ID, RECORD_ID);
 
     expect(untrusted).toMatchObject({ kind: "refused", reason: "role-conflict" });
   });

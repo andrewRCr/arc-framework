@@ -9,6 +9,7 @@ import {
   createPlatformProcessInspector,
 } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
+import { deriveLocusRecordId } from "../locus/path-identity.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
 import { readLocusState } from "../locus/reader.js";
 import type { LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
@@ -150,11 +151,16 @@ async function readCloseOccupancy(
       message: `Errand close cannot establish a durable session anchor: ${anchor.reason}`,
     };
   }
+  const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let state: LocusStateV1;
+  let currentCheckoutRecordId: string;
   try {
+    const currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
+    if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
+    currentCheckoutRecordId = deriveLocusRecordId(currentCheckoutPath, pathFlavor).recordId;
     state = await readLocusState({
       identity: options.identity,
-      pathFlavor: process.platform === "win32" ? "windows" : "posix",
+      pathFlavor,
       evidenceIO: createLocusEvidenceIO({ exec: options.exec, identity: options.identity, inspector }),
       subjectMetaIO: {
         readFile: (path) => readFile(path, "utf8"),
@@ -173,7 +179,12 @@ async function readCloseOccupancy(
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
-  return classifyErrandCloseOccupancy({ state, slug: record.slug, claimId: record.claimId });
+  return classifyErrandCloseOccupancy({
+    state,
+    slug: record.slug,
+    claimId: record.claimId,
+    currentCheckoutRecordId,
+  });
 }
 
 /**

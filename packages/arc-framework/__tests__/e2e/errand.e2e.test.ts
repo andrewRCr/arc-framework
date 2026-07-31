@@ -530,6 +530,32 @@ describe("arc errand close", () => {
     }
   });
 
+  it("finalizes its occupied Errand after the same anchored checkout returns to base", async () => {
+    const slug = "merged-v3-from-base";
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const host = await createMergedGhFixture(tmpDir, slug);
+    try {
+      const result = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        { command: ["git", "switch", "main"] },
+        ["errand", "close", slug, "--json"],
+      ], tmpDir, { env: host.env, timeout: 60_000 });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results).toHaveLength(2);
+      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
+      await expect(
+        git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]),
+      ).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
   it("refuses merged v3 finalization from outside its occupied checkout", async () => {
     const slug = "occupied-v3";
     const observerDir = `${tmpDir}-observer`;
