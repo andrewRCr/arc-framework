@@ -40,6 +40,26 @@ function basis(
 }
 
 describe("linkOrdinaryErrand", () => {
+  it("uses the canonical slug to resolve an identity", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: `  ${previous.slug}  `,
+      inbox,
+      updatedAt: "2026-07-18T00:01:00.000Z",
+      dependencies: {
+        readIdentity: async (slug) => basis(slug === previous.slug ? previous : null),
+        transact: async () => ({ kind: "applied", value: {
+          ...previous,
+          origin: "inbox",
+          originEntry: inbox.title,
+          originEntrySourceDigest: inbox.sourceDigest,
+          updatedAt: "2026-07-18T00:01:00.000Z",
+        }, tip: "a".repeat(40) }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", identity: { key: previous.slug } });
+  });
+
   it("adopts a live inbox generation through the exact identity transaction", async () => {
     const linked = { ...previous, origin: "inbox" as const, originEntry: "Fix output capture",
       originEntrySourceDigest: inbox.sourceDigest,
@@ -129,40 +149,125 @@ describe("linkOrdinaryErrand", () => {
     expect(transact).not.toHaveBeenCalled();
   });
 
-  it("refuses missing, legacy, and incomplete identity bases", async () => {
-    const cases: Array<IdentityTransactionOutcome<TransientIdentityRecord | null>> = [
-      basis(null),
-      basis({
-        version: 1,
-        slug: previous.slug,
-        origin: "description",
-        intent: "Fix output",
-        branch: previous.branch,
-        createdAt: previous.createdAt,
-      }),
-      basis({
-        version: 2,
-        slug: previous.slug,
-        origin: "description",
-        intent: "Fix output",
-        branch: previous.branch,
-        createdAt: previous.createdAt,
-      }),
-      { kind: "error", stage: "basis", message: "Identity basis contains invalid entries" },
-    ];
+  it.each([
+    ["missing", basis(null), {
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: `Errand identity '${previous.slug}' does not exist.`,
+    }],
+    ["v1 legacy", basis({
+      version: 1,
+      slug: previous.slug,
+      origin: "description",
+      intent: "Fix output",
+      branch: previous.branch,
+      createdAt: previous.createdAt,
+    }), {
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: `Identity '${previous.slug}' is not a current ordinary Errand.`,
+    }],
+    ["v2 legacy", basis({
+      version: 2,
+      slug: previous.slug,
+      origin: "description",
+      intent: "Fix output",
+      branch: previous.branch,
+      createdAt: previous.createdAt,
+    }), {
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: `Identity '${previous.slug}' is not a current ordinary Errand.`,
+    }],
+    ["refused", { kind: "refused", reason: "Identity basis changed" }, {
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: "Identity basis changed",
+    }],
+    ["invalid", { kind: "error", stage: "basis", message: "Identity basis contains invalid entries" }, {
+      outcome: "error",
+      error: {
+        code: "locus.errand-link.basis",
+        message: "Identity basis contains invalid entries",
+      },
+    }],
+  ] satisfies Array<[
+    string,
+    IdentityTransactionOutcome<TransientIdentityRecord | null>,
+    Record<string, unknown>,
+  ]>)("returns the exact %s identity-basis outcome", async (_label, identityBasis, expected) => {
+    const transact = vi.fn();
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(identityBasis),
+        transact,
+      },
+    });
 
-    for (const basis of cases) {
-      const result = await linkOrdinaryErrand({
-        slug: previous.slug,
-        inbox,
-        updatedAt: "2026-07-18T00:02:00.000Z",
-        dependencies: {
-          readIdentity: vi.fn().mockResolvedValue(basis),
-          transact: vi.fn(),
-        },
-      });
-      expect(result.outcome).not.toBe("applied");
-    }
+    expect(result).toMatchObject(expected);
+    expect(transact).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty slug before reading identity state", async () => {
+    const readIdentity = vi.fn();
+
+    const result = await linkOrdinaryErrand({
+      slug: "   ",
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: { readIdentity, transact: vi.fn() },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: "Errand slug must be non-empty.",
+    });
+    expect(readIdentity).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-open ordinary Errand before mutation", async () => {
+    const transact = vi.fn();
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(basis(TransientIdentityRecordV3Schema.parse({
+          ...previous,
+          state: "paused",
+          savedHead: "a".repeat(40),
+        }))),
+        transact,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: `Errand '${previous.slug}' is not open.`,
+    });
+    expect(transact).not.toHaveBeenCalled();
+  });
+
+  it("reports a thrown identity read at the basis boundary", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: async () => { throw new Error("read failed"); },
+        transact: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-link.basis", message: "read failed" },
+    });
   });
 
   it("refuses when the exact claim generation changes during the transaction", async () => {
@@ -180,5 +285,76 @@ describe("linkOrdinaryErrand", () => {
     });
 
     expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+  });
+
+  it("reports a transaction-stage error exactly", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(basis()),
+        transact: vi.fn().mockResolvedValue({ kind: "error", stage: "push", message: "push failed" }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-link.push", message: "push failed" },
+    });
+  });
+
+  it("reports a transaction that returns no identity record", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(basis()),
+        transact: vi.fn().mockResolvedValue({ kind: "idempotent", value: null, tip: "a".repeat(40) }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: {
+        code: "locus.errand-link.identity",
+        message: "Identity transaction returned no record",
+      },
+    });
+  });
+
+  it("reports a thrown identity transaction at its boundary", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(basis()),
+        transact: async () => { throw new Error("transaction failed"); },
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-link.identity", message: "transaction failed" },
+    });
+  });
+
+  it("preserves an inbox-link conflict discovered by the transaction", async () => {
+    const result = await linkOrdinaryErrand({
+      slug: previous.slug,
+      inbox,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue(basis()),
+        transact: vi.fn().mockResolvedValue({
+          kind: "refused",
+          reason: "Errand is already linked to a different inbox capture",
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "inbox-link-conflict" });
   });
 });

@@ -27,23 +27,23 @@ export async function linkOrdinaryErrandAtRuntime(
     inbox: options.inbox,
     updatedAt: options.updatedAt,
     dependencies: {
-      readIdentity: async () => {
+      readIdentity: async (slug) => {
         const local = await readTransientIdentitySnapshot(io);
         if (local.kind === "complete") {
-          const localRecord = local.records.get(options.slug);
+          const localRecord = local.records.get(slug);
           if (localRecord?.version === 1 || localRecord?.version === 2) {
             return { kind: "idempotent", value: localRecord, tip: local.tip };
           }
         }
         return transactTransientIdentities(io, {
           remote: "origin",
-          message: `arc: reconcile errand identity ${options.slug}`,
-          transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
+          message: `arc: reconcile errand identity ${slug}`,
+          transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
         });
       },
       transact: (request) => transactTransientIdentities(io, {
         remote: "origin",
-        message: `arc: link errand ${options.slug}`,
+        message: `arc: link errand ${request.previous.slug}`,
         transform: ordinaryErrandTransform(request),
       }),
     },

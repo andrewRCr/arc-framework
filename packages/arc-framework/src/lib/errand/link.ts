@@ -15,7 +15,11 @@ import { readErrandRecord, writeErrandRecord, type ErrandRecord } from "./record
 import type { ErrandRecordIO } from "./ref-tree.js";
 import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import type { IdentityTransactionOutcome } from "./identity-transaction.js";
-import type { OrdinaryErrandRecord, OrdinaryErrandTransition } from "./identity-transitions.js";
+import {
+  ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON,
+  type OrdinaryErrandRecord,
+  type OrdinaryErrandTransition,
+} from "./identity-transitions.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
 import type { LocusMutationResultV1,
   LocusMutationErrorCode } from "../locus/schema/index.js";
@@ -25,7 +29,7 @@ type LinkTransition = Extract<OrdinaryErrandTransition, { kind: "link" }>;
 
 /** Exact identity and inbox evidence boundaries for one v3 late-link operation. */
 export interface LinkOrdinaryErrandDependencies {
-  readIdentity(): Promise<IdentityTransactionOutcome<TransientIdentityRecord | null>>;
+  readIdentity(slug: string): Promise<IdentityTransactionOutcome<TransientIdentityRecord | null>>;
   transact(request: LinkTransition): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>>;
 }
 
@@ -45,7 +49,7 @@ export async function linkOrdinaryErrand(
   if (slug === "") return linkRefusal("identity-conflict", "Errand slug must be non-empty.");
   let basis: IdentityTransactionOutcome<TransientIdentityRecord | null>;
   try {
-    basis = await options.dependencies.readIdentity();
+    basis = await options.dependencies.readIdentity(slug);
   } catch (error) {
     return linkError("locus.errand-link.basis", errorMessage(error));
   }
@@ -77,7 +81,14 @@ export async function linkOrdinaryErrand(
   } catch (error) {
     return linkError("locus.errand-link.identity", errorMessage(error));
   }
-  if (outcome.kind === "refused") return linkRefusal("identity-conflict", outcome.reason);
+  if (outcome.kind === "refused") {
+    return linkRefusal(
+      outcome.reason === ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON
+        ? "inbox-link-conflict"
+        : "identity-conflict",
+      outcome.reason,
+    );
+  }
   if (outcome.kind === "error") return linkError(`locus.errand-link.${outcome.stage}`, outcome.message);
   if (outcome.value === null) return linkError("locus.errand-link.identity", "Identity transaction returned no record");
   return createLocusMutationResult({

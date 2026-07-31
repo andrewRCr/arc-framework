@@ -83,10 +83,12 @@ describe("ordinary Errand resume authorization", () => {
   });
 
   it.each([
-    ["merged", { state: "MERGED", reviewDecision: "" }, "merged"],
-    ["closed without merge", { state: "CLOSED", reviewDecision: "" }, "closed-unmerged"],
+    ["merged", { state: "MERGED", reviewDecision: "" },
+      "Host truth is merged, not an open change request."],
+    ["closed without merge", { state: "CLOSED", reviewDecision: "" },
+      "Host truth is closed-unmerged, not an open change request."],
   ] as const)("refuses %s host truth", async (_label, overrides, expected) => {
     await expect(authorizeOrdinaryErrandResume(hostExec(overrides), "main", awaiting()))
-      .resolves.toMatchObject({ kind: "refused", reason: expect.stringContaining(expected) });
+      .resolves.toEqual({ kind: "refused", reason: expected });
   });
 });

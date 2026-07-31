@@ -126,8 +126,8 @@ function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): 
 
 function sourceDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
   const normalized = unboundEntryLines(lines, entry)
+    .map((line) => line.replace(/\r$/u, ""))
     .join("\n")
-    .replaceAll("\r\n", "\n")
     .replace(/\n*$/u, "") + "\n";
   return contentDigest(Buffer.from(normalized, "utf8"));
 }
@@ -236,18 +236,8 @@ function removeInboxEntryGeneration(
     return { content: kept.join("\n"), removed: true };
   }
 
-  for (const { index: i, line } of entryHeadingLines(lines)) {
-    if (matchInboxEntryTitle(line) !== target) continue;
-
-    // Excise [heading .. next entry / section boundary), absorbing the block's
-    // trailing blank lines so no doubled blank is left behind.
-    let end = i + 1;
-    while (end < lines.length && !isEntryHeading(lines[end] ?? "") && !isSectionBoundary(lines[end] ?? "")) {
-      end++;
-    }
-    const kept = [...lines.slice(0, i), ...lines.slice(end)];
-    return { content: kept.join("\n"), removed: true };
-  }
-
-  return { content, removed: false };
+  const entry = locateInboxEntries(lines).find((candidate) => candidate.title === target);
+  if (entry === undefined) return { content, removed: false };
+  const kept = [...lines.slice(0, entry.start), ...lines.slice(entry.end)];
+  return { content: kept.join("\n"), removed: true };
 }

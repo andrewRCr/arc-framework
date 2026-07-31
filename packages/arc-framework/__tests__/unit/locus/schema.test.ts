@@ -98,6 +98,10 @@ describe("locus record schema", () => {
     })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse(record({
       ...partial,
+      originEntry: null,
+    })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...partial,
       subject: { kind: "errand", key: "fix-output", claimId },
     })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse(record({ ...partial, dispatchId: "legacy" })).success).toBe(false);

@@ -160,6 +160,49 @@ describe("openOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
   });
 
+  it("reports unavailable resume rollback authority distinctly", async () => {
+    const previous = pausedIdentity();
+    const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z" };
+
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization: {
+          terminalHead: previous.savedHead,
+          remoteBranchTip: previous.savedHead,
+          savedHeadIsAncestor: true,
+        } as PauseHeadEvidence }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "refused",
+          reason: "lock-live",
+          evidence: { kind: "identity-only" },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: {
+        code: "locus.errand-open.rollback",
+        message: "Resume rollback authority is unavailable.",
+      },
+    });
+  });
+
   it("reuses a remote-preserved branch for an open identity left by interrupted allocation", async () => {
     const tail = pausedIdentity();
     const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
@@ -236,6 +279,42 @@ describe("openOrdinaryErrand", () => {
     });
   });
 
+  it("refuses an existing open identity when recovery authority is unavailable", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "refused",
+          reason: "lock-live",
+          evidence: { kind: "identity-only" },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: {
+        code: "locus.errand-open.recovery",
+        message: "Open recovery authority is unavailable",
+      },
+    });
+  });
+
   it("refuses to reinterpret an existing inbox identity as a same-title replacement", async () => {
     const tail = pausedIdentity();
     const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
@@ -267,6 +346,55 @@ describe("openOrdinaryErrand", () => {
 
     expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
     expect(provision).not.toHaveBeenCalled();
+  });
+
+  it("reopens an existing inbox identity for the exact capture generation", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      inbox: {
+        title: record.originEntry,
+        sourceDigest: INBOX_SOURCE_DIGEST,
+        executeBound: true,
+      },
+      protection: "full",
+      isolation: "require-isolation",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: tail.savedHead }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            disposition: "applied",
+            allocation: "spawned",
+            checkoutPath: "/work/repo.locus-errand-paused",
+            branch: { name: record.branch, created: false, head: tail.savedHead, base: null },
+            worktree: { path: "/work/repo.locus-errand-paused", created: true, head: tail.savedHead },
+            marker: { state: "ready", bytes: Buffer.from("marker") },
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      originEntry: record.originEntry,
+      identity: { key: record.slug, claimId: record.claimId },
+    });
   });
 
   it("resumes a remotely preserved paused identity without rotating its claim", async () => {

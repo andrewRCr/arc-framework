@@ -195,9 +195,42 @@ describe("removeInboxEntry", () => {
       inspected,
     )).toThrow(/source digest changed/iu);
   });
+
+  it("makes repeated generation-qualified removal an idempotent no-op", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const first = removeInspectedInboxEntry(INBOX, inspected);
+
+    expect(removeInspectedInboxEntry(first.content, inspected)).toEqual({
+      content: first.content,
+      removed: false,
+    });
+  });
+
+  it("refuses generation-qualified removal when the title is duplicated", () => {
+    const single = `## Errand
+
+### \`[ ]\` **Same title**
+
+- _Observation:_ one.
+`;
+    const inspected = inspectInboxEntry(single, "Same title");
+    const duplicate = `${single}
+### \`[ ]\` **Same title**
+
+- _Observation:_ two.
+`;
+
+    expect(() => removeInspectedInboxEntry(duplicate, inspected))
+      .toThrow("Duplicate USER-INBOX entry title 'Same title'.");
+  });
 });
 
 describe("inspectInboxEntry", () => {
+  it("keeps the source generation stable across LF and CRLF files", () => {
+    expect(inspectInboxEntry(INBOX.replaceAll("\n", "\r\n"), "First atomic").sourceDigest)
+      .toBe(inspectInboxEntry(INBOX, "First atomic").sourceDigest);
+  });
+
   it("returns a digest-qualified generation that authorizes exact removal", () => {
     const inspected = inspectInboxEntry(INBOX, "First atomic");
 

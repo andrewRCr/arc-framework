@@ -19,6 +19,10 @@ import type { CanonicalDigest } from "../kernel/index.js";
 
 const pauseHeadEvidenceBrand: unique symbol = Symbol("PauseHeadEvidence");
 
+/** Stable refusal emitted when a link transition observes a different inbox generation. */
+export const ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON =
+  "Errand is already linked to a different inbox capture";
+
 /** Ordinary, non-routing v3 Errand identity. */
 export type OrdinaryErrandRecord = Extract<
   TransientIdentityRecordV3,
@@ -274,7 +278,7 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
     return request.previous.originEntry === request.originEntry
         && request.previous.originEntrySourceDigest === request.originEntrySourceDigest
       ? { kind: "desired", record: request.previous }
-      : { kind: "refused", reason: "Errand is already linked to a different inbox capture" };
+      : { kind: "refused", reason: ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON };
   }
   if (!timestampAdvances(request.previous.updatedAt, request.updatedAt)) {
     return { kind: "refused", reason: "updatedAt must advance monotonically" };

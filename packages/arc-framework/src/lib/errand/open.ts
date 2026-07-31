@@ -77,7 +77,7 @@ export interface OpenOrdinaryErrandDependencies {
   acquireAnchor(): Promise<LocusAnchor>;
   readState(): Promise<LocusStateV1>;
   readIdentity(): Promise<IdentityReadResult>;
-  recoverOpen?(record: OrdinaryErrandRecord): Promise<OpenRecoveryResult>;
+  recoverOpen?: (record: OrdinaryErrandRecord) => Promise<OpenRecoveryResult>;
   authorizeResume?(record: OrdinaryErrandRecord): Promise<ResumeAuthorizationResult>;
   claim(record: OrdinaryErrandRecord): Promise<ClaimResult>;
   resume?(
@@ -86,10 +86,10 @@ export interface OpenOrdinaryErrandDependencies {
     updatedAt: string,
   ): Promise<ClaimResult>;
   rollbackClaim(record: OrdinaryErrandRecord): Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
-  rollbackResume?(
+  rollbackResume?: (
     previous: OrdinaryErrandRecord,
     resumed: OrdinaryErrandRecord,
-  ): Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
+  ) => Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
   provision(options: Omit<ProvisionTransientLocusOptions, "dependencies">): Promise<ProvisionTransientLocusResult>;
 }
 
@@ -162,17 +162,19 @@ export async function openOrdinaryErrand(
       );
       if (continuity !== null) return openRefusal("identity-conflict", continuity);
       if (existing.state === "open") {
-        if (options.dependencies.recoverOpen !== undefined) {
-          let recovery: OpenRecoveryResult;
-          try {
-            recovery = await options.dependencies.recoverOpen(existing);
-          } catch (error) {
-            return openError("locus.errand-open.recovery", error instanceof Error ? error.message : String(error));
-          }
-          if (recovery.kind === "refused") return openRefusal("preservation-unproven", recovery.reason);
-          if (recovery.kind === "error") return openError("locus.errand-open.recovery", recovery.message);
-          expectedBranchHead = recovery.expectedBranchHead;
+        const recoverOpen = options.dependencies.recoverOpen;
+        if (recoverOpen === undefined) {
+          return openError("locus.errand-open.recovery", "Open recovery authority is unavailable");
         }
+        let recovery: OpenRecoveryResult;
+        try {
+          recovery = await recoverOpen(existing);
+        } catch (error) {
+          return openError("locus.errand-open.recovery", error instanceof Error ? error.message : String(error));
+        }
+        if (recovery.kind === "refused") return openRefusal("preservation-unproven", recovery.reason);
+        if (recovery.kind === "error") return openError("locus.errand-open.recovery", recovery.message);
+        expectedBranchHead = recovery.expectedBranchHead;
         record = existing;
         claimKind = "idempotent";
       } else {
@@ -418,12 +420,17 @@ async function rollbackIdentity(
   if (record === null || claimKind !== "applied") return { kind: "rolled-back" };
   const residue = durableResidue(evidence);
   if (residue !== null) return { kind: "retained", residue };
+  const rollbackResume = options.dependencies.rollbackResume;
   try {
-    const result = previousRecord === null
-      ? await options.dependencies.rollbackClaim(record)
-      : options.dependencies.rollbackResume === undefined
-        ? { kind: "generation-mismatch" as const }
-        : await options.dependencies.rollbackResume(previousRecord, record);
+    let result: { kind: "rolled-back" | "generation-mismatch" };
+    if (previousRecord === null) {
+      result = await options.dependencies.rollbackClaim(record);
+    } else {
+      if (rollbackResume === undefined) {
+        return { kind: "failed", message: "Resume rollback authority is unavailable." };
+      }
+      result = await rollbackResume(previousRecord, record);
+    }
     return result.kind === "rolled-back"
       ? { kind: "rolled-back" }
       : { kind: "failed", message: "The identity claim changed before rollback." };
