@@ -26,71 +26,25 @@ Refusals return the core's closed mismatch shape with `kind: "base"`, distinguis
 its stable optional `locus` rather than widening the core's mismatch vocabulary; the verdict pairs that mismatch
 with an explicit success arm rather than returning a bare one.
 
-### `[ ]` **1.1 Validate the commit relation**
+### `[x]` **1.1 Validate the commit relation**
 
 - _Goal:_ A moved configured base is admitted only when it is the exact recorded result base or a strict
   descendant of it; every other relation refuses through the core's typed mismatch result.
 
-    - `[ ]` **1.1.a Extract the shared exact-object readers**
+    - `[x]` **1.1.a Extract the shared exact-object readers**
 
-        - `resolveCommit`, `readCommit`, `readTreeEntry`, `stateMatches`, and `changedPaths` are module-private in
-          `configured-base-decomposition-anchor.ts`. Move them to `git-decomposition-object-readers.ts`, which both
-          that adapter and the new validator import.
+        - Extracted the exact commit, tree-entry, path-state, changed-path, and tri-state ancestry readers into
+          `git-decomposition-object-readers.ts`; the configured-base anchor now consumes them without changing its
+          exact-base verdicts. Byte reads remain injected and the entry reader preserves absent versus malformed.
 
-        - Add an ancestry reader to the same module, serving this validator and the anchor adapter only. The
-          existing `merge-base --is-ancestor` call sites in the errand, user-sync, teardown, retirement, in-flight,
-          and sync-status drivers are left where they are — migrating subsystems this work unit otherwise never
-          touches is a separate concern.
+    - `[x]` **1.1.b Decide the base relation**
 
-        - Document `readTreeEntry`'s tri-state on the extracted module: `null` is a genuinely absent path, `false`
-          is a malformed, duplicate, or unreadable entry. `stateMatches` collapses both into a plain mismatch,
-          which is correct for it — a non-regular object is a well-formed entry that `stateMatches` already
-          refuses on type and mode. The validator reads the reader directly only where a refusal must name which
-          relation failed, since `stateMatches` returns a bare boolean.
+        - Added the host-neutral descendant-base validator with separate object and dependency seams. It decodes
+          canonical v3 receipts, validates common-width exact object ids, distinguishes exact, strict-descendant,
+          regressed, divergent, and unreadable relations, and returns only admitted binding or typed mismatch arms.
 
-        - Keep byte-preserving blob access on the injected `readBlob` seam; the shared module performs no direct
-          filesystem access and holds no policy.
-
-        - Build `test-first` (one behavior at a time):
-
-            - Every existing exact-base anchor verdict is unchanged after extraction.
-
-            - The ancestry reader reports descent, non-descent, and unresolvable refs distinctly.
-
-            - An absent path and a malformed entry stay distinguishable to a direct reader consumer.
-
-    - `[ ]` **1.1.b Decide the base relation**
-
-        - New `validate-descendant-base-landing.ts` consuming `{ receipt, currentBaseOid, candidateHeadOid }` plus
-          two injected reader seams: the extracted object readers including ancestry, and the dependency reader
-          Task 1.2.b uses.
-
-        - _Note:_ the two seams do not unify. The object readers take `readBlob(oid)`; the dependency reader is
-          `readGitV3DecomposeTreeSnapshot`, which needs `{ cwd, exec, readBlob(commit, path) }` plus `ref`,
-          `head`, and `origin` operands and signals failure by throwing rather than by a result arm. Accept both
-          as separate
-          injected seams and map the dependency reader's throws onto the refusal arm at the validator boundary;
-          unifying them would mean rewriting a core reader this work unit otherwise only consumes.
-
-        - _Shape:_ the result is a discriminated union — an admitted arm carrying the proven base/head pair, or a
-          refusal carrying the core's `V3DecompositionMismatch`. `V3DecompositionMismatch` is `{ kind, locus? }`
-          with no success arm of its own, so returning it bare would leave admission unrepresentable; the core's
-          own validation result pairs it the same way. The union carries no recovery action — routing an
-          unavailable binding to a recovery arm is Phase 4's, per Task 1.3.b.
-
-        - Build `test-first` (one behavior at a time):
-
-            - Accepts the exact recorded `resultBase.head`.
-
-            - Accepts a strict descendant of the recorded result base.
-
-            - Refuses a regressed base (an ancestor of the recorded result base), with `locus` naming the relation.
-
-            - Refuses a divergent base sharing no descent relation, with `locus` naming the relation.
-
-            - Refuses malformed or mixed-width object ids.
-
-            - Refuses a receipt that does not decode as canonical v3.
+- _Outcome:_ The extracted object boundary now supplies one typed, byte-preserving relation proof shared by the
+  unchanged exact-base adapter and the new descendant-base admission path.
 
 ### `[ ]` **1.2 Replay the complete recorded overlap**
 

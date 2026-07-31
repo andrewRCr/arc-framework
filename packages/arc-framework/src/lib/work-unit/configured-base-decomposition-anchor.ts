@@ -9,23 +9,19 @@ import {
 } from "./decomposition-integration-anchor.js";
 import { enumerateGitRetirementRecords } from "./git-retirement-record-enumeration.js";
 import { v3DecomposeReceiptPath } from "./decompose-v3-preparation.js";
-import type { V3DecomposeReceipt, V3ManagedPathResult } from "./decompose-v3-receipt.js";
+import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
+import {
+  changedPaths,
+  readCommit,
+  readTreeEntry,
+  resolveCommit,
+  stateMatches,
+  type GitCommit,
+} from "./git-decomposition-object-readers.js";
 import {
   encodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
 } from "./retirement-record-store.js";
-
-interface GitCommit {
-  head: string;
-  tree: string;
-  parents: string[];
-}
-
-interface GitTreeEntry {
-  mode: string;
-  type: string;
-  oid: string;
-}
 
 export interface ConfiguredBaseDecompositionAnchorDependencies {
   exec: GitExec;
@@ -44,89 +40,6 @@ export type ConfiguredBaseDecompositionAnchorResult =
       /** Repository-relative retirement-record path rejected at `ref`. */
       record?: string;
     };
-
-const COMMIT_LINE = /^([0-9a-f]{40}|[0-9a-f]{64})(?: ([0-9a-f ]+))?$/u;
-const TREE_LINE = /^([0-7]{6}) ([^ ]+) ([0-9a-f]+)\t(.+)$/u;
-
-async function resolveCommit(exec: GitExec, ref: string): Promise<string | null> {
-  try {
-    const { stdout } = await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-async function readCommit(exec: GitExec, head: string): Promise<GitCommit | null> {
-  try {
-    const [{ stdout: line }, { stdout: tree }] = await Promise.all([
-      exec("git", ["rev-list", "--parents", "-n", "1", head]),
-      exec("git", ["rev-parse", `${head}^{tree}`]),
-    ]);
-    const match = COMMIT_LINE.exec(line.trim());
-    const treeId = tree.trim();
-    if (match === null || match[1] !== head || treeId === "") return null;
-    return {
-      head,
-      tree: treeId,
-      parents: match[2]?.split(" ").filter(Boolean) ?? [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function readTreeEntry(exec: GitExec, ref: string, path: string): Promise<GitTreeEntry | null | false> {
-  try {
-    const { stdout } = await exec("git", ["ls-tree", "-z", ref, "--", `:(literal)${path}`]);
-    if (stdout === "") return null;
-    const records = stdout.split("\0").filter(Boolean);
-    if (records.length !== 1) return false;
-    const match = TREE_LINE.exec(records[0] ?? "");
-    if (match === null
-      || match[1] === undefined
-      || match[2] === undefined
-      || match[3] === undefined
-      || match[4] !== path) return false;
-    return { mode: match[1], type: match[2], oid: match[3] };
-  } catch {
-    return false;
-  }
-}
-
-async function stateMatches(
-  deps: ConfiguredBaseDecompositionAnchorDependencies,
-  ref: string,
-  path: string,
-  expected: V3ManagedPathResult["before"],
-): Promise<boolean> {
-  const entry = await readTreeEntry(deps.exec, ref, path);
-  if (expected.kind === "absent") return entry === null;
-  if (entry === null || entry === false || entry.type !== "blob" || entry.mode !== expected.mode) return false;
-  try {
-    return digestBytes(await deps.readBlob(entry.oid)) === expected.contentDigest;
-  } catch {
-    return false;
-  }
-}
-
-async function changedPaths(exec: GitExec, before: string, after: string): Promise<string[] | null> {
-  try {
-    const { stdout } = await exec("git", [
-      "diff-tree",
-      "--no-commit-id",
-      "--name-only",
-      "-r",
-      "-z",
-      before,
-      after,
-    ]);
-    return stdout.split("\0").filter(Boolean).sort((left, right) =>
-      Buffer.compare(Buffer.from(left), Buffer.from(right)));
-  } catch {
-    return null;
-  }
-}
 
 async function transitionMatches(
   deps: ConfiguredBaseDecompositionAnchorDependencies,
