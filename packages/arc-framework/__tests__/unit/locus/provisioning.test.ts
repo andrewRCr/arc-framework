@@ -653,10 +653,14 @@ describe("provisionTransientLocus", () => {
     const first = await provisionTransientLocus(options(harness.dependencies));
     const second = await provisionTransientLocus(options(harness.dependencies));
 
-    expect(first).toMatchObject({ kind: "provisioned", receipt: { worktree: { created: true } } });
+    expect(first).toMatchObject({
+      kind: "provisioned",
+      receipt: { disposition: "applied", worktree: { created: true } },
+    });
     expect(second).toMatchObject({
       kind: "provisioned",
       receipt: {
+        disposition: "idempotent",
         worktree: { created: false },
         branch: { created: false },
         leaseToken: "b".repeat(32),

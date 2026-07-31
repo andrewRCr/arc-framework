@@ -24,6 +24,7 @@ export const LocusRoleSchema = z.strictObject({
   establishedAt: LocusTimestampSchema,
   parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
+  originEntrySourceDigest: LocusDigestSchema.optional(),
 }).superRefine((role, context) => {
   const pair = `${role.kind}/${role.subject.kind}`;
   const knownKinds = new Set(["work-unit", "errand", "groom", "housekeep"]);
@@ -53,6 +54,20 @@ export const LocusRoleSchema = z.strictObject({
 
   if (pair !== "errand/partial-errand" && role.originEntry !== null) {
     context.addIssue({ code: "custom", path: ["originEntry"], message: "Origin entry is stored only for a partial Errand" });
+  }
+  if (pair !== "errand/partial-errand" && role.originEntrySourceDigest !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["originEntrySourceDigest"],
+      message: "Origin entry source digest is stored only for a partial Errand",
+    });
+  }
+  if ((role.originEntry === null) !== (role.originEntrySourceDigest === undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["originEntrySourceDigest"],
+      message: "Origin entry and source digest must be present together",
+    });
   }
 });
 

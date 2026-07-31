@@ -20,6 +20,7 @@ import type {
 const createdAt = "2026-07-18T00:00:00.000Z";
 const updatedAt = "2026-07-18T00:01:00.000Z";
 const claimId = "0123456789abcdef0123456789abcdef";
+const sourceDigest = `sha256:${"b".repeat(64)}` as const;
 const head = "a".repeat(40);
 const remoteTip = "b".repeat(40);
 const changeRequest = {
@@ -90,21 +91,32 @@ describe("ordinary Errand identity transitions", () => {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
+      originEntrySourceDigest: sourceDigest,
       updatedAt,
     });
     expect(decision).toMatchObject({
       kind: "applied",
-      value: { origin: "inbox", originEntry: "Fix output capture", claimId },
+      value: {
+        origin: "inbox",
+        originEntry: "Fix output capture",
+        originEntrySourceDigest: sourceDigest,
+        claimId,
+      },
     });
     if (decision.kind !== "applied") throw new Error("expected applied link");
     expect(apply(decision.records, {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
+      originEntrySourceDigest: sourceDigest,
       updatedAt,
     })).toMatchObject({ kind: "idempotent" });
-    expect(apply(new Map([[previous.slug, open({ origin: "inbox", originEntry: "other" })]]), {
-      kind: "link", previous, originEntry: "Fix output capture", updatedAt,
+    expect(apply(new Map([[previous.slug, open({
+      origin: "inbox",
+      originEntry: "other",
+      originEntrySourceDigest: sourceDigest,
+    })]]), {
+      kind: "link", previous, originEntry: "Fix output capture", originEntrySourceDigest: sourceDigest, updatedAt,
     })).toMatchObject({ kind: "refused" });
   });
 
@@ -112,6 +124,7 @@ describe("ordinary Errand identity transitions", () => {
     const previous = open({
       origin: "inbox",
       originEntry: "Fix output capture",
+      originEntrySourceDigest: sourceDigest,
       updatedAt,
     });
 
@@ -119,8 +132,17 @@ describe("ordinary Errand identity transitions", () => {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
+      originEntrySourceDigest: sourceDigest,
       updatedAt: "2026-07-18T00:02:00.000Z",
     })).toMatchObject({ kind: "idempotent", value: previous });
+
+    expect(apply(new Map([[previous.slug, previous]]), {
+      kind: "link",
+      previous,
+      originEntry: "Fix output capture",
+      originEntrySourceDigest: `sha256:${"c".repeat(64)}`,
+      updatedAt: "2026-07-18T00:02:00.000Z",
+    })).toMatchObject({ kind: "refused" });
   });
 
   it("pauses only with the exact terminal head proven on the fetched remote branch", () => {

@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import {
+  LocusDigestSchema,
   LocusGitOidSchema,
   LocusOpaqueTextSchema,
   LocusTokenSchema,
@@ -29,7 +30,7 @@ const descriptionOrigin = {
   origin: z.literal("description"), originEntry: z.null(),
 };
 const inboxOrigin = {
-  origin: z.literal("inbox"), originEntry: LocusOpaqueTextSchema,
+  origin: z.literal("inbox"), originEntry: LocusOpaqueTextSchema, originEntrySourceDigest: LocusDigestSchema,
 };
 const openState = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const pausedState = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };

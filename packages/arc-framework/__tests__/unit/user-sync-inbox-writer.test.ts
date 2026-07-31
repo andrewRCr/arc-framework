@@ -11,8 +11,10 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  inspectInboxEntry,
   listInboxEntryTitles,
   removeInboxEntry,
+  removeInspectedInboxEntry,
   requireLiveInboxTitle,
 } from "../../src/lib/user-sync/index.js";
 
@@ -182,6 +184,43 @@ describe("removeInboxEntry", () => {
 
     expect(result.removed).toBe(false);
     expect(result.content).toBe(content);
+  });
+
+  it("refuses to remove a same-title replacement with a different source digest", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const replacement = INBOX.replace("- _Observation:_ first.", "- _Observation:_ replacement.");
+
+    expect(() => removeInspectedInboxEntry(
+      replacement,
+      inspected,
+    )).toThrow(/source digest changed/iu);
+  });
+});
+
+describe("inspectInboxEntry", () => {
+  it("returns a digest-qualified generation that authorizes exact removal", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+
+    expect(inspected).toMatchObject({
+      title: "First atomic",
+      sourceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      executeBound: false,
+    });
+    expect(removeInspectedInboxEntry(INBOX, inspected)).toMatchObject({
+      removed: true,
+    });
+  });
+
+  it("keeps the source generation stable across execute-bound marking", () => {
+    const marked = INBOX.replace(
+      "### `[ ]` **First atomic**",
+      "### `[ ]` **First atomic**\n\n- _Disposition:_ `execute-bound`",
+    );
+
+    expect(inspectInboxEntry(marked, "First atomic")).toEqual({
+      ...inspectInboxEntry(INBOX, "First atomic"),
+      executeBound: true,
+    });
   });
 });
 

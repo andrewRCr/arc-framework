@@ -15,6 +15,7 @@ import {
   type ChangeRequestLifecycleEvidence,
 } from "./change-request-lifecycle.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
+import type { CanonicalDigest } from "../kernel/index.js";
 
 const pauseHeadEvidenceBrand: unique symbol = Symbol("PauseHeadEvidence");
 
@@ -58,6 +59,7 @@ export type OrdinaryErrandTransition =
       kind: "link";
       previous: OrdinaryErrandRecord;
       originEntry: string;
+      originEntrySourceDigest: CanonicalDigest;
       updatedAt: string;
     }
   | {
@@ -270,6 +272,7 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
   if (request.kind === "retire") return retirementDesired(request);
   if (request.kind === "link" && request.previous.state === "open" && request.previous.origin === "inbox") {
     return request.previous.originEntry === request.originEntry
+        && request.previous.originEntrySourceDigest === request.originEntrySourceDigest
       ? { kind: "desired", record: request.previous }
       : { kind: "refused", reason: "Errand is already linked to a different inbox capture" };
   }
@@ -287,6 +290,7 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
         ...request.previous,
         origin: "inbox",
         originEntry: request.originEntry,
+        originEntrySourceDigest: request.originEntrySourceDigest,
         updatedAt: request.updatedAt,
       };
       break;

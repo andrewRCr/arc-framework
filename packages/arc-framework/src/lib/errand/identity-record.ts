@@ -7,6 +7,7 @@ import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import {
   LocusChangeRequestV1Schema,
+  LocusDigestSchema,
   LocusGitOidSchema,
   LocusIdentityV1Schema,
   LocusOpaqueTextSchema,
@@ -57,6 +58,7 @@ const DescriptionOriginShape = {
 const InboxOriginShape = {
   origin: z.literal("inbox"),
   originEntry: LocusOpaqueTextSchema,
+  originEntrySourceDigest: LocusDigestSchema,
 };
 const OpenStateShape = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const PausedStateShape = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };
@@ -270,6 +272,9 @@ export function projectLocusIdentity(record: TransientIdentityRecordV3): LocusId
     purpose: record.purpose,
     origin: record.origin,
     originEntry: record.originEntry,
+    ...(record.origin === "inbox"
+      ? { originEntrySourceDigest: record.originEntrySourceDigest }
+      : {}),
     state: record.state,
     savedHead: record.savedHead,
     changeRequest: record.changeRequest,

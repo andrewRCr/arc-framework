@@ -29,9 +29,12 @@ export {
 } from "./schema.js";
 
 export {
+  inspectInboxEntry,
   listInboxEntryTitles,
   removeInboxEntry,
+  removeInspectedInboxEntry,
   requireLiveInboxTitle,
+  type InspectedInboxEntry,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";
 
