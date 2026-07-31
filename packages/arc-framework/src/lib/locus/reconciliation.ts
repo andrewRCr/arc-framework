@@ -2,9 +2,7 @@
 
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
-import type { LocusLockReadResult } from "./lock.js";
-import type { ProcessLiveness } from "./process-inspector.js";
-import type { LocusRecordReadResult } from "./record-store.js";
+import type { LockEntryEvidence, RecordEntryEvidence } from "./evidence.js";
 import type {
   LocusAnchor,
   LocusDiagnosticV1,
@@ -36,25 +34,8 @@ type ReconciliationMarkerGeneration =
   | { readonly kind: "absent" }
   | { readonly kind: "malformed"; readonly message: string; readonly path: string };
 
-interface RecordReconciliationEvidence {
-  readonly kind: "record";
-  readonly name: string;
-  readonly digest: string;
-  readonly path: string;
-  readonly result: LocusRecordReadResult;
-  readonly canonical?: { readonly kind: "resolved"; readonly path: string }
-    | { readonly kind: "error"; readonly message: string };
-  readonly liveness?: ProcessLiveness;
-}
-
-interface LockReconciliationEvidence {
-  readonly kind: "lock";
-  readonly name: string;
-  readonly digest: string;
-  readonly path: string;
-  readonly result: LocusLockReadResult | { readonly kind: "unreadable"; readonly message: string };
-  readonly liveness?: ProcessLiveness;
-}
+type RecordReconciliationEvidence = Extract<RecordEntryEvidence, { kind: "record" }>;
+type LockReconciliationEvidence = Extract<LockEntryEvidence, { kind: "lock" }>;
 
 export type LocusRecordGenerationProof =
   | { readonly kind: "record-absent"; readonly path: string }

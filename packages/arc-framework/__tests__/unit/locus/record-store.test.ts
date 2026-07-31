@@ -129,6 +129,23 @@ describe("locus record store", () => {
       .resolves.toMatchObject({ kind: "valid", record: record(), bytes: first.bytes });
   });
 
+  it("refuses to publish after losing the exact record-lock generation", async () => {
+    const root = await temporaryRoot();
+    const path = join(root, `locus-${identity.digest}.json`);
+    const lock = await acquireRecordLock(recordLockPath(root), "a".repeat(32));
+
+    await expect(mintLocusRecord({
+      path,
+      record: record(),
+      lock,
+      beforePublishRecheck: async () => {
+        await releaseLocusLock(lock);
+      },
+    })).rejects.toThrow("Locus record lock generation is no longer owned");
+    await expect(readLocusRecord({ path, expectedDigest: identity.digest, pathFlavor: "posix" }))
+      .resolves.toEqual({ kind: "absent" });
+  });
+
   it("replaces only the exact byte generation under the matching held lock", async () => {
     const root = await temporaryRoot();
     const path = join(root, `locus-${identity.digest}.json`);

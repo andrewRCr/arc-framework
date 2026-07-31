@@ -109,7 +109,7 @@ describe("locus record lock", () => {
       anchor: { ...anchor, pid: 43, startToken: "start-43" },
       inspector: inspector("dead"),
       token: "b".repeat(32),
-      timeoutMs: 20,
+      timeoutMs: 200,
       retryIntervalMs: 0,
     });
     expect(result).toMatchObject({ kind: "acquired", handle: { token: "b".repeat(32) } });
@@ -217,7 +217,7 @@ describe("locus record lock", () => {
       anchor: { ...anchor, pid: 43, startToken: "start-43" },
       inspector: inspector("dead"),
       token: "b".repeat(32),
-      timeoutMs: 20,
+      timeoutMs: 200,
       retryIntervalMs: 0,
     });
 

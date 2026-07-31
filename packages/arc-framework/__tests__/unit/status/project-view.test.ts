@@ -22,6 +22,7 @@ import {
   createValidatedTransitionOverlay,
   transitionOverlayCompositionInput,
 } from "../../../src/lib/work-unit/transition-overlay.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
 
@@ -95,7 +96,9 @@ function makeInFlightExec(opts: {
         stderr: "",
       };
     }
-    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
+    if (args[0] === "worktree") {
+      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
+    }
     if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
@@ -148,7 +151,7 @@ describe("composeProjectReadinessView", () => {
     });
 
     expect(view).toContain("# Roadmap: Test Project");
-    expect(view).toContain("Last rendered against `abc1234`");
+    expect(view).toContain("**Generated from meta files — re-render at ceremony boundaries.**");
     expect(view).toContain("| `Active` | active-alpha | P1");
     expect(view).toContain("## Ready");
     expect(view).toContain("| ready-beta | P2");
@@ -690,11 +693,11 @@ describe("composeProjectReadinessView", () => {
       }
       if (args[0] === "worktree") {
         return {
-          stdout: [
+          stdout: worktreePorcelainZ([
             "worktree /repo",
             "HEAD 1111111111111111111111111111111111111111",
             "branch refs/heads/feat/moving",
-          ].join("\n"),
+          ].join("\n")),
           stderr: "",
         };
       }
@@ -778,14 +781,26 @@ describe("composeProjectReadinessView", () => {
       derivationWarnings: [],
     });
 
-    expect(view).toContain("Last rendered against `abc1234`");
+    expect(view).not.toContain("abc1234");
     expect(view).toContain("Source scope: tree + local refs.");
     expect(view).toContain("Live view: `arc status --project`.");
     expect(view.split("\n").filter((line) => line.startsWith("> "))).toEqual([
-      "> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `abc1234`.",
+      "> **Generated from meta files — re-render at ceremony boundaries.**",
       "> Source scope: tree + local refs. Live view: `arc status --project`.",
     ]);
     expect(view.split("\n").every((line) => line.length <= 120)).toBe(true);
+  });
+
+  it("renders identically for callers observing different commits", () => {
+    const render = (ref: string): string =>
+      composeProjectReadinessView({
+        renderedRef: { ref, scope: "tree + local refs", liveView: "arc status --project" },
+        title: "Roadmap",
+        records: [],
+        derivationWarnings: [],
+      });
+
+    expect(render("abc1234")).toBe(render("def5678"));
   });
 });
 

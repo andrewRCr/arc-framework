@@ -315,6 +315,16 @@
   `§` false positives. Sibling of existing `audit-*.ts` / `lint:arc:*` family.
 - _Fold-in:_ fourth ARC contract check + possible rename of existing `lint:arc:section-refs` for disambiguation.
 
+### `[ ]` **Resolve cross-file Markdown anchors in the section-reference audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.3.
+- _Concern:_ `lint:arc:section-refs` passes a `file.md#anchor` link whose referenced heading does not exist.
+  This is the silent-break class produced when procedure moves across the workflow/CLI seam.
+- _Fold-in:_ resolve cross-file targets against headings in the referenced file. Settle Markdown slug rules and
+  generated or conditional sections before failing closed, coordinated with the existing inbound checker for
+  prose `§` citations.
+
 ---
 
 ## Problem / Motivation

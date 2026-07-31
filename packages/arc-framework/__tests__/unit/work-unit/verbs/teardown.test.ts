@@ -21,6 +21,7 @@ import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 
 const CWD = "/repo";
 
@@ -148,7 +149,9 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
     calls.push([cmd, ...args]);
     const sub = args[0];
     if (sub === "for-each-ref") return { stdout: branches.join("\n") + "\n" };
-    if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
+    if (sub === "worktree" && args[1] === "list") {
+      return { stdout: worktreePorcelainZ(opts.worktreePorcelain ?? "") };
+    }
     if (sub === "rev-parse") {
       const ref = args[args.length - 1];
       if (ref !== undefined && opts.unresolvableRefs?.includes(ref)) throw new Error("unknown revision");

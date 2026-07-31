@@ -5,13 +5,16 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { v3DecompositionEvidenceFixture } from "../fixtures/decompose-v3.js";
 import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
+import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import { writeErrandRecord } from "../../src/lib/errand/record.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   ROADMAP_PATH,
   renderRoadmapFromIndexResult,
 } from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { v3DecomposeReceiptPath } from "../../src/lib/work-unit/decompose-v3-preparation.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import {
   cleanupTempDir,
@@ -356,6 +359,62 @@ describe("arc status --project", () => {
     expect(staged).toMatch(/\|\s*foo\s*\|\s*P2\b/u);
     expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
     expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
+  });
+
+  it("keeps CHECK 19 retirement-aware while the retired source branch remains local", async () => {
+    repo = await createTempRepo("arc-status-staged-retirement-");
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: full\npm.mode: arc-in-git\n",
+    );
+    await writeFile(join(repo, ROADMAP_PATH), "# Project Roadmap\n");
+    await commitAll(repo, "scaffold retirement-aware render");
+
+    const evidence = v3DecompositionEvidenceFixture();
+    const sourceBranch = evidence.receipt.prepared.prospectiveProjection.overlay.sourceBranch;
+    await execFileAsync("git", ["switch", "-c", sourceBranch], { cwd: repo });
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "active", "meta-origin.md"),
+      meta("origin", "Planning", sourceBranch),
+    );
+    await commitAll(repo, "scaffold retiring source");
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+
+    for (const slug of ["member-a", "member-b"]) {
+      const dir = join(repo, ".arc", "backlog", "planned", "origin", slug);
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, `meta-${slug}.md`), meta(slug, "Planning", "[none]"));
+    }
+    const receiptPath = v3DecomposeReceiptPath(evidence.receipt.receiptId);
+    await mkdir(join(repo, ".arc", "system", ".internal", "retirement-receipts"), { recursive: true });
+    await writeFile(join(repo, receiptPath), canonicalize(evidence.receipt));
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+
+    const exec = makeRawGitExec(repo);
+    const projected = await renderRoadmapFromIndexResult({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      transitionOverlay: evidence.receipt.prepared.prospectiveProjection.overlay,
+    });
+    expect(projected.content).not.toContain("| `Planning` | origin");
+    await writeFile(join(repo, ROADMAP_PATH), projected.content);
+    await execFileAsync("git", ["add", ROADMAP_PATH], { cwd: repo });
+
+    const hook = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      stagedPaths: [ROADMAP_PATH],
+    });
+    const cli = await runProject(repo, { project: true, staged: true });
+
+    expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(cli).toBe(projected.content);
   });
 
   it.each([

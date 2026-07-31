@@ -127,7 +127,10 @@ import {
   resolveProjectReadinessViewInput,
   type ProjectReadinessWarning,
 } from "../lib/status/project-view.js";
-import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
+import {
+  renderRoadmapFromIndexViewResult,
+  resolveStagedRetirementTransitionOverlay,
+} from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import {
   assertSessionInitProbeResult,
@@ -148,6 +151,7 @@ import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
+import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -944,10 +948,14 @@ export async function handleStatus(
       // pre-commit ROADMAP regen check validates against, so
       // `arc status --project --staged > ROADMAP` produces exactly what the
       // hook expects (staged sweep or clean tree).
+      const transitionOverlay = await resolveStagedRetirementTransitionOverlay({ cwd, exec });
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
         exec,
         baseBranch: resolved.settings["branch.base"],
+        ...(transitionOverlay === undefined
+          ? {}
+          : { transitionOverlay: transitionOverlayCompositionInput(transitionOverlay) }),
       });
       if (json) {
         process.stdout.write(`${JSON.stringify(result)}\n`);

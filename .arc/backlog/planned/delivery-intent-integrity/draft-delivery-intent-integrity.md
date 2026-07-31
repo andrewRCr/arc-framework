@@ -8,6 +8,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Guard the wired-but-never-exercised operation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: delivery-intent-integrity`), housekeep drain
+  (2026-07-30); captured during the first real `decompose-work-unit` cut.
+- _Concern:_ reachability proves a production caller exists but not that an operation succeeds on a real instance
+  of its domain. The decomposition command was fully wired and algorithmically correct, yet first contact with
+  a real cut produced seven refusals in recovery, diagnostics, scope boundaries, and cross-surface interaction
+  that its synthetic fixture could not represent.
+- _Fold-in:_ require one recorded pre-ship execution of a delivered operation against a real domain instance,
+  distinct from both reachability and a blanket integration-test mandate. Permit a recorded rehearsal against a
+  copy when direct execution would be destructive. Use decomposition as the third failure-family instance and
+  treat self-hosting as an amplifier, not the cause.
+
+---
+
 ## Problem / Motivation
 
 `reviewed-lane-review-gate` passed heavy adversarial planning, per-phase implementation review, and dual-agent

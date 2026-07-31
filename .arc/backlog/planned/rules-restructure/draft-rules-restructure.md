@@ -62,6 +62,17 @@
   `5165eeef557a46ea0b45e794eeb5f4807d89160764bd4acc425cf9e20e63bb0a`.
 - _Evidence:_ `domain-rules-name`; `scan-result.json#class-domain-rules-name`.
 
+### `[ ]` **Document where a rule marker attaches when one bullet carries both classes**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-30); captured during
+  `judgment-authority-model` Task 1.5.
+- _Concern:_ `[configurable]` and `[invariant]` are orthogonal markers, but no durable convention says which
+  rule a marker classifies. A mixed bullet can contain a default permission and an invariant prohibition;
+  attaching the marker to the bullet lead-in misclassifies the default half as invariant.
+- _Fold-in:_ state that each marker attaches to the lead-in of the rule it classifies, and use the amend-scope
+  bullet as the worked mixed-class example. Settle the authoritative surface among the rules preamble,
+  workflow-authoring conventions, and configurability strategy rather than relying on precedent.
+
 ---
 
 ## Problem / Motivation

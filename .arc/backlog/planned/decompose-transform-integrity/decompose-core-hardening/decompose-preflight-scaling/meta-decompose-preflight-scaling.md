@@ -4,7 +4,7 @@
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
 
-- **Cohort:** [none]
+- **Cohort:** `decompose-transform-integrity/decompose-core-hardening`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Stub minted at housekeep drain (2026-07-28) from a routed capture.
+- **Last Completed:** Promoted into the planned decompose hardening subcohort at housekeep drain
+  (2026-07-30).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft after `decompose-transform-integrity` lands core preflight behavior;
-  measure first, then bound.
+- **Next Action:** Iterate the draft against the shipped core; measure first, then bound.
 
 - **PR URL:** [none]
 - **Completed:** [none]

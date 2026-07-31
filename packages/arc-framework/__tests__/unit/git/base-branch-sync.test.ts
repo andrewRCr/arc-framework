@@ -10,6 +10,7 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 type ResponseFn = (
   args: string[],
@@ -55,13 +56,13 @@ function matchKey(
 const GET_ORIGIN = "remote get-url origin";
 const FETCH_BASE = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
-const WORKTREE_LIST = "worktree list --porcelain";
+const WORKTREE_LIST = "worktree list --porcelain -z";
 const REV_PARSE_TOP = "rev-parse --show-toplevel";
 
 /** Default topology: current worktree on feat; base (main) not checked out. */
 const NOT_CHECKED_OUT = {
   [WORKTREE_LIST]: {
-    stdout: "worktree /repo\nHEAD abc\nbranch refs/heads/feat\n\n",
+    stdout: worktreePorcelainZ("worktree /repo\nHEAD abc\nbranch refs/heads/feat\n\n"),
     stderr: "",
   },
   [REV_PARSE_TOP]: { stdout: "/repo\n", stderr: "" },
@@ -70,9 +71,10 @@ const NOT_CHECKED_OUT = {
 /** Primary holds main; current session is the linked feat worktree. */
 const BASE_ELSEWHERE_PRIMARY = {
   [WORKTREE_LIST]: {
-    stdout:
+    stdout: worktreePorcelainZ(
       "worktree /primary\nHEAD aaa\nbranch refs/heads/main\n\n"
       + "worktree /linked\nHEAD bbb\nbranch refs/heads/feat\n\n",
+    ),
     stderr: "",
   },
   [REV_PARSE_TOP]: { stdout: "/linked\n", stderr: "" },
@@ -81,7 +83,7 @@ const BASE_ELSEWHERE_PRIMARY = {
 /** Current worktree holds main (primary). */
 const BASE_CURRENT_PRIMARY = {
   [WORKTREE_LIST]: {
-    stdout: "worktree /primary\nHEAD aaa\nbranch refs/heads/main\n\n",
+    stdout: worktreePorcelainZ("worktree /primary\nHEAD aaa\nbranch refs/heads/main\n\n"),
     stderr: "",
   },
   [REV_PARSE_TOP]: { stdout: "/primary\n", stderr: "" },
