@@ -11,8 +11,10 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  inspectInboxEntry,
   listInboxEntryTitles,
   removeInboxEntry,
+  removeInspectedInboxEntry,
   requireLiveInboxTitle,
 } from "../../src/lib/user-sync/index.js";
 
@@ -182,6 +184,76 @@ describe("removeInboxEntry", () => {
 
     expect(result.removed).toBe(false);
     expect(result.content).toBe(content);
+  });
+
+  it("refuses to remove a same-title replacement with a different source digest", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const replacement = INBOX.replace("- _Observation:_ first.", "- _Observation:_ replacement.");
+
+    expect(() => removeInspectedInboxEntry(
+      replacement,
+      inspected,
+    )).toThrow(/source digest changed/iu);
+  });
+
+  it("makes repeated generation-qualified removal an idempotent no-op", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const first = removeInspectedInboxEntry(INBOX, inspected);
+
+    expect(removeInspectedInboxEntry(first.content, inspected)).toEqual({
+      content: first.content,
+      removed: false,
+    });
+  });
+
+  it("refuses generation-qualified removal when the title is duplicated", () => {
+    const single = `## Errand
+
+### \`[ ]\` **Same title**
+
+- _Observation:_ one.
+`;
+    const inspected = inspectInboxEntry(single, "Same title");
+    const duplicate = `${single}
+### \`[ ]\` **Same title**
+
+- _Observation:_ two.
+`;
+
+    expect(() => removeInspectedInboxEntry(duplicate, inspected))
+      .toThrow("Duplicate USER-INBOX entry title 'Same title'.");
+  });
+});
+
+describe("inspectInboxEntry", () => {
+  it("keeps the source generation stable across LF and CRLF files", () => {
+    expect(inspectInboxEntry(INBOX.replaceAll("\n", "\r\n"), "First atomic").sourceDigest)
+      .toBe(inspectInboxEntry(INBOX, "First atomic").sourceDigest);
+  });
+
+  it("returns a digest-qualified generation that authorizes exact removal", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+
+    expect(inspected).toMatchObject({
+      title: "First atomic",
+      sourceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      executeBound: false,
+    });
+    expect(removeInspectedInboxEntry(INBOX, inspected)).toMatchObject({
+      removed: true,
+    });
+  });
+
+  it("keeps the source generation stable across execute-bound marking", () => {
+    const marked = INBOX.replace(
+      "### `[ ]` **First atomic**",
+      "### `[ ]` **First atomic**\n\n- _Disposition:_ `execute-bound`",
+    );
+
+    expect(inspectInboxEntry(marked, "First atomic")).toEqual({
+      ...inspectInboxEntry(INBOX, "First atomic"),
+      executeBound: true,
+    });
   });
 });
 

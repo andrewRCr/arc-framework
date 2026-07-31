@@ -322,9 +322,15 @@ async function applyRecordGeneration(
       }
       return refused(lease.reason, evidenceFor(spawn, null, checkoutPath));
     }
+    const disposition = (
+      spawn !== null && (spawn.creation !== null || spawn.marker.owned)
+    ) || primary?.checkout.kind === "applied" || role.kind === "applied" || lease.kind === "applied"
+      ? "applied"
+      : "idempotent";
     return {
       kind: "provisioned",
       receipt: {
+        disposition,
         allocation: spawn === null ? "primary" : "spawned",
         checkoutPath,
         branch: {

@@ -13,6 +13,7 @@ import {
 
 const timestamp = "2026-07-18T00:00:00.000Z";
 const claimId = "0123456789abcdef0123456789abcdef";
+const sourceDigest = `sha256:${"b".repeat(64)}`;
 const head = "a".repeat(40);
 const changeRequest = {
   repositoryRef: "owner/repo",
@@ -60,7 +61,7 @@ describe("v3 transient identity records", () => {
       ordinary(),
       ordinary({ state: "paused", savedHead: head }),
       ordinary({ state: "awaiting-merge", changeRequest }),
-      ordinary({ origin: "inbox", originEntry: "Fix output" }),
+      ordinary({ origin: "inbox", originEntry: "Fix output", originEntrySourceDigest: sourceDigest }),
     ];
     for (const value of values) {
       const parsed = TransientIdentityRecordSchema.parse(value);
@@ -94,6 +95,8 @@ describe("v3 transient identity records", () => {
   it("enforces origin, state, namespace, member, and exact-key relationships", () => {
     const invalid = [
       ordinary({ origin: "description", originEntry: "capture" }),
+      ordinary({ origin: "inbox", originEntry: "capture" }),
+      ordinary({ origin: "inbox", originEntry: "capture", originEntrySourceDigest: "not-a-digest" }),
       ordinary({ state: "paused", savedHead: null }),
       ordinary({ slug: "groom-alpha", branch: "chore/groom-alpha" }),
       ordinary({ slug: "Legacy Slug", branch: "chore/Legacy Slug" }),
@@ -129,6 +132,20 @@ describe("v3 transient identity records", () => {
     const second = mintClaimId();
     expect(first).toMatch(/^[0-9a-f]{32}$/u);
     expect(second).not.toBe(first);
+  });
+
+  it("preserves an inbox source generation in the locus projection", () => {
+    const record = TransientIdentityRecordV3Schema.parse(ordinary({
+      origin: "inbox",
+      originEntry: "Fix output",
+      originEntrySourceDigest: sourceDigest,
+    }));
+
+    expect(projectLocusIdentity(record)).toMatchObject({
+      origin: "inbox",
+      originEntry: "Fix output",
+      originEntrySourceDigest: sourceDigest,
+    });
   });
 });
 

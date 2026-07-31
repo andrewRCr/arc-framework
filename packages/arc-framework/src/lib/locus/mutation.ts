@@ -20,6 +20,7 @@ import {
   type LocusRole,
 } from "./schema/index.js";
 import type { ProcessLiveness } from "./process-inspector.js";
+import type { CanonicalDigest } from "../kernel/index.js";
 
 export type LocusRoleAuthority =
   | { readonly kind: "work-unit"; readonly key: string }
@@ -28,6 +29,7 @@ export type LocusRoleAuthority =
       readonly kind: "partial-errand";
       readonly key: string;
       readonly originEntry: string | null;
+      readonly originEntrySourceDigest: CanonicalDigest | null;
     }
   | {
       readonly kind: "partial-housekeep";
@@ -534,6 +536,7 @@ function deriveRole(
       parentCheckoutPath,
       establishedAt,
       authority.originEntry,
+      authority.originEntrySourceDigest,
     );
   } else {
     candidate = role(
@@ -559,6 +562,7 @@ function role(
   parentCheckoutPath: string | null,
   establishedAt: string,
   originEntry: string | null = null,
+  originEntrySourceDigest: CanonicalDigest | null = null,
 ): unknown {
   return {
     kind,
@@ -566,6 +570,7 @@ function role(
     establishedAt,
     parentCheckoutPath,
     originEntry,
+    ...(originEntrySourceDigest === null ? {} : { originEntrySourceDigest }),
   };
 }
 

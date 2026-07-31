@@ -1,13 +1,12 @@
 /**
- * Targeted `USER-INBOX` entry removal — the write-side complement to errand
- * completion. Errand completion drops the originating capture; this is the
- * missing writer (the readers already live in `parser.ts` / `inbox-state.ts`).
+ * Targeted `USER-INBOX` entry inspection and removal for capture adoption and
+ * completion.
  *
- * The removal is **title-keyed** (the interim match key until OSD's `_Slug:_`
- * field owns identity), **idempotent** (a no-op when the entry is absent), and
- * **targeted** — a single entry block is excised and the rest of the file stays
- * byte-stable, so it maps to a future inbox-as-event-log drain *event* rather
- * than a whole-file re-render. The writer mirrors the parser's view of an entry:
+ * Manual removal is title-keyed. Completion removal is additionally qualified
+ * by the source digest captured at adoption, so a same-title replacement is
+ * never deleted. Both are idempotent on absence and targeted — a single entry
+ * block is excised and the rest of the file stays byte-stable. The writer
+ * mirrors the parser's view of an entry:
  * an H3 managed-entry within `## Errand` / `## Work Unit`, where the section runs
  * to the next `## ` heading or `---` rule. An H3 beyond that boundary is out of
  * the reader's view, so the writer leaves it untouched too.
@@ -16,6 +15,8 @@
  */
 
 import { matchInboxEntryTitle } from "./parser.js";
+import type { CanonicalDigest } from "../kernel/index.js";
+import { contentDigest } from "../canonical/content-digest.js";
 
 /** Sections whose H3 children are routable inbox entries. */
 const ENTRY_SECTIONS = ["Errand", "Work Unit"];
@@ -27,6 +28,21 @@ export interface RemoveInboxEntryResult {
   /** Whether a matching entry was found and removed. */
   removed: boolean;
 }
+
+/** Exact unique entry projection used when adopting a capture into an Errand. */
+export interface InspectedInboxEntry {
+  title: string;
+  sourceDigest: CanonicalDigest;
+  executeBound: boolean;
+}
+
+interface LocatedInboxEntry {
+  start: number;
+  end: number;
+  title: string;
+}
+
+const EXECUTE_BOUND_DISPOSITION = "- _Disposition:_ `execute-bound`";
 
 /** Whether a line ends an entry section or an entry block — the next `## ` heading or `---` rule. */
 function isSectionBoundary(line: string): boolean {
@@ -63,6 +79,75 @@ function* entryHeadingLines(
     if (!inEntrySection || !isEntryHeading(line)) continue;
     yield { index: i, line };
   }
+}
+
+function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
+  const headings = [...entryHeadingLines(lines)];
+  return headings.map((heading, offset) => {
+    const title = matchInboxEntryTitle(heading.line);
+    if (title === null) {
+      throw new Error(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
+    }
+    let end = heading.index + 1;
+    const next = headings[offset + 1];
+    while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
+    return { start: heading.index, end, title };
+  });
+}
+
+function executeBoundLineCount(
+  lines: readonly string[],
+  entry: LocatedInboxEntry,
+): number {
+  const body = lines.slice(entry.start + 1, entry.end);
+  const dispositionIndices = body.flatMap((line, index) => line.startsWith("- _Disposition:_") ? [index] : []);
+  const dispatchIndices = body.flatMap((line, index) => line.startsWith("- _Dispatch:_") ? [index] : []);
+  if (dispositionIndices.length === 0 && dispatchIndices.length === 0) return 0;
+  if (
+    dispositionIndices.length !== 1
+    || dispatchIndices.length !== 0
+    || dispositionIndices[0] !== 1
+    || body[0] !== ""
+    || body[1] !== EXECUTE_BOUND_DISPOSITION
+  ) {
+    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
+  }
+  return 2;
+}
+
+function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): string[] {
+  const markLineCount = executeBoundLineCount(lines, entry);
+  if (markLineCount === 0) return [...lines.slice(entry.start, entry.end)];
+  return [
+    ...lines.slice(entry.start, entry.start + 1),
+    ...lines.slice(entry.start + 1 + markLineCount, entry.end),
+  ];
+}
+
+function sourceDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
+  const normalized = unboundEntryLines(lines, entry)
+    .map((line) => line.replace(/\r$/u, ""))
+    .join("\n")
+    .replace(/\n*$/u, "") + "\n";
+  return contentDigest(Buffer.from(normalized, "utf8"));
+}
+
+/** Read one unique entry's exact source generation and execute-bound state. */
+export function inspectInboxEntry(content: string, title: string): InspectedInboxEntry {
+  const normalizedTitle = title.trim();
+  const lines = content.split("\n");
+  const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
+  if (matches.length !== 1) {
+    throw new Error(matches.length === 0
+      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
+      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
+  }
+  const entry = matches[0] as LocatedInboxEntry;
+  return {
+    title: entry.title,
+    sourceDigest: sourceDigest(lines, entry),
+    executeBound: executeBoundLineCount(lines, entry) > 0,
+  };
 }
 
 /**
@@ -114,21 +199,45 @@ export function requireLiveInboxTitle(content: string, title: string): string {
  * @returns The (possibly unchanged) content and whether a removal occurred.
  */
 export function removeInboxEntry(content: string, title: string): RemoveInboxEntryResult {
+  return removeInboxEntryGeneration(content, title);
+}
+
+/**
+ * Remove only the exact inbox generation captured during adoption.
+ *
+ * @param content - The `USER-INBOX` file's full text.
+ * @param entry - Adopted title and source digest.
+ * @returns The targeted removal result; absence is an idempotent no-op.
+ */
+export function removeInspectedInboxEntry(
+  content: string,
+  entry: Pick<InspectedInboxEntry, "title" | "sourceDigest">,
+): RemoveInboxEntryResult {
+  return removeInboxEntryGeneration(content, entry.title, entry.sourceDigest);
+}
+
+function removeInboxEntryGeneration(
+  content: string,
+  title: string,
+  expectedSourceDigest?: CanonicalDigest,
+): RemoveInboxEntryResult {
   const target = title.trim();
   const lines = content.split("\n");
 
-  for (const { index: i, line } of entryHeadingLines(lines)) {
-    if (matchInboxEntryTitle(line) !== target) continue;
-
-    // Excise [heading .. next entry / section boundary), absorbing the block's
-    // trailing blank lines so no doubled blank is left behind.
-    let end = i + 1;
-    while (end < lines.length && !isEntryHeading(lines[end] ?? "") && !isSectionBoundary(lines[end] ?? "")) {
-      end++;
+  if (expectedSourceDigest !== undefined) {
+    const matches = locateInboxEntries(lines).filter((entry) => entry.title === target);
+    if (matches.length === 0) return { content, removed: false };
+    if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${target}'.`);
+    const entry = matches[0] as LocatedInboxEntry;
+    if (sourceDigest(lines, entry) !== expectedSourceDigest) {
+      throw new Error(`USER-INBOX source digest changed for '${target}'.`);
     }
-    const kept = [...lines.slice(0, i), ...lines.slice(end)];
+    const kept = [...lines.slice(0, entry.start), ...lines.slice(entry.end)];
     return { content: kept.join("\n"), removed: true };
   }
 
-  return { content, removed: false };
+  const entry = locateInboxEntries(lines).find((candidate) => candidate.title === target);
+  if (entry === undefined) return { content, removed: false };
+  const kept = [...lines.slice(0, entry.start), ...lines.slice(entry.end)];
+  return { content: kept.join("\n"), removed: true };
 }

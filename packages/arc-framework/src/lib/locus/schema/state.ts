@@ -26,6 +26,7 @@ const rowRole = z.strictObject({
   subject: z.strictObject({ kind: LocusOpaqueTextSchema, key: LocusOpaqueTextSchema, claimId: LocusTokenSchema.nullable() }),
   parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
+  originEntrySourceDigest: LocusDigestSchema.optional(),
 });
 const rowLease = z.strictObject({
   leaseId: LocusTokenSchema,

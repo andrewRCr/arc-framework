@@ -135,6 +135,8 @@ export type ProvisioningEvidence =
     };
 
 export interface TransientProvisioningReceipt {
+  /** Aggregate effect across checkout, marker, role, and lease publication. */
+  readonly disposition: "applied" | "idempotent";
   readonly allocation: "primary" | "spawned";
   readonly checkoutPath: string;
   readonly branch: {

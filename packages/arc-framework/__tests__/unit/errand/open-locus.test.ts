@@ -1,0 +1,972 @@
+/** Ordinary Errand open composition over identity, allocation, and provisioning boundaries. */
+
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  openOrdinaryErrand,
+  type OpenOrdinaryErrandDependencies,
+} from "../../../src/lib/errand/open.js";
+import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
+import type { PauseHeadEvidence } from "../../../src/lib/errand/identity-transitions.js";
+import type { ChangeRequestLifecycleEvidence } from "../../../src/lib/errand/change-request-lifecycle.js";
+import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+
+const RECORD_ID = `sha256:${"a".repeat(64)}`;
+const CLAIM_ID = "c".repeat(32);
+const LEASE_ID = "d".repeat(32);
+const INBOX_SOURCE_DIGEST = `sha256:${"e".repeat(64)}` as const;
+const ANCHOR = { kind: "process" as const, selector: "codex", pid: 7, startToken: "start", inspector: "linux-procfs" };
+const INTERACTIVE_ANCHOR = { ...ANCHOR, selector: "interactive-shell" };
+
+function state(availability: LocusStateV1["primaryAvailability"]): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: availability,
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+  };
+}
+
+function pausedIdentity() {
+  const record = TransientIdentityRecordV3Schema.parse({
+    version: 3,
+    slug: "paused",
+    claimId: CLAIM_ID,
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: "paused work",
+    branch: "chore/paused",
+    origin: "inbox",
+    originEntry: "Paused capture",
+    originEntrySourceDigest: INBOX_SOURCE_DIGEST,
+    state: "paused",
+    savedHead: "b".repeat(40),
+    changeRequest: null,
+  });
+  if (
+    record.kind !== "errand"
+    || record.purpose !== "errand"
+    || record.state !== "paused"
+    || record.origin !== "inbox"
+    || record.originEntry === null
+    || record.originEntrySourceDigest === undefined
+  ) {
+    throw new Error("expected paused ordinary inbox Errand");
+  }
+  return record;
+}
+
+function awaitingIdentity() {
+  const previous = pausedIdentity();
+  const record = TransientIdentityRecordV3Schema.parse({
+    ...previous,
+    state: "awaiting-merge",
+    savedHead: null,
+    changeRequest: {
+      repositoryRef: "owner/repo",
+      hostRef: "github.com",
+      baseRef: "main",
+      headRef: previous.branch,
+      headSha: previous.savedHead,
+    },
+  });
+  if (record.kind !== "errand" || record.purpose !== "errand" || record.state !== "awaiting-merge") {
+    throw new Error("expected awaiting ordinary Errand");
+  }
+  return record;
+}
+
+describe("openOrdinaryErrand", () => {
+  it("forces a spawned proposal when isolated placement is required", async () => {
+    const previous = pausedIdentity();
+    const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z" };
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => (void options, {
+      kind: "refused" as const,
+      reason: "path-collision" as const,
+      evidence: { kind: "identity-only" as const },
+    }));
+
+    await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      isolation: "require-isolation",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization: {
+          terminalHead: previous.savedHead,
+          remoteBranchTip: previous.savedHead,
+          savedHeadIsAncestor: true,
+        } as PauseHeadEvidence }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        rollbackResume: async () => ({ kind: "rolled-back" }),
+        provision,
+      },
+    });
+
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({
+      proposal: { allocation: { kind: "spawn", primaryPath: "/repo" } },
+      expectedBranchHead: previous.savedHead,
+    });
+  });
+
+  it("restores the exact paused tail when allocation refuses after resume", async () => {
+    const previous = pausedIdentity();
+    const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z" };
+    const rollbackResume = vi.fn(async () => ({ kind: "rolled-back" as const }));
+
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "unsafe", checkoutPath: "/repo", reasons: ["primary-dirty"] }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization: {
+          terminalHead: previous.savedHead,
+          remoteBranchTip: previous.savedHead,
+          savedHeadIsAncestor: true,
+        } as PauseHeadEvidence }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        rollbackResume,
+        provision: vi.fn(),
+      },
+    });
+
+    expect(rollbackResume).toHaveBeenCalledWith(previous, resumed);
+    expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
+  });
+
+  it("reports unavailable resume rollback authority distinctly", async () => {
+    const previous = pausedIdentity();
+    const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z" };
+
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization: {
+          terminalHead: previous.savedHead,
+          remoteBranchTip: previous.savedHead,
+          savedHeadIsAncestor: true,
+        } as PauseHeadEvidence }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "refused",
+          reason: "lock-live",
+          evidence: { kind: "identity-only" },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: {
+        code: "locus.errand-open.rollback",
+        message: "Resume rollback authority is unavailable.",
+      },
+    });
+  });
+
+  it("reuses a remote-preserved branch for an open identity left by interrupted allocation", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => (void options, {
+      kind: "refused" as const,
+      reason: "primary-dirty" as const,
+      evidence: { kind: "identity-only" as const },
+    }));
+
+    await openOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: tail.savedHead }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({ expectedBranchHead: tail.savedHead });
+  });
+
+  it("reports applied when an existing open identity provisions its missing local locus", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      isolation: "require-isolation",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: tail.savedHead }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            disposition: "applied",
+            allocation: "spawned",
+            checkoutPath: "/work/repo.locus-errand-paused",
+            branch: { name: record.branch, created: false, head: tail.savedHead, base: null },
+            worktree: { path: "/work/repo.locus-errand-paused", created: true, head: tail.savedHead },
+            marker: { state: "ready", bytes: Buffer.from("marker") },
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      allocation: { kind: "spawned", checkoutPath: "/work/repo.locus-errand-paused" },
+      identity: { key: record.slug, claimId: record.claimId },
+    });
+  });
+
+  it("refuses an existing open identity when recovery authority is unavailable", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "refused",
+          reason: "lock-live",
+          evidence: { kind: "identity-only" },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: {
+        code: "locus.errand-open.recovery",
+        message: "Open recovery authority is unavailable",
+      },
+    });
+  });
+
+  it("refuses to reinterpret an existing inbox identity as a same-title replacement", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+    const provision = vi.fn();
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      inbox: {
+        title: record.originEntry,
+        sourceDigest: `sha256:${"f".repeat(64)}`,
+        executeBound: false,
+      },
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(provision).not.toHaveBeenCalled();
+  });
+
+  it("reopens an existing inbox identity for the exact capture generation", async () => {
+    const tail = pausedIdentity();
+    const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
+
+    const result = await openOrdinaryErrand({
+      slug: record.slug,
+      inbox: {
+        title: record.originEntry,
+        sourceDigest: INBOX_SOURCE_DIGEST,
+        executeBound: true,
+      },
+      protection: "full",
+      isolation: "require-isolation",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: tail.savedHead }),
+        claim: vi.fn(),
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            disposition: "applied",
+            allocation: "spawned",
+            checkoutPath: "/work/repo.locus-errand-paused",
+            branch: { name: record.branch, created: false, head: tail.savedHead, base: null },
+            worktree: { path: "/work/repo.locus-errand-paused", created: true, head: tail.savedHead },
+            marker: { state: "ready", bytes: Buffer.from("marker") },
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      originEntry: record.originEntry,
+      identity: { key: record.slug, claimId: record.claimId },
+    });
+  });
+
+  it("resumes a remotely preserved paused identity without rotating its claim", async () => {
+    const savedHead = "b".repeat(40);
+    const previous = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      slug: "paused",
+      claimId: CLAIM_ID,
+      createdAt: "2026-07-20T12:00:00.000Z",
+      updatedAt: "2026-07-20T12:01:00.000Z",
+      kind: "errand",
+      purpose: "errand",
+      intent: "paused work",
+      branch: "chore/paused",
+      origin: "inbox",
+      originEntry: "Paused capture",
+      originEntrySourceDigest: INBOX_SOURCE_DIGEST,
+      state: "paused",
+      savedHead,
+      changeRequest: null,
+    });
+    if (previous.kind !== "errand" || previous.purpose !== "errand") throw new Error("expected ordinary Errand");
+    const authorization = {
+      terminalHead: previous.savedHead,
+      remoteBranchTip: previous.savedHead,
+      savedHeadIsAncestor: true,
+    } as PauseHeadEvidence;
+    const resume = vi.fn(async () => ({
+      kind: "applied" as const,
+      record: { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+        updatedAt: "2026-07-21T12:00:00.000Z" },
+    }));
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => (void options, {
+      kind: "provisioned" as const,
+      receipt: {
+        disposition: "idempotent" as const,
+        allocation: "primary" as const,
+        checkoutPath: "/repo",
+        branch: { name: previous.branch, created: false, head: savedHead, base: null },
+        worktree: { path: "/repo", created: false, head: savedHead },
+        marker: null,
+        record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+        leaseToken: LEASE_ID,
+      },
+    }));
+
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => "f".repeat(32),
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization }),
+        claim: vi.fn(),
+        resume,
+        rollbackClaim: vi.fn(),
+        rollbackResume: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(resume).toHaveBeenCalledWith(previous, authorization, "2026-07-21T12:00:00.000Z");
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({
+      identity: { key: "paused", claimId: CLAIM_ID, state: "open" },
+    });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      identity: {
+        claimId: CLAIM_ID,
+        state: "open",
+        originEntrySourceDigest: INBOX_SOURCE_DIGEST,
+      },
+      originEntry: "Paused capture",
+    });
+  });
+
+  it("carries an unreachable-host confirmation into the successful resume prompt", async () => {
+    const previous = awaitingIdentity();
+    const advisory = "Confirm the recorded change request is still open before continuing.";
+    const resumed = {
+      ...previous,
+      state: "open" as const,
+      savedHead: null,
+      changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z",
+    };
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({
+          kind: "authorized",
+          authorization: {
+            kind: "unreachable",
+            changeRequest: previous.changeRequest,
+          } as ChangeRequestLifecycleEvidence,
+          advisory,
+        }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        rollbackResume: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            disposition: "idempotent",
+            allocation: "primary",
+            checkoutPath: "/repo",
+            branch: { name: previous.branch, created: false, head: previous.changeRequest.headSha, base: null },
+            worktree: { path: "/repo", created: false, head: previous.changeRequest.headSha },
+            marker: null,
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied" });
+    expect(result.recommendedPromptText).toContain(advisory);
+  });
+
+  it("claims a v3 identity before provisioning the free primary and returns the shared result", async () => {
+    const events: string[] = [];
+    const claim = vi.fn(async (record) => {
+      events.push("claim");
+      return { kind: "applied" as const, record };
+    });
+    const provision = vi.fn(async () => {
+      events.push("provision");
+      return {
+        kind: "provisioned" as const,
+        receipt: {
+          disposition: "applied" as const,
+          allocation: "primary" as const,
+          checkoutPath: "/repo",
+          branch: { name: "chore/docs", created: true, head: "b".repeat(40), base: null },
+          worktree: { path: "/repo", created: false, head: "b".repeat(40) },
+          marker: null,
+          record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+          leaseToken: LEASE_ID,
+        },
+      };
+    });
+
+    const result = await openOrdinaryErrand({
+      slug: "docs",
+      intent: "tighten docs",
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim,
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(events).toEqual(["claim", "provision"]);
+    expect(claim.mock.calls[0]?.[0]).toMatchObject({
+      version: 3,
+      slug: "docs",
+      claimId: CLAIM_ID,
+      branch: "chore/docs",
+      state: "open",
+    });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-open",
+      allocation: { kind: "primary", checkoutPath: "/repo" },
+      recordId: RECORD_ID,
+      leaseId: LEASE_ID,
+      activeLocusPath: "/repo",
+      sessionHomePath: "/repo",
+      identity: { key: "docs", claimId: CLAIM_ID },
+      recommendedPromptText: expect.stringMatching(/opened at \/repo.*session home remains \/repo/iu),
+    });
+  });
+
+  it("persists the inspected inbox source generation in a new full-protection identity", async () => {
+    const claim = vi.fn(async (record) => ({ kind: "applied" as const, record }));
+
+    const result = await openOrdinaryErrand({
+      slug: "captured-docs",
+      inbox: {
+        title: "Captured docs fix",
+        sourceDigest: INBOX_SOURCE_DIGEST,
+        executeBound: false,
+      },
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim,
+        rollbackClaim: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            disposition: "applied",
+            allocation: "primary",
+            checkoutPath: "/repo",
+            branch: { name: "chore/captured-docs", created: true, head: "b".repeat(40), base: null },
+            worktree: { path: "/repo", created: false, head: "b".repeat(40) },
+            marker: null,
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(claim.mock.calls[0]?.[0]).toMatchObject({
+      origin: "inbox",
+      originEntry: "Captured docs fix",
+      originEntrySourceDigest: INBOX_SOURCE_DIGEST,
+    });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      identity: { originEntrySourceDigest: INBOX_SOURCE_DIGEST },
+      originEntry: "Captured docs fix",
+    });
+  });
+
+  it("opens a partial Errand on the free primary without claiming identity or creating a branch", async () => {
+    const claim = vi.fn();
+    const provision = vi.fn(async (options: unknown) => (void options, {
+      kind: "provisioned" as const,
+      receipt: {
+        disposition: "applied" as const,
+        allocation: "primary" as const,
+        checkoutPath: "/repo",
+        branch: { name: null, created: false, head: "b".repeat(40), base: null },
+        worktree: { path: "/repo", created: false, head: "b".repeat(40) },
+        marker: null,
+        record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+        leaseToken: LEASE_ID,
+      },
+    }));
+
+    const result = await openOrdinaryErrand({
+      slug: "local-docs",
+      inbox: {
+        title: "Captured docs fix",
+        sourceDigest: INBOX_SOURCE_DIGEST,
+        executeBound: false,
+      },
+      protection: "partial",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim,
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(claim).not.toHaveBeenCalled();
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({
+      protection: "partial",
+      identity: null,
+      branch: null,
+      authority: {
+        kind: "partial-errand",
+        originEntry: "Captured docs fix",
+        originEntrySourceDigest: INBOX_SOURCE_DIGEST,
+      },
+    });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      identity: null,
+      originEntry: "Captured docs fix",
+      activeLocusPath: "/repo",
+    });
+  });
+
+  it("spawns beside a warm WU and preserves that checkout as parent and session home", async () => {
+    const warm = state({
+      kind: "occupied",
+      checkoutPath: "/repo",
+      recordId: RECORD_ID,
+      leaseState: "live",
+    });
+    warm.roster.rows.push({
+      kind: "managed-role",
+      checkoutPath: "/repo",
+      primary: true,
+      recordId: RECORD_ID,
+      role: {
+        kind: "work-unit",
+        subject: { kind: "work-unit", key: "parent", claimId: null },
+        parentCheckoutPath: null,
+        originEntry: null,
+      },
+      identity: null,
+      lease: null,
+      frame: "active",
+      derived: null,
+      diagnostics: [],
+    });
+    warm.current = { kind: "resolved", sessionHomeRecordId: RECORD_ID, activeRecordId: RECORD_ID, parentRecordId: null };
+    const provision = vi.fn(async (options: unknown) => (void options, {
+      kind: "provisioned" as const,
+      receipt: {
+        disposition: "applied" as const,
+        allocation: "spawned" as const,
+        checkoutPath: "/work/repo.locus-errand-child",
+        branch: { name: "chore/child", created: true, head: "b".repeat(40), base: "main" },
+        worktree: { path: "/work/repo.locus-errand-child", created: true, head: "b".repeat(40) },
+        marker: { state: "ready" as const, bytes: Buffer.from("marker") },
+        record: { recordId: `sha256:${"e".repeat(64)}`, bytes: Buffer.from("record") },
+        leaseToken: LEASE_ID,
+      },
+    }));
+
+    const result = await openOrdinaryErrand({
+      slug: "child",
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        acquireAnchor: async () => INTERACTIVE_ANCHOR,
+        readState: async () => warm,
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim: async (record) => ({ kind: "applied", record }),
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({
+      proposal: { allocation: { kind: "spawn", primaryPath: "/repo" } },
+      parentCheckoutPath: "/repo",
+      sessionHomePath: "/repo",
+    });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      allocation: { kind: "spawned", checkoutPath: "/work/repo.locus-errand-child" },
+      activeLocusPath: "/work/repo.locus-errand-child",
+      sessionHomePath: "/repo",
+      recommendedPromptText: expect.stringMatching(/confirm.*direct commands/iu),
+    });
+  });
+
+  it("rolls back only its newly applied identity when allocation fails", async () => {
+    const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+    const result = await openOrdinaryErrand({
+      slug: "blocked",
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "unsafe", checkoutPath: "/repo", reasons: ["primary-dirty"] }),
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim: async (record) => ({ kind: "applied", record }),
+        rollbackClaim,
+        provision: vi.fn(),
+      },
+    });
+
+    expect(rollbackClaim).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
+  });
+
+  describe("identity rollback against provisioning evidence", () => {
+    function openWith(
+      provision: OpenOrdinaryErrandDependencies["provision"],
+      rollbackClaim: OpenOrdinaryErrandDependencies["rollbackClaim"],
+    ) {
+      return openOrdinaryErrand({
+        slug: "residue",
+        protection: "full",
+        base: "main",
+        createdAt: "2026-07-21T12:00:00.000Z",
+        identityName: "andrew",
+        locationTemplate: "/work/{repo}.{name}",
+        repo: "repo",
+        leaseId: LEASE_ID,
+        dependencies: {
+          mintClaimId: () => CLAIM_ID,
+          acquireAnchor: async () => ANCHOR,
+          readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+          readIdentity: async () => ({ kind: "ready", record: null }),
+          claim: async (record) => ({ kind: "applied", record }),
+          rollbackClaim,
+          provision,
+        },
+      });
+    }
+
+    it("retains the claim when provisioning failed after a durable record write", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "error",
+        error: new Error("could not release the record lock"),
+        evidence: {
+          kind: "marker-record-mismatch",
+          checkoutPath: "/repo",
+          markerBytes: null,
+          recordBytes: Buffer.from("record"),
+        },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ outcome: "error" });
+    });
+
+    it("retains the claim when a refusal leaves a marker the rollback did not own", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "refused",
+        reason: "marker-conflict",
+        evidence: {
+          kind: "pending-marker",
+          checkoutPath: "/work/repo.residue",
+          markerBytes: Buffer.from("marker"),
+        },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        outcome: "refused",
+        reason: "topology-unknown",
+        recommendedPromptText: expect.stringContaining("/work/repo.residue"),
+      });
+    });
+
+    it("retains the claim when provisioning throws, since its residue is unknown", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => {
+        throw new Error("marker write failed");
+      }, rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ outcome: "error" });
+    });
+
+    it("rolls the claim back when provisioning proves it owns nothing durable", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "refused",
+        reason: "lock-live",
+        evidence: { kind: "identity-only" },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    });
+  });
+
+  it("records unavailable ancestry as an unverifiable lease anchor and continues", async () => {
+    const claim = vi.fn();
+    const readState = vi.fn();
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => {
+      if (options.anchor.kind !== "unverifiable" || options.anchor.reason !== "permission denied") {
+        throw new Error("expected the unverifiable entering anchor");
+      }
+      return {
+        kind: "provisioned" as const,
+        receipt: {
+          disposition: "applied" as const,
+          allocation: "primary" as const,
+          checkoutPath: "/repo",
+          branch: { name: null, created: false, head: "b".repeat(40), base: null },
+          worktree: { path: "/repo", created: false, head: "b".repeat(40) },
+          marker: null,
+          record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+          leaseToken: LEASE_ID,
+        },
+      };
+    });
+    const result = await openOrdinaryErrand({
+      slug: "blocked-anchor",
+      protection: "partial",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ({ kind: "unverifiable", reason: "permission denied" }),
+        readState: async () => {
+          readState();
+          return state({ kind: "free", checkoutPath: "/repo" });
+        },
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim,
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-open" });
+    expect(readState).toHaveBeenCalledOnce();
+    expect(claim).not.toHaveBeenCalled();
+    expect(provision).toHaveBeenCalledOnce();
+  });
+
+  it("keeps legacy identity conflicts close-only without provisioning a new locus", async () => {
+    const provision = vi.fn();
+    const result = await openOrdinaryErrand({
+      slug: "legacy",
+      protection: "full",
+      base: "main",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: null }),
+        claim: async () => ({ kind: "refused", reason: "Legacy v2 identity is close-only" }),
+        rollbackClaim: vi.fn(),
+        provision,
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(provision).not.toHaveBeenCalled();
+  });
+});
