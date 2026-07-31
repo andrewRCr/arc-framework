@@ -89,43 +89,16 @@ export async function readLocusRecord(options: {
  * @returns A minter that atomically publishes complete record generations.
  */
 export function createLocusRecordMinter(context: LocusRecordMintContext): LocusRecordMinter {
-  return async (options) => {
-    const bytes = serializeRecord(options.path, options.record);
-    const directory = dirname(options.path);
-    const temporaryPath = join(
-      directory,
-      `.${basename(options.path)}.${context.randomId()}.tmp`,
-    );
-    await context.mkdir(directory, { recursive: true });
-
-    try {
-      await context.writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
-    } catch (error) {
-      if (errorCode(error) !== "EEXIST") {
-        await context.unlink(temporaryPath).catch(() => undefined);
-      }
-      throw error;
-    }
-
-    try {
-      await context.link(temporaryPath, options.path);
-      return { kind: "created", bytes };
-    } catch (error) {
-      if (errorCode(error) === "EEXIST") return { kind: "exists" };
-      throw error;
-    } finally {
-      await context.unlink(temporaryPath).catch(() => undefined);
-    }
-  };
+  return (options) => mintWithContext(context, options);
 }
 
-const nodeLocusRecordMinter = createLocusRecordMinter({
+const nodeLocusRecordMintContext: LocusRecordMintContext = {
   mkdir,
   writeFile,
   link,
   unlink,
   randomId: randomUUID,
-});
+};
 const recordMutationTails = new Map<string, Promise<void>>();
 
 /**
@@ -135,9 +108,28 @@ const recordMutationTails = new Map<string, Promise<void>>();
  * @returns The created byte generation, or `exists` when the target is occupied.
  */
 export async function mintLocusRecord(
-  options: Parameters<LocusRecordMinter>[0],
+  options: Parameters<LocusRecordMinter>[0] & {
+    lock?: LocusLockHandle;
+    beforePublishRecheck?: () => Promise<void>;
+  },
 ): ReturnType<LocusRecordMinter> {
-  return nodeLocusRecordMinter(options);
+  const lock = options.lock;
+  if (lock !== undefined
+    && (!isLockForRecord(options.path, lock) || !await ownsLocusLock(lock))) {
+    throw new Error("Locus record lock generation is no longer owned");
+  }
+  return mintWithContext(
+    nodeLocusRecordMintContext,
+    options,
+    lock === undefined
+      ? undefined
+      : async () => {
+          await options.beforePublishRecheck?.();
+          if (!await ownsLocusLock(lock)) {
+            throw new Error("Locus record lock generation is no longer owned");
+          }
+        },
+  );
 }
 
 /** Atomically replace a record only while its exact byte and lock generations remain current. */
@@ -232,6 +224,40 @@ async function withSerializedRecordMutation<T>(
   } finally {
     release();
     if (recordMutationTails.get(key) === current) recordMutationTails.delete(key);
+  }
+}
+
+async function mintWithContext(
+  context: LocusRecordMintContext,
+  options: Parameters<LocusRecordMinter>[0],
+  beforePublish?: () => Promise<void>,
+): ReturnType<LocusRecordMinter> {
+  const bytes = serializeRecord(options.path, options.record);
+  const directory = dirname(options.path);
+  const temporaryPath = join(
+    directory,
+    `.${basename(options.path)}.${context.randomId()}.tmp`,
+  );
+  await context.mkdir(directory, { recursive: true });
+
+  try {
+    await context.writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if (errorCode(error) !== "EEXIST") {
+      await context.unlink(temporaryPath).catch(() => undefined);
+    }
+    throw error;
+  }
+
+  try {
+    await beforePublish?.();
+    await context.link(temporaryPath, options.path);
+    return { kind: "created", bytes };
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return { kind: "exists" };
+    throw error;
+  } finally {
+    await context.unlink(temporaryPath).catch(() => undefined);
   }
 }
 

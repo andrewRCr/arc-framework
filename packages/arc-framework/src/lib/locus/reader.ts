@@ -16,6 +16,7 @@ import {
   type ManagedSubjectProjection,
 } from "./roster.js";
 import { deriveLocusRecordId } from "./path-identity.js";
+import type { PrimarySafetyResult } from "./primary-safety.js";
 import { deriveLocusReconciliation } from "./reconciliation.js";
 import {
   LocusEnvelopeV1Schema,
@@ -29,7 +30,6 @@ import {
   assembleLocusState,
   deriveLocusFrames,
   deriveLocusOperationalState,
-  type LocusPrimarySafetyResult,
 } from "./state.js";
 import {
   projectCheckoutSubjectMeta,
@@ -86,7 +86,7 @@ function normalizeEvidenceErrorMessage(
 /** Read the mutation-facing locus state from the same bounded evidence and projection pipeline. */
 export async function readLocusState(options: ReadLocusEnvelopeOptions & {
   enteringAnchor: LocusAnchor;
-  readPrimarySafety(primaryPath: string): Promise<LocusPrimarySafetyResult>;
+  readPrimarySafety(primaryPath: string): Promise<PrimarySafetyResult>;
 }): Promise<LocusStateV1> {
   const scheduler = createLocusEvidenceScheduler(options.concurrency);
   const evidence = await acquireLocusEvidence({

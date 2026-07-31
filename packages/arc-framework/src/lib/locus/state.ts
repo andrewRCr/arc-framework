@@ -1,6 +1,7 @@
 /** Pure frame and current-locus derivation over provisional roster rows. */
 
 import { sameProcessAnchor } from "./process-inspector.js";
+import type { PrimarySafetyResult } from "./primary-safety.js";
 import { locusRowAuthorityReasons } from "./trusted-row.js";
 import type { ProvisionalLocusRow } from "./roster.js";
 import type { LocusRowAuthorityInputs } from "./trusted-row.js";
@@ -30,11 +31,6 @@ type TrustedAuthorityCoordinates = {
 };
 
 type TrustedProvisionalLocusRow = ProvisionalLocusRow & TrustedAuthorityCoordinates;
-
-/** Narrow safety contract consumed before the allocation module lands. */
-export type LocusPrimarySafetyResult =
-  | { kind: "complete"; clean: boolean; onBase: boolean; branch: string | null }
-  | { kind: "error"; code: "git-topology-unavailable"; message: string };
 
 export type CheckoutWorkUnitSelection =
   | { readonly kind: "none" }
@@ -92,7 +88,7 @@ export function deriveLocusOperationalState(options: {
   primaryPath: string;
   rows: readonly LocusRowV1[];
   current: LocusStateV1["current"];
-  primarySafety: Extract<LocusPrimarySafetyResult, { kind: "complete" }>;
+  primarySafety: Extract<PrimarySafetyResult, { kind: "complete" }>;
   primaryLock: "absent" | "live" | "dead" | "unknown";
 }): LocusOperationalDerivation {
   return {
@@ -181,7 +177,7 @@ function isTrusted(
 function derivePrimaryAvailability(options: {
   primaryPath: string;
   rows: readonly LocusRowV1[];
-  primarySafety: Extract<LocusPrimarySafetyResult, { kind: "complete" }>;
+  primarySafety: Extract<PrimarySafetyResult, { kind: "complete" }>;
   primaryLock: "absent" | "live" | "dead" | "unknown";
 }): LocusStateV1["primaryAvailability"] {
   const primaryRows = options.rows.filter((row) =>
