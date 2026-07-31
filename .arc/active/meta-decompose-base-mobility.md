@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Third spec re-entry — projection, commit-gate, and landing seams settled; render-stamp errand shipped
+- **Last Completed:** Planning complete — spec settled through three adversarial passes; tasks finalized at Heavy; activated
 - **Next Task:** Begin Task 1.1 — Validate the commit relation
 - **Blockers:** [none]
 
