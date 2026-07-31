@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-new-stubs",
+  "origin": "description",
+  "intent": "Scaffold confirmed inbox work units and compose planned decompose hardening subcohort",
+  "branch": "chore/housekeep-new-stubs",
+  "createdAt": "2026-07-31T02:30:27.317Z",
+  "returnBranch": "main"
+}
