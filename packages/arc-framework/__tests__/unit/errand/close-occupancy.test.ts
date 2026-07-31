@@ -41,9 +41,9 @@ function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "n
 function classify(
   value: LocusStateV1,
   claimId: string | null = CLAIM_ID,
-  currentCheckoutRecordId: string | null = `sha256:${"2".repeat(64)}`,
+  baseCheckoutRecordId: string | null = null,
 ): ReturnType<typeof classifyErrandCloseOccupancy> {
-  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId, currentCheckoutRecordId });
+  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId, baseCheckoutRecordId });
 }
 
 describe("classifyErrandCloseOccupancy", () => {
@@ -61,6 +61,7 @@ describe("classifyErrandCloseOccupancy", () => {
 
   it("clears the exact self-held checkout after it switches back to base", () => {
     const switched = errandRow({
+      primary: true,
       lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
       frame: "residue",
       diagnostics: [{
@@ -71,7 +72,27 @@ describe("classifyErrandCloseOccupancy", () => {
     });
 
     expect(classify(state([switched]), CLAIM_ID, RECORD_ID)).toEqual({ kind: "clear" });
+    expect(classify(state([switched]), CLAIM_ID, null)).toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
     expect(classify(state([switched]), CLAIM_ID, `sha256:${"2".repeat(64)}`)).toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
+
+    const malformedMarker = {
+      ...switched,
+      diagnostics: [
+        ...switched.diagnostics,
+        {
+          code: "subject-unresolved" as const,
+          source: { kind: "checkout" as const, key: CHECKOUT },
+          message: "The worktree marker is malformed.",
+        },
+      ],
+    };
+    expect(classify(state([malformedMarker]), CLAIM_ID, RECORD_ID)).toMatchObject({
       kind: "refused",
       reason: "role-conflict",
     });

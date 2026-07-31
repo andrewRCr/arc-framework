@@ -12,9 +12,9 @@ export type CloseOccupancyVerdict =
  *
  * Foreign occupancy — not plain occupancy — is what refuses: an Errand may finalize from inside its
  * own still-occupied checkout, leaving the role to the recovery replay path, so requiring absence
- * would refuse the one terminal an in-place merge has. When a branch switch prevents the reader
- * from resolving that locus, the caller supplies the current checkout's path-derived generation and
- * the projection still has to prove the exact claim plus its live self-held lease.
+ * would refuse the one terminal an in-place merge has. When a proven base switch prevents the reader
+ * from resolving that locus, the caller supplies the base checkout's path-derived generation and the
+ * projection still has to prove the exact ordinary-Errand claim plus its live self-held lease.
  *
  * @param options - Complete locus projection plus the exact Errand subject close resolved.
  * @returns Clearance, or the single refusal reason the claiming occupancy carries.
@@ -23,7 +23,7 @@ export function classifyErrandCloseOccupancy(options: {
   state: LocusStateV1;
   slug: string;
   claimId: string | null;
-  currentCheckoutRecordId: string | null;
+  baseCheckoutRecordId: string | null;
 }): CloseOccupancyVerdict {
   const claims = options.state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
     && row.role.subject.key === options.slug && row.role.subject.claimId === options.claimId);
@@ -37,7 +37,7 @@ export function classifyErrandCloseOccupancy(options: {
   if (current.kind === "resolved" && claim.recordId !== null && current.activeRecordId === claim.recordId) {
     return { kind: "clear" };
   }
-  if (isExactSelfHeldCheckout(claim, options.currentCheckoutRecordId)) return { kind: "clear" };
+  if (isExactSelfHeldBaseCheckout(claim, options.baseCheckoutRecordId)) return { kind: "clear" };
 
   const trusted = projectTrustedLocusRow(claim);
   if (trusted.kind === "untrusted") {
@@ -49,15 +49,18 @@ export function classifyErrandCloseOccupancy(options: {
   return refused(foreignReason(claim.lease), foreignMessage(options.slug, claim));
 }
 
-function isExactSelfHeldCheckout(claim: LocusRowV1, currentCheckoutRecordId: string | null): boolean {
-  return currentCheckoutRecordId !== null
+function isExactSelfHeldBaseCheckout(claim: LocusRowV1, baseCheckoutRecordId: string | null): boolean {
+  const diagnostic = claim.diagnostics.length === 1 ? claim.diagnostics[0] : undefined;
+  return baseCheckoutRecordId !== null
     && claim.kind === "managed-role"
-    && claim.recordId === currentCheckoutRecordId
+    && claim.recordId === baseCheckoutRecordId
     && claim.checkoutPath !== null
-    && claim.role !== null
+    && claim.primary === true
+    && claim.role?.kind === "errand"
     && claim.lease?.state === "live"
     && claim.lease.selfHeld
-    && claim.diagnostics.every((diagnostic) => diagnostic.code === "subject-unresolved");
+    && diagnostic?.code === "subject-unresolved"
+    && diagnostic.source.kind === "record";
 }
 
 function foreignReason(lease: LocusRowV1["lease"]): LocusRefusalReason {

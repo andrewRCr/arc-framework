@@ -3,6 +3,7 @@
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { readWorktreeMarker } from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import {
   createPlatformProcessAncestryInspector,
@@ -153,11 +154,19 @@ async function readCloseOccupancy(
   }
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let state: LocusStateV1;
-  let currentCheckoutRecordId: string;
+  let baseCheckoutRecordId: string | null = null;
   try {
     const currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
     if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
-    currentCheckoutRecordId = deriveLocusRecordId(currentCheckoutPath, pathFlavor).recordId;
+    const [currentBranch, currentMarker] = await Promise.all([
+      options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
+      readWorktreeMarker(currentCheckoutPath),
+    ]);
+    if (currentBranch.stdout.trim() === options.base
+      && currentBranch.stdout.trim() !== record.branch
+      && currentMarker.kind === "absent") {
+      baseCheckoutRecordId = deriveLocusRecordId(currentCheckoutPath, pathFlavor).recordId;
+    }
     state = await readLocusState({
       identity: options.identity,
       pathFlavor,
@@ -183,7 +192,7 @@ async function readCloseOccupancy(
     state,
     slug: record.slug,
     claimId: record.claimId,
-    currentCheckoutRecordId,
+    baseCheckoutRecordId,
   });
 }
 
