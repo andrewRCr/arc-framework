@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "housekeep-existing-homes",
-  "origin": "description",
-  "intent": "Route confirmed inbox entries to existing authoritative homes and managed holds",
-  "branch": "chore/housekeep-existing-homes",
-  "createdAt": "2026-07-31T02:19:53.208Z",
-  "returnBranch": "main"
-}
