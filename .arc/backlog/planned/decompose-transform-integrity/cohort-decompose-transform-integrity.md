@@ -3,33 +3,31 @@
 > _Identity and coordination record for this cohort. Membership is **derived** from each member's `Cohort`
 > field — recorded here only as shared coordination, never as a roster or status table._
 
-**Purpose:** Preserve one durable mental and delivery anchor for the work split from
-`decompose-transform-integrity`. The active origin continues with the trustworthy v3 retirement core; dependent
-members deliver independently safe extensions without hiding their ordering or making optional behavior a
-prerequisite for the core transform.
+**Purpose:** Preserve one durable mental and delivery anchor for the program split from
+`decompose-transform-integrity`. The shipped origin owns the trustworthy v3 retirement core; direct members
+deliver independently safe extensions, while `decompose-core-hardening` coordinates post-ship safety,
+operability, performance, and authoring gaps exposed by real cuts.
 
 ---
 
 ## Coordination
 
-This is the manual bootstrap of the decomposition machinery being designed. It creates no synthetic cut map,
-preparation, receipt, branch, or automated launch. The specs and metas below are the planning authorities for this
-split; future transforms will publish their equivalent machine authority through the typed decomposition
-publication contract.
+The shipped core and each remaining member's spec and meta are the planning authorities for this program.
+Transform receipts govern individual cuts; they do not replace cohort coordination or member lifecycle state.
 
 ### Sequencing
 
 ```text
-decompose-transform-integrity (continue now)
+decompose-transform-integrity (shipped core)
 ├── decompose-base-mobility ─────────┐
 ├── decompose-extraction             ├── ready after the core
 ├── decompose-durable-consumers ─────┘
-└── decompose-planning-lane ◀────────── after base mobility
+├── decompose-planning-lane ◀────────── after base mobility
+└── decompose-core-hardening ────────── independently deliverable post-core members
 ```
 
-The initial-continuation disposition is the already-active `decompose-transform-integrity` core. It needs no
-`arc start`. Once that core lands, base mobility, extraction, and durable consumers are independently ready.
-Planning-lane admission remains reviewed and disabled until both the core and base-mobility member land.
+Base mobility, extraction, durable consumers, and the hardening members are independently ready after the shipped
+core. Planning-lane admission remains reviewed and disabled until base mobility lands.
 
 Current readiness is derived from member metas and `Depends On`, not from this orientation view.
 
@@ -47,6 +45,8 @@ Current readiness is derived from member metas and `Depends On`, not from this o
   exception. Until it lands and is explicitly installed, decomposition remains reviewed.
 - `decompose-durable-consumers` consumes finalized v3 transition authority without changing authoring,
   finalization, or landing semantics.
+- `decompose-core-hardening` consumes the same shipped core and closes real-cut gaps without folding optional
+  performance or authoring changes back into the core's already-landed authority spine.
 
 ### Soft coordination
 
@@ -60,9 +60,9 @@ and must not fabricate publication evidence merely to automate launch.
 
 ### Closeout criteria
 
-The cohort closes when the core and every dependent member have shipped, ordinary installs still default to
-reviewed decomposition, and the transform presents an origin-addressable anchor plus an exact current launch
-frontier without a scheduler or status record.
+The cohort closes when every direct member and every `decompose-core-hardening` member has shipped, ordinary
+installs still default to reviewed decomposition, and the transform presents an origin-addressable anchor plus an
+exact current launch frontier without a scheduler or status record.
 
 ## Members
 

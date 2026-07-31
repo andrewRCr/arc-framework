@@ -5,10 +5,8 @@
 - **Purpose:** Bound the v3 read-only decomposition preflight's multiplicative costs so wide-branch,
   wide-topology, and large-document repositories stay usable without weakening the integrity contracts the
   preflight exists to enforce.
-- **Sequencing:** **Post-core** relative to `decompose-transform-integrity`. Keep this optimization out of the
-  active integrity implementation unless measurement shows a release-blocking regression. Optional members of that
-  cohort (extraction, durable-consumers, base-mobility, planning-lane) own different authority axes — not this
-  preflight cost surface.
+- **Sequencing:** Member of `decompose-transform-integrity/decompose-core-hardening`. The shipped core remains
+  authoritative for preflight integrity; this work bounds cost without reopening its semantics.
 
 ---
 
@@ -40,7 +38,7 @@ Medium — measurement harness + bounded preflight path changes; design must not
 
 ## Continuity
 
-- Captured as review nits against the core DTI implementation; deliberately **not** absorbed mid-flight into
-  that WU's already-oversized authority spine.
+- Captured against the core implementation and promoted after real-cut evidence established the hardening
+  program.
 - Sibling: DTI durable-consumers bounds long-lived _receipt_ enumeration — different surface from pre-mutation
   preflight.
