@@ -101,4 +101,107 @@ describe("ordinary Errand promotion", () => {
       await removeGitBackedDir(harness.directory);
     }
   });
+
+  it("settles the exact retained capture when promotion replays after the meta commit", async () => {
+    const remote = await createBareRemote(repository);
+    const harness = await createCodexHarness();
+    const inboxDir = join(repository, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    await writeFile(
+      inboxPath,
+      "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Grow this concern**\n\n- _Observation:_ promote me.\n\n---\n",
+    );
+    try {
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", "growing", "--from-inbox", "Grow this concern", "--json"],
+        {
+          args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
+            "--json"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        {
+          command: ["git", "-c", "core.hooksPath=/dev/null", "add", ".arc/active/meta-growth-unit.md"],
+          reuseResolvedCwd: true,
+        },
+        {
+          command: ["git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "promote errand"],
+          reuseResolvedCwd: true,
+        },
+        {
+          args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
+            "--json"],
+          reuseResolvedCwd: true,
+        },
+      ], repository, { timeout: 60_000, anchorShellPath: harness.executable });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      expect(sequence.results[1]).toMatchObject({
+        outcome: "applied",
+        originEntry: "Grow this concern",
+        originEntrySourceDigest: expect.stringMatching(/^sha256:/u),
+      });
+      expect(sequence.results[2]).toMatchObject({
+        outcome: "applied",
+        operation: "errand-promote",
+        originEntry: null,
+        originEntrySourceDigest: null,
+      });
+      expect(await readFile(inboxPath, "utf8")).not.toContain("**Grow this concern**");
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harness.directory);
+    }
+  });
+
+  it("refuses capture settlement without removing a same-title replacement", async () => {
+    const remote = await createBareRemote(repository);
+    const harness = await createCodexHarness();
+    const inboxDir = join(repository, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const replacement = "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Grow this concern**\n\n"
+      + "- _Observation:_ replacement generation.\n\n---\n";
+    await writeFile(
+      inboxPath,
+      "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Grow this concern**\n\n- _Observation:_ original generation.\n\n---\n",
+    );
+    try {
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", "growing", "--from-inbox", "Grow this concern", "--json"],
+        {
+          args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
+            "--json"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        {
+          command: [process.execPath, "-e", "require('node:fs').writeFileSync(process.argv[1], process.argv[2])",
+            inboxPath, replacement],
+          reuseResolvedCwd: true,
+        },
+        {
+          command: ["git", "-c", "core.hooksPath=/dev/null", "add", ".arc/active/meta-growth-unit.md"],
+          reuseResolvedCwd: true,
+        },
+        {
+          command: ["git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "promote errand"],
+          reuseResolvedCwd: true,
+        },
+        {
+          args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
+            "--json"],
+          reuseResolvedCwd: true,
+        },
+      ], repository, { timeout: 60_000, anchorShellPath: harness.executable });
+
+      expect(sequence.exitCode).toBe(1);
+      expect(sequence.results.at(-1)).toMatchObject({
+        outcome: "refused",
+        operation: "errand-promote",
+        reason: "inbox-link-conflict",
+      });
+      expect(await readFile(inboxPath, "utf8")).toBe(replacement);
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harness.directory);
+    }
+  });
 });

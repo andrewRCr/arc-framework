@@ -33,7 +33,11 @@ function record(): OrdinaryErrandRecord {
   }) as OrdinaryErrandRecord;
 }
 
-function frame(kind: "applied" | "idempotent" = "applied"): PromotionFrameReceipt {
+function frame(kind: "applied" | "idempotent" = "applied"): PromotionFrameReceipt & {
+  originEntry: string;
+  originEntrySourceDigest: typeof ORIGIN_DIGEST;
+  metaCommitted: boolean;
+} {
   return {
     kind,
     branch: "feat/growth",
@@ -43,6 +47,9 @@ function frame(kind: "applied" | "idempotent" = "applied"): PromotionFrameReceip
     checkoutPath: "/repo/growing",
     allocation: "spawned",
     parentReleased: true,
+    originEntry: "Grow this concern",
+    originEntrySourceDigest: ORIGIN_DIGEST,
+    metaCommitted: false,
   };
 }
 
@@ -61,6 +68,7 @@ describe("promoteOrdinaryErrand", () => {
         recoverPromoted: vi.fn(),
         replaceFrame: async () => (events.push("frame"), frame()),
         retire: async () => (events.push("identity"), { kind: "applied" }),
+        settlePromoted: async (value) => value,
       },
     });
 
@@ -88,10 +96,16 @@ describe("promoteOrdinaryErrand", () => {
         recoverPromoted: async () => frame("idempotent"),
         replaceFrame,
         retire,
+        settlePromoted: async (value) => value,
       },
     });
 
-    expect(result).toMatchObject({ outcome: "idempotent", operation: "errand-promote" });
+    expect(result).toMatchObject({
+      outcome: "idempotent",
+      operation: "errand-promote",
+      originEntry: "Grow this concern",
+      originEntrySourceDigest: ORIGIN_DIGEST,
+    });
     expect(replaceFrame).not.toHaveBeenCalled();
     expect(retire).not.toHaveBeenCalled();
   });
@@ -110,6 +124,7 @@ describe("promoteOrdinaryErrand", () => {
         recoverPromoted: vi.fn(),
         replaceFrame: async () => ({ kind: "refused", reason: "lease-live", message: "parent changed" }),
         retire,
+        settlePromoted: async (value) => value,
       },
     });
     expect(refused).toMatchObject({ outcome: "refused", reason: "lease-live" });
@@ -126,6 +141,7 @@ describe("promoteOrdinaryErrand", () => {
         recoverPromoted: vi.fn(),
         replaceFrame: async () => frame(),
         retire: async () => ({ kind: "error", message: "remote unavailable" }),
+        settlePromoted: async (value) => value,
       },
     });
     expect(failed).toMatchObject({ outcome: "error", operation: "errand-promote" });
@@ -139,6 +155,7 @@ describe("promoteOrdinaryErrand", () => {
       recoverPromoted: vi.fn(),
       replaceFrame,
       retire: vi.fn(),
+      settlePromoted: async (value: PromotionFrameReceipt) => value,
     };
     const partial = await promoteOrdinaryErrand({
       slug: value.slug, name: "growth", type: "feat", floor: "scale", protection: "partial", dependencies,

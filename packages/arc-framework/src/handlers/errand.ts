@@ -24,6 +24,7 @@ import { runActiveInFlight } from "../commands/active.js";
 import {
   removeCurrentInboxEntry,
   runUserInboxRemove,
+  runUserInboxMutation,
   unmarkCurrentInboxEntry,
   withLockedUserInbox,
   type UserIOContext,
@@ -1280,6 +1281,26 @@ export async function handleErrandPromote(
       registeredHarnessDirs: settings["worktree.harness_dirs"],
       exec: io.exec,
       execInput: io.execInput,
+      settleInbox: async (binding) => {
+        try {
+          const settled = await runUserInboxMutation({
+            cwd,
+            io,
+            identity,
+            mutations: [{
+              kind: "remove",
+              title: binding.originEntry,
+              sourceDigest: binding.originEntrySourceDigest,
+            }],
+          });
+          return { kind: settled.changed ? "applied" : "idempotent" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return /source digest changed|Duplicate USER-INBOX entry/u.test(message)
+            ? { kind: "refused", message }
+            : { kind: "error", message };
+        }
+      },
     });
   } catch (error) {
     result = createLocusMutationResult({

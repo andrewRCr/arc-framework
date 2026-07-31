@@ -16,7 +16,7 @@ import {
   type WorktreeMarker,
 } from "../git/worktree-marker.js";
 import { resolveArcPath } from "../layout/index.js";
-import { SlugSchema } from "../kernel/index.js";
+import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { createLocusMutationResult, releaseLocusLease, updateLocusRole } from "../locus/mutation.js";
 import {
@@ -61,9 +61,18 @@ export interface PromoteOrdinaryErrandRuntimeOptions {
   readonly registeredHarnessDirs: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
+  readonly settleInbox: (binding: {
+    readonly originEntry: string;
+    readonly originEntrySourceDigest: CanonicalDigest;
+  }) => Promise<PromotionInboxSettlementResult>;
   /** Test seam for a preselected process anchor; production acquires it from ancestry. */
   readonly anchor?: LocusProcessAnchor;
 }
+
+export type PromotionInboxSettlementResult =
+  | { readonly kind: "applied" | "idempotent" }
+  | { readonly kind: "refused"; readonly message: string }
+  | { readonly kind: "error"; readonly message: string };
 
 /** Promote an exact live ordinary-v3 checkout and retire its identity after lock release. */
 export async function promoteOrdinaryErrandAtRuntime(
@@ -113,6 +122,7 @@ export async function promoteOrdinaryErrandAtRuntime(
           ? { kind: "refused", reason: result.reason }
           : { kind: "error", message: result.message };
       },
+      settlePromoted: async (frame) => settlePromotedFrame(options, frame, anchor, inspector, pathFlavor),
     },
   });
 }
@@ -211,7 +221,14 @@ async function replaceLocalFrame(
         checkoutPath: row.checkoutPath,
         expectedRole: lockedTarget.record.role,
         expectedLeaseId: row.lease.leaseId,
-        authority: { kind: "work-unit", key: options.name },
+        authority: {
+          kind: "work-unit",
+          key: options.name,
+          originEntry: record.originEntry,
+          originEntrySourceDigest: record.origin === "inbox"
+            ? record.originEntrySourceDigest as CanonicalDigest
+            : null,
+        },
         parentCheckoutPath: null,
         sessionHomePath: row.checkoutPath,
         establishedAt: record.updatedAt,
@@ -226,6 +243,9 @@ async function replaceLocalFrame(
       branch,
       metaPath,
       parentReleased,
+      record.originEntry,
+      record.origin === "inbox" ? record.originEntrySourceDigest as CanonicalDigest : null,
+      rechecked.metaCommitted,
     );
   } finally {
     await releaseLocks(runtime, handles);
@@ -321,6 +341,9 @@ async function recoverPromotedFrame(
       "Promoted work-unit recovery requires its live session lease.",
     );
   }
+  if (!row.lease.selfHeld) {
+    return refused("lease-live", "Promoted work-unit recovery requires the current session lease.");
+  }
   const branch = promotionBranch(options);
   const metaPath = promotionMetaPath(options.name);
   const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch));
@@ -329,7 +352,103 @@ async function recoverPromotedFrame(
   if (!carriesPromotedEvidence(inspected, branch)) {
     return refused("promotion-source-invalid", "Promoted work-unit evidence is incomplete.");
   }
-  return receipt("idempotent", row, branch, metaPath, false);
+  return receipt(
+    "idempotent",
+    row,
+    branch,
+    metaPath,
+    false,
+    row.role?.originEntry ?? null,
+    (row.role?.originEntrySourceDigest as CanonicalDigest | undefined) ?? null,
+    inspected.metaCommitted,
+  );
+}
+
+async function settlePromotedFrame(
+  options: PromoteOrdinaryErrandRuntimeOptions,
+  frame: PromotionFrameReceipt,
+  anchor: Extract<Awaited<ReturnType<typeof acquireSessionAnchor>>, { kind: "process" }>,
+  inspector: ReturnType<typeof createPlatformProcessInspector>,
+  pathFlavor: "windows" | "posix",
+): Promise<PromotionFrameResult> {
+  if (frame.originEntry === null) return frame;
+  if (frame.originEntrySourceDigest === null) {
+    return refused("record-malformed", "Promoted capture settlement is missing its source digest.");
+  }
+
+  let settled: PromotionInboxSettlementResult;
+  try {
+    settled = await options.settleInbox({
+      originEntry: frame.originEntry,
+      originEntrySourceDigest: frame.originEntrySourceDigest,
+    });
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  if (settled.kind === "refused") return refused("inbox-link-conflict", settled.message);
+  if (settled.kind === "error") return { kind: "error", message: settled.message };
+
+  const runtime = createNodeProvisioningDependencies({
+    exec: options.exec,
+    identity: options.identity,
+    anchor,
+    inspector,
+    pathFlavor,
+    base: options.base,
+    branch: frame.branch,
+    postCreateScript: options.postCreateScript,
+    registeredHarnessDirs: options.registeredHarnessDirs,
+  });
+  const acquired = await runtime.acquireRecordLock(frame.checkoutPath);
+  if (acquired.kind !== "acquired") {
+    return refused(
+      acquired.reason === "live" ? "lease-live" : "lease-unknown",
+      "Promoted work-unit capture settlement lock is unavailable.",
+    );
+  }
+  try {
+    const locked = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
+    if (locked.kind !== "valid" || locked.record.recordId !== frame.recordId
+      || locked.record.checkoutPath !== frame.checkoutPath || locked.record.lease?.leaseId !== frame.leaseId
+      || locked.record.role.kind !== "work-unit" || locked.record.role.subject.kind !== "work-unit"
+      || locked.record.role.subject.key !== options.name || locked.record.role.subject.claimId !== null) {
+      return refused("role-conflict", "Promoted work-unit generation changed during capture settlement.");
+    }
+    const roleDigest = (locked.record.role.originEntrySourceDigest as CanonicalDigest | undefined) ?? null;
+    if (locked.record.role.originEntry === null && roleDigest === null) {
+      return {
+        ...frame,
+        kind: settled.kind,
+        originEntry: null,
+        originEntrySourceDigest: null,
+      };
+    }
+    if (locked.record.role.originEntry !== frame.originEntry || roleDigest !== frame.originEntrySourceDigest) {
+      return refused("role-conflict", "Promoted capture generation changed during settlement.");
+    }
+    const updated = await updateLocusRole({
+      recordId: frame.recordId,
+      checkoutPath: frame.checkoutPath,
+      expectedRole: locked.record.role,
+      expectedLeaseId: frame.leaseId,
+      authority: { kind: "work-unit", key: options.name },
+      parentCheckoutPath: null,
+      sessionHomePath: frame.checkoutPath,
+      establishedAt: locked.record.role.establishedAt,
+      io: recordIO(runtime, acquired.handle),
+    });
+    if (updated.kind === "refused") {
+      return refused(updated.reason, "Promoted work-unit generation changed during capture settlement.");
+    }
+    return {
+      ...frame,
+      kind: settled.kind === "applied" || updated.kind === "applied" ? "applied" : "idempotent",
+      originEntry: null,
+      originEntrySourceDigest: null,
+    };
+  } finally {
+    await runtime.releaseRecordLock(acquired.handle);
+  }
 }
 
 async function inspectCheckout(
@@ -341,7 +460,14 @@ async function inspectCheckout(
   expectedMeta: string,
   expectedHead?: string,
 ): Promise<
-  | { kind: "ready"; branch: string; head: string; metaPresent: boolean; metaMatches: boolean }
+  | {
+      kind: "ready";
+      branch: string;
+      head: string;
+      metaPresent: boolean;
+      metaMatches: boolean;
+      metaCommitted: boolean;
+    }
   | Extract<PromotionFrameResult, { kind: "refused" | "error" }>
 > {
   try {
@@ -365,7 +491,14 @@ async function inspectCheckout(
         ? "Promotion checkout carries changes beyond its own untracked meta."
         : "Promotion checkout has uncommitted changes.");
     }
-    return { kind: "ready", branch, head, metaPresent: meta !== null, metaMatches: meta === expectedMeta };
+    return {
+      kind: "ready",
+      branch,
+      head,
+      metaPresent: meta !== null,
+      metaMatches: meta === expectedMeta,
+      metaCommitted: recoverable && entries.length === 0,
+    };
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
@@ -490,7 +623,10 @@ function classifyTargetRole(
     && record.lease.sessionHomePath === (record.role.parentCheckoutPath ?? record.checkoutPath)) return "errand";
   if (record.role.kind === "work-unit" && subject.kind === "work-unit"
     && subject.key === name && subject.claimId === null && record.role.parentCheckoutPath === null
-    && record.lease.sessionHomePath === record.checkoutPath) return "work-unit";
+    && record.lease.sessionHomePath === record.checkoutPath
+    && record.role.originEntry === identity.originEntry
+    && (record.role.originEntrySourceDigest ?? null)
+      === (identity.origin === "inbox" ? identity.originEntrySourceDigest : null)) return "work-unit";
   return "conflict";
 }
 
@@ -511,6 +647,9 @@ function receipt(
   branch: string,
   metaPath: string,
   parentReleased: boolean,
+  originEntry: string | null,
+  originEntrySourceDigest: PromotionFrameReceipt["originEntrySourceDigest"],
+  metaCommitted: boolean,
 ): PromotionFrameReceipt {
   if (row.checkoutPath === null || row.recordId === null || row.lease === null) throw new Error("Incomplete promotion row");
   return {
@@ -522,6 +661,9 @@ function receipt(
     checkoutPath: row.checkoutPath,
     allocation: row.primary === true ? "primary" : "spawned",
     parentReleased,
+    originEntry,
+    originEntrySourceDigest,
+    metaCommitted,
   };
 }
 

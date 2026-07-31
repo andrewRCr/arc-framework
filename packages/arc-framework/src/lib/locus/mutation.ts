@@ -23,7 +23,12 @@ import type { ProcessLiveness } from "./process-inspector.js";
 import type { CanonicalDigest } from "../kernel/index.js";
 
 export type LocusRoleAuthority =
-  | { readonly kind: "work-unit"; readonly key: string }
+  | {
+      readonly kind: "work-unit";
+      readonly key: string;
+      readonly originEntry?: string | null;
+      readonly originEntrySourceDigest?: CanonicalDigest | null;
+    }
   | { readonly kind: "identity"; readonly identity: LocusIdentityV1 }
   | {
       readonly kind: "partial-errand";
@@ -513,7 +518,16 @@ function deriveRole(
 ): LocusRole | null {
   let candidate: unknown;
   if (authority.kind === "work-unit") {
-    candidate = role("work-unit", "work-unit", authority.key, null, parentCheckoutPath, establishedAt);
+    candidate = role(
+      "work-unit",
+      "work-unit",
+      authority.key,
+      null,
+      parentCheckoutPath,
+      establishedAt,
+      authority.originEntry ?? null,
+      authority.originEntrySourceDigest ?? null,
+    );
   } else if (authority.kind === "identity") {
     const identity = LocusIdentityV1Schema.safeParse(authority.identity);
     if (!identity.success) return null;

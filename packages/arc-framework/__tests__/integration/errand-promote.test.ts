@@ -92,7 +92,69 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     expect(await readIdentity(exec, execInput)).toBeNull();
 
     const replay = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
-    expect(replay).toMatchObject({ outcome: "idempotent", operation: "errand-promote" });
+    expect(replay).toMatchObject({
+      outcome: "idempotent",
+      operation: "errand-promote",
+      originEntry: "Grow this concern",
+      originEntrySourceDigest: ORIGIN_DIGEST,
+    });
+  });
+
+  it("settles the retained capture only after the promoted meta is committed", async () => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+    const settled: Array<{ originEntry: string; originEntrySourceDigest: string }> = [];
+    const options = {
+      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      settleInbox: async (binding: { originEntry: string; originEntrySourceDigest: string }) => {
+        settled.push(binding);
+        return { kind: "applied" as const };
+      },
+    };
+
+    const promoted = await promoteOrdinaryErrandAtRuntime(options);
+
+    expect(promoted).toMatchObject({
+      outcome: "applied",
+      originEntry: "Grow this concern",
+      originEntrySourceDigest: ORIGIN_DIGEST,
+    });
+    expect(settled).toEqual([]);
+
+    await exec("git", ["add", ".arc/active/meta-growth.md"]);
+    await makeCommit(primary, "promote errand");
+
+    const foreignReplay = await promoteOrdinaryErrandAtRuntime({
+      ...options,
+      anchor: { ...anchor, selector: `${anchor.selector}-foreign` },
+    });
+    expect(foreignReplay).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    expect(settled).toEqual([]);
+
+    const replay = await promoteOrdinaryErrandAtRuntime(options);
+
+    expect(replay).toMatchObject({
+      outcome: "applied",
+      operation: "errand-promote",
+      originEntry: null,
+      originEntrySourceDigest: null,
+    });
+    expect(settled).toEqual([{
+      originEntry: "Grow this concern",
+      originEntrySourceDigest: ORIGIN_DIGEST,
+    }]);
+    expect((await readRecord(root, primary)).role).toMatchObject({ originEntry: null });
+
+    const settledReplay = await promoteOrdinaryErrandAtRuntime(options);
+    expect(settledReplay).toMatchObject({ outcome: "idempotent", originEntry: null });
+    expect(settled).toHaveLength(1);
   });
 
   it("routes a derivation-floor promotion through planning and replays the exact frame", async () => {
@@ -430,6 +492,7 @@ function runtimeOptions(
     registeredHarnessDirs: "",
     exec,
     execInput,
+    settleInbox: async () => ({ kind: "idempotent" as const }),
     anchor,
   };
 }

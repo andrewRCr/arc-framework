@@ -1,6 +1,6 @@
 /** Recoverable ordinary-v3 Errand-to-work-unit promotion composition. */
 
-import { SlugSchema } from "../kernel/index.js";
+import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
 import type { LocusMutationResultV1, LocusRefusalReason,
   LocusMutationErrorCode } from "../locus/schema/index.js";
@@ -24,6 +24,9 @@ export interface PromotionFrameReceipt {
   checkoutPath: string;
   allocation: "primary" | "spawned";
   parentReleased: boolean;
+  originEntry: string | null;
+  originEntrySourceDigest: CanonicalDigest | null;
+  metaCommitted: boolean;
 }
 
 export type PromotionFrameResult = PromotionFrameReceipt
@@ -40,6 +43,7 @@ export interface PromoteOrdinaryErrandDependencies {
   recoverPromoted(): Promise<PromotionFrameResult | null>;
   replaceFrame(record: OrdinaryErrandRecord): Promise<PromotionFrameResult>;
   retire(record: OrdinaryErrandRecord): Promise<RetirementResult>;
+  settlePromoted(frame: PromotionFrameReceipt): Promise<PromotionFrameResult>;
 }
 
 export interface PromoteOrdinaryErrandOptions {
@@ -51,7 +55,7 @@ export interface PromoteOrdinaryErrandOptions {
   dependencies: PromoteOrdinaryErrandDependencies;
 }
 
-/** Promote one live exact ordinary-v3 generation and retire identity last. */
+/** Promote one live exact ordinary-v3 generation and settle its retained capture after the meta commit. */
 export async function promoteOrdinaryErrand(
   options: PromoteOrdinaryErrandOptions,
 ): Promise<LocusMutationResultV1> {
@@ -82,7 +86,8 @@ export async function promoteOrdinaryErrand(
       return refusal("promotion-source-invalid", `No exact Errand or promoted work-unit generation exists for '${slug}'.`);
     }
     if ("result" in recovered) return recovered.result;
-    return success(slug, null, recovered.frame);
+    const settled = await settleCommittedFrame(options.dependencies, recovered.frame);
+    return "result" in settled ? settled.result : success(slug, settled.frame);
   }
   if (!isOrdinary(read.record) || read.record.slug !== slug || read.record.state !== "open") {
     return refusal("promotion-source-invalid", `Identity '${slug}' is not a live ordinary v3 Errand.`);
@@ -100,10 +105,27 @@ export async function promoteOrdinaryErrand(
   }
   if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
   if (retired.kind === "error") return failure("locus.errand-promote.identity", retired.message);
-  return success(slug, record, {
+  const frame: PromotionFrameReceipt = {
     ...replaced.frame,
     kind: replaced.frame.kind === "applied" || retired.kind === "applied" ? "applied" : "idempotent",
-  });
+  };
+  const settled = await settleCommittedFrame(options.dependencies, frame);
+  return "result" in settled ? settled.result : success(slug, settled.frame);
+}
+
+async function settleCommittedFrame(
+  dependencies: PromoteOrdinaryErrandDependencies,
+  frame: PromotionFrameReceipt,
+): Promise<{ frame: PromotionFrameReceipt } | { result: LocusMutationResultV1 }> {
+  if (!frame.metaCommitted || frame.originEntry === null) return { frame };
+  const settled = await runFrame(
+    "locus.errand-promote.inbox",
+    () => dependencies.settlePromoted(frame),
+  );
+  if (settled === null) {
+    return { result: failure("locus.errand-promote.inbox", "Promotion capture settlement returned no result.") };
+  }
+  return settled;
 }
 
 async function runFrame(
@@ -124,7 +146,6 @@ async function runFrame(
 
 function success(
   slug: string,
-  record: OrdinaryErrandRecord | null,
   frame: PromotionFrameReceipt,
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
@@ -136,7 +157,8 @@ function success(
     activeLocusPath: frame.checkoutPath,
     sessionHomePath: frame.checkoutPath,
     identity: null,
-    originEntry: record?.originEntry ?? null,
+    originEntry: frame.originEntry,
+    originEntrySourceDigest: frame.originEntrySourceDigest,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Promoted Errand '${slug}' to '${frame.branch}' and made its checkout the work-unit session home.`,

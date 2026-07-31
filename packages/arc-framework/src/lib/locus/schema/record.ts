@@ -52,14 +52,19 @@ export const LocusRoleSchema = z.strictObject({
     context.addIssue({ code: "custom", path: ["subject", "claimId"], message: "Identity-free role requires null claimId" });
   }
 
-  if (pair !== "errand/partial-errand" && role.originEntry !== null) {
-    context.addIssue({ code: "custom", path: ["originEntry"], message: "Origin entry is stored only for a partial Errand" });
+  const captureBearing = pair === "errand/partial-errand" || pair === "work-unit/work-unit";
+  if (!captureBearing && role.originEntry !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["originEntry"],
+      message: "Origin entry is stored only for a partial Errand or pending promotion settlement",
+    });
   }
-  if (pair !== "errand/partial-errand" && role.originEntrySourceDigest !== undefined) {
+  if (!captureBearing && role.originEntrySourceDigest !== undefined) {
     context.addIssue({
       code: "custom",
       path: ["originEntrySourceDigest"],
-      message: "Origin entry source digest is stored only for a partial Errand",
+      message: "Origin entry source digest is stored only for a partial Errand or pending promotion settlement",
     });
   }
   if ((role.originEntry === null) !== (role.originEntrySourceDigest === undefined)) {

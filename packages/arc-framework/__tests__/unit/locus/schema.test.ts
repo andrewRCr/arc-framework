@@ -77,7 +77,7 @@ describe("locus record schema", () => {
     })).success).toBe(false);
   });
 
-  it("limits origin back-pointers to partial errands and enforces exact keys", () => {
+  it("limits capture bindings to partial errands and pending promotion settlement", () => {
     const partial = {
       kind: "errand",
       subject: { kind: "partial-errand", key: "fix-output", claimId: null },
@@ -103,6 +103,20 @@ describe("locus record schema", () => {
     expect(LocusRecordV1Schema.safeParse(record({
       ...partial,
       subject: { kind: "errand", key: "fix-output", claimId },
+    })).success).toBe(false);
+    const promoted = {
+      ...partial,
+      kind: "work-unit",
+      subject: { kind: "work-unit", key: "fix-output", claimId: null },
+    };
+    expect(LocusRecordV1Schema.safeParse(record(promoted)).success).toBe(true);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...promoted,
+      originEntrySourceDigest: undefined,
+    })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...promoted,
+      originEntry: null,
     })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse(record({ ...partial, dispatchId: "legacy" })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse({ ...(record() as object), extra: true }).success).toBe(false);
