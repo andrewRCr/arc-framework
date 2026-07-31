@@ -28,6 +28,7 @@ import {
   revalidateV3DecomposeCutMapBinding,
 } from "./decompose-v3-preflight.js";
 import {
+  createV3DecomposeFinalizationRecoveryFacts,
   mapV3DecomposeFinalizationRecovery,
   renderV3DecomposeFinalizationRecovery,
   type V3DecomposeFinalizationRecoveryCause,
@@ -83,16 +84,11 @@ function refusal(
   reason: string,
   cause: V3DecomposeFinalizationRecoveryCause,
 ): GitV3DecomposeFinalizationResult {
-  const facts: V3DecomposeRecoveryFacts = isCanonicalDigest(input.receiptId)
-    ? {
-        finalizeInvocation: {
-          provenance: "finalize-command",
-          origin: input.origin,
-          receiptId: input.receiptId,
-          continuationPath: input.continuationPath,
-        },
-      }
-    : {};
+  const facts: V3DecomposeRecoveryFacts = createV3DecomposeFinalizationRecoveryFacts(
+    input.origin,
+    input.receiptId,
+    input.continuationPath,
+  );
   const recovery = mapV3DecomposeFinalizationRecovery({ cause, facts });
   return {
     status: "refused",

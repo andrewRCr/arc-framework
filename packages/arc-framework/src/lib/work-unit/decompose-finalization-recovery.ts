@@ -5,13 +5,14 @@
  * Validator loci remain diagnostics and never become command operands.
  */
 
-import type { CanonicalDigest } from "../canonical/canonical-json.js";
+import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import type {
   V3DecompositionMismatch,
   V3DecompositionMismatchKind,
 } from "./validate-v3-decomposition.js";
 import {
   renderV3DecomposeCommandArgument,
+  renderV3DecomposeAdvanceBaseCommand,
   renderV3DecomposeDiscardCommand,
   renderV3DecomposeFinalizeCommand,
   renderV3DecomposePreflightCommand,
@@ -36,13 +37,39 @@ export interface V3DecomposeRecoveryFacts {
   };
 }
 
+/**
+ * Build the provenance-tagged fact arm shared by finalization adapters.
+ *
+ * @param origin - Origin work-unit slug from the finalization invocation.
+ * @param receiptId - Receipt identity from the finalization invocation.
+ * @param continuationPath - Continuation-input path from the finalization invocation.
+ * @returns Canonical finalization facts, or no facts for a non-canonical receipt identity.
+ */
+export function createV3DecomposeFinalizationRecoveryFacts(
+  origin: string,
+  receiptId: string,
+  continuationPath: string,
+): V3DecomposeRecoveryFacts {
+  return isCanonicalDigest(receiptId)
+    ? {
+        finalizeInvocation: {
+          provenance: "finalize-command",
+          origin,
+          receiptId,
+          continuationPath,
+        },
+      }
+    : {};
+}
+
 export type V3DecomposeFinalizationRecoveryCause =
   | { kind: "canonical-mismatch"; mismatch: V3DecompositionMismatch }
   | { kind: "transient-finalization" }
   | { kind: "discardable-candidate" }
   | { kind: "semantic-reauthorization" }
   | { kind: "mechanical-repreflight" }
-  | { kind: "committed-candidate" }
+  | { kind: "binding-unavailable" }
+  | { kind: "committed-candidate"; recordKind: "preparation" | "receipt" | "invalid" }
   | { kind: "manual-guidance"; message: string };
 
 export type V3DecomposeFinalizationRecovery =
@@ -75,6 +102,14 @@ export type V3DecomposeFinalizationRecovery =
     action: "guidance";
     establishedFacts: { provenance: "none" };
     message: string;
+  }
+  | {
+    action: "advance-base";
+    establishedFacts: {
+      provenance: "finalize-command";
+      origin: string;
+      receiptId: CanonicalDigest;
+    };
   };
 
 const MISMATCH_ACTIONS: Record<V3DecompositionMismatchKind, "re-preflight" | "reauthor"> = {
@@ -123,6 +158,23 @@ function reauthor(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRecov
     : { action: "reauthor", establishedFacts: invocation };
 }
 
+function advanceBase(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRecovery {
+  const invocation = facts.finalizeInvocation;
+  return invocation === undefined
+    ? guidance(
+        "Advance the committed candidate only from its original finalize invocation; "
+        + "the verified origin and receipt are unavailable.",
+      )
+    : {
+        action: "advance-base",
+        establishedFacts: {
+          provenance: invocation.provenance,
+          origin: invocation.origin,
+          receiptId: invocation.receiptId,
+        },
+      };
+}
+
 /**
  * Map one typed failure and separately proven operands to a closed recovery action.
  *
@@ -142,6 +194,8 @@ export function mapV3DecomposeFinalizationRecovery(input: {
       return reauthor(input.facts);
     case "mechanical-repreflight":
       return rePreflight(input.facts);
+    case "binding-unavailable":
+      return advanceBase(input.facts);
     case "transient-finalization": {
       const invocation = input.facts.finalizeInvocation;
       return invocation === undefined
@@ -171,10 +225,12 @@ export function mapV3DecomposeFinalizationRecovery(input: {
           };
     }
     case "committed-candidate":
-      return guidance(
-        "The candidate parent already contains decomposition evidence; inspect the committed state "
-        + "instead of retrying or discarding it.",
-      );
+      return input.cause.recordKind === "receipt"
+        ? advanceBase(input.facts)
+        : guidance(
+            "The candidate parent already contains decomposition evidence; inspect the committed state "
+            + "instead of retrying or discarding it.",
+          );
     case "manual-guidance":
       return guidance(input.cause.message);
   }
@@ -211,6 +267,11 @@ export function renderV3DecomposeFinalizationRecovery(
       } with continuation ${
         renderV3DecomposeCommandArgument(recovery.establishedFacts.continuationPath)
       }.`;
+    case "advance-base":
+      return `Advance base: ${renderV3DecomposeAdvanceBaseCommand(
+        recovery.establishedFacts.origin,
+        recovery.establishedFacts.receiptId,
+      )}`;
     case "guidance":
       return recovery.message;
   }

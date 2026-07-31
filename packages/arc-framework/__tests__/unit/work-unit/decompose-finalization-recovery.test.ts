@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createV3DecomposeFinalizationRecoveryFacts,
   mapV3DecomposeFinalizationRecovery,
   renderV3DecomposeFinalizationRecovery,
   type V3DecomposeRecoveryFacts,
@@ -44,6 +45,19 @@ const mismatchActions: Record<V3DecompositionMismatchKind, "re-preflight" | "rea
 };
 
 describe("v3 decompose finalization recovery", () => {
+  it("constructs one canonical finalize fact arm and rejects non-canonical receipt identities", () => {
+    expect(createV3DecomposeFinalizationRecoveryFacts(
+      "origin",
+      receiptId,
+      "/tmp/continuation.json",
+    )).toEqual({ finalizeInvocation: facts.finalizeInvocation });
+    expect(createV3DecomposeFinalizationRecoveryFacts(
+      "origin",
+      "not-a-receipt",
+      "/tmp/continuation.json",
+    )).toEqual({});
+  });
+
   it.each(Object.entries(mismatchActions) as Array<
     [V3DecompositionMismatchKind, "re-preflight" | "reauthor"]
   >)(
@@ -126,6 +140,51 @@ describe("v3 decompose finalization recovery", () => {
     expect(renderV3DecomposeFinalizationRecovery(recovery)).toBe(
       `Retry: arc decompose origin --finalize ${receiptId} --continuation /tmp/continuation.json`,
     );
+  });
+
+  it("maps binding loss and a committed receipt to a narrowed advance-base action", () => {
+    for (const cause of [
+      { kind: "binding-unavailable" as const },
+      { kind: "committed-candidate" as const, recordKind: "receipt" as const },
+    ]) {
+      expect(mapV3DecomposeFinalizationRecovery({ cause, facts })).toEqual({
+        action: "advance-base",
+        establishedFacts: {
+          provenance: "finalize-command",
+          origin: "origin",
+          receiptId,
+        },
+      });
+    }
+    expect(mapV3DecomposeFinalizationRecovery({
+      cause: { kind: "binding-unavailable" },
+      facts: {},
+    })).toMatchObject({ action: "guidance" });
+  });
+
+  it("renders advance-base with shell-safe origin quoting and no continuation operand", () => {
+    const recovery = mapV3DecomposeFinalizationRecovery({
+      cause: { kind: "binding-unavailable" },
+      facts: {
+        finalizeInvocation: {
+          ...facts.finalizeInvocation!,
+          origin: "odd origin's value",
+        },
+      },
+    });
+    expect(renderV3DecomposeFinalizationRecovery(recovery)).toBe(
+      `Advance base: arc decompose 'odd origin'"'"'s value' --advance-base ${receiptId}`,
+    );
+    expect(canonicalText(recovery)).not.toContain("continuationPath");
+  });
+
+  it("keeps committed preparations and invalid records on existing guidance", () => {
+    for (const recordKind of ["preparation", "invalid"] as const) {
+      expect(mapV3DecomposeFinalizationRecovery({
+        cause: { kind: "committed-candidate", recordKind },
+        facts,
+      })).toMatchObject({ action: "guidance" });
+    }
   });
 });
 

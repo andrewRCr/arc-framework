@@ -919,12 +919,12 @@ base/head pair, and both alternatives are closed off — a mismatch locus stays 
 constructs no actions. Adding a cause is not adding a classifier: the action union still gains exactly one arm,
 and the one mapper still decides.
 
-### `[ ]` **4.1 Add the `advance-base` arm to the core recovery union**
+### `[x]` **4.1 Add the `advance-base` arm to the core recovery union**
 
 - _Goal:_ The recovery vocabulary gains one arm that carries only the origin and receipt facts authorizing the
   command, and renders the exact invocation.
 
-    - `[ ]` **4.1.a Consolidate the recovery-fact constructor**
+    - `[x]` **4.1.a Consolidate the recovery-fact constructor**
 
         - _Goal:_ Both paths that feed the recovery mapper establish their facts identically by construction, so the
           new arm cannot reach one path and miss the other.
@@ -941,7 +941,7 @@ and the one mapper still decides.
 
             - A non-canonical receipt id still yields empty facts on both paths.
 
-    - `[ ]` **4.1.b Extend the union and mapper**
+    - `[x]` **4.1.b Extend the union and mapper**
 
         - Add the arm to `V3DecomposeFinalizationRecovery` alongside `retry`, `discard`, `re-preflight`,
           `reauthor`, and `guidance`, carrying a narrowed `{ provenance, origin, receiptId }` rather than the whole
@@ -962,7 +962,7 @@ and the one mapper still decides.
 
             - Carries only the narrowed facts, consuming no continuation.
 
-    - `[ ]` **4.1.c Render the exact command**
+    - `[x]` **4.1.c Render the exact command**
 
         - Add the advance-base renderer beside the existing preflight, execute, discard, and finalize renderers,
           and extend the recovery renderer's exhaustive switch.
@@ -971,7 +971,7 @@ and the one mapper still decides.
 
             - Renders a correctly quoted invocation for ordinary and awkward operands.
 
-### `[ ]` **4.2 Convert the committed-candidate dead end**
+### `[x]` **4.2 Convert the committed-candidate dead end**
 
 - _Goal:_ A committed receipt parent resolves to an actionable route instead of terminal prose, while the states
   the command cannot repair keep the honest dead end they have today.
@@ -980,7 +980,7 @@ and the one mapper still decides.
   prose guidance — inspect the committed state instead of retrying or discarding — because at core scope no safe
   route existed. This work unit supplies that route for one of the states behind it.
 
-    - `[ ]` **4.2.a Discriminate the committed parent record**
+    - `[x]` **4.2.a Discriminate the committed parent record**
 
         - _Goal:_ The cause distinguishes which committed state the refusal saw, so routing can act on the one this
           command repairs.
@@ -996,7 +996,7 @@ and the one mapper still decides.
 
             - Every other finalization refusal is unchanged.
 
-    - `[ ]` **4.2.b Route the repairable state to the new arm**
+    - `[x]` **4.2.b Route the repairable state to the new arm**
 
         - Build `test-first` (one behavior at a time):
 
@@ -1007,6 +1007,10 @@ and the one mapper still decides.
             - Retains the existing guidance for a committed receipt when the facts are unavailable.
 
             - Leaves every other cause's mapping unchanged.
+
+- _Outcome:_ Finalization adapters now construct one provenance-tagged recovery fact arm. Binding loss and
+  committed receipt parents map to a narrowed, shell-safe `advance-base` action; preparations, invalid records,
+  missing authority, and mismatch loci retain guidance without becoming operands.
 
 ## **Phase 5:** Real-topology acceptance and boundary preservation
 
