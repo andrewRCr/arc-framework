@@ -100,6 +100,9 @@ function makeStagedReceiptsExec(receipts: readonly StagedReceipt[]): GitExec {
     if (isStagedReceiptList(args)) {
       return { stdout: receipts.map(({ path }) => path).join("\0") + "\0", stderr: "" };
     }
+    if (args[0] === "ls-tree" && args[2] === "HEAD") {
+      return { stdout: "", stderr: "" };
+    }
     if (args[0] === "show") {
       const record = receipts.find(({ path }) => args[1] === `:${path}`);
       if (record !== undefined) return { stdout: canonicalize(record.receipt), stderr: "" };
@@ -313,6 +316,9 @@ describe("resolveStagedRetirementTransitionOverlay", () => {
       if (args[0] === "show" && args[1] === `:${path}`) {
         return { stdout: canonicalize(advanced.receipt), stderr: "" };
       }
+      if (args[0] === "ls-tree" && args[2] === "HEAD") {
+        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
+      }
       if (args[0] === "show" && args[1] === `HEAD:${path}`) {
         return { stdout: canonicalize(previous.receipt), stderr: "" };
       }
@@ -347,6 +353,27 @@ describe("resolveStagedRetirementTransitionOverlay", () => {
       cwd: "/repo",
       exec: publicationAmendmentExec,
     })).resolves.toBeUndefined();
+  });
+
+  it("does not treat a failed HEAD record read as an original receipt addition", async () => {
+    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
+    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
+    const exec: GitExec = async (_command, args) => {
+      if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(advanced.receipt), stderr: "" };
+      }
+      if (args[0] === "ls-tree" && args[2] === "HEAD") {
+        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `HEAD:${path}`) {
+        throw new Error("HEAD object read failed");
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec }))
+      .rejects.toThrow("HEAD object read failed");
   });
 });
 

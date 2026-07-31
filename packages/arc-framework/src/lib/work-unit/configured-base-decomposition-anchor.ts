@@ -294,7 +294,9 @@ async function searchLanding(
     if (candidateContainment === "unresolvable") return { status: "read-failed" };
     if (candidateContainment === "ancestor") continue;
     const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
-    if (await readTreeEntry(deps.exec, firstParent, receiptPath) !== null) continue;
+    const existingReceipt = await readTreeEntry(deps.exec, firstParent, receiptPath);
+    if (existingReceipt === false) return { status: "read-failed" };
+    if (existingReceipt !== null) continue;
     const compositionMatches = await descendantMergeCompositionMatches(
       deps,
       receipt,

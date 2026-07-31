@@ -356,6 +356,9 @@ function validateV3CommitAddition(
     return ["v3 decompose retirement record identity does not match its deterministic path"];
   }
   const expectedChanges = expectedV3Changes(receipt, change.path);
+  // An advancing merge is diffed from the already-finalized candidate, so unchanged transition paths are
+  // inherited rather than repeated in this write set. The canonical validation below still proves every managed
+  // path from the sole result-base merge parent to the staged index; this check only rejects riders and bad statuses.
   const writeSetMatches = advancing
     ? changes.every((candidateChange) => {
         if (candidateChange.path === change.path) return candidateChange.status === "M";

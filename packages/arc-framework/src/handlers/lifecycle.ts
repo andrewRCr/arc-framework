@@ -840,7 +840,7 @@ export async function handleDecompose(
       cwd,
       exec: io.exec,
       readBlob: (ref: string, path: string) => readGitBlobBytes(cwd, ref, path),
-      readObject: (oid: string) => readGitObjectBytes(cwd, oid),
+      readObject: (oid: string, objectKind: string) => readGitObjectBytes(cwd, oid, objectKind),
       cohortTemplate,
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";

@@ -25,7 +25,7 @@ import {
   type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
 import { v3SourceArtifactDigest } from "./decompose-v3-schema.js";
-import { readTreeEntry } from "./git-decomposition-object-readers.js";
+import { readAncestry, readTreeEntry } from "./git-decomposition-object-readers.js";
 import { readGitV3DecomposeTreeSnapshot } from "./git-decompose-v3-preflight.js";
 import {
   validateRetirementRecordEnumeration,
@@ -519,9 +519,23 @@ async function materializePinnedFacts(
   const restated = recordsWithProvenance.filter(({ provenance }) => provenance.some((entry) =>
     entry.kind === "restated" && entry.parent === "head"));
   const [mergeHeadOid] = snapshot.operation.mergeHeadOids;
-  const resultBaseOid = restated.length === 1
+  const advancing = restated.length === 1
     && snapshot.operation.mergeHeadOids.length === 1
-    && mergeHeadOid !== undefined
+    && mergeHeadOid !== undefined;
+  let advancingBaseRelation: PinnedMergeValidationFacts["advancingBaseRelation"] = "not-applicable";
+  if (advancing) {
+    const relation = await readAncestry(
+      async (command, args, options) => await deps.exec(command, args, {
+        ...options,
+        cwd: options?.cwd ?? deps.cwd,
+      }),
+      mergeHeadOid,
+      snapshot.operation.configuredBase.oid,
+    );
+    if (relation === "unresolvable") throw new Error("Cannot resolve advancing-base ancestry");
+    advancingBaseRelation = relation;
+  }
+  const resultBaseOid = advancing
     ? mergeHeadOid
     : snapshot.operation.configuredBase.oid;
   const candidateChangedPaths = await changedPaths(
@@ -541,6 +555,7 @@ async function materializePinnedFacts(
   return {
     operation: snapshot.operation,
     refs: [snapshot.operation.configuredBase],
+    advancingBaseRelation,
     candidateChangedPaths,
     candidates,
   };
@@ -564,6 +579,7 @@ export async function resolveGitMergeTransitionOverlay(
       return selectMergeTransitionOverlay({
         operation,
         refs: [],
+        advancingBaseRelation: "not-applicable",
         candidateChangedPaths: [],
         candidates: [],
       });

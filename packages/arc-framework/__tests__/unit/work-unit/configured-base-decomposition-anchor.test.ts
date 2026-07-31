@@ -193,6 +193,7 @@ function dagHarness(options: {
   changedByPair?: ReadonlyMap<string, string[]>;
   entryOidByRefPath?: ReadonlyMap<string, string | null>;
   receiptAbsentRefs?: ReadonlySet<string>;
+  receiptUnreadableRefs?: ReadonlySet<string>;
   baseReread?: string;
 }): {
   deps: ConfiguredBaseDecompositionAnchorDependencies;
@@ -289,6 +290,9 @@ function dagHarness(options: {
             return oid === null ? { stdout: "" } : { stdout: `100644 blob ${oid}\t${path}\0` };
           }
           if (path === receiptPath) {
+            if (options.receiptUnreadableRefs?.has(ref) === true) {
+              throw new Error("receipt tree entry unreadable");
+            }
             return ref === PREPARED_BASE || options.receiptAbsentRefs?.has(ref) === true
               ? { stdout: "" }
               : { stdout: `100644 blob ${RECORD_OID}\t${path}\0` };
@@ -469,6 +473,27 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
       landedTree: "a".repeat(40),
       landing: { kind: "merge" },
     });
+  });
+
+  it("refuses when descendant-merge receipt absence cannot be established", async () => {
+    const commits = commitGraph([
+      [CANDIDATE_HEAD, CANDIDATE_TREE, [PREPARED_BASE]],
+      [BASE_ADVANCE, DESCENDANT_TREE, [PREPARED_BASE]],
+      [DESCENDANT_MERGE, "a".repeat(40), [BASE_ADVANCE, CANDIDATE_HEAD]],
+      [DESCENDANT_HEAD, DESCENDANT_TREE, [DESCENDANT_MERGE]],
+    ]);
+    const result = await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      dagHarness({
+        baseHead: DESCENDANT_HEAD,
+        commits,
+        enumeration: [DESCENDANT_HEAD, DESCENDANT_MERGE, BASE_ADVANCE, CANDIDATE_HEAD],
+        replayingCandidates: new Set([CANDIDATE_HEAD]),
+        receiptUnreadableRefs: new Set([BASE_ADVANCE]),
+      }).deps,
+    );
+    expect(result).toEqual({ status: "refused", reason: "git-read-failed" });
   });
 
   it("selects an exact merge landing after the base advances beyond it", async () => {

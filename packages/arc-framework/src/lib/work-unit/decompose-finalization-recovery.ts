@@ -189,7 +189,7 @@ function advanceBase(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRe
   const invocation = facts.finalizeInvocation ?? facts.advanceBaseInvocation;
   return invocation === undefined
     ? guidance(
-        "Advance the committed candidate only from its original finalize invocation; "
+        "Advance the committed candidate only from its original command invocation; "
         + "the verified origin and receipt are unavailable.",
       )
     : {

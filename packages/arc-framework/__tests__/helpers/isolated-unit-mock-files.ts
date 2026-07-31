@@ -27,6 +27,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/handlers/release/push-cli.test.ts",
   "__tests__/unit/handlers/start.test.ts",
   "__tests__/unit/init.test.ts",
+  "__tests__/unit/io-context.test.ts",
   "__tests__/unit/notes-reconcile-push.test.ts",
   "__tests__/unit/paired-push.test.ts",
   "__tests__/unit/push-fetch.test.ts",

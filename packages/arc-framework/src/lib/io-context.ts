@@ -104,17 +104,28 @@ export async function readGitBlobBytes(
 }
 
 /**
- * Read one exact Git blob object by object identity without text decoding.
+ * Read one exact Git leaf object by object identity without text decoding.
  *
  * @param cwd - Repository worktree used to locate the object database
- * @param oid - Exact blob object identity
- * @returns The stored blob bytes
+ * @param oid - Exact object identity
+ * @param objectKind - Normalized tree-entry kind; gitlinks name commit objects
+ * @returns The stored object bytes
  */
-export async function readGitObjectBytes(cwd: string, oid: string): Promise<Uint8Array> {
+export async function readGitObjectBytes(
+  cwd: string,
+  oid: string,
+  objectKind = "blob",
+): Promise<Uint8Array> {
   if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) {
     throw new Error("Cannot read an invalid Git object id.");
   }
-  return (await createRawGitExec(cwd)(["cat-file", "blob", oid])).stdout;
+  const gitObjectKind = objectKind === "gitlink"
+    ? "commit"
+    : objectKind === "blob" || objectKind === "symlink"
+      ? "blob"
+      : null;
+  if (gitObjectKind === null) throw new Error(`Cannot read unsupported Git object kind: ${objectKind}.`);
+  return (await createRawGitExec(cwd)(["cat-file", gitObjectKind, oid])).stdout;
 }
 
 async function execaGit(

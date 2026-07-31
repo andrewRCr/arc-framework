@@ -59,6 +59,7 @@ export interface PinnedMergeReceiptCandidate {
 export interface PinnedMergeValidationFacts {
   operation: PinnedMergeOperation;
   refs: readonly PinnedMergeRef[];
+  advancingBaseRelation: "not-applicable" | "ancestor" | "not-ancestor";
   candidateChangedPaths: readonly string[];
   candidates: readonly PinnedMergeReceiptCandidate[];
 }
@@ -146,6 +147,10 @@ export function selectMergeTransitionOverlay(
     const resultBase = validation.authority.preparation.facts.completedMap.machine.resultBase;
     const advancing = candidate.provenance.some((entry) =>
       entry.kind === "restated" && entry.parent === "head");
+    if (advancing && facts.advancingBaseRelation !== "ancestor") {
+      invalidAuthority = true;
+      continue;
+    }
     const resultBaseHead = advancing && facts.operation.mergeHeadOids.length === 1
       ? facts.operation.mergeHeadOids[0]
       : facts.operation.configuredBase.oid;

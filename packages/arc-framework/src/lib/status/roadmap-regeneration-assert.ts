@@ -20,6 +20,7 @@ import {
 } from "../work-unit/retirement-record-store.js";
 import { parseRetirementReceiptRecord } from "../work-unit/retirement-receipt-codec.js";
 import { isV3DecomposeReceiptRestatement } from "../work-unit/decompose-v3-receipt.js";
+import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
 import {
   createValidatedTransitionOverlay,
   type TransitionOverlayCompositionInput,
@@ -183,6 +184,22 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
   };
 }
 
+async function readHeadRetirementRecord(
+  options: IndexProjectViewFsOptions,
+  path: string,
+): Promise<string | null> {
+  const cwdExec: GitExec = async (command, args) => await options.exec(command, args, {
+    cwd: options.cwd,
+  });
+  const entry = await readTreeEntry(cwdExec, "HEAD", path);
+  if (entry === null) return null;
+  if (entry === false || entry.type !== "blob") {
+    throw new Error(`unable to read retirement record at HEAD:${path}`);
+  }
+  const { stdout } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
+  return stdout;
+}
+
 /**
  * Resolve one finalized retirement staged with the prospective ROADMAP tree.
  *
@@ -214,12 +231,7 @@ export async function resolveStagedRetirementTransitionOverlay(
       return null;
     }
     if (record.kind === "retained") {
-      try {
-        await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
-        return null;
-      } catch {
-        // Retained receipts grant overlays only on their original addition.
-      }
+      if (await readHeadRetirementRecord(options, path) !== null) return null;
       return record.receipt.subject.kind === "work-unit"
         ? createValidatedTransitionOverlay({
             origin: record.receipt.subject.name,
@@ -227,13 +239,9 @@ export async function resolveStagedRetirementTransitionOverlay(
           })
         : null;
     }
-    let grantsOverlay = true;
-    try {
-      const { stdout: previous } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
-      grantsOverlay = isV3DecomposeReceiptRestatement(previous, record.receipt);
-    } catch {
-      // No record at HEAD is the original first-addition shape.
-    }
+    const previous = await readHeadRetirementRecord(options, path);
+    const grantsOverlay = previous === null
+      || isV3DecomposeReceiptRestatement(previous, record.receipt);
     if (!grantsOverlay) return null;
     const { origin, sourceBranch } = record.receipt.prepared.prospectiveProjection.overlay;
     return createValidatedTransitionOverlay({ origin, sourceBranch });

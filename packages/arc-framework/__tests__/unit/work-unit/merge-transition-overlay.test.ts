@@ -65,6 +65,7 @@ function exactSnapshot(): {
         candidateTreeOid: CANDIDATE_TREE_OID,
       },
       refs: [{ ref: "refs/heads/main", oid: CONFIGURED_BASE_OID }],
+      advancingBaseRelation: "not-applicable",
       candidateChangedPaths: [
         ...receipt.finalized.transitionPatch.map(({ path }) => path),
         v3DecomposeReceiptPath(receipt.receiptId),
@@ -142,6 +143,7 @@ describe("selectMergeTransitionOverlay", () => {
         { kind: "restated", parent: "head", commitOid: HEAD_OID },
       ],
     }];
+    snapshot.advancingBaseRelation = "ancestor";
 
     expect(selectMergeTransitionOverlay(snapshot)).toMatchObject({
       status: "selected",

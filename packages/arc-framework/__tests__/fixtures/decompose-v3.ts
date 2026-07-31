@@ -35,6 +35,7 @@ export function v3DecompositionEvidenceFixture(options: {
   digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
   additionalSourceArtifacts?: readonly V3SourceArtifactEntry[];
   candidateOwnership?: V3DecomposePreparation["facts"]["candidateOwnership"];
+  destinationRoot?: string;
 } = {}): {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
@@ -97,9 +98,10 @@ export function v3DecompositionEvidenceFixture(options: {
     },
   };
   const receiptId = v3ReceiptId(machine);
+  const destinationRoot = options.destinationRoot ?? `.arc/backlog/planned/${origin}`;
   const resultPaths = [
-    `.arc/backlog/planned/${origin}/member-a/meta-member-a.md`,
-    `.arc/backlog/planned/${origin}/member-b/meta-member-b.md`,
+    `${destinationRoot}/member-a/meta-member-a.md`,
+    `${destinationRoot}/member-b/meta-member-b.md`,
   ];
   const roadmapPath = ".arc/backlog/ROADMAP.md";
   const topologyPath = `.arc/backlog/planned/${origin}/cohort-${origin}.md`;

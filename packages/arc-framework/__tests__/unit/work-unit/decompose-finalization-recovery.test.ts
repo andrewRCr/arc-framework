@@ -168,10 +168,13 @@ describe("v3 decompose finalization recovery", () => {
         },
       });
     }
-    expect(mapV3DecomposeFinalizationRecovery({
+    const missingInvocation = mapV3DecomposeFinalizationRecovery({
       cause: { kind: "binding-unavailable" },
       facts: {},
-    })).toMatchObject({ action: "guidance" });
+    });
+    expect(missingInvocation).toMatchObject({ action: "guidance" });
+    expect(renderV3DecomposeFinalizationRecovery(missingInvocation))
+      .toContain("original command invocation");
 
     expect(mapV3DecomposeFinalizationRecovery({
       cause: { kind: "binding-unavailable" },

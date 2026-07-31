@@ -89,6 +89,14 @@ function restatementImmutableFacts(receipt: V3DecomposeReceipt): unknown {
       outgoingEdges: machine.outgoingEdges,
     },
     candidateOwnership: receipt.prepared.candidateOwnership,
+    allowedPaths: receipt.prepared.allowedPaths,
+    destinationOutputPaths: receipt.prepared.destinationOutputPaths,
+    finalizedDestinationOutputPaths: receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({
+        destinationId,
+        paths: outputs.map(({ path }) => path),
+      }),
+    ),
     sourceArtifactDigest: receipt.prepared.sourceArtifactDigest,
     sourceInventoryDigest: receipt.prepared.sourceInventoryDigest,
     incomingEdgeInventoryDigest: receipt.prepared.incomingEdgeInventoryDigest,

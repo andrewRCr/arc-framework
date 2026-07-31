@@ -200,6 +200,17 @@ describe("v3 finalized decomposition evidence", () => {
     expect(isV3DecomposeReceiptRestatement(previous.receipt, amended)).toBe(false);
   });
 
+  it("rejects a restatement that moves the prepared destination path boundary", () => {
+    const previous = v3DecompositionEvidenceFixture({ resultBaseHead: "b".repeat(40) });
+    const moved = v3DecompositionEvidenceFixture({
+      resultBaseHead: "c".repeat(40),
+      destinationRoot: ".arc/backlog/planned/relocated-origin",
+    });
+
+    expect(parseV3DecomposeReceipt(moved.receipt)).toEqual(moved.receipt);
+    expect(isV3DecomposeReceiptRestatement(previous.receipt, moved.receipt)).toBe(false);
+  });
+
   it("refuses noncanonical arrays, unsupported objects, and digest drift", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const variants: unknown[] = [];

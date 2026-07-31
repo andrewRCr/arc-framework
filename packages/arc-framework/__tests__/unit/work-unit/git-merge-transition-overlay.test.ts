@@ -24,6 +24,7 @@ const SOURCE_HEAD_OID = "6".repeat(40);
 const RACED_HEAD_OID = "7".repeat(40);
 const RACED_BASE_OID = "8".repeat(40);
 const RACED_TREE_OID = "9".repeat(40);
+const ADVANCED_BASE_OID = "a".repeat(40);
 const MARKERS = ["MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"] as const;
 
 const execMock = vi.fn<GitExec>();
@@ -83,6 +84,8 @@ function installMergeSnapshot(options: {
   receiptParents?: "none" | "head" | "merge-head" | "all-merge-heads";
   restatedParent?: "head" | "merge-head";
   amendRestatedPublication?: boolean;
+  configuredBaseOid?: string;
+  advancingBaseRelation?: "ancestor" | "not-ancestor" | "unresolvable";
 } = {}): InstalledMergeSnapshot {
   const sourceMetaPath = ".arc/active/meta-origin.md";
   const sourceMetaBytes = Buffer.from(renderMetaFile("origin", {
@@ -98,6 +101,7 @@ function installMergeSnapshot(options: {
     contentDigest: digestBytes(sourceMetaBytes),
   };
   const mergeHeadOids = options.mergeHeadOids ?? [MERGE_HEAD_OID];
+  const configuredBaseOid = options.configuredBaseOid ?? HEAD_OID;
   const restatedResultBase = options.restatedParent === "head" && mergeHeadOids.length === 1
     ? mergeHeadOids[0]
     : HEAD_OID;
@@ -212,7 +216,22 @@ function installMergeSnapshot(options: {
       return { stdout: `${HEAD_OID}\n`, stderr: "" };
     }
     if (args.join("\0") === ["rev-parse", "--verify", "refs/heads/main^{commit}"].join("\0")) {
-      return { stdout: `${HEAD_OID}\n`, stderr: "" };
+      return { stdout: `${configuredBaseOid}\n`, stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify" && args[2]?.endsWith("^{commit}") === true) {
+      const oid = args[2].slice(0, -"^{commit}".length);
+      return { stdout: `${oid}\n`, stderr: "" };
+    }
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      if (options.advancingBaseRelation === "unresolvable") {
+        throw Object.assign(new Error("ancestry unavailable"), { exitCode: 128 });
+      }
+      if (options.advancingBaseRelation === "not-ancestor"
+        || args[2] !== MERGE_HEAD_OID
+        || args[3] !== configuredBaseOid) {
+        throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+      }
+      return { stdout: "", stderr: "" };
     }
     if (args[0] === "write-tree") {
       return { stdout: `${CANDIDATE_TREE_OID}\n`, stderr: "" };
@@ -319,7 +338,12 @@ describe("resolveGitMergeTransitionOverlay", () => {
   });
 
   it("classifies an authored-cut-preserving parent receipt as restated provenance", async () => {
-    const { evidence } = installMergeSnapshot({ receiptParents: "head", restatedParent: "head" });
+    const { evidence } = installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "ancestor",
+    });
 
     const result = await resolveGitMergeTransitionOverlay("refs/heads/main", dependencies());
     expect(result, JSON.stringify(result)).toMatchObject({
@@ -330,6 +354,30 @@ describe("resolveGitMergeTransitionOverlay", () => {
         { kind: "restated", parent: "head", commitOid: HEAD_OID },
       ],
     });
+  });
+
+  it("refuses restated advancing authority from an unrelated staged base", async () => {
+    installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "not-ancestor",
+    });
+
+    await expect(resolveGitMergeTransitionOverlay("refs/heads/main", dependencies()))
+      .resolves.toEqual({ status: "refused", reason: "invalid-authority" });
+  });
+
+  it("fails closed when advancing-base ancestry cannot be read", async () => {
+    installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "unresolvable",
+    });
+
+    await expect(resolveGitMergeTransitionOverlay("refs/heads/main", dependencies()))
+      .resolves.toEqual({ status: "refused", reason: "git-read-failed" });
   });
 
   it("refuses restated provenance when finalized publication semantics change", async () => {
