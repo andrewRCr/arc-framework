@@ -20,7 +20,10 @@ import {
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
 import { resolveOptionalCommit, tearDownExactBranchGeneration } from "./exact-branch-generation.js";
-import { classifyErrandCloseOccupancy } from "./close-occupancy.js";
+import {
+  classifyErrandCloseOccupancy,
+  type BaseCheckoutCloseProof,
+} from "./close-occupancy.js";
 import {
   closeOrdinaryErrand,
   type CloseInboxResult,
@@ -29,7 +32,7 @@ import {
   type CloseTarget,
   type CloseTargetResolution,
 } from "./close-locus.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 
@@ -154,7 +157,7 @@ async function readCloseOccupancy(
   }
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let state: LocusStateV1;
-  let baseCheckoutRecordId: string | null = null;
+  let baseCheckoutProof: BaseCheckoutCloseProof | null = null;
   try {
     const currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
     if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
@@ -162,10 +165,16 @@ async function readCloseOccupancy(
       options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
       readWorktreeMarker(currentCheckoutPath),
     ]);
-    if (currentBranch.stdout.trim() === options.base
-      && currentBranch.stdout.trim() !== record.branch
+    const currentBranchName = currentBranch.stdout.trim();
+    if (currentBranchName === options.base
+      && currentBranchName !== record.branch
       && currentMarker.kind === "absent") {
-      baseCheckoutRecordId = deriveLocusRecordId(currentCheckoutPath, pathFlavor).recordId;
+      const checkoutIdentity = deriveLocusRecordId(currentCheckoutPath, pathFlavor);
+      baseCheckoutProof = {
+        recordId: checkoutIdentity.recordId,
+        checkoutPath: checkoutIdentity.normalizedPath,
+        identity: projectLocusIdentity(record),
+      };
     }
     state = await readLocusState({
       identity: options.identity,
@@ -192,7 +201,7 @@ async function readCloseOccupancy(
     state,
     slug: record.slug,
     claimId: record.claimId,
-    baseCheckoutRecordId,
+    baseCheckoutProof,
   });
 }
 

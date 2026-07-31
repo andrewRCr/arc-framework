@@ -3,12 +3,21 @@
 import { describe, expect, it } from "vitest";
 
 import { classifyErrandCloseOccupancy } from "../../../src/lib/errand/close-occupancy.js";
-import type { LocusRowV1, LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import type {
+  LocusIdentityV1,
+  LocusRowV1,
+  LocusStateV1,
+} from "../../../src/lib/locus/schema/index.js";
 
 const SLUG = "done";
 const CLAIM_ID = "c".repeat(32);
 const CHECKOUT = "/repo-errand";
 const RECORD_ID = `sha256:${"1".repeat(64)}`;
+const ERRAND_IDENTITY: Extract<LocusIdentityV1, { kind: "errand"; purpose: "errand" }> = {
+  kind: "errand", key: SLUG, claimId: CLAIM_ID, protection: "full",
+  branch: `chore/${SLUG}`, purpose: "errand", origin: "description", originEntry: null,
+  state: "open", savedHead: null, changeRequest: null,
+};
 
 function errandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
   return {
@@ -27,12 +36,21 @@ function errandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
   };
 }
 
-function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "none" }): LocusStateV1 {
+function identityRow(identity: LocusIdentityV1 = ERRAND_IDENTITY): LocusRowV1 {
   return {
-    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows, diagnostics: [] },
+    kind: "identity-only", checkoutPath: null, primary: null, recordId: null, role: null,
+    identity, lease: null, frame: "idle", derived: null, diagnostics: [],
+  };
+}
+
+function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "none" }): LocusStateV1 {
+  const inFlightIdentities: LocusStateV1["inFlightIdentities"] = rows.flatMap((row) =>
+    row.identity === null ? [] : [{ identity: row.identity, actions: ["resume", "abandon"] }]);
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: CHECKOUT, rows, diagnostics: [] },
     current,
-    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
-    inFlightIdentities: [],
+    primaryAvailability: { kind: "free", checkoutPath: CHECKOUT },
+    inFlightIdentities,
     recovery: { kind: "none" },
     reconciliation: { kind: "clean" },
   } as LocusStateV1;
@@ -41,10 +59,16 @@ function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "n
 function classify(
   value: LocusStateV1,
   claimId: string | null = CLAIM_ID,
-  baseCheckoutRecordId: string | null = null,
+  baseCheckoutProof: Parameters<typeof classifyErrandCloseOccupancy>[0]["baseCheckoutProof"] = null,
 ): ReturnType<typeof classifyErrandCloseOccupancy> {
-  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId, baseCheckoutRecordId });
+  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId, baseCheckoutProof });
 }
+
+const BASE_CHECKOUT_PROOF: NonNullable<Parameters<typeof classifyErrandCloseOccupancy>[0]["baseCheckoutProof"]> = {
+  recordId: RECORD_ID,
+  checkoutPath: CHECKOUT,
+  identity: ERRAND_IDENTITY,
+};
 
 describe("classifyErrandCloseOccupancy", () => {
   it("clears an Errand no checkout claims", () => {
@@ -71,12 +95,20 @@ describe("classifyErrandCloseOccupancy", () => {
       }],
     });
 
-    expect(classify(state([switched]), CLAIM_ID, RECORD_ID)).toEqual({ kind: "clear" });
-    expect(classify(state([switched]), CLAIM_ID, null)).toMatchObject({
+    const switchedState = state([switched, identityRow()]);
+    expect(classify(switchedState, CLAIM_ID, BASE_CHECKOUT_PROOF)).toEqual({ kind: "clear" });
+    expect(classify(switchedState, CLAIM_ID, null)).toMatchObject({
       kind: "refused",
       reason: "role-conflict",
     });
-    expect(classify(state([switched]), CLAIM_ID, `sha256:${"2".repeat(64)}`)).toMatchObject({
+    expect(classify(switchedState, CLAIM_ID, {
+      ...BASE_CHECKOUT_PROOF,
+      recordId: `sha256:${"2".repeat(64)}`,
+    })).toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
+    expect(classify(state([switched]), CLAIM_ID, BASE_CHECKOUT_PROOF)).toMatchObject({
       kind: "refused",
       reason: "role-conflict",
     });
@@ -92,7 +124,26 @@ describe("classifyErrandCloseOccupancy", () => {
         },
       ],
     };
-    expect(classify(state([malformedMarker]), CLAIM_ID, RECORD_ID)).toMatchObject({
+    expect(classify(state([malformedMarker, identityRow()]), CLAIM_ID, BASE_CHECKOUT_PROOF)).toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
+  });
+
+  it("refuses a base checkout whose persisted path is only normalization-equivalent", () => {
+    const switched = errandRow({
+      checkoutPath: `${CHECKOUT}/.`,
+      primary: true,
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+      frame: "residue",
+      diagnostics: [{
+        code: "subject-unresolved",
+        source: { kind: "record", key: RECORD_ID },
+        message: "The checkout branch or path no longer matches the Errand identity.",
+      }],
+    });
+
+    expect(classify(state([switched, identityRow()]), CLAIM_ID, BASE_CHECKOUT_PROOF)).toMatchObject({
       kind: "refused",
       reason: "role-conflict",
     });
@@ -127,7 +178,7 @@ describe("classifyErrandCloseOccupancy", () => {
     const untrusted = classify(state([errandRow({
       lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
       diagnostics: [{ code: "cross-identity", source: { kind: "record", key: RECORD_ID }, message: "Another identity owns the record." }],
-    })]), CLAIM_ID, RECORD_ID);
+    })]), CLAIM_ID, BASE_CHECKOUT_PROOF);
 
     expect(untrusted).toMatchObject({ kind: "refused", reason: "role-conflict" });
   });

@@ -584,6 +584,50 @@ describe("arc errand close", () => {
     }
   });
 
+  it("refuses base-context finalization when the record path is only normalization-equivalent", async () => {
+    const slug = "merged-v3-aliased-record-path";
+    const locus = deriveLocusRecordId(tmpDir, "posix");
+    const recordPath = join(
+      tmpDir,
+      ".arc",
+      "user",
+      "test-user",
+      ".internal",
+      "loci",
+      `locus-${locus.digest}.json`,
+    );
+    const aliasRecordPath = [
+      `const fs = require("node:fs");`,
+      `const path = ${JSON.stringify(recordPath)};`,
+      `const record = JSON.parse(fs.readFileSync(path, "utf8"));`,
+      `record.checkoutPath = ${JSON.stringify(`${tmpDir}/.`)};`,
+      `fs.writeFileSync(path, JSON.stringify(record) + "\\n");`,
+    ].join(" ");
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const host = await createMergedGhFixture(tmpDir, slug);
+    try {
+      const result = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        { command: ["git", "switch", "main"] },
+        { command: [process.execPath, "-e", aliasRecordPath] },
+        ["errand", "close", slug, "--json"],
+      ], tmpDir, { env: host.env, timeout: 60_000 });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+      expect(result.results.at(-1)).toMatchObject({
+        outcome: "refused", operation: "errand-close", reason: "role-conflict",
+      });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
+      expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+        .toContain('"state": "open"');
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
   it("refuses merged v3 finalization from outside its occupied checkout", async () => {
     const slug = "occupied-v3";
     const observerDir = `${tmpDir}-observer`;
