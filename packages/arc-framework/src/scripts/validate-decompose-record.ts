@@ -57,6 +57,8 @@ export interface DecomposeCommitGateInput {
   changes: readonly StagedPathChange[];
   /** Merge commits exempt only result states inherited exactly from one of their parents. */
   mergeInProgress?: boolean;
+  /** Exact non-HEAD merge parents for the staged merge commit. */
+  mergeHeadOids?: readonly string[];
   readIndexBytes(path: string): Uint8Array | null;
   readHeadBytes(path: string): Uint8Array | null;
   /** Resolve a preparation-bound source or result-base ref to one exact commit. */
@@ -377,8 +379,11 @@ function validateV3CommitAddition(
     facts: receipt.prepared,
   };
   const machine = preparation.facts.completedMap.machine;
-  if (input.resolveRef(machine.source.ref) !== machine.source.head
-    || input.resolveRef(machine.resultBase.ref) !== machine.resultBase.head) {
+  const resultBaseIsBound = advancing
+    ? input.mergeHeadOids?.length === 1
+      && input.mergeHeadOids[0] === machine.resultBase.head
+    : input.resolveRef(machine.resultBase.ref) === machine.resultBase.head;
+  if (input.resolveRef(machine.source.ref) !== machine.source.head || !resultBaseIsBound) {
     return ["v3 decompose canonical validation mismatch: base"];
   }
   const sourceArtifactInventory = input.readSourceArtifactInventory(preparation);
@@ -777,6 +782,7 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   const errors = validateDecomposeCommitGate({
     changes,
     mergeInProgress,
+    mergeHeadOids: mergeHeads,
     readIndexBytes: (path) => cachedIndex.get(path) ?? null,
     readHeadBytes: (path) => cachedHead.get(path) ?? null,
     readParentBytes: (path) => cachedParents.get(path) ?? [],

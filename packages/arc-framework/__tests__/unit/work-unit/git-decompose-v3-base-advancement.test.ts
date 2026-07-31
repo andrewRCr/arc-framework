@@ -442,11 +442,30 @@ describe("prepareGitV3DecomposeBaseAdvancement", () => {
     const h = harness({
       landing: { status: "refused", mismatch: { kind: "path", locus: ".arc/active/meta-origin.md" } },
     });
-    expect(await prepareGitV3DecomposeBaseAdvancement(h.dependencies, input())).toEqual({
+    const result = await prepareGitV3DecomposeBaseAdvancement(h.dependencies, input());
+    expect(result).toMatchObject({
       status: "refused",
       reason: "landing-validation-refused",
-      remedy: "Resolve the reported base overlap before retrying advancement.",
       mismatch: { kind: "path", locus: ".arc/active/meta-origin.md" },
+      recovery: { action: "guidance" },
+    });
+    expect(JSON.stringify(result.status === "refused" ? result.recovery : null))
+      .not.toContain(".arc/active/meta-origin.md");
+
+    const moved = harness({
+      landing: { status: "refused", mismatch: { kind: "base", locus: "binding-unavailable" } },
+    });
+    expect(await prepareGitV3DecomposeBaseAdvancement(moved.dependencies, input())).toMatchObject({
+      status: "refused",
+      reason: "binding-unavailable",
+      recovery: {
+        action: "advance-base",
+        establishedFacts: {
+          provenance: "advance-base-command",
+          origin: ORIGIN,
+          receiptId: fixture().receipt.receiptId,
+        },
+      },
     });
   });
 

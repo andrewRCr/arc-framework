@@ -7,6 +7,7 @@ import {
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
   createV3DecomposeReceipt,
+  isV3DecomposeReceiptRestatement,
   parseV3DecomposeReceipt,
   parseV3DecomposeContinuationInput,
   v3DestinationDigest,
@@ -182,6 +183,21 @@ describe("v3 finalized decomposition evidence", () => {
     const malformedPreparationIdentity = structuredClone(receipt);
     malformedPreparationIdentity.preparationId = canonicalDigest("invented");
     expect(parseV3DecomposeReceipt(malformedPreparationIdentity)).toBeNull();
+  });
+
+  it("accepts only base-derived receipt restatement and rejects semantic publication changes", () => {
+    const previous = v3DecompositionEvidenceFixture({ resultBaseHead: "b".repeat(40) });
+    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
+
+    expect(isV3DecomposeReceiptRestatement(previous.receipt, advanced.receipt)).toBe(true);
+
+    const amended = structuredClone(advanced.receipt);
+    amended.finalized.publication.initialContinuation = {
+      kind: "selected",
+      slugs: ["member-b"],
+    };
+    expect(parseV3DecomposeReceipt(amended)).not.toBeNull();
+    expect(isV3DecomposeReceiptRestatement(previous.receipt, amended)).toBe(false);
   });
 
   it("refuses noncanonical arrays, unsupported objects, and digest drift", () => {

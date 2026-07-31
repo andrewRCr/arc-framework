@@ -144,8 +144,13 @@ export function selectMergeTransitionOverlay(
       continue;
     }
     const resultBase = validation.authority.preparation.facts.completedMap.machine.resultBase;
+    const advancing = candidate.provenance.some((entry) =>
+      entry.kind === "restated" && entry.parent === "head");
+    const resultBaseHead = advancing && facts.operation.mergeHeadOids.length === 1
+      ? facts.operation.mergeHeadOids[0]
+      : facts.operation.configuredBase.oid;
     if (resultBase.ref !== facts.operation.configuredBase.ref
-      || resultBase.head !== facts.operation.configuredBase.oid) {
+      || resultBase.head !== resultBaseHead) {
       invalidAuthority = true;
       continue;
     }

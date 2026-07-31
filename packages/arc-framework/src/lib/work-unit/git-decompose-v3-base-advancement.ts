@@ -59,6 +59,13 @@ import {
   type V3DecompositionMismatch,
 } from "./validate-v3-decomposition.js";
 import { deriveV3DestinationOutputs } from "./decompose-retirement-driver.js";
+import {
+  createV3DecomposeBaseAdvancementRecoveryFacts,
+  mapV3DecomposeFinalizationRecovery,
+  renderV3DecomposeFinalizationRecovery,
+  type V3DecomposeFinalizationRecovery,
+  type V3DecomposeFinalizationRecoveryCause,
+} from "./decompose-finalization-recovery.js";
 import type { V3PlanCanonicalPathState } from "./decompose-v3-plan.js";
 
 export interface GitV3DecomposeBaseAdvancementDependencies extends GitV3RepositoryPlanDependencies {
@@ -114,7 +121,13 @@ export type GitV3DecomposeBaseAdvancementAdmission =
       currentBaseHead: string;
       candidateHead: string;
     }
-  | { status: "refused"; reason: string; remedy: string; mismatch?: V3DecompositionMismatch };
+  | {
+      status: "refused";
+      reason: string;
+      recovery: V3DecomposeFinalizationRecovery;
+      remedy: string;
+      mismatch?: V3DecompositionMismatch;
+    };
 
 export type GitV3DecomposeBaseAdvancementResult =
   | {
@@ -127,16 +140,24 @@ export type GitV3DecomposeBaseAdvancementResult =
   | Exclude<GitV3DecomposeBaseAdvancementAdmission, { status: "admitted" }>;
 
 function refusal(
+  input: GitV3DecomposeBaseAdvancementInput,
   reason: string,
-  remedy: string,
+  cause: V3DecomposeFinalizationRecoveryCause,
   mismatch?: V3DecompositionMismatch,
 ): Extract<GitV3DecomposeBaseAdvancementAdmission, { status: "refused" }> {
+  const facts = createV3DecomposeBaseAdvancementRecoveryFacts(input.origin, input.receiptId);
+  const recovery = mapV3DecomposeFinalizationRecovery({ cause, facts });
   return {
     status: "refused",
     reason,
-    remedy,
+    recovery,
+    remedy: renderV3DecomposeFinalizationRecovery(recovery),
     ...(mismatch === undefined ? {} : { mismatch }),
   };
+}
+
+function guidance(message: string): V3DecomposeFinalizationRecoveryCause {
+  return { kind: "manual-guidance", message };
 }
 
 function compareUtf8(left: string, right: string): number {
@@ -561,14 +582,16 @@ export async function prepareGitV3DecomposeBaseAdvancement(
 ): Promise<GitV3DecomposeBaseAdvancementAdmission> {
   if (input.protection !== "full") {
     return refusal(
+      input,
       "full-protection-required",
-      "Enable full protection before advancing a committed candidate.",
+      guidance("Enable full protection before advancing a committed candidate."),
     );
   }
   if (!isCanonicalDigest(input.receiptId)) {
     return refusal(
+      input,
       "receipt-id-invalid",
-      "Supply the canonical receipt id committed on the decomposition candidate.",
+      guidance("Supply the canonical receipt id committed on the decomposition candidate."),
     );
   }
   const receiptId = input.receiptId;
@@ -579,15 +602,17 @@ export async function prepareGitV3DecomposeBaseAdvancement(
   const storedClaim = await claims.read(claimId);
   if (storedClaim.status !== "found") {
     return refusal(
+      input,
       "candidate-claim-unavailable",
-      "Restore the live full-protection candidate claim before advancing its base.",
+      guidance("Restore the live full-protection candidate claim before advancing its base."),
     );
   }
   const claim = storedClaim.claim;
   if (claim.registration.kind !== "registered") {
     return refusal(
+      input,
       "candidate-generation-mismatch",
-      "Use the live registered candidate generation for this origin.",
+      guidance("Use the live registered candidate generation for this origin."),
     );
   }
   const candidatePath = claim.registration.path;
@@ -596,27 +621,30 @@ export async function prepareGitV3DecomposeBaseAdvancement(
     exactCommit(dependencies.exec, dependencies.cwd, input.baseBranch),
   ]);
   if (candidateHead === null || baseHead === null) {
-    return refusal("binding-unavailable", "Retry after both candidate and configured-base refs are stable.");
+    return refusal(input, "binding-unavailable", { kind: "binding-unavailable" });
   }
   const receipt = await readCandidateReceipt(dependencies, candidateHead, receiptId);
   if (receipt === null || receipt.receiptId !== receiptId
     || receipt.prepared.completedMap.machine.source.origin !== input.origin) {
     return refusal(
+      input,
       "receipt-unavailable",
-      "Supply the canonical live receipt committed on the decomposition candidate.",
+      guidance("Supply the canonical live receipt committed on the decomposition candidate."),
     );
   }
   if (receipt.prepared.completedMap.machine.source.ref
     === receipt.prepared.completedMap.machine.resultBase.ref) {
     return refusal(
+      input,
       "source-ref-is-result-base",
-      "Re-preflight from a source branch independent of the configured result base.",
+      guidance("Re-preflight from a source branch independent of the configured result base."),
     );
   }
   if (!claimMatchesReceipt(claim, receipt, input.origin, candidateBranch)) {
     return refusal(
+      input,
       "candidate-generation-mismatch",
-      "Use the live candidate generation bound to this exact receipt.",
+      guidance("Use the live candidate generation bound to this exact receipt."),
     );
   }
   if (!await candidateIsClean(
@@ -626,8 +654,9 @@ export async function prepareGitV3DecomposeBaseAdvancement(
     candidateHead,
   )) {
     return refusal(
+      input,
       "candidate-dirty",
-      "Restore the candidate worktree and index to its committed receipt before advancing.",
+      guidance("Restore the candidate worktree and index to its committed receipt before advancing."),
     );
   }
   const reachable = await readAncestry(
@@ -639,29 +668,43 @@ export async function prepareGitV3DecomposeBaseAdvancement(
     baseHead,
   );
   if (reachable === "ancestor") {
-    return refusal("candidate-already-landed", "Use landed decomposition cleanup instead of base advancement.");
+    return refusal(
+      input,
+      "candidate-already-landed",
+      guidance("Use landed decomposition cleanup instead of base advancement."),
+    );
   }
   if (reachable === "unresolvable") {
-    return refusal("binding-unavailable", "Retry after candidate/base ancestry is readable and stable.");
+    return refusal(input, "binding-unavailable", { kind: "binding-unavailable" });
   }
   const validation = await canonicalValidation(dependencies, input, receipt);
   if (validation === null) {
     return refusal(
+      input,
       "canonical-validation-refused",
-      "Repair or re-preflight the candidate's canonical decomposition evidence.",
+      guidance("Repair or re-preflight the candidate's canonical decomposition evidence."),
     );
   }
   const landing = await landingValidation(dependencies, receipt, input.baseBranch, candidateBranch);
   if (landing.status === "refused") {
+    if (landing.mismatch.kind === "base" && landing.mismatch.locus === "binding-unavailable") {
+      return refusal(
+        input,
+        "binding-unavailable",
+        { kind: "binding-unavailable" },
+        landing.mismatch,
+      );
+    }
     return refusal(
+      input,
       "landing-validation-refused",
-      "Resolve the reported base overlap before retrying advancement.",
+      { kind: "canonical-mismatch", mismatch: landing.mismatch },
       landing.mismatch,
     );
   }
   if (landing.binding.currentBaseOid !== baseHead
     || landing.binding.candidateHeadOid !== candidateHead) {
-    return refusal("binding-unavailable", "Retry after candidate and configured-base refs stop moving.");
+    return refusal(input, "binding-unavailable", { kind: "binding-unavailable" });
   }
   const previousBaseHead = receipt.prepared.completedMap.machine.resultBase.head;
   if (previousBaseHead === baseHead) {
@@ -672,8 +715,9 @@ export async function prepareGitV3DecomposeBaseAdvancement(
     : await dependencies.rederive(receipt, baseHead);
   if (rederived === null) {
     return refusal(
+      input,
       "advancement-rederivation-refused",
-      "Re-preflight after the advanced base or source branch invalidated the authored cut.",
+      { kind: "mechanical-repreflight" },
     );
   }
   return {
@@ -700,21 +744,23 @@ export async function advanceGitV3DecomposeBase(
   const projection = projectionBytes(admission);
   if (projection === null) {
     return refusal(
+      input,
       "projection-unavailable",
-      "Re-preflight because the advanced plan did not produce its projection bytes.",
+      { kind: "mechanical-repreflight" },
     );
   }
   const merged = await mergePinnedBase(dependencies, input, admission, projection.path);
   if (merged === "raced") {
-    return refusal("binding-unavailable", "Retry after candidate and configured-base refs stop moving.");
+    return refusal(input, "binding-unavailable", { kind: "binding-unavailable" });
   }
   if (merged === "failed") {
     const restored = await restoreCandidate(dependencies, admission);
     return refusal(
+      input,
       restored ? "merge-refused" : "candidate-restore-failed",
-      restored
+      guidance(restored
         ? "Resolve the unexpected non-projection conflict before retrying advancement."
-        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing.",
+        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing."),
     );
   }
   let receipt: V3DecomposeReceipt | null;
@@ -726,10 +772,11 @@ export async function advanceGitV3DecomposeBase(
   if (receipt === null) {
     const restored = await restoreCandidate(dependencies, admission);
     return refusal(
+      input,
       restored ? "receipt-seal-refused" : "candidate-restore-failed",
-      restored
+      guidance(restored
         ? "Re-preflight because the merged candidate diverged from the advanced projection."
-        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing.",
+        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing."),
     );
   }
   const claims = dependencies.claimStore
@@ -752,10 +799,11 @@ export async function advanceGitV3DecomposeBase(
   if (!claimRestated) {
     const restored = await restoreCandidate(dependencies, admission);
     return refusal(
+      input,
       restored ? "claim-binding-refused" : "candidate-restore-failed",
-      restored
+      guidance(restored
         ? "Restore the exact live candidate claim before retrying advancement."
-        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing.",
+        : "Repair the candidate worktree back to its pinned pre-merge commit before continuing."),
     );
   }
   return {

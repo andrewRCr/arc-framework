@@ -331,6 +331,22 @@ describe("resolveStagedRetirementTransitionOverlay", () => {
     };
     await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec: amendmentExec }))
       .resolves.toBeUndefined();
+
+    const publicationAmendment = structuredClone(advanced.receipt);
+    publicationAmendment.finalized.publication.initialContinuation = {
+      kind: "selected",
+      slugs: ["member-b"],
+    };
+    const publicationAmendmentExec: GitExec = async (command, args, options) => {
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(publicationAmendment), stderr: "" };
+      }
+      return await exec(command, args, options);
+    };
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: publicationAmendmentExec,
+    })).resolves.toBeUndefined();
   });
 });
 

@@ -1062,54 +1062,61 @@ e2e homes. No full transform or remote cross-product is rebuilt here.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, ARC contract checks, TypeScript and shell lint, source and test typechecks,
+  8,911 tests, and build all passed.
+- _Success criteria:_ 22 criteria met; one carries an annotated commit-window deviation.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A canonical full-protection candidate advances across unrelated base movement through one append-only
+- `[x]` A canonical full-protection candidate advances across unrelated base movement through one append-only
   merge.
-- `[ ]` A regenerable projection is the only automatically resolved path, and it is re-derived rather than merged;
+- `[x]` A regenerable projection is the only automatically resolved path, and it is re-derived rather than merged;
   every other conflict restores the bounded candidate.
-- `[ ]` The restaged same-path receipt passes the core hooks and remains the sole live current receipt, through
+- `[x]` The restaged same-path receipt passes the core hooks and remains the sole live current receipt, through
   authorized advancing-shape arms on the commit gate, the projection regeneration assert, and the conflict
   remedy's provenance discovery — all deciding restatement by the same authored-block byte-equality proof — that
   leave every existing caller's verdict unchanged.
-- `[ ]` Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
-- `[ ]` The shared integration anchor resolves over a descendant current base — after the canonical receipt and
+- `[x]` Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
+- `[x]` The shared integration anchor resolves over a descendant current base — after the canonical receipt and
   transition validate against the reread configured base — so a member stays launchable across unrelated commits
   on the base rather than only while the base head is the landing commit.
-- `[ ]` Ref movement, divergence, overlap, or unavailable immutable-pair binding produces one typed recovery
+- `[x]` Ref movement, divergence, overlap, or unavailable immutable-pair binding produces one typed recovery
   action.
-- `[ ]` A committed receipt parent resolves to the actionable `advance-base` arm instead of terminal prose
+    - **Deviation:** If the configured base moves after advancement stages its merge, commit authority stays bound
+      to the exact sole merge parent and a later append-only pass absorbs the newer tip; this avoids a torn
+      claim/receipt without adding a ledger.
+- `[x]` A committed receipt parent resolves to the actionable `advance-base` arm instead of terminal prose
   guidance, while a committed preparation or unparseable record keeps its existing guidance.
-- `[ ]` The base-advancing mode stays distinguishable from the core's uncommitted same-base receipt refresh at the
+- `[x]` The base-advancing mode stays distinguishable from the core's uncommitted same-base receipt refresh at the
   command surface and in every refusal code.
-- `[ ]` Canonical validation, the landing verdict, and re-derivation against the advanced base all precede the
+- `[x]` Canonical validation, the landing verdict, and re-derivation against the advanced base all precede the
   merge; a refusal from any of them aborts with no repository mutation to restore.
-- `[ ]` Advancement re-derives every base-dependent fact through its own producer; a change to the authored cut,
+- `[x]` Advancement re-derives every base-dependent fact through its own producer; a change to the authored cut,
   or a receipt identity that moves, aborts.
-- `[ ]` A base advance that alters the origin's own predecessor state is refused, even where the recorded
+- `[x]` A base advance that alters the origin's own predecessor state is refused, even where the recorded
   transition patch replays cleanly.
-- `[ ]` ROADMAP is re-derived through the plan's own render and staged as the resolution, leaving the shared
+- `[x]` ROADMAP is re-derived through the plan's own render and staged as the resolution, leaving the shared
   discovery-based remedy untouched for its own callers.
-- `[ ]` The advanced receipt is sealed after the merge from live path reads, and every allowed path — projections
+- `[x]` The advanced receipt is sealed after the merge from live path reads, and every allowed path — projections
   included — matches the re-composed plan's projection, so an advanced receipt satisfies the same
   prospective-projection invariant core finalization enforces on every other receipt.
-- `[ ]` Regenerable projections are excluded from the landing verdict's overlap model, so a base advance that
+- `[x]` Regenerable projections are excluded from the landing verdict's overlap model, so a base advance that
   changed only ROADMAP is admitted rather than refused.
-- `[ ]` A candidate whose recorded source ref is the result-base ref is refused on its precondition, without
+- `[x]` A candidate whose recorded source ref is the result-base ref is refused on its precondition, without
   mutating the repository, on a structural test rather than a source-kind check.
-- `[ ]` A decomposition landed by fast-forward onto an advanced candidate resolves its anchor, with every
+- `[x]` A decomposition landed by fast-forward onto an advanced candidate resolves its anchor, with every
   pre-existing exact-base verdict unchanged.
-- `[ ]` A merge landing over a descendant base records the landing merge itself as the landing commit, so one
+- `[x]` A merge landing over a descendant base records the landing merge itself as the landing commit, so one
   receipt's anchor facts read the same before and after unrelated base movement.
-- `[ ]` A landed advanced candidate retires through the ordinary receipt-backed cleanup gate, because advancement
+- `[x]` A landed advanced candidate retires through the ordinary receipt-backed cleanup gate, because advancement
   restated its claim binding alongside the record rather than leaving the claim bound to the superseded base.
-- `[ ]` A refused advancement leaves the candidate exactly as it found it — committed, unlanded, and no further
+- `[x]` A refused advancement leaves the candidate exactly as it found it — committed, unlanded, and no further
   torn down than before the attempt.
-- `[ ]` No rebase, amend, force-push, mobility ledger, host-policy grant, second anchor shape, or duplicate
+- `[x]` No rebase, amend, force-push, mobility ledger, host-policy grant, second anchor shape, or duplicate
   validator is added.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

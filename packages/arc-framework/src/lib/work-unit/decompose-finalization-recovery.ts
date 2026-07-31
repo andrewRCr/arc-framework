@@ -30,6 +30,11 @@ export interface V3DecomposeRecoveryFacts {
     origin: string;
     cutMapPath: string;
   };
+  advanceBaseInvocation?: {
+    provenance: "advance-base-command";
+    origin: string;
+    receiptId: CanonicalDigest;
+  };
   candidate?: {
     provenance: "candidate-driver";
     branch: string;
@@ -57,6 +62,28 @@ export function createV3DecomposeFinalizationRecoveryFacts(
           origin,
           receiptId,
           continuationPath,
+        },
+      }
+    : {};
+}
+
+/**
+ * Build the provenance-tagged facts established by one base-advancement invocation.
+ *
+ * @param origin - Origin work-unit slug from the advancement invocation.
+ * @param receiptId - Receipt identity from the advancement invocation.
+ * @returns Canonical advancement facts, or no facts for a non-canonical receipt identity.
+ */
+export function createV3DecomposeBaseAdvancementRecoveryFacts(
+  origin: string,
+  receiptId: string,
+): V3DecomposeRecoveryFacts {
+  return isCanonicalDigest(receiptId)
+    ? {
+        advanceBaseInvocation: {
+          provenance: "advance-base-command",
+          origin,
+          receiptId,
         },
       }
     : {};
@@ -90,7 +117,7 @@ export type V3DecomposeFinalizationRecovery =
   | {
     action: "re-preflight";
     establishedFacts: {
-      provenance: "finalize-command";
+      provenance: "finalize-command" | "advance-base-command";
       origin: string;
     };
   }
@@ -106,7 +133,7 @@ export type V3DecomposeFinalizationRecovery =
   | {
     action: "advance-base";
     establishedFacts: {
-      provenance: "finalize-command";
+      provenance: "finalize-command" | "advance-base-command";
       origin: string;
       receiptId: CanonicalDigest;
     };
@@ -133,7 +160,7 @@ function guidance(message: string): V3DecomposeFinalizationRecovery {
 }
 
 function rePreflight(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRecovery {
-  const invocation = facts.finalizeInvocation;
+  const invocation = facts.finalizeInvocation ?? facts.advanceBaseInvocation;
   return invocation === undefined
     ? guidance(
         "Re-run decomposition preflight from the original command context; "
@@ -159,7 +186,7 @@ function reauthor(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRecov
 }
 
 function advanceBase(facts: V3DecomposeRecoveryFacts): V3DecomposeFinalizationRecovery {
-  const invocation = facts.finalizeInvocation;
+  const invocation = facts.finalizeInvocation ?? facts.advanceBaseInvocation;
   return invocation === undefined
     ? guidance(
         "Advance the committed candidate only from its original finalize invocation; "

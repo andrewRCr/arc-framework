@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createV3DecomposeBaseAdvancementRecoveryFacts,
   createV3DecomposeFinalizationRecoveryFacts,
   mapV3DecomposeFinalizationRecovery,
   renderV3DecomposeFinalizationRecovery,
@@ -56,6 +57,17 @@ describe("v3 decompose finalization recovery", () => {
       "not-a-receipt",
       "/tmp/continuation.json",
     )).toEqual({});
+  });
+
+  it("constructs one canonical advance-base fact arm without finalize-only authority", () => {
+    expect(createV3DecomposeBaseAdvancementRecoveryFacts("origin", receiptId)).toEqual({
+      advanceBaseInvocation: {
+        provenance: "advance-base-command",
+        origin: "origin",
+        receiptId,
+      },
+    });
+    expect(createV3DecomposeBaseAdvancementRecoveryFacts("origin", "not-a-receipt")).toEqual({});
   });
 
   it.each(Object.entries(mismatchActions) as Array<
@@ -160,6 +172,18 @@ describe("v3 decompose finalization recovery", () => {
       cause: { kind: "binding-unavailable" },
       facts: {},
     })).toMatchObject({ action: "guidance" });
+
+    expect(mapV3DecomposeFinalizationRecovery({
+      cause: { kind: "binding-unavailable" },
+      facts: createV3DecomposeBaseAdvancementRecoveryFacts("origin", receiptId),
+    })).toEqual({
+      action: "advance-base",
+      establishedFacts: {
+        provenance: "advance-base-command",
+        origin: "origin",
+        receiptId,
+      },
+    });
   });
 
   it("renders advance-base with shell-safe origin quoting and no continuation operand", () => {

@@ -509,21 +509,32 @@ async function materializePinnedFacts(
   snapshot: PinnedMergeSnapshot,
   deps: GitMergeTransitionOverlayDependencies,
 ): Promise<PinnedMergeValidationFacts> {
-  const [candidateChangedPaths, candidate] = await Promise.all([
-    changedPaths(
-      snapshot.operation.configuredBase.oid,
-      snapshot.operation.candidateTreeOid,
-      deps,
-    ),
-    readPinnedNamespace(snapshot.operation.candidateTreeOid, deps),
-  ]);
+  const candidate = await readPinnedNamespace(snapshot.operation.candidateTreeOid, deps);
   const records = candidate.records.filter(({ record }) =>
-    record.kind === "v3-decomposition-receipt")
-    .filter(({ id }) => candidateChangedPaths.includes(v3DecomposeReceiptPath(id)));
-  const candidates = await Promise.all(records.map(async (record) =>
+    record.kind === "v3-decomposition-receipt");
+  const recordsWithProvenance = await Promise.all(records.map(async (record) => ({
+    record,
+    provenance: await matchingParentProvenance(record, snapshot, deps),
+  })));
+  const restated = recordsWithProvenance.filter(({ provenance }) => provenance.some((entry) =>
+    entry.kind === "restated" && entry.parent === "head"));
+  const [mergeHeadOid] = snapshot.operation.mergeHeadOids;
+  const resultBaseOid = restated.length === 1
+    && snapshot.operation.mergeHeadOids.length === 1
+    && mergeHeadOid !== undefined
+    ? mergeHeadOid
+    : snapshot.operation.configuredBase.oid;
+  const candidateChangedPaths = await changedPaths(
+    resultBaseOid,
+    snapshot.operation.candidateTreeOid,
+    deps,
+  );
+  const candidates = await Promise.all(recordsWithProvenance
+    .filter(({ record }) => candidateChangedPaths.includes(v3DecomposeReceiptPath(record.id)))
+    .map(async ({ record, provenance }) =>
     await buildCandidate(
       record,
-      await matchingParentProvenance(record, snapshot, deps),
+      provenance,
       snapshot.operation.candidateTreeOid,
       deps,
     )));

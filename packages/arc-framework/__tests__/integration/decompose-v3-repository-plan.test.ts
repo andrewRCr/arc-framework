@@ -892,6 +892,11 @@ describe("Git v3 repository plan", () => {
     });
     expect((await git(candidate, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(advancedBaseHead);
 
+    await write(repo, ".arc/reference/during-commit-window.txt", "later base movement\n");
+    await git(repo, ["add", ".arc/reference/during-commit-window.txt"]);
+    await git(repo, ["commit", "-m", "move base during candidate commit window"]);
+    const movedAgainBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+
     const remedy = await runRoadmapConflictAutoRemedy(candidate);
     expect(remedy).toEqual({
       exitCode: 0,
@@ -916,6 +921,35 @@ describe("Git v3 repository plan", () => {
     )).resolves.toMatchObject({ stderr: "" });
 
     await git(candidate, ["commit", "-m", "advance candidate base"]);
+    const firstAdvancedCandidateHead = (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim();
+    const advancedAgain = await advanceGitV3DecomposeBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    });
+    expect(advancedAgain, JSON.stringify(advancedAgain)).toEqual({
+      status: "advanced",
+      receiptId,
+      previousBaseHead: advancedBaseHead,
+      currentBaseHead: movedAgainBaseHead,
+      candidateHead: firstAdvancedCandidateHead,
+    });
+    expect((await git(candidate, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(movedAgainBaseHead);
+    expect(await runRoadmapRegenerationAssert({
+      cwd: candidate,
+      exec: async (command, args, options) => await dependencies.exec(command, args, {
+        ...options,
+        cwd: options?.cwd ?? candidate,
+      }),
+      baseBranch: "main",
+    })).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    await expect(execFileAsync(
+      tsx,
+      [join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
+      { cwd: candidate, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
+    )).resolves.toMatchObject({ stderr: "" });
+    await git(candidate, ["commit", "-m", "advance candidate base again"]);
     const advancedCandidateHead = (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim();
     expect(advancedCandidateHead).not.toBe(originalCandidateHead);
     await git(repo, ["merge", "--ff-only", "chore/decompose-origin"]);
@@ -1079,8 +1113,16 @@ describe("Git v3 repository plan", () => {
       expect(reads).toBeGreaterThanOrEqual(3);
       expect(result).toMatchObject({
         status: "refused",
-        reason: "landing-validation-refused",
+        reason: "binding-unavailable",
         mismatch: { kind: "base", locus: "binding-unavailable" },
+        recovery: {
+          action: "advance-base",
+          establishedFacts: {
+            provenance: "advance-base-command",
+            origin: "origin",
+            receiptId,
+          },
+        },
       });
       await expect(execFileAsync("git", ["rev-parse", "--verify", "MERGE_HEAD"], {
         cwd: candidate,

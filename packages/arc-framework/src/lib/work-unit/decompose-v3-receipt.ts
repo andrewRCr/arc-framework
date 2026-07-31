@@ -76,12 +76,33 @@ export type V3DecomposeReceipt = z.infer<typeof V3DecomposeReceiptSchema>;
 export type V3ManagedPathResult = z.infer<typeof ManagedPathResultSchema>;
 export type V3DestinationOutputs = z.infer<typeof DestinationOutputsSchema>;
 
+function restatementImmutableFacts(receipt: V3DecomposeReceipt): unknown {
+  const machine = receipt.prepared.completedMap.machine;
+  return {
+    authoring: receipt.prepared.completedMap.authoring,
+    machine: {
+      source: machine.source,
+      resultBase: { ref: machine.resultBase.ref },
+      planningProfile: machine.planningProfile,
+      sourceUnits: machine.sourceUnits,
+      incomingEdges: machine.incomingEdges,
+      outgoingEdges: machine.outgoingEdges,
+    },
+    candidateOwnership: receipt.prepared.candidateOwnership,
+    sourceArtifactDigest: receipt.prepared.sourceArtifactDigest,
+    sourceInventoryDigest: receipt.prepared.sourceInventoryDigest,
+    incomingEdgeInventoryDigest: receipt.prepared.incomingEdgeInventoryDigest,
+    outgoingEdgeInventoryDigest: receipt.prepared.outgoingEdgeInventoryDigest,
+    publication: receipt.finalized.publication,
+  };
+}
+
 /**
- * Prove that one canonical receipt only restates machine-derived preparation facts.
+ * Prove that one canonical receipt only restates facts derived from a moved base.
  *
  * @param previousInput - Receipt already committed at the deterministic record path.
  * @param nextInput - Candidate replacement staged at that same path.
- * @returns Whether receipt identity and authored cut are preserved while preparation identity moves.
+ * @returns Whether immutable source, ownership, authoring, and publication facts are preserved.
  */
 export function isV3DecomposeReceiptRestatement(
   previousInput: unknown,
@@ -93,8 +114,10 @@ export function isV3DecomposeReceiptRestatement(
     && next !== null
     && previous.receiptId === next.receiptId
     && previous.preparationId !== next.preparationId
-    && canonicalize(previous.prepared.completedMap.authoring)
-      === canonicalize(next.prepared.completedMap.authoring);
+    && previous.prepared.completedMap.machine.resultBase.head
+      !== next.prepared.completedMap.machine.resultBase.head
+    && canonicalize(restatementImmutableFacts(previous))
+      === canonicalize(restatementImmutableFacts(next));
 }
 
 function compareUtf8(left: string, right: string): number {

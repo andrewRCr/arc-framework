@@ -252,6 +252,7 @@ describe("validateDecomposeCommitGate", () => {
     const input: DecomposeCommitGateInput = {
       changes: [{ status: "M", path }],
       mergeInProgress: true,
+      mergeHeadOids: [machine.resultBase.head],
       readIndexBytes: (candidate) => candidate === path
         ? bytes(canonicalize(advanced.receipt))
         : null,
@@ -287,6 +288,38 @@ describe("validateDecomposeCommitGate", () => {
       ...input,
       readIndexBytes: (candidate) => candidate === path ? bytes(canonicalize(amended)) : null,
     })).not.toEqual([]);
+
+    const publicationAmendment = structuredClone(advanced.receipt);
+    publicationAmendment.finalized.publication.initialContinuation = {
+      kind: "selected",
+      slugs: ["member-b"],
+    };
+    expect(validateDecomposeCommitGate({
+      ...input,
+      readIndexBytes: (candidate) => candidate === path
+        ? bytes(canonicalize(publicationAmendment))
+        : null,
+    })).toContainEqual(expect.stringMatching(/amended|already exists|cannot introduce/iu));
+
+    expect(validateDecomposeCommitGate({
+      ...input,
+      mergeHeadOids: [],
+    })).toContainEqual(expect.stringMatching(/canonical validation mismatch: base/iu));
+    expect(validateDecomposeCommitGate({
+      ...input,
+      mergeHeadOids: ["d".repeat(40), machine.resultBase.head],
+    })).toContainEqual(expect.stringMatching(/canonical validation mismatch: base/iu));
+    expect(validateDecomposeCommitGate({
+      ...input,
+      mergeHeadOids: ["d".repeat(40)],
+    })).toContainEqual(expect.stringMatching(/canonical validation mismatch: base/iu));
+
+    expect(validateDecomposeCommitGate({
+      ...input,
+      resolveRef: (ref) => ref === machine.source.ref
+        ? machine.source.head
+        : ref === machine.resultBase.ref ? "d".repeat(40) : null,
+    })).toEqual([]);
   });
 
   it("rejects amended, multiple, malformed, ownership-drifted, and path-drifted v3 evidence", () => {

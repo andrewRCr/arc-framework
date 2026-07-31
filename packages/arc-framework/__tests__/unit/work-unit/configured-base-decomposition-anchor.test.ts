@@ -192,6 +192,7 @@ function dagHarness(options: {
   replayingCandidates?: ReadonlySet<string>;
   changedByPair?: ReadonlyMap<string, string[]>;
   entryOidByRefPath?: ReadonlyMap<string, string | null>;
+  receiptAbsentRefs?: ReadonlySet<string>;
   baseReread?: string;
 }): {
   deps: ConfiguredBaseDecompositionAnchorDependencies;
@@ -288,7 +289,7 @@ function dagHarness(options: {
             return oid === null ? { stdout: "" } : { stdout: `100644 blob ${oid}\t${path}\0` };
           }
           if (path === receiptPath) {
-            return ref === PREPARED_BASE
+            return ref === PREPARED_BASE || options.receiptAbsentRefs?.has(ref) === true
               ? { stdout: "" }
               : { stdout: `100644 blob ${RECORD_OID}\t${path}\0` };
           }
@@ -456,6 +457,7 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
         commits,
         enumeration: [DESCENDANT_HEAD, DESCENDANT_MERGE, BASE_ADVANCE, CANDIDATE_HEAD],
         changedByPair,
+        receiptAbsentRefs: new Set([BASE_ADVANCE]),
       }).deps,
     );
     expect(result.status).toBe("resolved");
@@ -516,6 +518,7 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
         enumeration: [DESCENDANT_MERGE, BASE_ADVANCE, ADVANCED_CANDIDATE, CANDIDATE_HEAD],
         replayingCandidates: new Set([ADVANCED_CANDIDATE]),
         changedByPair: new Map([[`${BASE_ADVANCE}\0${DESCENDANT_MERGE}`, expectedPaths]]),
+        receiptAbsentRefs: new Set([BASE_ADVANCE]),
       }).deps,
     );
     expect(result.status).toBe("resolved");
@@ -549,6 +552,7 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
         enumeration: [DESCENDANT_MERGE, CANDIDATE_HEAD],
         changedByPair: new Map([[`${BASE_ADVANCE}\0${DESCENDANT_MERGE}`, expectedPaths]]),
         entryOidByRefPath: new Map([[`${DESCENDANT_MERGE}\0${projectionPath}`, "f".repeat(40)]]),
+        receiptAbsentRefs: new Set([BASE_ADVANCE]),
       }).deps,
     );
     expect(result.status).toBe("resolved");
@@ -575,6 +579,83 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") return;
     expect(result.anchor.landedCommitHead).toBe(CANDIDATE_HEAD);
+  });
+
+  it("does not replace the original landing with a later merge that already has the receipt", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
+    const expectedPaths = [
+      ...receipt.finalized.transitionPatch.map(({ path }) => path),
+      receiptPath,
+    ];
+    const originalLanding = "d".repeat(40);
+    const laterCandidate = "e".repeat(40);
+    const laterMerge = "f".repeat(40);
+    const commits = commitGraph([
+      [CANDIDATE_HEAD, CANDIDATE_TREE, [PREPARED_BASE]],
+      [BASE_ADVANCE, DESCENDANT_TREE, [PREPARED_BASE]],
+      [originalLanding, "a".repeat(40), [BASE_ADVANCE, CANDIDATE_HEAD]],
+      [laterCandidate, CANDIDATE_TREE, [PREPARED_BASE]],
+      [laterMerge, "a".repeat(40), [originalLanding, laterCandidate]],
+    ]);
+    const result = await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      dagHarness({
+        baseHead: laterMerge,
+        commits,
+        enumeration: [laterMerge, originalLanding, BASE_ADVANCE, laterCandidate, CANDIDATE_HEAD],
+        replayingCandidates: new Set([CANDIDATE_HEAD, laterCandidate]),
+        changedByPair: new Map([
+          [`${BASE_ADVANCE}\0${originalLanding}`, expectedPaths],
+          [`${originalLanding}\0${laterMerge}`, []],
+        ]),
+        receiptAbsentRefs: new Set([BASE_ADVANCE]),
+      }).deps,
+    );
+
+    expect(result).toEqual({ status: "ambiguous" });
+  });
+
+  it("keeps the original landing when a later merge reintroduces an already-contained candidate", async () => {
+    const { receipt } = v3DecompositionEvidenceFixture();
+    const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
+    const expectedPaths = [
+      ...receipt.finalized.transitionPatch.map(({ path }) => path),
+      receiptPath,
+    ];
+    const originalLanding = "d".repeat(40);
+    const receiptDeletion = "e".repeat(40);
+    const laterMerge = "f".repeat(40);
+    const commits = commitGraph([
+      [CANDIDATE_HEAD, CANDIDATE_TREE, [PREPARED_BASE]],
+      [BASE_ADVANCE, DESCENDANT_TREE, [PREPARED_BASE]],
+      [originalLanding, "a".repeat(40), [BASE_ADVANCE, CANDIDATE_HEAD]],
+      [receiptDeletion, DESCENDANT_TREE, [originalLanding]],
+      [laterMerge, "a".repeat(40), [receiptDeletion, CANDIDATE_HEAD]],
+    ]);
+    const result = await resolveConfiguredBaseDecompositionAnchor(
+      BASE_REF,
+      "origin",
+      dagHarness({
+        baseHead: laterMerge,
+        commits,
+        enumeration: [laterMerge, receiptDeletion, originalLanding, BASE_ADVANCE, CANDIDATE_HEAD],
+        changedByPair: new Map([
+          [`${BASE_ADVANCE}\0${originalLanding}`, expectedPaths],
+          [`${receiptDeletion}\0${laterMerge}`, [receiptPath]],
+        ]),
+        receiptAbsentRefs: new Set([BASE_ADVANCE, receiptDeletion]),
+      }).deps,
+    );
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      anchor: {
+        candidateCommitHead: CANDIDATE_HEAD,
+        landedCommitHead: originalLanding,
+      },
+    });
   });
 
   it("discards non-replaying structural hits before selecting the landing", async () => {
@@ -717,6 +798,7 @@ describe("resolveConfiguredBaseDecompositionAnchor", () => {
         commits,
         enumeration: [DESCENDANT_MERGE, CANDIDATE_HEAD],
         changedByPair: new Map([[`${BASE_ADVANCE}\0${DESCENDANT_MERGE}`, [".arc/foreign.md"]]]),
+        receiptAbsentRefs: new Set([BASE_ADVANCE]),
       }).deps,
     )).toEqual({ status: "refused", reason: "transition-tree" });
   });
