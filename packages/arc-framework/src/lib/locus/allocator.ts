@@ -5,6 +5,7 @@ import {
   type LinkedWorktreeCreationContext,
   type LinkedWorktreeCreationResult,
 } from "../git/linked-worktree.js";
+import { isSlugSafe } from "../kernel/index.js";
 import type { PrimarySafetyResult } from "./primary-safety.js";
 import type { LocusStateV1, LocusStopReason } from "./schema/index.js";
 
@@ -25,6 +26,7 @@ export type LocusAllocationRefusalReason =
   | "duplicate-locus"
   | "role-conflict"
   | "identity-conflict"
+  | "primary-not-proposed"
   | "full-protection-required";
 
 export type LocusAllocationPlan =
@@ -44,6 +46,9 @@ export function planLocusAllocation(options: {
   isolation: "prefer-primary" | "require-isolation" | "parallelize";
   subject: LocusAllocationSubject;
 }): LocusAllocationPlan {
+  if (!isSlugSafe(options.subject.key)) {
+    return { kind: "refused", reason: "identity-conflict" };
+  }
   if (!subjectClaimMatchesProtection(options.subject, options.protection)) {
     return { kind: "refused", reason: "identity-conflict" };
   }
@@ -122,7 +127,7 @@ export async function createSpawnedLocusWorktree(
     return { kind: "refused", reason: "spawn-not-proposed" };
   }
   const { subject } = options.proposal;
-  if (subject.claimId === null) {
+  if (subject.claimId === null || !isSlugSafe(subject.key)) {
     return { kind: "refused", reason: "identity-conflict" };
   }
   return createLinkedWorktree(context, {
@@ -198,7 +203,7 @@ export async function linearizePrimaryAllocation<Remote, Value>(options: {
   dependencies: PrimaryAllocationDependencies<Remote, Value>;
 }): Promise<PrimaryAllocationResult<Value>> {
   if (options.proposal.allocation.kind !== "primary") {
-    return { kind: "refused", reason: "full-protection-required" };
+    return { kind: "refused", reason: "primary-not-proposed" };
   }
   let prepared: Remote;
   try {

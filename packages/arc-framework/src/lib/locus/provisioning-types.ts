@@ -99,7 +99,11 @@ export interface ProvisionTransientLocusDependencies {
   removeRecord(path: string, expectedBytes: Buffer, handle: ProvisioningRecordLock): Promise<
     { kind: "removed" } | { kind: "generation-mismatch" }
   >;
-  rollbackSpawned(receipt: LinkedWorktreeCreationReceipt, rosterHead: string): Promise<
+  rollbackSpawned(
+    receipt: LinkedWorktreeCreationReceipt,
+    rosterHead: string,
+    primaryWorktreePath: string,
+  ): Promise<
     { kind: "rolled-back" } | { kind: "generation-mismatch" }
   >;
 }

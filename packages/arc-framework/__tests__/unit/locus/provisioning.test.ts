@@ -276,6 +276,37 @@ describe("provisionTransientLocus", () => {
     ]);
   });
 
+  it("does not rerun setup for a matching pending marker owned by another invocation", async () => {
+    const events: string[] = [];
+    const pending = {
+      spawnedByArc: true,
+      createdFor: { kind: "errand" as const, slug: "demo", claimId: CLAIM_ID },
+      provisioning: "pending",
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-20T00:00:00.000Z",
+    };
+    const bytes = Buffer.from(JSON.stringify(pending));
+    const harness = testHarness(events, {
+      createLinkedWorktree: async () => {
+        events.push("create-worktree");
+        return { kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH };
+      },
+      readMarker: async () => ({ kind: "present", marker: pending, bytes }),
+      setupWorktree: async () => {
+        events.push("setup-worktree");
+      },
+    });
+
+    const result = await provisionTransientLocus(options(harness.dependencies));
+
+    expect(result).toEqual({
+      kind: "refused",
+      reason: "marker-conflict",
+      evidence: { kind: "pending-marker", checkoutPath: WORKTREE_PATH, markerBytes: bytes },
+    });
+    expect(events).toEqual(["create-worktree", "scan-roster"]);
+  });
+
   it("makes pending provenance visible during setup and removes it on an exact setup failure rollback", async () => {
     const events: string[] = [];
     const harness = testHarness(events);
@@ -566,6 +597,28 @@ describe("provisionTransientLocus", () => {
     const staleIdentity = { ...identity, claimId: "f".repeat(32) };
 
     const result = await provisionTransientLocus(options(harness.dependencies, { identity: staleIdentity }));
+
+    expect(result).toEqual({
+      kind: "refused",
+      reason: "identity-conflict",
+      evidence: { kind: "identity-only" },
+    });
+    expect(events).toEqual([]);
+  });
+
+  it("refuses a path-unsafe identity key before creating a spawned checkout", async () => {
+    const events: string[] = [];
+    const harness = testHarness(events);
+    const unsafeProposal = {
+      ...proposal,
+      subject: { ...proposal.subject, key: "../outside" },
+    };
+    const unsafeIdentity = { ...identity, key: "../outside" };
+
+    const result = await provisionTransientLocus(options(harness.dependencies, {
+      proposal: unsafeProposal,
+      identity: unsafeIdentity,
+    }));
 
     expect(result).toEqual({
       kind: "refused",

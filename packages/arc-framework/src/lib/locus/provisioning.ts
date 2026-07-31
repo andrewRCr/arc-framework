@@ -138,9 +138,10 @@ async function provisionPrimary(
   options: ProvisionTransientLocusOptions,
   authority: LocusRoleAuthority,
 ): Promise<ProvisionTransientLocusResult> {
-  const checkoutPath = options.proposal.allocation.kind === "primary"
-    ? options.proposal.allocation.checkoutPath
-    : "";
+  if (options.proposal.allocation.kind !== "primary") {
+    return refused("identity-conflict", { kind: "identity-only" });
+  }
+  const checkoutPath = options.proposal.allocation.checkoutPath;
   const acquired = await acquire(options, checkoutPath);
   if (acquired.kind !== "acquired") return acquired.result;
   const result = await provisionPrimaryUnderLock(options, authority, checkoutPath, acquired.handle);
@@ -224,8 +225,14 @@ async function provisionRecord(
   spawn: SpawnState | null,
   primary: { checkout: PrimaryCheckoutReceipt; lock: ProvisioningRecordLock } | null,
 ): Promise<ProvisionTransientLocusResult> {
-  const checkoutPath = spawn?.checkoutPath
-    ?? (options.proposal.allocation.kind === "primary" ? options.proposal.allocation.checkoutPath : "");
+  let checkoutPath: string;
+  if (spawn !== null) {
+    checkoutPath = spawn.checkoutPath;
+  } else if (options.proposal.allocation.kind === "primary") {
+    checkoutPath = options.proposal.allocation.checkoutPath;
+  } else {
+    return refused("identity-conflict", { kind: "identity-only" });
+  }
   let handle = primary?.lock;
   if (handle === undefined) {
     const acquired = await acquire(options, checkoutPath);
@@ -414,7 +421,21 @@ async function rollbackSpawn(
     }
   }
   if (creation !== null && rosterHead !== null) {
-    const rolledBack = await safeCall(() => options.dependencies.rollbackSpawned(creation, rosterHead));
+    const allocation = options.proposal.allocation;
+    if (allocation.kind !== "spawn") {
+      return {
+        kind: "marker-record-mismatch",
+        checkoutPath: creation.worktreePath,
+        markerBytes: null,
+        recordBytes: null,
+      };
+    }
+    const rolledBack = await safeCall(() =>
+      options.dependencies.rollbackSpawned(
+        creation,
+        rosterHead,
+        allocation.primaryPath,
+      ));
     if (rolledBack.kind === "error" || rolledBack.value.kind !== "rolled-back") {
       return {
         kind: "marker-record-mismatch",

@@ -242,6 +242,34 @@ describe("createSpawnedLocusWorktree", () => {
     expect(result).toEqual({ kind: "refused", reason: "full-protection-required" });
     expect(boundaryCalled).toBe(false);
   });
+
+  it("refuses a path-unsafe subject before resolving configured placement", async () => {
+    let boundaryCalled = false;
+    const unsafe = {
+      ...spawnProposal(),
+      subject: { ...SUBJECT, key: "../outside" },
+    };
+    const result = await createSpawnedLocusWorktree({
+      exec: async () => {
+        boundaryCalled = true;
+        return { stdout: "" };
+      },
+      pathExists: async () => {
+        boundaryCalled = true;
+        return false;
+      },
+    }, {
+      proposal: unsafe,
+      protection: "full",
+      locationTemplate: "/work/{name}",
+      repo: "repo",
+      branch: "chore/errand-docs",
+      base: "main",
+    });
+
+    expect(result).toEqual({ kind: "refused", reason: "identity-conflict" });
+    expect(boundaryCalled).toBe(false);
+  });
 });
 
 function primaryProposal(): Extract<LocusAllocationPlan, { kind: "proposal" }> {
@@ -258,18 +286,29 @@ function primaryProposal(): Extract<LocusAllocationPlan, { kind: "proposal" }> {
 function allocationDependencies(options: {
   events: string[];
   readState?: () => Promise<LocusStateV1>;
-  readGitSafety?: () => Promise<{ kind: "complete"; clean: boolean; onBase: boolean; branch: string }>;
+  readGitSafety?: () => Promise<
+    | { kind: "complete"; clean: boolean; onBase: boolean; branch: string | null }
+    | { kind: "error"; code: "git-topology-unavailable"; message: string }
+  >;
   apply?: () => Promise<string>;
+  release?: () => Promise<void>;
+  rollback?: () => Promise<void>;
 }): PrimaryAllocationDependencies<string, string> {
   const lock: LocusAllocationLock = {
-    release: async () => { options.events.push("release-lock"); },
+    release: async () => {
+      options.events.push("release-lock");
+      await options.release?.();
+    },
   };
   return {
     prepareRemote: async () => {
       options.events.push("prepare-remote");
       return "claim";
     },
-    rollbackRemote: async () => { options.events.push("rollback-remote"); },
+    rollbackRemote: async () => {
+      options.events.push("rollback-remote");
+      await options.rollback?.();
+    },
     acquireLock: async () => {
       options.events.push("acquire-lock");
       return lock;
@@ -382,4 +421,86 @@ describe("linearizePrimaryAllocation", () => {
     expect(second.result).toEqual({ kind: "refused", reason: "lease-live" });
     expect(second.events.at(-1)).toBe("rollback-remote");
   });
+
+  it("fails closed when Git safety cannot be read", async () => {
+    const events: string[] = [];
+    const result = await linearizePrimaryAllocation({
+      proposal: primaryProposal(),
+      protection: "full",
+      isolation: "prefer-primary",
+      dependencies: allocationDependencies({
+        events,
+        readGitSafety: async () => ({
+          kind: "error",
+          code: "git-topology-unavailable",
+          message: "status unavailable",
+        }),
+      }),
+    });
+
+    expect(result).toEqual({ kind: "refused", reason: "topology-unknown" });
+    expect(events.at(-1)).toBe("rollback-remote");
+  });
+
+  it("refuses a spawn proposal at the primary linearization boundary", async () => {
+    const events: string[] = [];
+    const result = await linearizePrimaryAllocation({
+      proposal: spawnProposalForLinearization(),
+      protection: "full",
+      isolation: "prefer-primary",
+      dependencies: allocationDependencies({ events }),
+    });
+
+    expect(result).toEqual({ kind: "refused", reason: "primary-not-proposed" });
+    expect(events).toEqual([]);
+  });
+
+  it("reports lock-release failure without rolling back committed remote state", async () => {
+    const events: string[] = [];
+    const result = await linearizePrimaryAllocation({
+      proposal: primaryProposal(),
+      protection: "full",
+      isolation: "prefer-primary",
+      dependencies: allocationDependencies({
+        events,
+        release: async () => { throw new Error("release failed"); },
+      }),
+    });
+
+    expect(result).toMatchObject({ kind: "error", error: { message: "release failed" } });
+    expect(events).not.toContain("rollback-remote");
+  });
+
+  it("reports remote rollback failure after a refused local allocation", async () => {
+    const events: string[] = [];
+    const result = await linearizePrimaryAllocation({
+      proposal: primaryProposal(),
+      protection: "full",
+      isolation: "prefer-primary",
+      dependencies: allocationDependencies({
+        events,
+        readState: async () => {
+          events.push("read-state");
+          return state({
+            kind: "occupied",
+            checkoutPath: "/repo",
+            recordId: `sha256:${"e".repeat(64)}`,
+            leaseState: "live",
+          });
+        },
+        rollback: async () => { throw new Error("rollback failed"); },
+      }),
+    });
+
+    expect(result).toMatchObject({ kind: "error", error: { message: "rollback failed" } });
+    expect(events.at(-1)).toBe("rollback-remote");
+  });
 });
+
+function spawnProposalForLinearization(): Extract<LocusAllocationPlan, { kind: "proposal" }> {
+  return {
+    kind: "proposal",
+    allocation: { kind: "spawn", primaryPath: "/repo" },
+    subject: SUBJECT,
+  };
+}

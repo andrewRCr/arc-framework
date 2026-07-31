@@ -7,6 +7,7 @@ import {
   type TransientWorktreeSubject,
   type WorktreeMarker,
 } from "../git/worktree-marker.js";
+import { isSlugSafe } from "../kernel/index.js";
 import type {
   ProvisioningEvidence,
   ProvisioningMarkerReadResult,
@@ -85,8 +86,30 @@ export async function establishReadyMarker(
   }
 
   const decoded = decodeWorktreeMarkerOwnership(observed.marker);
-  if (decoded.kind === "current" && decoded.provisioning === "ready") {
+  if (decoded.kind !== "current" || decoded.provisioning === null || !("claimId" in decoded.subject)) {
+    return {
+      kind: "refused",
+      reason: "marker-conflict",
+      evidence: markerMismatchEvidence(checkoutPath, {
+        kind: "present",
+        marker: observed.marker,
+        bytes: observed.bytes,
+      }),
+    };
+  }
+  if (decoded.provisioning === "ready") {
     return { kind: "ready", value: observed };
+  }
+  if (!observed.owned) {
+    return {
+      kind: "refused",
+      reason: "marker-conflict",
+      evidence: {
+        kind: "pending-marker",
+        checkoutPath,
+        markerBytes: observed.bytes,
+      },
+    };
   }
   try {
     await options.dependencies.setupWorktree(
@@ -100,7 +123,20 @@ export async function establishReadyMarker(
       rollback: { markerBytes: observed.bytes, markerOwned: observed.owned, checkoutPath },
     };
   }
-  const ready = { ...observed.marker, provisioning: "ready" } as WorktreeMarker;
+  const ready: WorktreeMarker = {
+    spawnedByArc: observed.marker.spawnedByArc,
+    createdFor: decoded.subject,
+    provisioning: "ready",
+    spawningIdentity: observed.marker.spawningIdentity,
+    createdAt: observed.marker.createdAt,
+    ...(observed.marker.husk === undefined ? {} : { husk: observed.marker.husk }),
+    ...(observed.marker.renameMovePending === undefined
+      ? {}
+      : { renameMovePending: observed.marker.renameMovePending }),
+    ...(observed.marker.decompositionCandidate === undefined
+      ? {}
+      : { decompositionCandidate: observed.marker.decompositionCandidate }),
+  };
   let promoted;
   try {
     promoted = await options.dependencies.replaceMarker(checkoutPath, observed.bytes, ready);
@@ -127,7 +163,7 @@ export async function establishReadyMarker(
 }
 
 export function transientMarkerSubject(proposal: ProvisioningProposal): TransientWorktreeSubject | null {
-  return proposal.subject.claimId === null
+  return proposal.subject.claimId === null || !isSlugSafe(proposal.subject.key)
     ? null
     : { kind: proposal.subject.kind, slug: proposal.subject.key, claimId: proposal.subject.claimId };
 }

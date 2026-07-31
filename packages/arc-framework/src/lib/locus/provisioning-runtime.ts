@@ -151,8 +151,8 @@ export function createNodeProvisioningDependencies(
       });
     },
     mintRecord: (path, record, handle) => {
-      requireHeldLock(heldLocks, handle);
-      return mintLocusRecord({ path, record });
+      const held = requireHeldLock(heldLocks, handle);
+      return mintLocusRecord({ path, record, lock: held.lock });
     },
     replaceRecord: (path, expectedBytes, record, handle) => {
       const held = requireHeldLock(heldLocks, handle);
@@ -162,7 +162,8 @@ export function createNodeProvisioningDependencies(
       const held = requireHeldLock(heldLocks, handle);
       return removeLocusRecord({ path, expectedBytes, lock: held.lock });
     },
-    rollbackSpawned: (receipt, rosterHead) => rollbackSpawned(options.exec, receipt, rosterHead),
+    rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
+      rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
   };
 }
 
@@ -294,15 +295,18 @@ async function rollbackSpawned(
   exec: GitExec,
   receipt: LinkedWorktreeCreationReceipt,
   rosterHead: string,
+  primaryWorktreePath: string,
 ): Promise<{ kind: "rolled-back" } | { kind: "generation-mismatch" }> {
-  const topology = await scanRegisteredWorktrees(exec);
+  const pinnedExec: GitExec = (command, args, options) =>
+    exec(command, args, { ...options, cwd: primaryWorktreePath });
+  const topology = await scanRegisteredWorktrees(pinnedExec);
   if (!topology.ok) return { kind: "generation-mismatch" };
   const matches = topology.worktrees.filter((entry) => entry.path === receipt.worktreePath);
   const target = matches[0];
   if (matches.length !== 1 || target === undefined || target.head !== rosterHead
     || target.branch !== receipt.branch || target.detached) return { kind: "generation-mismatch" };
-  await exec("git", ["worktree", "remove", receipt.worktreePath]);
-  if (receipt.branchCreated) await exec("git", ["branch", "-D", receipt.branch]);
+  await pinnedExec("git", ["worktree", "remove", receipt.worktreePath]);
+  if (receipt.branchCreated) await pinnedExec("git", ["branch", "-D", receipt.branch]);
   return { kind: "rolled-back" };
 }
 

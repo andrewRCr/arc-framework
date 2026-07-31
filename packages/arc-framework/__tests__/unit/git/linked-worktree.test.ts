@@ -81,6 +81,32 @@ describe("createLinkedWorktree", () => {
     expect(calls).toEqual([["git", "worktree", "add", "/work/repo.existing", "feat/existing"]]);
   });
 
+  it("fails closed when relative placement has no resolvable primary worktree", async () => {
+    const calls: string[][] = [];
+    let pathChecked = false;
+    const result = await createLinkedWorktree({
+      exec: async (command, args) => {
+        calls.push([command, ...args]);
+        return { stdout: "" };
+      },
+      pathExists: async () => {
+        pathChecked = true;
+        return false;
+      },
+    }, {
+      locationTemplate: "../{repo}.{name}",
+      repo: "repo",
+      placementName: "target",
+      branch: "feat/target",
+      createBranch: true,
+      base: "main",
+    });
+
+    expect(result).toMatchObject({ kind: "error", reason: "primary-unavailable" });
+    expect(calls).toEqual([["git", "worktree", "list", "--porcelain", "-z"]]);
+    expect(pathChecked).toBe(false);
+  });
+
   it("refuses a configured path collision before invoking Git", async () => {
     let invoked = false;
     const result = await createLinkedWorktree({

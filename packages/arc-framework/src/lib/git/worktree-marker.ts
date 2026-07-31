@@ -677,16 +677,16 @@ export async function replaceWorktreeMarkerGeneration(
   if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
   const bytes = serializeWorktreeMarker(marker);
   const temporaryPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  let published = false;
   try {
     await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
     const recheck = await readFile(path);
     if (!recheck.equals(expectedBytes)) return { kind: "generation-mismatch" };
     await rename(temporaryPath, path);
+    published = true;
     return { kind: "replaced", bytes };
   } finally {
-    await unlink(temporaryPath).catch((error: unknown) => {
-      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
-    });
+    if (!published) await unlink(temporaryPath).catch(() => undefined);
   }
 }
 
@@ -704,7 +704,12 @@ export async function removeWorktreeMarkerGeneration(
     throw error;
   }
   if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
-  await unlink(path);
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
   return { kind: "removed" };
 }
 

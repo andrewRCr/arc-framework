@@ -64,6 +64,72 @@ describe("node provisioning runtime", () => {
 
   const HEAD = "a".repeat(40);
 
+  function spawnedRuntime(exec: GitExec) {
+    return createNodeProvisioningDependencies({
+      exec,
+      identity: "andrew",
+      anchor: { kind: "process", pid: 42, startToken: "start", inspector: "fixture", selector: "codex" },
+      inspector: { kind: "fixture", inspect: async () => ({ kind: "absent" }) },
+      pathFlavor: "posix",
+      base: "main",
+      branch: "chore/sample",
+      postCreateScript: "",
+      registeredHarnessDirs: "",
+    });
+  }
+
+  describe("spawned rollback", () => {
+    const receipt = {
+      worktreePath: "/work/sample",
+      branch: "chore/sample",
+      worktreeCreated: true as const,
+      branchCreated: true,
+      base: "main",
+    };
+
+    it("pins topology and destructive Git operations to the resolved primary", async () => {
+      const calls: Array<{ args: string[]; cwd: string | undefined }> = [];
+      const exec: GitExec = async (_command, args, options) => {
+        calls.push({ args: [...args], cwd: options?.cwd });
+        if (args[0] === "worktree" && args[1] === "list") {
+          return {
+            stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
+              + `worktree ${receipt.worktreePath}\0HEAD ${HEAD}\0branch refs/heads/${receipt.branch}\0\0`,
+          };
+        }
+        return { stdout: "" };
+      };
+
+      await expect(spawnedRuntime(exec).rollbackSpawned(receipt, HEAD, "/repo"))
+        .resolves.toEqual({ kind: "rolled-back" });
+      expect(calls.map((call) => call.args)).toEqual([
+        ["worktree", "list", "--porcelain", "-z"],
+        ["worktree", "remove", receipt.worktreePath],
+        ["branch", "-D", receipt.branch],
+      ]);
+      expect(calls.every((call) => call.cwd === "/repo")).toBe(true);
+    });
+
+    it("refuses rollback when the registered checkout generation changed", async () => {
+      const calls: Array<{ args: string[]; cwd: string | undefined }> = [];
+      const changedHead = "b".repeat(40);
+      const exec: GitExec = async (_command, args, options) => {
+        calls.push({ args: [...args], cwd: options?.cwd });
+        return {
+          stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
+            + `worktree ${receipt.worktreePath}\0HEAD ${changedHead}\0branch refs/heads/${receipt.branch}\0\0`,
+        };
+      };
+
+      await expect(spawnedRuntime(exec).rollbackSpawned(receipt, HEAD, "/repo"))
+        .resolves.toEqual({ kind: "generation-mismatch" });
+      expect(calls).toEqual([{
+        args: ["worktree", "list", "--porcelain", "-z"],
+        cwd: "/repo",
+      }]);
+    });
+  });
+
   /**
    * A primary checkout whose git calls can be failed after the mutating checkout lands.
    *
@@ -112,6 +178,20 @@ describe("node provisioning runtime", () => {
   }
 
   describe("primary checkout rollback", () => {
+    it("refuses a null-branch checkout when the pinned base head changed", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      await expect(runtime.checkoutPrimary("/repo", null, "b".repeat(40)))
+        .rejects.toThrow("Primary checkout does not match the expected pinned base head");
+      expect(state.branch).toBe("main");
+      expect(calls).toEqual([
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        ["rev-parse", "HEAD"],
+      ]);
+    });
+
     it("restores the previous branch and deletes the branch it created", async () => {
       const state = { branch: "main", head: HEAD };
       const calls: string[][] = [];

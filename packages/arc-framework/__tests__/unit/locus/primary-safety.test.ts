@@ -40,6 +40,22 @@ describe("primary checkout safety", () => {
     })).resolves.toMatchObject({ kind: "error", code: "git-topology-unavailable" });
   });
 
+  it("projects detached HEAD without inventing a branch", async () => {
+    await expect(readPrimarySafety({
+      primaryPath: "/primary",
+      baseBranch: "main",
+      exec: git({ branch: "HEAD" }),
+    })).resolves.toEqual({ kind: "complete", clean: true, onBase: false, branch: null });
+  });
+
+  it("fails closed when the branch read is empty", async () => {
+    await expect(readPrimarySafety({
+      primaryPath: "/primary",
+      baseBranch: "main",
+      exec: git({ branch: "" }),
+    })).resolves.toMatchObject({ kind: "error", code: "git-topology-unavailable" });
+  });
+
   it("uses the configured base and fails closed when it is missing", async () => {
     await expect(readPrimarySafety({
       primaryPath: "/primary",
