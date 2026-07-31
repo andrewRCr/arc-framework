@@ -21,7 +21,13 @@ import {
   type ErrandRecordReadIO,
 } from "./ref-tree.js";
 import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import {
+  assertTransientIdentityOperation,
+  LegacyIdentityOperationError,
+  type TransientIdentityRecord,
+  type TransientIdentityOperation,
+  type TransientIdentityRecordV3,
+} from "./identity-record.js";
 import {
   readTransientIdentitySnapshot,
   type IdentitySnapshotDiagnostic,
@@ -152,26 +158,80 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+/** Structured reason a legacy single-record command cannot proceed safely. */
+export type ErrandRecordReadFailure =
+  | { kind: "snapshot-error"; stage: "tip" | "tree"; message: string }
+  | { kind: "invalid-basis"; diagnostics: readonly IdentitySnapshotDiagnostic[] }
+  | {
+      kind: "legacy-close-only";
+      operation: Exclude<TransientIdentityOperation, "close" | "read">;
+      record: ErrandRecord;
+    }
+  | { kind: "current-record"; operation: TransientIdentityOperation; record: TransientIdentityRecordV3 };
+
+/** Typed command-boundary failure preserving why a record was not safely readable. */
+export class ErrandRecordReadError extends Error {
+  readonly failure: ErrandRecordReadFailure;
+
+  constructor(failure: ErrandRecordReadFailure) {
+    super(messageForReadFailure(failure));
+    this.name = "ErrandRecordReadError";
+    this.failure = failure;
+  }
+}
+
 /**
- * Read one errand record by slug, or `null` when the ref or the slug is absent.
+ * Read one legacy errand record from a complete, tip-pinned identity snapshot.
  *
  * @param io - Injected git seams and identity.
  * @param slug - The errand slug keying the record in the ref's tree.
- * @returns The parsed record, or `null` when missing or unparseable.
+ * @param operation - Read-only access or the state-changing verb requesting authority.
+ * @returns The parsed legacy record, or `null` only when the ref/key is proven absent.
+ * @throws {ErrandRecordReadError} When the basis is incomplete, the record is v3, or a non-close mutation targets
+ *   a legacy generation.
  */
 export async function readErrandRecord(
   io: ErrandRecordReadIO,
   slug: string,
+  operation: TransientIdentityOperation = "read",
 ): Promise<ErrandRecord | null> {
-  const ref = errandsRef(io.identity);
-  let blob: string;
-  try {
-    const { stdout } = await io.exec("git", ["cat-file", "-p", `${ref}:${slug}`]);
-    blob = stdout;
-  } catch {
-    return null;
+  const snapshot = await readTransientIdentitySnapshot(io);
+  if (snapshot.kind === "absent") return null;
+  if (snapshot.kind === "error") {
+    throw new ErrandRecordReadError({
+      kind: "snapshot-error",
+      stage: snapshot.stage,
+      message: snapshot.message,
+    });
   }
-  return deserializeErrandRecord(blob);
+  if (snapshot.diagnostics.length > 0) {
+    throw new ErrandRecordReadError({ kind: "invalid-basis", diagnostics: snapshot.diagnostics });
+  }
+  const record = snapshot.records.get(slug);
+  if (record === undefined) return null;
+  try {
+    assertTransientIdentityOperation(record, operation);
+  } catch (error) {
+    if (!(error instanceof LegacyIdentityOperationError)) throw error;
+    throw new ErrandRecordReadError({
+      kind: "legacy-close-only",
+      operation: error.operation,
+      record: error.record,
+    });
+  }
+  if (record.version === 3) {
+    throw new ErrandRecordReadError({ kind: "current-record", operation, record });
+  }
+  return record;
+}
+
+function messageForReadFailure(failure: ErrandRecordReadFailure): string {
+  switch (failure.kind) {
+    case "snapshot-error": return `Errand identity ${failure.stage} read failed: ${failure.message}`;
+    case "invalid-basis": return "Errand identity basis contains invalid entries";
+    case "legacy-close-only": return `Legacy identity '${failure.record.slug}' is close-only`;
+    case "current-record": return `Current identity '${failure.record.slug}' requires v3 transitions`;
+  }
 }
 
 /**

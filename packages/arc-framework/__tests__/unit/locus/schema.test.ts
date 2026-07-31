@@ -84,9 +84,22 @@ describe("locus record schema", () => {
       establishedAt: timestamp,
       parentCheckoutPath: null,
       originEntry: "Fix output",
+      originEntrySourceDigest: `sha256:${"b".repeat(64)}`,
     };
     expect(LocusRecordV1Schema.safeParse(record(partial)).success).toBe(true);
-    expect(LocusRecordV1Schema.safeParse(record({ ...partial, originEntry: null })).success).toBe(true);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...partial,
+      originEntry: null,
+      originEntrySourceDigest: undefined,
+    })).success).toBe(true);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...partial,
+      originEntrySourceDigest: undefined,
+    })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...partial,
+      originEntry: null,
+    })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse(record({
       ...partial,
       subject: { kind: "errand", key: "fix-output", claimId },

@@ -377,6 +377,9 @@ function recordRow(
       subject: record.role.subject,
       parentCheckoutPath: record.role.parentCheckoutPath,
       originEntry: record.role.originEntry,
+      ...(record.role.originEntrySourceDigest === undefined
+        ? {}
+        : { originEntrySourceDigest: record.role.originEntrySourceDigest }),
     },
     identity: resolved?.identity ?? null,
     lease: record.lease === null ? null : {

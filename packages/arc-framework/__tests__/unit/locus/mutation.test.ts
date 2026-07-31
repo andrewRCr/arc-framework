@@ -132,7 +132,10 @@ describe("durable locus role minting", () => {
   it("derives full and partial transient role pairs with exact claim and context fields", async () => {
     const cases: Array<{
       authority: LocusRoleAuthority;
-      expected: Pick<NonNullable<LocusRecordV1["role"]>, "kind" | "subject" | "originEntry">;
+      expected: Pick<
+        NonNullable<LocusRecordV1["role"]>,
+        "kind" | "subject" | "originEntry" | "originEntrySourceDigest"
+      >;
     }> = [
       {
         authority: { kind: "identity", identity: errandIdentity("errand") },
@@ -163,6 +166,7 @@ describe("durable locus role minting", () => {
           kind: "partial-errand",
           key: "demo",
           originEntry: null,
+          originEntrySourceDigest: null,
         },
         expected: {
           kind: "errand",
@@ -175,11 +179,13 @@ describe("durable locus role minting", () => {
           kind: "partial-errand",
           key: "demo",
           originEntry: "Inbox entry",
+          originEntrySourceDigest: `sha256:${"8".repeat(64)}`,
         },
         expected: {
           kind: "errand",
           subject: { kind: "partial-errand", key: "demo", claimId: null },
           originEntry: "Inbox entry",
+          originEntrySourceDigest: `sha256:${"8".repeat(64)}`,
         },
       },
       {

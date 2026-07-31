@@ -29,6 +29,11 @@ export type LocusAllocationRefusalReason =
   | "primary-not-proposed"
   | "full-protection-required";
 
+export type LocusAllocationPlanningRefusalReason = Exclude<
+  LocusAllocationRefusalReason,
+  "primary-not-proposed"
+>;
+
 export type LocusAllocationPlan =
   | {
       readonly kind: "proposal";
@@ -37,7 +42,7 @@ export type LocusAllocationPlan =
         | { readonly kind: "spawn"; readonly primaryPath: string };
       readonly subject: LocusAllocationSubject;
     }
-  | { readonly kind: "refused"; readonly reason: LocusAllocationRefusalReason };
+  | { readonly kind: "refused"; readonly reason: LocusAllocationPlanningRefusalReason };
 
 /** Reduce one fresh locus state to a non-authoritative placement proposal. */
 export function planLocusAllocation(options: {
@@ -141,14 +146,14 @@ export async function createSpawnedLocusWorktree(
   });
 }
 
-function stateStopReason(state: LocusStateV1): LocusAllocationRefusalReason | null {
+function stateStopReason(state: LocusStateV1): LocusAllocationPlanningRefusalReason | null {
   if (state.current.kind === "ambiguous") return "role-conflict";
   if (state.recovery.kind === "stop") return unsafeReason(state.recovery.reasons);
   if (state.reconciliation.kind === "stop") return unsafeReason(state.reconciliation.reasons);
   return null;
 }
 
-function unsafeReason(reasons: readonly LocusStopReason[]): LocusAllocationRefusalReason {
+function unsafeReason(reasons: readonly LocusStopReason[]): LocusAllocationPlanningRefusalReason {
   for (const reason of reasons) {
     switch (reason) {
       case "primary-dirty":

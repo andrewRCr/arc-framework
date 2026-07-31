@@ -11,8 +11,13 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  inboxEntrySourceDigest,
+  inspectInboxEntry,
+  listExecuteBoundInboxEntries,
   listInboxEntryTitles,
+  mutateInboxEntries,
   removeInboxEntry,
+  removeInspectedInboxEntry,
   requireLiveInboxTitle,
 } from "../../src/lib/user-sync/index.js";
 
@@ -50,6 +55,178 @@ const INBOX = `# User Inbox
 - _Section:_ Atomic
 - _Removed:_ 2026-06-01T00:00:00.000Z
 `;
+
+describe("mutateInboxEntries", () => {
+  it("marks an exact batch as one visible execute-bound queue", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+
+    const result = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+
+    expect(result.changed).toBe(true);
+    expect(result.outcomes).toEqual([
+      { title: "First atomic", state: "applied" },
+      { title: "Second atomic", state: "applied" },
+    ]);
+    expect(result.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
+    expect(result.content).not.toContain("_Dispatch:_");
+    expect(result.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("projects the visible execute-bound disposition for an Errand adoption read", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]);
+
+    expect(inspectInboxEntry(marked.content, "First atomic")).toEqual({
+      title: "First atomic",
+      sourceDigest,
+      executeBound: true,
+    });
+  });
+
+  it("lists all execute-bound captures in stable file order", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+
+    expect(listExecuteBoundInboxEntries(marked.content)).toEqual({
+      entries: [
+        { title: "First atomic", sourceDigest: firstDigest },
+        { title: "Second atomic", sourceDigest: secondDigest },
+      ],
+      diagnostics: [],
+    });
+  });
+
+  it("replays an exact mark, unmark, and removal without widening the write", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]);
+    const markReplay = mutateInboxEntries(marked.content, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]);
+    expect(markReplay).toMatchObject({ changed: false, content: marked.content });
+    expect(markReplay.outcomes).toEqual([{ title: "First atomic", state: "already-applied" }]);
+
+    const unmarked = mutateInboxEntries(marked.content, [
+      { kind: "unmark", title: "First atomic", sourceDigest },
+    ]);
+    expect(unmarked.content).toBe(INBOX);
+    expect(mutateInboxEntries(unmarked.content, [
+      { kind: "unmark", title: "First atomic", sourceDigest },
+    ])).toMatchObject({ changed: false, content: INBOX });
+
+    const removed = mutateInboxEntries(marked.content, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ]);
+    expect(removed.content).not.toContain("First atomic");
+    expect(mutateInboxEntries(removed.content, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ])).toMatchObject({ changed: false, content: removed.content });
+  });
+
+  it("rejects changed, missing, duplicate, and malformed entry preimages", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    expect(() => mutateInboxEntries(INBOX.replace("first.", "changed."), [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ])).toThrow(/source digest changed/);
+    expect(() => mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "Missing", sourceDigest },
+    ])).toThrow(/Missing USER-INBOX entry/);
+
+    const duplicate = INBOX.replace(
+      "## Work Unit",
+      "### `[ ]` **First atomic**\n\n- _Observation:_ duplicate.\n\n## Work Unit",
+    );
+    expect(() => mutateInboxEntries(duplicate, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ])).toThrow(/Duplicate USER-INBOX entry title/);
+
+    const malformed = INBOX.replace("### `[ ]` **First atomic**", "### `[ ]` First atomic");
+    expect(() => mutateInboxEntries(malformed, [
+      { kind: "mark", title: "Second atomic", sourceDigest: inboxEntrySourceDigest(INBOX, "Second atomic") },
+    ])).toThrow(/Malformed USER-INBOX entry heading/);
+  });
+
+  it("rejects a batch that repeats one title", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+
+    expect(() => mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+      { kind: "unmark", title: "First atomic", sourceDigest },
+    ])).toThrow(/Duplicate USER-INBOX mutation title/);
+  });
+
+  it("applies mixed mutations without shifting a later entry", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+
+    const result = mutateInboxEntries(INBOX, [
+      { kind: "remove", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+
+    expect(result.content).not.toContain("First atomic");
+    expect(inspectInboxEntry(result.content, "Second atomic")).toEqual({
+      title: "Second atomic",
+      sourceDigest: secondDigest,
+      executeBound: true,
+    });
+  });
+
+  it("preserves unrelated bytes and rejects malformed or legacy disposition fields", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]);
+    expect(marked.content.replace(
+      "\n\n- _Disposition:_ `execute-bound`",
+      "",
+    )).toBe(INBOX);
+
+    const malformed = INBOX.replace(
+      "### `[ ]` **First atomic**",
+      "### `[ ]` **First atomic**\n- _Disposition:_ `execute-bound`",
+    );
+    expect(() => mutateInboxEntries(malformed, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ])).toThrow(/Malformed USER-INBOX disposition fields/);
+
+    const legacy = marked.content.replace(
+      "- _Disposition:_ `execute-bound`",
+      "- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
+    );
+    // The read reports the unreadable entry instead of discarding the whole queue with it.
+    const listing = listExecuteBoundInboxEntries(legacy);
+    expect(listing.entries).toEqual([]);
+    expect(listing.diagnostics).toEqual([expect.stringMatching(/Malformed USER-INBOX disposition fields/)]);
+  });
+
+  it("keeps well-formed execute-bound entries when a sibling heading is malformed", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+    // Corrupt only the first heading; the second entry stays byte-identical.
+    const corrupted = marked.content.replace("### `[ ]` **First atomic**", "### `[ ]` First atomic");
+
+    const listing = listExecuteBoundInboxEntries(corrupted);
+
+    expect(listing.entries).toEqual([{ title: "Second atomic", sourceDigest: secondDigest }]);
+    expect(listing.diagnostics).toEqual([expect.stringMatching(/Malformed USER-INBOX entry heading/)]);
+  });
+});
 
 describe("removeInboxEntry", () => {
   it("removes the title-matched entry and leaves siblings byte-stable", () => {
@@ -182,6 +359,76 @@ describe("removeInboxEntry", () => {
 
     expect(result.removed).toBe(false);
     expect(result.content).toBe(content);
+  });
+
+  it("refuses to remove a same-title replacement with a different source digest", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const replacement = INBOX.replace("- _Observation:_ first.", "- _Observation:_ replacement.");
+
+    expect(() => removeInspectedInboxEntry(
+      replacement,
+      inspected,
+    )).toThrow(/source digest changed/iu);
+  });
+
+  it("makes repeated generation-qualified removal an idempotent no-op", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+    const first = removeInspectedInboxEntry(INBOX, inspected);
+
+    expect(removeInspectedInboxEntry(first.content, inspected)).toEqual({
+      content: first.content,
+      removed: false,
+    });
+  });
+
+  it("refuses generation-qualified removal when the title is duplicated", () => {
+    const single = `## Errand
+
+### \`[ ]\` **Same title**
+
+- _Observation:_ one.
+`;
+    const inspected = inspectInboxEntry(single, "Same title");
+    const duplicate = `${single}
+### \`[ ]\` **Same title**
+
+- _Observation:_ two.
+`;
+
+    expect(() => removeInspectedInboxEntry(duplicate, inspected))
+      .toThrow("Duplicate USER-INBOX entry title 'Same title'.");
+  });
+});
+
+describe("inspectInboxEntry", () => {
+  it("keeps the source generation stable across LF and CRLF files", () => {
+    expect(inspectInboxEntry(INBOX.replaceAll("\n", "\r\n"), "First atomic").sourceDigest)
+      .toBe(inspectInboxEntry(INBOX, "First atomic").sourceDigest);
+  });
+
+  it("returns a digest-qualified generation that authorizes exact removal", () => {
+    const inspected = inspectInboxEntry(INBOX, "First atomic");
+
+    expect(inspected).toMatchObject({
+      title: "First atomic",
+      sourceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      executeBound: false,
+    });
+    expect(removeInspectedInboxEntry(INBOX, inspected)).toMatchObject({
+      removed: true,
+    });
+  });
+
+  it("keeps the source generation stable across execute-bound marking", () => {
+    const marked = INBOX.replace(
+      "### `[ ]` **First atomic**",
+      "### `[ ]` **First atomic**\n\n- _Disposition:_ `execute-bound`",
+    );
+
+    expect(inspectInboxEntry(marked, "First atomic")).toEqual({
+      ...inspectInboxEntry(INBOX, "First atomic"),
+      executeBound: true,
+    });
   });
 });
 
