@@ -69,9 +69,10 @@ exact current launch frontier without a scheduler or status record.
 ### `decompose-base-mobility`
 
 _Exposes:_ append-only committed-unlanded base advancement, descendant-base landing, and descendant-current-base
-extension of the shared integration anchor — including the landing relation for a candidate that has absorbed the
-base, and an authorized advancing-shape arm on the finalized-record commit gate. Both extensions name states only
-this member can produce, so no existing verdict moves. Named for advancement rather than refresh: the core owns an
+extension of the shared integration anchor — including the landing relations for a candidate that has absorbed the
+base or landed over a descendant base, and authorized advancing-shape arms on the finalized-record commit gate and
+the projection regeneration assert. These extensions name states only this member can produce, so no existing
+verdict moves. Named for advancement rather than refresh: the core owns an
 uncommitted same-base receipt refresh, and the two stay distinguishable at the command surface and in every
 refusal code.
 
