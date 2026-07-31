@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "format-tables-emphasis",
+  "origin": "inbox",
+  "intent": "Preserve configured emphasis and strong markers while formatting GFM tables",
+  "branch": "fix/format-tables-emphasis",
+  "createdAt": "2026-07-31T02:43:35.263Z",
+  "originEntry": "Stop `format:tables` from rewriting emphasis markers inside table cells",
+  "returnBranch": "main"
+}
