@@ -66,8 +66,9 @@ with an explicit success arm rather than returning a bare one.
           Task 1.2.b uses.
 
         - _Note:_ the two seams do not unify. The object readers take `readBlob(oid)`; the dependency reader is
-          `readGitV3DecomposeTreeSnapshot`, which needs `{ cwd, exec, readBlob(commit, path) }` plus `ref` and
-          `origin` operands and signals failure by throwing rather than by a result arm. Accept both as separate
+          `readGitV3DecomposeTreeSnapshot`, which needs `{ cwd, exec, readBlob(commit, path) }` plus `ref`,
+          `head`, and `origin` operands and signals failure by throwing rather than by a result arm. Accept both
+          as separate
           injected seams and map the dependency reader's throws onto the refusal arm at the validator boundary;
           unifying them would mean rewriting a core reader this work unit otherwise only consumes.
 
@@ -257,7 +258,7 @@ the landing commit itself.
 ### `[ ]` **2.1 Extend the pure producer to a descendant current base**
 
 - _Goal:_ The producer grants authority when the current configured base is a proven safe descendant of the
-  landing commit, while its exact-base verdicts stay byte-identical.
+  landing commit — under any admitted landing relation — while its exact-base verdicts stay byte-identical.
 
 - _Context:_ `produceDecompositionIntegrationAnchor` currently returns `stale: "current-base"` whenever
   `currentBaseHead` differs from the landing result, and its documentation states that it grants no descendant
@@ -285,6 +286,18 @@ the landing commit itself.
           `refused: "invalid-authority"` instead would surface a caller's mis-binding as a corrupt namespace at
           the handoff seam, which reports the wrong fault to the wrong reader.
 
+        - _Shape:_ the facts likewise gain a **required** landing-relation input, because two producer checks
+          cannot hold for a descendant-merge landing by construction — its landing's first parent is a descendant
+          rather than the prepared base, and its tree is the per-path composition rather than the candidate's.
+          `{ kind: "exact" }` runs every existing check byte-for-byte unchanged; `{ kind: "descendant-merge";
+          slotZeroDescent: { from; to }; composition: "matches" | "deviates" }` carries the adapter-derived facts
+          the producer cannot establish itself. Under that kind the producer verifies the candidate in the
+          landing's second slot, binds `slotZeroDescent` to the recorded prepared base and the landing's first
+          parent — mis-binding takes the same arm a mis-bound descent proof takes — and consumes `composition` in
+          place of the landing-tree equality, refusing `"deviates"` as the existing `landing-topology` fault. The
+          slot-equality and landing-tree checks it replaces are exactly the two a descendant-merge landing cannot
+          satisfy; every other check runs unchanged.
+
         - _Note:_ the cost is one production construction site plus the test literals building the same facts. The
           tree's second producer call site is a pure resolver with no production caller, so it inherits the
           requirement without a behavioral consequence and needs no work of its own.
@@ -300,6 +313,15 @@ the landing commit itself.
 
             - Refuses a descendant proof naming any pair other than the landing commit and the live base, on the
               same arm an unproven differing current base takes.
+
+            - Resolves a descendant-merge landing, verifying the candidate in the landing's second slot.
+
+            - Refuses `landing-topology` when the supplied composition verdict is `deviates`.
+
+            - Refuses a slot-zero descent proof naming any pair other than the prepared base and the landing's
+              first parent, on the same arm a mis-bound descent proof takes.
+
+            - Runs every exact-relation check unchanged under the `exact` landing relation.
 
             - Leaves `claimRetirement` derivation driven solely by the receipt's `candidateOwnership`.
 
@@ -329,16 +351,18 @@ the landing commit itself.
 
         - Generalize the fast-forward relation so it recognizes an advanced candidate. Advancement merges the base
           into the candidate, so the candidate becomes a two-parent commit whose first parent is its own
-          predecessor and whose second is the base. Landing that by merge is already covered — the landing commit's
-          first parent is still the base — but landing it by fast-forward moves the base onto the candidate itself,
-          where the one-parent relation fails on arity and the merge relation fails on order, and a real landing
-          goes unrecognized.
+          predecessor and whose second is the base. Landing that by merge at the prepared base is already covered —
+          the landing commit's first parent is still the prepared base — but landing it by fast-forward moves the
+          base onto the candidate itself, where the one-parent relation fails on arity and the merge relation fails
+          on order, and a real landing goes unrecognized.
 
         - _Shape:_ state the relation set exhaustively rather than by description, since this is the substrate the
-          implementation is built from. Merge is arity two with the prepared base in slot zero; fast-forward is
-          arity one with it in slot zero, **or** arity two with it in slot one. Merge is evaluated first, so no
-          existing verdict moves, and no other arity is admitted — an octopus commit carrying the prepared base in
-          a later slot is not a landing.
+          implementation is built from. A merge landing at the prepared base is arity two with the prepared base
+          in slot zero; a fast-forward landing is arity one with it in slot zero, **or** arity two with it in slot
+          one; a merge landing over a descendant base is arity two with a surviving candidate in slot one and a
+          strict descendant of the prepared base in slot zero, proven by the per-path test below rather than by
+          slot equality. Merge at the prepared base is evaluated first, so no existing verdict moves, and no other
+          shape is admitted — an octopus commit carrying the prepared base in a later slot is not a landing.
 
         - _Rationale:_ the recorded principle is that neither a candidate tree nor a history-wide receipt search
           proves landing — an exact relation reads the prepared base from a fixed slot of one pinned commit. This
@@ -355,14 +379,17 @@ the landing commit itself.
         - Enumerate the commits the current base has gained since the recorded prepared base — one bounded
           enumeration, not a walk — and apply the core's existing landing predicate to that set.
 
-        - _Shape:_ selection is part of the search rather than a consequence of it, because the predicate admits
-          more than one commit in the ordinary case. It matches any commit whose first parent is the recorded
-          prepared base, so the sanctioned merge landing yields **two** hits — the candidate commit, whose sole
-          parent is the prepared base, and the landing merge, whose first parent is — and both name the same
-          candidate head, so both replay identically against the same landing tree. Replay every hit, keep the
-          ones that replay, and take the one every other survivor is an ancestor of: the landing merge wherever
+        - _Shape:_ selection is part of the search rather than a consequence of it, because the relations admit
+          more than one commit in the ordinary case. The candidate relations match any commit carrying the
+          recorded prepared base in the named slot, so an unrelated sibling commit off the prepared base matches
+          alongside the candidate; replay each such hit and keep the ones that replay. A landing merge over a
+          descendant base carries the prepared base in no slot, so its own relation admits it structurally — its
+          second parent is a surviving candidate and its first parent strictly descends from the prepared base —
+          with its tree proven against the per-path composition: the candidate's content on every recorded touched
+          path, its first parent's elsewhere, regenerable projections excepted exactly as the landing verdict
+          excepts them. Then take the survivor every other survivor is an ancestor of: the landing merge wherever
           one exists, the candidate itself under a fast-forward landing. Taking the first hit instead would report
-          a merge landing as a fast-forward and move `landedCommitHead` off the base's own history, so one receipt
+          a merge landing as a fast-forward, recording a landing topology that never happened, so one receipt
           would carry different anchor facts before and after the base advanced — the second derivation route this
           phase exists to avoid.
 
@@ -370,12 +397,15 @@ the landing commit itself.
           arms already exist on the landing topology and the anchor result, so admitting descent still adds no
           result vocabulary.
 
-        - The filter is the transition replay alone. Candidate-tree equality is applied **after** selection, as a
-          refusal, and is not a survival test — a landing merge whose tree was altered during resolution replays
-          exactly (the replay reads only the prepared base and the candidate) while its tree does not match, and
-          dropping it there would elect its own candidate commit instead and report a fast-forward landing whose
-          tree the base does not hold. Refusing after selection preserves what the exact path says about the same
-          repository.
+        - For the candidate-shaped relations the filter is the transition replay alone; candidate-tree equality
+          is applied **after** selection, as a refusal, and is not a survival test — a landing merge at the
+          prepared base whose tree was altered during resolution replays exactly (the replay reads only the
+          prepared base and the candidate) while its tree does not match, and dropping it there would elect its
+          own candidate commit instead and report a fast-forward landing whose tree the base does not hold.
+          Refusing after selection preserves what the exact path says about the same repository. The
+          descendant-merge relation reaches the same doctrine through its admission: the parent structure
+          identifies the landing merge, and one whose tree deviates from the per-path composition is refused as
+          altered during resolution rather than dropped to elect its own candidate.
 
         - Guard the enumeration with the ancestry reader before running it: when the recorded prepared base is not
           an ancestor of the current base — history replaced beneath it — nothing in the base's ancestry can name
@@ -418,7 +448,20 @@ the landing commit itself.
             - Detects a fast-forward landing of an advanced candidate, where the prepared base is the base head's
               second parent.
 
-            - Detects a merge landing of an advanced candidate, where the landing commit's first parent is the base.
+            - Detects a merge landing of an advanced candidate, where the landing commit's first parent is the
+              prepared base.
+
+            - Detects a merge landing over a descendant base, recording the landing merge itself as the landing
+              commit.
+
+            - Detects a merge landing of an advanced candidate over a descendant base.
+
+            - Honors the regenerable-projection exception in the descendant landing merge's per-path test.
+
+            - Selects the descendant landing merge over its own surviving candidate commit.
+
+            - Refuses `transition-tree`, rather than electing the candidate commit, when a descendant landing
+              merge's tree deviates from the per-path composition.
 
             - Refuses an octopus commit carrying the prepared base in a slot beyond the second.
 
@@ -451,12 +494,19 @@ the landing commit itself.
 
     - `[ ]` **2.2.b Prove the descendant relation for the producer**
 
-        - Supply the `baseDescent` proof Task 2.1.a consumes, naming the located landing commit and the pinned
-          current base, derived from pinned objects and closed by the existing final reread.
+        - Supply the proofs Task 2.1.a consumes, derived from pinned objects and closed by the existing final
+          reread: the `baseDescent` proof naming the located landing commit and the pinned current base, and the
+          landing-relation input — `exact` for the prepared-base relations, or `descendant-merge` carrying the
+          slot-zero descent proof and the per-path composition verdict the search already established.
 
         - Build `test-first` (one behavior at a time):
 
             - Proves a strict descendant relation between landing commit and current base.
+
+            - Supplies the descendant-merge relation with its slot-zero descent and composition verdict for a
+              landing merge over a descendant base.
+
+            - Supplies the exact relation for both prepared-base landing shapes.
 
             - Refuses when history was replaced beneath the landing commit.
 
@@ -524,9 +574,9 @@ Authority is established before anything mutates, so the ordinary refusal costs 
 second overlap authority: recorded-path, mode, type, and dependency overlap is refused by the landing verdict ahead
 of it, and a conflict surviving that verdict is a surprise on a path the transition never recorded.
 
-Every candidate-side operation runs in the candidate's registered worktree, which is also the `cwd` the ROADMAP
-remedy resolves its base branch, index transaction, and write path against. The operator's own checkout is never
-the merge target.
+Every candidate-side operation runs in the candidate's registered worktree — the `cwd` the command's index
+transactions, projection staging, and write paths resolve against. The operator's own checkout is never the merge
+target.
 
 ### `[ ]` **3.1 Register the `--advance-base` mode**
 
@@ -708,10 +758,11 @@ the merge target.
 
 - _Rationale:_ the shared remedy fails this command twice over. Its discovery half requires the receipt's recorded
   result base to equal the live configured base, which is exactly the state advancement is not in. Its resolution
-  half renders from inputs the plan does not own — its render stamp resolves against the worktree head rather than
-  the result base — so its bytes and the plan's diverge precisely when those two differ, which under advancement is
-  always. Core finalization admits a candidate only when its ROADMAP equals a render stamped at the result base, so
-  taking the remedy's bytes would seal a receipt whose projection describes a tree that never existed.
+  half renders from inputs the plan does not own — it reads the merged index under an overlay its own discovery
+  must supply, where the plan renders the projected tree it already composed under the overlay it already holds.
+  Core finalization admits a candidate only when its ROADMAP equals the render its plan projected against the
+  result base, so taking the remedy's bytes would seal a receipt whose projection describes a tree that never
+  existed.
 
 - _Note:_ this is not a second renderer. It is the renderer the plan already runs, producing bytes the plan already
   projected, which is what makes the seal's projection-equality check in Task 3.4.a real on every path rather than
@@ -719,9 +770,8 @@ the merge target.
 
 - _Note:_ this surface is interim by construction. It exists because ROADMAP is currently carried on every branch;
   the project's storage direction moves operational-state projections off the tracked tier, at which point the
-  projection is not an allowed path and has no merge behavior at all. Keep the coupling to one excluded slot and
-  one render call so arriving there is a deletion rather than an unpicking. The render stamp's HEAD pinning — the
-  mechanism behind the divergence above — is owned by `roadmap-tooling`, not repaired here.
+  projection is not an allowed path and has no merge behavior at all. Keep the coupling to one excluded slot, one
+  render call, and one discovery arm so arriving there is a deletion rather than an unpicking.
 
     - `[ ]` **3.3.a Execute the append-only merge**
 
@@ -763,9 +813,10 @@ the merge target.
   proving the result is admissible.
 
 - _Rationale:_ the governing invariant is that the authored cut stays byte-identical while every base-derived fact
-  is re-derived by its own producer. Receipt identity carries the other half of that check — `v3ReceiptId` digests
+  is re-derived by its own producer. Receipt identity is what keeps the receipt in place — `v3ReceiptId` digests
   origin, source branch, and source head alone, so it is invariant under base movement and keeps the refreshed
-  receipt on its original path. Preparation identity covers the result base and legitimately changes.
+  receipt on its original path — while the authored-cut half is proven byte-wise wherever a restated record is
+  admitted. Preparation identity covers the result base and legitimately changes.
 
     - `[ ]` **3.4.a Seal the advanced receipt and preserve every semantic destination**
 
@@ -784,8 +835,9 @@ the merge target.
           the plan's own render rather than accepting a foreign one — merged bytes and projected bytes are the same
           bytes by construction, so the check is real on every path instead of carrying a hole. That is also what
           keeps an advanced receipt satisfying the invariant core finalization enforces on every other receipt:
-          `roadmapMismatch` admits a candidate only when its projection equals a render stamped at the result base,
-          and re-deriving through the plan preserves that standard rather than exempting advancement from it.
+          `roadmapMismatch` admits a candidate only when its projection equals the render its plan projected
+          against the result base, and re-deriving through the plan preserves that standard rather than exempting
+          advancement from it.
 
         - Build `test-first` (one behavior at a time):
 
@@ -801,17 +853,17 @@ the merge target.
 
             - Refuses when the merged result would alter a semantic destination.
 
-    - `[ ]` **3.4.b Stage the receipt and prove hook admission**
+    - `[ ]` **3.4.b Stage the receipt for one ordinary commit**
 
-        - Compare-and-swap the same receipt path and stage ROADMAP plus receipt for one ordinary commit.
+        - Compare-and-swap the same receipt path and stage ROADMAP plus receipt for one ordinary commit. Hook
+          admission is proven where the arms are built — Tasks 3.4.c, 3.4.e, and 3.4.f — and composed in
+          Task 5.1.b.
 
         - _Note:_ repetition follows the same authority rather than a one-shot guard. Comparing the recorded result
           base against the live base separates the two cases, so neither needs an advancement ledger, and the
           candidate stays committed-unlanded across both — the precondition in Task 3.2.a holds on every pass.
 
         - Build `test-first` (one behavior at a time):
-
-            - The staged receipt passes the core record-validation hook.
 
             - The receipt remains the sole live current receipt for its origin.
 
@@ -836,8 +888,12 @@ the merge target.
           inherited paths alongside the exact expected set.
 
         - _Shape:_ distinguishing a restatement from an amendment is the arm's real decision, and receipt identity
-          is the instrument — an advanced receipt keeps its identity and path while its preparation identity
-          moves, where an amendment would move both or neither.
+          alone cannot make it — identity digests the origin and its source, never the authored cut, so a record
+          whose authored block was rewritten presents the same identity-and-path signature a restatement does. The
+          arm decides on bytes the gate already reads: the staged record's authored block must be byte-equal to
+          the receipt at `HEAD`, and only the machine-derived facts may move. The advancement command's own
+          byte-identical-cut abort is the producer-side twin of this proof, not a substitute — the gate defends
+          against every producer.
 
         - _Note:_ this extends the gate rather than redefining it. No existing caller can produce the shape, since
           only advancement commits a candidate whose receipt already exists, so the arm is unreachable for every
@@ -848,6 +904,8 @@ the merge target.
             - Admits a base-advancing merge whose record change restates the receipt at its existing path.
 
             - Refuses an amendment that moves receipt identity.
+
+            - Refuses an amendment whose authored block moved under a stable receipt identity.
 
             - Refuses an ordinary merge that introduces a retirement record.
 
@@ -890,6 +948,85 @@ the merge target.
             - Refuses to restate a claim that is not the live claim for this candidate.
 
             - A refused advancement leaves the binding as it was.
+
+    - `[ ]` **3.4.e Admit the restated receipt at the projection regeneration assert**
+
+        - _Goal:_ The advancement commit passes the pre-commit projection assert re-rendering under the overlay
+          the plan rendered with, and every commit shape the assert judged before the extension is judged
+          identically after it.
+
+        - _Context:_ the assert independently re-renders the staged projection and demands byte equality,
+          discovering its transition overlay from the staged retirement record — and its discovery recognizes
+          only an added record, because every producer before advancement commits its receipt exactly once.
+          Advancement stages a modification at that same path, so an unextended discovery re-renders with no
+          overlay while the staged bytes were rendered with one; the divergence reaches rendered entries, because
+          the overlay suppresses the retired origin's own entry and the source-ref pin guarantees that entry is
+          present to suppress.
+
+        - Extend the discovery to accept a modified record at the receipt's own path under the same proof as the
+          gate arm in Task 3.4.c: authored block byte-equal to the receipt at `HEAD`, machine-derived facts free
+          to move. A restated receipt grants its overlay; an amendment grants nothing, exactly as a malformed
+          added record grants nothing today.
+
+        - Build `test-first` (one behavior at a time):
+
+            - Admits advancement's staged projection, re-rendering under the restated record's overlay.
+
+            - Grants no overlay for a modified record whose authored block moved.
+
+            - Discovers an added record's overlay exactly as before the extension.
+
+            - Still rejects a staged projection whose bytes mismatch the overlay-aware re-render.
+
+    - `[ ]` **3.4.f Classify restated provenance in the merge-overlay discovery**
+
+        - _Goal:_ The commit-time conflict remedy discovers advancement's transition authority instead of
+          refusing the restated receipt as namespace corruption, so the pre-commit hook family admits the
+          advancement commit end to end.
+
+        - _Context:_ the ROADMAP auto-remedy runs at every commit and its eligibility is shape-level — a
+          merge-like state with the projection staged and no wider conflict is exactly advancement's commit
+          shape. Its discovery classifies the staged record against each parent's copy of the same path, and a
+          parent carrying different bytes reads as namespace corruption — the state a restated receipt produces
+          against the candidate's own pre-merge tip by construction.
+
+        - Extend the parent-provenance classification with the restatement arm — the same proof as Tasks 3.4.c
+          and 3.4.e: a parent copy whose authored block is byte-equal to the staged record's, with only
+          machine-derived facts moved, is restated provenance rather than conflict.
+
+        - _Shape:_ the extension is two-layered, because the provenance vocabulary is a closed contract
+          recording where **exact** receipt bytes were observed and a restated parent is exactly not that. The
+          union gains a named restated kind carrying the parent's commit oid, and the pure selector's
+          provenance-validity check admits that kind as satisfying its at-least-one-parent requirement, under
+          the same oid binding an exact entry carries. Pushing a restated parent through the existing
+          exact-bytes kinds instead would silently falsify the contract every other caller reads; relaxing the
+          validity check without a recorded kind would erase the distinction its refusal exists to draw. With
+          both layers extended, discovery succeeds on its own terms — at commit time the restated record's
+          result base is the live configured base — and the remedy's re-render converges with the plan's staged
+          bytes, the equality the regeneration assert independently enforces.
+
+        - _Note:_ the command's own resolution still never routes through the remedy. Mid-merge, before the
+          restatement is staged, discovery refuses exactly as Task 3.3's rationale records; this arm acts at the
+          hook's invocation, where the restated record is already staged.
+
+        - Build `test-first` (one behavior at a time):
+
+            - Classifies a parent copy differing only in machine-derived facts as restated provenance.
+
+            - Records the restated kind distinctly from the exact-bytes provenance kinds, bound to the parent's
+              commit oid.
+
+            - The selector admits a snapshot whose only parent provenance is restated.
+
+            - The selector still refuses a snapshot carrying no parent provenance at all.
+
+            - Still classifies a parent copy whose authored block moved as conflicting.
+
+            - Discovers the restated receipt's overlay at advancement's commit shape.
+
+            - The remedy's re-render at that shape byte-equals the plan's staged projection.
+
+            - Every non-advancement provenance classification is unchanged.
 
 ## **Phase 4:** Recovery vocabulary extension
 
@@ -1023,6 +1160,9 @@ e2e homes. No full transform or remote cross-product is rebuilt here.
           the base — since advancement changes the candidate's parent arity and only one of those was reachable
           before.
 
+        - Cover the merge landing over a descendant base for both candidate arities, proving the recorded landing
+          topology is the merge itself rather than a fast-forward at the candidate.
+
         - Cover a base advance whose only recorded-path change is the projection, which is the ordinary case and
           the one a touched-path reading would refuse.
 
@@ -1038,6 +1178,10 @@ e2e homes. No full transform or remote cross-product is rebuilt here.
 
         - Cover the refusal path as well: a refused advancement leaves the candidate committed and unlanded,
           exactly as it was found.
+
+        - Cover the advancement commit against the complete pre-commit hook family — the record gate's advancing
+          arm, the projection assert's restated-record discovery, and the conflict remedy's restated-provenance
+          classification — as one committed path rather than only as per-hook units.
 
         - Carry the composition through claim retirement, not only to the anchor: advance, land, merge an
           unrelated commit, then reclaim the candidate through the cleanup gate. A matrix that stops at anchor
@@ -1102,8 +1246,10 @@ e2e homes. No full transform or remote cross-product is rebuilt here.
   merge.
 - `[ ]` A regenerable projection is the only automatically resolved path, and it is re-derived rather than merged;
   every other conflict restores the bounded candidate.
-- `[ ]` The restaged same-path receipt passes the core hook and remains the sole live current receipt, through an
-  authorized advancing-shape arm on the commit gate that leaves every existing caller's verdict unchanged.
+- `[ ]` The restaged same-path receipt passes the core hooks and remains the sole live current receipt, through
+  authorized advancing-shape arms on the commit gate, the projection regeneration assert, and the conflict
+  remedy's provenance discovery — all deciding restatement by the same authored-block byte-equality proof — that
+  leave every existing caller's verdict unchanged.
 - `[ ]` Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
 - `[ ]` The shared integration anchor resolves over a descendant current base — after the canonical receipt and
   transition validate against the reread configured base — so a member stays launchable across unrelated commits
@@ -1131,6 +1277,8 @@ e2e homes. No full transform or remote cross-product is rebuilt here.
   mutating the repository, on a structural test rather than a source-kind check.
 - `[ ]` A decomposition landed by fast-forward onto an advanced candidate resolves its anchor, with every
   pre-existing exact-base verdict unchanged.
+- `[ ]` A merge landing over a descendant base records the landing merge itself as the landing commit, so one
+  receipt's anchor facts read the same before and after unrelated base movement.
 - `[ ]` A landed advanced candidate retires through the ordinary receipt-backed cleanup gate, because advancement
   restated its claim binding alongside the record rather than leaving the claim bound to the superseded base.
 - `[ ]` A refused advancement leaves the candidate exactly as it found it — committed, unlanded, and no further

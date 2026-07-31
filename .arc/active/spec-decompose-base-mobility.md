@@ -173,11 +173,29 @@ therefore accepts a modified record at the receipt's own path under exactly the 
 arm applies: authored block byte-equal to the receipt at `HEAD`, machine-derived facts free to move. A restated
 receipt grants its overlay; an amendment grants nothing, exactly as a malformed added record grants nothing today.
 
+**The conflict remedy's provenance discovery gains the third arm of the same proof.** The ROADMAP auto-remedy runs
+at every commit, not only where a caller invokes it, and its eligibility is shape-level: a merge-like state with
+the projection staged and no wider conflict is exactly advancement's commit. Its discovery classifies the staged
+record against each parent's copy of the same path, and a parent carrying different bytes reads as namespace
+corruption — the state a restated receipt produces against the candidate's own pre-merge tip by construction. The
+classification therefore gains the restatement arm: a parent copy whose authored block is byte-equal to the staged
+record's, with only machine-derived facts moved, is restated provenance rather than conflict. The arm is
+two-layered, because the provenance vocabulary is a closed contract recording where exact receipt bytes were
+observed and a restated parent is exactly not that: the vocabulary gains a named restated kind bound to the
+parent's commit, and the selector's provenance-validity check admits that kind as satisfying its parent
+requirement. Recording a restated parent through the exact-bytes kinds instead would silently falsify the contract
+every other caller reads; relaxing validity without a recorded kind would erase the distinction its refusal exists
+to draw. With both layers extended, discovery succeeds on its own terms — at commit time the restated record's
+result base _is_ the live configured base — and the remedy's re-render converges with the plan's staged bytes, the
+equality the regeneration assert independently enforces. The command's own resolution still never routes through
+the remedy: mid-merge, before the restatement is staged, discovery refuses exactly as recorded above.
+
 **Interim by construction.** This whole surface exists because ROADMAP is currently carried on every branch. The
 project's storage direction moves operational-state projections off the tracked tier, at which point ROADMAP is not
 an allowed path, not in the transition patch, and has no merge behavior to resolve. The design is deliberately
-shaped so that arriving there is a deletion — one excluded path, one render call, and one discovery arm — rather
-than an unpicking of ROADMAP-specific reasoning spread across the landing verdict, the seal, and the merge.
+shaped so that arriving there is a deletion — one excluded path, one render call, and the restatement discovery
+arms — rather than an unpicking of ROADMAP-specific reasoning spread across the landing verdict, the seal, and the
+merge.
 
 #### Advancing the base re-derives every base-dependent fact and never the cut
 
@@ -357,7 +375,7 @@ The core defines `DecompositionIntegrationAnchor` and derives it only where the 
 landing commit. Mobility reuses that shape unchanged — it already carries `currentBaseHead` and `landedCommitHead`
 as separate fields, so a descendant current base needs no new field on the anchor itself, no second anchor fact,
 and no consumer interface. What the derivation gains is an input, not an output: the producer takes the descent
-relation as a supplied fact (below). It extends at two named points:
+relation and the landing-relation kind as supplied facts (below). It extends at two named points:
 
 - the **pure producer**, which today refuses a descendant current base outright and grants no descendant mobility
   by construction; and
@@ -389,7 +407,9 @@ replays every such match against the recorded transition and keeps only those th
 descendant base carries the prepared base in no slot at all, so it is admitted by its own relation rather than by
 replay: its second parent is a surviving candidate, its first parent strictly descends from the prepared base, and
 its tree takes the candidate's content on every recorded touched path and its first parent's elsewhere —
-regenerable projections excepted, exactly as the landing verdict excepts them. The search then takes the survivor
+regenerable projections excepted, exactly as the landing verdict excepts them. The parent structure is what
+identifies the landing merge; one so identified whose tree deviates from that composition is refused as altered
+during resolution rather than dropped to elect its own candidate. The search then takes the survivor
 that descends from every other: the landing merge where one exists, the candidate itself under a fast-forward
 landing. Nothing surviving is not-landed; survivors with no ancestry relation between them are ambiguous, and both
 are existing arms. Selecting by enumeration order instead would report a merge landing as a fast-forward, recording
@@ -429,8 +449,16 @@ constraining costs identical machinery and returns a correctly-performed landing
 repository whose merge configuration the operator may not control.
 
 The producer performs no ref or history lookup of its own, so descent reaches it as a supplied fact bound to the
-exact landing/current pair it describes; a proof naming any other pair authorizes nothing. What that supplied
-descent replaces is only the producer's exact-equality refusal. The adapter's separate insistence that the
+exact landing/current pair it describes; a proof naming any other pair authorizes nothing. Under the prepared-base
+relations that supplied descent replaces only the producer's exact-equality current-base refusal, and every other
+check runs byte-for-byte unchanged. The descendant-merge relation cannot pass two of those checks by
+construction — its landing's first parent is a descendant rather than the prepared base, and its tree is the
+per-path composition rather than the candidate's — so the supplied fact widens to carry the relation kind, and the
+producer's arm for that kind verifies what remains its own to verify: the candidate in the landing's second slot,
+a slot-zero strict-descent proof bound to the recorded prepared base and the landing's first parent, and the
+adapter-derived per-path composition verdict in place of landing-tree equality — refusing a deviating composition
+as the same landing-topology fault, and a mis-bound proof on the same arm a mis-bound descent proof takes. The
+adapter's separate insistence that the
 candidate tree equal the _current base_ tree is **relocated, not removed**: it is re-read against the selected
 landing commit, where it means what it always meant, rather than against a base that has since advanced — where it
 would refuse every descendant case by construction. It stays a refusal applied after selection rather than a
@@ -454,11 +482,11 @@ claim-retirement gate, landed-handoff emission, and the graduation transaction b
 it by consumer would mint the second consumer interface this design forbids. The mobility layer performs no
 teardown of its own, and no second receipt or durable publication ledger is introduced.
 
-The descent relation reaches the producer as a **required** input rather than an optional one. Every consumer in
-service today resolves through the single configured-base adapter, so requiring the field grants no reach that
-optionality would withhold; what it buys is that no future producer path can take exact semantics by silently
-omitting the fact. Descent is a claim about a specific pair, and a caller that has not established it should be
-unable to say nothing and be understood as saying "exact".
+The descent relation and the landing-relation kind reach the producer as **required** inputs rather than optional
+ones. Every consumer in service today resolves through the single configured-base adapter, so requiring the fields
+grants no reach that optionality would withhold; what it buys is that no future producer path can take exact
+semantics by silently omitting the fact. Descent is a claim about a specific pair, and a caller that has not
+established it should be unable to say nothing and be understood as saying "exact".
 
 The cost is bounded and paid in one place: one production construction site and the test literals that build the
 same facts. The second producer call site in the tree is a pure resolver with no production caller, so it inherits
@@ -536,9 +564,9 @@ Rejected. Exact refs, canonical evidence, bounded Git state, and idempotent retr
 - A regenerable projection is the only automatically resolved path, and it is re-derived rather than merged; every
   other conflict restores the bounded candidate.
 - The restaged same-path receipt passes the core hooks and remains the sole live current receipt, through
-  authorized advancing-shape arms on the commit gate and the projection regeneration assert — both deciding
-  restatement by the same authored-block byte-equality proof — that leave every existing caller's verdict
-  unchanged.
+  authorized advancing-shape arms on the commit gate, the projection regeneration assert, and the conflict
+  remedy's provenance discovery — all deciding restatement by the same authored-block byte-equality proof — that
+  leave every existing caller's verdict unchanged.
 - Exact and strict-descendant bases land only when all touched paths, modes, types, and dependencies replay.
 - The shared integration anchor resolves over a descendant current base — after the canonical receipt and
   transition validate against the reread configured base — so a member stays launchable across unrelated commits
