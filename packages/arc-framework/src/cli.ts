@@ -547,8 +547,9 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
   ));
 

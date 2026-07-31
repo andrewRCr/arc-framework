@@ -1,178 +1,165 @@
-/**
- * `promoteErrand` — the composed core of `arc errand promote`.
- *
- * Promotes a full-protection errand that has crossed a wrapper floor into a work
- * unit: renames the errand branch into the WU branch (commits preserved), mints
- * the backing `meta-<name>.md`, and retires the errand record. The crossing-*out*
- * seam of the errand lattice — like `open`/`close`/`retire` it composes shipped
- * primitives (semantic meta rendering + branch rename + record removal/push) directly,
- * rather than routing through the WU transition executor (whose table is keyed
- * over WU states an errand does not occupy).
- *
- * Which floor the work crossed routes the WU's entry stage: a **derivation**
- * crossing (design must now be authored) enters planning (`plan/<name>` +
- * `Planning` + `Current Workflow: draft-design`); a **scale** crossing (a
- * determinate concern that now needs a durable cross-session plan) enters
- * `Active` on `<type>/<name>` for a brief + task-list backfill. Commits already
- * exist on the branch, so neither runs an activation ceremony.
- *
- * The git seams and identity are injected (three-layer architecture).
- *
- * @module
- */
+/** Recoverable ordinary-v3 Errand-to-work-unit promotion composition. */
 
-import { join } from "node:path";
-
-import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
-import { MetaPrioritySchema, MetaWorkClassSchema } from "../active/meta-schema.js";
 import { SlugSchema } from "../kernel/index.js";
-import { resolveArcPath } from "../layout/index.js";
-import { ensureDir, type MkdirFn, type ReadFileFn, type WriteFileFn } from "../template/files.js";
-import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
-import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./record.js";
-import type { ErrandRecordIO } from "./ref-tree.js";
+import { createLocusMutationResult } from "../locus/mutation.js";
+import type { LocusMutationResultV1, LocusRefusalReason,
+  LocusMutationErrorCode } from "../locus/schema/index.js";
+import type { TransientIdentityRecord } from "./identity-record.js";
+import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 
-/** Which wrapper floor the errand crossed — routes the WU's entry stage. */
+/** Which wrapper floor the Errand crossed. */
 export type PromoteFloor = "derivation" | "scale";
 
-/** Filesystem seam for minting the WU meta and probing for a name collision. */
-export interface PromoteErrandFs {
-  mkdir: MkdirFn;
-  writeFile: WriteFileFn;
-  readFile: ReadFileFn;
+type IdentityRead =
+  | { kind: "ready"; record: TransientIdentityRecord | null }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+
+export interface PromotionFrameReceipt {
+  kind: "applied" | "idempotent";
+  branch: string;
+  metaPath: string;
+  recordId: string;
+  leaseId: string;
+  checkoutPath: string;
+  allocation: "primary" | "spawned";
+  parentReleased: boolean;
 }
 
-/** The seams `promoteErrand` drives: the record IO, a meta-write fs seam, and the repo root. */
-export interface PromoteErrandContext {
-  io: ErrandRecordIO;
-  fs: PromoteErrandFs;
-  cwd: string;
+export type PromotionFrameResult = PromotionFrameReceipt
+  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "error"; message: string };
+
+type RetirementResult =
+  | { kind: "applied" | "idempotent" }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+
+export interface PromoteOrdinaryErrandDependencies {
+  readIdentity(): Promise<IdentityRead>;
+  recoverPromoted(): Promise<PromotionFrameResult | null>;
+  replaceFrame(record: OrdinaryErrandRecord): Promise<PromotionFrameResult>;
+  retire(record: OrdinaryErrandRecord): Promise<RetirementResult>;
 }
 
-/** Operands for {@link promoteErrand}. */
-export interface PromoteErrandParams {
-  /** The errand slug to promote — its logical identity and the record's tree key. */
+export interface PromoteOrdinaryErrandOptions {
   slug: string;
-  /** The new work-unit name (the meta filename stem and branch leaf). */
   name: string;
-  /** The execution-phase branch type, used immediately for scale crossings and deferred for derivation. */
   type: string;
-  /** Which floor the errand crossed — routes the entry stage. */
   floor: PromoteFloor;
-  /** Identity owning the promoted WU — the meta `Owner`. */
-  owner: string;
-  /** WU priority for the meta; the meta-field default applies when omitted. */
-  priority?: string;
-  /** WU `Class` for the meta; defaults to `[TBD]` (resolved at the planning entry) when omitted. */
-  class?: string;
+  protection: "full" | "partial";
+  dependencies: PromoteOrdinaryErrandDependencies;
 }
 
-/** Outcome of {@link promoteErrand}. */
-export type PromoteErrandResult =
-  | { kind: "promoted"; record: ErrandRecord; branch: string; metaPath: string; push: ErrandPushOutcome }
-  | { kind: "no-record"; slug: string }
-  | { kind: "name-taken"; metaPath: string };
-
-/** The active-work directory the promoted meta lands in, repo-relative. */
-const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
-
-/**
- * Promote an errand to a work unit: rename its branch (commits preserved), mint
- * the backing meta at the floor-dictated stage, and retire the record.
- *
- * Resolves the record by slug — an absent record is `no-record`. Refuses with
- * `name-taken` when a `meta-<name>.md` already exists (no clobber of a live WU).
- * Otherwise renames the record's branch to the floor-routed WU branch, writes
- * the meta, then removes the record and pushes the removal — leaving the renamed
- * branch untouched. The record is retired **last**, so any failure before it
- * leaves the errand recoverable.
- *
- * @param ctx - The record IO, the meta-write fs seam, and the repo root.
- * @param params - The slug, new WU name/type, crossed floor, owner, and optional priority/class.
- * @returns The promotion outcome — promoted, no-record, or name-taken.
- */
-export async function promoteErrand(
-  ctx: PromoteErrandContext,
-  params: PromoteErrandParams,
-): Promise<PromoteErrandResult> {
-  const slug = params.slug.trim();
-  if (slug === "") throw new Error("promoteErrand: slug must be non-empty");
-  const name = params.name.trim();
-  if (name === "") throw new Error("promoteErrand: name must be non-empty");
-  if (name === "." || name === ".." || /[\\/]/u.test(name)) {
-    throw new Error("promoteErrand: name must not contain path separators");
+/** Promote one live exact ordinary-v3 generation and retire identity last. */
+export async function promoteOrdinaryErrand(
+  options: PromoteOrdinaryErrandOptions,
+): Promise<LocusMutationResultV1> {
+  if (options.protection !== "full") {
+    return refusal("full-protection-required", "Errand promotion requires full branch protection.");
   }
-  const type = params.type.trim();
-  if (type === "") throw new Error("promoteErrand: type must be non-empty");
-
-  const { io, fs, cwd } = ctx;
-
-  const record = await readErrandRecord(io, slug);
-  if (record === null) return { kind: "no-record", slug };
-
-  const metaPath = resolveArcPath({
-    kind: "work-unit-artifact",
-    placement: { kind: "active", scope: { kind: "project" } },
-    slug: SlugSchema.parse(name),
-    artifact: "meta",
-  });
-  if (await fileExists(fs.readFile, join(cwd, metaPath))) {
-    return { kind: "name-taken", metaPath };
+  const slug = options.slug.trim();
+  const name = options.name.trim();
+  const type = options.type.trim();
+  if (slug === "" || name === "" || type === "") {
+    return refusal("promotion-source-invalid", "Promotion slug, name, and branch type must be non-empty.");
+  }
+  if (!SlugSchema.safeParse(name).success || name === "." || name === ".." || /[\\/]/u.test(name)) {
+    return refusal("work-unit-name-taken", "The requested work-unit name is invalid.");
   }
 
-  const branch = promotionBranchFor(params, name, type);
-  const meta = renderMetaFile(name, metaOverridesFor(params, branch));
-  // Rename the record's branch into the WU branch — preserve commits, prefix-agnostic.
-  await io.exec("git", ["branch", "-m", record.branch, branch]);
-
-  // Mint the backing meta at the stage the crossed floor dictates.
-  await ensureDir(join(cwd, ACTIVE_DIR), fs.mkdir);
-  await fs.writeFile(join(cwd, metaPath), meta);
-
-  // Retire the record last — the renamed branch is untouched, so this never
-  // strands commits, and a failure before here leaves the errand recoverable.
-  await removeErrandRecord(io, slug);
-  const push = await reconcileErrandPush(io);
-
-  return { kind: "promoted", record, branch, metaPath, push };
-}
-
-/** Resolve the branch a promoted errand occupies at its floor-routed entry stage. */
-function promotionBranchFor(params: PromoteErrandParams, name: string, type: string): string {
-  if (params.floor === "derivation") return `plan/${name}`;
-  return `${type}/${name}`;
-}
-
-/** Build the meta field overrides for a promotion, routed by the crossed floor. */
-function metaOverridesFor(params: PromoteErrandParams, branch: string): MetaRenderOverrides {
-  const overrides: MetaRenderOverrides = {
-    owner: params.owner,
-    branch,
-    lastCompleted: "Errand promoted to work unit",
-  };
-  if (params.priority !== undefined) overrides.priority = MetaPrioritySchema.parse(params.priority);
-  if (params.class !== undefined) overrides.workClass = MetaWorkClassSchema.parse(params.class);
-
-  if (params.floor === "derivation") {
-    // Design must now be authored — enter planning at the draft-design stage.
-    overrides.state = "Planning";
-    overrides.currentWorkflow = "draft-design";
-    overrides.nextAction = "Resolve the design before further implementation.";
-  } else {
-    // A determinate concern that now needs a durable plan — enter Active for a
-    // brief + task-list backfill; commits already exist, so no activation ceremony.
-    overrides.state = "Active";
-    overrides.nextAction = "Backfill a brief spec and task list, then continue implementation.";
-  }
-  return overrides;
-}
-
-/** Whether a path is readable — the meta-collision probe (absent file → `false`). */
-async function fileExists(readFile: ReadFileFn, path: string): Promise<boolean> {
+  let read: IdentityRead;
   try {
-    await readFile(path);
-    return true;
-  } catch {
-    return false;
+    read = await options.dependencies.readIdentity();
+  } catch (error) {
+    return failure("locus.errand-promote.identity-read", message(error));
   }
+  if (read.kind === "refused") return refusal("identity-conflict", read.reason);
+  if (read.kind === "error") return failure("locus.errand-promote.identity-read", read.message);
+  if (read.record === null) {
+    const recovered = await runFrame("locus.errand-promote.recover", () => options.dependencies.recoverPromoted());
+    if (recovered === null) {
+      return refusal("promotion-source-invalid", `No exact Errand or promoted work-unit generation exists for '${slug}'.`);
+    }
+    if ("result" in recovered) return recovered.result;
+    return success(slug, null, recovered.frame);
+  }
+  if (!isOrdinary(read.record) || read.record.slug !== slug || read.record.state !== "open") {
+    return refusal("promotion-source-invalid", `Identity '${slug}' is not a live ordinary v3 Errand.`);
+  }
+  const record = read.record;
+  const replaced = await runFrame("locus.errand-promote.frame", () => options.dependencies.replaceFrame(record));
+  if (replaced === null) return failure("locus.errand-promote.frame", "Promotion frame returned no result.");
+  if ("result" in replaced) return replaced.result;
+
+  let retired: RetirementResult;
+  try {
+    retired = await options.dependencies.retire(record);
+  } catch (error) {
+    return failure("locus.errand-promote.identity", message(error));
+  }
+  if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
+  if (retired.kind === "error") return failure("locus.errand-promote.identity", retired.message);
+  return success(slug, record, {
+    ...replaced.frame,
+    kind: replaced.frame.kind === "applied" || retired.kind === "applied" ? "applied" : "idempotent",
+  });
+}
+
+async function runFrame(
+  code: LocusMutationErrorCode,
+  operation: () => Promise<PromotionFrameResult | null>,
+): Promise<{ frame: PromotionFrameReceipt } | { result: LocusMutationResultV1 } | null> {
+  let frame: PromotionFrameResult | null;
+  try {
+    frame = await operation();
+  } catch (error) {
+    return { result: failure(code, message(error)) };
+  }
+  if (frame === null) return null;
+  if (frame.kind === "refused") return { result: refusal(frame.reason, frame.message) };
+  if (frame.kind === "error") return { result: failure(code, frame.message) };
+  return { frame };
+}
+
+function success(
+  slug: string,
+  record: OrdinaryErrandRecord | null,
+  frame: PromotionFrameReceipt,
+): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: frame.kind,
+    operation: "errand-promote",
+    allocation: { kind: frame.allocation, checkoutPath: frame.checkoutPath },
+    recordId: frame.recordId,
+    leaseId: frame.leaseId,
+    activeLocusPath: frame.checkoutPath,
+    sessionHomePath: frame.checkoutPath,
+    identity: null,
+    originEntry: record?.originEntry ?? null,
+    restoredParent: null,
+    nextOffer: null,
+    recommendedPromptText: `Promoted Errand '${slug}' to '${frame.branch}' and made its checkout the work-unit session home.`,
+  });
+}
+
+function isOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
+  return record.version === 3 && record.kind === "errand" && record.purpose === "errand";
+}
+
+function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {
+  return createLocusMutationResult({ outcome: "refused", operation: "errand-promote", reason, recommendedPromptText: text });
+}
+
+function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-promote",
+    error: { code, message: text || "Errand promotion failed" },
+    recommendedPromptText: "Inspect the retained Errand identity and local frame evidence before retrying.",
+  });
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
