@@ -373,7 +373,7 @@ describe("v3 decomposition finalization boundary", () => {
         worktreeRecord: canonicalize(receipt),
       })).toEqual({
         status: "refused",
-        refusal: { code: "candidate-parent-record", locus: "parent" },
+        refusal: { code: "candidate-parent-record", locus: "parent", recordKind: parentKind },
       });
     },
   );

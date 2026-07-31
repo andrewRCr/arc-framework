@@ -17,6 +17,8 @@ const PREPARED_BASE = "b".repeat(40);
 const CANDIDATE_HEAD = "c".repeat(40);
 const CANDIDATE_TREE = "d".repeat(40);
 const MERGE_HEAD = "e".repeat(40);
+const DESCENDANT_HEAD = "f".repeat(40);
+const DESCENDANT_PARENT = "1".repeat(40);
 
 function facts(
   overrides: Partial<DecompositionIntegrationFacts> = {},
@@ -28,6 +30,8 @@ function facts(
     candidateCommit: { head: CANDIDATE_HEAD, tree: CANDIDATE_TREE },
     receiptTransitionTree: CANDIDATE_TREE,
     currentBaseHead: CANDIDATE_HEAD,
+    baseDescent: { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: {
       kind: "fast-forward",
       beforeHead: PREPARED_BASE,
@@ -148,11 +152,143 @@ describe("produceDecompositionIntegrationAnchor", () => {
     }))).toEqual({ status: "not-landed" });
   });
 
-  it("refuses a moved configured base, including descendant-only mobility", () => {
+  it("refuses a moved configured base without a descendant proof", () => {
     const result = produceDecompositionIntegrationAnchor(facts({
-      currentBaseHead: "f".repeat(40),
+      currentBaseHead: DESCENDANT_HEAD,
     }));
     expect(result).toEqual({ status: "stale", reason: "current-base" });
+  });
+
+  it("resolves a proven descendant current base while preserving the landing commit", () => {
+    const result = produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: CANDIDATE_HEAD,
+        to: DESCENDANT_HEAD,
+      },
+    }));
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.anchor.currentBaseHead).toBe(DESCENDANT_HEAD);
+    expect(result.anchor.landedCommitHead).toBe(CANDIDATE_HEAD);
+  });
+
+  it("refuses a descendant proof that is not bound to the landing and live base", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: PREPARED_BASE,
+        to: DESCENDANT_HEAD,
+      },
+    }))).toEqual({ status: "stale", reason: "current-base" });
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: CANDIDATE_HEAD,
+        to: MERGE_HEAD,
+      },
+    }))).toEqual({ status: "stale", reason: "current-base" });
+  });
+
+  it("resolves a descendant-merge landing from its bound slot and composition proofs", () => {
+    const result = produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: MERGE_HEAD,
+        to: DESCENDANT_HEAD,
+      },
+      landingRelation: {
+        kind: "descendant-merge",
+        slotZeroDescent: { from: PREPARED_BASE, to: DESCENDANT_PARENT },
+        composition: "matches",
+      },
+      landing: {
+        kind: "merge",
+        resultHead: MERGE_HEAD,
+        resultTree: "2".repeat(40),
+        parents: [DESCENDANT_PARENT, CANDIDATE_HEAD],
+      },
+    }));
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.anchor).toMatchObject({
+      currentBaseHead: DESCENDANT_HEAD,
+      landedCommitHead: MERGE_HEAD,
+      landedTree: "2".repeat(40),
+      landing: { kind: "merge" },
+    });
+  });
+
+  it("refuses a descendant merge whose per-path composition deviates", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: MERGE_HEAD,
+        to: DESCENDANT_HEAD,
+      },
+      landingRelation: {
+        kind: "descendant-merge",
+        slotZeroDescent: { from: PREPARED_BASE, to: DESCENDANT_PARENT },
+        composition: "deviates",
+      },
+      landing: {
+        kind: "merge",
+        resultHead: MERGE_HEAD,
+        resultTree: "2".repeat(40),
+        parents: [DESCENDANT_PARENT, CANDIDATE_HEAD],
+      },
+    }))).toEqual({ status: "refused", reason: "landing-topology" });
+  });
+
+  it("refuses a mis-bound descendant-merge slot-zero proof as a current-base mismatch", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: MERGE_HEAD,
+        to: DESCENDANT_HEAD,
+      },
+      landingRelation: {
+        kind: "descendant-merge",
+        slotZeroDescent: { from: CANDIDATE_HEAD, to: DESCENDANT_PARENT },
+        composition: "matches",
+      },
+      landing: {
+        kind: "merge",
+        resultHead: MERGE_HEAD,
+        resultTree: "2".repeat(40),
+        parents: [DESCENDANT_PARENT, CANDIDATE_HEAD],
+      },
+    }))).toEqual({ status: "stale", reason: "current-base" });
+  });
+
+  it("refuses a descendant merge that does not carry the candidate in slot one", () => {
+    expect(produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: DESCENDANT_HEAD,
+      baseDescent: {
+        kind: "descendant",
+        from: MERGE_HEAD,
+        to: DESCENDANT_HEAD,
+      },
+      landingRelation: {
+        kind: "descendant-merge",
+        slotZeroDescent: { from: PREPARED_BASE, to: DESCENDANT_PARENT },
+        composition: "matches",
+      },
+      landing: {
+        kind: "merge",
+        resultHead: MERGE_HEAD,
+        resultTree: "2".repeat(40),
+        parents: [DESCENDANT_PARENT, "3".repeat(40)],
+      },
+    }))).toEqual({ status: "stale", reason: "candidate-commit" });
   });
 
   it("refuses a moved candidate commit", () => {

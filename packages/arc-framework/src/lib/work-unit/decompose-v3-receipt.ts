@@ -76,6 +76,58 @@ export type V3DecomposeReceipt = z.infer<typeof V3DecomposeReceiptSchema>;
 export type V3ManagedPathResult = z.infer<typeof ManagedPathResultSchema>;
 export type V3DestinationOutputs = z.infer<typeof DestinationOutputsSchema>;
 
+function restatementImmutableFacts(receipt: V3DecomposeReceipt): unknown {
+  const machine = receipt.prepared.completedMap.machine;
+  return {
+    authoring: receipt.prepared.completedMap.authoring,
+    machine: {
+      source: machine.source,
+      resultBase: { ref: machine.resultBase.ref },
+      planningProfile: machine.planningProfile,
+      sourceUnits: machine.sourceUnits,
+      incomingEdges: machine.incomingEdges,
+      outgoingEdges: machine.outgoingEdges,
+    },
+    candidateOwnership: receipt.prepared.candidateOwnership,
+    allowedPaths: receipt.prepared.allowedPaths,
+    destinationOutputPaths: receipt.prepared.destinationOutputPaths,
+    finalizedDestinationOutputPaths: receipt.finalized.destinationDigests.map(
+      ({ destinationId, outputs }) => ({
+        destinationId,
+        paths: outputs.map(({ path }) => path),
+      }),
+    ),
+    sourceArtifactDigest: receipt.prepared.sourceArtifactDigest,
+    sourceInventoryDigest: receipt.prepared.sourceInventoryDigest,
+    incomingEdgeInventoryDigest: receipt.prepared.incomingEdgeInventoryDigest,
+    outgoingEdgeInventoryDigest: receipt.prepared.outgoingEdgeInventoryDigest,
+    publication: receipt.finalized.publication,
+  };
+}
+
+/**
+ * Prove that one canonical receipt only restates facts derived from a moved base.
+ *
+ * @param previousInput - Receipt already committed at the deterministic record path.
+ * @param nextInput - Candidate replacement staged at that same path.
+ * @returns Whether immutable source, ownership, authoring, and publication facts are preserved.
+ */
+export function isV3DecomposeReceiptRestatement(
+  previousInput: unknown,
+  nextInput: unknown,
+): boolean {
+  const previous = parseV3DecomposeReceipt(previousInput);
+  const next = parseV3DecomposeReceipt(nextInput);
+  return previous !== null
+    && next !== null
+    && previous.receiptId === next.receiptId
+    && previous.preparationId !== next.preparationId
+    && previous.prepared.completedMap.machine.resultBase.head
+      !== next.prepared.completedMap.machine.resultBase.head
+    && canonicalize(restatementImmutableFacts(previous))
+      === canonicalize(restatementImmutableFacts(next));
+}
+
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }

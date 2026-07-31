@@ -145,7 +145,11 @@ export function authorizeV3DecomposeRefresh(
 
 export type V3DecomposeFinalizationTransitionRefusal =
   | { code: "validation-mismatch"; mismatch: V3DecompositionMismatch }
-  | { code: "candidate-parent-record"; locus: "parent" }
+  | {
+      code: "candidate-parent-record";
+      locus: "parent";
+      recordKind: Exclude<V3FinalizationRecord["kind"], "absent">;
+    }
   | { code: "record-state-mismatch"; locus: "index" | "worktree" | "index-worktree" }
   | { code: "refresh-not-authorized"; locus: "index" | "worktree" };
 
@@ -255,7 +259,7 @@ export function resolveV3DecomposeFinalizationTransition(
   if (parent.kind !== "absent") {
     return {
       status: "refused",
-      refusal: { code: "candidate-parent-record", locus: "parent" },
+      refusal: { code: "candidate-parent-record", locus: "parent", recordKind: parent.kind },
     };
   }
   const index = decodeFinalizationRecord(input.indexRecord);

@@ -4,6 +4,7 @@ import {
   canonicalize,
   digestBytes,
 } from "../../../src/lib/canonical/canonical-json.js";
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import {
   resolveGitMergeTransitionOverlay,
@@ -23,6 +24,7 @@ const SOURCE_HEAD_OID = "6".repeat(40);
 const RACED_HEAD_OID = "7".repeat(40);
 const RACED_BASE_OID = "8".repeat(40);
 const RACED_TREE_OID = "9".repeat(40);
+const ADVANCED_BASE_OID = "a".repeat(40);
 const MARKERS = ["MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"] as const;
 
 const execMock = vi.fn<GitExec>();
@@ -80,13 +82,41 @@ function installMergeSnapshot(options: {
   candidateReceipt?: boolean;
   mergeHeadOids?: readonly string[];
   receiptParents?: "none" | "head" | "merge-head" | "all-merge-heads";
+  restatedParent?: "head" | "merge-head";
+  amendRestatedPublication?: boolean;
+  configuredBaseOid?: string;
+  advancingBaseRelation?: "ancestor" | "not-ancestor" | "unresolvable";
 } = {}): InstalledMergeSnapshot {
+  const sourceMetaPath = ".arc/active/meta-origin.md";
+  const sourceMetaBytes = Buffer.from(renderMetaFile("origin", {
+    state: "Planning",
+    owner: "andrew",
+    branch: "plan/origin",
+    design: ["draft-origin.md"],
+  }), "utf8");
+  const sourceMetaArtifact = {
+    path: sourceMetaPath,
+    objectKind: "blob" as const,
+    mode: "100644" as const,
+    contentDigest: digestBytes(sourceMetaBytes),
+  };
+  const mergeHeadOids = options.mergeHeadOids ?? [MERGE_HEAD_OID];
+  const configuredBaseOid = options.configuredBaseOid ?? HEAD_OID;
+  const restatedResultBase = options.restatedParent === "head" && mergeHeadOids.length === 1
+    ? mergeHeadOids[0]
+    : HEAD_OID;
   const evidence = v3DecompositionEvidenceFixture({
     sourceHead: SOURCE_HEAD_OID,
-    resultBaseHead: HEAD_OID,
+    resultBaseHead: restatedResultBase,
     digestLabel: (label) => digestBytes(Buffer.from(label, "utf8")),
+    additionalSourceArtifacts: [sourceMetaArtifact],
   });
-  const mergeHeadOids = options.mergeHeadOids ?? [MERGE_HEAD_OID];
+  if (options.amendRestatedPublication === true) {
+    evidence.receipt.finalized.publication.initialContinuation = {
+      kind: "selected",
+      slugs: ["member-b"],
+    };
+  }
   const candidateReceiptPresent = options.candidateReceipt ?? true;
   const receiptParents = options.receiptParents ?? "merge-head";
   const receiptPath = v3DecomposeReceiptPath(evidence.receipt.receiptId);
@@ -118,6 +148,16 @@ function installMergeSnapshot(options: {
     put(ref, path, Buffer.from(label, "utf8"), mode);
   };
   add(SOURCE_HEAD_OID, sourcePath, "source unit");
+  put(SOURCE_HEAD_OID, sourceMetaPath, sourceMetaBytes);
+  put(
+    SOURCE_HEAD_OID,
+    ".arc/backlog/planned/consumer/meta-consumer.md",
+    Buffer.from(renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: ["origin"],
+    }), "utf8"),
+  );
   for (const result of evidence.receipt.finalized.managedPathResults) {
     const label = result.path.endsWith("ROADMAP.md")
       ? "roadmap after"
@@ -128,7 +168,7 @@ function installMergeSnapshot(options: {
           : "result 1";
     add(CANDIDATE_TREE_OID, result.path, label);
   }
-  add(HEAD_OID, ".arc/backlog/ROADMAP.md", "roadmap before");
+  add(restatedResultBase ?? HEAD_OID, ".arc/backlog/ROADMAP.md", "roadmap before");
   add(CANDIDATE_TREE_OID, receiptPath, canonicalize(evidence.receipt));
   const candidateReceipt = entries.get(CANDIDATE_TREE_OID)?.get(receiptPath);
   if (candidateReceipt === undefined) throw new Error("fixture receipt entry is missing");
@@ -144,6 +184,17 @@ function installMergeSnapshot(options: {
     const firstMergeHead = mergeHeadOids[0];
     if (firstMergeHead === undefined) throw new Error("merge fixture requires one merge head");
     entries.get(firstMergeHead)?.set(receiptPath, candidateReceipt);
+  }
+  if (options.restatedParent !== undefined) {
+    const previous = v3DecompositionEvidenceFixture({
+      sourceHead: SOURCE_HEAD_OID,
+      resultBaseHead: options.restatedParent === "head" ? HEAD_OID : MERGE_HEAD_OID,
+      digestLabel: (label) => digestBytes(Buffer.from(label, "utf8")),
+      additionalSourceArtifacts: [sourceMetaArtifact],
+    });
+    const parent = options.restatedParent === "head" ? HEAD_OID : mergeHeadOids[0];
+    if (parent === undefined) throw new Error("restated parent fixture requires one merge head");
+    put(parent, receiptPath, Buffer.from(canonicalize(previous.receipt), "utf8"));
   }
   if (!candidateReceiptPresent) entries.get(CANDIDATE_TREE_OID)?.delete(receiptPath);
 
@@ -165,18 +216,45 @@ function installMergeSnapshot(options: {
       return { stdout: `${HEAD_OID}\n`, stderr: "" };
     }
     if (args.join("\0") === ["rev-parse", "--verify", "refs/heads/main^{commit}"].join("\0")) {
-      return { stdout: `${HEAD_OID}\n`, stderr: "" };
+      return { stdout: `${configuredBaseOid}\n`, stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify" && args[2]?.endsWith("^{commit}") === true) {
+      const oid = args[2].slice(0, -"^{commit}".length);
+      return { stdout: `${oid}\n`, stderr: "" };
+    }
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      if (options.advancingBaseRelation === "unresolvable") {
+        throw Object.assign(new Error("ancestry unavailable"), { exitCode: 128 });
+      }
+      if (options.advancingBaseRelation === "not-ancestor"
+        || args[2] !== MERGE_HEAD_OID
+        || args[3] !== configuredBaseOid) {
+        throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+      }
+      return { stdout: "", stderr: "" };
     }
     if (args[0] === "write-tree") {
       return { stdout: `${CANDIDATE_TREE_OID}\n`, stderr: "" };
     }
     if (args[0] === "diff-tree") {
+      const expectedBefore = options.restatedParent === "head" && mergeHeadOids.length === 1
+        ? mergeHeadOids[0]
+        : HEAD_OID;
+      if (args[6] !== expectedBefore) {
+        return { stdout: "unexpected-base.txt\0", stderr: "" };
+      }
       const paths = [
         ...evidence.receipt.finalized.transitionPatch.map(({ path }) => path),
         ...(candidateReceiptPresent ? [receiptPath] : []),
       ]
         .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
       return { stdout: `${paths.join("\0")}\0`, stderr: "" };
+    }
+    if (args[0] === "ls-tree" && args.includes(".arc/active")) {
+      const ref = args.find((value) => entries.has(value));
+      const records = ref === undefined ? [] : [...(entries.get(ref)?.entries() ?? [])]
+        .map(([path, entry]) => `${entry.mode} blob ${path}`);
+      return { stdout: records.length === 0 ? "" : `${records.join("\0")}\0`, stderr: "" };
     }
     if (args[0] === "ls-tree" && args.includes(RETIREMENT_RECORD_NAMESPACE)) {
       const ref = args.find((value) => entries.has(value));
@@ -257,6 +335,60 @@ describe("resolveGitMergeTransitionOverlay", () => {
         { kind: "head", commitOid: HEAD_OID },
       ],
     });
+  });
+
+  it("classifies an authored-cut-preserving parent receipt as restated provenance", async () => {
+    const { evidence } = installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "ancestor",
+    });
+
+    const result = await resolveGitMergeTransitionOverlay("refs/heads/main", dependencies());
+    expect(result, JSON.stringify(result)).toMatchObject({
+      status: "selected",
+      receiptId: evidence.receipt.receiptId,
+      provenance: [
+        { kind: "candidate-tree" },
+        { kind: "restated", parent: "head", commitOid: HEAD_OID },
+      ],
+    });
+  });
+
+  it("refuses restated advancing authority from an unrelated staged base", async () => {
+    installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "not-ancestor",
+    });
+
+    await expect(resolveGitMergeTransitionOverlay("refs/heads/main", dependencies()))
+      .resolves.toEqual({ status: "refused", reason: "invalid-authority" });
+  });
+
+  it("fails closed when advancing-base ancestry cannot be read", async () => {
+    installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      configuredBaseOid: ADVANCED_BASE_OID,
+      advancingBaseRelation: "unresolvable",
+    });
+
+    await expect(resolveGitMergeTransitionOverlay("refs/heads/main", dependencies()))
+      .resolves.toEqual({ status: "refused", reason: "git-read-failed" });
+  });
+
+  it("refuses restated provenance when finalized publication semantics change", async () => {
+    installMergeSnapshot({
+      receiptParents: "head",
+      restatedParent: "head",
+      amendRestatedPublication: true,
+    });
+
+    await expect(resolveGitMergeTransitionOverlay("refs/heads/main", dependencies()))
+      .resolves.toMatchObject({ status: "refused" });
   });
 
   it("deduplicates identical authority inherited through ordered merge parents", async () => {

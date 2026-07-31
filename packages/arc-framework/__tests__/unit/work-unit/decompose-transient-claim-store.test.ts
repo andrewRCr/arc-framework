@@ -211,4 +211,33 @@ describe("decomposition transient claim store", () => {
     if (next.status === "acquired") expect(next.claim.generation).toBe(2);
     expect((await store.retire(claimId, 1, terminal)).status).toBe("conflict");
   });
+
+  it("persists a binding restatement under the claim lock", async () => {
+    const { store, files } = memoryStore();
+    const input = binding();
+    const claimId = decomposeTransientClaimId(input);
+    const acquired = await store.acquire(claimId, input);
+    if (acquired.status !== "acquired") throw new Error("expected acquisition");
+    const path = "/repo/worktrees/candidate";
+    await store.reserve(claimId, 1, path);
+    await store.occupy(claimId, 1, path, {
+      registrations: [{ path, candidateBranch: input.candidateBranch, head: input.resultBaseHead }],
+      branch: { candidateBranch: input.candidateBranch, head: input.resultBaseHead },
+      marker: {
+        claimId,
+        generation: 1,
+        candidateWorktree: acquired.claim.candidateWorktree,
+      },
+    });
+    const next = {
+      resultBaseHead: canonicalDigest("advanced-base"),
+      cutMapDigest: canonicalDigest("advanced-map"),
+    };
+    const result = await store.restateBinding(claimId, 1, input, next);
+    expect(result.status).toBe("restated");
+    expect(JSON.parse(files.get(`/repo/.git/arc/transient-claims/${claimId}.json`) ?? "null"))
+      .toMatchObject({ binding: { ...input, ...next } });
+    expect((await store.restateBinding(claimId, 1, input, next)).status)
+      .toBe("already-restated-matching");
+  });
 });
