@@ -46,6 +46,17 @@
   the second failure appearing only at pre-commit after message composition. The tax scales with commit count, not
   only concurrent merge conflicts. If branch-carried projection retirement is deferred, dropping or read-time
   deriving the hash is the cheap interim correction.
+- _Evidence-schema constraint (routed 2026-07-31):_ "stop staging ROADMAP" is not a separable interim knob. The
+  finalized-record gate requires the staged set to equal the receipt plus the recorded transition patch, and ROADMAP
+  is currently a managed path in every decomposition projection. Removing it from that patch also removes it from
+  `expectedPaths`, drops the `roadmap-missing` refusal, and changes the required `prospectiveProjection.roadmap`
+  input to the preparation digest. That changes canonical evidence identity and invalidates in-flight preparations,
+  so dematerializing and deleting the projection have roughly the same evidence-migration cost.
+- _Renderer-contract evidence (routed 2026-07-31):_ the decomposition planner, pre-commit assertion, and conflict
+  remedy render from different input contracts. The core flow avoids divergent bytes because finalization pins the
+  candidate head to the result base; a candidate moving across base advancement breaks that structural equality.
+  Treat renderer unification and projection dematerialization as one design decision rather than a cheap staging fix
+  followed by a later schema change.
 
 ### `[ ]` **Align activation staging with ceremony commit boundaries**
 
