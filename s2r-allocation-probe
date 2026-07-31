@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "s2r-allocation-probe",
+  "claimId": "149f49eee28f426ef04280e3df6e3072",
+  "createdAt": "2026-07-31T18:18:58.959Z",
+  "updatedAt": "2026-07-31T18:18:58.959Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Verify fresh Errand allocation after retained-locus recovery",
+  "branch": "chore/s2r-allocation-probe",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
