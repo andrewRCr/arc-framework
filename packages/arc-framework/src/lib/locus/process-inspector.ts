@@ -246,7 +246,7 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   const args = snapshot.commandArguments ?? parseCommandArguments(commandLine);
   if ((executable === "node" || executable === "node.exe")
     && args !== null
-    && (isArcNodeInvocation(args) || isNpmArcInvocation(args))) return true;
+    && (isArcNodeInvocation(args) || isNpmArcInvocation(args) || isFlattenedNpmArcProcessTitle(args))) return true;
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && args !== null
     && isNpmArcInvocation(args)) return true;
@@ -381,6 +381,12 @@ function isNpmArcInvocation(args: readonly string[]): boolean {
   if (args[1] !== "exec" && args[1] !== "run") return false;
   const commandIndex = args[2] === "--" ? 3 : 2;
   return isArcCommand(args[commandIndex]);
+}
+
+function isFlattenedNpmArcProcessTitle(args: readonly string[]): boolean {
+  if (args.length !== 1 || args[0] === undefined) return false;
+  const processTitleArgs = parseCommandArguments(args[0]);
+  return processTitleArgs !== null && isNpmArcInvocation(processTitleArgs);
 }
 
 function isNpxArcInvocation(args: readonly string[]): boolean {

@@ -66,7 +66,10 @@ describe("session anchor acquisition", () => {
       }],
       [20, {
         kind: "present",
-        snapshot: snapshot(20, 15, "/opt/node/bin/node", "npm exec arc recover audit --json"),
+        snapshot: {
+          ...snapshot(20, 15, "/opt/node/bin/node", "npm exec arc recover audit --json"),
+          commandArguments: ["npm exec arc recover audit --json"],
+        },
       }],
       [15, {
         kind: "present",
@@ -229,6 +232,24 @@ describe("session anchor acquisition", () => {
         snapshot: {
           ...snapshot(30, 10, commandIdentity, "node /repo/dist/cli.js status"),
           commandArguments: ["node", "/repo/tool.js", "/repo/dist/cli.js", "status"],
+        },
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(30, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: `Unrecognized process boundary: ${commandIdentity}`,
+    });
+  });
+
+  it("does not reinterpret an unrelated flattened Node process title as npm", async () => {
+    const commandIdentity = "/opt/node/bin/node";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [30, {
+        kind: "present",
+        snapshot: {
+          ...snapshot(30, 10, commandIdentity, "node other.js npm exec arc status"),
+          commandArguments: ["node other.js npm exec arc status"],
         },
       }],
       [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],

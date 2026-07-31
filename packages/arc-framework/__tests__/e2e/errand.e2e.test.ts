@@ -7,7 +7,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -174,6 +174,21 @@ async function setPartialProtection(cwd: string): Promise<void> {
   await writeFile(path, updated, "utf-8");
 }
 
+async function createCodexHarness(): Promise<{ directory: string; executable: string }> {
+  const directory = await mkdtemp(join(tmpdir(), "arc-real-npx-codex-"));
+  const executable = join(directory, "codex");
+  await copyFile("/bin/bash", executable);
+  await chmod(executable, 0o755);
+  return { directory, executable };
+}
+
+async function installLocalArcBin(cwd: string): Promise<void> {
+  const binDir = join(cwd, "node_modules", ".bin");
+  await writeFile(join(cwd, ".git", "info", "exclude"), "node_modules/\n", { flag: "a" });
+  await mkdir(binDir, { recursive: true });
+  await symlink(CLI_PATH, join(binDir, "arc"));
+}
+
 async function createMergedGhFixture(cwd: string, slug: string): Promise<{
   ghDir: string;
   remoteDir: string;
@@ -293,6 +308,42 @@ describe("arc errand open", () => {
       /no errand record or active work-unit meta/i.test(line),
     );
     expect(residueWarnings).toEqual([]);
+  });
+
+  it.runIf(process.platform === "linux")("persists a durable anchor through the real npx wrapper chain", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = `${tmpDir}-real-npx.git`;
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+    await git(tmpDir, ["remote", "add", "origin", remoteDir]);
+    await git(tmpDir, ["push", "-u", "origin", "main"]);
+    await installLocalArcBin(tmpDir);
+    expect((await git(tmpDir, ["status", "--porcelain"])).trim()).toBe("");
+    const harness = await createCodexHarness();
+    try {
+      const result = await runArcAnchoredSequence([
+        { command: ["npx", "arc", "errand", "open", "real-npx-anchor", "--json"] },
+      ], tmpDir, { anchorShellPath: harness.executable, timeout: 60_000 });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "errand-open" });
+      const locus = deriveLocusRecordId(tmpDir, "posix");
+      const record = JSON.parse(await readFile(
+        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
+        "utf8",
+      )) as { lease?: { anchor?: unknown } };
+      expect(record.lease?.anchor).toMatchObject({
+        kind: "process",
+        inspector: "linux-proc",
+        selector: "codex",
+      });
+    } finally {
+      await cleanupTempDir(harness.directory);
+      await cleanupTempDir(remoteDir);
+    }
   });
 
   it("rejects the removed legacy nature-type option before mutation", async () => {
