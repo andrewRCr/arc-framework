@@ -221,6 +221,17 @@ atomic companion and the personal atomic inbox.
   real concurrency, post-waves. The behind-base reconcile-gate errand now carries its `integrate-work-unit` edit
   alone; this WU rebases its interlock-callout edits onto it.
 
+### `[ ]` **Settle whether the complex-commit path is workflow-emitted or off-workflow**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-30); captured during
+  `judgment-authority-model` Task 4.3.
+- _Concern:_ `prepare-commits.md` is the only committing workflow with no release-routing class tag, so it
+  defaults to raw Git even when wrappers are enabled. It is skill-owned and workflow-shaped, leaving two
+  defensible but mechanically different readings of the off-workflow exemption.
+- _Fold-in:_ settle the classification for skill-owned workflow bodies, then either add the appropriate class
+  tag and approval callout or state the raw-routing exemption at the commit step. The always-loaded review
+  invariant already supplies the gate; this concern is routing authority, not a missing approval rule.
+
 ---
 
 ## Problem / Motivation

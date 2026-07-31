@@ -14,6 +14,35 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Decide whether review authority belongs in the always-loaded brief**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: orientation-surface-compression`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.5.a.i.
+- _Concern:_ `AGENT-BRIEF.ARC`'s review-authority constraint is the corpus's one marked invariant whose placement
+  was outside the upstream rules register. It binds at many possible agent-side review sites, so the
+  reachability clause may require it to stay always-loaded rather than move to any single gate.
+- _Fold-in:_ judge it with the demotion precondition and Principle 1's "always-loaded or at the gate site" test.
+  Preserve the legitimate outcome that it stays; do not assume compression requires movement.
+
+### `[ ]` **Carry reason-4 evidence into the enabling-content derivation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: orientation-surface-compression`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.5.b.
+- _Concern:_ accepted reason 4 supplies independent evidence for enabling content: definitional content is
+  disproportionately common in extensions and its wrong placement silently changes the meaning of rules that
+  depend on it. It is an upper bound, not a synonym, because an unused schema statement is definitional without
+  being load-bearing. The workflow region remains unmeasured on this axis.
+- _Fold-in:_ consume `notes-judgment-authority-model.md`'s enabling-content derivation and per-region table.
+  Settle the dependency test that separates load-bearing definitions from merely explanatory ones, and decide
+  whether a workflow-region reason pass is needed to validate the observed distribution.
+
+---
+
 ## Problem
 
 `judgment-authority-model` produced a repeatable method for compressing an always-loaded surface — constraint
