@@ -127,6 +127,23 @@ describe("selectMergeTransitionOverlay", () => {
     });
   });
 
+  it("accepts restated provenance as a distinct operation-parent authority", () => {
+    const { snapshot, receipt } = exactSnapshot();
+    snapshot.candidates[0]!.provenance = [
+      { kind: "candidate-tree" },
+      { kind: "restated", parent: "head", commitOid: HEAD_OID },
+    ];
+
+    expect(selectMergeTransitionOverlay(snapshot)).toMatchObject({
+      status: "selected",
+      receiptId: receipt.receiptId,
+      provenance: [
+        { kind: "candidate-tree" },
+        { kind: "restated", parent: "head", commitOid: HEAD_OID },
+      ],
+    });
+  });
+
   it("refuses a merge snapshot with a malformed pinned object identity", () => {
     const { snapshot } = exactSnapshot();
     if (snapshot.operation.kind !== "merge") throw new Error("expected merge fixture");

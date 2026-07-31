@@ -24,6 +24,7 @@ import {
   type V3DecomposePreparation,
 } from "../lib/work-unit/decompose-v3-preparation.js";
 import {
+  isV3DecomposeReceiptRestatement,
   parseV3DecomposeReceipt,
   type V3DecomposeReceipt,
   type V3ManagedPathResult,
@@ -277,6 +278,23 @@ function expectedV3Changes(receipt: V3DecomposeReceipt, recordPath: string): Sta
   ].sort((left, right) => compareUtf8(left.path, right.path));
 }
 
+function isAdvancingV3Record(
+  input: DecomposeCommitGateInput,
+  change: StagedPathChange,
+  receipt: V3DecomposeReceipt,
+): boolean {
+  const previous = input.readHeadBytes(change.path);
+  if (input.mergeInProgress !== true || change.status !== "M" || previous === null) return false;
+  try {
+    return isV3DecomposeReceiptRestatement(
+      new TextDecoder("utf-8", { fatal: true }).decode(previous),
+      receipt,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function sameChanges(
   left: readonly StagedPathChange[],
   right: readonly StagedPathChange[],
@@ -328,13 +346,22 @@ function validateV3CommitAddition(
   const candidate = decoded[0];
   if (candidate === undefined) return ["v3 decompose retirement record is missing"];
   const { change, receipt } = candidate;
-  if (change.status !== "A" || input.readHeadBytes(change.path) !== null) {
+  const advancing = isAdvancingV3Record(input, change, receipt);
+  if (!advancing && (change.status !== "A" || input.readHeadBytes(change.path) !== null)) {
     return ["v3 decompose retirement record already exists or was amended"];
   }
   if (change.path !== v3DecomposeReceiptPath(receipt.receiptId)) {
     return ["v3 decompose retirement record identity does not match its deterministic path"];
   }
-  if (!sameChanges(changes, expectedV3Changes(receipt, change.path))) {
+  const expectedChanges = expectedV3Changes(receipt, change.path);
+  const writeSetMatches = advancing
+    ? changes.every((candidateChange) => {
+        if (candidateChange.path === change.path) return candidateChange.status === "M";
+        return expectedChanges.some((expected) =>
+          expected.path === candidateChange.path && expected.status === candidateChange.status);
+      })
+    : sameChanges(changes, expectedChanges);
+  if (!writeSetMatches) {
     return ["v3 decompose exact write set contains a rider or path-status mismatch"];
   }
   if (input.resolveRef === undefined
@@ -429,7 +456,14 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   const changes = candidateChanges;
   const errors: string[] = [];
   const recordChanges = changes.filter((change) => RECORD_PATTERN.test(change.path));
-  if (input.mergeInProgress === true && recordChanges.length > 0) {
+  const advancingRecord = recordChanges.length === 1
+    && (() => {
+      const change = recordChanges[0];
+      if (change === undefined) return false;
+      const receipt = decodeV3Record(change, (path) => input.readIndexBytes(path));
+      return receipt !== null && isAdvancingV3Record(input, change, receipt);
+    })();
+  if (input.mergeInProgress === true && recordChanges.length > 0 && !advancingRecord) {
     return ["merge commits cannot introduce retirement records; finalize the merge before retiring lifecycle state"];
   }
   if (hasPreparedDecomposeRecord(recordChanges, (path) => input.readIndexBytes(path))) {

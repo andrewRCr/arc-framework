@@ -236,6 +236,59 @@ describe("validateDecomposeCommitGate", () => {
     })).toContainEqual(expect.stringMatching(/exact.*write set|rider/iu));
   });
 
+  it("accepts a merge that restates one canonical v3 receipt at its existing path", () => {
+    const previous = v3DecompositionEvidenceFixture({ resultBaseHead: "b".repeat(40) });
+    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
+    expect(advanced.receipt.receiptId).toBe(previous.receipt.receiptId);
+    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
+    const machine = advanced.preparation.facts.completedMap.machine;
+    const sourceUnit = machine.sourceUnits[0]!;
+    const sourceArtifactInventory = [{
+      path: sourceUnit.sourcePath,
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      contentDigest: sourceUnit.contentDigest,
+    }];
+    const input: DecomposeCommitGateInput = {
+      changes: [{ status: "M", path }],
+      mergeInProgress: true,
+      readIndexBytes: (candidate) => candidate === path
+        ? bytes(canonicalize(advanced.receipt))
+        : null,
+      readHeadBytes: (candidate) => candidate === path
+        ? bytes(canonicalize(previous.receipt))
+        : null,
+      readParentBytes: (candidate) => candidate === path
+        ? [bytes(canonicalize(previous.receipt)), null]
+        : [null, null],
+      resolveRef: (ref) => ref === machine.source.ref
+        ? machine.source.head
+        : ref === machine.resultBase.ref ? machine.resultBase.head : null,
+      readSourceArtifactInventory: () => sourceArtifactInventory,
+      readPathState: (ref, candidate) => {
+        if (ref === machine.source.head && candidate === sourceUnit.sourcePath) {
+          return {
+            kind: "file",
+            mode: "100644",
+            contentDigest: sourceUnit.contentDigest,
+          };
+        }
+        const result = advanced.receipt.finalized.managedPathResults
+          .find(({ path: managedPath }) => managedPath === candidate);
+        if (result === undefined) return { kind: "absent" };
+        return ref === machine.resultBase.head ? result.before : ref === null ? result.after : { kind: "absent" };
+      },
+    };
+    expect(validateDecomposeCommitGate(input)).toEqual([]);
+
+    const amended = structuredClone(advanced.receipt);
+    amended.prepared.completedMap.authoring.shape = "heterogeneous";
+    expect(validateDecomposeCommitGate({
+      ...input,
+      readIndexBytes: (candidate) => candidate === path ? bytes(canonicalize(amended)) : null,
+    })).not.toEqual([]);
+  });
+
   it("rejects amended, multiple, malformed, ownership-drifted, and path-drifted v3 evidence", () => {
     const { receipt } = v3DecompositionEvidenceFixture();
     const recordPath = resolveRetirementRecordRelativePath(receipt.receiptId);

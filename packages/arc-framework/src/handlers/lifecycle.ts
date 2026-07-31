@@ -99,6 +99,9 @@ import {
 import {
   finalizeGitV3DecomposeOperation,
 } from "../lib/work-unit/git-decompose-v3-finalization.js";
+import {
+  advanceGitV3DecomposeBase,
+} from "../lib/work-unit/git-decompose-v3-base-advancement.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -339,6 +342,38 @@ export const PromoteCommandInputSchema = z.object({
 export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
+
+/** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
+export const DECOMPOSE_MODE_KEYS = [
+  "preflight",
+  "handoff",
+  "execute",
+  "discard",
+  "finalize",
+  "advanceBase",
+] as const;
+
+/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
+export const DECOMPOSE_MACHINE_READABLE_KEYS = [
+  ...DECOMPOSE_MODE_KEYS,
+  "continuation",
+] as const;
+
+type DecomposeRoutingOptions = Partial<Record<
+  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
+  string | boolean
+>>;
+
+function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
+  const value = options[key];
+  return typeof value === "boolean" ? value : value !== undefined;
+}
+
+/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
+export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
+  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
+}
+
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
@@ -347,18 +382,13 @@ export const DecomposeCommandInputSchema = z.object({
   discard: z.string().trim().min(1).optional(),
   finalize: z.string().trim().min(1).optional(),
   continuation: z.string().trim().min(1).optional(),
+  advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
-  const modes = [
-    value.preflight === true,
-    value.handoff === true,
-    value.execute !== undefined,
-    value.discard !== undefined,
-    value.finalize !== undefined,
-  ].filter(Boolean).length;
+  const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, --discard, --finalize, or --handoff is required.",
+      message: "Exactly one of --preflight, --execute, --discard, --finalize, --handoff, or --advance-base is required.",
     });
   }
   if ((value.finalize === undefined) !== (value.continuation === undefined)) {
@@ -476,6 +506,7 @@ export const lifecycleCommandInputRegistrations = [
       "option.discard": "discard",
       "option.finalize": "finalize",
       "option.continuation": "continuation",
+      "option.advance-base": "advanceBase",
     },
   },
   {
@@ -712,6 +743,8 @@ export interface DecomposeOptions {
   finalize?: string;
   /** Canonical continuation input paired with `finalize`. */
   continuation?: string;
+  /** Advance one committed full-protection candidate to the configured base. */
+  advanceBase?: string;
 }
 
 function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
@@ -736,9 +769,7 @@ export async function handleDecompose(
   const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
   if (!parsed.success) {
     const diagnostic = z.prettifyError(parsed.error);
-    if (opts.preflight === true || opts.handoff === true
-      || opts.execute !== undefined || opts.discard !== undefined
-      || opts.finalize !== undefined || opts.continuation !== undefined) {
+    if (isDecomposeMachineReadableInvocation(opts)) {
       process.stderr.write(`${diagnostic}\n`);
       process.exitCode = 1;
     } else {
@@ -850,6 +881,20 @@ export async function handleDecompose(
         origin: parsed.data.origin,
         receiptId: parsed.data.finalize,
         continuationPath: parsed.data.continuation,
+      });
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (parsed.data.advanceBase !== undefined) {
+      const result = await advanceGitV3DecomposeBase(repository, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        receiptId: parsed.data.advanceBase,
       });
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {

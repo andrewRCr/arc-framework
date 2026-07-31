@@ -9,6 +9,7 @@ import {
   projectDecomposeTransientCandidateOwnership,
   projectLiveDecomposeCandidateBranches,
   releaseDecomposeTransientWorktree,
+  restateDecomposeTransientClaimBinding,
   reserveDecomposeTransientWorktree,
   retireDecomposeTransientClaim,
 } from "../../../src/lib/work-unit/decompose-transient-claim.js";
@@ -273,6 +274,65 @@ describe("decomposition transient claim", () => {
       status: "conflict",
       reason: "generation-mismatch",
     });
+  });
+
+  it("restates only the base-derived binding pair on an occupied generation", () => {
+    const occupied = occupy().claim;
+    const next = {
+      resultBaseHead: "advanced-base",
+      cutMapDigest: canonicalDigest({ cut: "advanced-map" }),
+    };
+    const restated = restateDecomposeTransientClaimBinding(
+      occupied,
+      occupied.claimId,
+      occupied.generation,
+      occupied.binding,
+      next,
+    );
+    expect(restated.status).toBe("restated");
+    if (restated.status !== "restated") throw new Error("expected restatement");
+    expect(restated.claim).toEqual({
+      ...occupied,
+      binding: { ...occupied.binding, ...next },
+    });
+    expect(restateDecomposeTransientClaimBinding(
+      restated.claim,
+      occupied.claimId,
+      occupied.generation,
+      occupied.binding,
+      next,
+    )).toEqual({ status: "already-restated-matching", claim: restated.claim });
+  });
+
+  it("refuses restatement outside the exact occupied binding", () => {
+    const acquired = acquire();
+    const next = {
+      resultBaseHead: "advanced-base",
+      cutMapDigest: canonicalDigest({ cut: "advanced-map" }),
+    };
+    expect(restateDecomposeTransientClaimBinding(
+      acquired,
+      acquired.claimId,
+      acquired.generation,
+      acquired.binding,
+      next,
+    )).toEqual({ status: "conflict", reason: "invalid-state" });
+
+    const occupied = occupy().claim;
+    expect(restateDecomposeTransientClaimBinding(
+      occupied,
+      occupied.claimId,
+      occupied.generation + 1,
+      occupied.binding,
+      next,
+    )).toEqual({ status: "conflict", reason: "generation-mismatch" });
+    expect(restateDecomposeTransientClaimBinding(
+      occupied,
+      occupied.claimId,
+      occupied.generation,
+      { ...occupied.binding, sourceHead: "moved-source" },
+      next,
+    )).toEqual({ status: "conflict", reason: "binding-mismatch" });
   });
 
   it("fails closed for missing, unproven release, foreign identity, and malformed records", () => {

@@ -448,12 +448,12 @@ Every candidate-side operation runs in the candidate's registered worktree — t
 transactions, projection staging, and write paths resolve against. The operator's own checkout is never the merge
 target.
 
-### `[ ]` **3.1 Register the `--advance-base` mode**
+### `[x]` **3.1 Register the `--advance-base` mode**
 
 - _Goal:_ The command surface exposes exactly one new mode, mutually exclusive with every existing decomposition
   operation and available only under full protection.
 
-    - `[ ]` **3.1.a Derive the decomposition mode set from one declaration**
+    - `[x]` **3.1.a Derive the decomposition mode set from one declaration**
 
         - _Goal:_ Adding or removing a decomposition mode is a single-site edit, and no mode can be
           exclusive-checked without also being machine-readable and stderr-routed.
@@ -478,7 +478,7 @@ target.
 
             - Existing mode behavior is unchanged across all five current modes.
 
-    - `[ ]` **3.1.b Add `--advance-base` and enforce its preconditions**
+    - `[x]` **3.1.b Add `--advance-base` and enforce its preconditions**
 
         - Register the option, add its field to `DecomposeOptions` and the strict input schema together, add it to
           the mode declaration from Task 3.1.a, and add its entry to the command-input option-to-field map that
@@ -500,7 +500,7 @@ target.
 
             - Emits canonical JSON on stdout and a reason/remedy pair on stderr, matching the sibling modes.
 
-### `[ ]` **3.2 Establish the whole admission decision before any mutation**
+### `[x]` **3.2 Establish the whole admission decision before any mutation**
 
 - _Goal:_ Every question that can refuse this operation is answered against committed objects while the candidate
   sits untouched, so the ordinary refusal has nothing to restore.
@@ -508,7 +508,7 @@ target.
 - _Rationale:_ all three admissions read committed trees or pure facts. Making them total rather than partial is
   what keeps the restore path a genuine exception rather than the common case.
 
-    - `[ ]` **3.2.a Establish the candidate and receipt topology**
+    - `[x]` **3.2.a Establish the candidate and receipt topology**
 
         - Prove the committed-unlanded shape with this command's own reader over pinned refs and claim state:
           require a clean deterministic candidate, prove the canonical receipt commit is not reachable from the
@@ -549,7 +549,7 @@ target.
 
             - Refuses when the receipt evidence is absent or non-canonical.
 
-    - `[ ]` **3.2.b Validate canonically and take the landing verdict**
+    - `[x]` **3.2.b Validate canonically and take the landing verdict**
 
         - Validate the finalized receipt canonically, which is also what mints the `ValidatedTransitionOverlay`
           Task 3.3.b supplies to ROADMAP regeneration — the overlay has no other legitimate source. Then run the
@@ -563,7 +563,7 @@ target.
 
             - Carries the validator's typed mismatch out of the command unchanged.
 
-    - `[ ]` **3.2.c Re-derive against the advanced base ahead of the merge**
+    - `[x]` **3.2.c Re-derive against the advanced base ahead of the merge**
 
         - _Goal:_ The record that advancement will stage is produced and proven while the candidate is still
           untouched, so a re-derivation refusal costs no restore.
@@ -617,7 +617,7 @@ target.
 
             - The restated preparation parses and re-validates through the core's own preparation parser.
 
-### `[ ]` **3.3 Merge the pinned base without rewriting history**
+### `[x]` **3.3 Merge the pinned base without rewriting history**
 
 - _Goal:_ The candidate absorbs the advanced base through one append-only merge, and any outcome other than a clean
   merge or a ROADMAP-only conflict leaves the pre-merge candidate exactly as it was.
@@ -643,7 +643,7 @@ target.
   projection is not an allowed path and has no merge behavior at all. Keep the coupling to one excluded slot, one
   render call, and one discovery arm so arriving there is a deletion rather than an unpicking.
 
-    - `[ ]` **3.3.a Execute the append-only merge**
+    - `[x]` **3.3.a Execute the append-only merge**
 
         - Build `test-first` (one behavior at a time):
 
@@ -653,7 +653,7 @@ target.
 
             - Refuses to proceed when the pinned base moves before the merge begins.
 
-    - `[ ]` **3.3.b Re-derive the projection, and restore on everything else**
+    - `[x]` **3.3.b Re-derive the projection, and restore on everything else**
 
         - Stage the plan's rendered ROADMAP unconditionally — whether the merge conflicted on it, resolved it
           cleanly, or left it untouched. A clean textual merge is not a correct result here: it would blend the
@@ -673,7 +673,7 @@ target.
 
             - Leaves no partial merge state behind after a restore.
 
-### `[ ]` **3.4 Stage one current same-path receipt**
+### `[x]` **3.4 Stage one current same-path receipt**
 
 - _Goal:_ Advancement changes only base-derived mechanical evidence, leaving every semantic destination byte and
   mode exactly as authored and review approved.
@@ -688,7 +688,7 @@ target.
   receipt on its original path — while the authored-cut half is proven byte-wise wherever a restated record is
   admitted. Preparation identity covers the result base and legitimately changes.
 
-    - `[ ]` **3.4.a Seal the advanced receipt and preserve every semantic destination**
+    - `[x]` **3.4.a Seal the advanced receipt and preserve every semantic destination**
 
         - Seal the receipt through `createV3DecomposeReceipt` — the constructor finalization uses — from live path
           reads over the merged tree, carrying the recorded `finalized.publication.initialContinuation` forward
@@ -723,7 +723,7 @@ target.
 
             - Refuses when the merged result would alter a semantic destination.
 
-    - `[ ]` **3.4.b Stage the receipt for one ordinary commit**
+    - `[x]` **3.4.b Stage the receipt for one ordinary commit**
 
         - Compare-and-swap the same receipt path and stage ROADMAP plus receipt for one ordinary commit. Hook
           admission is proven where the arms are built — Tasks 3.4.c, 3.4.e, and 3.4.f — and composed in
@@ -741,7 +741,7 @@ target.
 
             - A base that has advanced again runs the same append-only merge again.
 
-    - `[ ]` **3.4.c Admit the advancing shape at the finalized-record commit gate**
+    - `[x]` **3.4.c Admit the advancing shape at the finalized-record commit gate**
 
         - _Goal:_ The advancement commit passes the core's record gate on its own authorized arm, and every commit
           shape the gate judged before the extension is judged identically after it.
@@ -786,7 +786,7 @@ target.
             - Every pre-extension gate verdict is unchanged, across additions, amendments, prepared-not-finalized
               records, and non-record commits.
 
-    - `[ ]` **3.4.d Restate the candidate claim's binding**
+    - `[x]` **3.4.d Restate the candidate claim's binding**
 
         - _Goal:_ A landed advanced candidate retires through the ordinary receipt-backed cleanup gate, because
           its claim is bound to the base the record now names rather than the one it was cut against.
@@ -819,7 +819,7 @@ target.
 
             - A refused advancement leaves the binding as it was.
 
-    - `[ ]` **3.4.e Admit the restated receipt at the projection regeneration assert**
+    - `[x]` **3.4.e Admit the restated receipt at the projection regeneration assert**
 
         - _Goal:_ The advancement commit passes the pre-commit projection assert re-rendering under the overlay
           the plan rendered with, and every commit shape the assert judged before the extension is judged
@@ -848,7 +848,7 @@ target.
 
             - Still rejects a staged projection whose bytes mismatch the overlay-aware re-render.
 
-    - `[ ]` **3.4.f Classify restated provenance in the merge-overlay discovery**
+    - `[x]` **3.4.f Classify restated provenance in the merge-overlay discovery**
 
         - _Goal:_ The commit-time conflict remedy discovers advancement's transition authority instead of
           refusing the restated receipt as namespace corruption, so the pre-commit hook family admits the
@@ -897,6 +897,10 @@ target.
             - The remedy's re-render at that shape byte-equals the plan's staged projection.
 
             - Every non-advancement provenance classification is unchanged.
+
+- _Outcome:_ The full-protection command now admits, re-derives, merges, seals, and claim-restates a committed
+  candidate without rewriting history. The finalized-record gate, ROADMAP regeneration assert, and merge-overlay
+  discovery share the same authored-cut restatement proof, while failures restore the pinned candidate.
 
 ## **Phase 4:** Recovery vocabulary extension
 

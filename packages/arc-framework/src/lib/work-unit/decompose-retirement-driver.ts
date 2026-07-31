@@ -397,7 +397,7 @@ async function replaceV3Record(
   return { status: "replaced" };
 }
 
-function deriveV3DestinationOutputs(
+export function deriveV3DestinationOutputs(
   preparation: V3DecomposePreparation,
   managedPathResults: readonly V3ManagedPathResult[],
 ): V3DestinationOutputs[] | null {

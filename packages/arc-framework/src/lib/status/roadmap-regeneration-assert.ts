@@ -19,6 +19,7 @@ import {
   RETIREMENT_RECORD_NAMESPACE,
 } from "../work-unit/retirement-record-store.js";
 import { parseRetirementReceiptRecord } from "../work-unit/retirement-receipt-codec.js";
+import { isV3DecomposeReceiptRestatement } from "../work-unit/decompose-v3-receipt.js";
 import {
   createValidatedTransitionOverlay,
   type TransitionOverlayCompositionInput,
@@ -200,7 +201,7 @@ export async function resolveStagedRetirementTransitionOverlay(
     "diff",
     "--cached",
     "--name-only",
-    "--diff-filter=A",
+    "--diff-filter=AM",
     "-z",
     "--",
     RETIREMENT_RECORD_NAMESPACE,
@@ -213,6 +214,12 @@ export async function resolveStagedRetirementTransitionOverlay(
       return null;
     }
     if (record.kind === "retained") {
+      try {
+        await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
+        return null;
+      } catch {
+        // Retained receipts grant overlays only on their original addition.
+      }
       return record.receipt.subject.kind === "work-unit"
         ? createValidatedTransitionOverlay({
             origin: record.receipt.subject.name,
@@ -220,6 +227,14 @@ export async function resolveStagedRetirementTransitionOverlay(
           })
         : null;
     }
+    let grantsOverlay = true;
+    try {
+      const { stdout: previous } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
+      grantsOverlay = isV3DecomposeReceiptRestatement(previous, record.receipt);
+    } catch {
+      // No record at HEAD is the original first-addition shape.
+    }
+    if (!grantsOverlay) return null;
     const { origin, sourceBranch } = record.receipt.prepared.prospectiveProjection.overlay;
     return createValidatedTransitionOverlay({ origin, sourceBranch });
   }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);

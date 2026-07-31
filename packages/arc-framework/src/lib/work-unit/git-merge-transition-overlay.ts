@@ -19,9 +19,10 @@ import {
   v3DecomposeReceiptPath,
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
-import type {
-  V3DecomposeReceipt,
-  V3ManagedPathResult,
+import {
+  isV3DecomposeReceiptRestatement,
+  type V3DecomposeReceipt,
+  type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
 import { v3SourceArtifactDigest } from "./decompose-v3-schema.js";
 import {
@@ -425,7 +426,7 @@ async function parentReceiptState(
   record: EnumeratedRetirementRecord,
   ref: string,
   deps: GitMergeTransitionOverlayDependencies,
-): Promise<"absent" | "matching" | "conflicting"> {
+): Promise<"absent" | "matching" | "restated" | "conflicting"> {
   const path = v3DecomposeReceiptPath(record.id);
   const { stdout } = await deps.exec("git", [
     "ls-tree",
@@ -441,9 +442,15 @@ async function parentReceiptState(
     return "conflicting";
   }
   const bytes = await deps.readBlob(match[2]);
-  return Buffer.compare(Buffer.from(bytes), Buffer.from(record.content, "utf8")) === 0
-    ? "matching"
-    : "conflicting";
+  if (Buffer.compare(Buffer.from(bytes), Buffer.from(record.content, "utf8")) === 0) return "matching";
+  try {
+    return isV3DecomposeReceiptRestatement(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      record.content,
+    ) ? "restated" : "conflicting";
+  } catch {
+    return "conflicting";
+  }
 }
 
 async function matchingParentProvenance(
@@ -462,6 +469,8 @@ async function matchingParentProvenance(
   }
   if (headState === "matching") {
     provenance.push({ kind: "head", commitOid: snapshot.operation.headOid });
+  } else if (headState === "restated") {
+    provenance.push({ kind: "restated", parent: "head", commitOid: snapshot.operation.headOid });
   }
   for (const [index, commitOid] of snapshot.operation.mergeHeadOids.entries()) {
     const state = await parentReceiptState(record, commitOid, deps);
@@ -474,6 +483,8 @@ async function matchingParentProvenance(
     }
     if (state === "matching") {
       provenance.push({ kind: "merge-head", index, commitOid });
+    } else if (state === "restated") {
+      provenance.push({ kind: "restated", parent: "merge-head", index, commitOid });
     }
   }
   return provenance;

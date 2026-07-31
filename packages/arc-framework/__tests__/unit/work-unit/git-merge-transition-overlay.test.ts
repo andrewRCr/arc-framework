@@ -80,6 +80,7 @@ function installMergeSnapshot(options: {
   candidateReceipt?: boolean;
   mergeHeadOids?: readonly string[];
   receiptParents?: "none" | "head" | "merge-head" | "all-merge-heads";
+  restatedParent?: "head" | "merge-head";
 } = {}): InstalledMergeSnapshot {
   const evidence = v3DecompositionEvidenceFixture({
     sourceHead: SOURCE_HEAD_OID,
@@ -144,6 +145,16 @@ function installMergeSnapshot(options: {
     const firstMergeHead = mergeHeadOids[0];
     if (firstMergeHead === undefined) throw new Error("merge fixture requires one merge head");
     entries.get(firstMergeHead)?.set(receiptPath, candidateReceipt);
+  }
+  if (options.restatedParent !== undefined) {
+    const previous = v3DecompositionEvidenceFixture({
+      sourceHead: SOURCE_HEAD_OID,
+      resultBaseHead: MERGE_HEAD_OID,
+      digestLabel: (label) => digestBytes(Buffer.from(label, "utf8")),
+    });
+    const parent = options.restatedParent === "head" ? HEAD_OID : mergeHeadOids[0];
+    if (parent === undefined) throw new Error("restated parent fixture requires one merge head");
+    put(parent, receiptPath, Buffer.from(canonicalize(previous.receipt), "utf8"));
   }
   if (!candidateReceiptPresent) entries.get(CANDIDATE_TREE_OID)?.delete(receiptPath);
 
@@ -255,6 +266,19 @@ describe("resolveGitMergeTransitionOverlay", () => {
       provenance: [
         { kind: "candidate-tree" },
         { kind: "head", commitOid: HEAD_OID },
+      ],
+    });
+  });
+
+  it("classifies an authored-cut-preserving parent receipt as restated provenance", async () => {
+    const { evidence } = installMergeSnapshot({ receiptParents: "head", restatedParent: "head" });
+
+    expect(await resolveGitMergeTransitionOverlay("refs/heads/main", dependencies())).toMatchObject({
+      status: "selected",
+      receiptId: evidence.receipt.receiptId,
+      provenance: [
+        { kind: "candidate-tree" },
+        { kind: "restated", parent: "head", commitOid: HEAD_OID },
       ],
     });
   });

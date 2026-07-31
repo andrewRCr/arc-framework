@@ -76,6 +76,27 @@ export type V3DecomposeReceipt = z.infer<typeof V3DecomposeReceiptSchema>;
 export type V3ManagedPathResult = z.infer<typeof ManagedPathResultSchema>;
 export type V3DestinationOutputs = z.infer<typeof DestinationOutputsSchema>;
 
+/**
+ * Prove that one canonical receipt only restates machine-derived preparation facts.
+ *
+ * @param previousInput - Receipt already committed at the deterministic record path.
+ * @param nextInput - Candidate replacement staged at that same path.
+ * @returns Whether receipt identity and authored cut are preserved while preparation identity moves.
+ */
+export function isV3DecomposeReceiptRestatement(
+  previousInput: unknown,
+  nextInput: unknown,
+): boolean {
+  const previous = parseV3DecomposeReceipt(previousInput);
+  const next = parseV3DecomposeReceipt(nextInput);
+  return previous !== null
+    && next !== null
+    && previous.receiptId === next.receiptId
+    && previous.preparationId !== next.preparationId
+    && canonicalize(previous.prepared.completedMap.authoring)
+      === canonicalize(next.prepared.completedMap.authoring);
+}
+
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }

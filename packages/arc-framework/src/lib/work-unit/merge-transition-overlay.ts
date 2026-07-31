@@ -38,7 +38,13 @@ export interface PinnedMergeRef {
 export type PinnedMergeReceiptProvenance =
   | { kind: "candidate-tree" }
   | { kind: "head"; commitOid: string }
-  | { kind: "merge-head"; index: number; commitOid: string };
+  | { kind: "merge-head"; index: number; commitOid: string }
+  | {
+      kind: "restated";
+      parent: "head" | "merge-head";
+      index?: number;
+      commitOid: string;
+    };
 
 /** One receipt candidate plus the normalized facts read only from pinned objects. */
 export interface PinnedMergeReceiptCandidate {
@@ -190,12 +196,19 @@ function validProvenance(
   operation: Extract<PinnedMergeOperation, { kind: "merge" }>,
 ): boolean {
   if (provenance.filter(({ kind }) => kind === "candidate-tree").length !== 1
-    || !provenance.some(({ kind }) => kind === "head" || kind === "merge-head")) {
+    || !provenance.some(({ kind }) => kind === "head" || kind === "merge-head" || kind === "restated")) {
     return false;
   }
   return provenance.every((entry) => {
     if (entry.kind === "candidate-tree") return true;
     if (entry.kind === "head") return entry.commitOid === operation.headOid;
+    if (entry.kind === "restated") {
+      if (entry.parent === "head") return entry.index === undefined && entry.commitOid === operation.headOid;
+      return entry.index !== undefined
+        && entry.index >= 0
+        && entry.index < operation.mergeHeadOids.length
+        && operation.mergeHeadOids[entry.index] === entry.commitOid;
+    }
     return entry.index >= 0
       && entry.index < operation.mergeHeadOids.length
       && operation.mergeHeadOids[entry.index] === entry.commitOid;

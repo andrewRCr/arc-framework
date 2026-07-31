@@ -138,6 +138,11 @@ export type DecomposeTransientRetireResult =
   | { status: "missing-unproven"; reason: "claim-missing" }
   | ClaimConflict;
 
+export type DecomposeTransientRestateBindingResult =
+  | { status: "restated"; claim: DecomposeTransientClaim }
+  | { status: "already-restated-matching"; claim: DecomposeTransientClaim }
+  | ClaimConflict;
+
 export type DecomposeTransientReleaseResult =
   | { status: "released"; claim: DecomposeTransientClaim }
   | { status: "already-released-matching"; claim: DecomposeTransientClaim }
@@ -439,6 +444,36 @@ export function retireDecomposeTransientClaim(
     return { status: "conflict", reason: "invalid-state" };
   }
   return { status: "retired", claim: { ...exact, state: { kind: "terminal", terminal } } };
+}
+
+/** Restate only the base-derived binding pair on one exact live candidate generation. */
+export function restateDecomposeTransientClaimBinding(
+  current: unknown,
+  claimId: CanonicalDigest,
+  expectedGeneration: number,
+  expectedBinding: DecomposeTransientClaimBinding,
+  next: Pick<DecomposeTransientClaimBinding, "resultBaseHead" | "cutMapDigest">,
+): DecomposeTransientRestateBindingResult {
+  const exact = exactClaim(current, claimId, expectedGeneration);
+  if ("status" in exact) return exact;
+  if (exact.state.kind !== "occupied" || exact.registration.kind !== "registered") {
+    return { status: "conflict", reason: "invalid-state" };
+  }
+  const nextBinding = {
+    ...expectedBinding,
+    resultBaseHead: next.resultBaseHead,
+    cutMapDigest: next.cutMapDigest,
+  };
+  if (!validBinding(expectedBinding) || !validBinding(nextBinding)) {
+    return { status: "conflict", reason: "binding-mismatch" };
+  }
+  if (bindingMatches(exact, nextBinding)) {
+    return { status: "already-restated-matching", claim: exact };
+  }
+  if (!bindingMatches(exact, expectedBinding)) {
+    return { status: "conflict", reason: "binding-mismatch" };
+  }
+  return { status: "restated", claim: { ...exact, binding: nextBinding } };
 }
 
 /** Release adapter registration only after exact terminal authority and proven local absence. */

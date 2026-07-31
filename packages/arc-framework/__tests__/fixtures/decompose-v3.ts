@@ -29,15 +29,18 @@ import {
 export function v3DecompositionEvidenceFixture(options: {
   origin?: string;
   sourceHead?: string;
+  sourceRef?: string;
+  sourceLogicalBranch?: string;
   resultBaseHead?: string;
   digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
   additionalSourceArtifacts?: readonly V3SourceArtifactEntry[];
+  candidateOwnership?: V3DecomposePreparation["facts"]["candidateOwnership"];
 } = {}): {
   preparation: V3DecomposePreparation;
   receipt: V3DecomposeReceipt;
 } {
   const origin = options.origin ?? "origin";
-  const sourceBranch = `plan/${origin}`;
+  const sourceBranch = options.sourceLogicalBranch ?? `plan/${origin}`;
   const digestLabel = options.digestLabel ?? canonicalDigest;
   const sourceLocator = { artifact: `draft-${origin}.md`, kind: "preamble" as const };
   const sourceUnit = {
@@ -56,7 +59,7 @@ export function v3DecompositionEvidenceFixture(options: {
       origin,
       kind: "started-planning" as const,
       logicalBranch: sourceBranch,
-      ref: `refs/heads/${sourceBranch}`,
+      ref: options.sourceRef ?? `refs/heads/${sourceBranch}`,
       head: options.sourceHead ?? "a".repeat(40),
     },
     resultBase: { ref: "refs/heads/main", head: options.resultBaseHead ?? "b".repeat(40) },
@@ -169,7 +172,8 @@ export function v3DecompositionEvidenceFixture(options: {
     outgoingEdgeInventoryDigest: v3OutgoingEdgeInventoryDigest(machine),
     allowedPaths,
     allowedPathsDigest,
-    candidateOwnership: { kind: "not-applicable" as const, protection: "partial" as const },
+    candidateOwnership: options.candidateOwnership
+      ?? { kind: "not-applicable" as const, protection: "partial" as const },
     candidatePublication,
     topology,
     destinationOutputPaths,
