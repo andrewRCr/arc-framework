@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning complete — spec settled through three adversarial passes; tasks finalized at Heavy; activated
-- **Next Task:** Begin Task 1.1 — Validate the commit relation
+- **Last Completed:** Phase 5 complete — real-topology acceptance and boundary preservation
+- **Next Task:** Task 6.1 — Complete verification (line ~1065)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation at Task 1.1 via process-task-loop
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
