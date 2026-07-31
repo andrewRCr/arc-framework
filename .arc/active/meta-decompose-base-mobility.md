@@ -1,23 +1,23 @@
 # Metadata: decompose-base-mobility
 
-| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/decompose-base-mobility` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/decompose-base-mobility` | `Heavy`   | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
-- **Depends On:** `decompose-transform-integrity`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-base-mobility.md`
 - **Task List:** `tasks-decompose-base-mobility.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Third spec re-entry — projection, commit-gate, and landing seams settled; render-stamp errand shipped
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Validate the commit relation
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin implementation at Task 1.1 via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
