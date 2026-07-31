@@ -46,106 +46,25 @@ with an explicit success arm rather than returning a bare one.
 - _Outcome:_ The extracted object boundary now supplies one typed, byte-preserving relation proof shared by the
   unchanged exact-base adapter and the new descendant-base admission path.
 
-### `[ ]` **1.2 Replay the complete recorded overlap**
+### `[x]` **1.2 Replay the complete recorded overlap**
 
 - _Goal:_ Landing is admitted only when every recorded touched path, mode, type, and incoming dependency still
   replays exactly against the moved base and the candidate head.
 
-- _Context:_ The recorded transition patch is the complete overlap model for the paths it touches, so paths absent
-  from it need no inspection here. This is what keeps validation proportional to the recorded transition rather
-  than repository size, and it is also why this verdict is not the whole admission decision — Task 3.2.c catches
-  base changes that fall outside the patch entirely.
+    - `[x]` **1.2.a Replay recorded path states**
 
-- _Shape:_ regenerable projections are excluded from that model, and the exclusion is what makes the mode work
-  rather than a convenience. ROADMAP is always a recorded touched path — every decomposition changes it — and the
-  base changes it on essentially every advance, since it projects the very lifecycle events that move the base.
-  Replaying it as overlap would refuse the ordinary case this work unit exists to admit. Key the exclusion off the
-  plan's own projection slot rather than a path spelled into the validator, so it names the class rather than the
-  file and disappears with the class when projections leave the tracked tier. The line the validator draws is
-  preserved-versus-re-derived: a semantic destination must replay exactly, because advancement must not alter what
-  review approved; a projection must not, because advancement recomputes it.
+        - Replayed semantic `before` states at the moved base and every recorded `after` state at the candidate,
+          while excluding the plan-declared regenerable projection from moved-base overlap. Candidate diff and
+          receipt checks remain anchored to the prepared base and require the complete patch-plus-receipt path set.
 
-    - `[ ]` **1.2.a Replay recorded path states**
+    - `[x]` **1.2.b Detect dependencies the base acquired on the retired origin**
 
-        - Compare each `transitionPatch` entry's `before` state at the current base and `after` state at the
-          candidate head, reusing the extracted `stateMatches` reader.
+        - Compared the core tree-snapshot reader's incoming-dependent slug sets at the recorded and current bases.
+          New origin dependents refuse, target-list-only grooming remains admissible, and snapshot failures close
+          into the typed dependency mismatch arm.
 
-        - _Shape:_ the two checks key off different commit pairs, and conflating them is the trap here. The
-          candidate's own transition is `preparedBase..candidateHead` — stable wherever the base has since moved,
-          since the candidate has not merged it — so the extra-path check uses that pair. Whether base advancement
-          collided with the transition is a separate question, answered by evaluating each recorded `before` state
-          at the **current** base. Diffing `currentBase..candidateHead` instead would read every unrelated base
-          advance as a reverted path and refuse exactly the movement this work unit exists to admit.
-
-        - The expected path set for the extra-path check is the recorded patch **plus the candidate's own receipt
-          path** (`v3DecomposeReceiptPath(receiptId)`), matching the exact-base implementation. The patch derives
-          from managed path results and so never carries the receipt blob, while the diff always does — a set
-          built from the patch alone refuses every well-formed candidate on its own evidence.
-
-        - Build `test-first` (one behavior at a time):
-
-            - Admits unrelated base movement that touches no recorded path.
-
-            - Admits a base advance whose only recorded-path change is the regenerable projection.
-
-            - Refuses a base advance that changed a semantic destination alongside the projection.
-
-            - Admits a well-formed candidate whose diff carries its own receipt blob.
-
-            - Refuses changed content on a recorded touched path.
-
-            - Refuses a mode change whose content is byte-equal.
-
-            - Refuses a create or delete that inverts a recorded before/after state.
-
-            - Refuses a non-regular object (symlink, gitlink, or submodule) at a recorded path.
-
-            - Refuses a transition path present in the tree diff but absent from the recorded patch.
-
-    - `[ ]` **1.2.b Detect dependencies the base acquired on the retired origin**
-
-        - _Goal:_ A base that gained a dependency on the origin since the candidate was prepared is refused, so
-          the transform never retires a work unit something on the base still depends on.
-
-        - Derive incoming edges through the core's exported tree-snapshot reader
-          (`readGitV3DecomposeTreeSnapshot`, already parameterized by head) at **both** the recorded result base
-          and the current base, and refuse when the current base carries an edge on the origin that the recorded
-          result base did not.
-
-        - _Shape:_ this is a base-to-base comparison, and comparing against the receipt's recorded `incomingEdges`
-          instead would be wrong. Those edges are derived at the **selected source snapshot** — for a
-          started-planning origin, its own branch rather than the base — so they are not a base-side inventory and
-          the two sets can differ legitimately from the moment the receipt was written. Reading both ends with the
-          same reader at the same parameterization is what makes the difference meaningful.
-
-        - Compare the two ends by **dependent slug set**. A snapshot edge entry is
-          `{ dependent, currentTargets }`, where `currentTargets` is that dependent's entire `dependsOn` list
-          rather than the origin edge alone, so a set difference over whole entries refuses whenever an existing
-          dependent gains or loses an unrelated prerequisite — a base change touching neither the origin nor
-          anything the transition recorded, and exactly the concurrent grooming this work unit exists to tolerate.
-
-        - _Rationale:_ a dependent's meta is not a recorded touched path, so path replay alone cannot see a new
-          edge. The retired origin stays live and visible on the base for the whole review window, which makes
-          acquiring a dependency on it the natural thing for concurrent grooming to do — and the failure lands
-          silently as a dangling edge rather than a loud error.
-
-        - _Note:_ the snapshot reader also loads source-artifact blobs this check does not need, and throws on a
-          malformed meta anywhere in the tree. Both are accepted in exchange for adding no second derivation.
-
-        - Build `test-first` (one behavior at a time):
-
-            - Refuses a dependency on the retired origin that exists at the current base and not at the recorded
-              result base.
-
-            - Admits a base whose dependency set on the origin is unchanged.
-
-            - Admits dependency changes that touch neither the origin nor the base's own edge set.
-
-            - Admits an existing dependent that gained an unrelated prerequisite alongside its origin edge.
-
-            - Admits a candidate whose recorded edges were derived at a source branch that differs from the base.
-
-            - Converts a thrown reader failure into the validator's refusal arm rather than propagating it.
+- _Outcome:_ The validator now proves the complete preserved overlap while leaving the regenerable projection to
+  re-derivation, and it detects dependency drift that path replay cannot observe.
 
 ### `[ ]` **1.3 Bind one immutable base/head pair**
 

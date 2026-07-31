@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   readAncestry,
   readTreeEntry,
+  stateMatches,
 } from "../../../src/lib/work-unit/git-decomposition-object-readers.js";
 
 const ANCESTOR = "a".repeat(40);
@@ -46,5 +48,38 @@ describe("git decomposition object readers", () => {
     await expect(readTreeEntry(absent, ANCESTOR, path)).resolves.toBeNull();
     await expect(readTreeEntry(malformed, ANCESTOR, path)).resolves.toBe(false);
     await expect(readTreeEntry(duplicate, ANCESTOR, path)).resolves.toBe(false);
+  });
+
+  it.each([
+    ["changed content", "100644", "blob", "different", { kind: "file", mode: "100644" }],
+    ["content-equal mode change", "100755", "blob", "expected", { kind: "file", mode: "100644" }],
+    ["create inversion", "100644", "blob", "expected", { kind: "absent" }],
+    ["delete inversion", null, null, "expected", { kind: "file", mode: "100644" }],
+    ["symbolic link", "120000", "blob", "expected", { kind: "file", mode: "100644" }],
+    ["gitlink", "160000", "commit", "expected", { kind: "file", mode: "100644" }],
+    ["tree", "040000", "tree", "expected", { kind: "file", mode: "100644" }],
+  ] as const)("refuses a %s path state", async (_case, mode, type, bytesKind, expectedShape) => {
+    const path = ".arc/example.md";
+    const expectedBytes = new TextEncoder().encode("expected");
+    const oid = "c".repeat(40);
+    const exec: GitExec = async () => ({
+      stdout: mode === null ? "" : `${mode} ${type} ${oid}\t${path}\0`,
+    });
+    const expected = expectedShape.kind === "absent"
+      ? { kind: "absent" as const }
+      : {
+          kind: "file" as const,
+          mode: expectedShape.mode,
+          contentDigest: digestBytes(expectedBytes),
+        };
+    await expect(stateMatches(
+      {
+        exec,
+        readBlob: async () => new TextEncoder().encode(bytesKind),
+      },
+      ANCESTOR,
+      path,
+      expected,
+    )).resolves.toBe(false);
   });
 });

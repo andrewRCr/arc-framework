@@ -1,6 +1,8 @@
 /** Host-neutral validation for landing a canonical decomposition candidate over a moved base. */
 
+import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
 import type { V3DecomposeTreeSnapshot } from "./decompose-v3-preflight.js";
+import { v3DecomposeReceiptPath } from "./decompose-v3-preparation.js";
 import {
   parseV3DecomposeReceipt,
   type V3ManagedPathResult,
@@ -52,6 +54,78 @@ function validObjectPair(...oids: string[]): boolean {
   return oids.every((oid) => OBJECT_ID.test(oid) && oid.length === oids[0]?.length);
 }
 
+function comparePath(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left), Buffer.from(right));
+}
+
+async function transitionMatches(
+  input: DescendantBaseLandingInput,
+  receipt: NonNullable<ReturnType<typeof parseV3DecomposeReceipt>>,
+  deps: DescendantBaseLandingDependencies,
+): Promise<V3DecompositionMismatch | null> {
+  const recordedBaseOid = receipt.prepared.completedMap.machine.resultBase.head;
+  const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
+  const actualPaths = await deps.objects.changedPaths(recordedBaseOid, input.candidateHeadOid);
+  const expectedPaths = [
+    ...receipt.finalized.transitionPatch.map(({ path }) => path),
+    receiptPath,
+  ].sort(comparePath);
+  if (actualPaths === null || canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
+    const firstDifference = actualPaths?.find((path, index) => path !== expectedPaths[index])
+      ?? expectedPaths.find((path, index) => path !== actualPaths?.[index]);
+    return { kind: "patch", locus: firstDifference ?? receiptPath };
+  }
+  const [beforeReceipt, afterReceipt] = await Promise.all([
+    deps.objects.readTreeEntry(recordedBaseOid, receiptPath),
+    deps.objects.readTreeEntry(input.candidateHeadOid, receiptPath),
+  ]);
+  if (beforeReceipt !== null
+    || afterReceipt === null
+    || afterReceipt === false
+    || afterReceipt.type !== "blob"
+    || afterReceipt.mode !== "100644") return { kind: "patch", locus: receiptPath };
+  try {
+    const actualDigest = digestBytes(await deps.objects.readBlob(afterReceipt.oid));
+    const expectedDigest = digestBytes(new TextEncoder().encode(canonicalize(receipt)));
+    if (actualDigest !== expectedDigest) return { kind: "patch", locus: receiptPath };
+  } catch {
+    return { kind: "patch", locus: receiptPath };
+  }
+
+  const projectionPath = receipt.prepared.prospectiveProjection.roadmap.path;
+  for (const entry of receipt.finalized.transitionPatch) {
+    if (entry.path !== projectionPath
+      && !await deps.objects.stateMatches(input.currentBaseOid, entry.path, entry.before)) {
+      return { kind: "path", locus: entry.path };
+    }
+    if (!await deps.objects.stateMatches(input.candidateHeadOid, entry.path, entry.after)) {
+      return { kind: "patch", locus: entry.path };
+    }
+  }
+  return null;
+}
+
+async function dependencyMismatch(
+  input: DescendantBaseLandingInput,
+  receipt: NonNullable<ReturnType<typeof parseV3DecomposeReceipt>>,
+  deps: DescendantBaseLandingDependencies,
+): Promise<V3DecompositionMismatch | null> {
+  const machine = receipt.prepared.completedMap.machine;
+  let recordedSnapshot: V3DecomposeTreeSnapshot;
+  let currentSnapshot: V3DecomposeTreeSnapshot;
+  try {
+    [recordedSnapshot, currentSnapshot] = await Promise.all([
+      deps.dependencies.readSnapshot(machine.resultBase.ref, machine.resultBase.head, machine.source.origin),
+      deps.dependencies.readSnapshot(machine.resultBase.ref, input.currentBaseOid, machine.source.origin),
+    ]);
+  } catch {
+    return { kind: "dependency", locus: "snapshot-read" };
+  }
+  const recordedDependents = new Set(recordedSnapshot.incomingEdges.map(({ dependent }) => dependent));
+  const acquired = currentSnapshot.incomingEdges.find(({ dependent }) => !recordedDependents.has(dependent));
+  return acquired === undefined ? null : { kind: "dependency", locus: acquired.dependent };
+}
+
 /** Validate one exact base/candidate pair without granting recovery or mutation authority. */
 export async function validateDescendantBaseLanding(
   input: DescendantBaseLandingInput,
@@ -86,6 +160,10 @@ export async function validateDescendantBaseLanding(
       };
     }
   }
+  const transitionMismatch = await transitionMatches(input, receipt, deps);
+  if (transitionMismatch !== null) return { status: "refused", mismatch: transitionMismatch };
+  const dependenciesMismatch = await dependencyMismatch(input, receipt, deps);
+  if (dependenciesMismatch !== null) return { status: "refused", mismatch: dependenciesMismatch };
   return {
     status: "admitted",
     binding: {
