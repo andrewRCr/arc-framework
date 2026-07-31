@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,9 +12,14 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import {
   resolveConfiguredBaseDecompositionAnchor,
+  resolveConfiguredBaseDecompositionAnchorByReceiptId,
 } from "../../src/lib/work-unit/configured-base-decomposition-anchor.js";
 import { discardGitV3DecomposeCandidate } from "../../src/lib/work-unit/git-decompose-v3-candidate-discard.js";
 import { finalizeGitV3DecomposeOperation } from "../../src/lib/work-unit/git-decompose-v3-finalization.js";
+import {
+  advanceGitV3DecomposeBase,
+  prepareGitV3DecomposeBaseAdvancement,
+} from "../../src/lib/work-unit/git-decompose-v3-base-advancement.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
 import {
   executeGitV3DecomposeCommand,
@@ -24,6 +29,8 @@ import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompos
 import {
   cleanupGitLandedDecompositionLocally,
 } from "../../src/lib/work-unit/git-decomposition-local-cleanup.js";
+import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
+import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -98,6 +105,7 @@ async function startedRepository() {
   await git(repo, ["init", "-b", "main"]);
   await git(repo, ["config", "user.name", "ARC Test"]);
   await git(repo, ["config", "user.email", "arc@example.test"]);
+  await git(repo, ["commit", "--allow-empty", "-m", "seed"]);
   const draft = `# Draft: origin
 
 - **Origin:** [internal]
@@ -132,6 +140,11 @@ Medium.
     nextAction: "Begin draft-design",
   });
   await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
+  await write(
+    repo,
+    ".arc/system/arc-config.yml",
+    "branch.base: main\nbranch.protection: full\npm.mode: arc-in-git\n",
+  );
   await write(repo, ".arc/backlog/planned/origin/draft-origin.md", draft);
   await write(repo, ".arc/backlog/planned/origin/meta-origin.md", plannedMeta);
   await write(repo, ".arc/reference/shared.txt", "shared\n");
@@ -202,6 +215,44 @@ Medium.
     },
   };
   return { repo, baseHead, sourceHead, completedMap, dependencies };
+}
+
+async function finalizedCandidateRepository() {
+  const started = await startedRepository();
+  const prepared = await executeGitV3DecomposeOperation({
+    ...started.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: started.completedMap,
+  });
+  if (prepared.status !== "prepared"
+    || prepared.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(prepared));
+  }
+  const candidate = prepared.operation.occupation.path;
+  roots.push(candidate);
+  const receiptId = prepared.operation.preparation.receiptId;
+  const continuationPath = join(started.repo, "continuation.json");
+  await writeFile(
+    continuationPath,
+    `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
+  );
+  const finalized = await finalizeGitV3DecomposeOperation({
+    ...started.dependencies,
+    cwd: candidate,
+    readBlob: async (ref, path) => await readBlob(candidate, ref, path),
+  }, {
+    baseBranch: "main",
+    origin: "origin",
+    receiptId,
+    continuationPath,
+  });
+  if (finalized.status !== "recorded") throw new Error(JSON.stringify(finalized));
+  await git(candidate, ["commit", "-m", "finalize candidate"]);
+  const candidateHead = (await git(started.repo, ["rev-parse", "chore/decompose-origin"])).trim();
+  return { ...started, candidate, candidateHead, receiptId };
 }
 
 async function backlogStubRepository(options: { preserveParent?: boolean } = {}) {
@@ -790,6 +841,357 @@ describe("Git v3 repository plan", () => {
       },
     });
   });
+
+  it("advances, validates, lands, resolves, and reclaims one real committed candidate", async () => {
+    const {
+      repo,
+      dependencies,
+      candidate,
+      candidateHead: originalCandidateHead,
+      receiptId,
+    } = await finalizedCandidateRepository();
+
+    expect(await prepareGitV3DecomposeBaseAdvancement(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    })).toEqual({
+      status: "unchanged",
+      receiptId,
+      currentBaseHead: expect.any(String),
+      candidateHead: originalCandidateHead,
+    });
+
+    await write(repo, ".arc/backlog/planned/observer/meta-observer.md", renderMetaFile("observer", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P3",
+      origin: "internal",
+      design: ["draft-observer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await write(repo, ".arc/backlog/planned/observer/draft-observer.md", "# Draft: observer\n");
+    await git(repo, ["add", ".arc/backlog/planned/observer"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    const advancedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+    const advanced = await advanceGitV3DecomposeBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    });
+    expect(advanced, JSON.stringify(advanced)).toEqual({
+      status: "advanced",
+      receiptId,
+      previousBaseHead: expect.any(String),
+      currentBaseHead: advancedBaseHead,
+      candidateHead: originalCandidateHead,
+    });
+    expect((await git(candidate, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(advancedBaseHead);
+
+    const remedy = await runRoadmapConflictAutoRemedy(candidate);
+    expect(remedy).toEqual({
+      exitCode: 0,
+      stdout: "Auto-remedied ROADMAP-only conflict: regenerated and restaged .arc/backlog/ROADMAP.md\n",
+      stderr: "",
+    });
+    expect(await runRoadmapRegenerationAssert({
+      cwd: candidate,
+      exec: async (command, args, options) => await dependencies.exec(command, args, {
+        ...options,
+        cwd: options?.cwd ?? candidate,
+      }),
+      baseBranch: "main",
+    })).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+
+    const packageRoot = resolve(import.meta.dirname, "../..");
+    const tsx = resolve(packageRoot, "../..", "node_modules", ".bin", "tsx");
+    await expect(execFileAsync(
+      tsx,
+      [join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
+      { cwd: candidate, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
+    )).resolves.toMatchObject({ stderr: "" });
+
+    await git(candidate, ["commit", "-m", "advance candidate base"]);
+    const advancedCandidateHead = (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim();
+    expect(advancedCandidateHead).not.toBe(originalCandidateHead);
+    await git(repo, ["merge", "--ff-only", "chore/decompose-origin"]);
+    await write(repo, ".arc/reference/post-landing.txt", "later base work\n");
+    await git(repo, ["add", ".arc/reference/post-landing.txt"]);
+    await git(repo, ["commit", "-m", "continue after landing"]);
+    const liveBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+    const exec: GitExec = async (command, args, options) =>
+      await dependencies.exec(command, args, { ...options, cwd: options?.cwd ?? repo });
+
+    const landed = await resolveConfiguredBaseDecompositionAnchor("main", "origin", {
+      exec,
+      readBlob: dependencies.readObject,
+    });
+    expect(landed, JSON.stringify(landed)).toMatchObject({
+      status: "resolved",
+      anchor: {
+        receiptId,
+        candidateCommitHead: advancedCandidateHead,
+        currentBaseHead: liveBaseHead,
+        landedCommitHead: advancedCandidateHead,
+        landing: { kind: "fast-forward" },
+      },
+    });
+    expect(await resolveConfiguredBaseDecompositionAnchorByReceiptId("main", receiptId, {
+      exec,
+      readBlob: dependencies.readObject,
+    })).toMatchObject({ status: "resolved", anchor: { receiptId, currentBaseHead: liveBaseHead } });
+
+    const cleaned = await cleanupGitLandedDecompositionLocally("main", "origin", {
+      cwd: repo,
+      exec,
+      readBlob: dependencies.readObject,
+      closeUserWorkspace: async () => undefined,
+    });
+    expect(cleaned, JSON.stringify(cleaned)).toMatchObject({
+      status: "cleaned",
+      retirement: "retired",
+      registration: "released",
+      candidate: { branchOutcome: "deleted", worktreeOutcome: "removed" },
+      source: { branchOutcome: "deleted" },
+    });
+    const [claimName] = await claimFiles(repo);
+    expect(claimName).toBeDefined();
+    expect(JSON.parse(await readFile(
+      join(repo, ".git", "arc", "transient-claims", claimName!),
+      "utf8",
+    ))).toMatchObject({
+      state: { kind: "terminal", terminal: { kind: "landed", receiptId } },
+      registration: { kind: "released" },
+    });
+  }, 20_000);
+
+  it.each([
+    "regressed base",
+    "divergent base",
+    "path conflict",
+    "mode conflict",
+    "type conflict",
+    "dependency conflict",
+  ] as const)("refuses a real %s without changing the committed candidate", async (variant) => {
+    const { repo, baseHead, dependencies, candidate, candidateHead, receiptId } =
+      await finalizedCandidateRepository();
+    if (variant === "regressed base" || variant === "divergent base") {
+      await git(repo, ["reset", "--hard", `${baseHead}^`]);
+      if (variant === "divergent base") {
+        await write(repo, ".arc/reference/divergent.txt", "divergent base\n");
+        await git(repo, ["add", ".arc/reference/divergent.txt"]);
+        await git(repo, ["commit", "-m", "diverge base"]);
+      }
+    } else if (variant === "path conflict" || variant === "mode conflict") {
+      const path = ".arc/backlog/planned/member/meta-member.md";
+      await write(repo, path, "foreign member\n");
+      await git(repo, ["add", path]);
+      if (variant === "mode conflict") await git(repo, ["update-index", "--chmod=+x", path]);
+      await git(repo, ["commit", "-m", variant]);
+    } else if (variant === "type conflict") {
+      await write(
+        repo,
+        ".arc/backlog/planned/member/meta-member.md/child.txt",
+        "tree collision\n",
+      );
+      await git(repo, ["add", ".arc/backlog/planned/member"]);
+      await git(repo, ["commit", "-m", variant]);
+    } else {
+      await write(repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        design: ["draft-dependent.md"],
+        dependsOn: ["origin"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }));
+      await write(repo, ".arc/backlog/planned/dependent/draft-dependent.md", "# Draft: dependent\n");
+      await git(repo, ["add", ".arc/backlog/planned/dependent"]);
+      await git(repo, ["commit", "-m", variant]);
+    }
+    const before = {
+      head: (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim(),
+      status: await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"]),
+      claim: await readFile(join(repo, ".git", "arc", "transient-claims", (await claimFiles(repo))[0]!), "utf8"),
+    };
+
+    const result = await advanceGitV3DecomposeBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    });
+
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "refused" });
+    expect(result.status === "refused" ? result.reason : "").toMatch(
+      /^(?:landing-validation-refused|canonical-validation-refused)$/u,
+    );
+    expect({
+      head: (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim(),
+      status: await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"]),
+      claim: await readFile(join(repo, ".git", "arc", "transient-claims", (await claimFiles(repo))[0]!), "utf8"),
+    }).toEqual({ ...before, head: candidateHead });
+  });
+
+  it.each(["base", "candidate"] as const)(
+    "refuses real mid-operation %s movement before starting the merge",
+    async (movedRef) => {
+      const { repo, dependencies, candidate, candidateHead, receiptId } =
+        await finalizedCandidateRepository();
+      await write(repo, ".arc/reference/base-before-race.txt", "base before race\n");
+      await git(repo, ["add", ".arc/reference/base-before-race.txt"]);
+      await git(repo, ["commit", "-m", "advance base before race"]);
+      let reads = 0;
+      let injectedHead: string | undefined;
+      const target = movedRef === "base" ? "main^{commit}" : "chore/decompose-origin^{commit}";
+      const racingExec: GitExec = async (command, args, options) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === target) {
+          reads += 1;
+          if (reads === 3) {
+            if (movedRef === "base") {
+              await write(repo, ".arc/reference/base-race.txt", "base race\n");
+              await git(repo, ["add", ".arc/reference/base-race.txt"]);
+              await git(repo, ["commit", "-m", "move base during advancement"]);
+              injectedHead = (await git(repo, ["rev-parse", "main"])).trim();
+            } else {
+              await git(candidate, ["commit", "--allow-empty", "-m", "move candidate during advancement"]);
+              injectedHead = (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim();
+            }
+          }
+        }
+        return await dependencies.exec(command, args, options);
+      };
+
+      const result = await advanceGitV3DecomposeBase({ ...dependencies, exec: racingExec }, {
+        protection: "full",
+        baseBranch: "main",
+        origin: "origin",
+        receiptId,
+      });
+
+      expect(reads).toBeGreaterThanOrEqual(3);
+      expect(result).toMatchObject({
+        status: "refused",
+        reason: "landing-validation-refused",
+        mismatch: { kind: "base", locus: "binding-unavailable" },
+      });
+      await expect(execFileAsync("git", ["rev-parse", "--verify", "MERGE_HEAD"], {
+        cwd: candidate,
+        encoding: "utf8",
+      })).rejects.toThrow();
+      expect(await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"])).toBe("");
+      expect((await git(repo, ["rev-parse", "chore/decompose-origin"])).trim()).toBe(
+        movedRef === "candidate" ? injectedHead : candidateHead,
+      );
+    },
+  );
+
+  it("refuses a committed configured-ref source before changing its candidate", async () => {
+    const { repo, dependencies, completedMap } = await backlogStubRepository();
+    const prepared = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(prepared.status, JSON.stringify(prepared)).toBe("prepared");
+    if (prepared.status !== "prepared"
+      || prepared.operation.occupation.protection !== "full") return;
+    const candidate = prepared.operation.occupation.path;
+    roots.push(candidate);
+    const cohortPath = join(
+      candidate,
+      ".arc",
+      "backlog",
+      "planned",
+      "delivery",
+      "cohort-delivery.md",
+    );
+    await writeFile(
+      cohortPath,
+      (await readFile(cohortPath, "utf8")).replace(
+        "**Purpose:** —",
+        "**Purpose:** Coordinate the configured-ref results.",
+      ),
+    );
+    await git(candidate, ["add", ".arc/backlog/planned/delivery/cohort-delivery.md"]);
+    const continuationPath = join(repo, "backlog-continuation.json");
+    await writeFile(continuationPath, `${canonicalize({ kind: "selected", slugs: ["alpha"] })}\n`);
+    const receiptId = prepared.operation.preparation.receiptId;
+    const finalized = await finalizeGitV3DecomposeOperation({
+      ...dependencies,
+      cwd: candidate,
+      readBlob: async (ref, path) => await readBlob(candidate, ref, path),
+    }, {
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+      continuationPath,
+    });
+    expect(finalized.status, JSON.stringify(finalized)).toBe("recorded");
+    await git(candidate, ["commit", "-m", "finalize configured-ref candidate"]);
+    const before = {
+      head: (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim(),
+      status: await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    };
+    await write(repo, ".arc/reference/base-after-backlog.txt", "advance base\n");
+    await git(repo, ["add", ".arc/reference/base-after-backlog.txt"]);
+    await git(repo, ["commit", "-m", "advance configured base"]);
+
+    expect(await advanceGitV3DecomposeBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      receiptId,
+    })).toMatchObject({ status: "refused", reason: "source-ref-is-result-base" });
+    expect({
+      head: (await git(repo, ["rev-parse", "chore/decompose-origin"])).trim(),
+      status: await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    }).toEqual(before);
+  });
+
+  it.each(["one-parent", "advanced-merge"] as const)(
+    "resolves a descendant-base merge landing for a %s candidate",
+    async (shape) => {
+      const { repo, dependencies, candidate, receiptId } = await finalizedCandidateRepository();
+      await write(repo, ".arc/reference/descendant-base.txt", "descendant base\n");
+      await git(repo, ["add", ".arc/reference/descendant-base.txt"]);
+      await git(repo, ["commit", "-m", "descend base"]);
+      if (shape === "advanced-merge") {
+        const advanced = await advanceGitV3DecomposeBase(dependencies, {
+          protection: "full",
+          baseBranch: "main",
+          origin: "origin",
+          receiptId,
+        });
+        expect(advanced.status, JSON.stringify(advanced)).toBe("advanced");
+        await git(candidate, ["commit", "-m", "advance candidate"]);
+      }
+      await write(repo, `.arc/reference/${shape}-landing-side.txt`, "landing side\n");
+      await git(repo, ["add", `.arc/reference/${shape}-landing-side.txt`]);
+      await git(repo, ["commit", "-m", "move landing side"]);
+      await git(repo, ["merge", "--no-ff", "chore/decompose-origin", "-m", "merge candidate"]);
+      const exec: GitExec = async (command, args, options) =>
+        await dependencies.exec(command, args, { ...options, cwd: options?.cwd ?? repo });
+
+      expect(await resolveConfiguredBaseDecompositionAnchor("main", "origin", {
+        exec,
+        readBlob: dependencies.readObject,
+      })).toMatchObject({
+        status: "resolved",
+        anchor: { receiptId, landing: { kind: "merge" } },
+      });
+    },
+  );
 
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {
     const {

@@ -497,6 +497,80 @@ describe("arc decompose command modes", () => {
     });
   });
 
+  it("advances one committed candidate through the built CLI without rewriting its head", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeCompletedCutMap(repo);
+    const executed = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(executed.exitCode, executed.stderr).toBe(0);
+    const prepared = JSON.parse(executed.stdout) as {
+      operation: {
+        occupation: { path: string };
+        preparation: { receiptId: string };
+      };
+      next: { continuationPath: string };
+    };
+    await writeFile(
+      prepared.next.continuationPath,
+      `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
+    );
+    const finalized = await runArcNoTty([
+      "decompose",
+      "origin",
+      "--finalize",
+      prepared.operation.preparation.receiptId,
+      "--continuation",
+      prepared.next.continuationPath,
+    ], prepared.operation.occupation.path, { timeout: 60_000 });
+    expect(finalized.exitCode, finalized.stderr).toBe(0);
+    await git(prepared.operation.occupation.path, ["commit", "-m", "finalize candidate"]);
+    const candidateHead = await git(repo, ["rev-parse", "chore/decompose-origin"]);
+
+    await write(repo, ".arc/backlog/planned/observer/meta-observer.md", renderMetaFile("observer", {
+      state: "Planning",
+      owner: "test-user",
+      workClass: "Light",
+      priority: "P3",
+      origin: "internal",
+      design: ["draft-observer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await write(repo, ".arc/backlog/planned/observer/draft-observer.md", "# Draft: observer\n");
+    await git(repo, ["add", ".arc/backlog/planned/observer"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    const currentBaseHead = await git(repo, ["rev-parse", "main"]);
+
+    const advanced = await runArcNoTty([
+      "decompose",
+      "origin",
+      "--advance-base",
+      prepared.operation.preparation.receiptId,
+    ], repo, { timeout: 60_000 });
+
+    expect(advanced.exitCode, advanced.stderr).toBe(0);
+    expect(JSON.parse(advanced.stdout)).toEqual({
+      status: "advanced",
+      receiptId: prepared.operation.preparation.receiptId,
+      previousBaseHead: expect.any(String),
+      currentBaseHead,
+      candidateHead,
+    });
+    expect(await git(repo, ["rev-parse", "chore/decompose-origin"])).toBe(candidateHead);
+    expect(await git(prepared.operation.occupation.path, ["rev-parse", "MERGE_HEAD"]))
+      .toBe(currentBaseHead);
+    const staged = await git(
+      prepared.operation.occupation.path,
+      ["diff", "--cached", "--name-only"],
+    );
+    expect(staged).toContain(".arc/backlog/ROADMAP.md");
+    expect(staged).toContain(".arc/backlog/planned/observer/meta-observer.md");
+    expect(staged).toContain(".arc/system/.internal/retirement-receipts/");
+  });
+
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {
     repo = await startedRepository();
     const cutMapPath = await writeMultiMemberCohortlessCutMap(repo);

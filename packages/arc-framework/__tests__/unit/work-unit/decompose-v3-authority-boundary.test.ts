@@ -32,12 +32,46 @@ function identifierViolations(forbidden: ReadonlySet<string>): { file: string; i
   return violations;
 }
 
-function hasExportedFunction(path: string, name: string): boolean {
+type ExportedBoundaryQuery =
+  | { kind: "function"; name: string }
+  | { kind: "interface-member"; interfaceName: string; memberName: string }
+  | { kind: "union-arm"; typeName: string; discriminant: string; value: string };
+
+function hasExportedBoundary(path: string, query: ExportedBoundaryQuery): boolean {
   const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+  const exported = (statement: ts.Statement): boolean =>
+    ts.canHaveModifiers(statement)
+    && ts.getModifiers(statement)?.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword) === true;
+  const propertyName = (name: ts.PropertyName | undefined): string | undefined =>
+    name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name)) ? name.text : undefined;
+  if (query.kind === "function") {
+    return source.statements.some((statement) =>
+      exported(statement)
+      && ts.isFunctionDeclaration(statement)
+      && statement.name?.text === query.name);
+  }
+  if (query.kind === "interface-member") {
+    return source.statements.some((statement) =>
+      exported(statement)
+      && ts.isInterfaceDeclaration(statement)
+      && statement.name.text === query.interfaceName
+      && statement.members.some((member) =>
+        ts.isPropertySignature(member) && propertyName(member.name) === query.memberName));
+  }
   return source.statements.some((statement) =>
-    ts.isFunctionDeclaration(statement)
-    && statement.name?.text === name
-    && statement.modifiers?.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword) === true);
+    exported(statement)
+    && ts.isTypeAliasDeclaration(statement)
+    && statement.name.text === query.typeName
+    && ts.isUnionTypeNode(statement.type)
+    && statement.type.types.some((arm) =>
+      ts.isTypeLiteralNode(arm)
+      && arm.members.some((member) =>
+        ts.isPropertySignature(member)
+        && propertyName(member.name) === query.discriminant
+        && member.type !== undefined
+        && ts.isLiteralTypeNode(member.type)
+        && ts.isStringLiteral(member.type.literal)
+        && member.type.literal.text === query.value)));
 }
 
 describe("decomposition v3 authority boundary", () => {
@@ -78,8 +112,58 @@ describe("decomposition v3 authority boundary", () => {
     const preparation = join(SOURCE_ROOT, "lib/work-unit/decompose-preparation.ts");
     const finalization = join(SOURCE_ROOT, "lib/work-unit/decompose-finalization.ts");
 
-    expect(hasExportedFunction(preparation, "prepareV3DecomposeRetirement")).toBe(true);
-    expect(hasExportedFunction(finalization, "finalizeV3DecomposeRetirement")).toBe(true);
+    expect(hasExportedBoundary(preparation, {
+      kind: "function",
+      name: "prepareV3DecomposeRetirement",
+    })).toBe(true);
+    expect(hasExportedBoundary(finalization, {
+      kind: "function",
+      name: "finalizeV3DecomposeRetirement",
+    })).toBe(true);
+  });
+
+  it("resolves exported interface members and type-alias union arms", () => {
+    expect(hasExportedBoundary(
+      join(SOURCE_ROOT, "lib/work-unit/decomposition-integration-anchor.ts"),
+      {
+        kind: "interface-member",
+        interfaceName: "DecompositionIntegrationFacts",
+        memberName: "baseDescent",
+      },
+    )).toBe(true);
+    expect(hasExportedBoundary(
+      join(SOURCE_ROOT, "lib/work-unit/decompose-finalization-recovery.ts"),
+      {
+        kind: "union-arm",
+        typeName: "V3DecomposeFinalizationRecovery",
+        discriminant: "action",
+        value: "advance-base",
+      },
+    )).toBe(true);
+  });
+
+  it("retains the descendant-mobility authority boundary", () => {
+    expect(hasExportedBoundary(
+      join(SOURCE_ROOT, "lib/work-unit/validate-descendant-base-landing.ts"),
+      { kind: "function", name: "validateBoundDescendantBaseLanding" },
+    )).toBe(true);
+    expect(hasExportedBoundary(
+      join(SOURCE_ROOT, "lib/work-unit/decomposition-integration-anchor.ts"),
+      {
+        kind: "interface-member",
+        interfaceName: "DecompositionIntegrationFacts",
+        memberName: "baseDescent",
+      },
+    )).toBe(true);
+    expect(hasExportedBoundary(
+      join(SOURCE_ROOT, "lib/work-unit/decompose-finalization-recovery.ts"),
+      {
+        kind: "union-arm",
+        typeName: "V3DecomposeFinalizationRecovery",
+        discriminant: "action",
+        value: "advance-base",
+      },
+    )).toBe(true);
   });
 
   it("keeps shipped methodology v3-only and its project projection synchronized", () => {

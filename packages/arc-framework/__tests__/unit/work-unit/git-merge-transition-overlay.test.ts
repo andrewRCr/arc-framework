@@ -4,6 +4,7 @@ import {
   canonicalize,
   digestBytes,
 } from "../../../src/lib/canonical/canonical-json.js";
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import {
   resolveGitMergeTransitionOverlay,
@@ -82,10 +83,24 @@ function installMergeSnapshot(options: {
   receiptParents?: "none" | "head" | "merge-head" | "all-merge-heads";
   restatedParent?: "head" | "merge-head";
 } = {}): InstalledMergeSnapshot {
+  const sourceMetaPath = ".arc/active/meta-origin.md";
+  const sourceMetaBytes = Buffer.from(renderMetaFile("origin", {
+    state: "Planning",
+    owner: "andrew",
+    branch: "plan/origin",
+    design: ["draft-origin.md"],
+  }), "utf8");
+  const sourceMetaArtifact = {
+    path: sourceMetaPath,
+    objectKind: "blob" as const,
+    mode: "100644" as const,
+    contentDigest: digestBytes(sourceMetaBytes),
+  };
   const evidence = v3DecompositionEvidenceFixture({
     sourceHead: SOURCE_HEAD_OID,
     resultBaseHead: HEAD_OID,
     digestLabel: (label) => digestBytes(Buffer.from(label, "utf8")),
+    additionalSourceArtifacts: [sourceMetaArtifact],
   });
   const mergeHeadOids = options.mergeHeadOids ?? [MERGE_HEAD_OID];
   const candidateReceiptPresent = options.candidateReceipt ?? true;
@@ -119,6 +134,16 @@ function installMergeSnapshot(options: {
     put(ref, path, Buffer.from(label, "utf8"), mode);
   };
   add(SOURCE_HEAD_OID, sourcePath, "source unit");
+  put(SOURCE_HEAD_OID, sourceMetaPath, sourceMetaBytes);
+  put(
+    SOURCE_HEAD_OID,
+    ".arc/backlog/planned/consumer/meta-consumer.md",
+    Buffer.from(renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: ["origin"],
+    }), "utf8"),
+  );
   for (const result of evidence.receipt.finalized.managedPathResults) {
     const label = result.path.endsWith("ROADMAP.md")
       ? "roadmap after"
@@ -151,6 +176,7 @@ function installMergeSnapshot(options: {
       sourceHead: SOURCE_HEAD_OID,
       resultBaseHead: MERGE_HEAD_OID,
       digestLabel: (label) => digestBytes(Buffer.from(label, "utf8")),
+      additionalSourceArtifacts: [sourceMetaArtifact],
     });
     const parent = options.restatedParent === "head" ? HEAD_OID : mergeHeadOids[0];
     if (parent === undefined) throw new Error("restated parent fixture requires one merge head");
@@ -188,6 +214,12 @@ function installMergeSnapshot(options: {
       ]
         .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
       return { stdout: `${paths.join("\0")}\0`, stderr: "" };
+    }
+    if (args[0] === "ls-tree" && args.includes(".arc/active")) {
+      const ref = args.find((value) => entries.has(value));
+      const records = ref === undefined ? [] : [...(entries.get(ref)?.entries() ?? [])]
+        .map(([path, entry]) => `${entry.mode} blob ${path}`);
+      return { stdout: records.length === 0 ? "" : `${records.join("\0")}\0`, stderr: "" };
     }
     if (args[0] === "ls-tree" && args.includes(RETIREMENT_RECORD_NAMESPACE)) {
       const ref = args.find((value) => entries.has(value));

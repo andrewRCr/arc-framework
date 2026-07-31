@@ -25,6 +25,8 @@ import {
   type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
 import { v3SourceArtifactDigest } from "./decompose-v3-schema.js";
+import { readTreeEntry } from "./git-decomposition-object-readers.js";
+import { readGitV3DecomposeTreeSnapshot } from "./git-decompose-v3-preflight.js";
 import {
   validateRetirementRecordEnumeration,
   type EnumeratedRetirementRecord,
@@ -374,17 +376,30 @@ async function buildCandidate(
   const receipt = record.record.value;
   const preparation = preparationFromReceipt(receipt);
   const machine = preparation.facts.completedMap.machine;
-  const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
-    .sort(compareUtf8);
-  const sourceArtifactInventory = await Promise.all(sourcePaths.map(async (path) => {
-    const state = await readPathState(machine.source.head, path, deps);
-    if (state.kind !== "file") throw new Error(`Source artifact is absent: ${path}`);
-    return {
-      path,
-      objectKind: "blob" as const,
-      mode: state.mode,
-      contentDigest: state.contentDigest,
-    };
+  const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
+    cwd: deps.cwd,
+    exec: deps.exec,
+    readBlob: async (ref, path) => {
+      const entry = await readTreeEntry(
+        async (command, args, options) => await deps.exec(command, args, {
+          ...options,
+          cwd: options?.cwd ?? deps.cwd,
+        }),
+        ref,
+        path,
+      );
+      if (entry === null) return null;
+      if (entry === false || entry.type !== "blob") {
+        throw new Error(`Source artifact is not a blob: ${path}`);
+      }
+      return await deps.readBlob(entry.oid);
+    },
+  }, machine.source.ref, machine.source.head, machine.source.origin);
+  const sourceArtifactInventory = sourceSnapshot.sourceArtifacts.map((artifact) => ({
+    path: artifact.path,
+    objectKind: artifact.objectKind,
+    mode: artifact.mode,
+    contentDigest: digestBytes(artifact.bytes),
   }));
   const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
   if (sourceArtifactDigest === null) throw new Error("Source artifact inventory is not canonical");

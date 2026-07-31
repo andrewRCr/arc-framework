@@ -1020,97 +1020,45 @@ assert that no core, extraction, or host-policy boundary moved.
 _Design decisions:_ Real-Git matrices stay in integration; the mode surface stays in the existing command-mode and
 e2e homes. No full transform or remote cross-product is rebuilt here.
 
-### `[ ]` **5.1 Cover the mobility topology at proportional homes**
+### `[x]` **5.1 Cover the mobility topology at proportional homes**
 
 - _Goal:_ One focused real-Git suite proves the novel graph boundaries this work unit introduces, without
   rebuilding the core transform matrix.
 
-- _Approach:_ Extend the existing decomposition fixtures and the real-Git finalization integration home rather
-  than standing up a parallel harness. Exercise both protection modes only where committed-unlanded state actually
-  differs between them.
+    - `[x]` **5.1.a Exercise the real-Git DAG matrix**
 
-    - `[ ]` **5.1.a Exercise the real-Git DAG matrix**
+        - The real-Git matrix covers exact and descendant bases; regressed, divergent, path, mode, type, and
+          dependency refusals; and mid-operation movement of either the base or candidate head.
 
-        - Cover exact base, strict descendant, regressed, divergent, path conflict, mode conflict, type conflict,
-          dependency conflict, and mid-operation base and head movement.
+        - Both candidate arities resolve merge landings over descendant bases, while the composed advancement path
+          proves projection-only movement and fast-forward landing after a two-parent advancement commit.
 
-        - Cover both landing shapes for an advanced candidate — fast-forward onto the candidate, and merged into
-          the base — since advancement changes the candidate's parent arity and only one of those was reachable
-          before.
+    - `[x]` **5.1.b Prove end-to-end composition**
 
-        - Cover the merge landing over a descendant base for both candidate arities, proving the recorded landing
-          topology is the merge itself rather than a fast-forward at the candidate.
+        - One committed path now exercises finalization, advancement, all three pre-commit hook families, landing,
+          later unrelated base work, both anchor consumers, cleanup admission, and terminal claim retirement.
 
-        - Cover a base advance whose only recorded-path change is the projection, which is the ordinary case and
-          the one a touched-path reading would refuse.
+        - Refused topology preserves the committed candidate byte-for-byte, and a configured-ref backlog source
+          refuses before mutation. A built-CLI E2E covers the destructive advancement verb in a temporary Git repo.
 
-    - `[ ]` **5.1.b Prove end-to-end composition**
+        - Restatement now reconstructs the complete pinned source artifact set, and ROADMAP remedy binds every Git
+          read to the candidate worktree so the three-hook composition observes one repository.
 
-        - Cover finalized receipt through advancement or exact landing, then live anchor, then both consumers that
-          gate on it — cleanup admission and the launch path's anchor resolution — as one path, without duplicating
-          the full transform or the remote matrix.
+- _Outcome:_ The acceptance layer now proves base mobility against real Git topology at the integration and built-CLI
+  boundaries, including the post-landing delay and reclaim sequence that the integration anchor exists to support.
 
-        - Cover the launch case the anchor exists for: decompose, land, merge an unrelated commit onto the base,
-          then start a member. That is the sequence that fails today, and a matrix that starts a member
-          immediately after landing would pass while proving nothing.
-
-        - Cover the refusal path as well: a refused advancement leaves the candidate committed and unlanded,
-          exactly as it was found.
-
-        - Cover the advancement commit against the complete pre-commit hook family — the record gate's advancing
-          arm, the projection assert's restated-record discovery, and the conflict remedy's restated-provenance
-          classification — as one committed path rather than only as per-hook units.
-
-        - Carry the composition through claim retirement, not only to the anchor: advance, land, merge an
-          unrelated commit, then reclaim the candidate through the cleanup gate. A matrix that stops at anchor
-          resolution would pass while leaving the candidate permanently unreclaimable.
-
-        - Cover both source kinds at the precondition — a started-planning origin advances, a backlog-stub-sourced
-          one refuses — since the two differ precisely in whether the source snapshot tracks the base.
-
-        - _Note:_ the evidence fixture exposes a single entry point, so the topology matrix extends it rather than
-          composing from a richer existing set.
-
-### `[ ]` **5.2 Assert the preserved core and host-policy boundaries**
+### `[x]` **5.2 Assert the preserved core and host-policy boundaries**
 
 - _Goal:_ The work unit demonstrably adds no duplicate validator, no semantic gate, no extraction behavior, and no
   host-policy grant.
 
-- _Rationale:_ These are the commitments most easily eroded by a plausible-looking convenience, and they are what
-  keeps the member independently safe alongside its siblings. Only part of that is mechanically decidable, and the
-  honest instrument differs between the parts.
+    - `[x]` **5.2.a Extend the existing authority-boundary proof**
 
-    - `[ ]` **5.2.a Extend the existing authority-boundary proof**
+        - The source-graph proof now resolves exported functions, interface members, and literal-discriminated
+          type-alias union arms through one AST query.
 
-        - The decomposition authority-boundary proof already walks the source graph, asserting removed-module
-          absence, forbidden-identifier absence, and positive exported-symbol presence. Extend it there rather
-          than standing up a second boundary home: add the positive assertions that this work unit's own
-          boundary-carrying symbols are exported where the design says they are.
-
-        - Two of the three assertions need the proof's positive half widened first. Its exported-presence helper
-          inspects exported **function declarations**, which reaches the landing validator but not the producer's
-          descent input — an interface field — or the recovery arm, a member of an exported type-alias union.
-          Widen the helper to inspect interface members and union arms, so all three assertions rest on the same
-          instrument rather than on a weaker proxy for two of them.
-
-        - _Shape:_ the negative half does not extend cleanly and is not forced to. Extraction source-thinning has
-          no symbols to forbid — it belongs to a sibling that is not built. The planning-lane boundary has nothing
-          the negative half can name either: the forbidden set is matched against identifier text, and the live
-          shipped surface is a hyphenated command literal that can never be an identifier, so forbidding it would
-          assert nothing while forbidding the identifiers that do exist would flag correct, unrelated shipped
-          code. Absence of a ledger, transaction, cache, or token is a design property rather than an identifier
-          at all. Those commitments stay Success Criteria, decided against the finished change during the
-          verification phase where a human check is the honest instrument.
-
-        - Build `test-first` (one behavior at a time):
-
-            - The landing validator, the descent-proof producer input, and the recovery arm are exported from the
-              modules the design assigns them to.
-
-            - The positive half resolves an interface member and a type-alias union arm, not only a function
-              declaration.
-
-            - The existing removed-module and forbidden-identifier assertions still pass unchanged.
+        - Positive assertions bind the landing validator, descent-proof input, and advancement recovery arm to
+          their assigned modules; the existing removed-module and forbidden-identifier assertions remain intact.
 
 ## **Phase 6:** Verification
 
