@@ -17,6 +17,7 @@ import type {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
 import type { NoteSetRelation } from "../../lib/user-sync/note-set-relation.js";
+import type { UserInboxPostImage } from "./inbox-mutation.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -211,6 +212,8 @@ export interface UserInboxRemoveResult {
   removed: boolean;
   /** True when the developer has no `USER-INBOX` file — a clean no-op, not an error. */
   inboxMissing: boolean;
+  /** Exact inbox state observed after the lock-serialized removal. */
+  postImage: UserInboxPostImage;
 }
 
 /** Options for the push operation. */

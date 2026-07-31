@@ -28,6 +28,11 @@ describe("command-input no-input matrix", () => {
           { timeout: 10_000, env: { CI: "false" } },
         );
         expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+        if (entry.configuration === "full-protection") {
+          const configPath = join(cwd, ".arc", "system", "arc-config.yml");
+          const config = await readFile(configPath, "utf8");
+          await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"));
+        }
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
       }

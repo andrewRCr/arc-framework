@@ -170,7 +170,6 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "finalize",
       "repoint-design",
-      "errand retire",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

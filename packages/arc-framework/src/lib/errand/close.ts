@@ -1,7 +1,7 @@
 /**
- * `closeErrand` — the composed core of `arc errand close`.
+ * Bounded v1/v2 compatibility core for `arc errand close`.
  *
- * Closes a full-protection errand by reaping its branch, removing the identity
+ * Closes a legacy full-protection errand by reaping its branch, removing the identity
  * record, and pushing the removal. The reap is **containment-safe**: the local
  * branch is deleted only when its commits are provably preserved — contained in
  * its remote upstream (`<remote>/<branch>`, i.e. pushed) or in `base` (i.e.
@@ -115,7 +115,7 @@ export async function closeErrand(
   if (slug === "") throw new Error("closeErrand: slug must be non-empty");
   const remote = params.remote ?? DEFAULT_REMOTE;
 
-  const record = await readErrandRecord(io, slug);
+  const record = await readErrandRecord(io, slug, "close");
   if (record === null) return { kind: "no-record", slug };
 
   // Fetch the authoritative remote base before the containment check and the base
@@ -224,6 +224,9 @@ export async function closeErrand(
 
   return { kind: "closed", record, branchReaped: branchPresent, remoteHead, push };
 }
+
+/** Explicit compatibility name used by the command's legacy-only dispatch arm. */
+export const closeLegacyErrand = closeErrand;
 
 /**
  * Leave an occupied errand branch without assuming the base branch is available

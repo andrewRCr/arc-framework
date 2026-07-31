@@ -22,6 +22,8 @@ export {
   type ErrandRecord,
   type ErrandOrigin,
   type ListErrandRecordsResult,
+  ErrandRecordReadError,
+  type ErrandRecordReadFailure,
 } from "./record.js";
 
 export {
@@ -148,16 +150,25 @@ export {
 
 export {
   closeErrand,
+  closeLegacyErrand,
   type CloseErrandParams,
   type CloseErrandResult,
   type RemoteHeadCleanup,
 } from "./close.js";
 
 export {
-  retireErrand,
-  type RetireErrandParams,
-  type RetireErrandResult,
-} from "./retire.js";
+  closeOrdinaryErrand,
+  type CloseInboxResult,
+  type CloseOrdinaryErrandDependencies,
+  type CloseOrdinaryErrandOptions,
+  type CloseRefCleanupResult,
+} from "./close-locus.js";
+
+export {
+  cleanupOrdinaryErrandRefs,
+  closeOrdinaryErrandAtRuntime,
+  type CloseOrdinaryErrandRuntimeOptions,
+} from "./close-runtime.js";
 
 export {
   promoteErrand,
