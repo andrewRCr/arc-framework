@@ -96,4 +96,12 @@ teardown.
 _Consumes:_ canonical finalized receipt decoding, terminal transition resolution, integration-anchor proof, and
 receipt-backed retirement authority.
 
+### `decompose-candidate-abandon`
+
+_Exposes:_ identity-proven candidate destruction that does not require the candidate to be intact, covering the
+stranded states an interrupted transform leaves behind.
+
+_Consumes:_ the transient-claim binding, candidate branch, and registered path as identity; it takes no receipt,
+anchor, or transition authority, and decides nothing about the semantic cut.
+
 ---
