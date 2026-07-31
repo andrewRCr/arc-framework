@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "roadmap-render-stamp",
+  "origin": "description",
+  "intent": "Drop the HEAD-pinned render hash from the ROADMAP projection body so plan-side and assert-side renders agree",
+  "branch": "fix/roadmap-render-stamp",
+  "createdAt": "2026-07-31T03:11:28.421Z",
+  "returnBranch": "main"
+}
