@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "strategy-readme-roster",
+  "origin": "inbox",
+  "intent": "Remove the stale duplicate ARC strategy roster from the canonical README",
+  "branch": "fix/strategy-readme-roster",
+  "createdAt": "2026-07-31T02:59:48.407Z",
+  "originEntry": "Drop the duplicate strategy listing from `reference/strategies/README.md`",
+  "returnBranch": "main"
+}
