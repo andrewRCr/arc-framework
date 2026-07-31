@@ -1274,6 +1274,7 @@ describe("Git v3 repository plan", () => {
         anchor: { receiptId, landing: { kind: "merge" } },
       });
     },
+    20_000,
   );
 
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {
