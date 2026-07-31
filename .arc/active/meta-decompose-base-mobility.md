@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Second spec re-entry on the reuse premise, then the task list rebuilt and finalized
+- **Last Completed:** Third spec re-entry — projection, commit-gate, and landing seams settled; render-stamp errand shipped
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Re-enter generate-tasks; first drop the spec's render-stamp precondition, now satisfied
 
 - **PR URL:** [none]
 - **Completed:** [none]
