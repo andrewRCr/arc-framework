@@ -7,9 +7,10 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -186,7 +187,13 @@ async function installLocalArcBin(cwd: string): Promise<void> {
   const binDir = join(cwd, "node_modules", ".bin");
   await writeFile(join(cwd, ".git", "info", "exclude"), "node_modules/\n", { flag: "a" });
   await mkdir(binDir, { recursive: true });
-  await symlink(CLI_PATH, join(binDir, "arc"));
+  const arcBin = join(binDir, "arc");
+  await writeFile(arcBin, [
+    "#!/usr/bin/env node",
+    `import(${JSON.stringify(pathToFileURL(CLI_PATH).href)});`,
+    "",
+  ].join("\n"));
+  await chmod(arcBin, 0o755);
 }
 
 async function createMergedGhFixture(cwd: string, slug: string): Promise<{
