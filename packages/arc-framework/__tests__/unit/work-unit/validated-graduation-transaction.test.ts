@@ -76,7 +76,7 @@ function input(options: {
   };
 }
 
-function markedInput(): PrepareGraduationTransactionInput {
+function markedInput(descendant = false): PrepareGraduationTransactionInput {
   const base = input({ workflow: "draft-design" });
   const { receipt } = v3DecompositionEvidenceFixture();
   const resolved = produceDecompositionIntegrationAnchor({
@@ -84,7 +84,11 @@ function markedInput(): PrepareGraduationTransactionInput {
     preparedBaseHead: "b".repeat(40),
     candidateCommit: { head: "c".repeat(40), tree: "d".repeat(40) },
     receiptTransitionTree: "d".repeat(40),
-    currentBaseHead: "c".repeat(40),
+    currentBaseHead: descendant ? "f".repeat(40) : "c".repeat(40),
+    baseDescent: descendant
+      ? { kind: "descendant", from: "c".repeat(40), to: "f".repeat(40) }
+      : { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: {
       kind: "fast-forward",
       beforeHead: "b".repeat(40),
@@ -156,6 +160,16 @@ describe("prepareValidatedGraduationTransaction", () => {
     expect(meta.decompositionReceipt).toBeNull();
     expect(meta.design).toEqual(["draft-widget.md"]);
     expect(meta.taskList).toBeNull();
+  });
+
+  it("graduates from the unchanged anchor contract after the base advances past landing", () => {
+    const candidate = markedInput(true);
+    const result = prepareValidatedGraduationTransaction(candidate);
+    expect(result.status).toBe("ready");
+    expect(candidate.anchor).toMatchObject({
+      currentBaseHead: "f".repeat(40),
+      landedCommitHead: "c".repeat(40),
+    });
   });
 
   it("refuses destination, planning-tuple, and class mismatches before producing authority", () => {

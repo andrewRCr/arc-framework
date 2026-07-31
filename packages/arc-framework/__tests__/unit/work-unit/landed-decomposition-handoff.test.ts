@@ -68,6 +68,8 @@ function input(
         preparedBaseHead: PREPARED_BASE,
         candidateCommit: { head: BASE_HEAD, tree: CANDIDATE_TREE },
         receiptTransitionTree: CANDIDATE_TREE,
+        baseDescent: { kind: "exact" },
+        landingRelation: { kind: "exact" },
         landing: {
           kind: "fast-forward",
           beforeHead: PREPARED_BASE,
@@ -148,6 +150,29 @@ describe("resolveLandedDecompositionHandoff", () => {
     expect(Object.keys(result.handoff)).not.toContain("integrationAnchor");
     expect(canonicalize(result.handoff)).not.toContain('"receipt":');
     expect(canonicalize(result.handoff)).not.toMatch(/argv|command|resume|frontier/u);
+  });
+
+  it("resolves handoff authority after the configured base descends past the landing", () => {
+    const descendantHead = "e".repeat(40);
+    const exact = input();
+    const result = resolveLandedDecompositionHandoff(input({
+      snapshot: {
+        ...exact.snapshot,
+        configuredBaseHead: descendantHead,
+        integration: {
+          ...exact.snapshot.integration,
+          baseDescent: { kind: "descendant", from: BASE_HEAD, to: descendantHead },
+        },
+      },
+      rereadConfiguredBaseHead: descendantHead,
+    }));
+
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.handoff.authority).toMatchObject({
+      configuredBaseHead: descendantHead,
+      landedCommitHead: BASE_HEAD,
+    });
   });
 
   it("preserves selected blocker order and excludes unselected ready leaves", () => {

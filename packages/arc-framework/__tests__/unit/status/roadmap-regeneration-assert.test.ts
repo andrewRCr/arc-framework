@@ -17,6 +17,7 @@ import {
   resolveRetirementRecordRelativePath,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -55,7 +56,7 @@ function isStagedReceiptList(args: readonly string[]): boolean {
     "diff",
     "--cached",
     "--name-only",
-    "--diff-filter=A",
+    "--diff-filter=AM",
     "-z",
     "--",
     ".arc/system/.internal/retirement-receipts",
@@ -98,6 +99,9 @@ function makeStagedReceiptsExec(receipts: readonly StagedReceipt[]): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (isStagedReceiptList(args)) {
       return { stdout: receipts.map(({ path }) => path).join("\0") + "\0", stderr: "" };
+    }
+    if (args[0] === "ls-tree" && args[2] === "HEAD") {
+      return { stdout: "", stderr: "" };
     }
     if (args[0] === "show") {
       const record = receipts.find(({ path }) => args[1] === `:${path}`);
@@ -301,6 +305,75 @@ describe("resolveStagedRetirementTransitionOverlay", () => {
         path: resolveRetirementRecordRelativePath(receipt.receiptId),
       }))),
     })).rejects.toThrow("staged ROADMAP render found multiple finalized retirement receipts");
+  });
+
+  it("derives suppression authority from a modified receipt only when its authored cut is unchanged", async () => {
+    const previous = v3DecompositionEvidenceFixture({ resultBaseHead: "b".repeat(40) });
+    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
+    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
+    const exec: GitExec = async (_command, args) => {
+      if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(advanced.receipt), stderr: "" };
+      }
+      if (args[0] === "ls-tree" && args[2] === "HEAD") {
+        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `HEAD:${path}`) {
+        return { stdout: canonicalize(previous.receipt), stderr: "" };
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec }))
+      .resolves.toMatchObject({ kind: "validated", origin: "origin", sourceBranch: "plan/origin" });
+
+    const amended = structuredClone(advanced.receipt);
+    amended.prepared.completedMap.authoring.shape = "heterogeneous";
+    const amendmentExec: GitExec = async (command, args, options) => {
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(amended), stderr: "" };
+      }
+      return await exec(command, args, options);
+    };
+    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec: amendmentExec }))
+      .resolves.toBeUndefined();
+
+    const publicationAmendment = structuredClone(advanced.receipt);
+    publicationAmendment.finalized.publication.initialContinuation = {
+      kind: "selected",
+      slugs: ["member-b"],
+    };
+    const publicationAmendmentExec: GitExec = async (command, args, options) => {
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(publicationAmendment), stderr: "" };
+      }
+      return await exec(command, args, options);
+    };
+    await expect(resolveStagedRetirementTransitionOverlay({
+      cwd: "/repo",
+      exec: publicationAmendmentExec,
+    })).resolves.toBeUndefined();
+  });
+
+  it("does not treat a failed HEAD record read as an original receipt addition", async () => {
+    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
+    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
+    const exec: GitExec = async (_command, args) => {
+      if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(advanced.receipt), stderr: "" };
+      }
+      if (args[0] === "ls-tree" && args[2] === "HEAD") {
+        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `HEAD:${path}`) {
+        throw new Error("HEAD object read failed");
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec }))
+      .rejects.toThrow("HEAD object read failed");
   });
 });
 

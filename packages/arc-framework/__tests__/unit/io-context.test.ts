@@ -2,13 +2,24 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  execa: vi.fn(),
+}));
+
+vi.mock("execa", () => ({ execa: mocks.execa }));
 
 import {
   createUserIOContext,
+  readGitObjectBytes,
 } from "../../src/lib/io-context.js";
 
 const tempDirs: string[] = [];
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
 
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -38,5 +49,17 @@ describe("createUserIOContext readDir", () => {
     const entries = await createUserIOContext().readDir(root);
 
     expect(entries).toEqual([{ name: "kept.md", size: 5 }]);
+  });
+});
+
+describe("readGitObjectBytes", () => {
+  it("reads a gitlink identity as a commit object", async () => {
+    mocks.execa.mockImplementation(async (_command, args: string[]) => ({
+      stdout: Buffer.from(args[1] ?? ""),
+      stderr: Buffer.alloc(0),
+    }));
+
+    await expect(readGitObjectBytes("/repo", "a".repeat(40), "gitlink"))
+      .resolves.toEqual(Buffer.from("commit"));
   });
 });

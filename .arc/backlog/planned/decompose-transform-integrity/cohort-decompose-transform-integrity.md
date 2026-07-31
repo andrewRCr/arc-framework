@@ -68,8 +68,13 @@ exact current launch frontier without a scheduler or status record.
 
 ### `decompose-base-mobility`
 
-_Exposes:_ append-only committed-unlanded refresh, descendant-base landing, and descendant-current-base extension
-of the shared integration anchor.
+_Exposes:_ append-only committed-unlanded base advancement, descendant-base landing, and descendant-current-base
+extension of the shared integration anchor — including the landing relations for a candidate that has absorbed the
+base or landed over a descendant base, and authorized advancing-shape arms on the finalized-record commit gate and
+the projection regeneration assert. These extensions name states only this member can produce, so no existing
+verdict moves. Named for advancement rather than refresh: the core owns an
+uncommitted same-base receipt refresh, and the two stay distinguishable at the command surface and in every
+refusal code.
 
 _Consumes:_ canonical v3 evidence, transition patch, validation verdicts, and typed recovery actions from
 `decompose-transform-integrity`.
@@ -95,5 +100,13 @@ teardown.
 
 _Consumes:_ canonical finalized receipt decoding, terminal transition resolution, integration-anchor proof, and
 receipt-backed retirement authority.
+
+### `decompose-candidate-abandon`
+
+_Exposes:_ identity-proven candidate destruction that does not require the candidate to be intact, covering the
+stranded states an interrupted transform leaves behind.
+
+_Consumes:_ the transient-claim binding, candidate branch, and registered path as identity; it takes no receipt,
+anchor, or transition authority, and decides nothing about the semantic cut.
 
 ---

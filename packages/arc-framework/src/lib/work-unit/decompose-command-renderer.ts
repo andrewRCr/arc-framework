@@ -47,3 +47,17 @@ export function renderV3DecomposeFinalizeCommand(
   return `${commandOrigin(origin)} --finalize ${receiptId} `
     + `--continuation ${renderV3DecomposeCommandArgument(continuationPath)}`;
 }
+
+/**
+ * Render committed-candidate base advancement from one canonical receipt identity.
+ *
+ * @param origin - Origin work-unit slug.
+ * @param receiptId - Canonical receipt identity authorizing advancement.
+ * @returns A shell-safe base-advancement command.
+ */
+export function renderV3DecomposeAdvanceBaseCommand(
+  origin: string,
+  receiptId: CanonicalDigest,
+): string {
+  return `${commandOrigin(origin)} --advance-base ${receiptId}`;
+}

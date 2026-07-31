@@ -14,6 +14,7 @@ import {
   acquireDecomposeTransientClaim,
   occupyDecomposeTransientClaim,
   releaseDecomposeTransientWorktree,
+  restateDecomposeTransientClaimBinding,
   rollbackDecomposeTransientWorktreeReservation,
   parseDecomposeTransientClaim,
   projectLiveDecomposeCandidateBranches,
@@ -26,6 +27,7 @@ import {
   type DecomposeTransientOccupyResult,
   type DecomposeTransientReleaseEvidence,
   type DecomposeTransientReleaseResult,
+  type DecomposeTransientRestateBindingResult,
   type DecomposeTransientReservationRollbackEvidence,
   type DecomposeTransientReservationRollbackResult,
   type DecomposeTransientReserveResult,
@@ -76,6 +78,12 @@ export interface DecomposeTransientClaimStore {
     generation: number,
     terminal: DecomposeTransientTerminal,
   ): Promise<DecomposeTransientRetireResult>;
+  restateBinding(
+    claimId: CanonicalDigest,
+    generation: number,
+    expectedBinding: DecomposeTransientClaimBinding,
+    next: Pick<DecomposeTransientClaimBinding, "resultBaseHead" | "cutMapDigest">,
+  ): Promise<DecomposeTransientRestateBindingResult>;
   release(
     claimId: CanonicalDigest,
     generation: number,
@@ -91,6 +99,7 @@ type PersistableResult =
   | DecomposeTransientReservationRollbackResult
   | DecomposeTransientOccupyResult
   | DecomposeTransientRetireResult
+  | DecomposeTransientRestateBindingResult
   | DecomposeTransientReleaseResult;
 
 function changedClaim(result: PersistableResult): DecomposeTransientClaim | null {
@@ -99,6 +108,7 @@ function changedClaim(result: PersistableResult): DecomposeTransientClaim | null
     case "reserved":
     case "occupied":
     case "retired":
+    case "restated":
     case "released":
     case "rolled-back":
       return result.claim;
@@ -170,6 +180,15 @@ export function createDecomposeTransientClaimStore(
     retire: (claimId, generation, terminal) =>
       mutate(claimId, (current) =>
         retireDecomposeTransientClaim(current, claimId, generation, terminal)),
+    restateBinding: (claimId, generation, expectedBinding, next) =>
+      mutate(claimId, (current) =>
+        restateDecomposeTransientClaimBinding(
+          current,
+          claimId,
+          generation,
+          expectedBinding,
+          next,
+        )),
     release: (claimId, generation, candidateWorktree, path, evidence) =>
       mutate(claimId, (current) =>
         releaseDecomposeTransientWorktree(

@@ -38,7 +38,13 @@ export interface PinnedMergeRef {
 export type PinnedMergeReceiptProvenance =
   | { kind: "candidate-tree" }
   | { kind: "head"; commitOid: string }
-  | { kind: "merge-head"; index: number; commitOid: string };
+  | { kind: "merge-head"; index: number; commitOid: string }
+  | {
+      kind: "restated";
+      parent: "head" | "merge-head";
+      index?: number;
+      commitOid: string;
+    };
 
 /** One receipt candidate plus the normalized facts read only from pinned objects. */
 export interface PinnedMergeReceiptCandidate {
@@ -53,6 +59,7 @@ export interface PinnedMergeReceiptCandidate {
 export interface PinnedMergeValidationFacts {
   operation: PinnedMergeOperation;
   refs: readonly PinnedMergeRef[];
+  advancingBaseRelation: "not-applicable" | "ancestor" | "not-ancestor";
   candidateChangedPaths: readonly string[];
   candidates: readonly PinnedMergeReceiptCandidate[];
 }
@@ -138,8 +145,17 @@ export function selectMergeTransitionOverlay(
       continue;
     }
     const resultBase = validation.authority.preparation.facts.completedMap.machine.resultBase;
+    const advancing = candidate.provenance.some((entry) =>
+      entry.kind === "restated" && entry.parent === "head");
+    if (advancing && facts.advancingBaseRelation !== "ancestor") {
+      invalidAuthority = true;
+      continue;
+    }
+    const resultBaseHead = advancing && facts.operation.mergeHeadOids.length === 1
+      ? facts.operation.mergeHeadOids[0]
+      : facts.operation.configuredBase.oid;
     if (resultBase.ref !== facts.operation.configuredBase.ref
-      || resultBase.head !== facts.operation.configuredBase.oid) {
+      || resultBase.head !== resultBaseHead) {
       invalidAuthority = true;
       continue;
     }
@@ -190,12 +206,19 @@ function validProvenance(
   operation: Extract<PinnedMergeOperation, { kind: "merge" }>,
 ): boolean {
   if (provenance.filter(({ kind }) => kind === "candidate-tree").length !== 1
-    || !provenance.some(({ kind }) => kind === "head" || kind === "merge-head")) {
+    || !provenance.some(({ kind }) => kind === "head" || kind === "merge-head" || kind === "restated")) {
     return false;
   }
   return provenance.every((entry) => {
     if (entry.kind === "candidate-tree") return true;
     if (entry.kind === "head") return entry.commitOid === operation.headOid;
+    if (entry.kind === "restated") {
+      if (entry.parent === "head") return entry.index === undefined && entry.commitOid === operation.headOid;
+      return entry.index !== undefined
+        && entry.index >= 0
+        && entry.index < operation.mergeHeadOids.length
+        && operation.mergeHeadOids[entry.index] === entry.commitOid;
+    }
     return entry.index >= 0
       && entry.index < operation.mergeHeadOids.length
       && operation.mergeHeadOids[entry.index] === entry.commitOid;

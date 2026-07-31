@@ -161,6 +161,11 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-finalization.js", () => ({
   finalizeGitV3DecomposeOperation: (...args: unknown[]) =>
     mockFinalizeGitV3DecomposeOperation(...args),
 }));
+const mockAdvanceGitV3DecomposeBase = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-base-advancement.js", () => ({
+  advanceGitV3DecomposeBase: (...args: unknown[]) =>
+    mockAdvanceGitV3DecomposeBase(...args),
+}));
 
 const mockRunPromote = vi.fn();
 const mockRunDemote = vi.fn();
@@ -404,6 +409,13 @@ beforeEach(() => {
   mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
     status: "recorded",
     receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+  });
+  mockAdvanceGitV3DecomposeBase.mockResolvedValue({
+    status: "advanced",
+    receiptId: `sha256:${"a".repeat(64)}`,
+    previousBaseHead: "b".repeat(40),
+    currentBaseHead: "c".repeat(40),
+    candidateHead: "d".repeat(40),
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
@@ -722,10 +734,53 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("routes advance-base through the full-protection repository driver", async () => {
+    mockReadConfigSettings.mockResolvedValue(configResult("full"));
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const receiptId = `sha256:${"a".repeat(64)}`;
+
+    await handleDecompose("mono", { advanceBase: receiptId });
+
+    expect(mockAdvanceGitV3DecomposeBase).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo" }),
+      {
+        protection: "full",
+        baseBranch: "main",
+        origin: "mono",
+        receiptId,
+      },
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"candidateHead":"${"d".repeat(40)}","currentBaseHead":"${"c".repeat(40)}",`
+      + `"previousBaseHead":"${"b".repeat(40)}","receiptId":"${receiptId}","status":"advanced"}\n`,
+    );
+  });
+
+  it("surfaces advance-base refusals as canonical output plus reason and remedy", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockAdvanceGitV3DecomposeBase.mockResolvedValue({
+      status: "refused",
+      reason: "full-protection-required",
+      remedy: "Enable full protection before advancing a committed candidate.",
+    });
+
+    await handleDecompose("mono", { advanceBase: `sha256:${"a".repeat(64)}` });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"reason":"full-protection-required","remedy":"Enable full protection before advancing a committed candidate.","status":"refused"}\n',
+    );
+    expect(stderrWrite).toHaveBeenCalledWith(
+      "full-protection-required\nEnable full protection before advancing a committed candidate.\n",
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   it.each([
     ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
     ["finalize without continuation", { finalize: `sha256:${"a".repeat(64)}` }],
     ["continuation without finalize", { continuation: "continuation.json" }],
+    ["advance-base with another mode", { preflight: true, advanceBase: `sha256:${"a".repeat(64)}` }],
   ])("refuses %s before any production adapter", async (_case, options) => {
     await handleDecompose(
       "mono",
@@ -736,6 +791,7 @@ describe("handleDecompose", () => {
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
+    expect(mockAdvanceGitV3DecomposeBase).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

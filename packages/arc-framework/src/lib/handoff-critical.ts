@@ -5,6 +5,7 @@
  * fail-fast (refuse) rather than warn. Refuse for:
  * - cross-machine state (`sync`, `user save/push/sync`)
  * - gate work (`release commit/push`, session-init/handoff probes, review unlock)
+ * - tracked-state remedies (`hook-remedy-roadmap-conflict`)
  * - **lifecycle mutations** that mint durable branch/record state (`errand open`
  *   and siblings, `start`) so a stale build never creates a branch then only
  *   refuses later at `release commit`
@@ -38,6 +39,7 @@ export function isHandoffCritical(cmd: HandoffCommand): boolean {
   const { name, parentName, opts } = cmd;
   if (parentName === "arc" && name === "sync") return true;
   if (parentName === "arc" && name === "start") return true;
+  if (parentName === "arc" && name === "hook-remedy-roadmap-conflict") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
   if (parentName === "release" && (name === "commit" || name === "push")) return true;
   if (parentName === "review" && name === "unlock") return true;

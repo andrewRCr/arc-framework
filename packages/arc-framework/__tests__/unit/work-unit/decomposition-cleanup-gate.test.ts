@@ -57,6 +57,8 @@ function facts(
     candidateCommit: { head: CANDIDATE_HEAD, tree: CANDIDATE_TREE },
     receiptTransitionTree: CANDIDATE_TREE,
     currentBaseHead: CANDIDATE_HEAD,
+    baseDescent: { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: {
       kind: "fast-forward",
       beforeHead: PREPARED_BASE,
@@ -67,7 +69,7 @@ function facts(
   };
 }
 
-async function occupiedFullSelection() {
+async function occupiedFullSelection(descendant = false) {
   const fixture = v3DecompositionEvidenceFixture();
   const binding = {
     origin: "origin",
@@ -122,6 +124,16 @@ async function occupiedFullSelection() {
   });
   const selection = produceDecompositionIntegrationAnchor(facts({
     receipts: [fixture.receipt],
+    ...(descendant
+      ? {
+        currentBaseHead: "f".repeat(40),
+        baseDescent: {
+          kind: "descendant" as const,
+          from: CANDIDATE_HEAD,
+          to: "f".repeat(40),
+        },
+      }
+      : {}),
   }));
   if (selection.status !== "resolved") throw new Error("expected resolved anchor");
   return { selection, store, files, claimId };
@@ -185,6 +197,26 @@ describe("decomposition cleanup gate", () => {
       },
     });
     expect(files.size).toBe(0);
+  });
+
+  it("preserves full and partial claim retirement behavior for descendant-derived anchors", async () => {
+    const full = await occupiedFullSelection(true);
+    expect(await authorizeDecompositionCleanup(full.selection, request, full.store)).toMatchObject({
+      status: "authorized",
+      authorization: { retirement: { kind: "required", outcome: "retired" } },
+    });
+
+    const descendantHead = "f".repeat(40);
+    const partial = produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: descendantHead,
+      baseDescent: { kind: "descendant", from: CANDIDATE_HEAD, to: descendantHead },
+    }));
+    const clear = memoryStore();
+    expect(await authorizeDecompositionCleanup(partial, request, clear.store)).toMatchObject({
+      status: "authorized",
+      authorization: { retirement: { kind: "not-applicable", protection: "partial" } },
+    });
+    expect(clear.files.size).toBe(0);
   });
 
   it("releases only the exact terminal registration after successful local cleanup", async () => {

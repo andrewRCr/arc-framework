@@ -65,6 +65,7 @@ function exactSnapshot(): {
         candidateTreeOid: CANDIDATE_TREE_OID,
       },
       refs: [{ ref: "refs/heads/main", oid: CONFIGURED_BASE_OID }],
+      advancingBaseRelation: "not-applicable",
       candidateChangedPaths: [
         ...receipt.finalized.transitionPatch.map(({ path }) => path),
         v3DecomposeReceiptPath(receipt.receiptId),
@@ -124,6 +125,43 @@ describe("selectMergeTransitionOverlay", () => {
         { kind: "head", commitOid: HEAD_OID },
         { kind: "merge-head", index: 0, commitOid: MERGE_HEAD_OID },
       ],
+    });
+  });
+
+  it("binds restated authority to the sole staged merge parent after the configured base moves", () => {
+    const { snapshot } = exactSnapshot();
+    const validationFacts = exactFacts({ resultBaseHead: MERGE_HEAD_OID });
+    const receipt = validationFacts.receipt as ReturnType<
+      typeof v3DecompositionEvidenceFixture
+    >["receipt"];
+    snapshot.candidates = [{
+      ...snapshot.candidates[0]!,
+      receiptBytes: canonicalize(receipt),
+      validationFacts,
+      provenance: [
+      { kind: "candidate-tree" },
+        { kind: "restated", parent: "head", commitOid: HEAD_OID },
+      ],
+    }];
+    snapshot.advancingBaseRelation = "ancestor";
+
+    expect(selectMergeTransitionOverlay(snapshot)).toMatchObject({
+      status: "selected",
+      receiptId: receipt.receiptId,
+      provenance: [
+        { kind: "candidate-tree" },
+        { kind: "restated", parent: "head", commitOid: HEAD_OID },
+      ],
+    });
+
+    if (snapshot.operation.kind !== "merge") throw new Error("expected merge fixture");
+    snapshot.operation = {
+      ...snapshot.operation,
+      mergeHeadOids: [MERGE_HEAD_OID, "3".repeat(40)],
+    };
+    expect(selectMergeTransitionOverlay(snapshot)).toEqual({
+      status: "refused",
+      reason: "invalid-authority",
     });
   });
 

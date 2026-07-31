@@ -62,16 +62,20 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
 export async function runRoadmapConflictAutoRemedy(
   cwd: string = process.cwd(),
 ): Promise<{ exitCode: 0 | 1; stdout: string; stderr: string }> {
+  const exec: GitExec = async (command, args, options) => await rawGitExec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
   const result = await applyRoadmapConflictAutoRemedy({
     cwd,
-    exec: rawGitExec,
+    exec,
     writeFile: async (path, content) => {
       await writeFile(path, content, "utf8");
     },
-    resolveTransitionOverlay: async (configuredBaseRef, exec) =>
+    resolveTransitionOverlay: async (configuredBaseRef, operationExec) =>
       await resolveGitMergeTransitionOverlay(configuredBaseRef, {
         cwd,
-        exec,
+        exec: operationExec,
         fs: {
           readFile: async (path) => await readFile(path, "utf8"),
         },

@@ -19,11 +19,14 @@ import {
   v3DecomposeReceiptPath,
   type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
-import type {
-  V3DecomposeReceipt,
-  V3ManagedPathResult,
+import {
+  isV3DecomposeReceiptRestatement,
+  type V3DecomposeReceipt,
+  type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
 import { v3SourceArtifactDigest } from "./decompose-v3-schema.js";
+import { readAncestry, readTreeEntry } from "./git-decomposition-object-readers.js";
+import { readGitV3DecomposeTreeSnapshot } from "./git-decompose-v3-preflight.js";
 import {
   validateRetirementRecordEnumeration,
   type EnumeratedRetirementRecord,
@@ -373,17 +376,30 @@ async function buildCandidate(
   const receipt = record.record.value;
   const preparation = preparationFromReceipt(receipt);
   const machine = preparation.facts.completedMap.machine;
-  const sourcePaths = [...new Set(machine.sourceUnits.map(({ sourcePath }) => sourcePath))]
-    .sort(compareUtf8);
-  const sourceArtifactInventory = await Promise.all(sourcePaths.map(async (path) => {
-    const state = await readPathState(machine.source.head, path, deps);
-    if (state.kind !== "file") throw new Error(`Source artifact is absent: ${path}`);
-    return {
-      path,
-      objectKind: "blob" as const,
-      mode: state.mode,
-      contentDigest: state.contentDigest,
-    };
+  const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
+    cwd: deps.cwd,
+    exec: deps.exec,
+    readBlob: async (ref, path) => {
+      const entry = await readTreeEntry(
+        async (command, args, options) => await deps.exec(command, args, {
+          ...options,
+          cwd: options?.cwd ?? deps.cwd,
+        }),
+        ref,
+        path,
+      );
+      if (entry === null) return null;
+      if (entry === false || entry.type !== "blob") {
+        throw new Error(`Source artifact is not a blob: ${path}`);
+      }
+      return await deps.readBlob(entry.oid);
+    },
+  }, machine.source.ref, machine.source.head, machine.source.origin);
+  const sourceArtifactInventory = sourceSnapshot.sourceArtifacts.map((artifact) => ({
+    path: artifact.path,
+    objectKind: artifact.objectKind,
+    mode: artifact.mode,
+    contentDigest: digestBytes(artifact.bytes),
   }));
   const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
   if (sourceArtifactDigest === null) throw new Error("Source artifact inventory is not canonical");
@@ -425,7 +441,7 @@ async function parentReceiptState(
   record: EnumeratedRetirementRecord,
   ref: string,
   deps: GitMergeTransitionOverlayDependencies,
-): Promise<"absent" | "matching" | "conflicting"> {
+): Promise<"absent" | "matching" | "restated" | "conflicting"> {
   const path = v3DecomposeReceiptPath(record.id);
   const { stdout } = await deps.exec("git", [
     "ls-tree",
@@ -441,9 +457,15 @@ async function parentReceiptState(
     return "conflicting";
   }
   const bytes = await deps.readBlob(match[2]);
-  return Buffer.compare(Buffer.from(bytes), Buffer.from(record.content, "utf8")) === 0
-    ? "matching"
-    : "conflicting";
+  if (Buffer.compare(Buffer.from(bytes), Buffer.from(record.content, "utf8")) === 0) return "matching";
+  try {
+    return isV3DecomposeReceiptRestatement(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      record.content,
+    ) ? "restated" : "conflicting";
+  } catch {
+    return "conflicting";
+  }
 }
 
 async function matchingParentProvenance(
@@ -462,6 +484,8 @@ async function matchingParentProvenance(
   }
   if (headState === "matching") {
     provenance.push({ kind: "head", commitOid: snapshot.operation.headOid });
+  } else if (headState === "restated") {
+    provenance.push({ kind: "restated", parent: "head", commitOid: snapshot.operation.headOid });
   }
   for (const [index, commitOid] of snapshot.operation.mergeHeadOids.entries()) {
     const state = await parentReceiptState(record, commitOid, deps);
@@ -474,6 +498,8 @@ async function matchingParentProvenance(
     }
     if (state === "matching") {
       provenance.push({ kind: "merge-head", index, commitOid });
+    } else if (state === "restated") {
+      provenance.push({ kind: "restated", parent: "merge-head", index, commitOid });
     }
   }
   return provenance;
@@ -483,27 +509,53 @@ async function materializePinnedFacts(
   snapshot: PinnedMergeSnapshot,
   deps: GitMergeTransitionOverlayDependencies,
 ): Promise<PinnedMergeValidationFacts> {
-  const [candidateChangedPaths, candidate] = await Promise.all([
-    changedPaths(
-      snapshot.operation.configuredBase.oid,
-      snapshot.operation.candidateTreeOid,
-      deps,
-    ),
-    readPinnedNamespace(snapshot.operation.candidateTreeOid, deps),
-  ]);
+  const candidate = await readPinnedNamespace(snapshot.operation.candidateTreeOid, deps);
   const records = candidate.records.filter(({ record }) =>
-    record.kind === "v3-decomposition-receipt")
-    .filter(({ id }) => candidateChangedPaths.includes(v3DecomposeReceiptPath(id)));
-  const candidates = await Promise.all(records.map(async (record) =>
+    record.kind === "v3-decomposition-receipt");
+  const recordsWithProvenance = await Promise.all(records.map(async (record) => ({
+    record,
+    provenance: await matchingParentProvenance(record, snapshot, deps),
+  })));
+  const restated = recordsWithProvenance.filter(({ provenance }) => provenance.some((entry) =>
+    entry.kind === "restated" && entry.parent === "head"));
+  const [mergeHeadOid] = snapshot.operation.mergeHeadOids;
+  const advancing = restated.length === 1
+    && snapshot.operation.mergeHeadOids.length === 1
+    && mergeHeadOid !== undefined;
+  let advancingBaseRelation: PinnedMergeValidationFacts["advancingBaseRelation"] = "not-applicable";
+  if (advancing) {
+    const relation = await readAncestry(
+      async (command, args, options) => await deps.exec(command, args, {
+        ...options,
+        cwd: options?.cwd ?? deps.cwd,
+      }),
+      mergeHeadOid,
+      snapshot.operation.configuredBase.oid,
+    );
+    if (relation === "unresolvable") throw new Error("Cannot resolve advancing-base ancestry");
+    advancingBaseRelation = relation;
+  }
+  const resultBaseOid = advancing
+    ? mergeHeadOid
+    : snapshot.operation.configuredBase.oid;
+  const candidateChangedPaths = await changedPaths(
+    resultBaseOid,
+    snapshot.operation.candidateTreeOid,
+    deps,
+  );
+  const candidates = await Promise.all(recordsWithProvenance
+    .filter(({ record }) => candidateChangedPaths.includes(v3DecomposeReceiptPath(record.id)))
+    .map(async ({ record, provenance }) =>
     await buildCandidate(
       record,
-      await matchingParentProvenance(record, snapshot, deps),
+      provenance,
       snapshot.operation.candidateTreeOid,
       deps,
     )));
   return {
     operation: snapshot.operation,
     refs: [snapshot.operation.configuredBase],
+    advancingBaseRelation,
     candidateChangedPaths,
     candidates,
   };
@@ -527,6 +579,7 @@ export async function resolveGitMergeTransitionOverlay(
       return selectMergeTransitionOverlay({
         operation,
         refs: [],
+        advancingBaseRelation: "not-applicable",
         candidateChangedPaths: [],
         candidates: [],
       });

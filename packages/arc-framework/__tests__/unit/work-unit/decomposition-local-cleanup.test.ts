@@ -43,6 +43,8 @@ function facts(
     candidateCommit: { head: CANDIDATE_HEAD, tree: CANDIDATE_TREE },
     receiptTransitionTree: CANDIDATE_TREE,
     currentBaseHead: CANDIDATE_HEAD,
+    baseDescent: { kind: "exact" },
+    landingRelation: { kind: "exact" },
     landing: {
       kind: "fast-forward",
       beforeHead: PREPARED_BASE,
@@ -70,6 +72,22 @@ describe("deriveDecompositionLocalCleanupEligibility", () => {
       claimRetirement: { kind: "not-applicable", protection: "partial" },
       local: { branch: true, worktree: true, userWorkspace: true },
       remote: { kind: "not-authorized" },
+    });
+  });
+
+  it("exposes the same cleanup from a descendant-derived shared anchor", () => {
+    const descendantHead = "f".repeat(40);
+    const selection = produceDecompositionIntegrationAnchor(facts({
+      currentBaseHead: descendantHead,
+      baseDescent: { kind: "descendant", from: CANDIDATE_HEAD, to: descendantHead },
+    }));
+    const result = deriveDecompositionLocalCleanupEligibility(selection, request());
+
+    expect(result.status).toBe("eligible");
+    if (result.status !== "eligible") return;
+    expect(result.cleanup.integrationAnchor).toMatchObject({
+      currentBaseHead: descendantHead,
+      landedCommitHead: CANDIDATE_HEAD,
     });
   });
 

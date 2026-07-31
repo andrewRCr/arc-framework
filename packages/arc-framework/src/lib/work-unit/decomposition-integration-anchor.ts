@@ -1,9 +1,9 @@
 /**
- * Pure exact-base integration authority for one finalized v3 decomposition.
+ * Pure integration authority for one finalized v3 decomposition.
  *
  * This module intentionally performs no ref or history lookup. Its caller owns
- * pinning and rereading Git facts; this producer only admits an exact
- * fast-forward or two-parent merge relation over those facts.
+ * pinning and rereading Git facts; this producer only validates the explicit
+ * landing and ancestry proofs supplied over those facts.
  */
 
 import type { CanonicalDigest } from "../canonical/canonical-json.js";
@@ -30,6 +30,18 @@ export type DecompositionLandingTopology =
     parents: readonly string[];
   };
 
+export type DecompositionBaseDescent =
+  | { kind: "exact" }
+  | { kind: "descendant"; from: string; to: string };
+
+export type DecompositionLandingRelation =
+  | { kind: "exact" }
+  | {
+    kind: "descendant-merge";
+    slotZeroDescent: { from: string; to: string };
+    composition: "matches" | "deviates";
+  };
+
 export interface DecompositionIntegrationFacts {
   /** Canonical receipt candidates selected from one pinned authority snapshot. */
   receipts: readonly unknown[];
@@ -41,6 +53,10 @@ export interface DecompositionIntegrationFacts {
   receiptTransitionTree: string;
   /** Current configured-base head after the caller's race-closing reread. */
   currentBaseHead: string;
+  /** Caller-proven relation from the selected landing to the current base. */
+  baseDescent: DecompositionBaseDescent;
+  /** Caller-proven relation between the prepared base, candidate, and landing. */
+  landingRelation: DecompositionLandingRelation;
   /** Explicit landing relation; generic ancestry and history searches are excluded. */
   landing: DecompositionLandingTopology;
 }
@@ -120,11 +136,10 @@ function authenticateReceipt(input: unknown): V3DecomposeReceipt | null {
 }
 
 /**
- * Produce exact, reusable authority for one landed v3 decomposition.
+ * Produce reusable authority for one landed v3 decomposition.
  *
- * The producer grants no descendant mobility: `currentBaseHead` must equal the
- * landing result itself, and the landing topology must name the pinned
- * candidate commit directly.
+ * The producer performs no ancestry lookup. Descendant mobility is admitted
+ * only from proofs bound to the exact prepared, landing, and live-base pair.
  */
 export function produceDecompositionIntegrationAnchor(
   facts: DecompositionIntegrationFacts,
@@ -148,6 +163,15 @@ export function produceDecompositionIntegrationAnchor(
     ...(facts.landing.kind === "fast-forward"
       ? [facts.landing.beforeHead]
       : facts.landing.parents),
+    ...(facts.baseDescent.kind === "descendant"
+      ? [facts.baseDescent.from, facts.baseDescent.to]
+      : []),
+    ...(facts.landingRelation.kind === "descendant-merge"
+      ? [
+        facts.landingRelation.slotZeroDescent.from,
+        facts.landingRelation.slotZeroDescent.to,
+      ]
+      : []),
   ];
   if (!objectIdsAreUniform(objectIds)) {
     return { status: "refused", reason: "invalid-object-id" };
@@ -161,21 +185,40 @@ export function produceDecompositionIntegrationAnchor(
     return { status: "refused", reason: "transition-tree" };
   }
 
-  if (facts.landing.kind === "fast-forward") {
-    if (facts.landing.beforeHead !== facts.preparedBaseHead
-      || facts.landing.resultHead !== facts.candidateCommit.head) {
+  if (facts.landingRelation.kind === "exact") {
+    if (facts.landing.kind === "fast-forward") {
+      if (facts.landing.beforeHead !== facts.preparedBaseHead
+        || facts.landing.resultHead !== facts.candidateCommit.head) {
+        return { status: "stale", reason: "candidate-commit" };
+      }
+    } else if (facts.landing.parents.length !== 2
+      || facts.landing.parents[0] !== facts.preparedBaseHead
+      || facts.landing.parents[1] !== facts.candidateCommit.head) {
       return { status: "stale", reason: "candidate-commit" };
     }
-  } else if (facts.landing.parents.length !== 2
-    || facts.landing.parents[0] !== facts.preparedBaseHead
-    || facts.landing.parents[1] !== facts.candidateCommit.head) {
-    return { status: "stale", reason: "candidate-commit" };
+
+    if (facts.landing.resultTree !== facts.candidateCommit.tree) {
+      return { status: "refused", reason: "landing-topology" };
+    }
+  } else {
+    if (facts.landing.kind !== "merge"
+      || facts.landing.parents.length !== 2
+      || facts.landing.parents[1] !== facts.candidateCommit.head) {
+      return { status: "stale", reason: "candidate-commit" };
+    }
+    if (facts.landingRelation.slotZeroDescent.from !== facts.preparedBaseHead
+      || facts.landingRelation.slotZeroDescent.to !== facts.landing.parents[0]) {
+      return { status: "stale", reason: "current-base" };
+    }
+    if (facts.landingRelation.composition === "deviates") {
+      return { status: "refused", reason: "landing-topology" };
+    }
   }
 
-  if (facts.landing.resultTree !== facts.candidateCommit.tree) {
-    return { status: "refused", reason: "landing-topology" };
-  }
-  if (facts.currentBaseHead !== facts.landing.resultHead) {
+  if (facts.baseDescent.kind === "exact"
+    ? facts.currentBaseHead !== facts.landing.resultHead
+    : facts.baseDescent.from !== facts.landing.resultHead
+      || facts.baseDescent.to !== facts.currentBaseHead) {
     return { status: "stale", reason: "current-base" };
   }
 

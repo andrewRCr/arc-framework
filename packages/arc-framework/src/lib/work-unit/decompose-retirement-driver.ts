@@ -21,6 +21,7 @@ import {
   type V3DecomposeFinalizationResult,
 } from "./decompose-finalization.js";
 import {
+  createV3DecomposeFinalizationRecoveryFacts,
   mapV3DecomposeFinalizationRecovery,
   type V3DecomposeFinalizationRecovery,
   type V3DecomposeFinalizationRecoveryCause,
@@ -397,7 +398,7 @@ async function replaceV3Record(
   return { status: "replaced" };
 }
 
-function deriveV3DestinationOutputs(
+export function deriveV3DestinationOutputs(
   preparation: V3DecomposePreparation,
   managedPathResults: readonly V3ManagedPathResult[],
 ): V3DestinationOutputs[] | null {
@@ -442,7 +443,7 @@ function finalizationRecoveryCause(
     case "validation-mismatch":
       return { kind: "canonical-mismatch", mismatch: refusal.mismatch };
     case "candidate-parent-record":
-      return { kind: "committed-candidate" };
+      return { kind: "committed-candidate", recordKind: refusal.recordKind };
     case "record-state-mismatch":
     case "refresh-not-authorized":
       return { kind: "mechanical-repreflight" };
@@ -495,16 +496,11 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
       }
     },
     finalizeV3: async (origin, recordId, input) => {
-      const recoveryFacts: V3DecomposeRecoveryFacts = isCanonicalDigest(recordId)
-        ? {
-            finalizeInvocation: {
-              provenance: "finalize-command",
-              origin,
-              receiptId: recordId,
-              continuationPath: input.continuationPath,
-            },
-          }
-        : {};
+      const recoveryFacts: V3DecomposeRecoveryFacts = createV3DecomposeFinalizationRecoveryFacts(
+        origin,
+        recordId,
+        input.continuationPath,
+      );
       const refused = (
         reason: string,
         cause: V3DecomposeFinalizationRecoveryCause,

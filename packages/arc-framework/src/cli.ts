@@ -60,6 +60,7 @@ import {
   handleFinalizeStage,
   handleRepointDesign,
   handleRename,
+  isDecomposeMachineReadableInvocation,
   type PromoteOptions,
   type StubOptions,
   type ParkOptions,
@@ -300,12 +301,10 @@ program
   .option("--finalize <receipt-id>", "Finalize one exact prepared receipt")
   .option("--continuation <path>", "Canonical continuation input paired with --finalize")
   .option("--handoff", "Emit one canonical facts-only landed handoff")
+  .option("--advance-base <receipt-id>", "Advance one committed candidate to the configured base")
   .action(withInteractionContext(
     {
-      machineReadable: (options) =>
-        options.preflight === true || options.handoff === true
-        || options.execute !== undefined || options.discard !== undefined
-        || options.finalize !== undefined || options.continuation !== undefined,
+      machineReadable: isDecomposeMachineReadableInvocation,
     },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
   ));
