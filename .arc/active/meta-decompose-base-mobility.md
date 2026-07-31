@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Spec re-entry — resolved three blockers and absorbed the candidate teardown contract
+- **Last Completed:** Second spec re-entry on the reuse premise, then the task list rebuilt and finalized
 - **Next Task:** [none]
 - **Blockers:** [none]
 
