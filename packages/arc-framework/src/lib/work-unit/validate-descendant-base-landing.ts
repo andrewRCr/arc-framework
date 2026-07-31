@@ -36,6 +36,12 @@ export interface DescendantBaseLandingInput {
   candidateHeadOid: string;
 }
 
+export interface BoundDescendantBaseLandingInput {
+  receipt: unknown;
+  currentBaseRef: string;
+  candidateHeadRef: string;
+}
+
 export interface DescendantBaseLandingDependencies {
   objects: DescendantBaseLandingObjectReaders;
   dependencies: DescendantBaseLandingDependencyReader;
@@ -171,4 +177,31 @@ export async function validateDescendantBaseLanding(
       candidateHeadOid: input.candidateHeadOid,
     },
   };
+}
+
+/** Pin two live refs around validation and refuse any unavailable or raced binding. */
+export async function validateBoundDescendantBaseLanding(
+  input: BoundDescendantBaseLandingInput,
+  deps: DescendantBaseLandingDependencies,
+): Promise<DescendantBaseLandingResult> {
+  const [currentBaseOid, candidateHeadOid] = await Promise.all([
+    deps.objects.resolveCommit(input.currentBaseRef),
+    deps.objects.resolveCommit(input.candidateHeadRef),
+  ]);
+  if (currentBaseOid === null || candidateHeadOid === null) {
+    return { status: "refused", mismatch: { kind: "base", locus: "binding-unavailable" } };
+  }
+  const verdict = await validateDescendantBaseLanding({
+    receipt: input.receipt,
+    currentBaseOid,
+    candidateHeadOid,
+  }, deps);
+  const [currentBaseReread, candidateHeadReread] = await Promise.all([
+    deps.objects.resolveCommit(input.currentBaseRef),
+    deps.objects.resolveCommit(input.candidateHeadRef),
+  ]);
+  if (currentBaseReread !== currentBaseOid || candidateHeadReread !== candidateHeadOid) {
+    return { status: "refused", mismatch: { kind: "base", locus: "binding-unavailable" } };
+  }
+  return verdict;
 }

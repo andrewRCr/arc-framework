@@ -66,41 +66,25 @@ with an explicit success arm rather than returning a bare one.
 - _Outcome:_ The validator now proves the complete preserved overlap while leaving the regenerable projection to
   re-derivation, and it detects dependency drift that path replay cannot observe.
 
-### `[ ]` **1.3 Bind one immutable base/head pair**
+### `[x]` **1.3 Bind one immutable base/head pair**
 
 - _Goal:_ No verdict is granted over a base or candidate that moved during validation; a raced observation fails
   closed rather than returning a stale admission.
 
-- _Approach:_ Compose the pin → validate → reread shape the exact-base adapter already uses, whose raced reread
-  returns a `configured-base-raced` stale result. This layer returns no clearance, merge, or mutation behavior.
+    - `[x]` **1.3.a Pin and reread around validation**
 
-    - `[ ]` **1.3.a Pin and reread around validation**
+        - Added a two-ref pin → validate → reread wrapper. It returns the computed verdict only when both refs still
+          resolve to the pinned base/head pair, and a movement or disappearance on either side closes into one
+          binding-unavailable mismatch that dominates any verdict computed inside the raced window.
 
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **1.3.b Route unavailable binding to the recovery arm**
 
-            - Returns the verdict when both refs are unchanged across the reread.
+        - Kept the exported result surface limited to admitted binding or canonical mismatch. The wrapper carries
+          no recovery action, remedy, command operand, clearance, or mutation authority; the future command remains
+          responsible for constructing recovery context from its own authorizing facts.
 
-            - Refuses when the configured base moves mid-validation.
-
-            - Refuses when the candidate head moves mid-validation.
-
-            - Refuses when both refs move within the same window.
-
-            - Refuses when either ref becomes unresolvable.
-
-    - `[ ]` **1.3.b Route unavailable binding to the recovery arm**
-
-        - A host that cannot retain an immutable pair returns the validator's refusal arm and nothing more. The
-          command observes that refusal and constructs the binding-unavailable cause itself, per Task 4.1.b — it
-          already holds the authorizing origin and receipt facts, so no recovery-bearing channel has to be threaded
-          out of a pure validator.
-
-        - _Note:_ this keeps the validator free of recovery entirely. It returns a verdict; deciding what a refused
-          verdict means belongs to the caller.
-
-        - Build `test-first` (one behavior at a time):
-
-            - The validator's exported surface carries no recovery action, remedy, or command operand on any arm.
+- _Outcome:_ Every descendant-base verdict is now bound to one immutable base/head observation window, with ref
+  races failing closed before any caller can treat the stale result as authority.
 
 ## **Phase 2:** Descendant-current integration anchor
 
