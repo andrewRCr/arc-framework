@@ -154,7 +154,15 @@ describe("abandonOrdinaryErrand", () => {
         },
       });
       expect(refused).toMatchObject({ outcome: "refused" });
+      if (kind === "merged") {
+        expect(refused).toMatchObject({
+          reason: "identity-conflict",
+          recommendedPromptText: expect.stringContaining("finalize"),
+        });
+      }
     }
+    expect(cleanupResidue).toHaveBeenCalledTimes(1);
+    expect(retire).toHaveBeenCalledTimes(1);
   });
 
   it("refuses closed-unmerged evidence for different change-request coordinates", async () => {

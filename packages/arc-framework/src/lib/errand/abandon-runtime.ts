@@ -18,7 +18,7 @@ import { readPrimarySafety } from "../locus/primary-safety.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { readLocusState } from "../locus/reader.js";
 import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
-import type { LocusMutationResultV1, LocusRowV1, LocusStateV1 } from "../locus/schema/index.js";
+import type { LocusMutationResultV1, LocusRecordV1, LocusRowV1, LocusStateV1 } from "../locus/schema/index.js";
 import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
@@ -29,7 +29,7 @@ import { transactTransientIdentities } from "./identity-transaction.js";
 
 export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly slug: string;
-  readonly protection: "full" | "partial";
+  readonly protection: "full";
   readonly base: string;
   readonly identity: string;
   readonly identityGlobalUserDir: string;
@@ -134,20 +134,96 @@ async function releaseRetiredResidue(
       ? { kind: "refused", reason: "lease-live", message: "The Errand session locus still has a live lease." }
       : { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
   }
+  const checkoutPath = row.checkoutPath;
+  const recordId = row.recordId;
+  const role = row.role;
+  const leaseId = row.lease.leaseId;
   const mismatch = selectedGenerationMismatch(selected, {
-    recordId: row.recordId,
-    leaseId: row.lease.leaseId,
+    recordId,
+    leaseId,
   });
   if (mismatch !== null) return { kind: "refused", reason: "lease-generation-mismatch", message: mismatch };
 
-  const runtime = createNodeProvisioningDependencies({
-    exec: options.exec,
-    identity: options.identity,
+  return releaseLockedResidue({
+    options,
     anchor,
     inspector,
     pathFlavor,
-    base: options.base,
+    row: { ...row, checkoutPath, recordId },
     branch: null,
+    validateLockedRecord: (record) => record.recordId === recordId
+      && record.checkoutPath === checkoutPath
+      && record.role.subject.kind === role.subject.kind
+      && record.role.subject.key === role.subject.key
+      && record.role.subject.claimId === role.subject.claimId
+      && record.lease?.leaseId === leaseId,
+    prepareCheckout: async () => {
+      const dirty = await worktreeIsDirty(options.exec, checkoutPath);
+      if (dirty === null) return { kind: "error", message: "Could not read the Errand checkout state." };
+      if (dirty) {
+        return {
+          kind: "refused",
+          reason: "preservation-unproven",
+          message: "The Errand checkout has uncommitted changes.",
+        };
+      }
+      if (row.primary === true) return null;
+      const marker = await readWorktreeMarkerGeneration(checkoutPath);
+      const subject = role.subject;
+      const provenance = subject.claimId === null
+        ? null
+        : classifyTransientWorktreeProvenance(marker, {
+          kind: "errand",
+          slug: subject.key,
+          claimId: subject.claimId,
+        });
+      if (provenance?.kind !== "ready") {
+        return { kind: "refused", reason: "role-conflict", message: "Spawned Errand provenance is not exact." };
+      }
+      try {
+        await options.exec("git", ["worktree", "remove", checkoutPath], {
+          cwd: state.roster.primaryPath,
+        });
+        return null;
+      } catch (error) {
+        return { kind: "error", message: errorMessage(error) };
+      }
+    },
+    successText: "Retired Errand session locus released.",
+  });
+}
+
+async function worktreeIsDirty(exec: GitExec, checkoutPath: string): Promise<boolean | null> {
+  try {
+    return (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout.trim() !== "";
+  } catch {
+    return null;
+  }
+}
+
+interface LockedResidueReleaseOptions {
+  readonly options: AbandonOrdinaryErrandRuntimeOptions;
+  readonly anchor: Extract<SelectedSessionAnchor, { kind: "process" }>;
+  readonly inspector: ReturnType<typeof createPlatformProcessInspector>;
+  readonly pathFlavor: "windows" | "posix";
+  readonly row: LocusRowV1 & { checkoutPath: string; recordId: string };
+  readonly branch: string | null;
+  readonly validateLockedRecord: (record: LocusRecordV1) => boolean;
+  readonly prepareCheckout: () => Promise<Extract<AbandonStepResult, { kind: "refused" | "error" }> | null>;
+  readonly successText: string;
+}
+
+/** Pop one exact locked residue generation, tolerating a checkout already removed by a prior attempt. */
+async function releaseLockedResidue(input: LockedResidueReleaseOptions): Promise<AbandonStepResult> {
+  const { options, row } = input;
+  const runtime = createNodeProvisioningDependencies({
+    exec: options.exec,
+    identity: options.identity,
+    anchor: input.anchor,
+    inspector: input.inspector,
+    pathFlavor: input.pathFlavor,
+    base: options.base,
+    branch: input.branch,
     postCreateScript: options.postCreateScript,
     registeredHarnessDirs: options.registeredHarnessDirs,
   });
@@ -161,52 +237,22 @@ async function releaseRetiredResidue(
   }
   try {
     const lockedRecord = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
-    if (lockedRecord.kind !== "valid"
-      || lockedRecord.record.recordId !== row.recordId
-      || lockedRecord.record.checkoutPath !== row.checkoutPath
-      || lockedRecord.record.role.subject.kind !== row.role.subject.kind
-      || lockedRecord.record.role.subject.key !== row.role.subject.key
-      || lockedRecord.record.role.subject.claimId !== row.role.subject.claimId
-      || lockedRecord.record.lease?.leaseId !== row.lease.leaseId) {
+    if (lockedRecord.kind !== "valid" || !input.validateLockedRecord(lockedRecord.record)) {
       return { kind: "refused", reason: "role-conflict", message: "Errand residue generation changed." };
     }
     const exists = await access(row.checkoutPath).then(() => true, () => false);
-    if (!exists) {
-      return { kind: "refused", reason: "checkout-missing", message: "Recorded Errand checkout is absent." };
+    if (exists) {
+      const prepared = await input.prepareCheckout();
+      if (prepared !== null) return prepared;
     }
-    const dirty = await worktreeIsDirty(options.exec, row.checkoutPath);
-    if (dirty === null) return { kind: "error", message: "Could not read the Errand checkout state." };
-    if (dirty) {
-      return { kind: "refused", reason: "preservation-unproven", message: "The Errand checkout has uncommitted changes." };
-    }
-    if (row.primary !== true) {
-      const marker = await readWorktreeMarkerGeneration(row.checkoutPath);
-      const subject = row.role.subject;
-      const provenance = subject.claimId === null
-        ? null
-        : classifyTransientWorktreeProvenance(marker, {
-          kind: "errand",
-          slug: subject.key,
-          claimId: subject.claimId,
-        });
-      if (provenance?.kind !== "ready") {
-        return { kind: "refused", reason: "role-conflict", message: "Spawned Errand provenance is not exact." };
-      }
-      try {
-        await options.exec("git", ["worktree", "remove", row.checkoutPath], { cwd: state.roster.primaryPath });
-      } catch (error) {
-        return { kind: "error", message: errorMessage(error) };
-      }
-    }
-
     const popped = await popLocusRole({
       operation: "errand-abandon",
-      recommendedPromptText: "Retired Errand session locus released.",
+      recommendedPromptText: input.successText,
       recordId: row.recordId,
       checkoutPath: row.checkoutPath,
       expectedRole: lockedRecord.record.role,
-      expectedLeaseId: row.lease.leaseId,
-      observedLiveness: row.lease.state,
+      expectedLeaseId: row.lease?.leaseId ?? null,
+      observedLiveness: row.lease?.state ?? null,
       duplicate: false,
       io: {
         read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
@@ -216,18 +262,11 @@ async function releaseRetiredResidue(
     if (popped.outcome === "refused") {
       return { kind: "refused", reason: popped.reason, message: popped.recommendedPromptText };
     }
-    if (popped.outcome === "error") return { kind: "error", message: popped.error.message };
-    return { kind: popped.outcome };
+    return popped.outcome === "error"
+      ? { kind: "error", message: popped.error.message }
+      : { kind: popped.outcome };
   } finally {
     await runtime.releaseRecordLock(acquired.handle);
-  }
-}
-
-async function worktreeIsDirty(exec: GitExec, checkoutPath: string): Promise<boolean | null> {
-  try {
-    return (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout.trim() !== "";
-  } catch {
-    return null;
   }
 }
 
@@ -265,51 +304,34 @@ async function cleanupResidue(
   if (row.checkoutPath === null || row.recordId === null) {
     return { kind: "refused", reason: "record-malformed", message: "Errand residue is incomplete." };
   }
+  const checkoutPath = row.checkoutPath;
+  const recordId = row.recordId;
 
-  const runtime = createNodeProvisioningDependencies({
-    exec: options.exec,
-    identity: options.identity,
+  return releaseLockedResidue({
+    options,
     anchor,
     inspector,
     pathFlavor,
-    base: options.base,
+    row: { ...row, checkoutPath, recordId },
     branch: record.branch,
-    postCreateScript: options.postCreateScript,
-    registeredHarnessDirs: options.registeredHarnessDirs,
-  });
-  const acquired = await runtime.acquireRecordLock(row.checkoutPath);
-  if (acquired.kind !== "acquired") {
-    return {
-      kind: "refused",
-      reason: acquired.reason === "live" ? "lease-live" : "lease-unknown",
-      message: "The Errand session locus lock is not available.",
-    };
-  }
-  try {
-    const lockedRecord = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
-    if (lockedRecord.kind !== "valid"
-      || lockedRecord.record.recordId !== row.recordId
-      || lockedRecord.record.checkoutPath !== row.checkoutPath
-      || lockedRecord.record.role.subject.kind !== "errand"
-      || lockedRecord.record.role.subject.key !== record.slug
-      || lockedRecord.record.role.subject.claimId !== record.claimId
-      || lockedRecord.record.lease?.leaseId !== row.lease?.leaseId) {
-      return { kind: "refused", reason: "role-conflict", message: "Errand residue generation changed." };
-    }
-    const exists = await access(row.checkoutPath).then(() => true, () => false);
-    if (!exists) {
-      return { kind: "refused", reason: "checkout-missing", message: "Recorded Errand checkout is absent." };
-    }
-    const clean = await cleanExactCheckout(options.exec, row.checkoutPath, record.branch, expectedHead.head);
-    if (clean !== null) return clean;
-    if (row.primary === true) {
-      try {
-        await options.exec("git", ["checkout", options.base], { cwd: row.checkoutPath });
-      } catch (error) {
-        return { kind: "error", message: errorMessage(error) };
+    validateLockedRecord: (locked) => locked.recordId === recordId
+      && locked.checkoutPath === checkoutPath
+      && locked.role.subject.kind === "errand"
+      && locked.role.subject.key === record.slug
+      && locked.role.subject.claimId === record.claimId
+      && locked.lease?.leaseId === row.lease?.leaseId,
+    prepareCheckout: async () => {
+      const clean = await cleanExactCheckout(options.exec, checkoutPath, record.branch, expectedHead.head);
+      if (clean !== null) return clean;
+      if (row.primary === true) {
+        try {
+          await options.exec("git", ["checkout", options.base], { cwd: checkoutPath });
+          return null;
+        } catch (error) {
+          return { kind: "error", message: errorMessage(error) };
+        }
       }
-    } else {
-      const marker = await readWorktreeMarkerGeneration(row.checkoutPath);
+      const marker = await readWorktreeMarkerGeneration(checkoutPath);
       const provenance = classifyTransientWorktreeProvenance(marker, {
         kind: "errand", slug: record.slug, claimId: record.claimId,
       });
@@ -317,34 +339,16 @@ async function cleanupResidue(
         return { kind: "refused", reason: "role-conflict", message: "Spawned Errand provenance is not exact." };
       }
       try {
-        await options.exec("git", ["worktree", "remove", row.checkoutPath], { cwd: state.roster.primaryPath });
+        await options.exec("git", ["worktree", "remove", checkoutPath], {
+          cwd: state.roster.primaryPath,
+        });
+        return null;
       } catch (error) {
         return { kind: "error", message: errorMessage(error) };
       }
-    }
-
-    const popped = await popLocusRole({
-      operation: "errand-abandon",
-      recommendedPromptText: "Errand residue removed.",
-      recordId: row.recordId,
-      checkoutPath: row.checkoutPath,
-      expectedRole: lockedRecord.record.role,
-      expectedLeaseId: row.lease?.leaseId ?? null,
-      observedLiveness: row.lease?.state ?? null,
-      duplicate: false,
-      io: {
-        read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
-        remove: (expectedBytes) => runtime.removeRecord(acquired.handle.recordPath, expectedBytes, acquired.handle),
-      },
-    });
-    if (popped.outcome === "refused") {
-      return { kind: "refused", reason: popped.reason, message: popped.recommendedPromptText };
-    }
-    if (popped.outcome === "error") return { kind: "error", message: popped.error.message };
-    return { kind: popped.outcome };
-  } finally {
-    await runtime.releaseRecordLock(acquired.handle);
-  }
+    },
+    successText: "Errand residue removed.",
+  });
 }
 
 /** Prove that the exact local branch generation is retained by base or its freshly fetched remote. */
@@ -373,6 +377,13 @@ export async function proveOrdinaryErrandAbandonmentPreservation(
       ? (error as { exitCode?: unknown }).exitCode
       : undefined;
     if (exitCode !== 1) return { kind: "error", message: errorMessage(error) };
+  }
+  if (await configuredIdentityRemote(exec) === null) {
+    return {
+      kind: "refused",
+      reason: "preservation-unproven",
+      message: "The 'origin' remote is absent, so remote preservation cannot be proven.",
+    };
   }
   const remote = await provePauseHead(exec, { remote: "origin", branch: record.branch, savedHead: head });
   if (remote.kind === "proven") return { kind: "ready", head };
@@ -445,4 +456,3 @@ async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null>
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-

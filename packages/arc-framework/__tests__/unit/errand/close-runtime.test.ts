@@ -10,6 +10,10 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const EXPECTED = "a".repeat(40);
 
+function gitError(message: string, exitCode: number): Error & { exitCode: number; stderr: string } {
+  return Object.assign(new Error(message), { exitCode, stderr: message });
+}
+
 function awaiting(): OrdinaryErrandRecord {
   return TransientIdentityRecordV3Schema.parse({
     version: 3,
@@ -50,24 +54,24 @@ function fakeGit(options: {
   const state = { local: options.local, remote: options.remote };
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "fetch") {
-      if (options.fetchFailure !== undefined) throw { exitCode: 128, stderr: options.fetchFailure };
-      if (state.remote === null) throw { exitCode: 128, stderr: "fatal: couldn't find remote ref refs/heads/chore/done" };
+      if (options.fetchFailure !== undefined) throw gitError(options.fetchFailure, 128);
+      if (state.remote === null) throw gitError("fatal: couldn't find remote ref refs/heads/chore/done", 128);
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "rev-parse") {
       const ref = args.at(-1) ?? "";
       const oid = ref.includes("refs/arc/tmp/") ? state.remote : state.local;
-      if (oid === null) throw { exitCode: 1, stderr: "" };
+      if (oid === null) throw gitError("reference is absent", 1);
       return { stdout: `${oid}\n`, stderr: "" };
     }
     if (args[0] === "push") {
-      if (state.remote !== EXPECTED) throw { exitCode: 1, stderr: "stale info" };
+      if (state.remote !== EXPECTED) throw gitError("stale info", 1);
       state.remote = null;
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "update-ref" && args[1] === "-d") {
       if ((args[2] ?? "").startsWith("refs/heads/")) {
-        if (state.local !== args[3]) throw { exitCode: 1, stderr: "cannot lock ref" };
+        if (state.local !== args[3]) throw gitError("cannot lock ref", 1);
         state.local = null;
       }
       return { stdout: "", stderr: "" };
@@ -98,6 +102,17 @@ describe("cleanupOrdinaryErrandRefs", () => {
     expect(git.state).toEqual({ local: EXPECTED, remote: moved });
   });
 
+  it("refuses when the local head moved off the recorded change request", async () => {
+    const moved = "b".repeat(40);
+    const git = fakeGit({ local: moved, remote: EXPECTED });
+
+    await expect(cleanupOrdinaryErrandRefs(git.exec, target())).resolves.toMatchObject({
+      kind: "refused",
+      reason: "preservation-unproven",
+    });
+    expect(git.state).toEqual({ local: moved, remote: EXPECTED });
+  });
+
   it("retains both refs when the remote cannot be read", async () => {
     const git = fakeGit({ local: EXPECTED, remote: EXPECTED, fetchFailure: "fatal: network unreachable" });
 
@@ -105,4 +120,3 @@ describe("cleanupOrdinaryErrandRefs", () => {
     expect(git.state).toEqual({ local: EXPECTED, remote: EXPECTED });
   });
 });
-

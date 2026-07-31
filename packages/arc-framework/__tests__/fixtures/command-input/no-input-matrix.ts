@@ -17,7 +17,8 @@ export interface NoInputMatrixCase {
  */
 export const NO_INPUT_MATRIX = Object.freeze([
   { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
-  { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"operation":"errand-close"' } },
+  { commandPath: "errand abandon", args: ["errand", "abandon", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"outcome":"idempotent","operation":"errand-abandon"' } },
+  { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"outcome":"idempotent","operation":"errand-close"' } },
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"], fixture: "bare", expected: { exitCode: 0 } },

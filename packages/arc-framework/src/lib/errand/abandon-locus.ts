@@ -32,7 +32,7 @@ export interface AbandonOrdinaryErrandDependencies {
    * the identity-absent arm, and only against a caller-selected generation; idempotent when no
    * such occupancy remains.
    */
-  releaseRetiredResidue?(): Promise<AbandonStepResult>;
+  releaseRetiredResidue?: () => Promise<AbandonStepResult>;
   cleanupResidue(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
   clearExecuteBound(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
@@ -41,7 +41,7 @@ export interface AbandonOrdinaryErrandDependencies {
 
 export interface AbandonOrdinaryErrandOptions {
   slug: string;
-  protection: "full" | "partial";
+  protection: "full";
   dependencies: AbandonOrdinaryErrandDependencies;
 }
 
@@ -49,9 +49,6 @@ export interface AbandonOrdinaryErrandOptions {
 export async function abandonOrdinaryErrand(
   options: AbandonOrdinaryErrandOptions,
 ): Promise<LocusMutationResultV1> {
-  if (options.protection !== "full") {
-    return refusal("full-protection-required", "Errand abandonment requires full branch protection.");
-  }
   const slug = options.slug.trim();
   if (slug === "") return refusal("identity-conflict", "Errand slug must be non-empty.");
 
@@ -66,9 +63,10 @@ export async function abandonOrdinaryErrand(
   if (read.record === null) {
     const dependencies = options.dependencies;
     if (dependencies.releaseRetiredResidue === undefined) return alreadyAbandoned(slug, "idempotent");
+    const releaseRetiredResidue = dependencies.releaseRetiredResidue;
     const released = await runStep(
       "locus.errand-abandon.residue",
-      () => dependencies.releaseRetiredResidue?.() ?? Promise.resolve({ kind: "idempotent" as const }),
+      () => releaseRetiredResidue(),
     );
     if ("result" in released) return released.result;
     return alreadyAbandoned(slug, released.step.kind);
@@ -89,7 +87,7 @@ export async function abandonOrdinaryErrand(
       return refusal(
         lifecycle.kind === "open" || lifecycle.kind === "requested-work"
           ? "change-request-open"
-          : "change-request-unverifiable",
+          : lifecycle.kind === "merged" ? "identity-conflict" : "change-request-unverifiable",
         lifecycle.kind === "merged"
           ? "The exact change request merged; finalize it instead of abandoning it."
           : `Exact host truth is '${lifecycle.kind}', not closed-unmerged.`,
@@ -187,4 +185,3 @@ function failure(code: LocusMutationErrorCode, text: string): LocusMutationResul
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-

@@ -10,6 +10,7 @@ import type {
 } from "../../lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
+import type { CanonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import type {
   BranchBoundedNotesExportRefusalReason,
   BranchBoundedNotesExportTarget,
@@ -17,7 +18,11 @@ import type {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
 import type { NoteSetRelation } from "../../lib/user-sync/note-set-relation.js";
-import type { UserInboxPostImage } from "./inbox-mutation.js";
+
+/** Exact USER-INBOX state observed or written while holding the notes lock. */
+export type UserInboxPostImage =
+  | { state: "missing"; content: null; digest: null }
+  | { state: "present"; content: string; digest: CanonicalDigest };
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {

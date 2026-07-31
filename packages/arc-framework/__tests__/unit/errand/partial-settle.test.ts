@@ -108,6 +108,80 @@ describe("settlePartialErrand", () => {
     expect(deps.settleInbox).toHaveBeenCalledWith({ originEntry: "Fix output", parentCheckoutPath: null });
   });
 
+  it("reports the abandon operation and retained-capture result", async () => {
+    const result = await settlePartialErrand({
+      slug: SLUG,
+      action: "abandon",
+      dependencies: dependencies(),
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-abandon" });
+    expect(result.recommendedPromptText).toContain("retained its capture");
+  });
+
+  it("refuses ambiguous partial occupancy before reading preservation evidence", async () => {
+    const pinBaseHead = vi.fn();
+    const result = await settlePartialErrand({
+      slug: SLUG,
+      action: "close",
+      dependencies: dependencies({
+        pinBaseHead,
+        readState: vi.fn(async () => state([
+          partialRow(),
+          partialRow({ checkoutPath: "/other", recordId: `sha256:${"2".repeat(64)}` }),
+        ])),
+      }),
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "duplicate-locus" });
+    expect(pinBaseHead).not.toHaveBeenCalled();
+  });
+
+  it("retries idempotent capture settlement after a pop refusal", async () => {
+    let popAttempt = 0;
+    const settleInbox = vi.fn(async () => ({
+      kind: popAttempt === 0 ? "applied" as const : "idempotent" as const,
+      nextOffer: null,
+    }));
+    const pop = vi.fn(async () => {
+      popAttempt += 1;
+      return popAttempt === 1
+        ? createLocusMutationResult({
+            outcome: "refused",
+            operation: "errand-close",
+            reason: "lease-generation-mismatch",
+            recommendedPromptText: "Pop raced.",
+          })
+        : createLocusMutationResult({
+            outcome: "applied",
+            operation: "errand-close",
+            allocation: null,
+            recordId: RECORD_ID,
+            leaseId: null,
+            activeLocusPath: null,
+            sessionHomePath: null,
+            identity: null,
+            originEntry: null,
+            restoredParent: null,
+            nextOffer: null,
+            recommendedPromptText: "Popped.",
+          });
+    });
+    const acquireLock = vi.fn(async () => ({
+      kind: "acquired" as const,
+      generation: { validate: vi.fn(async () => ({ kind: "owned" as const })), pop },
+      release: vi.fn(async () => undefined),
+    }));
+    const deps = dependencies({ settleInbox, acquireLock });
+
+    await expect(settlePartialErrand({ slug: SLUG, action: "close", dependencies: deps }))
+      .resolves.toMatchObject({ outcome: "refused", reason: "lease-generation-mismatch" });
+    await expect(settlePartialErrand({ slug: SLUG, action: "close", dependencies: deps }))
+      .resolves.toMatchObject({ outcome: "applied", operation: "errand-close" });
+    expect(settleInbox).toHaveBeenCalledTimes(2);
+    expect(pop).toHaveBeenCalledTimes(2);
+  });
+
   it("leaves the capture alone when the role vanished under the lock", async () => {
     const settleInbox = vi.fn(async () => ({ kind: "applied" as const, nextOffer: null }));
     const result = await settlePartialErrand({
@@ -171,4 +245,3 @@ describe("settlePartialErrand", () => {
     expect(settleInbox).not.toHaveBeenCalled();
   });
 });
-

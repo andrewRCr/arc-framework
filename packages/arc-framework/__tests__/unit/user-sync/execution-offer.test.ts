@@ -27,6 +27,14 @@ function marked(): string {
 }
 
 describe("execute-bound next offer", () => {
+  it("returns no offer for an empty execute-bound queue", () => {
+    expect(resolveExecutionNextOffer({
+      content: inbox,
+      completedTitle: null,
+      parentCheckoutPath: "/repo-wu",
+    })).toEqual({ kind: "resolved", nextOffer: null });
+  });
+
   it("selects the stable first sibling with its warm or cold parent", () => {
     expect(resolveExecutionNextOffer({
       content: marked(), completedTitle: null, parentCheckoutPath: "/repo-wu",
@@ -46,4 +54,3 @@ describe("execute-bound next offer", () => {
     })).toMatchObject({ kind: "refused", reason: expect.stringContaining("Malformed") });
   });
 });
-

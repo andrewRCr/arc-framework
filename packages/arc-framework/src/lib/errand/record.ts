@@ -23,6 +23,7 @@ import {
 import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
 import {
   assertTransientIdentityOperation,
+  LegacyIdentityOperationError,
   type TransientIdentityRecord,
   type TransientIdentityOperation,
   type TransientIdentityRecordV3,
@@ -157,16 +158,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-/**
- * Read one legacy errand record from a complete, tip-pinned identity snapshot.
- *
- * @param io - Injected git seams and identity.
- * @param slug - The errand slug keying the record in the ref's tree.
- * @param operation - Read-only access or the state-changing verb requesting authority.
- * @returns The parsed legacy record, or `null` only when the ref/key is proven absent.
- * @throws {ErrandRecordReadError} When the basis is incomplete, the record is v3, or a non-close mutation targets
- *   a legacy generation.
- */
 /** Structured reason a legacy single-record command cannot proceed safely. */
 export type ErrandRecordReadFailure =
   | { kind: "snapshot-error"; stage: "tip" | "tree"; message: string }
@@ -189,6 +180,16 @@ export class ErrandRecordReadError extends Error {
   }
 }
 
+/**
+ * Read one legacy errand record from a complete, tip-pinned identity snapshot.
+ *
+ * @param io - Injected git seams and identity.
+ * @param slug - The errand slug keying the record in the ref's tree.
+ * @param operation - Read-only access or the state-changing verb requesting authority.
+ * @returns The parsed legacy record, or `null` only when the ref/key is proven absent.
+ * @throws {ErrandRecordReadError} When the basis is incomplete, the record is v3, or a non-close mutation targets
+ *   a legacy generation.
+ */
 export async function readErrandRecord(
   io: ErrandRecordReadIO,
   slug: string,
@@ -210,11 +211,13 @@ export async function readErrandRecord(
   if (record === undefined) return null;
   try {
     assertTransientIdentityOperation(record, operation);
-  } catch {
-    if (record.version === 3 || operation === "close" || operation === "read") {
-      throw new Error("unreachable identity operation guard");
-    }
-    throw new ErrandRecordReadError({ kind: "legacy-close-only", operation, record });
+  } catch (error) {
+    if (!(error instanceof LegacyIdentityOperationError)) throw error;
+    throw new ErrandRecordReadError({
+      kind: "legacy-close-only",
+      operation: error.operation,
+      record: error.record,
+    });
   }
   if (record.version === 3) {
     throw new ErrandRecordReadError({ kind: "current-record", operation, record });

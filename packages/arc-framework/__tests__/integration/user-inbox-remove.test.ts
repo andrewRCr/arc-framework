@@ -17,8 +17,10 @@ import {
   runUserInboxMutation,
   runUserInboxRemove,
   unmarkCurrentInboxEntry,
+  withLockedUserInbox,
   type UserIOContext,
 } from "../../src/commands/user.js";
+import { contentDigest } from "../../src/lib/canonical/content-digest.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/index.js";
 import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
 
@@ -149,6 +151,23 @@ describe("runUserInboxRemove", () => {
 });
 
 describe("runUserInboxMutation", () => {
+  it("digests an exact locked post-image without interpreting its contents", async () => {
+    const malformed = "# User Inbox\n\n## Errand\n\n### malformed managed entry\n";
+    await writeFile(inboxPath, malformed, "utf-8");
+
+    const transaction = await withLockedUserInbox(
+      { cwd, io: io(), identity: IDENTITY },
+      ({ content }) => ({ result: content }),
+    );
+
+    expect(transaction.result).toBe(malformed);
+    expect(transaction.postImage).toEqual({
+      state: "present",
+      content: malformed,
+      digest: contentDigest(Buffer.from(malformed, "utf8")),
+    });
+  });
+
   it("atomically marks an exact batch and returns the bytes that reached disk", async () => {
     const titles = ["Fix the flaky log assertion", "Keep me"];
 

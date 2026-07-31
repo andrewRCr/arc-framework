@@ -176,6 +176,44 @@ describe("closeErrand", () => {
     await expect(cleanupOrdinaryErrandRefs(io.exec, target)).resolves.toEqual({ kind: "idempotent" });
   });
 
+  it("retains local and remote refs when the local head moved past the merged generation", async () => {
+    await git(dir, ["switch", "-c", "chore/v3-moved"]);
+    await commitOn(dir, "recorded v3 change");
+    const headSha = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["push", "origin", "chore/v3-moved"]);
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      slug: "v3-moved",
+      claimId: "d".repeat(32),
+      createdAt: CREATED_AT,
+      updatedAt: "2026-06-19T12:01:00.000Z",
+      kind: "errand",
+      purpose: "errand",
+      intent: "moved",
+      branch: "chore/v3-moved",
+      origin: "description",
+      originEntry: null,
+      state: "awaiting-merge",
+      savedHead: null,
+      changeRequest: {
+        repositoryRef: "owner/repo",
+        hostRef: "github.com",
+        baseRef: "main",
+        headRef: "chore/v3-moved",
+        headSha,
+      },
+    }) as OrdinaryErrandRecord;
+    if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
+    await commitOn(dir, "later local change");
+
+    await expect(cleanupOrdinaryErrandRefs(io.exec, {
+      record,
+      changeRequest: record.changeRequest,
+    })).resolves.toMatchObject({ kind: "refused", reason: "preservation-unproven" });
+    expect(await branchExists(dir, record.branch)).toBe(true);
+    expect(await remoteHeadExists(dir, record.branch)).toBe(true);
+  });
+
   it("detaches at base when a legacy record has no return branch", async () => {
     await git(dir, ["branch", "chore/legacy"]);
     await git(dir, ["switch", "chore/legacy"]);

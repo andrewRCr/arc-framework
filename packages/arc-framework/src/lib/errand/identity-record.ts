@@ -167,11 +167,11 @@ export type TransientIdentityOperation =
 
 /** Typed refusal when a legacy generation reaches a non-close mutation. */
 export class LegacyIdentityOperationError extends Error {
-  readonly operation: TransientIdentityOperation;
+  readonly operation: Exclude<TransientIdentityOperation, "close" | "read">;
   readonly record: Extract<TransientIdentityRecord, { version: 1 | 2 }>;
 
   constructor(
-    operation: TransientIdentityOperation,
+    operation: Exclude<TransientIdentityOperation, "close" | "read">,
     record: Extract<TransientIdentityRecord, { version: 1 | 2 }>,
   ) {
     super(`Legacy identity '${record.slug}' is close-only; cannot ${operation}`);

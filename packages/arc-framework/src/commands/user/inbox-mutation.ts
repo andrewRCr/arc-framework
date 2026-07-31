@@ -1,6 +1,7 @@
 /** Lock-serialized, atomic mutation boundary for identity-global `USER-INBOX`. */
 
 import { atomicWriteFile } from "../../lib/fs.js";
+import { contentDigest } from "../../lib/canonical/content-digest.js";
 import {
   acquireAdvisoryLock,
   getNotesLockPath,
@@ -14,12 +15,7 @@ import {
 } from "../../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
-import type { UserIOContext } from "./types.js";
-
-/** Exact USER-INBOX state observed or written while holding the notes lock. */
-export type UserInboxPostImage =
-  | { state: "missing"; content: null; digest: null }
-  | { state: "present"; content: string; digest: MutateInboxEntriesResult["digest"] };
+import type { UserInboxPostImage, UserIOContext } from "./types.js";
 
 /** Injectable transaction boundaries for deterministic failure and interleaving tests. */
 export interface UserInboxMutationDependencies {
@@ -72,15 +68,20 @@ export async function withLockedUserInbox<T>(
     const mutation = await mutate({ content, path: inboxPath });
     if (mutation.replacement !== undefined) {
       await (dependencies.atomicReplace ?? atomicWriteFile)(inboxPath, mutation.replacement);
-      const post = mutateInboxEntries(mutation.replacement, []);
       return {
         result: mutation.result,
-        postImage: { state: "present", content: mutation.replacement, digest: post.digest },
+        postImage: {
+          state: "present",
+          content: mutation.replacement,
+          digest: contentDigest(Buffer.from(mutation.replacement, "utf8")),
+        },
       };
     }
     if (content === null) return { result: mutation.result, postImage: { state: "missing", content: null, digest: null } };
-    const post = mutateInboxEntries(content, []);
-    return { result: mutation.result, postImage: { state: "present", content, digest: post.digest } };
+    return {
+      result: mutation.result,
+      postImage: { state: "present", content, digest: contentDigest(Buffer.from(content, "utf8")) },
+    };
   } finally {
     await releaseLock(lock);
   }
@@ -175,4 +176,3 @@ export async function unmarkCurrentInboxEntry(
   }, dependencies);
   return { ...transaction.result, postImage: transaction.postImage };
 }
-

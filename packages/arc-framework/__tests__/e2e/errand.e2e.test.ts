@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runArc, runArcAnchoredSequence, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -131,6 +132,29 @@ async function seedOpenV3Errand(cwd: string, slug: string): Promise<void> {
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
+/** Seed an exact ordinary residue whose linked checkout was already removed. */
+async function seedMissingCheckoutResidue(cwd: string, slug: string): Promise<string> {
+  const checkoutPath = join(cwd, "missing-checkout");
+  const identity = deriveLocusRecordId(checkoutPath, "posix");
+  const lociDir = join(cwd, ".arc", "user", "test-user", ".internal", "loci");
+  const recordPath = join(lociDir, `locus-${identity.digest}.json`);
+  await mkdir(lociDir, { recursive: true });
+  await writeFile(recordPath, `${JSON.stringify({
+    schemaVersion: 1,
+    recordId: identity.recordId,
+    checkoutPath,
+    role: {
+      kind: "errand",
+      subject: { kind: "errand", key: slug, claimId: "d".repeat(32) },
+      establishedAt: "2026-07-21T00:00:00.000Z",
+      parentCheckoutPath: null,
+      originEntry: null,
+    },
+    lease: null,
+  })}\n`, "utf-8");
+  return recordPath;
+}
+
 /** Flip the installed config's branch.protection (default `partial`) to `full`. */
 async function setFullProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
@@ -238,6 +262,25 @@ describe("arc errand open", () => {
     expect(result.stdout).not.toContain("--type");
   });
 
+  it.each([
+    { operation: "errand-open", args: ["errand", "open", "bad slug", "--json"] },
+    {
+      operation: "errand-link",
+      args: ["errand", "link", "bad slug", "--from-inbox", "Any capture", "--json"],
+    },
+    { operation: "errand-close", args: ["errand", "close", "bad slug", "--json"] },
+  ])("returns one JSON $operation result when command input is invalid", async ({ operation, args }) => {
+    const result = await runArc(args, tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation,
+      error: { code: `locus.${operation}.input` },
+    });
+    expect(result.stderr).toBe("");
+  });
+
   it("does not flag a just-opened errand branch as no-record-or-meta residue on status <slug>", async () => {
     await setFullProtection(tmpDir);
 
@@ -325,11 +368,11 @@ describe("arc errand close", () => {
       await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
       await git(tmpDir, ["remote", "add", "origin", remoteDir]);
       await git(tmpDir, ["push", "-u", "origin", "main"]);
-      const result = await runAnchoredSequence([
-        [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"],
-        ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"],
-        ["git", "push", "origin", "main"],
-        [process.execPath, CLI_PATH, "errand", "close", "direct-fix", "--json"],
+      const result = await runArcAnchoredSequence([
+        { command: [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"] },
+        { command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"] },
+        { command: ["git", "push", "origin", "main"] },
+        { command: [process.execPath, CLI_PATH, "errand", "close", "direct-fix", "--json"] },
       ], tmpDir);
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
@@ -378,6 +421,8 @@ describe("arc errand close", () => {
     try {
       await execFileAsync("git", ["clone", remoteDir, freshDir]);
       await git(freshDir, ["config", "arc.identity", "test-user"]);
+      await git(freshDir, ["config", "user.name", "ARC E2E"]);
+      await git(freshDir, ["config", "user.email", "arc-e2e@example.invalid"]);
       await expect(
         git(freshDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:remote-only"]),
       ).rejects.toThrow();
@@ -551,6 +596,33 @@ describe("arc errand close", () => {
     )).toMatchObject({ state: "awaiting-merge" });
   });
 
+  it("refuses an awaiting v3 tail before host access when origin is absent", async () => {
+    const ghDir = await mkdtemp(join(tmpdir(), "arc-gh-unexpected-"));
+    const marker = join(ghDir, "called");
+    await writeFile(join(ghDir, "gh"), "#!/bin/sh\nprintf called > \"$GH_CALLED\"\nexit 99\n", "utf-8");
+    await chmod(join(ghDir, "gh"), 0o755);
+    await setFullProtection(tmpDir);
+    await seedAwaitingV3Errand(tmpDir, "unconfigured-tail");
+    try {
+      const result = await runArc(
+        ["errand", "close", "unconfigured-tail", "--json"],
+        tmpDir,
+        { env: { PATH: `${ghDir}:${process.env.PATH ?? ""}`, GH_CALLED: marker } },
+      );
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+      expect(JSON.parse(result.stdout.trim())).toMatchObject({
+        outcome: "refused",
+        operation: "errand-close",
+        reason: "change-request-unverifiable",
+        recommendedPromptText: expect.stringContaining("Origin repository coordinates are unsupported"),
+      });
+      await expect(readFile(marker, "utf-8")).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(ghDir);
+    }
+  });
+
   it("force-closes when the local branch was already deleted", async () => {
     await setFullProtection(tmpDir);
     await seedLegacyErrand(tmpDir, { slug: "host-deleted", type: "chore" });
@@ -707,46 +779,6 @@ describe("arc errand close", () => {
   });
 });
 
-async function runAnchoredSequence(commands: readonly string[][], cwd: string): Promise<{
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  results: unknown[];
-}> {
-  const command = commands.map((args) => args.map(shellQuote).join(" ")).join("; ");
-  const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
-  try {
-    const { stdout, stderr } = await execFileAsync(
-      "script",
-      ["-qec", `bash --noprofile --norc -ic ${shellQuote(interactiveCommand)}`, "/dev/null"],
-      { cwd, env: { ...process.env, NO_COLOR: "1", PS1: "" } },
-    );
-    const normalized = normalizeAnchoredOutput(stdout);
-    return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
-  } catch (error) {
-    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
-    const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
-    return {
-      stdout: normalized,
-      stderr: failure.stderr ?? "",
-      exitCode: typeof failure.code === "number" ? failure.code : 1,
-      results: parseJsonLines(normalized),
-    };
-  }
-}
-
-function parseJsonLines(output: string): unknown[] {
-  return output.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
-}
-
-function normalizeAnchoredOutput(value: string): string {
-  return value.replaceAll("\r", "").split("\n").filter((line) => line !== "exit").join("\n");
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
 describe("arc errand abandon", () => {
   let tmpDir: string;
 
@@ -778,6 +810,53 @@ describe("arc errand abandon", () => {
       .rejects.toThrow();
   });
 
+  it("returns one JSON error when the configured base is empty", async () => {
+    const configPath = join(tmpDir, ".arc", "system", "arc-config.yml");
+    const config = await readFile(configPath, "utf-8");
+    const updated = config.replace("branch.base: main", "branch.base: '   '");
+    expect(updated).not.toBe(config);
+    await writeFile(configPath, updated, "utf-8");
+
+    const result = await runArc(["errand", "abandon", "discard", "--json"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-abandon",
+      error: { code: "locus.errand-abandon.base" },
+    });
+    expect(result.stderr).toBe("");
+  });
+
+  it("returns one JSON error when abandon input is invalid", async () => {
+    const result = await runArc(["errand", "abandon", "bad slug", "--json"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-abandon",
+      error: { code: "locus.errand-abandon.input" },
+    });
+    expect(result.stderr).toBe("");
+  });
+
+  it("releases an exact residue after its checkout was already removed", async () => {
+    const slug = "missing-checkout";
+    await seedOpenV3Errand(tmpDir, slug);
+    const recordPath = await seedMissingCheckoutResidue(tmpDir, slug);
+
+    const result = await runArcAnchoredSequence([["errand", "abandon", slug, "--json"]], tmpDir);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(result.results[0]).toMatchObject({
+      outcome: "applied",
+      operation: "errand-abandon",
+    });
+    await expect(readFile(recordPath, "utf-8")).rejects.toThrow();
+    await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+      .rejects.toThrow();
+  });
+
   it("abandons a clean partial Errand and releases its primary occupancy", async () => {
     const remoteDir = `${tmpDir}-remote.git`;
     await execFileAsync("git", ["init", "--bare", remoteDir]);
@@ -788,9 +867,9 @@ describe("arc errand abandon", () => {
       await git(tmpDir, ["remote", "add", "origin", remoteDir]);
       await git(tmpDir, ["push", "-u", "origin", "main"]);
 
-      const result = await runAnchoredSequence([
-        [process.execPath, CLI_PATH, "errand", "open", "discard-direct", "--json"],
-        [process.execPath, CLI_PATH, "errand", "abandon", "discard-direct", "--json"],
+      const result = await runArcAnchoredSequence([
+        { command: [process.execPath, CLI_PATH, "errand", "open", "discard-direct", "--json"] },
+        { command: [process.execPath, CLI_PATH, "errand", "abandon", "discard-direct", "--json"] },
       ], tmpDir);
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);

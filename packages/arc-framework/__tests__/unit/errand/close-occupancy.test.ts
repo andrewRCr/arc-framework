@@ -38,8 +38,11 @@ function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "n
   } as LocusStateV1;
 }
 
-function classify(value: LocusStateV1): ReturnType<typeof classifyErrandCloseOccupancy> {
-  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId: CLAIM_ID });
+function classify(
+  value: LocusStateV1,
+  claimId: string | null = CLAIM_ID,
+): ReturnType<typeof classifyErrandCloseOccupancy> {
+  return classifyErrandCloseOccupancy({ state: value, slug: SLUG, claimId });
 }
 
 describe("classifyErrandCloseOccupancy", () => {
@@ -96,5 +99,26 @@ describe("classifyErrandCloseOccupancy", () => {
 
     expect(ambiguous).toMatchObject({ kind: "refused", reason: "duplicate-locus" });
   });
-});
 
+  it("does not treat another generation of the same slug as the selected claim", () => {
+    const otherClaim = errandRow({
+      role: {
+        ...errandRow().role,
+        subject: { kind: "errand", key: SLUG, claimId: "d".repeat(32) },
+      } as LocusRowV1["role"],
+    });
+
+    expect(classify(state([otherClaim]))).toEqual({ kind: "clear" });
+  });
+
+  it("classifies a legacy null-claim row when the request carries no generation", () => {
+    const legacy = errandRow({
+      role: {
+        ...errandRow().role,
+        subject: { kind: "errand", key: SLUG, claimId: null },
+      } as LocusRowV1["role"],
+    });
+
+    expect(classify(state([legacy]), null)).toMatchObject({ kind: "refused", reason: "lease-live" });
+  });
+});

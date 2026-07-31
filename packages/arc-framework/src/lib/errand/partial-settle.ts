@@ -40,6 +40,10 @@ export interface SettlePartialErrandDependencies {
   /** Null when the checkout sits clean on the configured base at the pinned head; else the reason. */
   verifyBase(checkoutPath: string, expectedHead: string): Promise<string | null>;
   acquireLock(target: PartialErrandTarget): Promise<LockedLocusGenerationAcquisition>;
+  /**
+   * Settle the exact capture binding idempotently. This runs before the record pop so a pop
+   * refusal can retry without leaving an execute-bound capture whose owning role is already gone.
+   */
   settleInbox(binding: {
     readonly originEntry: string | null;
     readonly parentCheckoutPath: string | null;
@@ -220,4 +224,3 @@ function failure(
     recommendedPromptText: "Inspect the retained partial Errand role and exact base evidence before retrying.",
   });
 }
-

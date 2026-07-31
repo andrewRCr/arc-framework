@@ -35,6 +35,7 @@ type AnchoredSequenceLocation =
 
 type AnchoredSequenceEntry =
   | readonly string[]
+  | { command: readonly string[] }
   | ({ args: readonly string[] } & AnchoredSequenceLocation)
   | ({ command: readonly string[] } & AnchoredSequenceLocation);
 
@@ -177,7 +178,7 @@ export async function runArcAnchoredSequence(
     return `${prefix}arc_sequence_result=$(${located}); arc_sequence_status=$?; `
       + `printf '%s\n' "$arc_sequence_result"; (exit $arc_sequence_status)`;
   });
-  const command = `${commands.join("; ")}; command_status=$?; exit $command_status`;
+  const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
   try {
     const { stdout, stderr } = await execFileAsync(
       "script",
@@ -328,11 +329,23 @@ function shellEscape(value: string): string {
 }
 
 function normalizeAnchoredOutput(value: string): string {
-  return value.replaceAll("\r", "").split("\n").filter((line) => line !== "exit").join("\n");
+  const lines = value.replaceAll("\r", "").split("\n");
+  const lastContent = lines.at(-1) === "" ? lines.length - 2 : lines.length - 1;
+  if (lines[lastContent] === "exit") lines.splice(lastContent, 1);
+  return lines.join("\n");
 }
 
 function parseJsonLines(value: string): unknown[] {
-  return value.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
+  const parsed: unknown[] = [];
+  for (const line of value.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    try {
+      parsed.push(JSON.parse(line));
+    } catch {
+      // Transcript noise that resembles JSON must not discard earlier command results.
+    }
+  }
+  return parsed;
 }
 
 /**

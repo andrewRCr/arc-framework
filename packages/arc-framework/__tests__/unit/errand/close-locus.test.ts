@@ -212,6 +212,49 @@ describe("closeOrdinaryErrand", () => {
     expect(retire).not.toHaveBeenCalled();
   });
 
+  it("reports completed ref cleanup when capture settlement or retirement refuses", async () => {
+    const record = awaiting();
+    const captureRefused = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({ kind: "clear" }),
+        cleanupRefs: async () => ({ kind: "applied" }),
+        removeInbox: async () => ({ kind: "refused", reason: "capture generation changed" }),
+        retire: vi.fn(),
+      },
+    });
+    expect(captureRefused).toMatchObject({
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: expect.stringContaining("refs were cleaned up"),
+    });
+
+    const retirementRefused = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({ kind: "clear" }),
+        cleanupRefs: async () => ({ kind: "idempotent" }),
+        removeInbox: async () => ({ kind: "removed", nextOffer: null }),
+        retire: async () => ({ kind: "refused", reason: "identity generation changed" }),
+      },
+    });
+    expect(retirementRefused).toMatchObject({
+      outcome: "refused",
+      reason: "identity-conflict",
+      recommendedPromptText: expect.stringContaining("refs were cleaned up"),
+    });
+  });
+
   it("refuses foreign occupancy before any ref, capture, or identity is destroyed", async () => {
     const record = awaiting();
     const cleanupRefs = vi.fn();
@@ -284,7 +327,9 @@ describe("closeOrdinaryErrand", () => {
     expect(force).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
     expect(cleanupRefs).not.toHaveBeenCalled();
 
-    for (const kind of ["open", "changed-head", "unreachable"] as const) {
+    for (const kind of [
+      "open", "requested-work", "closed-unmerged", "changed-head", "missing", "ambiguous", "unreachable",
+    ] as const) {
       const result = await closeOrdinaryErrand({
         slug: record.slug,
         protection: "full",

@@ -157,6 +157,32 @@ describe("mutateInboxEntries", () => {
     ])).toThrow(/Malformed USER-INBOX entry heading/);
   });
 
+  it("rejects a batch that repeats one title", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+
+    expect(() => mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+      { kind: "unmark", title: "First atomic", sourceDigest },
+    ])).toThrow(/Duplicate USER-INBOX mutation title/);
+  });
+
+  it("applies mixed mutations without shifting a later entry", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+
+    const result = mutateInboxEntries(INBOX, [
+      { kind: "remove", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+
+    expect(result.content).not.toContain("First atomic");
+    expect(inspectInboxEntry(result.content, "Second atomic")).toEqual({
+      title: "Second atomic",
+      sourceDigest: secondDigest,
+      executeBound: true,
+    });
+  });
+
   it("preserves unrelated bytes and rejects malformed or legacy disposition fields", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const marked = mutateInboxEntries(INBOX, [

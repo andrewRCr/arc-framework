@@ -30,6 +30,21 @@ describe("errand open result rendering", () => {
       exitCode: 1,
     });
   });
+
+  it("renders typed errors on stderr for humans", () => {
+    const error = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-open",
+      error: { code: "locus.errand-open.config", message: "Configuration is unavailable." },
+      recommendedPromptText: "Inspect the configuration before retrying.",
+    });
+
+    expect(formatErrandOpenResult(error, false)).toEqual({
+      stream: "stderr",
+      text: "Error [locus.errand-open.config]: Configuration is unavailable.",
+      exitCode: 1,
+    });
+  });
 });
 
 describe("errand link result rendering", () => {

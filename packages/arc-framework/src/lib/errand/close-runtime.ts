@@ -88,9 +88,7 @@ export async function closeOrdinaryErrandAtRuntime(
       resolveTarget: (record) => resolveCloseChangeRequest(options, record),
       readOccupancy: (record) => readCloseOccupancy(options, record),
       readLifecycle: async (target) => {
-        const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base)
-          ?? { repositoryRef: "", hostRef: "", baseRef: "" };
-        return lifecyclePort.read(configured, target.changeRequest);
+        return lifecyclePort.read(target.changeRequest, target.changeRequest);
       },
       cleanupRefs: (target) => cleanupOrdinaryErrandRefs(options.exec, target),
       removeInbox: options.removeInbox,
@@ -189,6 +187,23 @@ async function resolveCloseChangeRequest(
   record: OrdinaryErrandRecord,
 ): Promise<CloseTargetResolution> {
   if (record.state === "awaiting-merge") {
+    const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base);
+    if (configured === null) {
+      return {
+        kind: "refused",
+        reason: "change-request-unverifiable",
+        message: "Origin repository coordinates are unsupported.",
+      };
+    }
+    if (configured.repositoryRef !== record.changeRequest.repositoryRef
+      || configured.hostRef !== record.changeRequest.hostRef
+      || configured.baseRef !== record.changeRequest.baseRef) {
+      return {
+        kind: "refused",
+        reason: "change-request-unverifiable",
+        message: "Configured repository coordinates do not match the retained change request.",
+      };
+    }
     return { kind: "resolved", changeRequest: record.changeRequest };
   }
   const head = await resolveOptionalCommit(options.exec, `refs/heads/${record.branch}`);

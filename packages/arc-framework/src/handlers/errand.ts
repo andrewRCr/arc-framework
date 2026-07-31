@@ -320,8 +320,7 @@ export async function handleErrandOpen(
 
   const parsed = ErrandOpenInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    p.log.error(z.prettifyError(parsed.error));
-    process.exitCode = 1;
+    emitErrandOpenFailure("locus.errand-open.input", z.prettifyError(parsed.error), opts.json === true);
     return;
   }
   const input = parsed.data;
@@ -528,8 +527,7 @@ export async function handleErrandLink(
 
   const parsed = ErrandLinkInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    p.log.error(z.prettifyError(parsed.error));
-    process.exitCode = 1;
+    emitErrandLinkFailure("locus.errand-link.input", z.prettifyError(parsed.error), opts.json === true);
     return;
   }
   const input = parsed.data;
@@ -674,8 +672,7 @@ export async function handleErrandClose(
 
   const parsed = ErrandCloseInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    p.log.error(z.prettifyError(parsed.error));
-    process.exitCode = 1;
+    emitErrandCloseFailure("locus.errand-close.input", z.prettifyError(parsed.error), opts.json === true);
     return;
   }
 
@@ -777,18 +774,24 @@ export async function handleErrandClose(
       } else if (identityRead.record?.version === 1 || identityRead.record?.version === 2) {
         result = await closeLegacyErrandResult(cwd, io, identity, slug, base, opts);
       } else {
-        const parentCheckoutPath = await resolveCurrentWorkUnitPath(cwd, identity, base, io);
+        const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+          cwd,
+          identity: SlugSchema.parse(identity),
+          exec: io.exec,
+        })).identityGlobalRoot;
+        const parentCheckoutPath = await resolveCurrentWorkUnitPath(
+          identityGlobalUserDir,
+          identity,
+          base,
+          io,
+        );
         result = await closeOrdinaryErrandAtRuntime({
           slug,
           base,
           protection: "full",
           force: opts.force === true,
           identity,
-          identityGlobalUserDir: (await resolveUserSurfaceResolver({
-            cwd,
-            identity: SlugSchema.parse(identity),
-            exec: io.exec,
-          })).identityGlobalRoot,
+          identityGlobalUserDir,
           exec: io.exec,
           execInput: io.execInput,
           removeInbox: async (record) => {
@@ -823,7 +826,7 @@ export async function handleErrandClose(
 }
 
 async function resolveCurrentWorkUnitPath(
-  cwd: string,
+  identityGlobalUserDir: string,
   identity: string,
   base: string,
   io: ReturnType<typeof createUserIOContext>,
@@ -832,11 +835,6 @@ async function resolveCurrentWorkUnitPath(
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (anchor.kind !== "process") return null;
   const inspector = createPlatformProcessInspector();
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
-    exec: io.exec,
-  })).identityGlobalRoot;
   const state = await readLocusState({
     identity,
     pathFlavor: process.platform === "win32" ? "windows" : "posix",
@@ -894,6 +892,11 @@ export interface ErrandAbandonOptions {
   json?: boolean;
 }
 
+/** Validated input for abandoning an errand. */
+export const ErrandAbandonInputSchema = z
+  .object({ slug: SlugSchema, json: z.boolean().optional() })
+  .strict();
+
 /** Explicitly retire a safely preserved ordinary Errand while retaining its capture. */
 export async function handleErrandAbandon(
   slug: string,
@@ -901,6 +904,12 @@ export async function handleErrandAbandon(
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc errand abandon");
+  const parsed = ErrandAbandonInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    emitErrandAbandonFailure("locus.errand-abandon.input", z.prettifyError(parsed.error), opts.json === true);
+    return;
+  }
+  const input = parsed.data;
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const { settings } = await readConfigSettings(cwd);
@@ -911,6 +920,11 @@ export async function handleErrandAbandon(
       `Unsupported branch.protection value '${protection}'.`,
       opts.json === true,
     );
+    return;
+  }
+  const base = settings["branch.base"].trim();
+  if (base === "") {
+    emitErrandAbandonFailure("locus.errand-abandon.base", "No branch.base is configured.", opts.json === true);
     return;
   }
   const identity = await resolveIdentityWithPrompt(false);
@@ -936,9 +950,9 @@ export async function handleErrandAbandon(
   try {
     result = protection === "partial"
       ? await settlePartialErrandAtRuntime({
-        slug,
+        slug: input.slug,
         action: "abandon",
-        base: settings["branch.base"],
+        base,
         cwd,
         identity,
         identityGlobalUserDir,
@@ -959,9 +973,9 @@ export async function handleErrandAbandon(
         },
       })
       : await abandonOrdinaryErrandAtRuntime({
-        slug,
+        slug: input.slug,
         protection: "full",
-        base: settings["branch.base"],
+        base,
         identity,
         identityGlobalUserDir,
         postCreateScript: settings["worktree.post_create"],
@@ -1117,11 +1131,11 @@ export const errandCommandInputRegistrations = [
       "option.json": "json",
     },
   },
-  ...["errand abandon"].map((commandPath) => ({
-    commandPath,
-    schema: z.object({ slug: SlugSchema, json: z.boolean().optional() }).strict(),
+  {
+    commandPath: "errand abandon",
+    schema: ErrandAbandonInputSchema,
     schemaFields: { "operand.slug": "slug", "option.json": "json" },
-  })),
+  },
   {
     commandPath: "errand close",
     schema: ErrandCloseInputSchema,

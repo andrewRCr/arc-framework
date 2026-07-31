@@ -17,7 +17,6 @@ export {
   type RunUserInboxMutationOptions,
   type RunUserInboxMutationResult,
   type UserInboxMutationDependencies,
-  type UserInboxPostImage,
 } from "./user/inbox-mutation.js";
 export {
   findStaleUserWuSubdirs,
@@ -97,6 +96,7 @@ export {
   type UserFetchOptions,
   type UserFetchResult,
   type UserIOContext,
+  type UserInboxPostImage,
   type UserLoadOutcome,
   type UserLoadOptions,
   type UserLoadResult,

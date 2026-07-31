@@ -31,7 +31,9 @@ describe("command-input no-input matrix", () => {
         if (entry.configuration === "full-protection") {
           const configPath = join(cwd, ".arc", "system", "arc-config.yml");
           const config = await readFile(configPath, "utf8");
-          await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"));
+          const updated = config.replace("branch.protection: partial", "branch.protection: full");
+          expect(updated, "expected the installed partial-protection setting").not.toBe(config);
+          await writeFile(configPath, updated);
         }
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: initialize fixture"]);

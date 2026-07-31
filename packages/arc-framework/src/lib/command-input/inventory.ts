@@ -105,6 +105,19 @@ function interactionSelectorKeys(
   return selected;
 }
 
+function interactionPolicyKey(site: CommandInputDeclaration["sites"][number]): string {
+  return JSON.stringify({
+    acquisition: site.acquisition,
+    schemaOwnership: site.schemaOwnership,
+    schemaField: site.schemaField ?? null,
+    defaultSource: site.defaultSource ?? null,
+    derivationSource: site.derivationSource ?? null,
+    cancellation: site.cancellation,
+    automation: site.automation,
+    subprocess: site.subprocess,
+  });
+}
+
 /**
  * Join the scanner oracle with typed declarations and reject every mismatch.
  *
@@ -120,7 +133,7 @@ export function reconcileCommandInputInventory(input: {
   const commands = new Map(input.source.commands.map((command) => [command.path, command]));
   const interactions = new Map(input.source.interactions.map((site) => [interactionKey(site), site]));
   const interactionsBySelector = interactionSelectorKeys(input.source.interactions);
-  const claimedInteractions = new Set<string>();
+  const claimedInteractions = new Map<string, { commandPaths: Set<string>; policyKey: string }>();
   const entries: CommandInputInventoryEntry[] = [];
 
   for (const declaration of declarations) {
@@ -168,13 +181,20 @@ export function reconcileCommandInputInventory(input: {
           );
         }
         const key = interactionKey(interaction);
-        if (claimedInteractions.has(key)) {
+        const claimed = claimedInteractions.get(key);
+        const policyKey = interactionPolicyKey(site);
+        if (claimed?.commandPaths.has(declaration.commandPath) === true
+          || (claimed !== undefined && claimed.policyKey !== policyKey)) {
           throw new CommandInputInventoryError(
             `Interaction site is multiply classified: ${key}`,
             "command-input.inventory.duplicate",
           );
         }
-        claimedInteractions.add(key);
+        if (claimed === undefined) {
+          claimedInteractions.set(key, { commandPaths: new Set([declaration.commandPath]), policyKey });
+        } else {
+          claimed.commandPaths.add(declaration.commandPath);
+        }
         liveSource = interaction;
       }
       entries.push({

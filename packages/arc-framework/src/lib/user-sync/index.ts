@@ -41,6 +41,7 @@ export {
   type InboxEntryMutationOutcome,
   type InspectedInboxEntry,
   type ExecuteBoundInboxEntry,
+  type ExecuteBoundInboxListing,
   type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";

@@ -157,7 +157,9 @@ export async function closeOrdinaryErrand(
     return failure("locus.errand-close.inbox", message(error));
   }
   if (inbox.kind === "error") return failure("locus.errand-close.inbox", inbox.message);
-  if (inbox.kind === "refused") return refusal("identity-conflict", inbox.reason);
+  if (inbox.kind === "refused") {
+    return refusal("identity-conflict", `Errand refs were cleaned up, but capture settlement refused: ${inbox.reason}`);
+  }
 
   let retired: RetirementResult;
   try {
@@ -165,7 +167,9 @@ export async function closeOrdinaryErrand(
   } catch (error) {
     return failure("locus.errand-close.identity", message(error));
   }
-  if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
+  if (retired.kind === "refused") {
+    return refusal("identity-conflict", `Errand refs were cleaned up, but identity retirement refused: ${retired.reason}`);
+  }
   if (retired.kind === "error") return failure("locus.errand-close.identity", retired.message);
 
   const outcome = refs.kind === "applied" || inbox.kind === "removed" || retired.kind === "applied"
@@ -245,4 +249,3 @@ function failure(code: LocusMutationErrorCode, text: string): LocusMutationResul
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
