@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
-- **Depends On:** `delivery-plan-record`
+- **Depends On:** `delivery-plan-record`, `review-request-contracts`
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-review-cardinality.md`

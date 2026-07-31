@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b2c884dfa`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b129ca5cf`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -16,6 +16,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State      | Work unit                     | Priority | Owner  | Depends on | Cohort                        |
 | ---------- | ----------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment     |
+| `Planning` | chunked-delivery              | P1       | andrew | —          | —                             |
 | `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                             |
 | `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                             |
 | `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                             |
@@ -98,7 +99,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                        |
 | --------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
 | delivery-integration-target       | P1       | andrew | delivery-plan-record                                        | chunked-delivery              |
-| delivery-review-cardinality       | P1       | andrew | delivery-plan-record                                        | chunked-delivery              |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
 | decompose-planning-lane           | P2       | andrew | decompose-base-mobility                                     | decompose-transform-integrity |
@@ -112,17 +112,23 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                 | Priority | Owner  | Depends on                                        | Cohort                    |
-| ------------------------- | -------- | ------ | ------------------------------------------------- | ------------------------- |
-| delivery-stack-topology   | P1       | andrew | delivery-integration-target, delivery-plan-record | chunked-delivery          |
-| review-activity-contracts | P1       | andrew | review-source-authority                           | review-protocol-alignment |
-| wu5-public-release        | P3       | andrew | docs-content-sweep                                | release-readiness         |
+| Work unit                 | Priority | Owner  | Depends on                                                             | Cohort                    |
+| ------------------------- | -------- | ------ | ---------------------------------------------------------------------- | ------------------------- |
+| delivery-stack-topology   | P1       | andrew | delivery-integration-target, delivery-plan-record, session-locus-model | chunked-delivery          |
+| review-activity-contracts | P1       | andrew | review-source-authority                                                | review-protocol-alignment |
+| wu5-public-release        | P3       | andrew | docs-content-sweep                                                     | release-readiness         |
 
 ### Depth 3
 
 | Work unit                | Priority | Owner  | Depends on                | Cohort                    |
 | ------------------------ | -------- | ------ | ------------------------- | ------------------------- |
 | review-request-contracts | P1       | andrew | review-activity-contracts | review-protocol-alignment |
+
+### Depth 4
+
+| Work unit                   | Priority | Owner  | Depends on                                     | Cohort           |
+| --------------------------- | -------- | ------ | ---------------------------------------------- | ---------------- |
+| delivery-review-cardinality | P1       | andrew | delivery-plan-record, review-request-contracts | chunked-delivery |
 
 ---
 
