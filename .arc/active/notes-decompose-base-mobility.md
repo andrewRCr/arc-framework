@@ -1,12 +1,16 @@
 # Notes: decompose-base-mobility
 
-Working notes for this work unit. Findings here are verified against source unless marked otherwise.
+Verified source facts supporting the base-mobility design and implementation.
 
 ---
 
-## Grounded source facts, do not re-derive
+## Contents
 
-Checked against source this session; re-verifying costs time and finds nothing.
+- [Grounded source facts](#grounded-source-facts)
+
+## Grounded source facts
+
+These facts were checked against the implementation and its repository contracts.
 
 - All five Git read helpers are module-private in the exact-base anchor adapter — extraction is genuinely required.
 - The core tree-snapshot reader is exported and parameterized by head, and derives incoming edges from every meta
