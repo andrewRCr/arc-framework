@@ -207,6 +207,7 @@ function mutationHarness(options: {
   tamperPath?: string;
   claimRefusal?: boolean;
   claimThrow?: boolean;
+  claimThrowAfterPersist?: boolean;
 } = {}) {
   const planned = advancedPlan();
   let liveClaim = claim();
@@ -250,6 +251,7 @@ function mutationHarness(options: {
         next,
       );
       if (result.status === "restated") liveClaim = result.claim;
+      if (options.claimThrowAfterPersist === true) throw new Error("claim store interrupted after persistence");
       return result;
     },
   } as unknown as DecomposeTransientClaimStore;
@@ -536,5 +538,14 @@ describe("advanceGitV3DecomposeBase", () => {
     expect(h.mergeActive()).toBe(false);
     expect(h.restored()).toBe(true);
     expect(h.claim().binding.resultBaseHead).toBe(RECORDED_BASE);
+  });
+
+  it("keeps the advanced candidate when claim persistence completes before interruption", async () => {
+    const h = mutationHarness({ claimThrowAfterPersist: true });
+    expect(await advanceGitV3DecomposeBase(h.dependencies, input()))
+      .toMatchObject({ status: "advanced", currentBaseHead: CURRENT_BASE });
+    expect(h.mergeActive()).toBe(true);
+    expect(h.restored()).toBe(false);
+    expect(h.claim().binding.resultBaseHead).toBe(CURRENT_BASE);
   });
 });

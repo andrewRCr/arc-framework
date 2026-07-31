@@ -26,6 +26,7 @@ import { v3PreflightId } from "./decompose-v3-schema.js";
 import {
   decomposeCandidateBranch,
   decomposeTransientClaimId,
+  restateDecomposeTransientClaimBinding,
   type DecomposeTransientClaim,
 } from "./decompose-transient-claim.js";
 import {
@@ -787,20 +788,35 @@ export async function advanceGitV3DecomposeBase(
   }
   const claims = dependencies.claimStore
     ?? await createNodeDecomposeTransientClaimStore(dependencies.exec, dependencies.cwd);
+  const nextBinding = {
+    resultBaseHead: admission.preparation.facts.completedMap.machine.resultBase.head,
+    cutMapDigest: admission.preparation.facts.cutMapDigest,
+  };
   let claimRestated: boolean;
   try {
     const restated = await claims.restateBinding(
       admission.claim.claimId,
       admission.claim.generation,
       admission.claim.binding,
-      {
-        resultBaseHead: admission.preparation.facts.completedMap.machine.resultBase.head,
-        cutMapDigest: admission.preparation.facts.cutMapDigest,
-      },
+      nextBinding,
     );
     claimRestated = restated.status === "restated" || restated.status === "already-restated-matching";
   } catch {
-    claimRestated = false;
+    try {
+      const persisted = await claims.read(admission.claim.claimId);
+      const reconciled = persisted.status === "found"
+        ? restateDecomposeTransientClaimBinding(
+            persisted.claim,
+            admission.claim.claimId,
+            admission.claim.generation,
+            admission.claim.binding,
+            nextBinding,
+          )
+        : null;
+      claimRestated = reconciled?.status === "already-restated-matching";
+    } catch {
+      claimRestated = false;
+    }
   }
   if (!claimRestated) {
     const restored = await restoreCandidate(dependencies, admission);
