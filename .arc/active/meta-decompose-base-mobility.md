@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-base-mobility.md`
-- **Task List:** [none]
+- **Task List:** `tasks-decompose-base-mobility.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Repair `tasks-decompose-base-mobility.md` against the re-entered spec — rework Phase 3's
-  merge/restage half, add teardown-contract tasks, then fold the held adversarial findings
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
