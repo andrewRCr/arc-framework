@@ -150,6 +150,46 @@ async function setPartialProtection(cwd: string): Promise<void> {
   await writeFile(path, updated, "utf-8");
 }
 
+async function createMergedGhFixture(cwd: string, slug: string): Promise<{
+  ghDir: string;
+  remoteDir: string;
+  env: Record<string, string>;
+}> {
+  const remoteDir = `${cwd}-${slug}-remote.git`;
+  const ghDir = await mkdtemp(join(tmpdir(), "arc-gh-"));
+  const branch = `chore/${slug}`;
+  const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+  const repositoryUrl = "https://github.com/owner/repo.git";
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+  await git(cwd, ["config", `url.file://${remoteDir}.insteadOf`, repositoryUrl]);
+  await git(cwd, ["remote", "add", "origin", repositoryUrl]);
+  await git(cwd, ["push", "-u", "origin", "main"]);
+  const exactArgs = [
+    "pr", "list", "--repo", "owner/repo", "--state", "merged", "--head", branch,
+    "--limit", "2", "--json", "baseRefName,headRefName,headRefOid",
+  ].join(" ");
+  const lifecycleArgs = [
+    "pr", "list", "--repo", "owner/repo", "--state", "all", "--head", branch,
+    "--limit", "100", "--json", "number,state,baseRefName,headRefName,headRefOid,reviewDecision",
+  ].join(" ");
+  const coordinates = { baseRefName: "main", headRefName: branch, headRefOid: headSha };
+  const script = [
+    "#!/bin/sh",
+    "set -eu",
+    'case "$*" in',
+    `  ${JSON.stringify(exactArgs)}) printf '%s\\n' ${JSON.stringify(JSON.stringify([coordinates]))} ;;`,
+    `  ${JSON.stringify(lifecycleArgs)}) printf '%s\\n' ${JSON.stringify(JSON.stringify([{
+      number: 1, state: "MERGED", ...coordinates, reviewDecision: "APPROVED",
+    }]))} ;;`,
+    '  *) printf \'unexpected gh invocation: %s\\n\' "$*" >&2; exit 2 ;;',
+    "esac",
+    "",
+  ].join("\n");
+  await writeFile(join(ghDir, "gh"), script, "utf-8");
+  await chmod(join(ghDir, "gh"), 0o755);
+  return { ghDir, remoteDir, env: { PATH: `${ghDir}:${process.env.PATH ?? ""}` } };
+}
+
 describe("arc errand check", () => {
   let tmpDir: string;
 
@@ -360,6 +400,61 @@ describe("arc errand close", () => {
     } finally {
       await cleanupTempDir(freshDir);
       await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("finalizes an ordinary v3 Errand from exact merged host truth", async () => {
+    const slug = "merged-v3";
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const host = await createMergedGhFixture(tmpDir, slug);
+    try {
+      await seedOpenV3Errand(tmpDir, slug);
+      const result = await runArcAnchoredSequence([
+        ["errand", "close", slug, "--json"],
+      ], tmpDir, { env: host.env });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
+      await expect(
+        git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]),
+      ).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
+  it("refuses merged v3 finalization from outside its occupied checkout", async () => {
+    const slug = "occupied-v3";
+    const observerDir = `${tmpDir}-observer`;
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await git(tmpDir, ["branch", "feat/observer"]);
+    await git(tmpDir, ["worktree", "add", observerDir, "feat/observer"]);
+    const host = await createMergedGhFixture(tmpDir, slug);
+    try {
+      const opened = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+      ], tmpDir, { env: host.env });
+      expect(opened.exitCode).toBe(0);
+      const result = await runArcAnchoredSequence([
+        ["errand", "close", slug, "--json"],
+      ], observerDir, { env: host.env });
+
+      expect(result.exitCode, JSON.stringify(result.results)).toBe(1);
+      expect(result.results[0]).toMatchObject({
+        outcome: "refused", operation: "errand-close", reason: "role-conflict",
+      });
+      expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+        .toContain('"state": "open"');
+    } finally {
+      await git(tmpDir, ["worktree", "remove", "--force", observerDir]);
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
     }
   });
 
