@@ -27,6 +27,8 @@ import type { LoadSetManifest } from "../load-set/types.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
 import { isIdleWorkUnitRow } from "../locus/state.js";
 import {
+  DRAIN_INBOX_WORKFLOW_PATH,
+  DRAFT_DESIGN_WORKFLOW_PATH,
   RUN_ERRAND_WORKFLOW_PATH,
   type RecoveryLocusFrame,
 } from "./locus-context.js";
@@ -452,9 +454,11 @@ function auditLoadSet(
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
-  if (verdict.diverged && options.recover.recoveryFrame.ok
-    && options.recover.recoveryFrame.value.kind === "legacy-errand") {
-    const compatibilityLoadSet = withoutLegacyErrandWorkflow(options.recover.loadSet.value);
+  if (verdict.diverged) {
+    const compatibilityWorkflowPath = recoveryCompatibilityWorkflowPath(options);
+    const compatibilityLoadSet = compatibilityWorkflowPath === null
+      ? null
+      : withoutTrailingFullWorkflow(options.recover.loadSet.value, compatibilityWorkflowPath);
     if (compatibilityLoadSet !== null) {
       verdict = auditLoadSetManifest({ baseline: options.seed.loadSet, fresh: compatibilityLoadSet });
     }
@@ -469,9 +473,44 @@ function auditLoadSet(
   return verdict;
 }
 
-function withoutLegacyErrandWorkflow(loadSet: LoadSetManifest): LoadSetManifest | null {
+function recoveryCompatibilityWorkflowPath(options: AuditRecoveryStateOptions): string | null {
+  if (!options.recover.recoveryFrame.ok) return null;
+  const frame = options.recover.recoveryFrame.value;
+  if (frame.kind === "legacy-errand") return RUN_ERRAND_WORKFLOW_PATH;
+  if (frame.kind !== "resolved"
+    || options.seed.locus !== undefined
+    || options.seed.locusAbsence !== undefined
+    || !options.recover.locusState.ok) return null;
+
+  const state = options.recover.locusState.value;
+  if (state.current.kind !== "resolved"
+    || state.current.activeRecordId !== frame.activeRecordId
+    || state.current.parentRecordId !== frame.parentRecordId) return null;
+  const rows = state.roster.rows.filter((row) => row.recordId === frame.activeRecordId);
+  const row = rows.length === 1 ? rows[0] : undefined;
+  if (row === undefined
+    || row.kind !== "managed-role"
+    || row.frame !== "active"
+    || row.lease?.state !== "live"
+    || row.role === null
+    || row.diagnostics.length > 0) return null;
+
+  const workflow = row.role.kind === "errand"
+    ? { name: "run-errand", path: RUN_ERRAND_WORKFLOW_PATH }
+    : row.role.kind === "groom"
+      ? { name: "draft-design", path: DRAFT_DESIGN_WORKFLOW_PATH }
+      : row.role.kind === "housekeep"
+        ? { name: "drain-inbox", path: DRAIN_INBOX_WORKFLOW_PATH }
+        : null;
+  return workflow !== null && frame.workflow === workflow.name ? workflow.path : null;
+}
+
+function withoutTrailingFullWorkflow(
+  loadSet: LoadSetManifest,
+  workflowPath: string,
+): LoadSetManifest | null {
   const last = loadSet.entries.at(-1);
-  if (last?.path !== RUN_ERRAND_WORKFLOW_PATH
+  if (last?.path !== workflowPath
     || last.readMode.kind !== "full") return null;
   return { manifestVersion: loadSet.manifestVersion, entries: loadSet.entries.slice(0, -1) };
 }

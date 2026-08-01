@@ -40,6 +40,11 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const TRANSIENT_BASE_LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
+  entries: [LOAD_SET.entries[0]!],
+} satisfies LoadSetManifest;
+
 const PLANNING_LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
@@ -94,6 +99,17 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
     uncommittedFiles: [],
     ...overrides,
   };
+}
+
+function transientSeed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
+  return seed({
+    activeWorkUnit: null,
+    metaPath: null,
+    sessionType: null,
+    taskCursor: null,
+    loadSet: TRANSIENT_BASE_LOAD_SET,
+    ...overrides,
+  });
 }
 
 function active(
@@ -181,6 +197,55 @@ function freshLocusState(): LocusStateV1 {
     recovery: { kind: "resume", activeRecordId: RECORD_ID, parentRecordId: null },
     reconciliation: { kind: "clean" },
   };
+}
+
+function transientLocusState(kind: "errand" | "groom" | "housekeep"): LocusStateV1 {
+  const state = freshLocusState();
+  const row = state.roster.rows[0];
+  if (row === undefined) throw new Error("missing locus fixture row");
+  const claimId = "e".repeat(32);
+  row.role = {
+    kind,
+    subject: {
+      kind,
+      key: `${kind}-demo`,
+      claimId: kind === "housekeep" ? null : claimId,
+    },
+    parentCheckoutPath: null,
+    originEntry: null,
+  };
+  row.identity = kind === "errand"
+    ? {
+        kind: "errand",
+        key: "errand-demo",
+        claimId,
+        protection: "full",
+        branch: "chore/errand-demo",
+        purpose: "errand",
+        origin: "description",
+        originEntry: null,
+        state: "open",
+        savedHead: null,
+        changeRequest: null,
+      }
+    : kind === "groom"
+      ? {
+          kind: "groom",
+          key: "groom-demo",
+          claimId,
+          purpose: null,
+          anchorStub: "demo",
+          members: ["demo"],
+          openedBaseHead: "1".repeat(40),
+          protection: "full",
+          branch: "chore/groom-demo",
+          state: "open",
+          savedHead: null,
+          changeRequest: null,
+        }
+      : null;
+  row.derived = null;
+  return state;
 }
 
 function recoveryFrame(overrides: Partial<Extract<RecoveryLocusFrame, { kind: "resolved" }>> = {}): RecoveryLocusFrame {
@@ -474,6 +539,65 @@ describe("auditRecoveryState", () => {
     expect(result.status).toBe("ready");
     expect(result.loadSetAudit?.status).toBe("match");
     expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
+  });
+
+  it.each([
+    ["errand", "run-errand", ".arc/system/workflows/arc/supplemental/run-errand.md"],
+    ["groom", "draft-design", ".arc/system/workflows/arc/draft-design.md"],
+    ["housekeep", "drain-inbox", ".arc/system/workflows/arc/supplemental/drain-inbox.md"],
+  ] as const)(
+    "accepts one reader-derived %s workflow beyond a pre-model seed load set",
+    async (kind, workflow, workflowPath) => {
+      const recoveryLoadSet = {
+        ...TRANSIENT_BASE_LOAD_SET,
+        entries: [
+          ...TRANSIENT_BASE_LOAD_SET.entries,
+          { path: workflowPath, readMode: { kind: "full" as const } },
+        ],
+      };
+      const result = await runAudit({
+        seed: transientSeed(),
+        recover: {
+          locusState: ok(transientLocusState(kind)),
+          recoveryFrame: ok(recoveryFrame({ workflow, sessionType: null })),
+          active: ok(active()),
+          dirty: ok(dirty()),
+          loadSet: ok(recoveryLoadSet),
+        },
+        freshUncommittedFiles: [],
+      });
+
+      expect(result.status).toBe("ready");
+      expect(result.loadSetAudit?.status).toBe("match");
+    },
+  );
+
+  it("keeps exact load-set equality for disposition-bearing transient seeds", async () => {
+    const recoveryLoadSet = {
+      ...TRANSIENT_BASE_LOAD_SET,
+      entries: [
+        ...TRANSIENT_BASE_LOAD_SET.entries,
+        {
+          path: ".arc/system/workflows/arc/supplemental/run-errand.md",
+          readMode: { kind: "full" as const },
+        },
+      ],
+    };
+    const result = await runAudit({
+      seed: transientSeed({ locus: LOCUS_HINT }),
+      recover: {
+        locusState: ok(transientLocusState("errand")),
+        recoveryFrame: ok(recoveryFrame({ workflow: "run-errand", sessionType: null })),
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(recoveryLoadSet),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
+    expect(result.loadSetAudit?.status).toBe("diverged");
   });
 
   it("stops when the live checkout branch differs even if HEAD is unchanged", async () => {
