@@ -14,6 +14,29 @@ function report(name: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(FIXTURE_DIR, `recovery-audit-${name}.json`), "utf8")) as Record<string, unknown>;
 }
 
+function readyReport(): Record<string, unknown> {
+  const value = report("ready");
+  const previous = value.verdict as Record<string, unknown>;
+  value.verdict = {
+    ...previous,
+    status: "ready",
+    ready: true,
+    stopReasons: [],
+    loadSetAudit: {
+      status: "match",
+      diverged: false,
+      diff: {
+        manifestVersion: null,
+        membership: { added: [], removed: [] },
+        readModeChanges: [],
+        pathDrifts: [],
+      },
+    },
+    locusHint: null,
+  };
+  return value;
+}
+
 function earlyStop(): Record<string, unknown> {
   return {
     mode: "recover-audit",
@@ -27,6 +50,7 @@ function earlyStop(): Record<string, unknown> {
       explainedDrift: [],
       loadSetAudit: null,
       locus: null,
+      locusHint: null,
       dirtyFiles: {
         expected: [],
         actual: [],
@@ -59,7 +83,7 @@ describe("recovery-audit report schema", () => {
     ["load-set-audit-verdict", ["verdict", "loadSetAudit", "status"], "unknown", "verdict.loadSetAudit.status"],
     ["recovery-audit-verdict", ["verdict", "status"], "unknown", "verdict.status"],
   ] as const)("rejects a representative %s family-root defect", (_root, path, replacement, expectedPath) => {
-    const value = report("ready");
+    const value = readyReport();
     setPath(value, path, replacement);
     expect(() => assertRecoverAuditReport(value)).toThrow(`recovery-audit-report: ${expectedPath}:`);
   });
@@ -73,9 +97,64 @@ describe("recovery-audit report schema", () => {
     expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
   });
 
-  it.each(["ready", "dirty-path-drift"])("accepts the %s characterization fixture", (name) => {
+  it.each(["ready", "dirty-path-drift"])("accepts the %s stop characterization fixture", (name) => {
     const value = report(name);
     expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
+  });
+
+  it("accepts a complete ready report", () => {
+    const value = readyReport();
+    expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
+  });
+
+  it("accepts an atomic locus hint in the seed summary", () => {
+    const value = readyReport();
+    const seed = value.seed as Record<string, unknown>;
+    const hint = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo-child",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: `sha256:${"c".repeat(64)}`,
+    };
+    seed.locus = hint;
+    (value.verdict as Record<string, unknown>).locusHint = {
+      expected: hint,
+      actual: hint,
+      match: true,
+    };
+    expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
+  });
+
+  it("rejects a ready hint-bearing seed without a locus comparison", () => {
+    const value = readyReport();
+    const seed = value.seed as Record<string, unknown>;
+    seed.locus = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo-child",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: `sha256:${"c".repeat(64)}`,
+    };
+    expect(RecoverAuditReportSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("rejects a ready locus comparison that does not match its seed hint", () => {
+    const value = readyReport();
+    const hint = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo-child",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: `sha256:${"c".repeat(64)}`,
+    };
+    (value.seed as Record<string, unknown>).locus = hint;
+    (value.verdict as Record<string, unknown>).locusHint = {
+      expected: { ...hint, activeLocusPath: "/other-child" },
+      actual: hint,
+      match: true,
+    };
+    expect(RecoverAuditReportSchema.safeParse(value).success).toBe(false);
   });
 
   it("accepts a valid early-stop report with no seed or recovery envelope", () => {
@@ -100,19 +179,19 @@ describe("recovery-audit report schema", () => {
   it("rejects ready reports without complete live state", () => {
     expect(
       RecoverAuditReportSchema.safeParse({
-        ...report("ready"),
+        ...readyReport(),
         recover: null,
       }).success,
     ).toBe(false);
     expect(
       RecoverAuditReportSchema.safeParse({
-        ...report("ready"),
+        ...readyReport(),
         seed: null,
       }).success,
     ).toBe(false);
     expect(
       RecoverAuditReportSchema.safeParse({
-        ...report("ready"),
+        ...readyReport(),
         seedPath: null,
       }).success,
     ).toBe(false);

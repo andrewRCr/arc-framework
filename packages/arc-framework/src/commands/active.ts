@@ -8,6 +8,7 @@ export {
   runActiveStatus,
   runActiveSessionInitStatus,
   runActiveSessionInitStatusInternal,
+  projectActiveSessionInitCandidate,
   resolveTaskListPath,
 } from "./active/status.js";
 export {
