@@ -11,7 +11,7 @@ import type {
 } from "../locus/schema/index.js";
 
 export type CloseOccupancyVerdict =
-  | { kind: "clear" }
+  | { kind: "clear"; authority: "unclaimed" | "current-checkout" | "base-checkout" }
   | { kind: "refused"; reason: LocusRefusalReason; message: string };
 
 /** Positive runtime evidence for the one unresolved subject state close may clear. */
@@ -41,7 +41,7 @@ export function classifyErrandCloseOccupancy(options: {
 }): CloseOccupancyVerdict {
   const claims = options.state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
     && row.role.subject.key === options.slug && row.role.subject.claimId === options.claimId);
-  if (claims.length === 0) return { kind: "clear" };
+  if (claims.length === 0) return { kind: "clear", authority: "unclaimed" };
   const claim = claims.length === 1 ? claims[0] : undefined;
   if (claim === undefined) {
     return refused("duplicate-locus", `Errand '${options.slug}' is claimed by more than one checkout.`);
@@ -49,9 +49,11 @@ export function classifyErrandCloseOccupancy(options: {
 
   const current = options.state.current;
   if (current.kind === "resolved" && claim.recordId !== null && current.activeRecordId === claim.recordId) {
-    return { kind: "clear" };
+    return { kind: "clear", authority: "current-checkout" };
   }
-  if (isExactSelfHeldBaseCheckout(claim, options.state, options.baseCheckoutProof)) return { kind: "clear" };
+  if (isExactSelfHeldBaseCheckout(claim, options.state, options.baseCheckoutProof)) {
+    return { kind: "clear", authority: "base-checkout" };
+  }
 
   const trusted = projectTrustedLocusRow(claim);
   if (trusted.kind === "untrusted") {

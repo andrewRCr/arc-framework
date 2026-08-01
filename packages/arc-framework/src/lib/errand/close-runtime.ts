@@ -26,6 +26,7 @@ import {
 } from "./close-occupancy.js";
 import {
   closeOrdinaryErrand,
+  type CloseAuthorityGuard,
   type CloseInboxResult,
   type CloseOccupancyResult,
   type CloseRefCleanupResult,
@@ -95,7 +96,7 @@ export async function closeOrdinaryErrandAtRuntime(
       readLifecycle: async (target) => {
         return lifecyclePort.read(target.changeRequest, target.changeRequest);
       },
-      cleanupRefs: (target) => cleanupOrdinaryErrandRefs(options.exec, target),
+      cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(options.exec, target, guard),
       removeInbox: options.removeInbox,
       retire: async (target, lifecycle) => {
         const result = await transactTransientIdentities(io, {
@@ -158,8 +159,9 @@ async function readCloseOccupancy(
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let state: LocusStateV1;
   let baseCheckoutProof: BaseCheckoutCloseProof | null = null;
+  let currentCheckoutPath: string;
   try {
-    const currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
+    currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
     if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
     const [currentBranch, currentMarker] = await Promise.all([
       options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
@@ -204,12 +206,52 @@ async function readCloseOccupancy(
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
-  return classifyErrandCloseOccupancy({
+  const verdict = classifyErrandCloseOccupancy({
     state,
     slug: record.slug,
     claimId: record.claimId,
     baseCheckoutProof,
   });
+  if (verdict.kind !== "clear") return verdict;
+  return {
+    kind: "clear",
+    guard: verdict.authority === "base-checkout"
+      ? createBaseCheckoutCloseGuard(options, currentCheckoutPath)
+      : null,
+  };
+}
+
+function createBaseCheckoutCloseGuard(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  checkoutPath: string,
+): CloseAuthorityGuard {
+  return {
+    revalidate: async () => {
+      try {
+        const before = (await options.exec(
+          "git",
+          ["rev-parse", "--abbrev-ref", "HEAD"],
+          { cwd: checkoutPath },
+        )).stdout.trim();
+        const marker = await readWorktreeMarker(checkoutPath);
+        const after = (await options.exec(
+          "git",
+          ["rev-parse", "--abbrev-ref", "HEAD"],
+          { cwd: checkoutPath },
+        )).stdout.trim();
+        if (before === options.base && after === before && marker.kind === "absent") {
+          return { kind: "valid" };
+        }
+        return {
+          kind: "refused",
+          reason: "role-conflict",
+          message: `Errand close lost base-checkout authority at '${checkoutPath}'; switch it to '${options.base}' and retry.`,
+        };
+      } catch (error) {
+        return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  };
 }
 
 /**
@@ -275,13 +317,26 @@ async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null>
 export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
+  guard: CloseAuthorityGuard | null = null,
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
     branch: target.record.branch,
     expectedHead: target.changeRequest.headSha,
     subject: "Errand",
     temporaryRefNamespace: "refs/arc/tmp/errand-close",
+    ...(guard === null ? {} : {
+      authorizeDelete: async () => {
+        const authorization = await guard.revalidate();
+        if (authorization.kind === "valid") return { kind: "authorized" };
+        return authorization.kind === "refused"
+          ? { kind: "refused", message: authorization.message }
+          : authorization;
+      },
+    }),
   });
+  if (result.kind === "authorization-refused") {
+    return { kind: "refused", reason: "role-conflict", message: result.message };
+  }
   return result.kind === "refused"
     ? { kind: "refused", reason: "preservation-unproven", message: result.message }
     : result;

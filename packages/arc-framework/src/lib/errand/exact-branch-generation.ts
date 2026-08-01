@@ -44,7 +44,15 @@ export interface ExactBranchGenerationOptions {
 export interface ExactBranchTeardownOptions extends ExactBranchGenerationOptions {
   /** The head both refs must carry for their deletion to be authorized. */
   readonly expectedHead: string;
+  /** Revalidate caller authority after remote reads and immediately before each deletion. */
+  readonly authorizeDelete?: () => Promise<ExactBranchTeardownAuthorization>;
 }
+
+/** Caller-owned authority checked inside the ref teardown boundary. */
+export type ExactBranchTeardownAuthorization =
+  | { kind: "authorized" }
+  | { kind: "refused"; message: string }
+  | { kind: "error"; message: string };
 
 /** The exact head a branch carries on both sides, or why it cannot be read. */
 export type ExactBranchGeneration =
@@ -55,6 +63,7 @@ export type ExactBranchGeneration =
 /** Outcome of one exact branch-generation teardown pass. */
 export type ExactBranchTeardownResult =
   | { kind: "applied" | "idempotent" }
+  | { kind: "authorization-refused"; message: string }
   | { kind: "refused"; message: string }
   | { kind: "error"; message: string };
 
@@ -121,6 +130,8 @@ export async function tearDownExactBranchGeneration(
 
   let changed = false;
   if (remote.kind === "present") {
+    const authorization = await authorizeDeletion(options);
+    if (authorization.kind !== "authorized") return authorization;
     try {
       const deleted = await deleteRemoteBranch(exec, REMOTE, options.branch, options.expectedHead);
       if (deleted === "stale") return { kind: "refused", message: `Remote ${options.subject} head moved.` };
@@ -130,6 +141,8 @@ export async function tearDownExactBranchGeneration(
     }
   }
   if (local.kind === "present") {
+    const authorization = await authorizeDeletion(options);
+    if (authorization.kind !== "authorized") return authorization;
     const args = ["update-ref", "-d", `refs/heads/${options.branch}`, options.expectedHead];
     try {
       await exec("git", args);
@@ -139,6 +152,18 @@ export async function tearDownExactBranchGeneration(
     }
   }
   return { kind: changed ? "applied" : "idempotent" };
+}
+
+async function authorizeDeletion(
+  options: ExactBranchTeardownOptions,
+): Promise<Extract<ExactBranchTeardownResult, { kind: "authorization-refused" | "error" }> | { kind: "authorized" }> {
+  if (options.authorizeDelete === undefined) return { kind: "authorized" };
+  try {
+    const result = await options.authorizeDelete();
+    return result.kind === "refused" ? { kind: "authorization-refused", message: result.message } : result;
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**

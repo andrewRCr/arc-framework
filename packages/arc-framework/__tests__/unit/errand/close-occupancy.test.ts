@@ -72,7 +72,7 @@ const BASE_CHECKOUT_PROOF: NonNullable<Parameters<typeof classifyErrandCloseOccu
 
 describe("classifyErrandCloseOccupancy", () => {
   it("clears an Errand no checkout claims", () => {
-    expect(classify(state([]))).toEqual({ kind: "clear" });
+    expect(classify(state([]))).toEqual({ kind: "clear", authority: "unclaimed" });
   });
 
   it("clears the caller's own occupancy so an in-place close still finalizes", () => {
@@ -80,7 +80,7 @@ describe("classifyErrandCloseOccupancy", () => {
       kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
     }));
 
-    expect(resolved).toEqual({ kind: "clear" });
+    expect(resolved).toEqual({ kind: "clear", authority: "current-checkout" });
   });
 
   it("clears the exact self-held checkout after it switches back to base", () => {
@@ -96,7 +96,10 @@ describe("classifyErrandCloseOccupancy", () => {
     });
 
     const switchedState = state([switched, identityRow()]);
-    expect(classify(switchedState, CLAIM_ID, BASE_CHECKOUT_PROOF)).toEqual({ kind: "clear" });
+    expect(classify(switchedState, CLAIM_ID, BASE_CHECKOUT_PROOF)).toEqual({
+      kind: "clear",
+      authority: "base-checkout",
+    });
     expect(classify(switchedState, CLAIM_ID, null)).toMatchObject({
       kind: "refused",
       reason: "role-conflict",
@@ -200,7 +203,7 @@ describe("classifyErrandCloseOccupancy", () => {
       } as LocusRowV1["role"],
     });
 
-    expect(classify(state([otherClaim]))).toEqual({ kind: "clear" });
+    expect(classify(state([otherClaim]))).toEqual({ kind: "clear", authority: "unclaimed" });
   });
 
   it("classifies a legacy null-claim row when the request carries no generation", () => {
