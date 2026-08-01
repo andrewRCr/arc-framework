@@ -99,6 +99,27 @@ describe("CompactionSeed schema", () => {
     expect(value.schemaVersion).toBe(1);
   });
 
+  it("rejects persisted seeds carrying both locus disposition fields", () => {
+    const locus = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo/worktrees/errand",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: null,
+    };
+    const result = parseCompactionSeedJson(JSON.stringify({
+      ...seed(),
+      locus,
+      locusAbsence: "none",
+    }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+      expect(result.error.message).toContain("locusAbsence");
+    }
+  });
+
   it.each(["sessionHomePath", "activeLocusPath", "recordId", "leaseId", "parentRecordId"])(
     "rejects a partial locus hint missing %s",
     (key) => {

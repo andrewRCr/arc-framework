@@ -79,24 +79,29 @@ const COMPACTION_SEED_FIELDS = {
   locusAbsence: CompactionSeedLocusAbsenceSchema.optional(),
 };
 
+function enforceLocusDispositionExclusivity(
+  value: { locus?: unknown; locusAbsence?: unknown },
+  context: z.RefinementCtx,
+): void {
+  if (value.locus !== undefined && value.locusAbsence !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["locusAbsence"],
+      message: "locusAbsence records why locus was omitted; the two are mutually exclusive",
+    });
+  }
+}
+
 /** Strict producer authority for schema-v1 compaction seeds. */
 export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS)
-  .superRefine((value, context) => {
-    if (value.locus !== undefined && value.locusAbsence !== undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["locusAbsence"],
-        message: "locusAbsence records why locus was omitted; the two are mutually exclusive",
-      });
-    }
-  });
+  .superRefine(enforceLocusDispositionExclusivity);
 
 /** Recursively unknown-stripping authority for persisted seed reads. */
 export const CompactionSeedReaderSchema = z.object({
   ...COMPACTION_SEED_FIELDS,
   taskCursor: TaskListCursorReaderSchema.nullable(),
   loadSet: LoadSetManifestReaderSchema,
-});
+}).superRefine(enforceLocusDispositionExclusivity);
 
 /** Version literal for schema-v1 compaction-seed envelopes. */
 export type CompactionSeedSchemaVersion = z.infer<typeof COMPACTION_SEED_FIELDS.schemaVersion>;
