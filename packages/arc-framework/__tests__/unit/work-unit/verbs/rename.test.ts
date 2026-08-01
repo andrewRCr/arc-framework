@@ -415,6 +415,27 @@ describe("runRename locus rekey", () => {
       .resolves.toEqual({ status: "partial", reason: "session locus rekey refused: lease-live" });
   });
 
+  it("reconciles the ownership marker when the worktree move already landed", async () => {
+    const { ctx, calls } = buildContext();
+    ctx.resolveWorktreeMove = async () => ({
+      status: "already-moved",
+      worktreePath: "/work/project.new-name",
+      sourceWorktreePath: "/work/project.old-name",
+    });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({ status: "renamed", marker: "renamed" });
+    expect(calls).toContain("marker-move");
+  });
+
+  it("completes a rename when the checkout has no locus record", async () => {
+    const { ctx } = buildContext();
+    ctx.rekeyLocus = async () => ({ locus: { kind: "absent" } });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({ status: "renamed", locus: { kind: "absent" } });
+  });
+
   it("requests no rekey for a stub subject", async () => {
     const { ctx } = buildContext({ shape: "stub" });
     ctx.rekeyLocus = async () => {

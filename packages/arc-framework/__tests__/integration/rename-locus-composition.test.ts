@@ -5,7 +5,7 @@
  * unmanaged checkout at the new path.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -134,11 +134,10 @@ describe("rename composition with the session locus model", () => {
         inspector: createPlatformProcessInspector(),
       }),
       subjectMetaIO: {
-        readFile: (path) => import("node:fs/promises").then(({ readFile }) => readFile(path, "utf8")),
-        pathExists: (path) => import("node:fs/promises")
-          .then(({ access }) => access(path).then(() => true, () => false)),
-        realpath: (path) => import("node:fs/promises").then(({ realpath }) => realpath(path)),
-        lstat: (path) => import("node:fs/promises").then(({ lstat }) => lstat(path)),
+        readFile: (path) => readFile(path, "utf8"),
+        pathExists: (path) => access(path).then(() => true, () => false),
+        realpath,
+        lstat,
       },
     });
 

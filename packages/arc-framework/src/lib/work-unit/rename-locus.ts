@@ -31,6 +31,10 @@ import type { LocusAnchor, LocusRecordV1 } from "../locus/schema/index.js";
 
 const DIAGNOSTIC = "cannot rekey renamed checkout session locus";
 
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /** One rename's exact source and target identity coordinates. */
 export interface RenameLocusRequest {
   /** Registered checkout path before the rename. */
@@ -55,7 +59,10 @@ export type RenameLocusRefusal =
   | "role-conflict"
   | "roster-changed";
 
-/** Outcome of one rekey attempt; every non-`rekeyed` case leaves both records untouched. */
+/**
+ * Outcome of one rekey attempt. A refused mint-then-remove transaction can leave the target
+ * generation minted after the physical move; re-entering the same rename settles that residue.
+ */
 export type RenameLocusOutcome =
   | { readonly kind: "rekeyed" | "idempotent"; readonly recordId: string }
   | { readonly kind: "absent" }
@@ -123,8 +130,25 @@ async function rekeyNodeRenamedLocus(
   } catch (error) {
     outcome = { kind: "failure", error };
   }
-  await releaseOrderedLocks(handles);
-  if (outcome.kind === "failure") throw outcome.error;
+  let releaseError: unknown;
+  try {
+    await releaseOrderedLocks(handles);
+  } catch (error) {
+    releaseError = error;
+  }
+  if (outcome.kind === "failure") {
+    const primaryError = normalizeError(outcome.error);
+    if (releaseError !== undefined) {
+      const secondaryError = normalizeError(releaseError);
+      throw new AggregateError(
+        [primaryError, secondaryError],
+        primaryError.message,
+        { cause: primaryError },
+      );
+    }
+    throw primaryError;
+  }
+  if (releaseError !== undefined) throw normalizeError(releaseError);
   return outcome.value;
 }
 
@@ -244,6 +268,8 @@ async function applyRekeyUnderLock(context: {
     expectedBytes: current.bytes,
     lock: context.sourceLock,
   });
+  // A failed pop leaves the newly minted target beside the source generation. Re-entering this
+  // rename takes the resumable target branch above and removes the stale source generation.
   if (removed.kind !== "removed") return { kind: "refused", reason: "generation-changed" };
   return { kind: "rekeyed", recordId: next.recordId };
 }
@@ -316,7 +342,7 @@ async function resolveLeaseDisposition(
     kind: "resolved",
     lease: {
       ...lease,
-      sessionHomePath: lease.sessionHomePath === context.sourceCheckoutPath
+      sessionHomePath: resolve(lease.sessionHomePath) === context.sourceCheckoutPath
         ? context.targetCheckoutPath
         : lease.sessionHomePath,
     },
@@ -347,12 +373,20 @@ async function acquireOrderedLocks(options: {
 }
 
 async function releaseOrderedLocks(handles: readonly LocusLockHandle[]): Promise<void> {
+  const failures: Error[] = [];
   for (const handle of [...handles].reverse()) {
-    const released = await releaseLocusLock(handle);
-    if (released.kind !== "released") {
-      throw new Error(`cannot release renamed checkout session locus lock: ${released.kind}`);
+    try {
+      const released = await releaseLocusLock(handle);
+      if (released.kind !== "released") {
+        failures.push(new Error(`cannot release renamed checkout session locus lock: ${released.kind}`));
+      }
+    } catch (error) {
+      failures.push(error instanceof Error ? error : new Error(String(error)));
     }
   }
+  const onlyFailure = failures[0];
+  if (failures.length === 1 && onlyFailure !== undefined) throw onlyFailure;
+  if (failures.length > 1) throw new AggregateError(failures, "cannot release renamed checkout session locus locks");
 }
 
 function lockHandleFor(handles: readonly LocusLockHandle[], path: string): LocusLockHandle {

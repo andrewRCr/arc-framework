@@ -11,10 +11,11 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scanRegisteredWorktrees } from "../../../src/lib/git/worktree-roster.js";
 import { deriveLocusRecordId } from "../../../src/lib/locus/path-identity.js";
 import { createPlatformProcessInspector } from "../../../src/lib/locus/platform-inspectors.js";
 import { mintLocusRecord, readLocusRecord } from "../../../src/lib/locus/record-store.js";
-import { locusLockPath, locusRecordPath, type LocusRoot } from "../../../src/lib/locus/root.js";
+import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../../../src/lib/locus/root.js";
 import type { LocusAnchor, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 import { selectLocusMutationAnchor } from "../../../src/lib/locus/mutation-anchor.js";
 import { createNodeRenameLocusDriver } from "../../../src/lib/work-unit/rename-locus.js";
@@ -66,12 +67,8 @@ async function harness(options: {
         + `worktree ${registeredPath}\0HEAD ${HEAD}\0branch refs/heads/feat/demo\0\0`,
     };
   };
-  const root: LocusRoot = {
-    primaryPath: primary,
-    userRoot: join(primary, ".arc", "user", "andrew"),
-    lociRoot: join(primary, ".arc", "user", "andrew", ".internal", "loci"),
-    locksRoot: join(primary, ".arc", "user", "andrew", ".internal", "loci", ".locks"),
-  };
+  const root = await resolveLocusRoot({ identity: "andrew", scan: () => scanRegisteredWorktrees(exec) });
+  if (!root.ok) throw new Error(root.message);
   const sourceIdentity = deriveLocusRecordId(source, PATH_FLAVOR);
   const targetIdentity = deriveLocusRecordId(options.moved === false ? source : targetPath, PATH_FLAVOR);
   const sourceRecordPath = locusRecordPath(root, sourceIdentity.digest);
@@ -207,6 +204,25 @@ describe("renamed work-unit locus rekey", () => {
   it("rebases an entering-anchor lease onto the new checkout path", async () => {
     const anchor = await enteringAnchor();
     const h = await harness({ lease: (sourcePath) => leaseFor(anchor, sourcePath) });
+
+    const outcome = await h.driver.rekey({
+      sourceCheckoutPath: h.source,
+      targetCheckoutPath: h.targetPath,
+      sourceSlug: "old-name",
+      targetSlug: "new-name",
+      expectedHead: HEAD,
+      moveWorktree: async () => { h.registerMoved(); },
+    });
+
+    expect(outcome).toMatchObject({ kind: "rekeyed" });
+    const moved = await readRecordAt(h.targetRecordPath, h.targetIdentity.digest);
+    if (moved.kind !== "valid") throw new Error("rekeyed record is unreadable");
+    expect(moved.record.lease?.sessionHomePath).toBe(h.targetPath);
+  });
+
+  it("rebases a non-canonical spelling of the entering lease path", async () => {
+    const anchor = await enteringAnchor();
+    const h = await harness({ lease: (sourcePath) => leaseFor(anchor, `${sourcePath}/`) });
 
     const outcome = await h.driver.rekey({
       sourceCheckoutPath: h.source,

@@ -44,6 +44,19 @@ describe("resolveRekeyCheckout", () => {
     })).resolves.toEqual({ from: SOURCE, to: MOVED, expectedHead: HEAD });
   });
 
+  it("resolves an in-place subject to the primary checkout", async () => {
+    await expect(resolveRekeyCheckout(roster(MOVED), { status: "in-place" }))
+      .resolves.toEqual({ from: PRIMARY, to: PRIMARY, expectedHead: "b".repeat(40) });
+  });
+
+  it("keeps one path for a deferred self-move so only the subject rekeys", async () => {
+    await expect(resolveRekeyCheckout(roster(SOURCE), {
+      status: "deferred-self-move",
+      from: SOURCE,
+      to: MOVED,
+    })).resolves.toEqual({ from: SOURCE, to: SOURCE, expectedHead: HEAD });
+  });
+
   it("keeps one path when no registered checkout matches the renamed slug", async () => {
     await expect(resolveRekeyCheckout(roster(MOVED), {
       status: "unmatched",
