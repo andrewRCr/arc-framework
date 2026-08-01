@@ -110,6 +110,7 @@ export function locusStateSlot(
 
 /** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
 export interface SessionSharedResults {
+  locusState: ResultAsync<LocusStateV1, SessionIdentityMissingError | SessionProbeError>;
   user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
   worktree: ResultAsync<WorktreeSyncStatusResult, SessionProbeError>;
   dirty: ResultAsync<DirtyStateResult, SessionProbeError>;
@@ -125,6 +126,7 @@ export function buildSessionSharedSlots(options: {
 }): SessionSharedResults {
   const { identity, role, probes } = options;
   return {
+    locusState: locusStateSlot(identity, (id) => probes.locusState(id)),
     user: userSlot(identity, (id) => probes.user(id)),
     worktree: safeProbe("worktree", () => probes.worktree()),
     dirty: safeProbe("dirty", () => probes.dirty()),

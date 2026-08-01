@@ -40,6 +40,8 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
   /** Present when a caller already selected and validated one exact generation to abandon. */
   readonly selected?: SelectedLocusGeneration;
+  /** Operator attestation already bounded to the selected generation by the locus resolve driver. */
+  readonly confirmedNoLiveSession: boolean;
 }
 
 /** Abandon one exact ordinary-v3 identity and any provably dead local residue. */
@@ -129,10 +131,15 @@ async function releaseRetiredResidue(
   if (row.checkoutPath === null || row.recordId === null) {
     return { kind: "refused", reason: "record-malformed", message: "Errand residue is incomplete." };
   }
-  if (row.lease === null || row.lease.state !== "dead") {
-    return row.lease?.state === "live"
-      ? { kind: "refused", reason: "lease-live", message: "The Errand session locus still has a live lease." }
-      : { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
+  if (row.lease === null) {
+    return { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
+  }
+  const confirmedNoLiveSession = options.confirmedNoLiveSession;
+  if (row.lease.state === "live" && (!row.lease.selfHeld || !confirmedNoLiveSession)) {
+    return { kind: "refused", reason: "lease-live", message: "The Errand session locus still has a live lease." };
+  }
+  if (row.lease.state === "unknown" && !confirmedNoLiveSession) {
+    return { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
   }
   const checkoutPath = row.checkoutPath;
   const recordId = row.recordId;
@@ -151,6 +158,7 @@ async function releaseRetiredResidue(
     pathFlavor,
     row: { ...row, checkoutPath, recordId },
     branch: null,
+    confirmedLeaseRelease: row.lease.state !== "dead",
     validateLockedRecord: (record) => record.recordId === recordId
       && record.checkoutPath === checkoutPath
       && record.role.subject.kind === role.subject.kind
@@ -208,6 +216,8 @@ interface LockedResidueReleaseOptions {
   readonly pathFlavor: "windows" | "posix";
   readonly row: LocusRowV1 & { checkoutPath: string; recordId: string };
   readonly branch: string | null;
+  /** Pop the exact locked lease generation under a previously bounded operator attestation. */
+  readonly confirmedLeaseRelease: boolean;
   readonly validateLockedRecord: (record: LocusRecordV1) => boolean;
   readonly prepareCheckout: () => Promise<Extract<AbandonStepResult, { kind: "refused" | "error" }> | null>;
   readonly successText: string;
@@ -244,6 +254,22 @@ async function releaseLockedResidue(input: LockedResidueReleaseOptions): Promise
     if (exists) {
       const prepared = await input.prepareCheckout();
       if (prepared !== null) return prepared;
+    }
+    if (input.confirmedLeaseRelease) {
+      const removed = await runtime.removeRecord(
+        acquired.handle.recordPath,
+        lockedRecord.bytes,
+        acquired.handle,
+      );
+      if (removed.kind === "removed") return { kind: "applied" };
+      const raced = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
+      return raced.kind === "absent"
+        ? { kind: "idempotent" }
+        : {
+          kind: "refused",
+          reason: "lease-generation-mismatch",
+          message: "Errand residue generation changed.",
+        };
     }
     const popped = await popLocusRole({
       operation: "errand-abandon",
@@ -314,6 +340,7 @@ async function cleanupResidue(
     pathFlavor,
     row: { ...row, checkoutPath, recordId },
     branch: record.branch,
+    confirmedLeaseRelease: false,
     validateLockedRecord: (locked) => locked.recordId === recordId
       && locked.checkoutPath === checkoutPath
       && locked.role.subject.kind === "errand"

@@ -23,6 +23,7 @@ import {
 } from "./handlers/lifecycle.js";
 import { logStandaloneInputRegistration } from "./handlers/log.js";
 import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
+import { locusCommandInputRegistrations } from "./handlers/locus.js";
 import {
   wuReconcileCommandInputPolicyDeclarations,
   wuReconcileCommandInputRegistration,
@@ -68,6 +69,7 @@ export const commandInputRegistrations = [
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
+  ...locusCommandInputRegistrations,
   planCheckInputRegistration,
   wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,

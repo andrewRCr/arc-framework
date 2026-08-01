@@ -984,6 +984,7 @@ export async function handleErrandAbandon(
         registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
         execInput: io.execInput,
+        confirmedNoLiveSession: false,
         clearExecuteBound: async (record) => {
           if (record.originEntry === null) return { kind: "idempotent" };
           const cleared = await unmarkCurrentInboxEntry({

@@ -62,6 +62,7 @@ import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminde
 import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import { locusStateFixture } from "../fixtures/locus-state.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 interface Fixture {
@@ -225,6 +226,7 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
+    locusState: async () => locusStateFixture({ rows: [] }),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -297,6 +299,7 @@ function makeResolvedReleaseModeSessionInitProbes(
   };
 
   return {
+    locusState: async () => locusStateFixture({ rows: [] }),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -371,6 +374,8 @@ function makeResolvedReleaseModeSessionHandoffProbes(
   };
 
   return {
+    locusState: async () => locusStateFixture({ rows: [] }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -550,6 +555,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
 
   it("resolves active under .arc/user/{identity}/active/ when role=contributor and surfaces companions", async () => {
     const probes: SessionInitProbes = {
+      locusState: async () => locusStateFixture({ rows: [] }),
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       worktreeIdentity: async () => ({ kind: "primary" }),
@@ -738,6 +744,7 @@ function makeRealWorktreeProbes(
   const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
   const userState = opts.userState ?? "clean";
   return {
+    locusState: async () => locusStateFixture({ rows: [] }),
     user: async (identity) => stubUserSessionInit(identity, userState),
     worktree: () =>
       runWorktreeSyncStatus({
