@@ -36,15 +36,9 @@ Use them only as context after the deterministic recovery checks and harness sum
 
 ## 2. Interpret The Verdict
 
-If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
-
-- For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
-  details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
-  load-set drift, dirty path-set drift, and non-planning task-cursor drift when a cursor exists.
-- If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
-  summary names a planning workflow/stage that can be verified against the recovered load set and
-  artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
-  back to active-meta `Current Workflow`.
+If `verdict.status === "stop"`, surface the structured reason details and stop. The CLI has already
+checked seed presence/schema, identity, fresh recovery state, load-set drift, dirty path-set drift,
+and non-planning task-cursor drift when a cursor exists.
 
 If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property

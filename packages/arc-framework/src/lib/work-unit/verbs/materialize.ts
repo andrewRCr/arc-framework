@@ -96,7 +96,7 @@ export async function runMaterialize(
 
   const inputs: TransitionInputs = {
     worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, createBranch: false }
+      ? { mutation: "spawn", inPlace: true, branch, wuName: name, attachSession: true, createBranch: false }
       : {
           mutation: "spawn",
           branch,

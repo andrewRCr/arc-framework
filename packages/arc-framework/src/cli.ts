@@ -243,6 +243,7 @@ wu
   .command("reconcile [slug]")
   .description("Plan or apply version-checked repairs owned by the current work unit")
   .option("--apply", "Apply and stage the exact reported path set")
+  .option("--attach-session", "Attach this session after entering the work-unit checkout")
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -546,8 +547,9 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
   ));
 

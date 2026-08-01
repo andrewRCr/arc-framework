@@ -85,8 +85,8 @@ work-unit signal; needing a _durable plan_ is.
 
 **Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
 cross-session plan — stop and promote via the [Promote Errand path][promote-errand-to-wu] (`arc errand promote
-<slug> --floor derivation|scale`: rename → meta at the floor's stage → record retired, commits preserved), then
-continue under the work-unit lifecycle.
+<slug> --floor derivation|scale`: rename → meta at the floor's stage → record retired, capture settled after the
+meta commit, commits preserved), then continue under the work-unit lifecycle.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 

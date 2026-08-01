@@ -75,10 +75,10 @@ import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-ex
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
+  nodeReconcileWorkUnitWorktreeFs,
   provisionSpawnedWorktree,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import {
@@ -90,6 +90,7 @@ import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
 import { transitionOverlayCompositionInput } from "./transition-overlay.js";
 import { atomicGraduate } from "./atomic-graduation.js";
+import { createNodeWorkUnitLocusDriver, type WorkUnitLocusDriver } from "./work-unit-locus.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -105,6 +106,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Test/embedding override for WU role composition. */
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
@@ -128,6 +131,12 @@ export function buildExecutorContext(
   // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  let resolvedWorkUnitLocus = deps.workUnitLocus;
+  const resolveWorkUnitLocus = (): WorkUnitLocusDriver | undefined => {
+    if (identity === null) return undefined;
+    resolvedWorkUnitLocus ??= createNodeWorkUnitLocusDriver({ exec, identity });
+    return resolvedWorkUnitLocus;
+  };
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -211,17 +220,28 @@ export function buildExecutorContext(
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
-    atomicGraduate: (transaction) => atomicGraduate(transaction, {
-      cwd,
-      exec,
-      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
-      provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
-        { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs },
-        op,
-      ),
-    }),
+    reconcileWorkUnitWorktree: (op) => {
+      const locus = resolveWorkUnitLocus();
+      return reconcileWorkUnitWorktree({
+        exec,
+        chdir: (dir) => { process.chdir(at(dir)); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        ...(locus === undefined ? {} : { locus }),
+      }, op);
+    },
+    atomicGraduate: (transaction) => {
+      const workUnitLocus = resolveWorkUnitLocus();
+      return atomicGraduate(transaction, {
+        cwd,
+        exec,
+        fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+          { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
+          op,
+        ),
+        ...(workUnitLocus === undefined ? {} : { workUnitLocus }),
+      });
+    },
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

@@ -191,6 +191,32 @@ export async function runActiveSessionInitStatusInternal(
   return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [] };
 }
 
+/**
+ * Project one exact candidate from an already-scanned active namespace.
+ *
+ * @param options - Internal scan result, target path, and checkout root.
+ * @returns A single-candidate session projection, or `null` when the path is not exact.
+ */
+export async function projectActiveSessionInitCandidate(options: {
+  cwd: string;
+  state: ActiveSessionInitInternalResult;
+  path: string;
+}): Promise<ActiveSessionInitResult | null> {
+  const candidates = options.state.resolved === null
+    ? options.state.candidates
+    : [options.state.resolved];
+  const matches = candidates.filter((entry) => entry.candidate.path === options.path);
+  if (matches.length !== 1 || matches[0] === undefined) return null;
+  const candidate = matches[0].candidate;
+  return resolveSessionInit(
+    options.cwd,
+    options.state.result.layout,
+    [candidate],
+    [...options.state.result.warnings],
+    candidate.branch,
+  );
+}
+
 function resolveCandidateSemantics(
   candidates: MetaFileCandidate[],
   role: string | null,

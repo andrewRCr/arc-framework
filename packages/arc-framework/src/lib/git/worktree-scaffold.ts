@@ -6,7 +6,7 @@
  * SESSION-NOTES seed, and the conditional ownership marker into an existing
  * worktree root — never running `git worktree add` itself. Both `start` entry
  * paths build on it: create-new cuts the worktree via the
- * `reconcile-worktree.spawn` leg (which writes the ARC-created marker), then
+ * `reconcile-work-unit-worktree.spawn` leg (which writes the ARC-created marker), then
  * scaffolds with `createdByArc: false` so this pass keeps that marker; a
  * cold-start enters a worktree it did not create and scaffolds directly, also
  * `createdByArc: false`, so no marker is written (cleanup there stays advisory).
@@ -20,6 +20,7 @@
 
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
+import type { WorkUnitLocusDriver } from "../work-unit/work-unit-locus.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
 import { MetaRecordSchema } from "../active/meta-schema.js";
 import {
@@ -57,12 +58,14 @@ export interface SpawnWorktreeContext {
   io: UserIOContext;
   /** Internal template directory for the SESSION-NOTES seed; production passes `getInternalTemplatePath()`. */
   internalTemplateDir: string;
+  /** Optional work-unit locus seam for lower-layer callers and tests. */
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
  * Parameters for {@link scaffoldIntoWorktree}. These carry no
  * worktree-*creation* inputs (no base/location/repo): the target worktree
- * already exists. Create-new builds this shape after the `reconcile-worktree.spawn`
+ * already exists. Create-new builds this shape after the `reconcile-work-unit-worktree.spawn`
  * leg cuts the worktree; a cold-start caller builds it for the worktree it entered.
  */
 export interface ScaffoldWorktreeParams {
@@ -105,7 +108,7 @@ export interface ScaffoldWorktreeParams {
  * marker into an existing worktree root — no `git worktree add`. Factored from
  * worktree creation so the cold-start (use-existing) path can scaffold a
  * worktree it did not create; the create-new path reuses it after the
- * `reconcile-worktree.spawn` leg cuts the worktree.
+ * `reconcile-work-unit-worktree.spawn` leg cuts the worktree.
  *
  * The marker is gated by `createdByArc` (default `true`): a spawn writes it, a
  * cold-start into an externally-created worktree passes `false` and no marker

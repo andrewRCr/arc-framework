@@ -6,6 +6,7 @@ import {
   readExactBranchGeneration,
   tearDownExactBranchGeneration,
 } from "../../../src/lib/errand/exact-branch-generation.js";
+import type { ExactBranchTeardownAuthorization } from "../../../src/lib/errand/exact-branch-generation.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const BRANCH = "chore/groom-alpha";
@@ -73,11 +74,21 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
   return { exec, calls };
 }
 
-function tearDown(sides: Sides): ReturnType<typeof makeExec> & {
+function tearDown(
+  sides: Sides,
+  authorizeDelete?: () => Promise<ExactBranchTeardownAuthorization>,
+): ReturnType<typeof makeExec> & {
   result: Promise<Awaited<ReturnType<typeof tearDownExactBranchGeneration>>>;
 } {
   const boundary = makeExec(sides);
-  return { ...boundary, result: tearDownExactBranchGeneration(boundary.exec, { ...OPTIONS, expectedHead: HEAD }) };
+  return {
+    ...boundary,
+    result: tearDownExactBranchGeneration(boundary.exec, {
+      ...OPTIONS,
+      expectedHead: HEAD,
+      ...(authorizeDelete === undefined ? {} : { authorizeDelete }),
+    }),
+  };
 }
 
 describe("tearDownExactBranchGeneration", () => {
@@ -100,6 +111,28 @@ describe("tearDownExactBranchGeneration", () => {
     await expect(boundary.result).resolves.toEqual({ kind: "applied" });
     expect(sides.local).toBeNull();
     expect(boundary.calls.some(([subcommand]) => subcommand === "push")).toBe(false);
+  });
+
+  it("retains the local ref when authority changes after remote deletion and settles it on replay", async () => {
+    const sides: Sides = { local: HEAD, remote: HEAD };
+    let checks = 0;
+    const interrupted = tearDown(sides, async () => {
+      checks += 1;
+      return checks === 1
+        ? { kind: "authorized" }
+        : { kind: "refused", message: "checkout left base" };
+    });
+
+    await expect(interrupted.result).resolves.toEqual({
+      kind: "authorization-refused",
+      message: "checkout left base",
+    });
+    expect(sides).toMatchObject({ local: HEAD, remote: null });
+
+    const replay = tearDown(sides, async () => ({ kind: "authorized" }));
+    await expect(replay.result).resolves.toEqual({ kind: "applied" });
+    expect(sides).toMatchObject({ local: null, remote: null });
+    expect(replay.calls.some(([subcommand]) => subcommand === "push")).toBe(false);
   });
 
   it("settles idempotently when a prior pass already deleted both sides", async () => {

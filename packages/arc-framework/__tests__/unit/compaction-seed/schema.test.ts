@@ -86,6 +86,55 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
+  it("round-trips one complete optional locus hint without changing schema v1", () => {
+    const locus = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo/worktrees/errand",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: `sha256:${"c".repeat(64)}`,
+    };
+    const value = seed({ locus });
+    expect(parseCompactionSeedJson(stringifyCompactionSeed(value))).toEqual({ ok: true, seed: value });
+    expect(value.schemaVersion).toBe(1);
+  });
+
+  it("rejects persisted seeds carrying both locus disposition fields", () => {
+    const locus = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo/worktrees/errand",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: null,
+    };
+    const result = parseCompactionSeedJson(JSON.stringify({
+      ...seed(),
+      locus,
+      locusAbsence: "none",
+    }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+      expect(result.error.message).toContain("locusAbsence");
+    }
+  });
+
+  it.each(["sessionHomePath", "activeLocusPath", "recordId", "leaseId", "parentRecordId"])(
+    "rejects a partial locus hint missing %s",
+    (key) => {
+      const complete = {
+        sessionHomePath: "/repo",
+        activeLocusPath: "/repo/worktrees/errand",
+        recordId: `sha256:${"a".repeat(64)}`,
+        leaseId: "b".repeat(32),
+        parentRecordId: null,
+      };
+      const locus = Object.fromEntries(Object.entries(complete).filter(([candidate]) => candidate !== key));
+      expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), locus })).ok).toBe(false);
+    },
+  );
+
   it("accepts absolute load-set paths for resolver-produced identity-global entries", () => {
     const value = seed({
       loadSet: {

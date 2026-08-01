@@ -893,7 +893,13 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       process.exitCode = 1;
       return;
     }
-    p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed (in place)");
+    p.note([
+      `Work unit: ${wuName}`,
+      `Meta:      ${result.metaPath}`,
+      "",
+      `After the pointer removal lands, continue: git checkout ${result.branch} && `
+        + `arc wu reconcile ${wuName} --attach-session --apply --json`,
+    ].join("\n"), "Resumed (in place)");
     reportAdvisories(result.outcome);
     p.outro("Done.");
     return;

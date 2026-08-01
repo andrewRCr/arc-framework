@@ -198,9 +198,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`leg:branch:${op.mutation}`);
       guardThrow("reconcileBranch");
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(`leg:worktree:${op.mutation}`);
-      guardThrow("reconcileWorktree");
+      guardThrow("reconcileWorkUnitWorktree");
       if (op.mutation === "spawn") {
         return {
           mutation: "spawn",

@@ -122,7 +122,7 @@ export type ArtifactDisposition = "relocate" | "scaffold" | "remove";
 /** The `reconcile-branch` leg's operation — phase-and-direction-conditioned. */
 export type BranchMutation = "create" | "rename" | "delete" | "preserve";
 
-/** The `reconcile-worktree` leg's operation. */
+/** The `reconcile-work-unit-worktree` leg's operation. */
 export type WorktreeMutation = "spawn" | "teardown";
 
 /**
@@ -131,7 +131,7 @@ export type WorktreeMutation = "spawn" | "teardown";
  * branch) holds by construction; an omitted leg does not fire for that edge.
  *
  * `setPhase` is a flag — its direction is implied by `to.phase`. `artifacts`,
- * `reconcileBranch`, and `reconcileWorktree` carry their operation explicitly
+ * `reconcileBranch`, and `reconcileWorkUnitWorktree` carry their operation explicitly
  * because it is not a pure function of the position pair (e.g. `park@Active`
  * preserves the branch while `park@Planning` deletes it; a creation edge
  * scaffolds where a location-mover relocates).
@@ -141,8 +141,8 @@ export interface MutatorSpec {
   artifacts?: ArtifactDisposition;
   /** `reconcile-branch` — create / rename / delete / preserve the WU branch. */
   reconcileBranch?: BranchMutation;
-  /** `reconcile-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
-  reconcileWorktree?: WorktreeMutation;
+  /** `reconcile-work-unit-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
+  reconcileWorkUnitWorktree?: WorktreeMutation;
   /** `set-phase` — write the meta `**State:**` field to `to.phase` (phase-movers only). */
   setPhase?: boolean;
   /**
@@ -419,7 +419,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PARKED,
     inverse: "resume",
     guards: ["worktree-clean"],
-    encodingUpdates: { reconcileWorktree: "teardown" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -449,7 +449,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -501,7 +501,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["name-collision", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "scaffold", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "scaffold", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: FRESH_SOFT,
   },
@@ -515,7 +515,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: null,
     guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -525,7 +525,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["class-resolved", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -535,7 +535,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: "park",
     guards: ["class-resolved", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -548,7 +548,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

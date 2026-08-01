@@ -75,6 +75,8 @@ import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-in
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
+import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import type { RecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 
 // --- Fixtures ---
 
@@ -86,6 +88,125 @@ function materializableResult(
   candidates: Array<{ name: string; branch: string }>,
 ): MaterializableWorkUnitsResult {
   return MaterializableWorkUnitsResultSchema.parse({ candidates });
+}
+
+function locusState(): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+  };
+}
+
+function recoveryWorkUnitLocus(): LocusStateV1 {
+  const recordId = `sha256:${"a".repeat(64)}`;
+  const cursor = {
+    status: "found" as const,
+    cursor: {
+      section: { id: "1.1", title: "Do x", lineHint: 5 },
+      leaf: { id: "1.1.a", title: "Do x child", lineHint: 9 },
+    },
+  };
+  return {
+    roster: {
+      mode: "locus",
+      ok: true,
+      primaryPath: "/repo",
+      rows: [{
+        kind: "managed-role",
+        checkoutPath: "/repo",
+        primary: true,
+        recordId,
+        role: {
+          kind: "work-unit",
+          subject: { kind: "work-unit", key: "x", claimId: null },
+          parentCheckoutPath: null,
+          originEntry: null,
+        },
+        identity: null,
+        lease: {
+          leaseId: "b".repeat(32),
+          selfHeld: false,
+          state: "live",
+          sessionHomePath: "/repo",
+          attachedAt: "2026-07-21T00:00:00.000Z",
+          heartbeatAt: "2026-07-21T00:00:00.000Z",
+        },
+        frame: "active",
+        derived: {
+          workflow: "process-task-loop",
+          stage: null,
+          sessionType: "execution",
+          taskCursor: cursor,
+          loadSet: {
+            manifestVersion: 1,
+            entries: [
+              { path: ".arc/active/meta-x.md", readMode: { kind: "full" } },
+              { path: ".arc/active/tasks-x.md", readMode: { kind: "partial-strategic" } },
+              { path: ".arc/system/workflows/arc/process-task-loop.md", readMode: { kind: "full" } },
+              { path: ".arc/backlog/planned/x/cohort-x.md", readMode: { kind: "full" } },
+            ],
+          },
+        },
+        diagnostics: [],
+      }],
+      diagnostics: [],
+    },
+    current: { kind: "resolved", sessionHomeRecordId: recordId, activeRecordId: recordId, parentRecordId: null },
+    primaryAvailability: { kind: "occupied", checkoutPath: "/repo", recordId, leaseState: "live" },
+    inFlightIdentities: [],
+    recovery: { kind: "resume", activeRecordId: recordId, parentRecordId: null },
+    reconciliation: { kind: "clean" },
+  };
+}
+
+function legacyErrandContext(): RecoveryLocusContext {
+  return {
+    frame: {
+      kind: "legacy-errand",
+      workflow: "run-errand",
+      sessionType: "execution",
+      slug: "legacy",
+      branch: "chore/legacy",
+      returnBranch: "feat/parent",
+    },
+    loadSet: { manifestVersion: 1, entries: [] },
+    taskCursor: null,
+  };
+}
+
+function twoCheckoutIdleLocus(): LocusStateV1 {
+  const state = recoveryWorkUnitLocus();
+  const primaryRow = state.roster.rows[0];
+  if (primaryRow === undefined || primaryRow.recordId === null) {
+    throw new Error("missing work-unit fixture row");
+  }
+  primaryRow.lease = null;
+  primaryRow.frame = "idle";
+  state.roster.rows.push({
+    ...primaryRow,
+    checkoutPath: "/repo/wt-b",
+    primary: false,
+    recordId: `sha256:${"d".repeat(64)}`,
+    role: {
+      kind: "work-unit",
+      subject: { kind: "work-unit", key: "linked-wu", claimId: null },
+      parentCheckoutPath: null,
+      originEntry: null,
+    },
+  });
+  state.current = { kind: "none" };
+  state.recovery = { kind: "none" };
+  state.primaryAvailability = {
+    kind: "occupied",
+    checkoutPath: "/repo",
+    recordId: primaryRow.recordId,
+    leaseState: "absent",
+  };
+  return state;
 }
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
@@ -461,6 +582,8 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
 
 function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
   return {
+    locusState: vi.fn(async () => locusState()),
+    legacyErrand: vi.fn(async () => null),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
@@ -468,8 +591,6 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
-    cohortDoc: vi.fn(async (): Promise<string | null> => null),
-    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
     ...overrides,
   };
 }
@@ -991,7 +1112,9 @@ describe("runRecoverStatus — lean recover envelope", () => {
       "extensions",
       "identity",
       "loadSet",
+      "locusState",
       "mode",
+      "recoveryFrame",
       "releaseRouting",
       "worktree",
     ]);
@@ -1036,8 +1159,9 @@ describe("runRecoverStatus — lean recover envelope", () => {
     }
   });
 
-  it("propagates active probe failures into loadSet and omits taskCursor", async () => {
+  it("keeps locus-derived recovery context authoritative when active probing fails", async () => {
     const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => recoveryWorkUnitLocus()),
       active: async () => { throw new Error("boom"); },
     });
     const result = await runRecoverStatus({
@@ -1047,33 +1171,18 @@ describe("runRecoverStatus — lean recover envelope", () => {
     });
 
     expect(result.active.ok).toBe(false);
-    expect(result.loadSet.ok).toBe(false);
-    if (!result.loadSet.ok) {
-      expect(result.loadSet.error.message).toBe("boom");
-    }
-    expect(result.taskCursor).toBeUndefined();
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
+    });
+    expect(result.loadSet.ok).toBe(true);
+    expect(result.taskCursor?.ok).toBe(true);
   });
 
-  it("projects loadSet from the shared projection inputs", async () => {
+  it("projects workflow, load set, and cursor from the selected locus row", async () => {
     const probes = sessionRecoverProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/meta-x.md",
-          sessionType: "execution",
-          planningStage: null,
-          taskListPath: ".arc/active/tasks-x.md",
-        })),
-      extensions: vi.fn(async () =>
-        extensionsSessionInit({ active: ["post-context-load"] })),
-      cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
-      taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
-        status: "found",
-        cursor: {
-          section: { id: "1.1", title: "Do x", lineHint: 5 },
-          leaf: { id: "1.1.a", title: "Do x child", lineHint: 9 },
-        },
-      })),
+      locusState: vi.fn(async () => recoveryWorkUnitLocus()),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
     });
     const result = await runRecoverStatus({
       identity: "andrew",
@@ -1081,109 +1190,121 @@ describe("runRecoverStatus — lean recover envelope", () => {
       probes,
     });
 
-    expect(result.cohortDocPath).toBe(".arc/backlog/planned/x/cohort-x.md");
+    expect(result).not.toHaveProperty("cohortDocPath");
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: {
+        kind: "resolved",
+        workflow: "process-task-loop",
+        sessionType: "execution",
+        activeRecordId: `sha256:${"a".repeat(64)}`,
+        parentRecordId: null,
+      },
+    });
     expect(result.loadSet.ok).toBe(true);
     if (result.loadSet.ok) {
-      expect(result.loadSet.value.entries).toEqual(
-        expect.arrayContaining([
-          {
-            path: ".arc/active/tasks-x.md",
-            readMode: { kind: "partial-strategic" },
-          },
-          {
-            path: ".arc/backlog/planned/x/cohort-x.md",
-            readMode: { kind: "full" },
-          },
-        ]),
-      );
-      expect(result.loadSet.value.entries).not.toContainEqual({
-        path: ".arc/system/extensions/post-context-load.md",
+      expect(result.loadSet.value.entries).toContainEqual({
+        path: ".arc/backlog/planned/x/cohort-x.md",
         readMode: { kind: "full" },
       });
     }
-    expect(result.extensions.ok).toBe(true);
-    if (result.extensions.ok) {
-      expect(result.extensions.value.active).toEqual(["post-context-load"]);
-    }
-    expect(result.taskCursor?.ok).toBe(true);
-    if (result.taskCursor?.ok) {
-      expect(result.taskCursor.value).toMatchObject({
-        status: "found",
-        cursor: {
-          section: { id: "1.1" },
-          leaf: { id: "1.1.a" },
+    expect(result.taskCursor).toEqual({
+      ok: true,
+      value: expect.objectContaining({ status: "found" }),
+    });
+  });
+
+  it("uses the bounded legacy Errand context only from record-free state", async () => {
+    const probes = sessionRecoverProbes({
+      legacyErrand: vi.fn(async (): Promise<RecoveryLocusContext> => ({
+        ...legacyErrandContext(),
+        loadSet: {
+          manifestVersion: 1,
+          entries: [{ path: ".arc/system/workflows/arc/supplemental/run-errand.md", readMode: { kind: "full" } }],
         },
-      });
-    }
+      })),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "legacy-errand", slug: "legacy" }),
+    });
+    expect(result.loadSet.ok && result.loadSet.value.entries.at(-1)?.path)
+      .toBe(".arc/system/workflows/arc/supplemental/run-errand.md");
   });
 
-  it("propagates recover cohort-doc probe failures into loadSet", async () => {
-    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
-      status: "found",
-      cursor: {
-        section: { id: "1.1", title: "Do x", lineHint: 5 },
-        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
-      },
-    }));
+  it("does not let legacy compatibility override a leaseless WU checkout", async () => {
+    const idle = recoveryWorkUnitLocus();
+    const row = idle.roster.rows[0];
+    if (row === undefined || row.recordId === null) throw new Error("missing WU fixture row");
+    row.lease = null;
+    row.frame = "idle";
+    idle.current = { kind: "none" };
+    idle.recovery = { kind: "none" };
     const probes = sessionRecoverProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/meta-x.md",
-          sessionType: "execution",
-          planningStage: null,
-          taskListPath: ".arc/active/tasks-x.md",
-        })),
-      cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
-      taskCursor,
+      locusState: vi.fn(async () => idle),
+      legacyErrand: vi.fn(async () => legacyErrandContext()),
     });
-    const result = await runRecoverStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(result.active.ok).toBe(true);
-    expect(result.loadSet.ok).toBe(false);
-    if (!result.loadSet.ok) {
-      expect(result.loadSet.error.kind).toBe("runtime");
-      expect(result.loadSet.error.message).toBe("cohort boom");
-    }
-    expect(result).not.toHaveProperty("cohortDocPath");
-    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
-    expect(result.taskCursor?.ok).toBe(true);
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
+    });
   });
 
-  it("omits the recover task cursor when load-set projection rejects the task-list path", async () => {
-    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
-      status: "found",
-      cursor: {
-        section: { id: "1.1", title: "Do x", lineHint: 5 },
-        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
-      },
-    }));
+  it("does not let legacy compatibility stand in for a reader-owned stop", async () => {
+    const stopped = locusState();
+    stopped.recovery = { kind: "stop", reasons: ["role-conflict"] };
     const probes = sessionRecoverProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/meta-x.md",
-          sessionType: "execution",
-          planningStage: null,
-          taskListPath: ".arc/active/CON/tasks-x.md",
-        })),
-      taskCursor,
+      locusState: vi.fn(async () => stopped),
+      legacyErrand: vi.fn(async () => legacyErrandContext()),
     });
-    const result = await runRecoverStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
 
+    expect(result.recoveryFrame.ok).toBe(false);
+  });
+
+  it("resolves the linked checkout's own work unit", async () => {
+    const state = twoCheckoutIdleLocus();
+    const linkedRecordId = state.roster.rows[1]?.recordId;
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => state),
+      worktreeIdentity: vi.fn(async () => ({ kind: "linked" as const, path: "/repo/wt-b" })),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "resolved", activeRecordId: linkedRecordId }),
+    });
+  });
+
+  it("refuses a frame when physical worktree identity cannot be established", async () => {
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => twoCheckoutIdleLocus()),
+      worktreeIdentity: vi.fn(async () => { throw new Error("unable to read current working directory"); }),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame.ok).toBe(false);
     expect(result.loadSet.ok).toBe(false);
-    if (!result.loadSet.ok) {
-      expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
-    }
-    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.worktree.ok).toBe(false);
+  });
+
+  it("isolates an inconsistent locus projection across derived recovery slots", async () => {
+    const invalid = recoveryWorkUnitLocus();
+    invalid.recovery = {
+      kind: "resume",
+      activeRecordId: `sha256:${"c".repeat(64)}`,
+      parentRecordId: null,
+    };
+    const probes = sessionRecoverProbes({ locusState: vi.fn(async () => invalid) });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame.ok).toBe(false);
+    expect(result.loadSet.ok).toBe(false);
     expect(result.taskCursor).toBeUndefined();
   });
 });
