@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft settled to no open design questions; first adversarial pass folded
+- **Last Completed:** Draft reached formalization-ready — three adversarial passes folded, both forks settled
 - **Next Task:** [none]
 - **Blockers:** [none]
 
