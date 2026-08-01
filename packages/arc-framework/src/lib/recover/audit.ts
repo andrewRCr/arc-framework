@@ -26,7 +26,10 @@ import {
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
 import { isIdleWorkUnitRow } from "../locus/state.js";
-import type { RecoveryLocusFrame } from "./locus-context.js";
+import {
+  RUN_ERRAND_WORKFLOW_PATH,
+  type RecoveryLocusFrame,
+} from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -469,7 +472,7 @@ function auditLoadSet(
 
 function withoutLegacyErrandWorkflow(loadSet: LoadSetManifest): LoadSetManifest | null {
   const last = loadSet.entries.at(-1);
-  if (last?.path !== ".arc/system/workflows/arc/supplemental/run-errand.md"
+  if (last?.path !== RUN_ERRAND_WORKFLOW_PATH
     || last.readMode.kind !== "full") return null;
   return { manifestVersion: loadSet.manifestVersion, entries: loadSet.entries.slice(0, -1) };
 }

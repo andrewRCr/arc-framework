@@ -14,6 +14,15 @@ import {
 } from "../locus/schema/index.js";
 import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
 
+/** Recovery workflow loaded for Errand sessions. */
+export const RUN_ERRAND_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/run-errand.md";
+
+/** Recovery workflow loaded for planning-groom sessions. */
+export const DRAFT_DESIGN_WORKFLOW_PATH = ".arc/system/workflows/arc/draft-design.md";
+
+/** Recovery workflow loaded for housekeeping sessions. */
+export const DRAIN_INBOX_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/drain-inbox.md";
+
 const RecoveryLocusFrameResolvedSchema = z.strictObject({
   kind: z.literal("resolved"),
   workflow: LocusOpaqueTextSchema,
@@ -299,17 +308,17 @@ function transientWorkflow(row: LocusRowV1): { name: string; path: string } {
     case "errand":
       return {
         name: "run-errand",
-        path: ".arc/system/workflows/arc/supplemental/run-errand.md",
+        path: RUN_ERRAND_WORKFLOW_PATH,
       };
     case "groom":
       return {
         name: "draft-design",
-        path: ".arc/system/workflows/arc/draft-design.md",
+        path: DRAFT_DESIGN_WORKFLOW_PATH,
       };
     case "housekeep":
       return {
         name: "drain-inbox",
-        path: ".arc/system/workflows/arc/supplemental/drain-inbox.md",
+        path: DRAIN_INBOX_WORKFLOW_PATH,
       };
     default:
       throw new RecoveryLocusContextError(`Unsupported recovery role: ${row.role?.kind ?? "missing"}`);

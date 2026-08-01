@@ -24,7 +24,10 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { resolveLoadSetManifest } from "../lib/load-set/projection.js";
-import { appendRecoveryWorkflow } from "../lib/recover/locus-context.js";
+import {
+  appendRecoveryWorkflow,
+  RUN_ERRAND_WORKFLOW_PATH,
+} from "../lib/recover/locus-context.js";
 import { selectLegacyErrandRecoveryCandidate } from "../lib/recover/legacy-errand.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
@@ -102,7 +105,7 @@ export function createRecoverStatusProbes(
         taskListPath: parent.taskListPath ?? null,
         activeExtensions: (await extensionsP).active,
         cohortDocPath,
-      }), ".arc/system/workflows/arc/supplemental/run-errand.md");
+      }), RUN_ERRAND_WORKFLOW_PATH);
       const taskCursor = parent.taskListPath === undefined || parent.taskListPath === null
         ? null
         : await resolveTaskListCursorFromFile({ cwd, taskListPath: parent.taskListPath });
