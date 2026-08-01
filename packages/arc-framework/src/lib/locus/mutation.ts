@@ -16,6 +16,7 @@ import {
   type LocusAnchor,
   type LocusMutationResultV1,
   type LocusOperation,
+  type LocusPromotionSource,
   type LocusRecordV1,
   type LocusRole,
 } from "./schema/index.js";
@@ -23,7 +24,13 @@ import type { ProcessLiveness } from "./process-inspector.js";
 import type { CanonicalDigest } from "../kernel/index.js";
 
 export type LocusRoleAuthority =
-  | { readonly kind: "work-unit"; readonly key: string }
+  | {
+      readonly kind: "work-unit";
+      readonly key: string;
+      readonly originEntry?: string | null;
+      readonly originEntrySourceDigest?: CanonicalDigest | null;
+      readonly promotionSource?: LocusPromotionSource;
+    }
   | { readonly kind: "identity"; readonly identity: LocusIdentityV1 }
   | {
       readonly kind: "partial-errand";
@@ -289,6 +296,10 @@ export async function updateLocusRole(options: {
   }
   const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);
   if (desired === null) return { kind: "refused", reason: "role-conflict" };
+  if (existing.record.role.promotionSource !== undefined
+    && !isDeepStrictEqual(existing.record.role.promotionSource, desired.promotionSource)) {
+    return { kind: "refused", reason: "role-conflict" };
+  }
   const desiredLease = options.sessionHomePath === undefined || existing.record.lease === null
     ? existing.record.lease
     : { ...existing.record.lease, sessionHomePath: options.sessionHomePath };
@@ -513,7 +524,17 @@ function deriveRole(
 ): LocusRole | null {
   let candidate: unknown;
   if (authority.kind === "work-unit") {
-    candidate = role("work-unit", "work-unit", authority.key, null, parentCheckoutPath, establishedAt);
+    candidate = role(
+      "work-unit",
+      "work-unit",
+      authority.key,
+      null,
+      parentCheckoutPath,
+      establishedAt,
+      authority.originEntry ?? null,
+      authority.originEntrySourceDigest ?? null,
+      authority.promotionSource ?? null,
+    );
   } else if (authority.kind === "identity") {
     const identity = LocusIdentityV1Schema.safeParse(authority.identity);
     if (!identity.success) return null;
@@ -563,6 +584,7 @@ function role(
   establishedAt: string,
   originEntry: string | null = null,
   originEntrySourceDigest: CanonicalDigest | null = null,
+  promotionSource: LocusPromotionSource | null = null,
 ): unknown {
   return {
     kind,
@@ -571,6 +593,7 @@ function role(
     parentCheckoutPath,
     originEntry,
     ...(originEntrySourceDigest === null ? {} : { originEntrySourceDigest }),
+    ...(promotionSource === null ? {} : { promotionSource }),
   };
 }
 

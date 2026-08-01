@@ -86,6 +86,7 @@ const success = {
   sessionHomePath: LocusAbsolutePathSchema.nullable(),
   identity: LocusIdentityV1Schema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
+  originEntrySourceDigest: LocusDigestSchema.nullable().optional(),
   restoredParent: z.strictObject({ recordId: LocusDigestSchema, checkoutPath: LocusAbsolutePathSchema }).nullable(),
   nextOffer: z.strictObject({
     kind: z.literal("errand"),

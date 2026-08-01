@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
 
 const DIGEST = `sha256:${"0".repeat(64)}`;
 
@@ -112,6 +112,91 @@ describe("arc wu reconcile", () => {
     });
     expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
+  });
+
+  it("attaches the entering session only when the post-entry flag is explicit", async () => {
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+    const passive = await runArc(["wu", "reconcile", "dependent", "--json"], repo);
+
+    expect(passive.exitCode).toBe(0);
+    expect(JSON.parse(passive.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const result = await runArcAnchored(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
+    const records = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    expect(records).toHaveLength(1);
+    const record = JSON.parse(await readFile(join(lociRoot, records[0] as string), "utf8"));
+    expect(record).toMatchObject({
+      checkoutPath: repo,
+      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
+      lease: { sessionHomePath: repo, anchor: { kind: "process" } },
+    });
+  });
+
+  it("returns one JSON conflict and does not reconcile when identity resolution fails", async () => {
+    await git(repo, ["config", "--unset", "arc.identity"]);
+    await git(repo, ["config", "--unset", "user.name"]);
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const before = await readFile(metaPath, "utf8");
+
+    const result = await runArc(
+      ["wu", "reconcile", "dependent", "--apply", "--attach-session", "--json"],
+      repo,
+      {
+        env: {
+          GIT_CONFIG_GLOBAL: join(repo, "missing-global-gitconfig"),
+          GIT_CONFIG_NOSYSTEM: "1",
+        },
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "conflict",
+      slug: "dependent",
+      reason: expect.stringMatching(/identity resolution failed/iu),
+    });
+    expect(await readFile(metaPath, "utf8")).toBe(before);
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
+  it("returns one JSON conflict and does not reconcile when locus attachment is refused", async () => {
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+    const attached = await runArcAnchored(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+    expect(attached.exitCode).toBe(0);
+    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    if (recordName === undefined) throw new Error("fixture locus record missing");
+    const recordPath = join(lociRoot, recordName);
+    const record = JSON.parse(await readFile(recordPath, "utf8"));
+    record.role.subject.key = "another-work-unit";
+    await writeFile(recordPath, `${JSON.stringify(record)}\n`, "utf8");
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const before = await readFile(metaPath, "utf8");
+
+    const result = await runArcAnchored(
+      ["wu", "reconcile", "dependent", "--apply", "--attach-session", "--json"],
+      repo,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "conflict",
+      slug: "dependent",
+      reason: expect.stringMatching(/incompatible role generation/iu),
+    });
+    expect(await readFile(metaPath, "utf8")).toBe(before);
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
   });
 
   it("surfaces and applies reference-only reconcile through the shared command", async () => {

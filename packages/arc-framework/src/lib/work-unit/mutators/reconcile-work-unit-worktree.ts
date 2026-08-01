@@ -1,5 +1,5 @@
 /**
- * `reconcile-worktree` — the worktree-axis encoding mutator, including
+ * `reconcile-work-unit-worktree` — the WU worktree-axis encoding mutator, including
  * execution-locus relocation.
  *
  * Three operations:
@@ -19,7 +19,7 @@
  *       the **current** worktree (`-b` to cut a fresh branch for graduate /
  *       create-new, plain checkout to re-attach an existing branch for resume). No
  *       ownership marker (ARC did not mint this worktree). This is why branch
- *       creation is `reconcile-worktree`'s in both modes, not `reconcile-branch`'s.
+ *       creation is `reconcile-work-unit-worktree`'s in both modes, not `reconcile-branch`'s.
  * - `teardown` — `git worktree remove` (never `--force`; that stays the
  *   rollback-only path), gated on a clean worktree (`isWorktreeClean`). When the
  *   transition is tearing down the very worktree it executes from
@@ -38,40 +38,52 @@
  * @module
  */
 
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { access, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
+import { createLinkedWorktree } from "../../git/linked-worktree.js";
 import { gitFailureText } from "../../git/process-error.js";
-import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   ensureWorktreeMarkerIgnored,
   writeWorktreeOwnershipMarker,
 } from "../../git/worktree-marker.js";
-import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranchResult,
 } from "../../git/worktree-roster.js";
+import { setupLinkedWorktree } from "../../git/linked-worktree-setup.js";
 import { localPathContains } from "../../local-path-identity.js";
 import {
   reconcileLinkedIdentityGlobalUserSurfaces,
   type UserSurfaceMigrationDirent,
 } from "../../user-surface-migration.js";
+import type { WorkUnitLocusDriver, WorkUnitLocusReceipt } from "../work-unit-locus.js";
+import type { TeardownLocusDriver } from "../teardown-locus.js";
+import type { TeardownOccupancyDecision } from "../teardown-occupancy.js";
+import type { WorktreeSubject } from "../../git/worktree-marker.js";
 
-/** Dependencies for {@link reconcileWorktree}. */
-export interface ReconcileWorktreeContext {
+/** Dependencies for {@link reconcileWorkUnitWorktree}. */
+export interface ReconcileWorkUnitWorktreeContext {
   /** Git executor — runs `git worktree add` / `remove` / `list` / `status`. */
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
   chdir: (dir: string) => void;
+  /** Read the live command locus during final locked revalidation. */
+  readCurrentLocus?: () => string;
   /** Filesystem seam for post-create harness-dir provisioning. */
-  fs: ReconcileWorktreeFs;
+  fs: ReconcileWorkUnitWorktreeFs;
+  /** Machine-local role composer; production always binds it. */
+  locus?: WorkUnitLocusDriver;
+  /** Target-lock driver for physical teardown; production teardown always binds it. */
+  teardownLocus?: TeardownLocusDriver;
 }
 
 /** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
-export interface ReconcileWorktreeFs {
+export interface ReconcileWorkUnitWorktreeFs {
+  /** Return true when any filesystem entry occupies `path`. */
+  pathExists(path: string): Promise<boolean>;
   /** Return true when `path` exists and is a directory. */
   directoryExists(path: string): Promise<boolean>;
   /** Recursively copy a directory into the destination worktree. */
@@ -88,8 +100,9 @@ export interface ReconcileWorktreeFs {
   removeFile?(path: string): Promise<void>;
 }
 
-/** Production filesystem adapter for {@link reconcileWorktree}. */
-export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
+/** Production filesystem adapter for {@link reconcileWorkUnitWorktree}. */
+export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
+  pathExists: async (path) => access(path).then(() => true, () => false),
   directoryExists: async (path) => {
     try {
       return (await stat(path)).isDirectory();
@@ -122,7 +135,7 @@ export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
  * - `move` — move one registered worktree root and preserve the process locus
  *   when the caller is outside it.
  */
-export type ReconcileWorktreeOp =
+export type ReconcileWorkUnitWorktreeOp =
   | {
       mutation: "spawn";
       /** Fresh-worktree placement (the default). */
@@ -159,6 +172,10 @@ export type ReconcileWorktreeOp =
       inPlace: true;
       /** Branch to place in the current worktree. */
       branch: string;
+      /** Work-unit whose trusted transition owns this checkout. */
+      wuName: string;
+      /** Attach the entering session; false for spawn-anchored internal replay. */
+      attachSession: boolean;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch: boolean;
       /**
@@ -174,6 +191,19 @@ export type ReconcileWorktreeOp =
       worktreePath: string;
       /** The directory the transition runs from — a self-teardown when inside `worktreePath`. */
       currentLocus: string;
+      /** Managed WU whose durable role ends with this physical checkout. */
+      wuName?: string;
+      /** Complete target-lock authorization; omission selects the compatible unlocked path. */
+      authorization?: {
+        /** Exact logical owner of the checkout being removed. */
+        subject: WorktreeSubject;
+        /** Roster HEAD selected by advisory authorization. */
+        expectedHead: string;
+        /** Exact clear occupancy generation selected by advisory authorization. */
+        expectedOccupancy: Extract<TeardownOccupancyDecision, { kind: "clear" }>;
+        /** Remaining network-free local predicates to rerun under the target lock. */
+        revalidateLocal?: () => Promise<void>;
+      };
       /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
     }
@@ -187,9 +217,16 @@ export type ReconcileWorktreeOp =
       currentLocus: string;
     };
 
-/** Outcome of a {@link reconcileWorktree} call. */
-export type ReconcileWorktreeResult =
-  | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
+/** Outcome of a {@link reconcileWorkUnitWorktree} call. */
+export type ReconcileWorkUnitWorktreeResult =
+  | {
+      mutation: "spawn";
+      worktreePath: string;
+      branch: string;
+      postCreateNotice?: string;
+      /** Role this spawn established — the generation a rollback must compensate. */
+      locus?: WorkUnitLocusReceipt;
+    }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
   | {
       mutation: "move";
@@ -203,7 +240,7 @@ export type ReconcileWorktreeResult =
 export type RenameWorktreeMoveResolution =
   | { status: "move"; from: string; to: string }
   | { status: "deferred-self-move"; from: string; to: string }
-  | { status: "already-moved"; worktreePath: string }
+  | { status: "already-moved"; worktreePath: string; sourceWorktreePath: string }
   | { status: "unmatched"; worktreePath: string }
   | { status: "in-place" };
 
@@ -239,7 +276,11 @@ export async function resolveRenameWorktreeMove(
       )
     )
   ) {
-    return { status: "already-moved", worktreePath: from };
+    // The destination is registered, so the physical move already landed. Reconstruct the path it
+    // came from — the inverse of the rewrite below — because a move interrupted before the locus
+    // rekey leaves the record keyed under that source path, and nothing else can still name it.
+    const sourceLeaf = `${leaf.slice(0, targetOffset)}${params.oldSlug}${leaf.slice(targetOffset + params.newSlug.length)}`;
+    return { status: "already-moved", worktreePath: from, sourceWorktreePath: join(dirname(from), sourceLeaf) };
   }
   if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
   const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;
@@ -249,10 +290,6 @@ export async function resolveRenameWorktreeMove(
     : { status: "move", from, to };
 }
 
-/** Notice surfaced when the project has not configured its worktree provisioning script. */
-export const POST_CREATE_UNCONFIGURED_NOTICE =
-  "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
-
 /**
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
  * A non-`..`, non-absolute relative path means `locus` is contained.
@@ -261,38 +298,8 @@ export function isSelfTeardown(worktreePath: string, locus: string): Promise<boo
   return localPathContains(worktreePath, locus);
 }
 
-/** Shell invocation for a project-supplied post-create script. */
-function postCreateShellCommand(script: string): { cmd: string; args: string[] } {
-  return process.platform === "win32"
-    ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", script] }
-    : { cmd: "sh", args: ["-c", script] };
-}
-
 function isErrnoException(err: unknown): err is { code?: string } {
   return typeof err === "object" && err !== null && "code" in err;
-}
-
-async function copyRegisteredHarnessDirs(
-  ctx: ReconcileWorktreeContext,
-  params: {
-    primaryWorktreePath: string | undefined;
-    worktreePath: string;
-    registeredHarnessDirs: string | undefined;
-  },
-): Promise<void> {
-  const dirs = parseRegisteredHarnessDirs(params.registeredHarnessDirs);
-  if (dirs.length === 0) return;
-
-  const primaryWorktreePath = params.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
-  if (primaryWorktreePath === null) {
-    throw new Error("could not resolve the primary worktree path to copy registered harness dirs");
-  }
-
-  for (const dir of dirs) {
-    const source = join(primaryWorktreePath, dir);
-    if (!(await ctx.fs.directoryExists(source))) continue;
-    await ctx.fs.copyDirectory(source, join(params.worktreePath, dir));
-  }
 }
 
 /** Operands for provisioning an already-created linked worktree. */
@@ -307,32 +314,20 @@ export interface ProvisionSpawnedWorktreeOp {
 }
 
 /**
- * Apply the post-create script, harness copies, ignore rule, and ownership marker.
+ * Apply project setup, registered harness copies, the ignore rule, and ownership marker.
  *
  * @param ctx - Git and filesystem boundaries
  * @param op - Exact spawned-worktree provisioning operands
  * @returns The existing no-script notice, or `null`
  */
 export async function provisionSpawnedWorktree(
-  ctx: ReconcileWorktreeContext,
+  ctx: ReconcileWorkUnitWorktreeContext,
   op: ProvisionSpawnedWorktreeOp,
 ): Promise<string | null> {
-  const postCreateScript = op.postCreateScript?.trim();
-  let postCreateNotice: string | null = null;
-  if (postCreateScript) {
-    const { cmd, args } = postCreateShellCommand(postCreateScript);
-    try {
-      await ctx.exec(cmd, args, { cwd: op.worktreePath });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
-    }
-  } else {
-    postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
-  }
-  await copyRegisteredHarnessDirs(ctx, {
-    primaryWorktreePath: op.primaryWorktreePath,
+  const setup = await setupLinkedWorktree(ctx, {
     worktreePath: op.worktreePath,
+    primaryWorktreePath: op.primaryWorktreePath,
+    postCreateScript: op.postCreateScript,
     registeredHarnessDirs: op.registeredHarnessDirs,
   });
   await ensureWorktreeMarkerIgnored(op.worktreePath, ctx.exec, ctx.fs);
@@ -342,7 +337,7 @@ export async function provisionSpawnedWorktree(
     spawningIdentity: op.spawningIdentity,
     now: op.now,
   });
-  return postCreateNotice;
+  return setup.postCreateNotice ?? null;
 }
 
 /**
@@ -358,10 +353,10 @@ export async function provisionSpawnedWorktree(
  * @returns The spawn path/branch, or the teardown path and whether the locus hopped.
  * @throws When a teardown targets a dirty worktree.
  */
-export async function reconcileWorktree(
-  ctx: ReconcileWorktreeContext,
-  op: ReconcileWorktreeOp,
-): Promise<ReconcileWorktreeResult> {
+export async function reconcileWorkUnitWorktree(
+  ctx: ReconcileWorkUnitWorktreeContext,
+  op: ReconcileWorkUnitWorktreeOp,
+): Promise<ReconcileWorkUnitWorktreeResult> {
   if (op.mutation === "move") {
     const selfMove = await isSelfTeardown(op.from, op.currentLocus);
     try {
@@ -385,7 +380,7 @@ export async function reconcileWorktree(
       locusHopped: selfMove,
     };
   }
-  if (op.mutation === "teardown" && op.huskApproved === true) {
+  if (op.mutation === "teardown" && op.huskApproved === true && ctx.teardownLocus === undefined) {
     if (await isSelfTeardown(op.worktreePath, op.currentLocus)) {
       throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
     }
@@ -403,7 +398,21 @@ export async function reconcileWorktree(
       await ctx.exec("git", checkout);
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
-    return { mutation: "spawn", worktreePath: stdout.trim(), branch: op.branch };
+    const worktreePath = stdout.trim();
+    const locus = ctx.locus === undefined || op.deferCheckout
+      ? undefined
+      : await ctx.locus.reconcile({
+        checkoutPath: worktreePath,
+        branch: op.branch,
+        wuName: op.wuName,
+        attachSession: op.attachSession,
+      });
+    return {
+      mutation: "spawn",
+      worktreePath,
+      branch: op.branch,
+      ...(locus === undefined ? {} : { locus }),
+    };
   }
 
   if (op.mutation === "spawn") {
@@ -413,34 +422,48 @@ export async function reconcileWorktree(
     // `..` that escapes the spawned worktree (`fatal: … outside repository`). Absolutize
     // a relative template against the repo root once, here, so every downstream consumer
     // gets an absolute path; an already-absolute template needs no root and passes through.
-    const templatedPath = resolveWorktreeLocation({
-      template: op.locationTemplate,
+    const creation = await createLinkedWorktree({
+      exec: ctx.exec,
+      pathExists: (path) => ctx.fs.pathExists(path),
+    }, {
+      locationTemplate: op.locationTemplate,
+      primaryWorktreePath: op.primaryWorktreePath,
       repo: op.repo,
-      name: op.wuName,
+      placementName: op.wuName,
       branch: op.branch,
+      createBranch: op.createBranch !== false,
+      base: op.base,
     });
-    let worktreePath = templatedPath;
-    if (!isAbsolute(templatedPath)) {
-      const primaryRoot = op.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
-      if (primaryRoot === null) {
-        throw new Error("cannot resolve the primary worktree root to absolutize the relative spawn path");
-      }
-      worktreePath = resolve(primaryRoot, templatedPath);
+    if (creation.kind === "refused") {
+      throw new Error(`refusing linked worktree path collision: ${creation.worktreePath}`);
     }
-    // Re-attach (`createBranch: false`) checks out an existing preserved branch — bare `add`, no
-    // `-b`/base; the default cuts a fresh branch (`-b <branch> <base>`) for graduate / create-new.
-    const add =
-      op.createBranch === false
-        ? ["worktree", "add", worktreePath, op.branch]
-        : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
-    await ctx.exec("git", add);
-    const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
-    return {
-      mutation: "spawn",
-      worktreePath,
-      branch: op.branch,
-      ...(postCreateNotice === null ? {} : { postCreateNotice }),
-    };
+    if (creation.kind === "error") throw creation.error;
+    const { worktreePath } = creation.receipt;
+    try {
+      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
+      const locus = await ctx.locus?.reconcile({
+        checkoutPath: worktreePath,
+        branch: op.branch,
+        wuName: op.wuName,
+        attachSession: false,
+        ...(op.now === undefined ? {} : { establishedAt: new Date(op.now).toISOString() }),
+      });
+      return {
+        mutation: "spawn",
+        worktreePath,
+        branch: op.branch,
+        ...(postCreateNotice === null ? {} : { postCreateNotice }),
+        ...(locus === undefined ? {} : { locus }),
+      };
+    } catch (error) {
+      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);
+      if (cleanupFailures.length === 0) throw error;
+      throw new AggregateError(
+        [error, ...cleanupFailures],
+        error instanceof Error ? error.message : String(error),
+        { cause: error },
+      );
+    }
   }
 
   const { worktreePath, currentLocus } = op;
@@ -448,16 +471,106 @@ export async function reconcileWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
-  const primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+  if (op.authorization !== undefined && ctx.teardownLocus === undefined) {
+    throw new Error("authorized worktree teardown requires the target-lock locus driver");
+  }
+  const lockedRetirement = ctx.teardownLocus !== undefined && op.authorization !== undefined
+    ? {
+        driver: ctx.teardownLocus,
+        ...op.authorization,
+      }
+    : null;
+  let primary: string;
+  if (lockedRetirement === null) {
+    primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+  } else {
+    primary = await resolvePrimaryWorktreePath(ctx.exec) ?? "";
+    if (primary === "") throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
+  }
 
   let locusHopped = false;
+  let finalLocus = currentLocus;
   if (await isSelfTeardown(worktreePath, currentLocus)) {
     ctx.chdir(primary);
     locusHopped = true;
+    finalLocus = primary;
   }
 
-  await ctx.exec("git", ["worktree", "remove", worktreePath]);
+  const removeCheckout = () => ctx.exec("git", ["worktree", "remove", worktreePath]).then(() => undefined);
+  try {
+    if (lockedRetirement !== null) {
+      await lockedRetirement.driver.retire({
+        checkoutPath: worktreePath,
+        expectedHead: lockedRetirement.expectedHead,
+        subject: lockedRetirement.subject,
+        expectedOccupancy: lockedRetirement.expectedOccupancy,
+        revalidateLocal: async () => {
+          if (!(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
+            throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
+          }
+          if (await isSelfTeardown(worktreePath, ctx.readCurrentLocus?.() ?? finalLocus)) {
+            throw new Error(`refusing to remove the current worktree: ${worktreePath}`);
+          }
+          await lockedRetirement.revalidateLocal?.();
+          await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+        },
+        retireProjection: removeCheckout,
+      });
+    } else if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
+      await ctx.locus.retire({ checkoutPath: worktreePath, wuName: op.wuName, removeCheckout });
+    } else {
+      await removeCheckout();
+    }
+  } catch (error) {
+    if (!locusHopped) throw error;
+    let targetStillExists: boolean;
+    try {
+      targetStillExists = await ctx.fs.pathExists(worktreePath);
+    } catch (probeError) {
+      throw new AggregateError(
+        [error, probeError],
+        `${error instanceof Error ? error.message : String(error)}; process locus remains at ${primary}`,
+        { cause: probeError },
+      );
+    }
+    if (!targetStillExists) {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}; process locus remains at ${primary} because the target worktree was removed`,
+        { cause: error },
+      );
+    }
+    try {
+      ctx.chdir(currentLocus);
+    } catch (restoreError) {
+      throw new AggregateError(
+        [error, restoreError],
+        `${error instanceof Error ? error.message : String(error)}; process locus could not be restored from ${primary}`,
+        { cause: restoreError },
+      );
+    }
+    throw error;
+  }
   return { mutation: "teardown", worktreePath, locusHopped };
+}
+
+async function rollbackFreshSpawn(
+  ctx: ReconcileWorkUnitWorktreeContext,
+  receipt: { readonly worktreePath: string; readonly branch: string; readonly branchCreated: boolean },
+): Promise<unknown[]> {
+  const failures: unknown[] = [];
+  try {
+    await ctx.exec("git", ["worktree", "remove", "--force", receipt.worktreePath]);
+  } catch (error) {
+    failures.push(error);
+  }
+  if (receipt.branchCreated) {
+    try {
+      await ctx.exec("git", ["branch", "-D", receipt.branch]);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  return failures;
 }
 
 function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
@@ -466,7 +579,7 @@ function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
 }
 
 async function reconcileUserSurfacesForRemoval(
-  ctx: ReconcileWorktreeContext,
+  ctx: ReconcileWorkUnitWorktreeContext,
   worktreePath: string,
 ): Promise<string> {
   const primary = await resolvePrimaryWorktreePath(ctx.exec);

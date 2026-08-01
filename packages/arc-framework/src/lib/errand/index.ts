@@ -171,10 +171,15 @@ export {
 } from "./close-runtime.js";
 
 export {
-  promoteErrand,
-  type PromoteErrandContext,
-  type PromoteErrandFs,
-  type PromoteErrandParams,
-  type PromoteErrandResult,
+  promoteOrdinaryErrand,
+  type PromoteOrdinaryErrandDependencies,
+  type PromoteOrdinaryErrandOptions,
+  type PromotionFrameReceipt,
+  type PromotionFrameResult,
   type PromoteFloor,
 } from "./promote.js";
+
+export {
+  promoteOrdinaryErrandAtRuntime,
+  type PromoteOrdinaryErrandRuntimeOptions,
+} from "./promote-runtime.js";

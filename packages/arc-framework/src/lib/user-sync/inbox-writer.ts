@@ -60,6 +60,21 @@ export interface ExecuteBoundInboxEntry {
   sourceDigest: CanonicalDigest;
 }
 
+/** Stable conflict kinds raised when an exact inbox generation cannot be mutated safely. */
+export type InboxMutationConflictCode = "duplicate-entry-title" | "source-digest-changed";
+
+/** A recoverable conflict between the requested mutation and the live inbox generation. */
+export class InboxMutationConflictError extends Error {
+  readonly name = "InboxMutationConflictError";
+
+  constructor(
+    readonly code: InboxMutationConflictCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 interface LocatedInboxEntry {
   start: number;
   end: number;
@@ -231,11 +246,19 @@ export function mutateInboxEntries(
       }
       throw new Error(`Missing USER-INBOX entry '${title}'.`);
     }
-    if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${title}'.`);
+    if (matches.length !== 1) {
+      throw new InboxMutationConflictError(
+        "duplicate-entry-title",
+        `Duplicate USER-INBOX entry title '${title}'.`,
+      );
+    }
     const entry = matches[0] as LocatedInboxEntry;
     const mark = executeBoundMark(lines, entry);
     if (unboundDigest(lines, entry) !== mutation.sourceDigest) {
-      throw new Error(`USER-INBOX source digest changed for '${title}'.`);
+      throw new InboxMutationConflictError(
+        "source-digest-changed",
+        `USER-INBOX source digest changed for '${title}'.`,
+      );
     }
     if (mutation.kind === "mark") {
       if (mark !== null) {
