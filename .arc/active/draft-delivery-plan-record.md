@@ -14,7 +14,12 @@
 
 ## Continuity
 
-**Readiness:** `maturing`, with no open design questions. Three fresh adversarial passes have run against the
+**Readiness:** `formalization-ready`. The bar was read at loop exit and all three criteria clear: no settle-able
+design decision is open, the success signal is concrete and runnable, and there is no inbound buffer. Nine open
+items remain, every one a particular that create-spec can resolve inline, plus one seam the cohort assigned
+elsewhere and one recorded accepted risk.
+
+Three fresh adversarial passes have run against the
 readiness, proportionality, and design-audit rubrics — one beyond the `Heavy` cap, authorized deliberately — and
 every finding from each was verified against source and folded.
 
@@ -36,6 +41,13 @@ the container in the contents. Scope left the preimage, `projectId` stayed a val
 buildable now without waiting on anything. `workUnitId` is stated as the work unit's canonical identity as its own
 authority resolves it — which exists today — distinguished from the incidental carriers the design refuses to read
 identity off.
+
+Two questions the passes left open were settled afterwards, and both settled by dissolving rather than by
+choosing. Each dissolved once someone asked what actually consumed the thing being argued about — project scope
+turned out to belong to a record's address rather than its identity, and the durability of a landing intent turned
+out to be defended for a tamper-evidence property with no consumer, against no adversary this design has. That is
+the same failure the three passes kept punishing in another guise: a claim carried because it sounded load-bearing
+rather than because something reads it.
 
 No further pass is planned. The third pass's folds carry the usual final-fold residual, covered by a post-settle
 coherence re-read rather than a fourth pass; going further needs a deliberate re-entry, not another lap.
@@ -83,13 +95,14 @@ coherence re-read rather than a fourth pass; going further needs a deliberate re
   and never waits for one — § Storage.
 - **Delivery binds and carries review-owned verdicts and never defines their admissibility.** The terminal record
   proves this member's half only and is named for the chain it proves, since conjoining the halves is the combined
-  gate's act — § Assurance and the terminal contribution proof.
+  gate's act. A landing observation carries the intent it fulfilled, so the pair is one shared append and the
+  intent stays local while it is live — § Assurance and the terminal contribution proof.
 - **Delivery owns no trigger of its own.** Authoring is opt-in and author-invoked; the advisory that it may be
   worth invoking rides the decomposition boundary test's recorded verdict — § Authoring, § Coordination.
 
-**Next.** Re-read for formalization readiness — no design question is now known to be open. Remaining gaps and
-their kinds are recorded in § Open items: ten particulars, of which three are seams for a sibling or consumer to
-settle, plus one accepted risk recorded there because nothing outside this draft records it.
+**Next.** create-spec. Remaining gaps and their kinds are recorded in § Open items: nine particulars, of which
+three are seams for a sibling or consumer to settle, plus one accepted risk recorded there because nothing outside
+this draft records it.
 
 ---
 
@@ -823,17 +836,28 @@ birth — `LandingObservation` and `DeliveryContributionChain` record what alrea
 shared append-only assurance store rather than beside the observations (§ Storage), and the state record carries
 references into them rather than the records themselves.
 
-`LandingIntent` is the exception, because it has two lives. Before the mutation it is a live reservation: the
-exact contract the command re-checks immediately before acting, held with `activeOperation` on the machine doing
-the acting, where the re-check happens. After the mutation it is history — the thing "applied exactly" is measured
-against — and its retrospective value is realized only alongside the observation that cites it. Where it is
-_durably_ recorded, and whether that write happens before the adapter runs or alongside the observation
-afterwards, is an open particular (§ Open items): the first buys a pre-mutation durability point at the cost of a
-shared publish on the critical path, the second keeps the ordering contract's single shared write but leaves a
-window in which an interrupted land has no shared record of what it intended.
+`LandingIntent` has two lives, and each is served where it happens. While it is live it is a reservation — the
+exact contract the command re-checks immediately before acting — held with `activeOperation` on the machine doing
+the acting, which is the only place the re-check occurs. It becomes history at the moment the mutation does, and
+it reaches the shared store then: **the observation embeds or content-addresses the intent it fulfilled**, so one
+append per landing carries both.
 
-1. **`LandingIntent` — exact pre-mutation contract.** A canonical immutable payload embedded or content-addressed
-   by `activeOperation` — not a second operation ledger — binds:
+Publishing the intent separately, before the adapter runs, was considered and rejected. It would put a second
+durable point on a merge's critical path; it would leave a permanent orphan intent for every aborted or
+interrupted land, since the store is append-only; and it would widen the exact window the intent exists to close,
+by inserting a shared write between the pre-landing head observation and the mutation that depends on it. What it
+would buy is evidence that the intent preceded the outcome — and nothing consumes that. The check the pairing
+actually performs is a correctness one, catching an operation that did something other than what it set out to do:
+a reported result wider than the requested prefix, a merge method other than the contracted one, a check that went
+red after assembly, a destination head that moved. Every one of those arises inside a single operation on a single
+machine, where a locally-held intent catches it identically. The stronger reading — that the pairing evidences
+_authorization_ — is not delivery's to make: human approval is the sole merge authority and is deliberately not
+turned into a delivery receipt, and this member's half of the proof rests on tree-exactness that Git verifies
+independently of any record.
+
+1. **`LandingIntent` — exact pre-mutation contract.** A canonical immutable payload, held while live by
+   `activeOperation` — not a second operation ledger — and carried into the shared store by the observation that
+   fulfils it. It binds:
     - repository, state id / revision, plan id / revision / digest, projection, operation id, and delivery-host
       adapter / capability;
     - exact destination ref plus its observed pre-landing head / tree;
@@ -852,12 +876,14 @@ window in which an interrupted land has no shared record of what it intended.
    capability, check, review, or contribution change invalidates the intent and refires the interlock. This composes
    with the existing exact-head integration boundary rather than creating a second authorization system.
 
-2. **`LandingObservation` — immutable post-mutation fact.** Reconciliation emits a canonical observation binding
-   the `landingIntentId`, host operation identity, exact before / after destination heads and trees, actual landing
-   mode / outcome, exact landed member ids / generations, contribution-manifest digest, and the check / review
-   evidence references used by the intent. The result must equal the intent's exact result or one enumerated
-   leading-subprefix result. An ambiguous, extra, reordered, or otherwise uncontracted mutation emits no successful
-   observation and leaves the operation blocked for remedy.
+2. **`LandingObservation` — immutable post-mutation fact, carrying the intent it fulfilled.** Reconciliation emits
+   a canonical observation binding the intent (embedded or content-addressed, so the pair is one shared append),
+   host operation identity, exact before / after destination heads and trees, actual landing mode / outcome, exact
+   landed member ids / generations, contribution-manifest digest, and the check / review evidence references the
+   intent used. The result must equal the intent's exact result or one enumerated leading-subprefix result. An
+   ambiguous, extra, reordered, or otherwise uncontracted mutation emits no successful observation and leaves the
+   operation blocked for remedy — so an interrupted land contributes nothing to the chain, and the reducer
+   re-derives position from host observations rather than from the interrupted operation's paperwork.
 
 3. **`DeliveryContributionChain` — terminal fact, one half of a co-owned proof, never merge authority.** Only the
    terminal reducer emits this immutable record, and it proves **this member's half only**: that the ordered
@@ -981,12 +1007,6 @@ member stands without it.
 - **The projection's landability column** — _needs-detail_. `mainlineLandability` is a plain enum, so the member
   table renders one value rather than a structure. Whether it earns a column at all under the integration-target
   projection, where the judgment is recorded but never consulted, is a rendering call.
-
-- **Where `LandingIntent` is durably written** — _needs-detail_. § Assurance settles that the intent is a live
-  reservation before the mutation and history after it, and that the other two assurance records are shared from
-  birth. What is open is whether the intent's shared write happens before the adapter runs or alongside the
-  observation that cites it — a durability point on the critical path versus a window where an interrupted land
-  has no shared record of its intent. Nothing else in the design turns on it, which is why it is a particular.
 
 One concern this member depends on but does not own is recorded outside it, so it is not re-derived here: the
 enumerable-element identifier family the design inventory consumes.

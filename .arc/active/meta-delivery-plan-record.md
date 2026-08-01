@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Draft settled to no open design questions; first adversarial pass folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Consolidation pass over this session's folds, then the second adversarial pass (`Heavy` cap is
-  two, one unspent), then re-read formalization readiness
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
