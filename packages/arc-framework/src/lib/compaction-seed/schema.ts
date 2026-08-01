@@ -110,6 +110,11 @@ export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
 /** Optional complete locus correlation hint retained by schema-v1 seeds. */
 export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
 
+/** Complete field set compared when auditing one locus-generation hint. */
+export const COMPACTION_SEED_LOCUS_HINT_FIELDS = Object.freeze(
+  Object.keys(CompactionSeedLocusHintSchema.shape) as (keyof CompactionSeedLocusHint)[],
+);
+
 /** Recorded reason a schema-v1 seed carries no locus hint. */
 export type CompactionSeedLocusAbsence = z.infer<typeof CompactionSeedLocusAbsenceSchema>;
 

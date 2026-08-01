@@ -12,10 +12,10 @@ import { z } from "zod";
 import type { ActiveSessionInitResult } from "../../commands/active/types.js";
 import type { Probe } from "../../commands/status/types.js";
 import {
+  COMPACTION_SEED_LOCUS_HINT_FIELDS,
   CompactionSeedLocusHintSchema,
   deriveCompactionSeedLocusHint,
   type CompactionSeed,
-  type CompactionSeedLocusHint,
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import {
@@ -363,7 +363,8 @@ function auditLocusHint(
     return { expected: null, actual, match: true };
   }
 
-  const mismatchedFields = locusHintFields().filter((field) => expected[field] !== actual[field]);
+  const mismatchedFields = COMPACTION_SEED_LOCUS_HINT_FIELDS
+    .filter((field) => expected[field] !== actual[field]);
   if (mismatchedFields.length > 0) {
     stopReasons.push({
       kind: "locus-hint-mismatch",
@@ -373,10 +374,6 @@ function auditLocusHint(
     return { expected, actual, match: false };
   }
   return { expected, actual, match: true };
-}
-
-function locusHintFields(): readonly (keyof CompactionSeedLocusHint)[] {
-  return ["sessionHomePath", "activeLocusPath", "recordId", "leaseId", "parentRecordId"];
 }
 
 function auditLocus(

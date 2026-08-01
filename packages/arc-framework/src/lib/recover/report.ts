@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js";
 import {
+  COMPACTION_SEED_LOCUS_HINT_FIELDS,
   COMPACTION_SEED_SCHEMA_VERSION,
   CompactionSeedLocusAbsenceSchema,
   CompactionSeedLocusHintSchema,
@@ -85,11 +86,7 @@ function sameLocusHint(
   right: z.infer<typeof CompactionSeedLocusHintSchema>,
 ): boolean {
   return left !== null
-    && left.sessionHomePath === right.sessionHomePath
-    && left.activeLocusPath === right.activeLocusPath
-    && left.recordId === right.recordId
-    && left.leaseId === right.leaseId
-    && left.parentRecordId === right.parentRecordId;
+    && COMPACTION_SEED_LOCUS_HINT_FIELDS.every((field) => left[field] === right[field]);
 }
 
 /** Recovery-audit report derived from its complete runtime authority. */
