@@ -1,8 +1,8 @@
 # Metadata: decompose-planning-lane
 
-| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
-| --------- | --------- | ------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/decompose-planning-lane` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/decompose-planning-lane` | `Heavy`   | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.1 — Cover the precondition and classifier matrices
-- **Next Task:** Task 6.1 — Complete verification (line ~248)
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Open the pull request
 
 - **PR URL:** [none]
 - **Completed:** [none]
