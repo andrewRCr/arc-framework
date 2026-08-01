@@ -15,7 +15,8 @@ export const LegacyErrandRecoveryCandidateSchema = z.strictObject({
 });
 
 export type LegacyErrandRecoveryCandidate = z.infer<typeof LegacyErrandRecoveryCandidateSchema>;
-type LegacyErrandRecordV2 = Extract<TransientIdentityRecord, { version: 2 }>;
+type LegacyErrandRecordV2 = Extract<TransientIdentityRecord, { version: 2 }>
+  & { returnBranch: string };
 
 /** Select one current-branch v2 identity whose return branch has one exact active meta. */
 export function selectLegacyErrandRecoveryCandidate(options: {

@@ -130,7 +130,7 @@ export function deriveCompactionSeedLocusHint(
   const current = probe.value.current;
   const matches = probe.value.roster.rows.filter((candidate) => candidate.recordId === current.activeRecordId);
   const row = matches.length === 1 ? matches[0] : undefined;
-  if (row?.checkoutPath === null || row?.checkoutPath === undefined
+  if (row === undefined || row.checkoutPath === null
     || row.lease === null || row.lease.state !== "live") return null;
   return {
     sessionHomePath: row.lease.sessionHomePath,

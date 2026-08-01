@@ -542,17 +542,17 @@ export async function runRecoverStatus(
   const deriveContext = fromThrowable(
     (input: {
       state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"];
-      identity: WorktreeIdentity;
+      worktreeIdentity: WorktreeIdentity;
     }) => deriveRecoveryLocusContext({
       state: input.state,
-      checkoutPath: checkoutPathForIdentity(input.state, input.identity),
+      checkoutPath: checkoutPathForIdentity(input.state, input.worktreeIdentity),
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
   let recoveryContext = locusState.andThen((state) => worktreeIdentitySlot.andThen(
-    (identityValue) => deriveContext({ state, identity: identityValue }),
+    (identityValue) => deriveContext({ state, worktreeIdentity: identityValue }),
   ));
   const legacyCheckoutSelection = locusState.isOk() && worktreeIdentitySlot.isOk()
     ? selectCheckoutWorkUnit(
