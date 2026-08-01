@@ -58,7 +58,7 @@ describe("classify-change.sh harness", () => {
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
 
-  it.each(["classify", "planning-lane", "tree-hash", "duplicate-push", "decide"])(
+  it.each(["classify", "tree-hash", "duplicate-push", "decide"])(
     "recognizes the %s subcommand (not a usage error)",
     async (command) => {
       const result = await runScript(CLASSIFY_SCRIPT, [command]);
@@ -97,48 +97,40 @@ describe("classify-change.sh planning-lane", () => {
     await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
   });
 
-  async function commitPath(repo: string, path: string, content: string): Promise<string> {
-    const full = join(repo, path);
-    await mkdir(dirname(full), { recursive: true });
-    await writeFile(full, content);
-    await execFileAsync("git", ["add", "--", path], { cwd: repo });
-    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", path], { cwd: repo });
-    return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+  async function fakeCli(exitCode: number, stdout: string, stderr = ""): Promise<string> {
+    const directory = await createTempRepo();
+    tempDirs.push(directory);
+    const path = join(directory, "planning-cli.mjs");
+    await writeFile(path, `process.stdout.write(${JSON.stringify(stdout)});\nprocess.stderr.write(${JSON.stringify(stderr)});\nprocess.exit(${exitCode});\n`);
+    return path;
   }
 
-  it("classifies exact refs in an explicit data repository", async () => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    await makeCommit(repo, "base");
-    const base = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
-    const head = await commitPath(repo, ".arc/active/spec-example.md", "spec\n");
+  it("routes exact refs and the data repository through the built canonical command", async () => {
+    const cli = await fakeCli(0, "planning\n");
+    const base = "a".repeat(40);
+    const head = "b".repeat(40);
 
     const result = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
-      env: { CLASSIFY_REPOSITORY_DIR: repo },
+      env: { ARC_PLANNING_CLI: cli, CLASSIFY_REPOSITORY_DIR: "/data/repository" },
     });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe("planning");
   });
 
-  it("fails exact-ref classification safely for unreadable or code changes", async () => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    await makeCommit(repo, "base");
-    const base = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
-    const head = await commitPath(repo, "packages/arc-framework/src/change.ts", "code\n");
-
-    const changed = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
-      env: { CLASSIFY_REPOSITORY_DIR: repo },
-    });
-    const unreadable = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, "missing"], {
-      env: { CLASSIFY_REPOSITORY_DIR: repo },
+  it("propagates a canonical refusal without printing a reviewed fallback", async () => {
+    const cli = await fakeCli(1, "", "receipt/path.json\n");
+    const result = await runScript(CLASSIFY_SCRIPT, [
+      "planning-lane",
+      "a".repeat(40),
+      "b".repeat(40),
+    ], {
+      env: { ARC_PLANNING_CLI: cli, CLASSIFY_REPOSITORY_DIR: "/data/repository" },
     });
 
-    expect(changed.exitCode).toBe(0);
-    expect(changed.stdout.trim()).toBe("reviewed");
-    expect(unreadable.exitCode).toBe(0);
-    expect(unreadable.stdout.trim()).toBe("reviewed");
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("receipt/path.json\n");
   });
 });
 

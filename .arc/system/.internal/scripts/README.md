@@ -14,6 +14,9 @@ scripts.
 
 ## Validation Scripts
 
+- **`confirm-live-change-pair.sh`** — Refuse clearance publication unless a pull request's live head and its
+  base branch's current tip still equal the classified pair.
+
 - **`validate-config.sh`** — Validate `arc-config.yml` settings. Checks enum values for all keys,
   cross-field dependencies (e.g., `custom` format requires a pattern), and unknown key detection
   (typo protection). Called by `verify-integrity.sh` and usable standalone.

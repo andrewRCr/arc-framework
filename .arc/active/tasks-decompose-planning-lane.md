@@ -103,52 +103,41 @@ pointer does not track the branch, so comparing it against itself always agrees.
 _Note:_ every edit in this phase that touches a framework-classified host-policy asset carries the package-source
 and parity obligation stated in Phase 4.2; it is not deferred to that phase.
 
-### `[ ]` **3.1 Consume the existing bound recheck**
+### `[x]` **3.1 Consume the existing bound recheck**
 
 - _Goal:_ One refusal vocabulary covers the pair-resolution race.
 
-    - `[ ]` **3.1.a Call the bound entry point**
-        - Use the descendant-landing validator's bound form, which resolves both refs, validates, and re-resolves;
-          do not nest a second recheck around it.
+    - `[x]` **3.1.a Call the bound entry point**
+        - Routed the exact-ref lane through `validateBoundDescendantBaseLanding`, retaining its resolve, validate,
+          and re-resolve contract without adding a second binding race vocabulary.
 
-### `[ ]` **3.2 Confirm liveness in the host**
+### `[x]` **3.2 Confirm liveness in the host**
 
 - _Goal:_ A pair that moved between classification and publication publishes nothing.
 
-    - `[ ]` **3.2.a Extract the comparison into an invokable script**
-        - Read the live change head and the base branch's current tip, compare both against the classified pair,
-          and exit nonzero on disagreement; the publishing job invokes it and publishes only on success.
-        - Follow the shape of the project's existing classification script so the behavior is directly testable
-          rather than asserted against workflow text.
-        - _Note:_ a base advance does not re-trigger the change's checks, so without the branch-tip comparison a
-          stale clearance would persist unchallenged.
+    - `[x]` **3.2.a Extract the comparison into an invokable script**
+        - Shipped `confirm-live-change-pair.sh` to re-read the open change head and live base-branch tip, refuse
+          either race, and preserve the in-repository/open-change checks before either writer posts success.
 
-    - `[ ]` **3.2.b Enumerate each publishing job's permissions**
-        - State the full permission set per job rather than adding one: change-read for the live change object and
-          contents-read for the branch tip, alongside the status-write each already needs.
-        - _Note:_ a job-level permission block replaces the workflow default rather than adding to it, so a job
-          declaring only status-write holds no read access at all, and the two publishing jobs do not declare the
-          same set today.
+    - `[x]` **3.2.b Enumerate each publishing job's permissions**
+        - Enumerated contents-read, pull-request-read, and status-write on both publishing jobs, with trusted
+          workflow-SHA checkouts supplying the installed comparator.
 
-### `[ ]` **3.3 Route every caller through the one command**
+### `[x]` **3.3 Route every caller through the one command**
 
 - _Goal:_ The lane resolves identically wherever it is asked, and no caller downgrades a refusal.
 
-    - `[ ]` **3.3.a Replace the parallel reducer call**
-        - Point the project's own classification script at the canonical command, propagate the exit code, and
-          stop discarding the locus stream.
+    - `[x]` **3.3.a Replace the parallel reducer call**
+        - Routed `classify-change.sh planning-lane` through the built `arc review planning-lane` command and
+          preserved its stdout, stderr locus, and exit status without a reviewed fallback.
 
-    - `[ ]` **3.3.b Build the command from the trusted checkout**
-        - Have the classification job build from its trusted-state checkout rather than adding a published-version
-          dependency, keeping the classifier separate from the change under review.
-        - _Note:_ the job's trusted checkout and its data checkout are distinct, so building in that job builds
-          trusted sources rather than the proposed change.
+    - `[x]` **3.3.b Build the command from the trusted checkout**
+        - Installed and built the classifier in the trusted checkout before fetching the proposed head into the
+          separate `_arc_change_data` repository.
 
-    - `[ ]` **3.3.c Update the assertions this phase invalidates**
-        - Replace the pinned expectations covering the removed capability probe, the removed reducer invocation,
-          the single-arm publication contract, and each publishing job's pinned permission set.
-        - Update the classification script's own unit tests, which pin a zero exit and the reviewed outcome for an
-          unresolvable operand — behavior this phase deliberately changes.
+    - `[x]` **3.3.c Update the assertions this phase invalidates**
+        - Replaced capability-probe, reducer, permissive-fallback, writer-permission, and one-sided liveness
+          expectations with command propagation and executable two-sided host comparison coverage.
 
 ## **Phase 4:** Opt-in host security coupling
 

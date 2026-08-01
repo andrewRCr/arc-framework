@@ -486,6 +486,11 @@
       "layer": "core",
       "pristine_hash": "cf8902e49b89da3aa5405e610b48155d7d5b342d3c8ac1bad5cd98128c848a68"
     },
+    "system/.internal/scripts/confirm-live-change-pair.sh": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "2d326f4010037bc7f39534d1fbc102d824f485c63710cf3c7268c1e2aef56dca"
+    },
     "system/.internal/scripts/validate-config.sh": {
       "classification": "Framework",
       "layer": "core",

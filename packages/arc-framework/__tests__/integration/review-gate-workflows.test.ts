@@ -673,6 +673,7 @@ describe("trusted review-gate workflows", () => {
     expect(writer.if).toBe("${{ needs.validate.result == 'success' }}");
     expect(writer.environment).toBe("arc-clearance");
     expect(writer.permissions).toEqual({
+      contents: "read",
       "pull-requests": "read",
       statuses: "write",
     });
@@ -680,20 +681,27 @@ describe("trusted review-gate workflows", () => {
 
     const steps = writer.steps;
     expect(Array.isArray(steps)).toBe(true);
-    expect(steps).toHaveLength(1);
-    const publish = (steps as Array<Record<string, unknown>>)[0] ?? {};
+    expect(steps).toHaveLength(2);
+    const trustedCheckout = stepValue(clearance, "write-status", "live-pair-checkout");
+    expect(trustedCheckout.with).toMatchObject({
+      ref: "${{ github.workflow_sha }}",
+      "persist-credentials": false,
+    });
+    const publish = (steps as Array<Record<string, unknown>>)[1] ?? {};
     expect(publish).not.toHaveProperty("uses");
     expect(publish.env).toMatchObject({
       PR_NUMBER: "${{ github.event.client_payload.pull_request }}",
       STATUS_CONTEXT: "arc-cleared",
+      VALIDATED_BASE: "${{ needs.validate.outputs.base_sha }}",
+      VALIDATED_BASE_REF: "${{ needs.validate.outputs.base_ref }}",
       VALIDATED_HEAD: "${{ needs.validate.outputs.head_sha }}",
       READINESS_JSON: "${{ needs.validate.outputs.readiness_json }}",
     });
     expect(publish.run).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
     expect(publish.run).toContain('test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"');
-    expect(publish.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
-    expect(publish.run).toContain('live_head="$(jq -r .head.sha <<<"$pull_request")"');
-    expect(publish.run).toContain('test "$live_head" = "$VALIDATED_HEAD"');
+    expect(publish.run).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
     expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
     expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
@@ -725,7 +733,11 @@ describe("trusted review-gate workflows", () => {
     expect(classifier.permissions).toEqual({ contents: "read" });
     expect(stamp.if).toBe("${{ needs.planning-classify.outputs.lane == 'planning' }}");
     expect(stamp.needs).toBe("planning-classify");
-    expect(stamp.permissions).toEqual({ statuses: "write" });
+    expect(stamp.permissions).toEqual({
+      contents: "read",
+      "pull-requests": "read",
+      statuses: "write",
+    });
     expect(classifier["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
     expect(stamp["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
 
@@ -745,8 +757,12 @@ describe("trusted review-gate workflows", () => {
     });
 
     const classify = stepValue(workflow, "planning-classify", "planning-lane");
-    expect(classify.run).toContain("classifier_usage=");
-    expect(classify.run).toContain("trusted base predates planning-lane; defaulting to reviewed");
+    expect(stepValue(workflow, "planning-classify", "planning-install").run)
+      .toBe("npm ci --ignore-scripts");
+    expect(stepValue(workflow, "planning-classify", "planning-build").run)
+      .toBe("npm run build");
+    expect(classify.run).not.toContain("classifier_usage=");
+    expect(classify.run).not.toContain("defaulting to reviewed");
     expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
     expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
@@ -755,8 +771,11 @@ describe("trusted review-gate workflows", () => {
     expect(publish.run).toContain('if [ "$LANE" = planning ]; then');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
     expect(publish.run).toContain("-f context=arc-cleared");
+    expect(publish.run).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
     expect(JSON.stringify(stamp)).not.toContain("needs.classify.outputs.lane");
-    expect(JSON.stringify(stamp)).not.toMatch(/actions\/checkout|_arc_change_data/u);
+    expect(JSON.stringify(stamp)).not.toContain("_arc_change_data");
 
     expect(jobValue(workflow, "ci_ok").needs).not.toContain("planning-clearance");
     expect(jobValue(workflow, "merge-ok").needs).toBe("ci_ok");
@@ -809,6 +828,12 @@ describe("trusted review-gate workflows", () => {
     expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
     expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
     expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(template).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
+    expect(inventory.include_files).toContain(
+      "system/.internal/scripts/confirm-live-change-pair.sh",
+    );
     expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
     expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
     expect(template).toContain("path: _arc_pr_data");
