@@ -2007,6 +2007,7 @@ export async function handleTeardown(
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   const readLocusOccupancy = createNodeTeardownOccupancyReader({ exec, identity: base.identity });
   const teardownLocus = createNodeTeardownLocusDriver({ exec, identity: base.identity });
+  const workUnitLocus = createNodeWorkUnitLocusDriver({ exec, identity: base.identity });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
@@ -2053,6 +2054,10 @@ export async function handleTeardown(
           await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: origin });
         },
         chdir: (dir) => { process.chdir(dir); locus = dir; },
+        readCurrentLocus: () => locus,
+        workUnitLocus,
+        readLocusOccupancy,
+        teardownLocus,
       },
     );
     if (decomposition.status === "refused") {
@@ -2095,7 +2100,7 @@ export async function handleTeardown(
       chdir: (dir) => { process.chdir(dir); locus = dir; },
       readCurrentLocus: () => locus,
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-      workUnitLocus: createNodeWorkUnitLocusDriver({ exec, identity: base.identity }),
+      workUnitLocus,
       readLocusOccupancy,
       teardownLocus,
     },

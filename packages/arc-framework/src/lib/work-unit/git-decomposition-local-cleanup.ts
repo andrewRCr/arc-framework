@@ -36,6 +36,12 @@ import {
   type DecomposeTransientClaimStore,
 } from "./decompose-transient-claim-store.js";
 import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
+import type { WorkUnitLocusDriver } from "./work-unit-locus.js";
+import type { TeardownLocusDriver } from "./teardown-locus.js";
+import type {
+  TeardownOccupancyDecision,
+  TeardownOccupancyReader,
+} from "./teardown-occupancy.js";
 
 /** Mutable boundaries used by the landed decomposition cleanup driver. */
 export interface GitDecompositionLocalCleanupDependencies {
@@ -47,6 +53,10 @@ export interface GitDecompositionLocalCleanupDependencies {
   scanWorktrees?: () => Promise<RegisteredWorktreeScanResult>;
   readMarker?: (path: string) => Promise<WorktreeMarkerReadResult>;
   removeWorktree?: (path: string) => Promise<void>;
+  workUnitLocus?: WorkUnitLocusDriver;
+  readLocusOccupancy?: TeardownOccupancyReader;
+  teardownLocus?: TeardownLocusDriver;
+  readCurrentLocus?: () => string;
   claims?: DecomposeTransientClaimStore;
 }
 
@@ -262,11 +272,25 @@ async function deleteExactLocalBranch(
 async function removeProjectionWorktree(
   deps: GitDecompositionLocalCleanupDependencies,
   worktree: RegisteredWorktree | null,
+  retirement?: {
+    wuName: string;
+    expectedHead: string;
+    revalidateMarker(): Promise<void>;
+  },
 ): Promise<"removed" | "already-absent"> {
   if (worktree === null) return "already-absent";
   if (deps.removeWorktree !== undefined) {
     await deps.removeWorktree(worktree.path);
   } else {
+    let expectedOccupancy: Extract<TeardownOccupancyDecision, { kind: "clear" }> | undefined;
+    if (retirement !== undefined && deps.readLocusOccupancy !== undefined) {
+      const decision = await deps.readLocusOccupancy({
+        checkoutPath: worktree.path,
+        subject: { kind: "work-unit", name: retirement.wuName },
+      });
+      if (decision.kind !== "clear") throw new Error(decision.message);
+      expectedOccupancy = decision;
+    }
     await reconcileWorkUnitWorktree(
       {
         exec: deps.exec,
@@ -275,11 +299,25 @@ async function removeProjectionWorktree(
           else deps.chdir(path);
         },
         fs: nodeReconcileWorkUnitWorktreeFs,
+        ...(deps.workUnitLocus === undefined ? {} : { locus: deps.workUnitLocus }),
+        ...(deps.teardownLocus === undefined ? {} : { teardownLocus: deps.teardownLocus }),
+        ...(deps.readCurrentLocus === undefined ? {} : { readCurrentLocus: deps.readCurrentLocus }),
       },
       {
         mutation: "teardown",
         worktreePath: worktree.path,
         currentLocus: deps.cwd,
+        ...(retirement === undefined ? {} : { wuName: retirement.wuName }),
+        ...(retirement === undefined || expectedOccupancy === undefined
+          ? {}
+          : {
+              authorization: {
+                subject: { kind: "work-unit" as const, name: retirement.wuName },
+                expectedHead: retirement.expectedHead,
+                expectedOccupancy,
+                revalidateLocal: () => retirement.revalidateMarker(),
+              },
+            }),
       },
     );
   }
@@ -481,7 +519,17 @@ export async function cleanupGitLandedDecompositionLocally(
       selection.anchor.candidateCommitHead,
     );
     progress.candidate.branchOutcome = candidateBranchOutcome;
-    const sourceWorktreeOutcome = await removeProjectionWorktree(deps, source.worktree);
+    const sourceWorktreeOutcome = await removeProjectionWorktree(deps, source.worktree, {
+      wuName: origin,
+      expectedHead: selection.anchor.sourceHead,
+      revalidateMarker: async () => {
+        if (source.worktree === null) return;
+        const marker = await readCleanupMarker(deps, source.worktree.path);
+        if (!sourceMarkerMatches(marker, origin)) {
+          throw new Error(`the registered worktree for \`${sourceBranch}\` changed ownership during cleanup`);
+        }
+      },
+    });
     progress.source.worktreeOutcome = sourceWorktreeOutcome;
     const sourceBranchOutcome = await deleteExactLocalBranch(
       deps,
