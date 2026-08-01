@@ -36,8 +36,11 @@ and three boundaries this member consumes rather than owns.
   that point in the series. The landed prefix is immutable rather than merely un-amendable — § Plan revisions,
   binding, and amendment.
 
-**Next.** Close the authoring command's remaining surface, then the storage locus — now the largest open item.
-Remaining gaps and their kinds are recorded in § Open items.
+- **Storage is stated as requirements plus a replaceable v1 materialization**, each store a port with one adapter,
+  and `repositoryId` must be shared across clones — § Storage.
+
+**Next.** Close the authoring command's remaining surface and the terminal-proof authority boundary — the two
+largest remaining open items. Remaining gaps and their kinds are recorded in § Open items.
 
 ---
 
@@ -288,6 +291,51 @@ materialized session without becoming a WU or acquiring a meta file.
 
 ---
 
+## Storage
+
+Both records are storage-agnostic by contract. What follows separates the **requirements** — which must hold at
+any tier — from the **v1 materialization**, which is expected to be replaced when the storage direction lands and
+is deliberately shaped so that replacing it costs one adapter apiece.
+
+**Requirements.**
+
+- Neither record may live in any work unit's change set. The lifecycle-artifact exclusion is the immediate reason,
+  but the deeper one is that a member checkout carrying none of the work unit's artifacts must still resolve both.
+- Both must be reachable from any checkout of the repository, including a linked worktree that holds a member ref
+  and nothing else.
+- The plan must survive a clone and reach a second machine. It is authored intent: no observation of Git or the
+  host reproduces which boundaries a human chose, so losing it loses something unrecoverable.
+- The state need only be locally durable. Its bindings and observations are freshness-bound inputs that every
+  control-bearing verdict re-observes anyway, so a lost state rebuilds by re-observation; what genuinely needs to
+  survive a crash is the `activeOperation` reservation.
+- The plan store publishes append-only by expected predecessor digest; the state store publishes by expected
+  revision under a state-scoped mutation lease.
+
+**v1 materialization.** The plan lives in a pushable ref namespace under the repository's existing `refs/arc/**`
+tenancy, which is shared, absent from every tree, and reachable from any checkout. The state lives under the Git
+common directory alongside the review subsystem's own operation state, which every linked worktree resolves
+identically and which checkout-path relocation cannot move, with advisory locking and atomic replacement supplying
+the lease and the version-checked write.
+
+**Keeping the replacement cheap.** Each store is declared as a port and implemented as one adapter, composing the
+arrangement the review subsystem already uses rather than inventing a storage layer. The port is the contract and
+survives a tier change untouched; the adapter is the tier-specific part and is expected to be discarded rather
+than migrated. Nothing here should acquire a migration reader or a compatibility alias: the pre-release posture
+regenerates development state instead, and for delivery state regeneration is nearly free because re-observation
+already reconstructs it. The plan is the only record whose replacement needs a genuine carry-over, and it is one
+small canonical record per work unit.
+
+**Repository identity.** `repositoryId` must be **shared across clones**, not a repository-local value. It does
+two jobs that both break otherwise: it enters the `planId` preimage, so a per-clone value would give one plan a
+different identity on every machine and a pushed plan would fail validation where it was fetched; and the
+transition reducer proves the expected repository before admitting a transition, which a per-clone value cannot
+answer for a plan authored elsewhere. This is consistent with the record's existing refusal to derive identity
+from a branch, a slug-shaped ref, or a provider handle — a per-clone identity fails that posture for the same
+reason, less obviously. Note that a repository-local identity already exists for other purposes; delivery must not
+reuse it, and the two scopes should be named distinctly enough that no caller wires the wrong one.
+
+---
+
 ## Plan revisions, binding, and amendment
 
 **Plan-revision reconcile.** Before any external binding, state rebinds to a new plan revision freely. Afterwards
@@ -461,11 +509,11 @@ queries, but it cannot authorize a merge retroactively or stand in for a require
   amendment, and both entries' machine contracts are settled in § Authoring. What is not: the command surface
   itself, where task generation fires the pre-implementation entry, and how the phase-to-member alignment default
   is expressed as a fillable slot rather than a post-hoc check.
-- **Plan and state storage locus** — _needs-design_, partly consumed rather than owned. Both stores are specified
-  as contracts with no home. The binding constraint is that state must be reachable from a member checkout that
-  deliberately carries none of the work unit's artifacts, which rules out the delivery's own change set. The
-  review subsystem's existing local operation-state store is the pattern this composes and the first thing to read
-  the decision against.
+- **Where the shared repository identity comes from** — _needs-detail_. § Storage settles that it must be shared
+  across clones and must not reuse the existing repository-local one; its provenance is open. Minting it into the
+  plan's own ref namespace on first publication keeps delivery self-contained and adds no configuration surface,
+  while a project-configuration field is more discoverable and is where a reader would look first. Deriving it
+  from a remote URL is the one option to avoid — forks, mirrors, and moved remotes all break it.
 - **Terminal-proof authority boundary** — _needs-design_. The terminal proof, the landing intent's assurance
   clause, and the completion record each specify review-owned qualification and coverage, which is the co-owner's
   half of the named seam. A consume-versus-author pass should leave this member stating what delivery asks for
