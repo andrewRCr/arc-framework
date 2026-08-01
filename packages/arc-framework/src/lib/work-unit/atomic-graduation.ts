@@ -446,7 +446,10 @@ export async function atomicGraduate(
     const reason = errorMessage(error);
     if (!occupationAttempted) return { status: "rejected", reason };
     const failures: GraduationRollbackFailure[] = [];
+    let rollbackAttempted = false;
     const rollback = async (): Promise<void> => {
+      if (rollbackAttempted) return;
+      rollbackAttempted = true;
       if (index !== null && !indexInstalled) {
         try {
           await index.rollback();
@@ -490,9 +493,8 @@ export async function atomicGraduate(
           failures.push({ stage: "locus", locus: occupiedCwd, detail: errorMessage(rollbackError) });
         }
       }
-    } else {
-      await rollback();
     }
+    await rollback();
     if (failures.length === 0) return { status: "rejected", reason };
     return {
       status: "graduation-recovery-required",

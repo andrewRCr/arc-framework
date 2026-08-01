@@ -135,7 +135,10 @@ export async function handleWuReconcile(
   }
   if (input.attachSession === true) {
     const identity = await resolveIdentityWithPrompt(false);
-    if (identity === null) return;
+    if (identity === null) {
+      emitConflict(input, target.slug, "cannot attach the work-unit session: identity resolution failed");
+      return;
+    }
     try {
       await attachCurrentWuSession(
         createNodeWorkUnitLocusDriver({ exec, identity }),

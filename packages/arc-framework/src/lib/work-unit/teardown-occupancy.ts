@@ -13,8 +13,12 @@ import {
   type LocusEvidenceResult,
 } from "../locus/evidence.js";
 import { deriveLocusRecordId, type PathFlavor } from "../locus/path-identity.js";
-import { createPlatformProcessInspector } from "../locus/platform-inspectors.js";
-import type { LocusRole } from "../locus/schema/index.js";
+import {
+  createPlatformProcessAncestryInspector,
+  createPlatformProcessInspector,
+} from "../locus/platform-inspectors.js";
+import { acquireSessionAnchor, sameProcessAnchor } from "../locus/process-inspector.js";
+import type { LocusProcessAnchor, LocusRole } from "../locus/schema/index.js";
 
 export type TeardownOccupancyManualReason =
   | "state-unavailable"
@@ -32,7 +36,7 @@ export type TeardownOccupancyDecision =
       readonly kind: "clear";
       readonly recordId: string | null;
       readonly leaseId: string | null;
-      readonly leaseState: "absent" | "dead";
+      readonly leaseState: "absent" | "dead" | "self";
       readonly recordGeneration: string | null;
       readonly lockGeneration: string | null;
       readonly markerGeneration: string | null;
@@ -43,6 +47,10 @@ export type TeardownOccupancyDecision =
 export interface TeardownOccupancyRequest {
   readonly checkoutPath: string;
   readonly subject: WorktreeSubject;
+  /** Permit only the invoking session's exact lease to authorize its own terminal transition. */
+  readonly allowOwnLease?: boolean;
+  /** Permit an externally managed checkout only when no durable locus record exists. */
+  readonly allowRecordlessMarkerless?: boolean;
 }
 
 export type TeardownOccupancyReader = (
@@ -63,6 +71,9 @@ export function createNodeTeardownOccupancyReader(options: {
       return manual("state-unavailable", `Cannot resolve teardown occupancy path: ${message(error)}.`);
     }
     const inspector = createPlatformProcessInspector();
+    const selected = request.allowOwnLease === true
+      ? await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector())
+      : null;
     const evidence = await acquireLocusEvidence({
       identity: options.identity,
       pathFlavor,
@@ -74,6 +85,8 @@ export function createNodeTeardownOccupancyReader(options: {
       pathFlavor,
       canonicalPath,
       subject: request.subject,
+      ...(selected?.kind === "process" ? { ownAnchor: selected } : {}),
+      ...(request.allowRecordlessMarkerless === true ? { allowRecordlessMarkerless: true } : {}),
     });
   };
 }
@@ -85,6 +98,8 @@ export function classifyTeardownOccupancy(options: {
   readonly pathFlavor: PathFlavor;
   readonly canonicalPath: string;
   readonly subject: WorktreeSubject;
+  readonly ownAnchor?: LocusProcessAnchor;
+  readonly allowRecordlessMarkerless?: boolean;
 }): TeardownOccupancyDecision {
   if (options.evidence.kind === "error") {
     return manual("state-unavailable", `Session locus occupancy is unavailable: ${options.evidence.message}.`);
@@ -120,10 +135,13 @@ export function classifyTeardownOccupancy(options: {
   }
 
   const direct = directRecords[0];
-  const lockGeneration = lock?.result.kind === "valid" ? digestBytes(lock.result.bytes) : null;
+  const lockGeneration = lock?.result.kind === "valid" ? teardownLocusRecordGeneration(lock.result.bytes) : null;
   if (direct === undefined) {
     const markerDecision = validateMarker(checkout.marker, checkout.worktree.primary, options.identity, options.subject);
-    if (markerDecision !== null) return markerDecision;
+    if (
+      markerDecision !== null
+      && !(options.allowRecordlessMarkerless === true && markerDecision.reason === "markerless")
+    ) return markerDecision;
     return {
       kind: "clear",
       recordId: null,
@@ -143,7 +161,7 @@ export function classifyTeardownOccupancy(options: {
   if (direct.canonical?.kind !== "resolved" || direct.canonical.path !== options.canonicalPath) {
     return manual("record-malformed", "The teardown target session locus record path cannot be verified.");
   }
-  if (!recordMatchesSubject(direct.result.record.role, options.subject)) {
+  if (!teardownLocusRoleMatchesSubject(direct.result.record.role, options.subject)) {
     return manual("subject-mismatch", "The teardown target session locus role belongs to a different subject.");
   }
   const markerDecision = validateMarker(checkout.marker, checkout.worktree.primary, options.identity, options.subject);
@@ -156,12 +174,23 @@ export function classifyTeardownOccupancy(options: {
       recordId: direct.result.record.recordId,
       leaseId: null,
       leaseState: "absent",
-      recordGeneration: digestBytes(direct.result.bytes),
+      recordGeneration: teardownLocusRecordGeneration(direct.result.bytes),
       lockGeneration,
       markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
     };
   }
   if (direct.liveness === "live") {
+    if (sameProcessAnchor(lease.anchor, options.ownAnchor)) {
+      return {
+        kind: "clear",
+        recordId: direct.result.record.recordId,
+        leaseId: lease.leaseId,
+        leaseState: "self",
+        recordGeneration: teardownLocusRecordGeneration(direct.result.bytes),
+        lockGeneration,
+        markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
+      };
+    }
     return { kind: "suppress", reason: "lease-live", message: "The teardown target has a live session lease." };
   }
   if (direct.liveness !== "dead") {
@@ -172,7 +201,7 @@ export function classifyTeardownOccupancy(options: {
     recordId: direct.result.record.recordId,
     leaseId: lease.leaseId,
     leaseState: "dead",
-    recordGeneration: digestBytes(direct.result.bytes),
+    recordGeneration: teardownLocusRecordGeneration(direct.result.bytes),
     lockGeneration,
     markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
   };
@@ -183,7 +212,7 @@ function validateMarker(
   primary: boolean,
   identity: string,
   subject: WorktreeSubject,
-): TeardownOccupancyDecision | null {
+): Extract<TeardownOccupancyDecision, { kind: "manual" }> | null {
   if (primary) return null;
   if (marker.kind === "error" || marker.kind === "malformed") {
     return manual("record-malformed", "The teardown target ownership marker is unreadable or malformed.");
@@ -216,7 +245,8 @@ function markerMatchesSubject(marker: WorktreeMarker, subject: WorktreeSubject):
     && createdFor.claimId === subject.claimId;
 }
 
-function recordMatchesSubject(
+/** Whether one durable locus role belongs to the exact work-unit teardown subject. */
+export function teardownLocusRoleMatchesSubject(
   role: LocusRole,
   subject: WorktreeSubject,
 ): boolean {
@@ -227,7 +257,10 @@ function recordMatchesSubject(
     && role.subject.claimId === null;
 }
 
-function manual(reason: TeardownOccupancyManualReason, messageText: string): TeardownOccupancyDecision {
+function manual(
+  reason: TeardownOccupancyManualReason,
+  messageText: string,
+): Extract<TeardownOccupancyDecision, { kind: "manual" }> {
   return { kind: "manual", reason, message: messageText };
 }
 
@@ -235,7 +268,8 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function digestBytes(bytes: Uint8Array): string {
+/** Derive the semantic generation used by occupancy selection and locked retirement. */
+export function teardownLocusRecordGeneration(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 

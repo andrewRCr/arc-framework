@@ -132,8 +132,8 @@ export function buildExecutorContext(
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
   let resolvedWorkUnitLocus = deps.workUnitLocus;
-  const requireWorkUnitLocus = (): WorkUnitLocusDriver => {
-    if (identity === null) throw new Error("work-unit session locus composition requires a resolved identity");
+  const resolveWorkUnitLocus = (): WorkUnitLocusDriver | undefined => {
+    if (identity === null) return undefined;
     resolvedWorkUnitLocus ??= createNodeWorkUnitLocusDriver({ exec, identity });
     return resolvedWorkUnitLocus;
   };
@@ -220,23 +220,28 @@ export function buildExecutorContext(
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorkUnitWorktree: (op) =>
-      reconcileWorkUnitWorktree({
+    reconcileWorkUnitWorktree: (op) => {
+      const locus = resolveWorkUnitLocus();
+      return reconcileWorkUnitWorktree({
         exec,
         chdir: (dir) => { process.chdir(at(dir)); },
         fs: nodeReconcileWorkUnitWorktreeFs,
-        locus: requireWorkUnitLocus(),
-      }, op),
-    atomicGraduate: (transaction) => atomicGraduate(transaction, {
-      cwd,
-      exec,
-      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
-      provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
-        { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
-        op,
-      ),
-      workUnitLocus: requireWorkUnitLocus(),
-    }),
+        ...(locus === undefined ? {} : { locus }),
+      }, op);
+    },
+    atomicGraduate: (transaction) => {
+      const workUnitLocus = resolveWorkUnitLocus();
+      return atomicGraduate(transaction, {
+        cwd,
+        exec,
+        fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+          { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
+          op,
+        ),
+        ...(workUnitLocus === undefined ? {} : { workUnitLocus }),
+      });
+    },
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

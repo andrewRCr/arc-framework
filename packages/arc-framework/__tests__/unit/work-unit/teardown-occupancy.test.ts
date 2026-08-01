@@ -5,7 +5,7 @@ import {
   type LocusEvidenceIO,
 } from "../../../src/lib/locus/evidence.js";
 import { deriveLocusRecordId } from "../../../src/lib/locus/path-identity.js";
-import type { LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
+import type { LocusProcessAnchor, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 import { classifyTeardownOccupancy } from "../../../src/lib/work-unit/teardown-occupancy.js";
 
 const TARGET = "/repo-wt";
@@ -17,13 +17,14 @@ const ANCHOR = {
   inspector: "test",
   selector: "vitest",
 } as const;
+const LOCK_ANCHOR = { ...ANCHOR, pid: 456, startToken: "lock-start", selector: "lock" } as const;
 
 function record(options: { path?: string; lease?: boolean; subject?: string } = {}): LocusRecordV1 {
   const checkoutPath = options.path ?? TARGET;
-  const digest = deriveLocusRecordId(checkoutPath, "posix").digest;
+  const identity = deriveLocusRecordId(checkoutPath, "posix");
   return {
     schemaVersion: 1,
-    recordId: `sha256:${digest}`,
+    recordId: identity.recordId,
     checkoutPath,
     role: {
       kind: "work-unit",
@@ -49,18 +50,22 @@ function io(options: {
   lock?: "absent" | "live" | "dead" | "unknown";
   duplicate?: boolean;
   subject?: string;
+  markerSubject?: string;
+  evidenceError?: boolean;
 } = {}): LocusEvidenceIO {
   const recordKind = options.recordKind ?? "valid";
   const marker = options.marker ?? "current";
   const aliasDigest = deriveLocusRecordId("/alias", "posix").digest;
   return {
-    scanWorktrees: async () => ({
-      ok: true,
-      worktrees: [
-        { path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
-        { path: TARGET, head: "b".repeat(40), branch: "feat/demo", detached: false, primary: false },
-      ],
-    }),
+    scanWorktrees: async () => options.evidenceError === true
+      ? { ok: false, message: "roster unavailable" }
+      : {
+          ok: true,
+          worktrees: [
+            { path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
+            { path: TARGET, head: "b".repeat(40), branch: "feat/demo", detached: false, primary: false },
+          ],
+        },
     listDirectory: async (path) => {
       if (path.endsWith("/.locks")) {
         return options.lock === undefined || options.lock === "absent" ? [] : [`locus-${DIGEST}.lock`];
@@ -88,7 +93,7 @@ function io(options: {
           spawnedByArc: true,
           spawningIdentity: marker === "cross-identity" ? "someone-else" : "andrew",
           createdAt: "2026-07-21T00:00:00.000Z",
-          wuName: "demo",
+          wuName: options.markerSubject ?? "demo",
         },
       };
     },
@@ -96,18 +101,22 @@ function io(options: {
       ? { kind: "unknown" }
       : {
           kind: "valid",
-          holder: { token: "b".repeat(32), anchor: ANCHOR, createdAt: "2026-07-21T00:00:00.000Z" },
+          holder: { token: "b".repeat(32), anchor: LOCK_ANCHOR, createdAt: "2026-07-21T00:00:00.000Z" },
           bytes: Buffer.from("lock"),
         },
     readIdentities: async () => ({ kind: "absent" }),
     canonicalPath: async (path) => path === "/alias" ? TARGET : path,
-    inspectAnchor: async () => options.lock !== undefined && options.lock !== "absent"
-      ? options.lock === "unknown" ? "unknown" : options.lock
+    inspectAnchor: async (anchor) => anchor.startToken === LOCK_ANCHOR.startToken
+      ? options.lock === "unknown" ? "unknown" : options.lock === "live" ? "live" : "dead"
       : options.liveness ?? "dead",
   };
 }
 
-async function decide(options: Parameters<typeof io>[0] = {}) {
+async function decide(
+  options: Parameters<typeof io>[0] = {},
+  ownAnchor?: LocusProcessAnchor,
+  allowRecordlessMarkerless = false,
+) {
   const evidence = await acquireLocusEvidence({ identity: "andrew", pathFlavor: "posix", io: io(options) });
   return classifyTeardownOccupancy({
     evidence,
@@ -115,6 +124,8 @@ async function decide(options: Parameters<typeof io>[0] = {}) {
     pathFlavor: "posix",
     canonicalPath: TARGET,
     subject: { kind: "work-unit", name: "demo" },
+    ...(ownAnchor === undefined ? {} : { ownAnchor }),
+    ...(allowRecordlessMarkerless ? { allowRecordlessMarkerless: true } : {}),
   });
 }
 
@@ -134,6 +145,24 @@ describe("teardown locus occupancy", () => {
     });
   });
 
+  it("permits only the exact invoking session's live lease", async () => {
+    await expect(decide({ liveness: "live" }, ANCHOR)).resolves.toMatchObject({
+      kind: "clear",
+      leaseState: "self",
+    });
+    await expect(decide({ liveness: "live" }, { ...ANCHOR, selector: "other" })).resolves.toMatchObject({
+      kind: "suppress",
+      reason: "lease-live",
+    });
+  });
+
+  it("checks a live lease after clearing a dead lock", async () => {
+    await expect(decide({ lock: "dead", liveness: "live" })).resolves.toMatchObject({
+      kind: "suppress",
+      reason: "lease-live",
+    });
+  });
+
   it.each([
     ["unknown lease", { liveness: "unknown" }, "state-unavailable"],
     ["malformed record", { recordKind: "malformed" }, "record-malformed"],
@@ -144,7 +173,27 @@ describe("teardown locus occupancy", () => {
     ["unknown lock", { lock: "unknown" }, "lock-unknown"],
     ["live lock", { lock: "live" }, "lock-live"],
     ["wrong subject", { subject: "other" }, "subject-mismatch"],
+    ["evidence error", { evidenceError: true }, "state-unavailable"],
+    ["wrong marker subject", { markerSubject: "other" }, "subject-mismatch"],
   ] as const)("requires manual cleanup for %s", async (_label, options, reason) => {
     await expect(decide(options)).resolves.toMatchObject({ kind: "manual", reason });
+  });
+
+  it("allows an explicitly authorized markerless checkout only when no durable record exists", async () => {
+    await expect(decide(
+      { recordKind: "absent", marker: "absent" },
+      undefined,
+      true,
+    )).resolves.toMatchObject({
+      kind: "clear",
+      recordId: null,
+      leaseState: "absent",
+      markerGeneration: null,
+    });
+    await expect(decide(
+      { recordKind: "valid", marker: "absent" },
+      undefined,
+      true,
+    )).resolves.toMatchObject({ kind: "manual", reason: "markerless" });
   });
 });

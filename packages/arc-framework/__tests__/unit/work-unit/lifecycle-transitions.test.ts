@@ -257,7 +257,14 @@ function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
   else if (e.reconcileBranch === "create") inputs.branchOp = { mutation: "create" };
 
   if (e.reconcileWorkUnitWorktree === "spawn") {
-    inputs.worktreeOp = { mutation: "spawn", inPlace: true, branch: toBranch, createBranch: true };
+    inputs.worktreeOp = {
+      mutation: "spawn",
+      inPlace: true,
+      branch: toBranch,
+      wuName: "demo",
+      attachSession: true,
+      createBranch: true,
+    };
   } else if (e.reconcileWorkUnitWorktree === "teardown") {
     inputs.worktreeOp = { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" };
   }

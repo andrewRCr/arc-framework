@@ -74,7 +74,8 @@ async function retireNodeWorkUnitLocus(
   const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
   if (matches.length !== 1) throw new Error("cannot retire work-unit session locus: target is not an exact live roster entry");
   const inspector = createPlatformProcessInspector();
-  const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(false, inspector);
+  const anchor = runtime.mutationAnchor
+    ?? await selectMutationAnchor(false, inspector, "cannot retire work-unit session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -157,7 +158,8 @@ async function reconcileNodeWorkUnitLocus(
   }
 
   const inspector = createPlatformProcessInspector();
-  const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(options.attachSession, inspector);
+  const anchor = runtime.mutationAnchor
+    ?? await selectMutationAnchor(options.attachSession, inspector, "cannot establish work-unit session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot establish work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -283,12 +285,18 @@ async function reconcileNodeWorkUnitLocus(
 async function selectMutationAnchor(
   requireSession: boolean,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
+  diagnostic: string,
 ) {
   const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (selected.kind === "process") return selected;
-  if (requireSession) throw new Error(`cannot establish work-unit session locus: ${selected.reason}`);
+  if (requireSession) throw new Error(`${diagnostic}: ${selected.reason}`);
   const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") throw new Error(`cannot establish work-unit session locus: ${selected.reason}`);
+  if (command.kind !== "present") {
+    const fallback = command.kind === "unverifiable"
+      ? command.reason
+      : "command process is absent";
+    throw new Error(`${diagnostic}: ${selected.reason} (command fallback: ${fallback})`);
+  }
   return {
     kind: "process" as const,
     pid: command.pid,

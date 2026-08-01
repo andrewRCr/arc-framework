@@ -11,7 +11,9 @@ import { digestBytes } from "../../src/lib/canonical/canonical-json.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
+import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
+import { locusRecordPath as resolveRecordPath, resolveLocusRoot } from "../../src/lib/locus/root.js";
 import {
   nodeReconcileWorkUnitWorktreeFs,
   provisionSpawnedWorktree,
@@ -42,9 +44,14 @@ function workUnitLocus(exec: GitExec): ReturnType<typeof createNodeWorkUnitLocus
   });
 }
 
-function locusRecordPath(primary: string, checkout: string): string {
+async function locusRecordPath(exec: GitExec, checkout: string): Promise<string> {
+  const root = await resolveLocusRoot({
+    identity: "andrew",
+    scan: () => scanRegisteredWorktrees(exec),
+  });
+  if (!root.ok) throw new Error(root.message);
   const identity = deriveLocusRecordId(checkout, process.platform === "win32" ? "windows" : "posix");
-  return join(primary, ".arc", "user", "andrew", ".internal", "loci", `locus-${identity.digest}.json`);
+  return resolveRecordPath(root, identity.digest);
 }
 
 async function createInPlaceFixture(): Promise<{
@@ -214,7 +221,7 @@ describe("atomicGraduate", () => {
     expect(branch.trim()).toBe("plan/widget");
     const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"]);
     expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
-    expect(JSON.parse(await readFile(locusRecordPath(repo, repo), "utf8"))).toMatchObject({
+    expect(JSON.parse(await readFile(await locusRecordPath(exec, repo), "utf8"))).toMatchObject({
       checkoutPath: repo,
       role: { kind: "work-unit", subject: { kind: "work-unit", key: "widget" } },
       lease: { sessionHomePath: repo, anchor: { startToken: "atomic-graduation-integration" } },
@@ -315,7 +322,7 @@ describe("atomicGraduate", () => {
     await expect(readFile(resolveWorktreeMarkerPath(worktreePath), "utf8")).resolves.toContain("\"wuName\": \"widget\"");
     const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"], { cwd: worktreePath });
     expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
-    expect(JSON.parse(await readFile(locusRecordPath(repo, worktreePath), "utf8"))).toMatchObject({
+    expect(JSON.parse(await readFile(await locusRecordPath(exec, worktreePath), "utf8"))).toMatchObject({
       checkoutPath: worktreePath,
       role: { kind: "work-unit", subject: { kind: "work-unit", key: "widget" } },
       lease: null,
@@ -382,7 +389,7 @@ describe("atomicGraduate", () => {
       expect(created).toBe("");
       const { stdout: tree } = await fixture.exec("git", ["write-tree"]);
       expect(tree.trim()).toBe(fixture.indexTree);
-      await expect(readFile(locusRecordPath(fixture.repo, fixture.repo)))
+      await expect(readFile(await locusRecordPath(fixture.exec, fixture.repo)))
         .rejects.toMatchObject({ code: "ENOENT" });
     },
   );
@@ -412,6 +419,41 @@ describe("atomicGraduate", () => {
         ]),
       },
     });
+  });
+
+  it("runs the standard rollback when locus retirement fails before invoking its callback", async () => {
+    const fixture = await createInPlaceFixture();
+    cleanup.push(fixture.repo);
+    const realLocus = workUnitLocus(fixture.exec);
+    const exec: GitExec = async (command, args, options) => {
+      if (args[0] === "add" && options?.indexFile !== undefined) throw new Error("injected staging failure");
+      return fixture.exec(command, args, options);
+    };
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+      workUnitLocus: {
+        reconcile: (options) => realLocus.reconcile(options),
+        retire: async () => { throw new Error("injected retirement failure"); },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "graduation-recovery-required",
+      residue: {
+        failures: expect.arrayContaining([
+          expect.objectContaining({ stage: "locus", detail: "injected retirement failure" }),
+        ]),
+      },
+    });
+    await expect(readFile(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"), "utf8"))
+      .resolves.toBe("# Draft\n");
+    await expect(readFile(join(fixture.repo, fixture.targetDirectory, "draft-widget.md")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
+    expect(branch.trim()).toBe("main");
   });
 
   it.each(["worktree-add", "spawn-provision"] as const)(

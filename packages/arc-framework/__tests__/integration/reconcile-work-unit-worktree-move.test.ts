@@ -55,8 +55,9 @@ describe("reconcileWorkUnitWorktree move with real Git", () => {
       chdir: () => {
         throw new Error("a non-self move must not change the test process locus");
       },
-      fs: {
-        directoryExists: async () => false,
+    fs: {
+      pathExists: async () => false,
+      directoryExists: async () => false,
         copyDirectory: async () => {},
         readFile: async () => "",
         writeFile: async () => {},
@@ -101,8 +102,9 @@ describe("reconcileWorkUnitWorktree move with real Git", () => {
       chdir: () => {
         throw new Error("a non-self move must not change the test process locus");
       },
-      fs: {
-        directoryExists: async () => false,
+    fs: {
+      pathExists: async () => false,
+      directoryExists: async () => false,
         copyDirectory: async () => {},
         readFile: async () => "",
         writeFile: async () => {},

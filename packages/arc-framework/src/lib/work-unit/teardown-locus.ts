@@ -1,6 +1,5 @@
 /** Target-lock transaction for physical worktree retirement. */
 
-import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
@@ -10,10 +9,19 @@ import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
 import { selectLocusMutationAnchor } from "../locus/mutation-anchor.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
 import { createPlatformProcessInspector } from "../locus/platform-inspectors.js";
-import { verifyProcessAnchor } from "../locus/process-inspector.js";
+import { sameProcessAnchor, verifyProcessAnchor } from "../locus/process-inspector.js";
 import { readLocusRecord, removeLocusRecord } from "../locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../locus/root.js";
-import type { TeardownOccupancyDecision } from "./teardown-occupancy.js";
+import type { LocusProcessAnchor } from "../locus/schema/index.js";
+import {
+  teardownLocusRecordGeneration,
+  teardownLocusRoleMatchesSubject,
+  type TeardownOccupancyDecision,
+} from "./teardown-occupancy.js";
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
 
 export interface RetireCheckoutLocusOptions {
   readonly checkoutPath: string;
@@ -32,12 +40,14 @@ export interface TeardownLocusDriver {
 export function createNodeTeardownLocusDriver(options: {
   readonly exec: GitExec;
   readonly identity: string;
+  /** Exact command/session anchor override for deterministic runtime tests. */
+  readonly mutationAnchor?: LocusProcessAnchor;
 }): TeardownLocusDriver {
   return { retire: (request) => retireNodeCheckoutLocus(options, request) };
 }
 
 async function retireNodeCheckoutLocus(
-  runtime: { readonly exec: GitExec; readonly identity: string },
+  runtime: { readonly exec: GitExec; readonly identity: string; readonly mutationAnchor?: LocusProcessAnchor },
   options: RetireCheckoutLocusOptions,
 ): Promise<{ readonly roleRemoved: boolean }> {
   const checkoutPath = resolve(options.checkoutPath);
@@ -48,7 +58,8 @@ async function retireNodeCheckoutLocus(
     throw new Error("cannot retire checkout session locus: target is not the expected live roster generation");
   }
   const inspector = createPlatformProcessInspector();
-  const anchor = await selectLocusMutationAnchor(inspector, "cannot retire checkout session locus");
+  const anchor = runtime.mutationAnchor
+    ?? await selectLocusMutationAnchor(inspector, "cannot retire checkout session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire checkout session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -69,7 +80,7 @@ async function retireNodeCheckoutLocus(
       throw new Error("cannot retire checkout session locus: target roster generation changed under lock");
     }
     const current = await readLocusRecord({ path: recordPath, expectedDigest: identity.digest, pathFlavor });
-    await validateRecordGeneration(current, identity.recordId, checkoutPath, options, inspector);
+    await validateRecordGeneration(current, identity.recordId, checkoutPath, options, inspector, anchor);
     await options.revalidateLocal();
     await options.retireProjection();
     if (current.kind === "valid") {
@@ -92,9 +103,28 @@ async function retireNodeCheckoutLocus(
   } catch (error) {
     outcome = { kind: "failure", error };
   }
-  const released = await releaseLocusLock(acquired.handle);
-  if (released.kind !== "released") throw new Error(`cannot release checkout session locus lock: ${released.kind}`);
-  if (outcome.kind === "failure") throw outcome.error;
+  let releaseError: unknown;
+  try {
+    const released = await releaseLocusLock(acquired.handle);
+    if (released.kind !== "released") {
+      releaseError = new Error(`cannot release checkout session locus lock: ${released.kind}`);
+    }
+  } catch (error) {
+    releaseError = error;
+  }
+  if (outcome.kind === "failure") {
+    const primaryError = normalizeError(outcome.error);
+    if (releaseError !== undefined) {
+      const secondaryError = normalizeError(releaseError);
+      throw new AggregateError(
+        [primaryError, secondaryError],
+        primaryError.message,
+        { cause: primaryError },
+      );
+    }
+    throw primaryError;
+  }
+  if (releaseError !== undefined) throw normalizeError(releaseError);
   return outcome.value;
 }
 
@@ -104,6 +134,7 @@ async function validateRecordGeneration(
   checkoutPath: string,
   options: RetireCheckoutLocusOptions,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
+  anchor: LocusProcessAnchor,
 ): Promise<void> {
   const expected = options.expectedOccupancy;
   if (current.kind === "absent") {
@@ -116,30 +147,22 @@ async function validateRecordGeneration(
     || current.record.recordId !== recordId
     || current.record.checkoutPath !== checkoutPath
     || expected.recordId !== current.record.recordId
-    || expected.recordGeneration !== digestBytes(current.bytes)
+    || expected.recordGeneration !== teardownLocusRecordGeneration(current.bytes)
     || expected.leaseId !== (current.record.lease?.leaseId ?? null)) {
     throw new Error("cannot retire checkout session locus: role or lease generation changed under lock");
   }
-  if (!recordMatchesSubject(current.record.role, options.subject)) {
+  if (!teardownLocusRoleMatchesSubject(current.record.role, options.subject)) {
     throw new Error("cannot retire checkout session locus: role does not match the teardown subject");
   }
   if (current.record.lease !== null) {
+    if (expected.leaseState === "self" && sameProcessAnchor(current.record.lease.anchor, anchor)) {
+      return;
+    }
     const liveness = current.record.lease.anchor.kind === "process"
       ? await verifyProcessAnchor(current.record.lease.anchor, inspector)
       : "unknown";
     if (liveness !== "dead") throw new Error(`cannot retire checkout session locus: lease is ${liveness}`);
   }
-}
-
-function recordMatchesSubject(
-  role: import("../locus/schema/index.js").LocusRole,
-  subject: WorktreeSubject,
-): boolean {
-  return subject.kind === "work-unit"
-    && role.kind === "work-unit"
-    && role.subject.kind === "work-unit"
-    && role.subject.key === subject.name
-    && role.subject.claimId === null;
 }
 
 function exactTarget(
@@ -148,8 +171,4 @@ function exactTarget(
 ): { readonly path: string; readonly head: string } | null {
   const matches = worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
   return matches.length === 1 ? matches[0] ?? null : null;
-}
-
-function digestBytes(bytes: Uint8Array): string {
-  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }

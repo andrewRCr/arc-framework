@@ -83,7 +83,7 @@ export interface ReconcileWorkUnitWorktreeContext {
 /** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
 export interface ReconcileWorkUnitWorktreeFs {
   /** Return true when any filesystem entry occupies `path`. */
-  pathExists?(path: string): Promise<boolean>;
+  pathExists(path: string): Promise<boolean>;
   /** Return true when `path` exists and is a directory. */
   directoryExists(path: string): Promise<boolean>;
   /** Recursively copy a directory into the destination worktree. */
@@ -173,9 +173,9 @@ export type ReconcileWorkUnitWorktreeOp =
       /** Branch to place in the current worktree. */
       branch: string;
       /** Work-unit whose trusted transition owns this checkout. */
-      wuName?: string;
+      wuName: string;
       /** Attach the entering session; false for spawn-anchored internal replay. */
-      attachSession?: boolean;
+      attachSession: boolean;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch: boolean;
       /**
@@ -193,14 +193,17 @@ export type ReconcileWorkUnitWorktreeOp =
       currentLocus: string;
       /** Managed WU whose durable role ends with this physical checkout. */
       wuName?: string;
-      /** Exact logical owner of the checkout being removed. */
-      subject?: WorktreeSubject;
-      /** Roster HEAD selected by advisory authorization. */
-      expectedHead?: string;
-      /** Exact clear occupancy generation selected by advisory authorization. */
-      expectedOccupancy?: Extract<TeardownOccupancyDecision, { kind: "clear" }>;
-      /** Remaining network-free local predicates to rerun under the target lock. */
-      revalidateLocal?: () => Promise<void>;
+      /** Complete target-lock authorization; omission selects the compatible unlocked path. */
+      authorization?: {
+        /** Exact logical owner of the checkout being removed. */
+        subject: WorktreeSubject;
+        /** Roster HEAD selected by advisory authorization. */
+        expectedHead: string;
+        /** Exact clear occupancy generation selected by advisory authorization. */
+        expectedOccupancy: Extract<TeardownOccupancyDecision, { kind: "clear" }>;
+        /** Remaining network-free local predicates to rerun under the target lock. */
+        revalidateLocal?: () => Promise<void>;
+      };
       /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
     }
@@ -396,18 +399,20 @@ export async function reconcileWorkUnitWorktree(
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
     const worktreePath = stdout.trim();
-    if (ctx.locus !== undefined && !op.deferCheckout) {
-      if (op.wuName === undefined || op.attachSession === undefined) {
-        throw new Error("work-unit session locus composition requires a work-unit name and attach disposition");
-      }
-      await ctx.locus.reconcile({
+    const locus = ctx.locus === undefined || op.deferCheckout
+      ? undefined
+      : await ctx.locus.reconcile({
         checkoutPath: worktreePath,
         branch: op.branch,
         wuName: op.wuName,
         attachSession: op.attachSession,
       });
-    }
-    return { mutation: "spawn", worktreePath, branch: op.branch };
+    return {
+      mutation: "spawn",
+      worktreePath,
+      branch: op.branch,
+      ...(locus === undefined ? {} : { locus }),
+    };
   }
 
   if (op.mutation === "spawn") {
@@ -419,9 +424,7 @@ export async function reconcileWorkUnitWorktree(
     // gets an absolute path; an already-absolute template needs no root and passes through.
     const creation = await createLinkedWorktree({
       exec: ctx.exec,
-      pathExists: ctx.fs.pathExists === undefined
-        ? () => Promise.resolve(false)
-        : (path) => ctx.fs.pathExists?.(path) ?? Promise.resolve(false),
+      pathExists: (path) => ctx.fs.pathExists(path),
     }, {
       locationTemplate: op.locationTemplate,
       primaryWorktreePath: op.primaryWorktreePath,
@@ -436,21 +439,31 @@ export async function reconcileWorkUnitWorktree(
     }
     if (creation.kind === "error") throw creation.error;
     const { worktreePath } = creation.receipt;
-    const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
-    const locus = await ctx.locus?.reconcile({
-      checkoutPath: worktreePath,
-      branch: op.branch,
-      wuName: op.wuName,
-      attachSession: false,
-      ...(op.now === undefined ? {} : { establishedAt: new Date(op.now).toISOString() }),
-    });
-    return {
-      mutation: "spawn",
-      worktreePath,
-      branch: op.branch,
-      ...(postCreateNotice === null ? {} : { postCreateNotice }),
-      ...(locus === undefined ? {} : { locus }),
-    };
+    try {
+      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
+      const locus = await ctx.locus?.reconcile({
+        checkoutPath: worktreePath,
+        branch: op.branch,
+        wuName: op.wuName,
+        attachSession: false,
+        ...(op.now === undefined ? {} : { establishedAt: new Date(op.now).toISOString() }),
+      });
+      return {
+        mutation: "spawn",
+        worktreePath,
+        branch: op.branch,
+        ...(postCreateNotice === null ? {} : { postCreateNotice }),
+        ...(locus === undefined ? {} : { locus }),
+      };
+    } catch (error) {
+      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);
+      if (cleanupFailures.length === 0) throw error;
+      throw new AggregateError(
+        [error, ...cleanupFailures],
+        error instanceof Error ? error.message : String(error),
+        { cause: error },
+      );
+    }
   }
 
   const { worktreePath, currentLocus } = op;
@@ -458,15 +471,13 @@ export async function reconcileWorkUnitWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
-  const lockedRetirement = ctx.teardownLocus !== undefined
-    && op.subject !== undefined
-    && op.expectedHead !== undefined
-    && op.expectedOccupancy !== undefined
+  if (op.authorization !== undefined && ctx.teardownLocus === undefined) {
+    throw new Error("authorized worktree teardown requires the target-lock locus driver");
+  }
+  const lockedRetirement = ctx.teardownLocus !== undefined && op.authorization !== undefined
     ? {
         driver: ctx.teardownLocus,
-        subject: op.subject,
-        expectedHead: op.expectedHead,
-        expectedOccupancy: op.expectedOccupancy,
+        ...op.authorization,
       }
     : null;
   let primary: string;
@@ -486,30 +497,80 @@ export async function reconcileWorkUnitWorktree(
   }
 
   const removeCheckout = () => ctx.exec("git", ["worktree", "remove", worktreePath]).then(() => undefined);
-  if (lockedRetirement !== null) {
-    await lockedRetirement.driver.retire({
-      checkoutPath: worktreePath,
-      expectedHead: lockedRetirement.expectedHead,
-      subject: lockedRetirement.subject,
-      expectedOccupancy: lockedRetirement.expectedOccupancy,
-      revalidateLocal: async () => {
-        if (!(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
-          throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
-        }
-        if (await isSelfTeardown(worktreePath, ctx.readCurrentLocus?.() ?? finalLocus)) {
-          throw new Error(`refusing to remove the current worktree: ${worktreePath}`);
-        }
-        await op.revalidateLocal?.();
-        await reconcileUserSurfacesForRemoval(ctx, worktreePath);
-      },
-      retireProjection: removeCheckout,
-    });
-  } else if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
-    await ctx.locus.retire({ checkoutPath: worktreePath, wuName: op.wuName, removeCheckout });
-  } else {
-    await removeCheckout();
+  try {
+    if (lockedRetirement !== null) {
+      await lockedRetirement.driver.retire({
+        checkoutPath: worktreePath,
+        expectedHead: lockedRetirement.expectedHead,
+        subject: lockedRetirement.subject,
+        expectedOccupancy: lockedRetirement.expectedOccupancy,
+        revalidateLocal: async () => {
+          if (!(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
+            throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
+          }
+          if (await isSelfTeardown(worktreePath, ctx.readCurrentLocus?.() ?? finalLocus)) {
+            throw new Error(`refusing to remove the current worktree: ${worktreePath}`);
+          }
+          await lockedRetirement.revalidateLocal?.();
+          await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+        },
+        retireProjection: removeCheckout,
+      });
+    } else if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
+      await ctx.locus.retire({ checkoutPath: worktreePath, wuName: op.wuName, removeCheckout });
+    } else {
+      await removeCheckout();
+    }
+  } catch (error) {
+    if (!locusHopped) throw error;
+    let targetStillExists: boolean;
+    try {
+      targetStillExists = await ctx.fs.pathExists(worktreePath);
+    } catch (probeError) {
+      throw new AggregateError(
+        [error, probeError],
+        `${error instanceof Error ? error.message : String(error)}; process locus remains at ${primary}`,
+        { cause: probeError },
+      );
+    }
+    if (!targetStillExists) {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}; process locus remains at ${primary} because the target worktree was removed`,
+        { cause: error },
+      );
+    }
+    try {
+      ctx.chdir(currentLocus);
+    } catch (restoreError) {
+      throw new AggregateError(
+        [error, restoreError],
+        `${error instanceof Error ? error.message : String(error)}; process locus could not be restored from ${primary}`,
+        { cause: restoreError },
+      );
+    }
+    throw error;
   }
   return { mutation: "teardown", worktreePath, locusHopped };
+}
+
+async function rollbackFreshSpawn(
+  ctx: ReconcileWorkUnitWorktreeContext,
+  receipt: { readonly worktreePath: string; readonly branch: string; readonly branchCreated: boolean },
+): Promise<unknown[]> {
+  const failures: unknown[] = [];
+  try {
+    await ctx.exec("git", ["worktree", "remove", "--force", receipt.worktreePath]);
+  } catch (error) {
+    failures.push(error);
+  }
+  if (receipt.branchCreated) {
+    try {
+      await ctx.exec("git", ["branch", "-D", receipt.branch]);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  return failures;
 }
 
 function isOccupiedWorktreeMoveFailure(error: unknown): boolean {

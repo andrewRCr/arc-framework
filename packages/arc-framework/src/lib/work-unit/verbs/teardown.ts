@@ -379,11 +379,14 @@ async function teardownBranchProjection(
   }
   const primaryPath = scan.worktrees.find((worktree) => worktree.primary)?.path;
   const occupancyGenerations = new Map<string, Extract<TeardownOccupancyDecision, { kind: "clear" }>>();
-  const revalidateOccupancy = async (checkoutPath: string): Promise<TeardownResult | null> => {
+  const revalidateOccupancy = async (
+    checkoutPath: string,
+    options: { allowOwnLease?: boolean; allowRecordlessMarkerless?: boolean } = {},
+  ): Promise<TeardownResult | null> => {
     if (ctx.readLocusOccupancy === undefined) return null;
     let decision: TeardownOccupancyDecision;
     try {
-      decision = await ctx.readLocusOccupancy({ checkoutPath, subject });
+      decision = await ctx.readLocusOccupancy({ checkoutPath, subject, ...options });
     } catch (error) {
       return {
         status: "rejected",
@@ -621,10 +624,11 @@ async function teardownBranchProjection(
           huskRefusal: "authorization-refused",
         };
       }
-      if (!(selfTeardown && mode === "shipped")) {
-        const occupancyRefusal = await revalidateOccupancy(registered.path);
-        if (occupancyRefusal !== null) return occupancyRefusal;
-      }
+      const occupancyRefusal = await revalidateOccupancy(registered.path, {
+        allowOwnLease: selfTeardown,
+        allowRecordlessMarkerless: selfTeardown && mode === "shipped",
+      });
+      if (occupancyRefusal !== null) return occupancyRefusal;
       const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
         worktreePath: registered.path,
         primaryWorktreePath: primary,
@@ -705,10 +709,12 @@ async function teardownBranchProjection(
             ...(expectedOccupancy === undefined
               ? {}
               : {
-                  subject,
-                  expectedHead: registered.head,
-                  expectedOccupancy,
-                  revalidateLocal: () => revalidateLocalPredicates(registered.path),
+                  authorization: {
+                    subject,
+                    expectedHead: registered.head,
+                    expectedOccupancy,
+                    revalidateLocal: () => revalidateLocalPredicates(registered.path),
+                  },
                 }),
           },
         );
@@ -1047,10 +1053,12 @@ async function teardownBranchProjection(
             ...(expectedPhysicalOccupancy === undefined || expectedPhysicalHead === undefined
               ? {}
               : {
-                  subject,
-                  expectedHead: expectedPhysicalHead,
-                  expectedOccupancy: expectedPhysicalOccupancy,
-                  revalidateLocal: () => revalidateLocalPredicates(physicalRemovalPath),
+                  authorization: {
+                    subject,
+                    expectedHead: expectedPhysicalHead,
+                    expectedOccupancy: expectedPhysicalOccupancy,
+                    revalidateLocal: () => revalidateLocalPredicates(physicalRemovalPath),
+                  },
                 }),
           },
         );
