@@ -1,6 +1,7 @@
 /** Production ports for exact ordinary-v3 Errand merge finalization. */
 
-import { access, lstat, readFile, realpath } from "node:fs/promises";
+import { access, lstat, open, readFile, realpath, unlink } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
@@ -27,6 +28,7 @@ import {
 import {
   closeOrdinaryErrand,
   type CloseAuthorityGuard,
+  type CloseAuthorityLeaseResult,
   type CloseInboxResult,
   type CloseOccupancyResult,
   type CloseRefCleanupResult,
@@ -225,33 +227,100 @@ function createBaseCheckoutCloseGuard(
   options: CloseOrdinaryErrandRuntimeOptions,
   checkoutPath: string,
 ): CloseAuthorityGuard {
-  return {
-    revalidate: async () => {
-      try {
-        const before = (await options.exec(
-          "git",
-          ["rev-parse", "--abbrev-ref", "HEAD"],
-          { cwd: checkoutPath },
-        )).stdout.trim();
-        const marker = await readWorktreeMarker(checkoutPath);
-        const after = (await options.exec(
-          "git",
-          ["rev-parse", "--abbrev-ref", "HEAD"],
-          { cwd: checkoutPath },
-        )).stdout.trim();
-        if (before === options.base && after === before && marker.kind === "absent") {
-          return { kind: "valid" };
-        }
-        return {
-          kind: "refused",
-          reason: "role-conflict",
-          message: `Errand close lost base-checkout authority at '${checkoutPath}'; switch it to '${options.base}' and retry.`,
-        };
-      } catch (error) {
-        return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
+    try {
+      const before = (await options.exec(
+        "git",
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        { cwd: checkoutPath },
+      )).stdout.trim();
+      const marker = await readWorktreeMarker(checkoutPath);
+      const after = (await options.exec(
+        "git",
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        { cwd: checkoutPath },
+      )).stdout.trim();
+      if (before === options.base && after === before && marker.kind === "absent") {
+        return { kind: "valid" };
       }
-    },
+      return {
+        kind: "refused",
+        reason: "role-conflict",
+        message: `Errand close lost base-checkout authority at '${checkoutPath}'; switch it to '${options.base}' and retry.`,
+      };
+    } catch (error) {
+      return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+    }
   };
+  return {
+    revalidate,
+    acquire: () => acquireBaseCheckoutCloseLease(options, checkoutPath, revalidate),
+  };
+}
+
+async function acquireBaseCheckoutCloseLease(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  checkoutPath: string,
+  revalidate: CloseAuthorityGuard["revalidate"],
+): Promise<CloseAuthorityLeaseResult> {
+  let gitHeadPath: string;
+  try {
+    gitHeadPath = (await options.exec("git", ["rev-parse", "--git-path", "HEAD"], {
+      cwd: checkoutPath,
+    })).stdout.trim();
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  if (gitHeadPath === "") return { kind: "error", message: "Git returned no checkout HEAD path." };
+  const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(lockPath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      return {
+        kind: "refused",
+        reason: "role-conflict",
+        message: `Errand close cannot lock checkout HEAD at '${checkoutPath}'; wait for the other Git operation and retry.`,
+      };
+    }
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+
+  let released = false;
+  const release = async (): Promise<void> => {
+    if (released) return;
+    let closeError: unknown = null;
+    try {
+      await handle.close();
+    } catch (error) {
+      closeError = error;
+    }
+    let unlinkError: unknown = null;
+    try {
+      await unlink(lockPath);
+    } catch (error) {
+      unlinkError = error;
+    }
+    if (unlinkError !== null) {
+      throw unlinkError instanceof Error ? unlinkError : new Error("Unknown checkout HEAD unlock failure");
+    }
+    released = true;
+    if (closeError !== null) {
+      throw closeError instanceof Error ? closeError : new Error("Unknown checkout HEAD handle-close failure");
+    }
+  };
+  const authorization = await revalidate();
+  if (authorization.kind === "valid") return { kind: "acquired", release };
+  try {
+    await release();
+  } catch (error) {
+    return {
+      kind: "error",
+      message: `Errand close could not release rejected checkout authority: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  return authorization;
 }
 
 /**

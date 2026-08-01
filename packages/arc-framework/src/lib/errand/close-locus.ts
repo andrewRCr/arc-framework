@@ -58,8 +58,13 @@ export type CloseAuthorityResult =
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
   | { kind: "error"; message: string };
 
+export type CloseAuthorityLeaseResult =
+  | { kind: "acquired"; release(): Promise<void> }
+  | Extract<CloseAuthorityResult, { kind: "refused" | "error" }>;
+
 export interface CloseAuthorityGuard {
   revalidate(): Promise<CloseAuthorityResult>;
+  acquire(): Promise<CloseAuthorityLeaseResult>;
 }
 
 /**
@@ -151,16 +156,36 @@ export async function closeOrdinaryErrand(
   if (occupancy.kind === "refused") return refusal(occupancy.reason, occupancy.message);
   if (occupancy.kind === "error") return failure("locus.errand-close.occupancy", occupancy.message);
 
+  return runWithCloseAuthority(occupancy.guard, () => finalizeAuthorizedClose({
+    options,
+    target,
+    lifecycle,
+    record,
+    guard: occupancy.guard,
+    slug,
+  }));
+}
+
+async function finalizeAuthorizedClose(input: {
+  options: CloseOrdinaryErrandOptions;
+  target: CloseTarget;
+  lifecycle: ChangeRequestLifecycleEvidence;
+  record: OrdinaryErrandRecord;
+  guard: CloseAuthorityGuard | null;
+  slug: string;
+}): Promise<LocusMutationResultV1> {
+  const { options, target, lifecycle, record, guard, slug } = input;
+
   let refs: CloseRefCleanupResult;
   try {
-    refs = await options.dependencies.cleanupRefs(target, occupancy.guard);
+    refs = await options.dependencies.cleanupRefs(target, guard);
   } catch (error) {
     return failure("locus.errand-close.refs", message(error));
   }
   if (refs.kind === "refused") return refusal(refs.reason, refs.message);
   if (refs.kind === "error") return failure("locus.errand-close.refs", refs.message);
 
-  const captureAuthority = await revalidateCloseAuthority(occupancy.guard);
+  const captureAuthority = await revalidateCloseAuthority(guard);
   if (captureAuthority.kind === "refused") {
     return refusal(captureAuthority.reason, captureAuthority.message);
   }
@@ -179,7 +204,7 @@ export async function closeOrdinaryErrand(
     return refusal("identity-conflict", `Errand refs were cleaned up, but capture settlement refused: ${inbox.reason}`);
   }
 
-  const retirementAuthority = await revalidateCloseAuthority(occupancy.guard);
+  const retirementAuthority = await revalidateCloseAuthority(guard);
   if (retirementAuthority.kind === "refused") {
     return refusal(retirementAuthority.reason, retirementAuthority.message);
   }
@@ -215,6 +240,37 @@ export async function closeOrdinaryErrand(
     nextOffer: inbox.nextOffer,
     recommendedPromptText: `Finalized merged Errand '${slug}' and retired its identity.`,
   });
+}
+
+async function runWithCloseAuthority(
+  guard: CloseAuthorityGuard | null,
+  operation: () => Promise<LocusMutationResultV1>,
+): Promise<LocusMutationResultV1> {
+  if (guard === null) return operation();
+  let acquired: CloseAuthorityLeaseResult;
+  try {
+    acquired = await guard.acquire();
+  } catch (error) {
+    return failure("locus.errand-close.occupancy", message(error));
+  }
+  if (acquired.kind === "refused") return refusal(acquired.reason, acquired.message);
+  if (acquired.kind === "error") return failure("locus.errand-close.occupancy", acquired.message);
+
+  let result: LocusMutationResultV1;
+  try {
+    result = await operation();
+  } catch (error) {
+    result = failure("locus.errand-close.occupancy", message(error));
+  }
+  try {
+    await acquired.release();
+  } catch (error) {
+    return failure(
+      "locus.errand-close.occupancy",
+      `Errand close could not release checkout authority: ${message(error)}`,
+    );
+  }
+  return result;
 }
 
 async function revalidateCloseAuthority(guard: CloseAuthorityGuard | null): Promise<CloseAuthorityResult> {

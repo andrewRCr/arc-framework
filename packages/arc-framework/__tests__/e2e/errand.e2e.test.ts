@@ -639,12 +639,14 @@ describe("arc errand close", () => {
   );
 
   it.runIf(process.platform !== "win32")(
-    "refuses when the checkout leaves base during ref teardown",
+    "prevents the checkout from leaving base during ref teardown",
     async () => {
       const slug = "merged-v3-displaced-during-teardown";
       const branch = `chore/${slug}`;
       const gitDir = await mkdtemp(join(tmpdir(), "arc-e2e-git-teardown-displacement-"));
       const triggerPath = join(gitDir, "switch-after-ref-fetch");
+      const blockedPath = `${triggerPath}.blocked`;
+      const switchedPath = `${triggerPath}.switched`;
       const realGit = (await execFileAsync("sh", ["-c", "command -v git"])).stdout.trim();
       const gitWrapper = [
         "#!/bin/sh",
@@ -654,8 +656,11 @@ describe("arc errand close", () => {
         "  case \"$4\" in",
         "    +refs/heads/$ARC_TEST_ERRAND_BRANCH:refs/arc/tmp/errand-close/*)",
         "      \"$ARC_TEST_REAL_GIT\" \"$@\"",
-        "      rm \"$ARC_TEST_GIT_SWITCH_TRIGGER\"",
-        "      \"$ARC_TEST_REAL_GIT\" switch feat/displaced >/dev/null",
+        "      if \"$ARC_TEST_REAL_GIT\" switch feat/displaced >/dev/null 2>&1; then",
+        "        mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCHED\"",
+        "      else",
+        "        mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCH_BLOCKED\"",
+        "      fi",
         "      exit 0",
         "      ;;",
         "  esac",
@@ -688,22 +693,95 @@ describe("arc errand close", () => {
             ...host.env,
             PATH: `${gitDir}:${host.env.PATH}`,
             ARC_TEST_GIT_SWITCH_TRIGGER: triggerPath,
+            ARC_TEST_GIT_SWITCH_BLOCKED: blockedPath,
+            ARC_TEST_GIT_SWITCHED: switchedPath,
             ARC_TEST_ERRAND_BRANCH: branch,
             ARC_TEST_REAL_GIT: realGit,
           },
           timeout: 60_000,
         });
 
-        expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-        expect(result.results.at(-1)).toMatchObject({
-          outcome: "refused", operation: "errand-close", reason: "role-conflict",
+        expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+        expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+        await expect(readFile(blockedPath, "utf-8")).resolves.toBe("");
+        expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+        expect((await git(tmpDir, ["branch", "--list", branch])).trim()).toBe("");
+        expect((await git(tmpDir, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).trim()).toBe("");
+        await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+          .rejects.toThrow();
+      } finally {
+        await cleanupTempDir(gitDir);
+        await cleanupTempDir(host.ghDir);
+        await cleanupTempDir(host.remoteDir);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "prevents a checkout switch at the local branch deletion boundary",
+    async () => {
+      const slug = "merged-v3-switch-at-local-delete";
+      const branch = `chore/${slug}`;
+      const gitDir = await mkdtemp(join(tmpdir(), "arc-e2e-git-local-delete-switch-"));
+      const triggerPath = join(gitDir, "switch-before-local-delete");
+      const blockedPath = `${triggerPath}.blocked`;
+      const switchedPath = `${triggerPath}.switched`;
+      const realGit = (await execFileAsync("sh", ["-c", "command -v git"])).stdout.trim();
+      const gitWrapper = [
+        "#!/bin/sh",
+        "set -eu",
+        "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] && [ \"$#\" -eq 4 ] \\",
+        "    && [ \"$1\" = update-ref ] && [ \"$2\" = -d ] \\",
+        "    && [ \"$3\" = refs/heads/$ARC_TEST_ERRAND_BRANCH ]; then",
+        "  if \"$ARC_TEST_REAL_GIT\" switch \"$ARC_TEST_ERRAND_BRANCH\" >/dev/null 2>&1; then",
+        "    mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCHED\"",
+        "  else",
+        "    mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCH_BLOCKED\"",
+        "  fi",
+        "fi",
+        "exec \"$ARC_TEST_REAL_GIT\" \"$@\"",
+        "",
+      ].join("\n");
+      await writeFile(join(gitDir, "git"), gitWrapper, "utf-8");
+      await chmod(join(gitDir, "git"), 0o755);
+      await setFullProtection(tmpDir);
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+      const host = await createMergedGhFixture(tmpDir, slug);
+      try {
+        const result = await runArcAnchoredSequence([
+          ["errand", "open", slug, "--json"],
+          { command: ["git", "push", "-u", "origin", branch] },
+          { command: ["git", "switch", "main"] },
+          {
+            command: [
+              process.execPath,
+              "-e",
+              `require("node:fs").writeFileSync(${JSON.stringify(triggerPath)}, "")`,
+            ],
+          },
+          ["errand", "close", slug, "--json"],
+        ], tmpDir, {
+          env: {
+            ...host.env,
+            PATH: `${gitDir}:${host.env.PATH}`,
+            ARC_TEST_GIT_SWITCH_TRIGGER: triggerPath,
+            ARC_TEST_GIT_SWITCH_BLOCKED: blockedPath,
+            ARC_TEST_GIT_SWITCHED: switchedPath,
+            ARC_TEST_ERRAND_BRANCH: branch,
+            ARC_TEST_REAL_GIT: realGit,
+          },
+          timeout: 60_000,
         });
-        expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/displaced");
-        expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
-        expect(await git(tmpDir, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]))
-          .toContain(`refs/heads/${branch}`);
-        expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
-          .toContain('"state": "open"');
+
+        expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+        expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+        await expect(readFile(blockedPath, "utf-8")).resolves.toBe("");
+        expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+        expect((await git(tmpDir, ["branch", "--list", branch])).trim()).toBe("");
+        expect((await git(tmpDir, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).trim()).toBe("");
+        await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+          .rejects.toThrow();
       } finally {
         await cleanupTempDir(gitDir);
         await cleanupTempDir(host.ghDir);

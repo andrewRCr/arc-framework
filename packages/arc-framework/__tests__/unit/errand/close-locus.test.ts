@@ -91,6 +91,46 @@ describe("closeOrdinaryErrand", () => {
     });
   });
 
+  it("holds base-checkout authority through every destructive close step", async () => {
+    const record = awaiting();
+    const events: string[] = [];
+    const guard: CloseAuthorityGuard = {
+      acquire: async () => {
+        events.push("acquire");
+        return { kind: "acquired", release: async () => { events.push("release"); } };
+      },
+      revalidate: async () => {
+        events.push("revalidate");
+        return { kind: "valid" };
+      },
+    };
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({ kind: "clear", guard }),
+        cleanupRefs: async () => (events.push("refs"), { kind: "applied" }),
+        removeInbox: async () => (events.push("inbox"), { kind: "removed", nextOffer: null }),
+        retire: async () => (events.push("identity"), { kind: "applied" }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-close" });
+    expect(events).toEqual([
+      "acquire",
+      "refs",
+      "revalidate",
+      "inbox",
+      "revalidate",
+      "identity",
+      "release",
+    ]);
+  });
+
   it("finalizes an Errand that merged while its checkout was still occupied", async () => {
     const record = open();
     const targets: unknown[] = [];
@@ -257,7 +297,9 @@ describe("closeOrdinaryErrand", () => {
 
   it("revalidates base-checkout authority after ref cleanup before removing the capture", async () => {
     const record = awaiting();
+    const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn().mockResolvedValue({
         kind: "refused",
         reason: "role-conflict",
@@ -286,13 +328,16 @@ describe("closeOrdinaryErrand", () => {
 
     expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
     expect(guard.revalidate).toHaveBeenCalledOnce();
+    expect(release).toHaveBeenCalledOnce();
     expect(removeInbox).not.toHaveBeenCalled();
     expect(retire).not.toHaveBeenCalled();
   });
 
   it("revalidates base-checkout authority after capture settlement before retiring identity", async () => {
     const record = awaiting();
+    const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn()
         .mockResolvedValueOnce({ kind: "valid" })
         .mockResolvedValueOnce({
@@ -319,7 +364,39 @@ describe("closeOrdinaryErrand", () => {
 
     expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
     expect(guard.revalidate).toHaveBeenCalledTimes(2);
+    expect(release).toHaveBeenCalledOnce();
     expect(retire).not.toHaveBeenCalled();
+  });
+
+  it("retains everything when base-checkout authority cannot be locked", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const guard: CloseAuthorityGuard = {
+      acquire: async () => ({
+        kind: "refused",
+        reason: "role-conflict",
+        message: "checkout HEAD is locked",
+      }),
+      revalidate: vi.fn(),
+    };
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({ kind: "clear", guard }),
+        cleanupRefs,
+        removeInbox: vi.fn(),
+        retire: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(guard.revalidate).not.toHaveBeenCalled();
   });
 
   it("refuses foreign occupancy before any ref, capture, or identity is destroyed", async () => {
