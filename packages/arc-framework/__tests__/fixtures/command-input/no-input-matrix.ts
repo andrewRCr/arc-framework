@@ -31,6 +31,7 @@ export const NO_INPUT_MATRIX = Object.freeze([
   { commandPath: "review", args: ["review", "reduce", "-"], stdin: "", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review chunking resolve", args: ["review", "chunking", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review frontline run", args: ["review", "frontline", "run", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review planning-lane-ownership", args: ["review", "planning-lane-ownership", "invalid", "main", "arc-cleared", "CODEOWNERS"], fixture: "bare", expected: { exitCode: 64, outputIncludes: "invalid operands" } },
   { commandPath: "start", args: ["start", "matrix", "--here"], setup: "planned-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "cannot start `matrix`" } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
   { commandPath: "stub", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input" } },

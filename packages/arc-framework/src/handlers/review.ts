@@ -1,6 +1,6 @@
 /** Machine-readable review workflow handlers. */
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { z, ZodError, type ZodType } from "zod";
 
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -17,6 +17,15 @@ import {
 } from "../lib/io-context.js";
 import type { DecompositionPlanningLaneResult } from "../lib/work-unit/decomposition-planning-lane.js";
 import { classifyGitDecompositionPlanningLane } from "../lib/work-unit/git-decomposition-planning-lane.js";
+import {
+  applyPlanningLaneOwnershipException,
+  assessPlanningLaneOwnershipEligibility,
+  type PlanningLaneOwnershipEligibility,
+} from "../lib/work-unit/planning-lane-ownership.js";
+import {
+  planningLaneGhApi,
+  readGitHubPlanningLaneOwnershipFacts,
+} from "../lib/work-unit/github-planning-lane-ownership.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
@@ -162,6 +171,37 @@ export const ReviewPlanningLaneInputSchema = z.object({
   message: "base and head object ids must have the same width",
 });
 
+/** Syntax-owned host and ownership-file input for the opt-in planning lane. */
+export const ReviewPlanningLaneOwnershipInputSchema = z.object({
+  repository: z.string().trim().regex(/^[^/\s]+\/[^/\s]+$/u),
+  baseBranch: z.string().trim().min(1),
+  requiredContext: z.string().trim().min(1),
+  ownershipFile: z.string().trim().min(1),
+  apply: z.boolean().optional(),
+}).strict();
+
+const reviewPlanningLaneInputRegistration = {
+  commandPath: "review planning-lane",
+  schema: ReviewPlanningLaneInputSchema,
+  schemaFields: {
+    "operand.base": "base",
+    "operand.head": "head",
+    "option.repository": "repository",
+  },
+} satisfies CommandInputRegistration;
+
+const reviewPlanningLaneOwnershipInputRegistration = {
+  commandPath: "review planning-lane-ownership",
+  schema: ReviewPlanningLaneOwnershipInputSchema,
+  schemaFields: {
+    "operand.repository": "repository",
+    "operand.base-branch": "baseBranch",
+    "operand.required-context": "requiredContext",
+    "operand.ownership-file": "ownershipFile",
+    "option.apply": "apply",
+  },
+} satisfies CommandInputRegistration;
+
 /** Registry contributions owned by the review command adapters. */
 export const reviewCommandInputRegistrations = [
   ...REVIEW_JSON_COMMAND_PATHS.map((commandPath) => ({
@@ -169,15 +209,8 @@ export const reviewCommandInputRegistrations = [
     schema: reviewCommandInputSchema(),
     schemaFields: { "operand.input": "input" },
   })),
-  {
-    commandPath: "review planning-lane",
-    schema: ReviewPlanningLaneInputSchema,
-    schemaFields: {
-      "operand.base": "base",
-      "operand.head": "head",
-      "option.repository": "repository",
-    },
-  },
+  reviewPlanningLaneInputRegistration,
+  reviewPlanningLaneOwnershipInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
 /** Input and interaction policies owned by the review command adapters. */
@@ -224,6 +257,21 @@ export const reviewCommandInputPolicyDeclarations = [
         mutationBoundary: "frontline provider subprocess boundary", subprocess: "close-stdin",
       },
     )),
+  },
+  {
+    commandPath: "review planning-lane-ownership", aliases: [], sites: [declareInteractionSite(
+      {
+        file: "lib/work-unit/github-planning-lane-ownership.ts",
+        kind: "subprocess",
+        callee: "execa",
+        occurrence: 1,
+      },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "GitHub host-policy reads and explicit CODEOWNERS update", subprocess: "close-stdin",
+      },
+    )],
   },
 ] satisfies readonly CommandInputDeclaration[];
 
@@ -310,6 +358,104 @@ export async function handleReviewPlanningLane(
     return;
   }
   dependencies.write(`${result.outcome}\n`);
+}
+
+export interface ReviewPlanningLaneOwnershipOptions {
+  apply?: boolean;
+}
+
+export interface ReviewPlanningLaneOwnershipHandlerDependencies {
+  inspect(repository: string, baseBranch: string, requiredContext: string): Promise<PlanningLaneOwnershipEligibility>;
+  readOwnership(path: string): Promise<string>;
+  writeOwnership(path: string, content: string): Promise<void>;
+  write(text: string): void;
+  writeError(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewPlanningLaneOwnershipDependencies(): ReviewPlanningLaneOwnershipHandlerDependencies {
+  return {
+    inspect: async (repository, baseBranch, requiredContext) => assessPlanningLaneOwnershipEligibility(
+      await readGitHubPlanningLaneOwnershipFacts(repository, baseBranch, requiredContext, planningLaneGhApi),
+    ),
+    readOwnership: async (path) => await readFile(path, "utf8"),
+    writeOwnership: async (path, content) => {
+      await writeFile(path, content, "utf8");
+    },
+    write: (text) => process.stdout.write(text),
+    writeError: (text) => process.stderr.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Assess the opt-in host guards and optionally apply the guarded CODEOWNERS exception.
+ *
+ * @param repository - GitHub owner/name repository identity.
+ * @param baseBranch - Branch governed by the required checks.
+ * @param requiredContext - Exact required status context.
+ * @param ownershipFile - CODEOWNERS file to inspect or edit.
+ * @param options - Explicit mutation mode.
+ * @param overrides - Test-only host, filesystem, and output boundaries.
+ */
+export async function handleReviewPlanningLaneOwnership(
+  repository: string,
+  baseBranch: string,
+  requiredContext: string,
+  ownershipFile: string,
+  options: ReviewPlanningLaneOwnershipOptions,
+  overrides: Partial<ReviewPlanningLaneOwnershipHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewPlanningLaneOwnershipDependencies(), ...overrides };
+  const input = ReviewPlanningLaneOwnershipInputSchema.safeParse({
+    repository,
+    baseBranch,
+    requiredContext,
+    ownershipFile,
+    ...(options.apply === undefined ? {} : { apply: options.apply }),
+  });
+  if (!input.success) {
+    dependencies.writeError("planning-lane-ownership: invalid operands\n");
+    dependencies.setExitCode(64);
+    return;
+  }
+  try {
+    const assessment = await dependencies.inspect(
+      input.data.repository,
+      input.data.baseBranch,
+      input.data.requiredContext,
+    );
+    let application: Record<string, unknown> = { state: "not-requested" };
+    if (input.data.apply === true) {
+      if (!assessment.eligible) {
+        application = { state: "not-applied", reason: "host-policy-ineligible" };
+      } else {
+        const edit = applyPlanningLaneOwnershipException(
+          await dependencies.readOwnership(input.data.ownershipFile),
+        );
+        application = edit.state === "applied"
+          ? { state: "applied", ownershipFile: input.data.ownershipFile }
+          : { state: edit.state, ownershipFile: input.data.ownershipFile, reason: edit.reason };
+        if (edit.state === "applied") {
+          await dependencies.writeOwnership(input.data.ownershipFile, edit.content);
+        }
+      }
+    }
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-planning-lane-ownership",
+      ...assessment,
+      application,
+    })}\n`);
+    if (!assessment.eligible || application.state === "refused") dependencies.setExitCode(1);
+  } catch (error) {
+    dependencies.writeError(
+      `planning-lane-ownership failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    dependencies.setExitCode(1);
+  }
 }
 
 interface ReviewHandlerBoundary {

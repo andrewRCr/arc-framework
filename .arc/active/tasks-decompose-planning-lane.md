@@ -147,35 +147,31 @@ _Design decisions:_ Eligibility and the edit that depends on it belong to one co
 a recipe cannot be distinguished from a step that works. Base currency accepts either an up-to-date-branch rule or
 a merge queue, and the command reports which mechanism satisfied it rather than a bare boolean.
 
-### `[ ]` **4.1 Compute and apply the ownership exception**
+### `[x]` **4.1 Compute and apply the ownership exception**
 
 - _Goal:_ The exception exists exactly where its guards do, and both the verdict and the edit are provable.
 
-    - `[ ]` **4.1.a Add the command surface**
-        - Take the repository, base branch, required context name, and ownership file as operands, and register
-          the input surface alongside the classification command.
+    - `[x]` **4.1.a Add the command surface**
+        - Added `review planning-lane-ownership` with repository, base branch, required context, and ownership-file
+          operands, an explicit `--apply` mode, and the corresponding command-input registration.
 
-    - `[ ]` **4.1.b Resolve eligibility across the enumerated mechanisms**
-        - Read the branch-protection surface, the rules surface that can govern the same branch independently, and
-          the merge-queue configuration; treat a requirement as satisfied when any of them enforces it and name
-          which one did.
-        - Per surface, distinguish a read that reports the requirement absent from a read that is refused, and
-          report checked-and-not-configured separately from not-permitted-to-check; neither is eligible.
-        - Do not inspect bypass allowances.
-        - _Note:_ existing setup guidance reads only the branch-protection surface, so the other two are new reads
-          rather than adaptations; a project governed solely by rules would otherwise look unconfigured.
+    - `[x]` **4.1.b Resolve eligibility across the enumerated mechanisms**
+        - Added three independently executed GitHub reads for branch protection, active status-check rules, and
+          merge-queue rules, preserving guard provenance and distinct absent-versus-forbidden verdicts.
 
-    - `[ ]` **4.1.c Apply the exception on an eligible verdict**
-        - Append the receipt namespace to the ownership file's trailing unowned region on eligible; change nothing
-          and report the reason otherwise.
-        - Refuse rather than editing when an owning entry would follow the insertion point, since ownership is
-          last-match-wins and such an edit would report success while leaving the namespace owned.
+    - `[x]` **4.1.c Apply the exception on an eligible verdict**
+        - The explicit apply mode appends the receipt namespace only after an eligible host verdict and only to a
+          trailing unowned block; ineligible, already-applied, and unsafe ordering cases leave the file unchanged.
 
-    - `[ ]` **4.1.d Keep the shipped skeleton free of the exception**
-        - Leave the receipt namespace owned in the skeleton that setup copies verbatim.
+    - `[x]` **4.1.d Keep the shipped skeleton free of the exception**
+        - Kept the package-source and project CODEOWNERS skeletons free of the receipt exception.
 
-    - `[ ]` **4.1.e Preserve one-way coupling**
-        - Permit independent clearance installation without enabling auto-merge or changing ownership.
+    - `[x]` **4.1.e Preserve one-way coupling**
+        - Added no host-rule, merge-queue, auto-merge, or implicit ownership mutation; clearance installation remains
+          independent, while the ownership exception alone depends on the verified guards.
+
+- _Outcome:_ One machine-readable command now binds host eligibility to the only ownership mutation it permits;
+  an unreadable mechanism, missing guard, or unsafe CODEOWNERS ordering fails closed without changing the file.
 
 ### `[ ]` **4.2 Keep the host-policy assets in one direction**
 
