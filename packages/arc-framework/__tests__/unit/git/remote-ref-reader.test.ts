@@ -5,6 +5,7 @@ import {
   listLiveRemoteBranches,
   listMetaPathsAtRef,
   listPrunedRemoteTrackingBranches,
+  readLiveRemoteBranchTip,
   readLiveRemoteHeads,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
@@ -127,6 +128,45 @@ describe("readLiveRemoteHeads", () => {
       reachable: true,
       complete: false,
       tips: { main: sha1, "feat/sha256": sha256 },
+    });
+  });
+});
+
+describe("readLiveRemoteBranchTip", () => {
+  it("queries one explicit remote branch and returns its exact tip", async () => {
+    const tip = oid("a1");
+    const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
+      expect(args).toEqual(["ls-remote", "--heads", "origin", "refs/heads/plan/origin"]);
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
+      return { stdout: `${tip}\trefs/heads/plan/origin\n`, stderr: "" };
+    });
+
+    await expect(readLiveRemoteBranchTip({ exec, branch: "plan/origin" })).resolves.toEqual({
+      reachable: true,
+      tip,
+    });
+  });
+
+  it.each([
+    ["absent", ""],
+    ["malformed", "not-a-ref\n"],
+    ["wrong ref", `${oid("a1")}\trefs/heads/plan/other\n`],
+    ["duplicate", `${oid("a1")}\trefs/heads/plan/origin\n${oid("b2")}\trefs/heads/plan/origin\n`],
+  ])("fails closed for %s output", async (_label, stdout) => {
+    await expect(readLiveRemoteBranchTip({
+      exec: execReturning(stdout),
+      branch: "plan/origin",
+    })).resolves.toEqual({ reachable: true, tip: null });
+  });
+
+  it("distinguishes an unreadable remote", async () => {
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("timed out");
+    });
+
+    await expect(readLiveRemoteBranchTip({ exec, branch: "plan/origin" })).resolves.toEqual({
+      reachable: false,
+      tip: null,
     });
   });
 });

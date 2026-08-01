@@ -173,6 +173,12 @@ Medium.
   const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
   await git(repo, ["switch", "main"]);
 
+  const remote = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-remote-"));
+  roots.push(remote);
+  await git(remote, ["init", "--bare"]);
+  await git(repo, ["remote", "add", "origin", remote]);
+  await git(repo, ["push", "origin", "main", "plan/origin"]);
+
   const dependencies = await repositoryDependencies(repo);
   const preflight = await createGitV3DecomposePreflight({
     cwd: repo,
@@ -214,7 +220,7 @@ Medium.
       outgoingDispositions: [],
     },
   };
-  return { repo, baseHead, sourceHead, completedMap, dependencies };
+  return { repo, remote, baseHead, sourceHead, completedMap, dependencies };
 }
 
 async function finalizedCandidateRepository() {
@@ -459,6 +465,59 @@ describe("Git v3 repository plan", () => {
         command: `arc decompose origin --discard ${cutMapPath}`,
       },
     });
+  });
+
+  it("refuses an unpublished source before claiming or materializing a candidate", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(repo, ["push", "--force", "origin", "main:plan/origin"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "source-unpublished",
+      locus: "plan/origin",
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+  });
+
+  it("refuses when the source remote cannot be read", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(repo, ["remote", "set-url", "origin", join(repo, "missing-remote.git")]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "source-unpublished",
+      locus: "plan/origin",
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
   });
 
   it("preserves unexpected Git adapter diagnostics in the refusal locus", async () => {

@@ -14,28 +14,25 @@ preparation boundary stays synchronous and pure, and base advancement is untouch
 rather than reachability: it is stricter, needs only a bounded remote listing, and its false-refusal window at cut
 time is negligible. An unreadable remote refuses.
 
-### `[ ]` **1.1 Refuse a cut whose source is unpublished**
+### `[x]` **1.1 Refuse a cut whose source is unpublished**
 
 - _Goal:_ A retiring branch that exists only locally cannot produce evidence a reviewer will be unable to check.
 
-    - `[ ]` **1.1.a Scope the gate to the retiring-branch shape**
-        - Apply the existing structural test comparing the recorded source ref against the recorded result-base
-          ref, and skip the gate entirely when they match.
-        - _Note:_ deliberately structural rather than a source-kind check, matching the test the base advancement
-          path already uses for the same distinction.
+    - `[x]` **1.1.a Scope the gate to the retiring-branch shape**
+        - Compared the recorded source and result-base refs at execution entry, skipping the remote read when the
+          source is the configured base.
 
-    - `[ ]` **1.1.b Gate at execution entry**
-        - Place the check before materialization, where the completed map is already available and no destination
-          artifact has been written.
-        - Leave the preparation boundary synchronous and pure, and leave the base advancement re-derivation path
-          untouched.
+    - `[x]` **1.1.b Gate at execution entry**
+        - Gated the revalidated execute command before repository occupation, candidate claiming, materialization,
+          or durable preparation; the base-advancement path remains separate.
 
-    - `[ ]` **1.1.c Compare the live remote tip against the recorded source head**
-        - Query the single recorded branch rather than listing every head, matching the narrow remote-read shape
-          already used elsewhere; refuse on inequality, naming the unpublished branch as the locus.
-        - Name the remote explicitly and translate the recorded local ref to the branch form the query takes; a
-          refusal produced by consulting the wrong remote would name the operator's own published branch.
-        - Refuse when the remote cannot be read rather than assuming published.
+    - `[x]` **1.1.c Compare the live remote tip against the recorded source head**
+        - Added a timeout-bounded single-ref `origin` query that admits only one exact, well-formed tip matching the
+          recorded source head; stale, absent, malformed, duplicate, and unreadable results refuse at the source
+          branch locus.
+
+- _Outcome:_ Execution now proves a retiring source is published before any transform-owned state changes, while
+  configured-base cuts and base advancement remain free of the network precondition.
 
 ## **Phase 2:** Exact-ref evidence and classification
 
