@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "release-commit-finalization",
+  "claimId": "16db8eccaede3865d7f7edfa01bda379",
+  "createdAt": "2026-08-01T19:28:52.378Z",
+  "updatedAt": "2026-08-01T19:28:52.378Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make release commit return only after the commit is observable",
+  "branch": "chore/release-commit-finalization",
+  "origin": "inbox",
+  "originEntry": "Make `arc release commit` wait for commit finalization before returning",
+  "originEntrySourceDigest": "sha256:4bc61eb494dabbaea698c418610937473840e83fa71c64afa5b56770c7605009",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
