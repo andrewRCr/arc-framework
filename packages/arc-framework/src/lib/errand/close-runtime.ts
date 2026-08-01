@@ -1,14 +1,18 @@
 /** Production ports for exact ordinary-v3 Errand merge finalization. */
 
-import { access, lstat, readFile, realpath } from "node:fs/promises";
+import { access, lstat, open, readFile, realpath, unlink } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { readWorktreeMarker } from "../git/worktree-marker.js";
+import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import {
   createPlatformProcessAncestryInspector,
   createPlatformProcessInspector,
 } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
+import { deriveLocusRecordId } from "../locus/path-identity.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
 import { readLocusState } from "../locus/reader.js";
 import type { LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
@@ -18,16 +22,21 @@ import {
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
 import { resolveOptionalCommit, tearDownExactBranchGeneration } from "./exact-branch-generation.js";
-import { classifyErrandCloseOccupancy } from "./close-occupancy.js";
+import {
+  classifyErrandCloseOccupancy,
+  type BaseCheckoutCloseProof,
+} from "./close-occupancy.js";
 import {
   closeOrdinaryErrand,
+  type CloseAuthorityGuard,
+  type CloseAuthorityLeaseResult,
   type CloseInboxResult,
   type CloseOccupancyResult,
   type CloseRefCleanupResult,
   type CloseTarget,
   type CloseTargetResolution,
 } from "./close-locus.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 
@@ -90,7 +99,7 @@ export async function closeOrdinaryErrandAtRuntime(
       readLifecycle: async (target) => {
         return lifecyclePort.read(target.changeRequest, target.changeRequest);
       },
-      cleanupRefs: (target) => cleanupOrdinaryErrandRefs(options.exec, target),
+      cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(options.exec, target, guard),
       removeInbox: options.removeInbox,
       retire: async (target, lifecycle) => {
         const result = await transactTransientIdentities(io, {
@@ -150,11 +159,21 @@ async function readCloseOccupancy(
       message: `Errand close cannot establish a durable session anchor: ${anchor.reason}`,
     };
   }
+  const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let state: LocusStateV1;
+  let baseCheckoutProof: BaseCheckoutCloseProof | null = null;
+  let currentCheckoutPath: string;
   try {
+    currentCheckoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
+    if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
+    const [currentBranch, currentMarker] = await Promise.all([
+      options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
+      readWorktreeMarker(currentCheckoutPath),
+    ]);
+    const currentBranchName = currentBranch.stdout.trim();
     state = await readLocusState({
       identity: options.identity,
-      pathFlavor: process.platform === "win32" ? "windows" : "posix",
+      pathFlavor,
       evidenceIO: createLocusEvidenceIO({ exec: options.exec, identity: options.identity, inspector }),
       subjectMetaIO: {
         readFile: (path) => readFile(path, "utf8"),
@@ -170,10 +189,139 @@ async function readCloseOccupancy(
         exec: options.exec,
       }),
     });
+    const [confirmedBranch, confirmedMarker] = await Promise.all([
+      options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
+      readWorktreeMarker(currentCheckoutPath),
+    ]);
+    const confirmedBranchName = confirmedBranch.stdout.trim();
+    if (currentBranchName === options.base
+      && confirmedBranchName === currentBranchName
+      && currentBranchName !== record.branch
+      && currentMarker.kind === "absent"
+      && confirmedMarker.kind === "absent") {
+      const checkoutIdentity = deriveLocusRecordId(currentCheckoutPath, pathFlavor);
+      baseCheckoutProof = {
+        recordId: checkoutIdentity.recordId,
+        checkoutPath: checkoutIdentity.normalizedPath,
+        identity: projectLocusIdentity(record),
+      };
+    }
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
-  return classifyErrandCloseOccupancy({ state, slug: record.slug, claimId: record.claimId });
+  const verdict = classifyErrandCloseOccupancy({
+    state,
+    slug: record.slug,
+    claimId: record.claimId,
+    baseCheckoutProof,
+  });
+  if (verdict.kind !== "clear") return verdict;
+  return {
+    kind: "clear",
+    guard: verdict.authority === "base-checkout"
+      ? createBaseCheckoutCloseGuard(options, currentCheckoutPath)
+      : null,
+  };
+}
+
+function createBaseCheckoutCloseGuard(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  checkoutPath: string,
+): CloseAuthorityGuard {
+  const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
+    try {
+      const before = (await options.exec(
+        "git",
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        { cwd: checkoutPath },
+      )).stdout.trim();
+      const marker = await readWorktreeMarker(checkoutPath);
+      const after = (await options.exec(
+        "git",
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        { cwd: checkoutPath },
+      )).stdout.trim();
+      if (before === options.base && after === before && marker.kind === "absent") {
+        return { kind: "valid" };
+      }
+      return {
+        kind: "refused",
+        reason: "role-conflict",
+        message: `Errand close lost base-checkout authority at '${checkoutPath}'; switch it to '${options.base}' and retry.`,
+      };
+    } catch (error) {
+      return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+    }
+  };
+  return {
+    revalidate,
+    acquire: () => acquireBaseCheckoutCloseLease(options, checkoutPath, revalidate),
+  };
+}
+
+async function acquireBaseCheckoutCloseLease(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  checkoutPath: string,
+  revalidate: CloseAuthorityGuard["revalidate"],
+): Promise<CloseAuthorityLeaseResult> {
+  let gitHeadPath: string;
+  try {
+    gitHeadPath = (await options.exec("git", ["rev-parse", "--git-path", "HEAD"], {
+      cwd: checkoutPath,
+    })).stdout.trim();
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  if (gitHeadPath === "") return { kind: "error", message: "Git returned no checkout HEAD path." };
+  const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(lockPath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      return {
+        kind: "refused",
+        reason: "role-conflict",
+        message: `Errand close cannot lock checkout HEAD at '${checkoutPath}'; wait for the other Git operation and retry.`,
+      };
+    }
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+
+  let released = false;
+  const release = async (): Promise<void> => {
+    if (released) return;
+    let closeError: unknown = null;
+    try {
+      await handle.close();
+    } catch (error) {
+      closeError = error;
+    }
+    let unlinkError: unknown = null;
+    try {
+      await unlink(lockPath);
+    } catch (error) {
+      unlinkError = error;
+    }
+    if (unlinkError !== null) {
+      throw unlinkError instanceof Error ? unlinkError : new Error("Unknown checkout HEAD unlock failure");
+    }
+    released = true;
+    if (closeError !== null) {
+      throw closeError instanceof Error ? closeError : new Error("Unknown checkout HEAD handle-close failure");
+    }
+  };
+  const authorization = await revalidate();
+  if (authorization.kind === "valid") return { kind: "acquired", release };
+  try {
+    await release();
+  } catch (error) {
+    return {
+      kind: "error",
+      message: `Errand close could not release rejected checkout authority: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  return authorization;
 }
 
 /**
@@ -239,13 +387,42 @@ async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null>
 export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
+  guard: CloseAuthorityGuard | null = null,
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
     branch: target.record.branch,
     expectedHead: target.changeRequest.headSha,
     subject: "Errand",
     temporaryRefNamespace: "refs/arc/tmp/errand-close",
+    ...(guard === null ? {} : {
+      authorizeDelete: async () => {
+        const authorization = await guard.revalidate();
+        if (authorization.kind === "valid") return { kind: "authorized" };
+        return authorization.kind === "refused"
+          ? { kind: "refused", message: authorization.message }
+          : authorization;
+      },
+      authorizeLocalDelete: async () => {
+        const roster = await scanRegisteredWorktrees(exec);
+        if (!roster.ok) {
+          return {
+            kind: "refused" as const,
+            message: `Local Errand branch occupancy cannot be proven: ${roster.message}`,
+          };
+        }
+        const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+        return occupied === undefined
+          ? { kind: "authorized" as const }
+          : {
+              kind: "refused" as const,
+              message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+            };
+      },
+    }),
   });
+  if (result.kind === "authorization-refused") {
+    return { kind: "refused", reason: "role-conflict", message: result.message };
+  }
   return result.kind === "refused"
     ? { kind: "refused", reason: "preservation-unproven", message: result.message }
     : result;
