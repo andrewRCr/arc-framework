@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-delivery-plan-record.md`
+- **Design:** `spec-delivery-plan-record.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft reached formalization-ready — three adversarial passes folded, both forks settled
 - **Next Task:** [none]
 - **Blockers:** [none]
