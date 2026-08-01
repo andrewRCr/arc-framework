@@ -86,6 +86,10 @@ classifier over the exact base/head before arming auto-merge; only literal `plan
 is required through the independent clearance setup, its planning writer makes the same decision structural at
 the host.
 
+The shipped skeleton deliberately keeps decomposition receipts owned. To unown that namespace, first complete the
+independent clearance setup and enforce base currency, then use its guarded planning-lane ownership command. Do not
+add the exception while copying or reconciling the skeleton; this auto-merge setup remains valid without it.
+
 ## Step 3: Require the merge-ok check in branch protection
 
 `merge-ok` must be the required status check on the base branch — NOT the heavy CI jobs directly (a

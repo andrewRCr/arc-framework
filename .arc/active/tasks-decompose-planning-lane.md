@@ -173,32 +173,35 @@ a merge queue, and the command reports which mechanism satisfied it rather than 
 - _Outcome:_ One machine-readable command now binds host eligibility to the only ownership mutation it permits;
   an unreadable mechanism, missing guard, or unsafe CODEOWNERS ordering fails closed without changing the file.
 
-### `[ ]` **4.2 Keep the host-policy assets in one direction**
+### `[x]` **4.2 Keep the host-policy assets in one direction**
 
 - _Goal:_ Setup guidance, recipes, workflow, and ownership never drift between the two copies.
 
-    - `[ ]` **4.2.a Edit the authoritative copies**
-        - Make every host-policy edit in the package source: ownership skeleton, clearance workflow, merge-gate
-          recipe and readme, setup guidance, and initial setup.
+    - `[x]` **4.2.a Edit the authoritative copies**
+        - Updated the package-source ownership skeleton, clearance workflow, merge-gate recipe and readme, setup
+          guidance, and initial-setup guidance with the guarded receipt-ownership posture.
 
-    - `[ ]` **4.2.b Mirror and confirm parity**
-        - Mirror each edit into the project copy and confirm the per-file parity assertions pass.
-        - _Note:_ the pre-commit sync check only warns for these files, so it prompts but does not gate; the
-          parity assertions are the guard.
+    - `[x]` **4.2.b Mirror and confirm parity**
+        - Applied the same targeted edits to the project copies and added byte-parity assertions for all six
+          host-policy assets.
 
-### `[ ]` **4.3 State the host fetch requirement**
+- _Outcome:_ The package remains authoritative while the integration contract makes drift across the complete
+  host-policy surface a test failure.
+
+### `[x]` **4.3 State the host fetch requirement**
 
 - _Goal:_ A later narrowing of the classification checkout cannot silently disable the lane.
 
-    - `[ ]` **4.3.a Record the branch-fetch requirement where the checkout is configured**
-        - State that the classification checkout must fetch branch refs rather than a single commit's history,
-          and why, in both the shipped recipe and the project's own workflow.
+    - `[x]` **4.3.a Record the branch-fetch requirement where the checkout is configured**
+        - Documented at both classification checkouts that exact decomposition source commits may live only on
+          another branch ref, preserving the full-ref fetch requirement.
 
-    - `[ ]` **4.3.b Assert the requirement on both copies**
-        - Extend the existing pinned checkout expectation, which covers the project's own workflow only, to the
-          shipped recipe's classification checkout as well.
-        - _Note:_ prose alone cannot catch a later narrowing, and the failure presents as a universally reviewed
-          lane rather than an error.
+    - `[x]` **4.3.b Assert the requirement on both copies**
+        - Extended the workflow integration contract to require the branch-ref fetch explanation in both the
+          project workflow and shipped recipe.
+
+- _Outcome:_ A checkout narrowed to PR history now breaks the host-policy contract before it can silently force
+  every decomposition receipt back into review.
 
 ## **Phase 5:** Security and workflow acceptance
 

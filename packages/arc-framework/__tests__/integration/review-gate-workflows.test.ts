@@ -649,7 +649,6 @@ describe("trusted review-gate workflows", () => {
       path: "_arc_pr_data",
       "persist-credentials": false,
     });
-
     const readiness = stepValue(clearance, "validate", "readiness");
     expect(readiness.run).toContain(
       "./node_modules/.bin/tsx packages/arc-framework/src/cli.ts review readiness",
@@ -755,6 +754,9 @@ describe("trusted review-gate workflows", () => {
       "fetch-depth": 0,
       "persist-credentials": false,
     });
+    expect(workflow).toContain(
+      "Fetch branch refs: exact decomposition source commits may sit outside the PR history.",
+    );
 
     const classify = stepValue(workflow, "planning-classify", "planning-lane");
     expect(stepValue(workflow, "planning-classify", "planning-install").run)
@@ -837,13 +839,18 @@ describe("trusted review-gate workflows", () => {
     expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
     expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
     expect(template).toContain("path: _arc_pr_data");
+    expect(template).toContain(
+      "Fetch branch refs: exact decomposition source commits may sit outside the PR history.",
+    );
     expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
     expect(codeowners).not.toContain("/.arc/backlog/**/");
     expect(codeowners).toContain("/.arc/backlog/planned/*/*/spec-*.md");
     expect(codeowners).toContain("/.arc/backlog/provisional/*/meta-*.md");
+    expect(codeowners).not.toContain("/.arc/system/.internal/retirement-receipts/*.json");
     expect(recipeReadme).not.toContain("git diff --name-only");
     expect(recipeReadme).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(recipeReadme).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
+    expect(recipeReadme).toContain("classification checkout must fetch branch refs");
     expect(setup).toContain(".arc/system/.internal/manifest.json");
     expect(setup).toContain("arc --version");
     expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
@@ -867,9 +874,31 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toContain("reviewers");
     expect(packaged).toContain("total_count");
     expect(packaged).toContain('["arc-cleared"]');
+    expect(packaged).toContain(
+      "arc review planning-lane-ownership {owner}/{repo} {default-branch} arc-cleared {ownership-file} --apply",
+    );
     expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
     expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
     expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
+  });
+
+  it("keeps every shipped host-policy asset byte-identical to its project mirror", async () => {
+    const paths = [
+      "reference/templates/arc/merge-gate/CODEOWNERS",
+      "reference/templates/arc/merge-gate/README.md",
+      "reference/templates/arc/merge-gate/arc-clearance.yml",
+      "system/workflows/arc/supplemental/setup-arc-clearance.md",
+      "system/workflows/arc/supplemental/setup-merge-gate.md",
+      "system/workflows/arc/initial-setup/01_verify-and-configure.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project, path).toBe(packaged);
+    }
   });
 
   it("offers review-source and merge-guard setup as independent default-off choices", async () => {
@@ -883,6 +912,7 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toContain("Frontline sources");
     expect(packaged).toContain("Standard-review sources");
     expect(packaged).toContain("ARC merge guard");
+    expect(packaged).toMatch(/receipt ownership exception/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
     expect(packaged).toContain("setup-arc-clearance.md");
   });

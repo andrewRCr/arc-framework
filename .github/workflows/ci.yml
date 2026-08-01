@@ -220,6 +220,7 @@ jobs:
         run: npm ci --ignore-scripts
       - id: planning-build
         run: npm run build
+      # Fetch branch refs: exact decomposition source commits may sit outside the PR history.
       - id: planning-data
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5

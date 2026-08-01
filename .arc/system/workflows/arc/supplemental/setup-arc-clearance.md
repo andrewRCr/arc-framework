@@ -100,6 +100,23 @@ contexts. Report which parts were already correct and which changed. The guard i
 workflow and both writers exist on the default branch, the secretless environment is constrained to that branch,
 and `arc-cleared` is additive in branch protection.
 
+## 7. Optionally unown decomposition receipts
+
+Clearance setup is complete without an ownership change. The decomposition-receipt namespace remains owned unless
+the project separately chooses to admit exact canonical receipts to the planning lane.
+
+Only after Step 6 is green, ask whether to apply that exception. On explicit approval, run the guarded command with
+the repository, default branch, required context, and the repository's existing CODEOWNERS location:
+
+```bash
+arc review planning-lane-ownership {owner}/{repo} {default-branch} arc-cleared {ownership-file} --apply
+```
+
+The command independently reads branch protection, active rules, and merge-queue configuration. It edits only when
+`arc-cleared` is required, base currency is enforced, every surface is readable, and the ownership file has a safe
+trailing unowned block. An absent guard, refused read, or unsafe ordering leaves the file unchanged. This step does
+not create a host rule, enable a merge queue, or enable auto-merge; establish those policies separately.
+
 ---
 
 [clearance-template]: ../../../../reference/templates/arc/merge-gate/arc-clearance.yml

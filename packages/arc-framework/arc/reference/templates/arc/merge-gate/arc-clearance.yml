@@ -25,6 +25,7 @@ jobs:
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
+      # Fetch branch refs: exact decomposition source commits may sit outside the PR history.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}

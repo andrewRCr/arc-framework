@@ -10,6 +10,8 @@
 # CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
 # canonical classifier remains authoritative when ARC arms auto-merge. When the
 # optional arc-cleared context is required, it enforces that decision host-side.
+# The decomposition-receipt namespace stays owned in this skeleton. Add its
+# optional exception only through the guarded planning-lane ownership command.
 #
 # Replace @your-org/reviewers with your reviewers (a user or team).
 
