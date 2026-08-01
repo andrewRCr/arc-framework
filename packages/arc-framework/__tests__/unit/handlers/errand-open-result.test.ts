@@ -131,7 +131,13 @@ describe("errand promote result rendering", () => {
       recommendedPromptText: "Promotion source changed.",
     });
 
-    expect(JSON.parse(formatErrandPromoteResult(result, true).text)).toStrictEqual(result);
+    const jsonOutput = formatErrandPromoteResult(result, true);
+    expect(jsonOutput).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 1,
+    });
+    expect(JSON.parse(jsonOutput.text)).toStrictEqual(result);
     expect(formatErrandPromoteResult(result, false)).toEqual({
       stream: "stderr",
       text: "Refused [promotion-source-invalid]: Promotion source changed.",

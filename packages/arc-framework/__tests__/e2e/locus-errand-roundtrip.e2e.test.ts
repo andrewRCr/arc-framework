@@ -22,7 +22,9 @@ const execFileAsync = promisify(execFile);
 async function setFullProtection(repository: string): Promise<void> {
   const path = join(repository, ".arc", "system", "arc-config.yml");
   const config = await readFile(path, "utf8");
-  await writeFile(path, config.replace("branch.protection: partial", "branch.protection: full"));
+  const protectedConfig = config.replace("branch.protection: partial", "branch.protection: full");
+  if (protectedConfig === config) throw new Error("Expected the fixture to use partial branch protection.");
+  await writeFile(path, protectedConfig);
 }
 
 async function createBareRemote(repository: string): Promise<string> {

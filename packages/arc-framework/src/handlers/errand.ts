@@ -76,6 +76,7 @@ import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   clearErrandPartialPushMarker,
+  InboxMutationConflictError,
   inspectInboxEntry,
   recordErrandPartialPushMarker,
   resolveExecutionNextOffer,
@@ -1296,7 +1297,7 @@ export async function handleErrandPromote(
           return { kind: settled.changed ? "applied" : "idempotent" };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          return /source digest changed|Duplicate USER-INBOX entry/u.test(message)
+          return error instanceof InboxMutationConflictError
             ? { kind: "refused", message }
             : { kind: "error", message };
         }

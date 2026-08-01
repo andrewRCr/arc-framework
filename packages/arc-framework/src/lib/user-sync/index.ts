@@ -29,6 +29,7 @@ export {
 } from "./schema.js";
 
 export {
+  InboxMutationConflictError,
   inboxEntrySourceDigest,
   listExecuteBoundInboxEntries,
   inspectInboxEntry,
@@ -38,6 +39,7 @@ export {
   removeInspectedInboxEntry,
   requireLiveInboxTitle,
   type InboxEntryMutation,
+  type InboxMutationConflictCode,
   type InboxEntryMutationOutcome,
   type InspectedInboxEntry,
   type ExecuteBoundInboxEntry,

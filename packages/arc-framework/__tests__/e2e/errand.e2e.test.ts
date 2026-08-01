@@ -1518,14 +1518,34 @@ describe("arc errand promote", () => {
     await writeFile(inboxPath, inbox, "utf-8");
     await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
 
-    const link = await runArc(["errand", "link", "growing", "--from-inbox", "Promote me"], tmpDir);
-    expect(link.exitCode).toBe(1);
-    const promote = await runArc(
-      ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation"],
+    const link = await runArc(
+      ["errand", "link", "growing", "--from-inbox", "Promote me", "--json"],
       tmpDir,
     );
+    expect(link.exitCode).toBe(1);
+    expect(JSON.parse(link.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-link",
+      reason: "identity-conflict",
+      recommendedPromptText: "Identity 'growing' is not a current ordinary Errand.",
+    });
+    const harness = await createCodexHarness();
+    try {
+      const promote = await runArcAnchoredSequence([
+        ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation",
+          "--json"],
+      ], tmpDir, { anchorShellPath: harness.executable });
 
-    expect(promote.exitCode).toBe(1);
+      expect(promote.exitCode).toBe(1);
+      expect(promote.results[0]).toMatchObject({
+        outcome: "refused",
+        operation: "errand-promote",
+        reason: "promotion-source-invalid",
+        recommendedPromptText: "Identity 'growing' is not a live ordinary v3 Errand.",
+      });
+    } finally {
+      await cleanupTempDir(harness.directory);
+    }
     expect(await readFile(inboxPath, "utf-8")).toContain("**Promote me**");
   });
 });

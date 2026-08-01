@@ -69,7 +69,7 @@ export async function promoteOrdinaryErrand(
     return refusal("promotion-source-invalid", "Promotion slug, name, and branch type must be non-empty.");
   }
   if (!SlugSchema.safeParse(name).success || name === "." || name === ".." || /[\\/]/u.test(name)) {
-    return refusal("work-unit-name-taken", "The requested work-unit name is invalid.");
+    return refusal("promotion-source-invalid", "The requested work-unit name is invalid.");
   }
 
   let read: IdentityRead;

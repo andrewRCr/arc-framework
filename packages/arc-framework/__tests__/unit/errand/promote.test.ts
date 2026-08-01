@@ -54,7 +54,26 @@ function frame(kind: "applied" | "idempotent" = "applied"): PromotionFrameReceip
 }
 
 describe("promoteOrdinaryErrand", () => {
-  it("replaces the live frame before retiring identity and preserves the capture pointer", async () => {
+  it("classifies malformed work-unit names as invalid promotion sources", async () => {
+    const result = await promoteOrdinaryErrand({
+      slug: "growing",
+      name: "growth/unit",
+      type: "feat",
+      floor: "scale",
+      protection: "full",
+      dependencies: {
+        readIdentity: vi.fn(),
+        recoverPromoted: vi.fn(),
+        replaceFrame: vi.fn(),
+        retire: vi.fn(),
+        settlePromoted: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
+  });
+
+  it("replaces the live frame before retiring identity and defers capture settlement", async () => {
     const value = record();
     const events: string[] = [];
     const result = await promoteOrdinaryErrand({
@@ -68,7 +87,7 @@ describe("promoteOrdinaryErrand", () => {
         recoverPromoted: vi.fn(),
         replaceFrame: async () => (events.push("frame"), frame()),
         retire: async () => (events.push("identity"), { kind: "applied" }),
-        settlePromoted: async (value) => value,
+        settlePromoted: async (value) => (events.push("settlement"), value),
       },
     });
 
