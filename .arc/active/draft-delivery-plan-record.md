@@ -2,8 +2,8 @@
 
 - **Cohort:** `chunked-delivery` — see `cohort-chunked-delivery.md` for the shared canonical model,
   the problem framing, the field evidence the design rests on, and the cut that produced this member.
-- **Purpose:** Own the canonical `DeliveryPlan` record and its schema-kernel identities, the
-  task-generation authoring verb and its human task-list projection, the version-checked `DeliveryState`
+- **Purpose:** Own the canonical `DeliveryPlan` record and its schema-kernel identities, the authoring
+  contract and its two entries with the human task-list projection, the version-checked `DeliveryState`
   with its store and mutation lease, the projection-neutral transition reducer, and the membership and
   tree-exactness half of the terminal contribution proof.
 - **Position:** the cohort's substrate member. It carries no external dependency and is buildable
@@ -14,38 +14,45 @@
 ## Continuity
 
 **Readiness:** `maturing`. The record shape, state contract, transition reducer, assurance chain, authoring input
-contract, and success signal are settled. What remains open concentrates in the authoring command's own surface,
-the retrofit entry's machine derivation, and three boundaries this member consumes rather than owns.
+contract, and success signal are settled. What remains open concentrates in the authoring command's own surface
+and three boundaries this member consumes rather than owns.
 
-**Resolved — identity and binding.**
+**Resolved.** Each decision's reasoning lives in the section named; this list is the index, not a second copy.
 
-- **Task references are the task list's own positional ids** (`X.Y`, `X.Y.a`), not a second minted identity. Two
-  independent locks make them sound: a **completion lock** holding a task id immutable once it is completed, and
-  the **plan lock** below. The first protects commit-footer integrity and is owned elsewhere, so delivery
-  free-rides on it rather than requiring it.
-- **A member boundary may span a parent task.** Phase-to-member alignment is what the authoring verb defaults to,
-  never an invariant — the member's landability assertion is the real constraint, and forcing boundaries onto
-  authored seams manufactures compatibility caps rather than avoiding them. The inventory therefore reaches
-  subtask granularity, which is why positional ids rather than structural locators carry the reference.
-- **The task semantic digest covers the protected surface only** — title, Goal, and the test-first marker. The
-  completion protocol rewrites everything else, so digesting it would break every bound member at task completion.
-- **Design elements are consumed, not invented.** Enumerable spec elements already carry authored identifiers;
-  the identifier family itself is settled outside this member.
-- **A member's human label is its position in the series**, distinct from its durable identity.
-- **A plan binds at first materialization**, not at any lifecycle transition. Until something external depends on
-  a revision it is freely amendable; afterwards the reconcile rules govern and amendment runs forward of the
-  landed prefix only. Lifecycle state is the wrong instrument — a plan authored mid-implementation would be born
-  bound under a lifecycle rule, which would forbid the retrofit entry below.
-- **Two authoring entries, one record.** A plan is populated either from a task plan before implementation or
-  from an existing branch's change structure after it. Both fill the same authored slots and publish the same
-  record; they differ only in how the machine-derived facts are obtained.
+- **Task references are positional task ids**, reaching subtask granularity, held sound by a completion lock owned
+  elsewhere plus this record's own reconcile — § The plan record.
+- **A member boundary may span a parent task**; phase-to-member alignment is the authoring default, never an
+  invariant — § The plan record, § Authoring.
+- **The task semantic digest covers the completion-protected surface only** — § The plan record.
+- **Design elements are consumed, not invented**, and a paired spec binds both artifacts — § The plan record.
+- **Member order rides the member array alone**; task-inventory order is a warning, and the human label is
+  position-in-series, distinct from durable identity — § The plan record.
+- **Authoring is a derived starter map plus author slots**, with amendment publishing whole records — § Authoring.
+- **Two authoring entries populate one record** — from a task plan, or from an existing branch's change structure.
+  The retrofit entry is first-class — § Authoring.
+- **A plan binds on its first externally visible dependency** — § Plan revisions, binding, and amendment.
 
-**Next.** Design the authoring verb — the largest remaining surface, and the one every decision above constrains.
-Remaining gaps and their kinds are recorded in § Open items.
+**Next.** Close the authoring command's remaining surface, then the adoption remedy and the storage locus — the two
+largest open items. Remaining gaps and their kinds are recorded in § Open items.
 
 ---
 
-## Plan record, delivery state, and the shared reducer
+## Success signal
+
+Both hand-run delivery cuts reconstruct as authored plans against their real branches, and the record validates
+them: the thirteen-slice stack cut and the seven-slice cut each round-trip through the retrofit entry, producing a
+plan whose members carry the boundaries actually shipped, whose seams match the ones those runs recorded, and whose
+refinements pass without a fabricated task partition.
+
+This is the falsifiable check the design is most at risk of failing, which is why it is the one stated. Both cuts
+were authored after implementation, so a record that only serves the pre-implementation entry fails it outright;
+both cut along change structure rather than task structure, so a hard task-partition refinement fails it; and both
+carry recorded seams, so a seam model that cannot express what they found fails it. Reconstruction is available
+now and needs neither projection reducer, which keeps the signal inside this member's own boundary.
+
+---
+
+## The plan record
 
 **Exact `DeliveryPlan` v1 record.** Register the canonical record and every identity preimage with the schema kernel
 under strict-current migration posture. The canonical constructor accepts a `DeliveryPlanAuthoringInput` plus the
@@ -61,7 +68,10 @@ DeliveryPlanV1 {
   planId
   planRevision
   previousPlanDigest
-  design: { revisionDigest, elements: [{ elementId, semanticDigest }] }
+  design: {
+    artifacts: [{ artifactId, revisionDigest }]
+    elements: [{ elementId, semanticDigest }]
+  }
   tasks: {
     inventoryDigest
     implementation: [{ taskId, semanticDigest }]
@@ -168,11 +178,9 @@ identity, digest, uniqueness, coverage, seam-owner, revision-lineage, and projec
 branch / PR names, adapter capabilities, review targets / requirements / receipts, task completion state, and
 workflow steps are schema errors rather than tolerated extra fields.
 
-**Human task-list projection.** After canonical publication, the authoring command replaces one generated
-`Delivery Plan` section in `tasks-*`: exact plan revision / digest, projection, an ordered member table (title,
-chunk key, task ids, design ids, predecessor), and a named-seam table (incident members, owner, acceptance).
-Single-deliverable plans render the same shape with one row. The section is informative and replaceable; workflows
-and reducers never parse it, and per-task delivery tags do not create a second authority.
+---
+
+## Authoring
 
 **Authoring shape.** Authoring is two-phase and never accepts a hand-composed record. The command first emits a
 starter map whose machine section carries every derived fact and identity, and whose authoring section is a
@@ -184,12 +192,37 @@ a starter map seeded from the current revision produces a complete successor rec
 expected predecessor digest. Revisions are whole records rather than deltas, so each validates independently and
 no delta vocabulary becomes a second topology language.
 
+**Boundary defaults.** The authoring verb defaults to phase-to-member alignment, and that default is never an
+invariant. The member's landability assertion is the real constraint; segment or phase refinement is a proxy for
+it that is neither necessary nor sufficient, since a member can span a seam and land cleanly or sit wholly inside
+one boundary and not. Forcing members inside authored boundaries would systematically manufacture the
+compatibility caps a cut should be avoiding, so a spanning member is authored without ceremony and needs no
+separate justification field — the landability assertion it already carries bears that burden.
+
 **Two authoring entries.** A plan is populated either **from a task plan**, before implementation, or **from an
-existing branch's change structure**, after it. Both fill the same authored slots and publish the same record;
-they differ only in how the machine section is derived — task inventory and design inventory in the first case,
-observed change structure in the second — and in whether member task membership is authored or derived. The
-retrofit entry is first-class rather than a degraded mode: it is the entry every delivery cut with field evidence
-actually used, and a design that serves only the pre-implementation entry would fail on its first real contact.
+existing branch's change structure**, after it. Both fill the same authored slots and publish the same record,
+differing only in how the machine section is derived — the task and design inventories in the first case, observed
+change structure in the second — and in whether member task membership is authored or derived. The retrofit entry
+is first-class rather than a degraded mode: it is the entry every delivery cut with field evidence actually used,
+and a design that serves only the pre-implementation entry would fail on its first real contact.
+
+**What the retrofit machine section supplies.** It supplies the material an author draws boundaries against and
+the facts each authored boundary needs — never candidate boundaries themselves. Derivable language-agnostically:
+the commit sequence from base to head; each commit's context classification and, where it names one, the task it
+closed; per-commit and cumulative change shape; file-level co-change structure; and which commits touch the work
+unit's own lifecycle artifacts, which the exclusion invariant needs kept out of any non-final member. The context
+footer is what makes the first two real rather than aspirational — attribution is near-total in practice — and it
+is also what supplies derived task membership for a cut that did not follow the task plan.
+
+The boundary judgment itself stays authored, and must. One field cut followed a module import graph, which is
+language-specific analysis no language-agnostic tool can perform for an arbitrary project, so a derivation that
+proposed boundaries would serve one project's stack and mislead the next. The consequence is stated rather than
+worked around: composition validates that a boundary is **well-formed** — its commits covered exactly once,
+contiguous, carrying no lifecycle artifact it must exclude — and never that it is **well-chosen**. On the
+pre-implementation entry that gap is immaterial. On retrofit it means composition cannot catch the failure the
+field run actually hit, where candidate heads passed their own quality gates while advertising surfaces their
+runtime had not yet wired. Proving a boundary sound is the selected projection's eligibility test, run against
+authored boundaries, and belongs with that reducer rather than here.
 
 A retrofit cut carries one obligation the pre-implementation entry does not. Boundaries drawn through code that
 already exists are not landable by construction, so their coherence must be established rather than assumed, and
@@ -200,6 +233,16 @@ independent of the projections that consume it. The two projections price the ob
 integration-target retrofit reaches the protected base once and needs neither coherence proof nor compatibility
 caps, while a stack retrofit needs both — so retrofit becomes available under the integration-target projection as
 soon as its reducer lands, and under the stack projection when the eligibility test does.
+
+**Human task-list projection.** After canonical publication, the authoring command replaces one generated
+`Delivery Plan` section in `tasks-*`: exact plan revision / digest, projection, an ordered member table (title,
+chunk key, task ids, design ids, predecessor), and a named-seam table (incident members, owner, acceptance).
+Single-deliverable plans render the same shape with one row. The section is informative and replaceable; workflows
+and reducers never parse it, and per-task delivery tags do not create a second authority.
+
+---
+
+## Delivery state and its store
 
 **Minimal `DeliveryState` contract.** One strict-current, non-evidentiary snapshot contains:
 
@@ -229,6 +272,15 @@ Reconciliation clears an operation only when the host proves it applied exactly 
 partially applied outcomes remain blocked for an explicit remedy. Review operations use the review subsystem's own
 resumable records rather than nesting inside this slot.
 
+**Session locus.** The delivery state carries the owning work-unit pointer; the session-locus layer carries only that
+subject pointer, not a copy of delivery state. Commands may receive the pointer explicitly, so state design does not
+depend on branch parsing or a specific worktree implementation. A disposable ref therefore remains usable from a
+materialized session without becoming a WU or acquiring a meta file.
+
+---
+
+## Plan revisions, binding, and amendment
+
 **Plan-revision reconcile.** Before any external binding, state may rebind to a new plan revision. Afterwards,
 automatic reconcile requires the selected topology and every bound or landed deliverable's semantic fingerprint and
 relative prefix position to be unchanged; the unbound suffix may be amended. A changed topology, changed or reordered
@@ -236,18 +288,22 @@ bound member, or removal of a landed member returns `replacement-required`. The 
 references its predecessor and begins only after the caller chooses a teardown / adoption remedy; the old state is
 never overwritten into the new meaning.
 
-**Bind point and forward-only amendment.** A plan is freely amendable until its first member materializes.
-Binding follows external dependency rather than lifecycle position: until a revision has been materialized against,
-authoring iterations cost nothing and reach no reconcile, whichever lifecycle state the work unit occupies. Keying
-the boundary to a lifecycle transition instead would make a plan authored during implementation born bound, which
-forecloses the retrofit entry below — and every delivery cut this design has field evidence for was authored that
-way. Afterwards a plan amends only forward of the landed prefix, which is a physical constraint
-rather than a policy: a landed member's change request is merged and cannot absorb further work. Discovered work
-therefore resolves by where its member sits. An unmaterialized member absorbs it freely as a suffix amendment; a
-materialized one absorbs it as a content change that advances the member's generation and derives a new review
-target, leaving plan membership untouched; a landed one cannot absorb it at all, so the work moves to a later
-member or mints a new one. Splitting an oversized member is the same case — free while that member is unbound,
-and a replacement once it is not.
+**Bind point.** A plan is freely amendable until a revision acquires its first externally visible dependency — a
+pushed member ref or an opened change request. Binding follows external dependency rather than lifecycle position
+or local state: until then, authoring iterations cost nothing and reach no reconcile, whichever lifecycle state the
+work unit occupies. Two boundaries are deliberately excluded. Keying binding to a lifecycle transition would make a
+plan authored during implementation born bound, which forecloses the retrofit entry — and every delivery cut this
+design has field evidence for was authored that way. Keying it to local ref construction would bind a plan merely
+for building candidate heads to test, which is exactly the proving step a retrofit author should be free to run and
+discard.
+
+**Forward-only amendment.** After binding, a plan amends only forward of the landed prefix, which is a physical
+constraint rather than a policy: a landed member's change request is merged and cannot absorb further work.
+Discovered work therefore resolves by where its member sits. An unmaterialized member absorbs it freely as a suffix
+amendment; a materialized one absorbs it as a content change that advances the member's generation and derives a
+new review target, leaving plan membership untouched; a landed one cannot absorb it at all, so the work moves to a
+later member or mints a new one. Splitting an oversized member is the same case — free while that member is
+unbound, and a replacement once it is not.
 
 **Reactive insertion.** A plan may also gain a member it never anticipated, when a landed member blocks work
 outside its own work unit and the remedy must ship before the series continues. Mechanically this is an ordinary
@@ -256,10 +312,9 @@ the one amendment whose cause originates outside the plan's intent, so the recor
 rather than treating it as authoring drift. It also compounds: the bystander exposure that produces it scales with
 how long the series sits partially landed, and inserting a member extends exactly that dwell time.
 
-**Session locus.** The delivery state carries the owning work-unit pointer; the session-locus layer carries only that
-subject pointer, not a copy of delivery state. Commands may receive the pointer explicitly, so state design does not
-depend on branch parsing or a specific worktree implementation. A disposable ref therefore remains usable from a
-materialized session without becoming a WU or acquiring a meta file.
+---
+
+## Lifecycle and the transition reducer
 
 **Minimal common lifecycle.** The state record stores facts rather than a second agenda. CLI verdicts derive the
 aggregate position from ordered per-deliverable facts:
@@ -296,8 +351,12 @@ deliverable identity, advance the affected materialization generations, derive n
 another readiness verdict until checks and review applicability / retrigger settle. After mutation, re-observe the
 host and accept only the requested exact result or a landing mode's explicitly contracted partial result.
 
+---
+
+## Assurance and the terminal contribution proof
+
 **Exact assurance record chain.** Precondition evidence, human authorization, and the observed host result are
-different facts and must not collapse into one “terminal assurance” record.
+different facts and must not collapse into one "terminal assurance" record.
 
 1. **`LandingIntent` — exact pre-mutation contract.** A canonical immutable payload embedded or content-addressed
    by `activeOperation` — not a second operation ledger — binds:
@@ -365,9 +424,8 @@ queries, but it cannot authorize a merge retroactively or stand in for a require
   the fingerprint comparison that just failed. It is the one failure path with no floor beneath it, and it is
   reached at the worst possible moment: mid-series, against merged members. The rest of the reconcile contract
   assumes it exists.
-- **The authoring verb's remaining surface** — _needs-design_. The input shape, the slot-filling contract, and
-  amendment are settled in § Authoring shape. What is not: the retrofit entry's machine derivation — how an
-  existing branch's change structure yields candidate boundaries and their observed facts — the command surface
+- **The authoring command's remaining surface** — _needs-design_. The input shape, the slot-filling contract,
+  amendment, and both entries' machine contracts are settled in § Authoring. What is not: the command surface
   itself, where task generation fires the pre-implementation entry, and how the phase-to-member alignment default
   is expressed as a fillable slot rather than a post-hoc check.
 - **Plan and state storage locus** — _needs-design_, partly consumed rather than owned. Both stores are specified
@@ -384,20 +442,6 @@ queries, but it cannot authorize a merge retroactively or stand in for a require
   survives the storage-tier change; no query is specified today.
 - **`mainlineLandability.invariant`** — _needs-detail_. The field appears in both admissible forms and is never
   described.
+
 Two concerns this member depends on but does not own are recorded outside it, so they are not re-derived here: the
 task-id completion lock, and the enumerable-element identifier family the design inventory consumes.
-
----
-
-## Success signal
-
-Both hand-run delivery cuts reconstruct as authored plans against their real branches, and the record validates
-them: the thirteen-slice stack cut and the seven-slice cut each round-trip through the retrofit entry, producing a
-plan whose members carry the boundaries actually shipped, whose seams match the ones those runs recorded, and whose
-refinements pass without a fabricated task partition.
-
-This is the falsifiable check the design is most at risk of failing, which is why it is the one stated. Both cuts
-were authored after implementation, so a record that only serves the pre-implementation entry fails it outright;
-both cut along change structure rather than task structure, so a hard task-partition refinement fails it; and both
-carry recorded seams, so a seam model that cannot express what they found fails it. Reconstruction is available
-now and needs neither projection reducer, which keeps the signal inside this member's own boundary.
