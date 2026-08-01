@@ -374,6 +374,29 @@ describe("deriveRecoveryLocusContext", () => {
       workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
     })).toThrow(RecoveryLocusContextError);
   });
+
+  it.each([
+    ["unknown lease residue", {
+      ...state([transientRow("errand", {
+        lease: { ...transientRow().lease!, state: "unknown" }, frame: "residue",
+      })], { kind: "none" }),
+      recovery: { kind: "stop" as const, reasons: ["lease-unknown" as const] },
+    }, "Current session locus has unknown lease residue"],
+    ["dead lease residue", state([workUnitRow({
+      lease: { ...workUnitRow().lease!, state: "dead" }, frame: "residue",
+    })], { kind: "none" }), "Current session locus has dead or unresolved residue"],
+    ["stop verdict without residue", {
+      ...state([workUnitRow()], { kind: "none" }),
+      recovery: { kind: "stop" as const, reasons: ["role-conflict" as const] },
+    }, "Current session locus has unresolved recovery verdict: stop"],
+  ])("reports the exact %s refusal", (_name, invalid, message) => {
+    expect(() => deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
+      state: invalid,
+      identity: "andrew",
+      workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
+    })).toThrow(message);
+  });
 });
 
 describe("recovery context over really-derived locus state", () => {
@@ -437,7 +460,7 @@ describe("recovery context over really-derived locus state", () => {
     // pass for both.
     expect(() => deriveRecoveryLocusContext({
       state, checkoutPath: "/repo-child", identity: "andrew", workingMemoryPath: null,
-    })).toThrow(/residue/u);
+    })).toThrow("Current session locus has unresolved recovery verdict: residue");
     expect(() => deriveRecoveryLocusContext({
       state, checkoutPath: "/repo-child", identity: "andrew", workingMemoryPath: null,
     })).not.toThrow(/tokens do not match/u);

@@ -177,11 +177,16 @@ function refuseUnresolvedResidue(state: LocusStateV1): void {
     row.kind === "managed-role"
     && row.frame === "residue"
     && (row.lease?.state === "dead" || row.lease?.state === "unknown"));
-  if (state.recovery.kind !== "none" || residue !== undefined) {
+  if (residue !== undefined) {
     throw new RecoveryLocusContextError(
-      residue?.lease?.state === "unknown"
+      residue.lease?.state === "unknown"
         ? "Current session locus has unknown lease residue"
         : "Current session locus has dead or unresolved residue",
+    );
+  }
+  if (state.recovery.kind !== "none") {
+    throw new RecoveryLocusContextError(
+      `Current session locus has unresolved recovery verdict: ${state.recovery.kind}`,
     );
   }
 }
