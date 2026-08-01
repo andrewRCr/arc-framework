@@ -13,18 +13,15 @@
 
 ## Continuity
 
-**Readiness:** `maturing`, with no open design questions. A first fresh adversarial pass against the readiness,
-proportionality, and design-audit rubrics returned **not formalization-ready** and its material findings were
-verified against source; all are now folded or dispositioned. Six were mechanical corrections — the task digest
-surface named a field the completion protocol prunes, the lifecycle-artifact exclusion enforced a
-projection-specific invariant a sibling owns, assurance-subject generations needed a stated monotonicity rule, the
-single-operator containment argument over-claimed, and two open items were mis-scoped. Four were design
-questions, since settled: landed members freeze whole, coverage and partition separated by authoring basis,
-repository identity reduced to a consumed contract, and the landability qualifier dropped as unread.
+**Readiness:** `maturing`, with no open design questions and the accreted layers consolidated into one artifact.
+One fresh adversarial pass has run against the readiness, proportionality, and design-audit rubrics; its material
+findings were verified against source, and the four design questions it reopened are settled in the sections
+below.
 
-Two steps remain before the formalization bar can be read honestly: a consolidation pass over the layers those
-four added, and — offered, not required — a second adversarial pass. The first pass never saw any of them, and
-three changed load-bearing structure.
+One step remains before the formalization bar can be read honestly: a second adversarial pass — offered rather
+than required, with one of the `Heavy` cap's two unspent. It should run as a full rubric re-run against the
+settled artifact rather than a fix-only attack, since the first pass predates every settlement and three of them
+changed load-bearing structure; its prior-findings input reconstructs from the commit history.
 
 **Resolved.** Each decision's reasoning lives in the section named; this list is the index, not a second copy.
 
@@ -48,7 +45,8 @@ three changed load-bearing structure.
   that point in the series — § Plan revisions, binding, and amendment.
 - **The landed prefix is history, the unlanded suffix is intent.** Landed members freeze whole and carry forward
   byte-identically rather than re-deriving; frozen values are labelled as-of-landing, design drift on shipped work
-  surfaces as an advisory, and a seam crossing the boundary carries a discharge obligation — § The plan record.
+  surfaces as an advisory, and a seam crossing the boundary carries a discharge obligation — § Plan revisions,
+  binding, and amendment.
 - **Three records, split by whether they can be rebuilt** — plan and assignments shared, observations local. That
   split is also what resolves position from a member checkout. Storage is stated as requirements plus a replaceable
   v1 materialization, each store a port with one adapter, and one operator at a time is a recorded scope
@@ -61,8 +59,8 @@ three changed load-bearing structure.
 - **Delivery owns no trigger of its own.** Authoring is opt-in and author-invoked; the advisory that it may be
   worth invoking rides the decomposition boundary test's recorded verdict — § Authoring, § Coordination.
 
-**Next.** Consolidate, optionally run the second pass, then re-read for readiness. Remaining gaps and their kinds
-are recorded in § Open items — all are particulars, three of them seams for a sibling or consumer to settle.
+**Next.** Optionally run the second pass, then re-read for readiness. Remaining gaps and their kinds are recorded
+in § Open items — all are particulars, three of them seams for a sibling or consumer to settle.
 
 ---
 
@@ -239,10 +237,9 @@ semantically incoherent at the same time. A qualifier would be read by nothing. 
 landability against current checks and host facts at land time, so the recorded value gates no decision and is
 documentation of intent rather than a proof input; and what a definition meant on a given day is recoverable from
 the definition's own history and the landing date, which makes a per-member stamp a denormalized copy of a fact
-held elsewhere. The decomposition
-doctrine may reuse the same green-and-consistent vocabulary, but it owns only whether a concern should become
-several work units; this contract owns whether an already chosen member may land independently. Where the two
-share a surface, § Coordination carries the boundary.
+held elsewhere. The decomposition doctrine may reuse the same green-and-consistent vocabulary, but it owns only
+whether a concern should become several work units, while this contract owns whether an already chosen member may
+land independently.
 
 The constructor preserves source inventory order and member order, normalizes set-like values, derives every
 identity through registered domain-separated preimages, then validates the complete record. A reader repeats the
@@ -293,9 +290,9 @@ unit's own lifecycle artifacts. That last one is reported, never enforced here: 
 belongs to the cohort member that owns stack topology, and it arises only under that projection — an
 integration-target series reaches the protected base once, so a member ref never publishes the unit's artifacts
 and the requirement never fires. Enforcing it unconditionally in a projection-neutral composer would both leak a
-projection concern into the substrate and invert the cohort's dependency direction. The context
-footer is what makes the first two real rather than aspirational — attribution is near-total in practice — and it
-is also what supplies derived task membership for a cut that did not follow the task plan.
+projection concern into the substrate and invert the cohort's dependency direction. The context footer is what
+makes the first two real rather than aspirational — attribution is near-total in practice — and it is also what
+supplies derived task membership for a cut that did not follow the task plan.
 
 The boundary judgment itself stays authored, and must. One field cut followed a module import graph, which is
 language-specific analysis no language-agnostic tool can perform for an arbitrary project, so a derivation that
@@ -340,7 +337,7 @@ and reducers never parse it, and per-task delivery tags do not create a second a
 
 ---
 
-## Delivery state and its store
+## Delivery state
 
 **Minimal `DeliveryState` contract.** One strict-current, non-evidentiary snapshot contains:
 
@@ -362,27 +359,9 @@ control-bearing verdict re-observes the relevant Git and host facts. Review find
 qualification remain review-owned. Delivery retains only their identities and asks the review reducer for current
 qualification.
 
-The store contract is `read` plus version-checked `publish(expectedRevision)` under a state-scoped mutation lease,
-composing the existing review operation-store pattern rather than introducing a second concurrency model. A
-different operation stops while one is live, and review operations use the review subsystem's own resumable
-records rather than nesting inside this slot.
-
-**Ordering a host mutation across two tiers.** An operation writes to both tiers, and no atomic write spans them,
-so the order is the contract. A host-mutating command reserves `activeOperation` locally, invokes the adapter,
-observes the exact outcome, **publishes any resulting assignment to the shared tier under its own version check**,
-then records observations and clears the reservation locally. The shared publish is the durable commit point,
-chosen because it is the only part that cannot be rebuilt: a crash after it loses observations that re-observation
-reconstructs, while a crash before it leaves the assignment unmade and the operation replayable. Retry acquires
-the same operation identity, reconciles before replay, and either adopts an already-applied exact result or
-reissues through an adapter operation idempotent by operation id or structural delivery identity. Reconciliation
-clears an operation only when the host proves it applied exactly or did not apply; ambiguous or partially applied
-outcomes remain blocked for an explicit remedy.
-
-**Session locus.** The delivery state carries the owning work-unit pointer; the session-locus layer carries only that
-subject pointer, not a copy of delivery state. Commands may receive the pointer explicitly, and where none is
-supplied the shared assignment record resolves it from the current head or ref (§ Storage). Neither path depends on
-branch parsing or a specific worktree implementation, so a disposable ref remains usable from a materialized
-session without becoming a WU or acquiring a meta file.
+Only one operation is live at a time: a different operation stops while one is outstanding, and review operations
+use the review subsystem's own resumable records rather than nesting inside this slot. Where this record lives,
+how it publishes, and how a session reaches it from a member checkout are all in § Storage.
 
 ---
 
@@ -390,12 +369,12 @@ session without becoming a WU or acquiring a meta file.
 
 Delivery keeps three per-plan records: the **plan** (authored intent, immutable per revision), the **assignments**
 (which ref and change request carry each deliverable), and the **observations** (what the host currently shows).
-One further record is repository-scoped rather than per-plan — the minted repository identity described below —
-and it shares the plan's tier and durability. All are storage-agnostic by contract.
+All three are storage-agnostic by contract, and delivery keeps no repository-scoped record of its own —
+`repositoryId` is consumed from its owning authority, below.
 
-What follows separates the **requirements** — which must hold at any
-tier — from the **v1 materialization**, which is expected to be replaced when the storage direction lands and is
-deliberately shaped so that replacing it costs one adapter apiece.
+What follows separates the **requirements** — which must hold at any tier — from the **v1 materialization**, which
+is expected to be replaced when the storage direction lands and is deliberately shaped so that replacing it costs
+one adapter apiece.
 
 **Requirements.**
 
@@ -423,7 +402,20 @@ advance as materialization proceeds, so folding refs into the plan would make an
 teach it about a projection detail it deliberately does not know. Observations live under the Git common
 directory alongside the review subsystem's own operation state, which every linked worktree resolves identically
 and which checkout-path relocation cannot move, with advisory locking and atomic replacement supplying the lease
-and the version-checked write.
+and the version-checked write. The observation store's contract is `read` plus version-checked
+`publish(expectedRevision)` under that lease, composing the review subsystem's existing operation-store pattern
+rather than introducing a second concurrency model.
+
+**Ordering a host mutation across the two tiers.** An operation writes to both tiers, and no atomic write spans
+them, so the order is the contract. A host-mutating command reserves `activeOperation` locally, invokes the
+adapter, observes the exact outcome, **publishes any resulting assignment to the shared tier under its own version
+check**, then records observations and clears the reservation locally. The shared publish is the durable commit
+point, chosen because it is the only part that cannot be rebuilt: a crash after it loses observations that
+re-observation reconstructs, while a crash before it leaves the assignment unmade and the operation replayable.
+Retry acquires the same operation identity, reconciles before replay, and either adopts an already-applied exact
+result or reissues through an adapter operation idempotent by operation id or structural delivery identity.
+Reconciliation clears an operation only when the host proves it applied exactly or did not apply; ambiguous or
+partially applied outcomes remain blocked for an explicit remedy.
 
 **Resolving position from a member checkout.** The assignment record answers the reverse question the plan cannot:
 given a repository and a head or ref, return the plan, the member, and the owning work unit. A session occupying a
@@ -432,6 +424,11 @@ the work unit's artifacts to tell it. Because assignments are shared, any machin
 can answer it — including one that never materialized anything. This is a query contract over an authoritative
 binding rather than an inference from a ref's shape, so it reintroduces none of the branch-derived identity the
 record refuses, and it survives the storage-tier change as an ordinary record query.
+
+A command may instead receive the owning work-unit pointer explicitly, and the session-locus layer carries only
+that subject pointer rather than a copy of delivery state. Neither path depends on branch parsing or a specific
+worktree implementation, so a disposable ref stays usable from a materialized session without becoming a work unit
+or acquiring a meta file.
 
 **One operator at a time.** A work unit has a single owner, and one person cannot operate two machines at once, so
 concurrent delivery operations against one plan are out of scope and the mutation lease stays local rather than
@@ -502,11 +499,10 @@ itself is re-cut, which is a member-set change rather than a coverage tweak.
 Removal, reordering, or alteration of a **landed** member is refused rather than remedied: its change request is
 merged, so a plan that no longer claims it leaves a landing observation for a member the plan does not contain,
 and the terminal contribution proof is falsified by construction. The landed prefix is therefore immutable in the
-record, not merely un-amendable, and a replacement carries it forward byte-identically — see § Plan record for
-what freezing covers and why re-derivation would refuse the wrong cases. A **topology change after the first
-landing** is refused on the same ground, since landed members already reached the destination the old projection
-chose. Renaming a bound member's `chunkKey` is refused as well: it is an identity change, and the guidance is to
-author a new member rather than rename a bound one.
+record, not merely un-amendable, and a replacement carries it forward byte-identically, under the freezing rule
+below. A **topology change after the first landing** is refused on the same ground, since landed members already
+reached the destination the old projection chose. Renaming a bound member's `chunkKey` is refused as well: it is
+an identity change, and the guidance is to author a new member rather than rename a bound one.
 
 **The landed prefix is history; the unlanded suffix is intent.** That distinction is what makes carrying the
 prefix forward satisfiable, and it has to be structural rather than argued. A landed member is **frozen whole** at
@@ -731,10 +727,10 @@ member stands without it.
   § Authoring; what remains is its surface. Whether the two entries are separate verbs or one verb with an entry
   selector, and where the starter map rests while it is being filled — which interacts with storage, since a
   transient authoring file must not land in the work unit's change set either.
-- **How a frozen landed member is typed and rendered** — _needs-detail_. § Plan record settles that landed members
-  freeze whole and carry as-of-landing values, and that those values must be labelled rather than hidden. The
-  record shape that distinguishes a frozen member from a live one, and how the task-list projection renders the
-  difference so an amended spec reads as history rather than corruption, are particulars.
+- **How a frozen landed member is typed and rendered** — _needs-detail_. § Plan revisions settles that landed
+  members freeze whole and carry as-of-landing values, and that those values must be labelled rather than hidden.
+  The record shape that distinguishes a frozen member from a live one, and how the task-list projection renders
+  the difference so an amended spec reads as history rather than corruption, are particulars.
 - **The design-drift advisory's trigger and surface** — _needs-detail_. Settled that drift between a landed
   member's as-of-landing design digests and the current spec surfaces as an advisory rather than a plan-validity
   failure. Where it fires, and whether it belongs to this member or to the lifecycle surfaces that already carry
@@ -758,9 +754,9 @@ member stands without it.
   § Storage puts concurrent operation out of scope — so the question turns on retry granularity after a failed
   publish, the cost of the reverse-lookup query against each shape, and which ports more cleanly at the next
   storage tier.
-- **The projection's landability column** — _needs-detail_. `mainlineLandability` is now a plain enum, so the
-  member table renders one value rather than a structure. Whether it earns a column at all under the
-  integration-target projection, where the judgment is recorded but never consulted, is a rendering call.
+- **The projection's landability column** — _needs-detail_. `mainlineLandability` is a plain enum, so the member
+  table renders one value rather than a structure. Whether it earns a column at all under the integration-target
+  projection, where the judgment is recorded but never consulted, is a rendering call.
 
 Two concerns this member depends on but does not own are recorded outside it, so they are not re-derived here: the
 task-id completion lock, and the enumerable-element identifier family the design inventory consumes.
