@@ -11,6 +11,35 @@
 
 ---
 
+## Continuity
+
+**Readiness:** `maturing`. The record shape, state contract, transition reducer, and assurance chain are settled
+to near-spec density. What remains open concentrates in the authoring surface and two boundaries this member
+consumes rather than owns; the authoring verb is the one area still genuinely rough.
+
+**Resolved — identity and binding.**
+
+- **Task references are the task list's own positional ids** (`X.Y`, `X.Y.a`), not a second minted identity. Two
+  independent locks make them sound: a **completion lock** holding a task id immutable once it is completed, and
+  the **plan lock** below. The first protects commit-footer integrity and is owned elsewhere, so delivery
+  free-rides on it rather than requiring it.
+- **A member boundary may span a parent task.** Phase-to-member alignment is what the authoring verb defaults to,
+  never an invariant — the member's landability assertion is the real constraint, and forcing boundaries onto
+  authored seams manufactures compatibility caps rather than avoiding them. The inventory therefore reaches
+  subtask granularity, which is why positional ids rather than structural locators carry the reference.
+- **The task semantic digest covers the protected surface only** — title, Goal, and the test-first marker. The
+  completion protocol rewrites everything else, so digesting it would break every bound member at task completion.
+- **Design elements are consumed, not invented.** Enumerable spec elements already carry authored identifiers;
+  the identifier family itself is settled outside this member.
+- **A member's human label is its position in the series**, distinct from its durable identity.
+- **A plan binds at activation** — the lifecycle transition out of `Planning`. Before it the plan is freely
+  amendable; after it the reconcile rules govern, and amendment runs forward of the landed prefix only.
+
+**Next.** Design the authoring verb — the largest remaining surface, and the one every decision above constrains.
+Remaining gaps and their kinds are recorded in § Open items.
+
+---
+
 ## Plan record, delivery state, and the shared reducer
 
 **Exact `DeliveryPlan` v1 record.** Register the canonical record and every identity preimage with the schema kernel
@@ -72,17 +101,31 @@ identities and the plan semantics, so one WU has one stable plan identity across
 predecessor's digest. `planDigest` covers the complete canonical record except itself. An append-only plan store
 publishes by expected predecessor digest, preventing two successors from both becoming the current revision.
 
-The design inventory binds the exact design revision plus each enumerable design element / success criterion used
-for coverage. The task inventory binds every executable implementation leaf by its stable task id and semantic
-digest, plus the one WU verification leaf. A task semantic digest covers its pre-implementation intent — title,
-Goal, instructions, and test-first marker when present — while excluding its checkbox, completion notes, Outcome,
-and the generated delivery-plan projection. `inventoryDigest` covers that normalized inventory, so rendering the
-plan into the task list creates no digest cycle and later progress updates do not amend delivery intent.
+The design inventory binds each spec artifact's exact revision plus every enumerable element used for coverage. A
+work unit carries one design artifact or a paired pair, so the binding admits both: each bound artifact
+contributes its own revision digest, and elements carry form-qualified identifiers so a paired unit's requirement
+and design namespaces stay distinct. Coverage is stated over _declared_ elements, so a spec form that enumerates
+nothing binds an empty inventory and the coverage refinement goes vacuous — enumeration is a precondition for
+design coverage, never for chunking.
+
+The task inventory binds every executable implementation leaf by its authored task id and semantic digest, plus
+the one WU verification leaf. Task ids are the task list's own positional identifiers rather than a second minted
+identity, and they reach subtask granularity because a member boundary may fall inside a parent task. A task
+semantic digest covers the surface the completion protocol protects — title, Goal, and the test-first marker when
+present — and excludes everything that protocol rewrites: the checkbox, body bullets and peer descriptors, the
+rolled-up outcome, and the generated delivery-plan projection. `inventoryDigest` covers that normalized inventory,
+so rendering the plan into the task list creates no digest cycle and later progress updates do not amend delivery
+intent.
 
 `members` is the only topology-order carrier. Each author-supplied `chunkKey` derives a stable `chunkId`; granting
 that chunk a merge boundary derives its `deliverableId` from the chunk identity rather than accepting a second
-author key. The member's `contract`, task and design coverage, semantic landability assertion when present, and
-incident / owned seam semantics derive `semanticFingerprint`, including the referenced task / design semantic
+author key. A member's human label is its position in the series, qualified by the plan revision that produced it,
+following the established patch-series form; the label states position and series length and is presentation only.
+`deliverableId` alone is durable, so relabelling a member never moves its identity, and because amendment runs
+forward of the landed prefix, a landed member's label never shifts under a later revision.
+
+The member's `contract`, task and design coverage, semantic landability assertion when present, and incident /
+owned seam semantics derive `semanticFingerprint`, including the referenced task / design semantic
 digests rather than identifiers alone. The title still changes the whole-plan digest but does not force replacement
 when the member's actual contract is unchanged. No arbitrary `dependsOn` edges exist: predecessor is the previous
 array member, and any requested landing is a contiguous prefix.
@@ -154,6 +197,23 @@ relative prefix position to be unchanged; the unbound suffix may be amended. A c
 bound member, or removal of a landed member returns `replacement-required`. The replacement lineage explicitly
 references its predecessor and begins only after the caller chooses a teardown / adoption remedy; the old state is
 never overwritten into the new meaning.
+
+**Bind point and forward-only amendment.** A plan is freely amendable until its work unit activates — the
+lifecycle transition out of `Planning` is the bind boundary, so authoring iterations before it cost nothing and
+reach no reconcile. Afterwards a plan amends only forward of the landed prefix, which is a physical constraint
+rather than a policy: a landed member's change request is merged and cannot absorb further work. Discovered work
+therefore resolves by where its member sits. An unmaterialized member absorbs it freely as a suffix amendment; a
+materialized one absorbs it as a content change that advances the member's generation and derives a new review
+target, leaving plan membership untouched; a landed one cannot absorb it at all, so the work moves to a later
+member or mints a new one. Splitting an oversized member is the same case — free while that member is unbound,
+and a replacement once it is not.
+
+**Reactive insertion.** A plan may also gain a member it never anticipated, when a landed member blocks work
+outside its own work unit and the remedy must ship before the series continues. Mechanically this is an ordinary
+forward amendment — landed positions are unchanged, the unbound suffix relabels under a new revision — but it is
+the one amendment whose cause originates outside the plan's intent, so the record admits it as a first-class mode
+rather than treating it as authoring drift. It also compounds: the bystander exposure that produces it scales with
+how long the series sits partially landed, and inserting a member extends exactly that dwell time.
 
 **Session locus.** The delivery state carries the owning work-unit pointer; the session-locus layer carries only that
 subject pointer, not a copy of delivery state. Commands may receive the pointer explicitly, so state design does not
@@ -253,3 +313,39 @@ projection may have several. Unrelated `main` advances between stack operations 
 suffix reconciliation but are absent from the WU contribution chain. Terminal correctness therefore does not compare
 the ambient `main` trees at WU start and finish. The completion record may support reporting and downstream lifecycle
 queries, but it cannot authorize a merge retroactively or stand in for a required host-side check.
+
+---
+
+## Open items
+
+- **The adoption remedy is named rather than designed** — _needs-design_, and the highest-priority gap.
+  `replacement-required` routes through "a teardown / adoption remedy", but on a partially-landed series teardown
+  is unavailable and adoption must prove that the replacement's member N is the predecessor's member N — which is
+  the fingerprint comparison that just failed. It is the one failure path with no floor beneath it, and it is
+  reached at the worst possible moment: mid-series, against merged members. The rest of the reconcile contract
+  assumes it exists.
+- **The authoring verb** — _needs-design_, and the largest remaining surface. This member claims the
+  task-generation authoring verb, but only its output projection is designed. Its invocation surface, the
+  `DeliveryPlanAuthoringInput` shape, how task generation supplies the boundary / grouping / topology and
+  landability judgments, how it applies the phase-to-member alignment default, and how it amends an existing plan
+  are all unspecified.
+- **Plan and state storage locus** — _needs-design_, partly consumed rather than owned. Both stores are specified
+  as contracts with no home. The binding constraint is that state must be reachable from a member checkout that
+  deliberately carries none of the work unit's artifacts, which rules out the delivery's own change set. The
+  review subsystem's existing local operation-state store is the pattern this composes and the first thing to read
+  the decision against.
+- **Terminal-proof authority boundary** — _needs-design_. The terminal proof, the landing intent's assurance
+  clause, and the completion record each specify review-owned qualification and coverage, which is the co-owner's
+  half of the named seam. A consume-versus-author pass should leave this member stating what delivery asks for
+  rather than what the review reducer decides.
+- **Reverse lookup** — _needs-design_. The record maps a plan to its members and their refs; a session occupying a
+  member ref needs the inverse, and needs it before it knows which plan to read. Phrased as a query contract it
+  survives the storage-tier change; no query is specified today.
+- **`mainlineLandability.invariant`** — _needs-detail_. The field appears in both admissible forms and is never
+  described.
+- **Success signal** — _needs-detail_. No observable outcome is stated yet. That is harder here than usual, and
+  correspondingly more necessary, because this member is deliberately reviewable without being independently
+  useful.
+
+Two concerns this member depends on but does not own are recorded outside it, so they are not re-derived here: the
+task-id completion lock, and the enumerable-element identifier family the design inventory consumes.
