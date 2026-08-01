@@ -9,11 +9,14 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
 import {
-  classifyPlanningLane,
-  resolveChangeSet,
-} from "../lib/change-facts.js";
+  createGitExec,
+  createRawGitExec,
+  gitExec,
+  readGitObjectBytes,
+} from "../lib/io-context.js";
+import type { DecompositionPlanningLaneResult } from "../lib/work-unit/decomposition-planning-lane.js";
+import { classifyGitDecompositionPlanningLane } from "../lib/work-unit/git-decomposition-planning-lane.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
@@ -152,10 +155,12 @@ const REVIEW_JSON_COMMAND_PATHS = [
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
 export const ReviewPlanningLaneInputSchema = z.object({
-  base: z.string().regex(/^[a-f0-9]{40}$/u),
-  head: z.string().regex(/^[a-f0-9]{40}$/u),
+  base: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
+  head: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
   repository: z.string().trim().min(1).optional(),
-}).strict();
+}).strict().refine(({ base, head }) => base.length === head.length, {
+  message: "base and head object ids must have the same width",
+});
 
 /** Registry contributions owned by the review command adapters. */
 export const reviewCommandInputRegistrations = [
@@ -235,15 +240,29 @@ export interface ReviewPlanningLaneOptions {
 }
 
 export interface ReviewPlanningLaneHandlerDependencies {
-  classify(base: string, head: string, repository: string): Promise<"planning" | "reviewed">;
+  classify(base: string, head: string, repository: string): Promise<DecompositionPlanningLaneResult>;
   write(text: string): void;
+  writeError(text: string): void;
+  setExitCode(code: number): void;
 }
 
 function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDependencies {
   return {
-    classify: async (base, head, repository) =>
-      classifyPlanningLane(await resolveChangeSet(createRawGitExec(repository), base, head)),
+    classify: async (base, head, repository) => await classifyGitDecompositionPlanningLane(
+      base,
+      head,
+      {
+        cwd: repository,
+        exec: createGitExec(),
+        rawExec: createRawGitExec(repository),
+        readBlob: async (oid) => await readGitObjectBytes(repository, oid),
+      },
+    ),
     write: (text) => process.stdout.write(text),
+    writeError: (text) => process.stderr.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
   };
 }
 
@@ -262,24 +281,35 @@ export async function handleReviewPlanningLane(
   overrides: Partial<ReviewPlanningLaneHandlerDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultReviewPlanningLaneDependencies(), ...overrides };
-  let lane: "planning" | "reviewed" = "reviewed";
   const input = ReviewPlanningLaneInputSchema.safeParse({
     base,
     head,
     ...(options.repository === undefined ? {} : { repository: options.repository }),
   });
-  if (input.success) {
-    try {
-      lane = await dependencies.classify(
-        input.data.base,
-        input.data.head,
-        input.data.repository ?? process.cwd(),
-      );
-    } catch {
-      lane = "reviewed";
-    }
+  if (!input.success) {
+    dependencies.writeError("planning-lane: invalid exact-change operands\n");
+    dependencies.setExitCode(64);
+    return;
   }
-  dependencies.write(`${lane}\n`);
+  let result: DecompositionPlanningLaneResult;
+  try {
+    result = await dependencies.classify(
+      input.data.base,
+      input.data.head,
+      input.data.repository ?? process.cwd(),
+    );
+  } catch {
+    dependencies.writeError("planning-lane classification failed\n");
+    dependencies.setExitCode(1);
+    return;
+  }
+  if (result.outcome === "invalid-retirement") {
+    dependencies.write("reviewed\n");
+    dependencies.writeError(`invalid retirement evidence: ${result.locus}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  dependencies.write(`${result.outcome}\n`);
 }
 
 interface ReviewHandlerBoundary {

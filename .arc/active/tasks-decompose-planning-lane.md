@@ -43,67 +43,54 @@ _Design decisions:_ Each fact is read from the commit that holds it. Two operand
 the preparation, reconstructed from the receipt, and candidate ownership, which has no committed representation —
 and the re-derivation obligation is scoped to exclude them rather than overclaiming.
 
-### `[ ]` **2.1 Assemble canonical facts from committed trees**
+### `[x]` **2.1 Assemble canonical facts from committed trees**
 
 - _Goal:_ Canonical receipt authority resolves without an index and without local branches.
 
-    - `[ ]` **2.1.a Read each fact from the commit that holds it**
-        - Read the receipt from the proposed head tree at the added endpoint, and the source-artifact inventory
-          from the tree at the recorded source commit.
-        - Read managed-path before states at the recorded result base, and managed-path after states and
-          destination outputs at the proposed head tree.
+    - `[x]` **2.1.a Read each fact from the commit that holds it**
+        - Read the receipt from the proposed head, re-derived source inventory from the recorded source commit,
+          managed before states from the recorded result base, and after/output states from the proposed head.
 
-    - `[ ]` **2.1.b Pass through the operands that are not tree-derivable**
-        - Reconstruct the preparation from the receipt, and pass recorded candidate ownership through unchanged.
-        - _Note:_ both are structural rather than verified; ownership has no committed representation and stays
-          the commit-time gate's concern.
+    - `[x]` **2.1.b Pass through the operands that are not tree-derivable**
+        - Reconstructed the preparation from the authenticated receipt and passed its recorded candidate ownership
+          through unchanged, leaving ownership verification at the commit-time gate.
 
-    - `[ ]` **2.1.c Supply re-derived values rather than recorded ones**
-        - Hand the canonical validator values read from the trees, so its own comparison is meaningful instead of
-          vacuous; perform no comparison and produce no refusal in the assembler.
+    - `[x]` **2.1.c Supply re-derived values rather than recorded ones**
+        - Supplied tree-derived inventory, source units, dependencies, path states, transition patch, and
+          destination outputs; the assembler reports read provenance but leaves content comparison to validators.
 
-    - `[ ]` **2.1.d Feed the existing validators**
-        - Pass the assembled facts to the canonical validator and consume the descendant-landing verdict; add no
-          validation logic to either.
+    - `[x]` **2.1.d Feed the existing validators**
+        - Routed assembled facts through the canonical finalized validator and the existing bound
+          descendant-landing validator without adding a parallel validation policy.
 
-### `[ ]` **2.2 Decide the lane over the assembled evidence**
+### `[x]` **2.2 Decide the lane over the assembled evidence**
 
 - _Goal:_ One current canonical receipt rides beside planning-only endpoints; everything else stays reviewed or
   fails closed.
 
-    - `[ ]` **2.2.a Preserve the narrow endpoint exception**
-        - Admit one current canonical receipt path only; apply the existing planning path and mode grammar
-          independently to every other endpoint.
-        - Refuse legacy, malformed, unrelated-record, code, rule, strategy, rename, copy, mode, type, and rider
-          endpoints.
+    - `[x]` **2.2.a Preserve the narrow endpoint exception**
+        - Admitted only one authenticated current receipt addition and applied the existing planning path/mode
+          grammar independently to every other endpoint; all other evidence and rider shapes stay uncleared.
 
-    - `[ ]` **2.2.b Settle cardinality on the two-point diff**
-        - Qualify exactly one added receipt endpoint; refuse a second added receipt; treat a receipt already
-          present in the base as no added-receipt claim.
+    - `[x]` **2.2.b Settle cardinality on the two-point diff**
+        - Qualified exactly one added receipt endpoint, refused multiple or mutated evidence claims, and left
+          receipts absent from the diff outside the exception.
 
-    - `[ ]` **2.2.c Settle shape before running the validators**
-        - Compare the endpoint set against the receipt's transition patch plus the receipt path first, and resolve
-          the reviewed outcome without validating when anything else is present.
-        - _Note:_ a decomposition branch that accrues an ordinary planning commit lands here; it must take the
-          review path rather than a failing one, and only a shape-matching change reaches validation.
+    - `[x]` **2.2.c Settle shape before running the validators**
+        - Compared the exact endpoint set with the receipt transition plus receipt path before either validator;
+          any rider resolves reviewed without interpreting its receipt evidence.
 
-    - `[ ]` **2.2.d Map both refusal vocabularies onto the outcomes**
-        - Resolve content-shaped refusals to the invalid outcome and read-shaped refusals — including an absent
-          source commit — to the reviewed outcome.
-        - Key the mapping on the refusal kind together with its locus: some kinds cover both a genuine content
-          disagreement and a failed read, and a read failure carried under a content-sounding kind is read-shaped.
-        - Derive one stable locus from whichever validator refused.
+    - `[x]` **2.2.d Map both refusal vocabularies onto the outcomes**
+        - Mapped unavailable object/snapshot/binding evidence to reviewed and content disagreement to invalid,
+          preserving read provenance independently of validator kind and reporting one stable refusal locus.
 
-    - `[ ]` **2.2.e Separate the outcome streams**
-        - Keep stdout within the two-value vocabulary existing consumers parse, send the locus to stderr, and
-          carry the invalid case in the exit code.
-        - Add the exit-code boundary the sibling review handlers already have, and narrow the blanket downgrade of
-          unexpected failures to the read-shaped cases only.
-        - Report an unparseable operand as a usage error rather than resolving it to a lane outcome.
+    - `[x]` **2.2.e Separate the outcome streams**
+        - Kept stdout to `planning`/`reviewed`, sent invalid loci to stderr with a nonzero status, returned usage
+          status 64 for malformed operands, and stopped downgrading unexpected handler failures.
 
-    - `[ ]` **2.2.f Register the command's input surface**
-        - Add the operand and option declarations the input-registration inventory reconciles against, and declare
-          any subprocess interaction site the implementation introduces.
+    - `[x]` **2.2.f Register the command's input surface**
+        - Extended the registered exact-object operands to SHA-1/SHA-256 pairs while retaining the reconciled
+          repository option and existing shared Git subprocess boundaries.
 
 ## **Phase 3:** Host binding and one decision surface
 

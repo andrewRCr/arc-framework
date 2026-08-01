@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import type { RawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import {
@@ -21,6 +22,7 @@ import {
   prepareGitV3DecomposeBaseAdvancement,
 } from "../../src/lib/work-unit/git-decompose-v3-base-advancement.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
+import { classifyGitDecompositionPlanningLane } from "../../src/lib/work-unit/git-decomposition-planning-lane.js";
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
@@ -48,6 +50,18 @@ function gitExec(): GitExec {
       maxBuffer: 20 * 1024 * 1024,
     });
     return { stdout };
+  };
+}
+
+function rawGitExec(cwd: string): RawGitExec {
+  return async (args, options) => {
+    const { stdout, stderr } = await execFileAsync("git", args, {
+      cwd: options?.cwd ?? cwd,
+      encoding: "buffer",
+      maxBuffer: 20 * 1024 * 1024,
+      ...(options?.input === undefined ? {} : { input: options.input }),
+    });
+    return { stdout: new Uint8Array(stdout), stderr: new Uint8Array(stderr) };
   };
 }
 
@@ -377,6 +391,18 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it("classifies one finalized exact-ref receipt without consulting the index", async () => {
+    const { repo, baseHead, candidateHead, dependencies } = await finalizedCandidateRepository();
+    await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
+
+    await expect(classifyGitDecompositionPlanningLane(baseHead, candidateHead, {
+      cwd: repo,
+      exec: dependencies.exec,
+      rawExec: rawGitExec(repo),
+      readBlob: dependencies.readObject,
+    })).resolves.toEqual({ outcome: "planning" });
+  });
+
   it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
     const { repo, baseHead, sourceHead, completedMap, dependencies } = await startedRepository();
     const refsBefore = await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]);
