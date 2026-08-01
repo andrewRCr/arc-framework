@@ -5,6 +5,7 @@ import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
+import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import {
   createPlatformProcessAncestryInspector,
@@ -400,6 +401,22 @@ export async function cleanupOrdinaryErrandRefs(
         return authorization.kind === "refused"
           ? { kind: "refused", message: authorization.message }
           : authorization;
+      },
+      authorizeLocalDelete: async () => {
+        const roster = await scanRegisteredWorktrees(exec);
+        if (!roster.ok) {
+          return {
+            kind: "refused" as const,
+            message: `Local Errand branch occupancy cannot be proven: ${roster.message}`,
+          };
+        }
+        const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+        return occupied === undefined
+          ? { kind: "authorized" as const }
+          : {
+              kind: "refused" as const,
+              message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+            };
       },
     }),
   });

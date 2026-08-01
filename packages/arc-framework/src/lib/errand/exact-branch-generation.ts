@@ -46,6 +46,8 @@ export interface ExactBranchTeardownOptions extends ExactBranchGenerationOptions
   readonly expectedHead: string;
   /** Revalidate caller authority after remote reads and immediately before each deletion. */
   readonly authorizeDelete?: () => Promise<ExactBranchTeardownAuthorization>;
+  /** Prove local branch deletion is safe after caller authority and immediately before mutation. */
+  readonly authorizeLocalDelete?: () => Promise<ExactBranchTeardownAuthorization>;
 }
 
 /** Caller-owned authority checked inside the ref teardown boundary. */
@@ -143,6 +145,8 @@ export async function tearDownExactBranchGeneration(
   if (local.kind === "present") {
     const authorization = await authorizeDeletion(options);
     if (authorization.kind !== "authorized") return authorization;
+    const localAuthorization = await authorizeLocalDeletion(options);
+    if (localAuthorization.kind !== "authorized") return localAuthorization;
     const args = ["update-ref", "-d", `refs/heads/${options.branch}`, options.expectedHead];
     try {
       await exec("git", args);
@@ -152,6 +156,18 @@ export async function tearDownExactBranchGeneration(
     }
   }
   return { kind: changed ? "applied" : "idempotent" };
+}
+
+async function authorizeLocalDeletion(
+  options: ExactBranchTeardownOptions,
+): Promise<Extract<ExactBranchTeardownResult, { kind: "refused" | "error" }> | { kind: "authorized" }> {
+  if (options.authorizeLocalDelete === undefined) return { kind: "authorized" };
+  try {
+    const result = await options.authorizeLocalDelete();
+    return result.kind === "refused" ? { kind: "refused", message: result.message } : result;
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 async function authorizeDeletion(

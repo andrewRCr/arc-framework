@@ -3,10 +3,11 @@
 import { describe, expect, it } from "vitest";
 
 import { cleanupOrdinaryErrandRefs } from "../../../src/lib/errand/close-runtime.js";
-import type { CloseTarget } from "../../../src/lib/errand/close-locus.js";
+import type { CloseAuthorityGuard, CloseTarget } from "../../../src/lib/errand/close-locus.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const EXPECTED = "a".repeat(40);
 
@@ -50,6 +51,8 @@ function fakeGit(options: {
   local: string | null;
   remote: string | null;
   fetchFailure?: string;
+  worktreeFailure?: string;
+  worktrees?: readonly { path: string; branch: string }[];
 }): { exec: GitExec; state: { local: string | null; remote: string | null } } {
   const state = { local: options.local, remote: options.remote };
   const exec: GitExec = async (_command, args) => {
@@ -69,6 +72,15 @@ function fakeGit(options: {
       state.remote = null;
       return { stdout: "", stderr: "" };
     }
+    if (args[0] === "worktree") {
+      if (options.worktreeFailure !== undefined) throw gitError(options.worktreeFailure, 128);
+      const worktrees = options.worktrees ?? [{ path: "/repo", branch: "main" }];
+      return {
+        stdout: worktreePorcelainZ(worktrees.map((worktree) =>
+          `worktree ${worktree.path}\nHEAD ${EXPECTED}\nbranch refs/heads/${worktree.branch}`).join("\n\n")),
+        stderr: "",
+      };
+    }
     if (args[0] === "update-ref" && args[1] === "-d") {
       if ((args[2] ?? "").startsWith("refs/heads/")) {
         if (state.local !== args[3]) throw gitError("cannot lock ref", 1);
@@ -80,6 +92,11 @@ function fakeGit(options: {
   };
   return { exec, state };
 }
+
+const BASE_GUARD: CloseAuthorityGuard = {
+  revalidate: async () => ({ kind: "valid" }),
+  acquire: async () => { throw new Error("cleanup does not acquire the caller-owned guard"); },
+};
 
 describe("cleanupOrdinaryErrandRefs", () => {
   it("deletes exact local and remote heads and replays already-deleted refs", async () => {
@@ -118,5 +135,38 @@ describe("cleanupOrdinaryErrandRefs", () => {
 
     await expect(cleanupOrdinaryErrandRefs(git.exec, target())).resolves.toMatchObject({ kind: "error" });
     expect(git.state).toEqual({ local: EXPECTED, remote: EXPECTED });
+  });
+
+  it("retains a local branch checked out by any registered worktree", async () => {
+    const git = fakeGit({
+      local: EXPECTED,
+      remote: null,
+      worktrees: [
+        { path: "/repo", branch: "main" },
+        { path: "/repo-linked", branch: "chore/done" },
+      ],
+    });
+
+    await expect(cleanupOrdinaryErrandRefs(git.exec, target(), BASE_GUARD)).resolves.toEqual({
+      kind: "refused",
+      reason: "preservation-unproven",
+      message: "Local Errand branch is checked out by registered worktree '/repo-linked'.",
+    });
+    expect(git.state.local).toBe(EXPECTED);
+  });
+
+  it("retains the local branch when registered worktree occupancy cannot be read", async () => {
+    const git = fakeGit({
+      local: EXPECTED,
+      remote: null,
+      worktreeFailure: "fatal: worktree registry unreadable",
+    });
+
+    await expect(cleanupOrdinaryErrandRefs(git.exec, target(), BASE_GUARD)).resolves.toMatchObject({
+      kind: "refused",
+      reason: "preservation-unproven",
+      message: expect.stringContaining("worktree registry unreadable"),
+    });
+    expect(git.state.local).toBe(EXPECTED);
   });
 });

@@ -790,6 +790,54 @@ describe("arc errand close", () => {
     },
   );
 
+  it.runIf(process.platform !== "win32")(
+    "retains a merged Errand checked out by a registered linked worktree",
+    async () => {
+      const slug = "merged-v3-linked-worktree-occupancy";
+      const branch = `chore/${slug}`;
+      const captureTitle = "Retain linked worktree occupancy";
+      const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+      const inboxPath = join(inboxDir, "USER-INBOX.md");
+      const linkedDir = `${tmpDir}-errand-occupancy`;
+      await setFullProtection(tmpDir);
+      await mkdir(inboxDir, { recursive: true });
+      await writeFile(
+        inboxPath,
+        `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${captureTitle}**\n\n- _Observation:_ keep this.\n\n---\n`,
+        "utf-8",
+      );
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+      const host = await createMergedGhFixture(tmpDir, slug);
+      try {
+        const result = await runArcAnchoredSequence([
+          ["errand", "open", slug, "--from-inbox", captureTitle, "--json"],
+          { command: ["git", "push", "-u", "origin", branch] },
+          { command: ["git", "switch", "main"] },
+          { command: ["git", "worktree", "add", linkedDir, branch] },
+          ["errand", "close", slug, "--json"],
+        ], tmpDir, { env: host.env, timeout: 60_000 });
+
+        expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+        expect(result.results.at(-1)).toMatchObject({
+          outcome: "refused", operation: "errand-close", reason: "preservation-unproven",
+        });
+        expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
+        expect(await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toContain(branch);
+        expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+          .toContain('"state": "open"');
+        expect(await readFile(inboxPath, "utf-8")).toContain(`**${captureTitle}**`);
+      } finally {
+        await git(tmpDir, ["worktree", "remove", "--force", linkedDir]).catch(async () => {
+          await cleanupTempDir(linkedDir);
+          await git(tmpDir, ["worktree", "prune"]);
+        });
+        await cleanupTempDir(host.ghDir);
+        await cleanupTempDir(host.remoteDir);
+      }
+    },
+  );
+
   it("refuses base-context finalization when the checkout marker is malformed", async () => {
     const slug = "merged-v3-malformed-marker";
     const markerPath = join(tmpDir, ".arc", "system", ".internal", "worktree-marker.json");
