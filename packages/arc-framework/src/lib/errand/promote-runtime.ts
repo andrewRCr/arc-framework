@@ -28,6 +28,7 @@ import { readPrimarySafety } from "../locus/primary-safety.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import type { ProvisioningRecordLock } from "../locus/provisioning-types.js";
 import { readLocusState } from "../locus/reader.js";
+import { projectLocusRowRole } from "../locus/roster.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
 import type {
   LocusMutationResultV1,
@@ -345,6 +346,8 @@ async function recoverPromotedFrame(
   if (!row.lease.selfHeld) {
     return refused("lease-live", "Promoted work-unit recovery requires the current session lease.");
   }
+  // The identity is retired here, so the slug is the only source field comparable with the caller;
+  // the persisted claim ID remains durable provenance on the promoted role.
   if (row.role?.promotionSource?.slug !== options.slug) {
     return refused(
       "promotion-source-invalid",
@@ -629,23 +632,10 @@ async function readLockedParent(
     || read.record.lease.leaseId !== parent.lease.leaseId
     || read.record.lease.sessionHomePath !== parent.lease.sessionHomePath
     || !isDeepStrictEqual(read.record.lease.anchor, anchor)
-    || !isDeepStrictEqual(projectRole(read.record.role), parent.role)) {
+    || !isDeepStrictEqual(projectLocusRowRole(read.record.role), parent.role)) {
     return { kind: "refused", result: refused("role-conflict", "Warm parent generation changed.") };
   }
   return { kind: "ready", record: read.record };
-}
-
-function projectRole(role: LocusRecordV1["role"]): NonNullable<LocusRowV1["role"]> {
-  return {
-    kind: role.kind,
-    subject: role.subject,
-    parentCheckoutPath: role.parentCheckoutPath,
-    originEntry: role.originEntry,
-    ...(role.originEntrySourceDigest === undefined
-      ? {}
-      : { originEntrySourceDigest: role.originEntrySourceDigest }),
-    ...(role.promotionSource === undefined ? {} : { promotionSource: role.promotionSource }),
-  };
 }
 
 function classifyTargetRole(

@@ -605,6 +605,41 @@ describe("durable locus role minting", () => {
     })).resolves.toEqual({ kind: "refused", reason: "role-conflict" });
   });
 
+  it("permits a directed update that preserves promotion provenance", async () => {
+    const store = memoryIO();
+    const source = { slug: "growing", claimId: "8".repeat(32) };
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "work-unit", key: "growth", promotionSource: source },
+      io: store.io,
+    });
+    const initial = store.current();
+    if (initial.kind !== "valid") throw new Error("expected seeded record");
+
+    await expect(updateLocusRole({
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: initial.record.role,
+      expectedLeaseId: null,
+      authority: {
+        kind: "work-unit",
+        key: "renamed-growth",
+        promotionSource: { ...source },
+      },
+      parentCheckoutPath: null,
+      establishedAt: BASE.establishedAt,
+      io: store.io,
+    })).resolves.toMatchObject({
+      kind: "applied",
+      record: {
+        role: {
+          subject: { key: "renamed-growth" },
+          promotionSource: source,
+        },
+      },
+    });
+  });
+
   it("rebases a live lease session home atomically with a directed role transition", async () => {
     const store = memoryIO();
     const identity = errandIdentity("errand");

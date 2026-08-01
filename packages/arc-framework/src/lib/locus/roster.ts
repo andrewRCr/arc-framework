@@ -40,6 +40,24 @@ export interface ProvisionalRoster {
 }
 
 /**
+ * Project a persisted role into its public roster shape.
+ * @param role - Durable role to project.
+ * @returns Public role fields carried by a roster row.
+ */
+export function projectLocusRowRole(role: LocusRecordV1["role"]): NonNullable<LocusRowV1["role"]> {
+  return {
+    kind: role.kind,
+    subject: role.subject,
+    parentCheckoutPath: role.parentCheckoutPath,
+    originEntry: role.originEntry,
+    ...(role.originEntrySourceDigest === undefined
+      ? {}
+      : { originEntrySourceDigest: role.originEntrySourceDigest }),
+    ...(role.promotionSource === undefined ? {} : { promotionSource: role.promotionSource }),
+  };
+}
+
+/**
  * A row before publication, carrying the raw anchor and not yet the comparison against it.
  *
  * `selfHeld` is deliberately absent: this stage joins records to subjects and has no entering
@@ -372,18 +390,7 @@ function recordRow(
     checkoutPath: record.checkoutPath,
     primary: checkout?.worktree.primary ?? null,
     recordId: record.recordId,
-    role: {
-      kind: record.role.kind,
-      subject: record.role.subject,
-      parentCheckoutPath: record.role.parentCheckoutPath,
-      originEntry: record.role.originEntry,
-      ...(record.role.originEntrySourceDigest === undefined
-        ? {}
-        : { originEntrySourceDigest: record.role.originEntrySourceDigest }),
-      ...(record.role.promotionSource === undefined
-        ? {}
-        : { promotionSource: record.role.promotionSource }),
-    },
+    role: projectLocusRowRole(record.role),
     identity: resolved?.identity ?? null,
     lease: record.lease === null ? null : {
       leaseId: record.lease.leaseId,
