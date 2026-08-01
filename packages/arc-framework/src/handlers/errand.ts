@@ -68,6 +68,7 @@ import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runti
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
+  locusErrorCode,
   type LocusMutationErrorCode,
   type LocusMutationResultV1,
 } from "../lib/locus/schema/index.js";
@@ -89,6 +90,30 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 type ErrandPushLabel = "Record" | "Record-link" | "Record-removal";
+type ErrandHandlerOperation = "errand-open" | "errand-close" | "errand-abandon" | "errand-promote";
+type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
+
+async function runErrandHandlerBoundary(
+  operation: ErrandHandlerOperation,
+  json: boolean,
+  emit: ErrandResultEmitter,
+  recommendedPromptText: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    emit(createLocusMutationResult({
+      outcome: "error",
+      operation,
+      error: {
+        code: locusErrorCode(operation, "handler"),
+        message: error instanceof Error ? error.message : String(error),
+      },
+      recommendedPromptText,
+    }), json);
+  }
+}
 
 /** Honest recovery text shared by every errand-record mutation handler. */
 export function formatErrandPushDeferredWarning(
@@ -327,8 +352,32 @@ export async function handleErrandOpen(
   }
   const input = parsed.data;
 
+  await runErrandHandlerBoundary(
+    "errand-open",
+    opts.json === true,
+    emitErrandOpenResult,
+    "Inspect the retained identity or session locus evidence before retrying.",
+    () => runErrandOpenHandler(slug, opts, input, context),
+  );
+}
+
+async function runErrandOpenHandler(
+  slug: string,
+  opts: ErrandOpenOptions,
+  input: z.infer<typeof ErrandOpenInputSchema>,
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  if (!cwd) {
+    if (opts.json === true) {
+      emitErrandOpenFailure(
+        "locus.errand-open.topology",
+        "ARC project root is unavailable.",
+        true,
+      );
+    }
+    return;
+  }
 
   const { settings } = await readConfigSettings(cwd);
   const protectionValue = settings["branch.protection"];
@@ -678,8 +727,31 @@ export async function handleErrandClose(
     return;
   }
 
+  await runErrandHandlerBoundary(
+    "errand-close",
+    opts.json === true,
+    emitErrandCloseResult,
+    "Inspect the retained Errand identity and exact ref evidence before retrying.",
+    () => runErrandCloseHandler(slug, opts, context),
+  );
+}
+
+async function runErrandCloseHandler(
+  slug: string,
+  opts: ErrandCloseOptions,
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  if (!cwd) {
+    if (opts.json === true) {
+      emitErrandCloseFailure(
+        "locus.errand-close.topology",
+        "ARC project root is unavailable.",
+        true,
+      );
+    }
+    return;
+  }
 
   const { settings } = await readConfigSettings(cwd);
   const protection = settings["branch.protection"];
@@ -912,8 +984,31 @@ export async function handleErrandAbandon(
     return;
   }
   const input = parsed.data;
+  await runErrandHandlerBoundary(
+    "errand-abandon",
+    opts.json === true,
+    emitErrandAbandonResult,
+    "Inspect the retained Errand identity, residue, refs, and inbox binding before retrying.",
+    () => runErrandAbandonHandler(input, opts, context),
+  );
+}
+
+async function runErrandAbandonHandler(
+  input: z.infer<typeof ErrandAbandonInputSchema>,
+  opts: ErrandAbandonOptions,
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  if (!cwd) {
+    if (opts.json === true) {
+      emitErrandAbandonFailure(
+        "locus.errand-abandon.topology",
+        "ARC project root is unavailable.",
+        true,
+      );
+    }
+    return;
+  }
   const { settings } = await readConfigSettings(cwd);
   const protection = settings["branch.protection"];
   if (protection !== "full" && protection !== "partial") {
@@ -1227,8 +1322,32 @@ export async function handleErrandPromote(
   }
   const input = parsed.data;
 
+  await runErrandHandlerBoundary(
+    "errand-promote",
+    opts.json === true,
+    emitErrandPromoteResult,
+    "Inspect the retained identity and local promotion evidence before retrying.",
+    () => runErrandPromoteHandler(slug, opts, input, context),
+  );
+}
+
+async function runErrandPromoteHandler(
+  slug: string,
+  opts: ErrandPromoteOptions,
+  input: z.infer<typeof ErrandPromoteInputSchema>,
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  if (!cwd) {
+    if (opts.json === true) {
+      emitErrandPromoteFailure(
+        "locus.errand-promote.topology",
+        "ARC project root is unavailable.",
+        true,
+      );
+    }
+    return;
+  }
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {

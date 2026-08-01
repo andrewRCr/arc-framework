@@ -66,8 +66,6 @@ export async function handleLocusRelease(recordId: string, options: LocusRelease
 
 /** Resume or abandon one exact conclusively dead transient generation. */
 export async function handleLocusResolve(recordId: string, options: LocusResolveOptions): Promise<void> {
-  const cwd = requireArcProjectRoot();
-  if (cwd === null) return;
   if (options.action !== "resume" && options.action !== "abandon") {
     emitMutation(createLocusMutationResult({
       outcome: "error", operation: "locus-resolve",
@@ -80,102 +78,145 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
     return;
   }
   const action: LocusResolveAction = options.action;
-  const identity = await resolveIdentityWithPrompt(false);
-  if (identity === null) return;
-  const io = createUserIOContext();
-  if (!io.execInput) return;
-  const execInput = io.execInput;
-  const { settings } = await readConfigSettings(cwd);
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd, identity: SlugSchema.parse(identity), exec: io.exec,
-  })).identityGlobalRoot;
-  const common = {
-    recordId, action, base: settings["branch.base"], identity, cwd,
-    confirmedNoLiveSession: options.confirmNoLiveSession === true,
-    postCreateScript: settings["worktree.post_create"],
-    registeredHarnessDirs: settings["worktree.harness_dirs"],
-    io: { ...io, execInput },
-  };
-  let result: LocusMutationResultV1;
-  try {
-    result = await resolveLocusAtRuntime({
-      ...common,
-      abandon: async ({ key, selected, confirmedNoLiveSession }) => {
-        return abandonOrdinaryErrandAtRuntime({
-          slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
-          postCreateScript: common.postCreateScript,
-          registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput, selected,
-          confirmedNoLiveSession,
-          clearExecuteBound: async (record) => {
-            if (record.originEntry === null) return { kind: "idempotent" };
-            const cleared = await unmarkCurrentInboxEntry({
-              cwd, io, identity, title: record.originEntry,
-            });
-            return { kind: cleared.changed ? "applied" : "idempotent" };
-          },
-        });
-      },
-    });
-  } catch (error) {
-    result = createLocusMutationResult({
-      outcome: "error", operation: "locus-resolve",
-      error: {
-        code: locusErrorCode("locus-resolve", "failed"),
-        message: error instanceof Error ? error.message : String(error),
-      },
-      recommendedPromptText: "Inspect the retained transient generation before retrying.",
-    });
-  }
-  emitMutation(result, options.json === true);
+  await runLocusMutationBoundary(
+    "locus-resolve",
+    options.json === true,
+    "Inspect the retained transient generation before retrying.",
+    async () => {
+      const cwd = requireArcProjectRoot();
+      if (cwd === null) {
+        return createHandlerError(
+          "locus-resolve", "topology", "ARC project root is unavailable.",
+          "Enter an ARC project before retrying.",
+        );
+      }
+      const identity = await resolveIdentityWithPrompt(false);
+      if (identity === null) {
+        return createHandlerError(
+          "locus-resolve", "identity", "No identity resolved.",
+          "Set arc.identity before retrying.",
+        );
+      }
+      const io = createUserIOContext();
+      if (!io.execInput) {
+        return createHandlerError(
+          "locus-resolve", "identity", "The stdin Git boundary is unavailable.",
+          "Resolve the identity boundary before retrying.",
+        );
+      }
+      const execInput = io.execInput;
+      const { settings } = await readConfigSettings(cwd);
+      const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+        cwd, identity: SlugSchema.parse(identity), exec: io.exec,
+      })).identityGlobalRoot;
+      const common = {
+        recordId, action, base: settings["branch.base"], identity, cwd,
+        confirmedNoLiveSession: options.confirmNoLiveSession === true,
+        postCreateScript: settings["worktree.post_create"],
+        registeredHarnessDirs: settings["worktree.harness_dirs"],
+        io: { ...io, execInput },
+      };
+      return resolveLocusAtRuntime({
+        ...common,
+        abandon: async ({ key, selected, confirmedNoLiveSession }) => {
+          return abandonOrdinaryErrandAtRuntime({
+            slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
+            postCreateScript: common.postCreateScript,
+            registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput, selected,
+            confirmedNoLiveSession,
+            clearExecuteBound: async (record) => {
+              if (record.originEntry === null) return { kind: "idempotent" };
+              const cleared = await unmarkCurrentInboxEntry({
+                cwd, io, identity, title: record.originEntry,
+              });
+              return { kind: cleared.changed ? "applied" : "idempotent" };
+            },
+          });
+        },
+      });
+    },
+  );
 }
 
 async function handleLocusMutation(
   action: "attach" | "release",
   options: LocusAttachOptions | (LocusReleaseOptions & { recordId?: string }),
 ): Promise<void> {
-  const cwd = requireArcProjectRoot();
-  if (cwd === null) return;
-  const identity = await resolveIdentityWithPrompt(false);
-  if (identity === null) return;
-  const io = createUserIOContext();
-  if (!io.execInput) {
-    emitMutation(createLocusMutationResult({
-      outcome: "error", operation: action === "attach" ? "locus-attach" : "locus-release",
-      error: {
-        code: locusErrorCode(action === "attach" ? "locus-attach" : "locus-release", "identity"),
-        message: "The stdin Git boundary is unavailable.",
-      },
-      recommendedPromptText: "Resolve the identity boundary before retrying.",
-    }), options.json === true);
-    return;
-  }
-  const { settings } = await readConfigSettings(cwd);
-  const runtimeOptions = {
-    checkout: "checkout" in options ? options.checkout : undefined,
-    recordId: "recordId" in options ? options.recordId : undefined,
-    base: settings["branch.base"], identity, cwd,
-    postCreateScript: settings["worktree.post_create"],
-    registeredHarnessDirs: settings["worktree.harness_dirs"],
-    io: { ...io, execInput: io.execInput },
-  };
+  const operation = action === "attach" ? "locus-attach" : "locus-release";
+  await runLocusMutationBoundary(
+    operation,
+    options.json === true,
+    "Inspect the exact session locus record before retrying.",
+    async () => {
+      const cwd = requireArcProjectRoot();
+      if (cwd === null) {
+        return createHandlerError(
+          operation, "topology", "ARC project root is unavailable.",
+          "Enter an ARC project before retrying.",
+        );
+      }
+      const identity = await resolveIdentityWithPrompt(false);
+      if (identity === null) {
+        return createHandlerError(
+          operation, "identity", "No identity resolved.",
+          "Set arc.identity before retrying.",
+        );
+      }
+      const io = createUserIOContext();
+      if (!io.execInput) {
+        return createHandlerError(
+          operation, "identity", "The stdin Git boundary is unavailable.",
+          "Resolve the identity boundary before retrying.",
+        );
+      }
+      const { settings } = await readConfigSettings(cwd);
+      const runtimeOptions = {
+        checkout: "checkout" in options ? options.checkout : undefined,
+        recordId: "recordId" in options ? options.recordId : undefined,
+        base: settings["branch.base"], identity, cwd,
+        postCreateScript: settings["worktree.post_create"],
+        registeredHarnessDirs: settings["worktree.harness_dirs"],
+        io: { ...io, execInput: io.execInput },
+      };
+      return action === "attach"
+        ? attachLocusAtRuntime(runtimeOptions)
+        : releaseLocusAtRuntime({ ...runtimeOptions, leaseId: (options as LocusReleaseOptions).lease });
+    },
+  );
+}
+
+function createHandlerError(
+  operation: Parameters<typeof locusErrorCode>[0],
+  stage: Parameters<typeof locusErrorCode>[1],
+  message: string,
+  recommendedPromptText: string,
+): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: "error",
+    operation,
+    error: { code: locusErrorCode(operation, stage), message },
+    recommendedPromptText,
+  });
+}
+
+async function runLocusMutationBoundary(
+  operation: Parameters<typeof locusErrorCode>[0],
+  json: boolean,
+  failurePrompt: string,
+  run: () => Promise<LocusMutationResultV1>,
+): Promise<void> {
   let result: LocusMutationResultV1;
   try {
-    result = action === "attach"
-      ? await attachLocusAtRuntime(runtimeOptions)
-      : await releaseLocusAtRuntime({ ...runtimeOptions, leaseId: (options as LocusReleaseOptions).lease });
+    result = await run();
   } catch (error) {
-    const operation = action === "attach" ? "locus-attach" : "locus-release";
-    result = createLocusMutationResult({
-      outcome: "error",
+    result = createHandlerError(
       operation,
-      error: {
-        code: locusErrorCode(operation, "failed"),
-        message: error instanceof Error ? error.message : String(error),
-      },
-      recommendedPromptText: "Inspect the exact session locus record before retrying.",
-    });
+      "failed",
+      error instanceof Error ? error.message : String(error),
+      failurePrompt,
+    );
   }
-  emitMutation(result, options.json === true);
+  emitMutation(result, json);
 }
 
 function emitMutation(result: LocusMutationResultV1, json: boolean): void {
