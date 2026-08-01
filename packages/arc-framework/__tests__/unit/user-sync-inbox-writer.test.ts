@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  InboxMutationConflictError,
   inboxEntrySourceDigest,
   inspectInboxEntry,
   listExecuteBoundInboxEntries,
@@ -155,6 +156,42 @@ describe("mutateInboxEntries", () => {
     expect(() => mutateInboxEntries(malformed, [
       { kind: "mark", title: "Second atomic", sourceDigest: inboxEntrySourceDigest(INBOX, "Second atomic") },
     ])).toThrow(/Malformed USER-INBOX entry heading/);
+  });
+
+  it("reports a stable conflict code when an entry generation changes", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    let thrown: unknown;
+
+    try {
+      mutateInboxEntries(INBOX.replace("first.", "changed."), [
+        { kind: "mark", title: "First atomic", sourceDigest },
+      ]);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(InboxMutationConflictError);
+    expect(thrown).toMatchObject({ code: "source-digest-changed" });
+  });
+
+  it("reports a stable conflict code when an entry title is duplicated", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const duplicate = INBOX.replace(
+      "## Work Unit",
+      "### `[ ]` **First atomic**\n\n- _Observation:_ duplicate.\n\n## Work Unit",
+    );
+    let thrown: unknown;
+
+    try {
+      mutateInboxEntries(duplicate, [
+        { kind: "mark", title: "First atomic", sourceDigest },
+      ]);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(InboxMutationConflictError);
+    expect(thrown).toMatchObject({ code: "duplicate-entry-title" });
   });
 
   it("rejects a batch that repeats one title", () => {

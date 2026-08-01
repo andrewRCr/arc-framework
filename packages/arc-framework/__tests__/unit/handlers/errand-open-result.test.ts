@@ -6,6 +6,7 @@ import {
   formatErrandAbandonResult,
   formatErrandLinkResult,
   formatErrandOpenResult,
+  formatErrandPromoteResult,
 } from "../../../src/handlers/errand.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 
@@ -117,6 +118,30 @@ describe("errand abandon result rendering", () => {
       stream: "stdout",
       text: "Already abandoned.",
       exitCode: 0,
+    });
+  });
+});
+
+describe("errand promote result rendering", () => {
+  it("renders the same validated result for JSON and human callers", () => {
+    const result = createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-promote",
+      reason: "promotion-source-invalid",
+      recommendedPromptText: "Promotion source changed.",
+    });
+
+    const jsonOutput = formatErrandPromoteResult(result, true);
+    expect(jsonOutput).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 1,
+    });
+    expect(JSON.parse(jsonOutput.text)).toStrictEqual(result);
+    expect(formatErrandPromoteResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [promotion-source-invalid]: Promotion source changed.",
+      exitCode: 1,
     });
   });
 });

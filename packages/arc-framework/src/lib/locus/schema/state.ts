@@ -6,6 +6,7 @@ import { LoadSetManifestSchema } from "../../load-set/types.js";
 import { TaskListCursorFileResultSchema } from "../../task-list/file-cursor.js";
 import { LocusIdentityV1Schema } from "./identity.js";
 import { LocusAbsolutePathSchema, LocusDigestSchema, LocusOpaqueTextSchema, LocusTimestampSchema, LocusTokenSchema } from "./limits.js";
+import { LocusPromotionSourceSchema } from "./record.js";
 
 export const LocusDiagnosticCodeSchema = z.enum([
   "record-without-checkout", "worktree-without-role", "subject-unresolved", "unsupported-version",
@@ -27,6 +28,7 @@ const rowRole = z.strictObject({
   parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
   originEntrySourceDigest: LocusDigestSchema.optional(),
+  promotionSource: LocusPromotionSourceSchema.optional(),
 });
 const rowLease = z.strictObject({
   leaseId: LocusTokenSchema,

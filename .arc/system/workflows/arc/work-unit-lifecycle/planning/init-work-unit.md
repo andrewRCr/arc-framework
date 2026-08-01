@@ -296,7 +296,8 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 3. **Promote.** Pick `{name}` (may keep the errand `<slug>`) and `{type}` ([`branch-format`][branch-format]), then
    run the verb. It renames the branch (commits preserved), mints `meta-{name}.md` at the floor's stage
    (derivation → `Planning` + `Current Workflow: draft-design`; scale → `Active`), retires the errand record, and
-   prints the interim ROADMAP hand-render advisory. The rename keeps you on the branch under its new name.
+   retains any originating capture generation in the promoted locus until post-commit settlement. The rename keeps
+   you on the branch under its new name.
 
    ```bash
    arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale}
@@ -304,7 +305,7 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 
    Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 6).
 
-4. **Commit the meta; drop the source capture.** The verb wrote `meta-{name}.md` into the working tree without
+4. **Commit the meta; settle the source capture.** The verb wrote `meta-{name}.md` into the working tree without
    committing. Stage it together with the hand-rendered ROADMAP and commit:
 
    > [!CAUTION]
@@ -319,10 +320,14 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    Context: meta-{name}.md (activation)
    ```
 
-   When the errand was adopted from a `USER-INBOX` entry (recorded as the errand's origin back-pointer), drop
-   that entry now — the intent is a tracked WU: `arc user inbox-remove {origin-entry}` (or
-   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title; idempotent and a no-op for a
-   free-description errand).
+   Replay the same promotion command after the commit. The replay recognizes the committed meta, removes only the
+   retained title/source-digest generation under the notes lock, and clears that capture handle from the promoted
+   locus. An absent original is idempotent; a same-title replacement is preserved and refuses settlement. Re-run
+   the command after a lost response.
+
+   ```bash
+   arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale}
+   ```
 
 5. **Push the WU branch; retire the old remote ref.**
 
