@@ -379,6 +379,13 @@ describe("arc wu reconcile", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({ status: "applied" });
       expect(await readFile(siblingMeta, "utf8")).toBe(before);
       expect(await git(sibling, ["status", "--porcelain"])).toBe("");
+      const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+      const records = await Promise.all(
+        (await readdir(lociRoot))
+          .filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name))
+          .map((name) => readFile(join(lociRoot, name), "utf8").then((content) => JSON.parse(content))),
+      );
+      expect(records.map((record) => record.checkoutPath)).toEqual([repo]);
     } finally {
       await git(repo, ["worktree", "remove", "--force", sibling]);
     }
@@ -477,21 +484,53 @@ describe("arc wu reconcile", () => {
     expect(JSON.parse(drift.stdout)).toMatchObject({ diskState: "different" });
   });
 
-  it("keeps an owned clean reconcile invisible", async () => {
+  it("backfills a missing work-unit role on applied reconcile, then stays clean", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
     await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
     await git(repo, ["add", "--all"]);
     await git(repo, ["commit", "-m", "clear dependency"]);
     const before = await readFile(metaPath, "utf8");
     const beforeHead = await git(repo, ["rev-parse", "HEAD"]);
 
-    const result = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+    const status = await runArc(["status", "--session-init", "--json"], repo);
 
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      status: "clean",
+    expect(status.exitCode).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: {
+          status: "pending",
+          recommendedAction: "surface",
+          recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--apply", "--json"],
+          recommendedPromptText: expect.stringContaining("work-unit session role"),
+        },
+      },
+    });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
+      status: "applied",
       stagedPaths: [],
     });
+    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    if (recordName === undefined) throw new Error("applied reconcile did not persist its work-unit role");
+    const recordPath = join(lociRoot, recordName);
+    const firstGeneration = await readFile(recordPath, "utf8");
+    expect(JSON.parse(firstGeneration)).toMatchObject({
+      checkoutPath: repo,
+      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
+      lease: null,
+    });
+
+    const replay = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(replay.exitCode).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ status: "clean", stagedPaths: [] });
+    expect(await readFile(recordPath, "utf8")).toBe(firstGeneration);
     expect(await readFile(metaPath, "utf8")).toBe(before);
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(beforeHead);

@@ -12,6 +12,7 @@ import {
   createTempRepo,
   git,
   removeGitBackedDir,
+  runArcAnchored,
   runArcNoTty,
 } from "./helpers.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
@@ -181,10 +182,18 @@ async function createFixture(): Promise<RenameFixture> {
 
 async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
-  const started = await runArcNoTty([
-    "start", "old-name", "--here", "--new", "--from", "internal",
+  const started = await runArcAnchored([
+    "start", "old-name", "--here", "--new", "--from", "internal", "--yes",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
+  const lociRoot = join(fixture.repo, ".arc", "user", "test-user", ".internal", "loci");
+  const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+  if (recordName === undefined) throw new Error("cold start did not persist its work-unit locus");
+  expect(JSON.parse(await readFile(join(lociRoot, recordName), "utf8"))).toMatchObject({
+    checkoutPath: fixture.repo,
+    role: { kind: "work-unit", subject: { kind: "work-unit", key: "old-name", claimId: null } },
+    lease: { sessionHomePath: fixture.repo, anchor: { kind: "process" } },
+  });
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
   await git(fixture.repo, ["add", "."]);
   await git(fixture.repo, ["commit", "-m", "chore(test): start work unit"]);
