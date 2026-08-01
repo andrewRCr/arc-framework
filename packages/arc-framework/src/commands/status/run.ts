@@ -46,6 +46,7 @@ import type {
 import {
   buildSessionSharedSlots,
   gatedSlot,
+  locusStateSlot,
   safeProbe,
   SessionCompositionError,
   toProbe,
@@ -70,6 +71,9 @@ import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summa
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import { selectCheckoutWorkUnit } from "../../lib/locus/state.js";
+import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
 import {
   fromThrowable,
   err,
@@ -78,6 +82,10 @@ import {
 } from "../../lib/kernel/index.js";
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
+}
+
+function checkoutPathForIdentity(state: LocusStateV1, identity: WorktreeIdentity): string {
+  return identity.kind === "linked" ? identity.path : state.roster.primaryPath;
 }
 
 /**
@@ -493,6 +501,9 @@ export async function runRecoverStatus(
   const { identity, role, probes, workingMemoryPath } = options;
 
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
+  const legacyErrandTask = safeProbe("legacyErrand", () =>
+    probes.legacyErrand(identity, role, workingMemoryPath ?? null));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
@@ -501,6 +512,8 @@ export async function runRecoverStatus(
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
   const [
+    locusState,
+    legacyErrand,
     worktree,
     worktreeIdentitySlot,
     dirty,
@@ -509,6 +522,8 @@ export async function runRecoverStatus(
     active,
     releaseRouting,
   ] = await Promise.all([
+    locusStateTask,
+    legacyErrandTask,
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
@@ -518,45 +533,62 @@ export async function runRecoverStatus(
     releaseRoutingTask,
   ]);
 
-  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.isOk()
-    ? worktreeIdentitySlot.value
-    : { kind: "primary" };
-  const enrichedWorktree = worktree.map((value) => ({
-        ...value,
-        identity: worktreeIdentity,
-      } satisfies SessionRecoverWorktreeValue));
+  const enrichedWorktree = worktree.andThen((value) =>
+    worktreeIdentitySlot.map((identityValue) => ({
+      ...value,
+      identity: identityValue,
+    } satisfies SessionRecoverWorktreeValue)));
 
-  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
-  const cohortDocPath = cohortDoc.isOk() ? cohortDoc.value : null;
-  const activeWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
-  const loadSet = active.andThen((activeValue) => loadSetFromState({
+  const deriveContext = fromThrowable(
+    (input: {
+      state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"];
+      identity: WorktreeIdentity;
+    }) => deriveRecoveryLocusContext({
+      state: input.state,
+      checkoutPath: checkoutPathForIdentity(input.state, input.identity),
       identity,
-      activeWorkUnit: activeWuName,
-      metaPath: activeValue.path,
-      sessionType: activeValue.sessionType,
-      planningStage: activeValue.planningStage,
-      taskListPath: activeValue.taskListPath ?? null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
-      cohortDocPath,
-      cohortDoc,
       workingMemoryPath: workingMemoryPath ?? null,
-    }));
-  const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    active.isOk() && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
-      ? await safeProbe("taskCursor", () => probes.taskCursor(taskListPath))
-      : undefined;
+    }),
+    (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
+  );
+  let recoveryContext = locusState.andThen((state) => worktreeIdentitySlot.andThen(
+    (identityValue) => deriveContext({ state, identity: identityValue }),
+  ));
+  const legacyCheckoutSelection = locusState.isOk() && worktreeIdentitySlot.isOk()
+    ? selectCheckoutWorkUnit(
+        locusState.value,
+        checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value),
+      )
+    : null;
+  const legacyLocusEligible = locusState.isOk()
+    && worktreeIdentitySlot.isOk()
+    && locusState.value.current.kind === "none"
+    && locusState.value.recovery.kind === "none"
+    && locusState.value.reconciliation.kind === "clean"
+    && legacyCheckoutSelection?.kind === "none"
+    && !locusState.value.roster.rows.some((row) => row.kind === "managed-role" && row.frame === "residue");
+  if (legacyLocusEligible && legacyErrand.isOk() && legacyErrand.value !== null) {
+    recoveryContext = legacyErrand.map((value) => value as NonNullable<typeof value>);
+  } else if (legacyLocusEligible && legacyErrand.isErr()) {
+    recoveryContext = err(legacyErrand.error);
+  }
+  const recoveryFrame = recoveryContext.map((value) => value.frame);
+  const loadSet = recoveryContext.map((value) => value.loadSet);
+  const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
+    ? recoveryContext.map((value) => value.taskCursor as NonNullable<typeof value.taskCursor>)
+    : undefined;
 
   return {
     mode: "recover",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
+    recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
     extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
     releaseRouting: toProbe(releaseRouting),
-    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet: toProbe(loadSet),
     ...(taskCursor !== undefined ? { taskCursor: toProbe(taskCursor) } : {}),
   };

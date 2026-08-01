@@ -3,7 +3,11 @@
 import { z } from "zod";
 
 import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js";
-import { COMPACTION_SEED_SCHEMA_VERSION } from "../compaction-seed/schema.js";
+import {
+  COMPACTION_SEED_SCHEMA_VERSION,
+  CompactionSeedLocusAbsenceSchema,
+  CompactionSeedLocusHintSchema,
+} from "../compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "./audit.js";
 import { assertSessionEnvelopeContract } from "../session-envelope/validation.js";
 
@@ -16,6 +20,8 @@ export const RecoverAuditSeedSummarySchema = z.strictObject({
   head: NON_EMPTY_TEXT,
   branch: NON_EMPTY_TEXT,
   sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+  locus: CompactionSeedLocusHintSchema.optional(),
+  locusAbsence: CompactionSeedLocusAbsenceSchema.optional(),
 });
 
 const RecoverAuditReportObjectSchema = z.strictObject({
@@ -56,7 +62,35 @@ export const RecoverAuditReportSchema = RecoverAuditReportObjectSchema.superRefi
       message: "ready reports require a seed summary",
     });
   }
+  if (value.verdict.status === "ready" && value.seed?.locus !== undefined) {
+    const comparison = value.verdict.locusHint;
+    if (comparison === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["verdict", "locusHint"],
+        message: "ready reports with a seed locus require a fresh locus comparison",
+      });
+    } else if (!sameLocusHint(comparison.expected, value.seed.locus)) {
+      context.addIssue({
+        code: "custom",
+        path: ["verdict", "locusHint"],
+        message: "ready locus comparison must match the seed locus",
+      });
+    }
+  }
 });
+
+function sameLocusHint(
+  left: z.infer<typeof CompactionSeedLocusHintSchema> | null,
+  right: z.infer<typeof CompactionSeedLocusHintSchema>,
+): boolean {
+  return left !== null
+    && left.sessionHomePath === right.sessionHomePath
+    && left.activeLocusPath === right.activeLocusPath
+    && left.recordId === right.recordId
+    && left.leaseId === right.leaseId
+    && left.parentRecordId === right.parentRecordId;
+}
 
 /** Recovery-audit report derived from its complete runtime authority. */
 export type RecoverAuditReport = z.infer<typeof RecoverAuditReportSchema>;

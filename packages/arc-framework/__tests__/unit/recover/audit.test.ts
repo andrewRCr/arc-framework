@@ -7,6 +7,7 @@ import {
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
+import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
@@ -15,7 +16,9 @@ import {
   RecoveryAuditVerdictSchema,
   auditRecoveryState,
   type AuditRecoveryStateOptions,
+  type RecoveryAuditProbeState,
 } from "../../../src/lib/recover/audit.js";
+import type { RecoveryLocusFrame } from "../../../src/lib/recover/locus-context.js";
 import type { CommittedProgressResolver } from "../../../src/lib/recover/committed-progress.js";
 import type {
   TaskListCursor,
@@ -63,6 +66,16 @@ const CURSOR = {
     lineHint: 201,
   },
 } satisfies TaskListCursor;
+
+const RECORD_ID = `sha256:${"a".repeat(64)}`;
+const LEASE_ID = "b".repeat(32);
+const LOCUS_HINT = {
+  sessionHomePath: "/repo",
+  activeLocusPath: "/repo",
+  recordId: RECORD_ID,
+  leaseId: LEASE_ID,
+  parentRecordId: null,
+} as const;
 
 function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
   return {
@@ -125,6 +138,62 @@ function ok<T>(value: T): Probe<T> {
   return { ok: true, value };
 }
 
+function freshLocusState(): LocusStateV1 {
+  return {
+    roster: {
+      mode: "locus",
+      ok: true,
+      primaryPath: "/repo",
+      rows: [{
+        kind: "managed-role",
+        checkoutPath: "/repo",
+        primary: true,
+        recordId: RECORD_ID,
+        role: {
+          kind: "work-unit",
+          subject: { kind: "work-unit", key: "compaction-recovery", claimId: null },
+          parentCheckoutPath: null,
+          originEntry: null,
+        },
+        identity: null,
+        lease: {
+          leaseId: LEASE_ID, selfHeld: false,
+          state: "live",
+          sessionHomePath: "/repo",
+          attachedAt: "2026-06-28T12:00:00.000Z",
+          heartbeatAt: "2026-06-28T12:00:00.000Z",
+        },
+        frame: "active",
+        derived: {
+          workflow: "process-task-loop",
+          stage: null,
+          sessionType: "execution",
+          taskCursor: cursorResult(),
+          loadSet: LOAD_SET,
+        },
+        diagnostics: [],
+      }],
+      diagnostics: [],
+    },
+    current: { kind: "resolved", sessionHomeRecordId: RECORD_ID, activeRecordId: RECORD_ID, parentRecordId: null },
+    primaryAvailability: { kind: "occupied", checkoutPath: "/repo", recordId: RECORD_ID, leaseState: "live" },
+    inFlightIdentities: [],
+    recovery: { kind: "resume", activeRecordId: RECORD_ID, parentRecordId: null },
+    reconciliation: { kind: "clean" },
+  };
+}
+
+function recoveryFrame(overrides: Partial<Extract<RecoveryLocusFrame, { kind: "resolved" }>> = {}): RecoveryLocusFrame {
+  return {
+    kind: "resolved",
+    workflow: "process-task-loop",
+    sessionType: "execution",
+    activeRecordId: RECORD_ID,
+    parentRecordId: null,
+    ...overrides,
+  };
+}
+
 // The audit resolves committed-progress evidence via git; unit tests inject a
 // deterministic resolver. Default is "no evidence" (null), which leaves every
 // existing drift a genuine stop exactly as before the explained-drift gate.
@@ -134,19 +203,51 @@ function committedProgress(files: string[], advanced = true): CommittedProgressR
   return () => Promise.resolve({ advanced, files: new Set(files) });
 }
 
-type TestAuditOptions = Omit<AuditRecoveryStateOptions, "freshBranch" | "freshHead">
-  & Partial<Pick<AuditRecoveryStateOptions, "freshBranch" | "freshHead">>;
+type LegacyAuditProbeState = Omit<RecoveryAuditProbeState, "locusState" | "recoveryFrame">
+  & Partial<Pick<RecoveryAuditProbeState, "locusState" | "recoveryFrame">>;
+type TestAuditOptions =
+  Omit<AuditRecoveryStateOptions, "freshBranch" | "freshHead" | "freshRepoRoot" | "recover">
+  & { recover: LegacyAuditProbeState }
+  & Partial<Pick<AuditRecoveryStateOptions, "freshBranch" | "freshHead" | "freshRepoRoot">>;
 
 function runAudit(options: TestAuditOptions): Promise<Awaited<ReturnType<typeof auditRecoveryState>>> {
   return auditRecoveryState({
     freshBranch: options.seed.branch,
     freshHead: options.seed.head,
+    freshRepoRoot: options.seed.repoRoot,
     resolveCommittedProgress: noCommittedProgress,
     ...options,
+    recover: {
+      locusState: ok(freshLocusState()),
+      recoveryFrame: ok(recoveryFrame()),
+      ...options.recover,
+    },
   });
 }
 
 describe("auditRecoveryState", () => {
+  it("stops when the seed was emitted for a different repository root", async () => {
+    // Everything a sibling linked worktree can legitimately share stays equal:
+    // same branch, head, dirty set, and load set. Only the root differs.
+    const result = await runAudit({
+      seed: seed(),
+      freshRepoRoot: "/repo.sibling-worktree",
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "repo-root-mismatch",
+      detail: { expected: "/repo", actual: "/repo.sibling-worktree" },
+    }));
+  });
+
   it("returns ready when load-set, dirty paths, and execution cursor match the seed", async () => {
     const result = await runAudit({
       seed: seed(),
@@ -176,8 +277,203 @@ describe("auditRecoveryState", () => {
         expected: CURSOR,
         match: true,
       },
+      locusHint: {
+        expected: null,
+        actual: LOCUS_HINT,
+        match: true,
+      },
     });
     expect(RecoveryAuditVerdictSchema.parse(result)).toEqual(result);
+  });
+
+  it("stops when the seed recorded that its locus generation was unestablished", async () => {
+    const result = await runAudit({
+      seed: seed({ locusAbsence: "unavailable" }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "seed-locus-unavailable",
+    }));
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: false });
+  });
+
+  it("stops when the seed attested no generation but one is live now", async () => {
+    const result = await runAudit({
+      seed: seed({ locusAbsence: "none" }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "locus-hint-mismatch",
+      detail: { expected: null, actual: LOCUS_HINT },
+    }));
+    expect(result.locusHint?.match).toBe(false);
+  });
+
+  it("keeps the permissive read for a pre-model seed that recorded no disposition", async () => {
+    // Deliberate bounded compatibility, not an oversight: a seed emitted before
+    // the locus model cannot be held to a disposition its producer never wrote.
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: null, actual: LOCUS_HINT, match: true });
+  });
+
+  it("accepts an exact optional locus hint", async () => {
+    const result = await runAudit({
+      seed: seed({ locus: LOCUS_HINT }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: LOCUS_HINT, actual: LOCUS_HINT, match: true });
+  });
+
+  it.each([
+    ["sessionHomePath", "/other"],
+    ["activeLocusPath", "/other"],
+    ["recordId", `sha256:${"c".repeat(64)}`],
+    ["leaseId", "d".repeat(32)],
+    ["parentRecordId", `sha256:${"e".repeat(64)}`],
+  ] as const)("stops when the seed locus %s differs", async (field, replacement) => {
+    const result = await runAudit({
+      seed: seed({ locus: { ...LOCUS_HINT, [field]: replacement } }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "locus-hint-mismatch",
+      detail: expect.objectContaining({ mismatchedFields: [field] }),
+    }));
+    expect(result.locusHint?.match).toBe(false);
+  });
+
+  it("stops when fresh locus authority cannot resolve", async () => {
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        locusState: { ok: false, error: { kind: "runtime", message: "locus unavailable" } },
+        recoveryFrame: { ok: false, error: { kind: "runtime", message: "locus unavailable" } },
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "locus-unresolved" }));
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: false });
+  });
+
+  it("accepts record-free cold completion when both fresh projections resolve none", async () => {
+    const noneState = freshLocusState();
+    noneState.roster.rows = [];
+    noneState.current = { kind: "none" };
+    noneState.primaryAvailability = { kind: "free", checkoutPath: "/repo" };
+    noneState.recovery = { kind: "none" };
+    const result = await runAudit({
+      seed: seed({ sessionType: null, activeWorkUnit: null, metaPath: null, taskCursor: null }),
+      recover: {
+        locusState: ok(noneState),
+        recoveryFrame: ok({ kind: "none", workflow: null, sessionType: null }),
+        active: ok(active({ resolution: "none", path: null, sessionType: null, taskListPath: null })),
+        dirty: ok(dirty()), loadSet: ok(LOAD_SET),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
+  });
+
+  it("accepts a resolved leaseless WU recovery frame without a lease hint", async () => {
+    const idleState = freshLocusState();
+    const row = idleState.roster.rows[0];
+    if (row === undefined) throw new Error("missing WU fixture row");
+    row.lease = null;
+    row.frame = "idle";
+    idleState.current = { kind: "none" };
+    idleState.primaryAvailability = {
+      kind: "occupied",
+      checkoutPath: "/repo",
+      recordId: RECORD_ID,
+      leaseState: "absent",
+    };
+    idleState.recovery = { kind: "none" };
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        locusState: ok(idleState),
+        recoveryFrame: ok(recoveryFrame()),
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
+  });
+
+  it("accepts one close-only legacy Errand workflow beyond the pre-model seed load set", async () => {
+    const noneState = freshLocusState();
+    noneState.roster.rows = [];
+    noneState.current = { kind: "none" };
+    noneState.primaryAvailability = { kind: "free", checkoutPath: "/repo" };
+    noneState.recovery = { kind: "none" };
+    const legacyLoadSet = {
+      ...LOAD_SET,
+      entries: [
+        ...LOAD_SET.entries,
+        { path: ".arc/system/workflows/arc/supplemental/run-errand.md", readMode: { kind: "full" as const } },
+      ],
+    };
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        locusState: ok(noneState),
+        recoveryFrame: ok({
+          kind: "legacy-errand",
+          workflow: "run-errand",
+          sessionType: "execution",
+          slug: "legacy",
+          branch: "chore/legacy",
+          returnBranch: "feat/parent",
+        }),
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(legacyLoadSet),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.loadSetAudit?.status).toBe("match");
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
   });
 
   it("stops when the live checkout branch differs even if HEAD is unchanged", async () => {
@@ -646,6 +942,7 @@ describe("auditRecoveryState", () => {
         currentWorkflow: "integrate-work-unit Step 4",
       }),
       recover: {
+        recoveryFrame: ok(recoveryFrame({ workflow: "integrate-work-unit", sessionType: "integration" })),
         active: ok(active({
           sessionType: "integration",
           currentWorkflow: "integrate-work-unit Step 4",
@@ -679,6 +976,7 @@ describe("auditRecoveryState", () => {
         taskCursor: null,
       }),
       recover: {
+        recoveryFrame: ok(recoveryFrame({ workflow: "integrate-work-unit", sessionType: "integration" })),
         active: ok(active({
           sessionType: "integration",
           currentWorkflow: "integrate-work-unit Step 4",
@@ -704,6 +1002,7 @@ describe("auditRecoveryState", () => {
         taskCursor: null,
       }),
       recover: {
+        recoveryFrame: ok(recoveryFrame({ workflow: "integrate-work-unit", sessionType: "integration" })),
         active: ok(active({
           sessionType: "integration",
           currentWorkflow: "integrate-work-unit Step 4",
@@ -738,6 +1037,7 @@ describe("auditRecoveryState", () => {
         taskCursor: null,
       }),
       recover: {
+        recoveryFrame: ok(recoveryFrame({ workflow: "integrate-work-unit", sessionType: "integration" })),
         active: ok(active({
           sessionType: "integration",
           currentWorkflow: "integrate-work-unit Step 4",
@@ -779,6 +1079,7 @@ describe("auditRecoveryState", () => {
           taskCursor: null,
         }),
         recover: {
+          recoveryFrame: ok(recoveryFrame({ workflow: "integrate-work-unit", sessionType: "integration" })),
           active: ok(active({
             sessionType: "integration",
             currentWorkflow: "integrate-work-unit Step 4",
@@ -795,7 +1096,7 @@ describe("auditRecoveryState", () => {
     }
   });
 
-  it("stops for planning recovery because Current Workflow is soft after compaction", async () => {
+  it("accepts planning recovery from the fresh locus-derived workflow", async () => {
     const result = await runAudit({
       seed: seed({
         sessionType: "planning",
@@ -804,6 +1105,7 @@ describe("auditRecoveryState", () => {
         loadSet: PLANNING_LOAD_SET,
       }),
       recover: {
+        recoveryFrame: ok(recoveryFrame({ workflow: "draft-design", sessionType: "planning" })),
         active: ok(active({
           taskListPath: null,
           sessionType: "planning",
@@ -815,12 +1117,8 @@ describe("auditRecoveryState", () => {
       freshUncommittedFiles: [],
     });
 
-    expect(result.status).toBe("stop");
-    expect(result.stopReasons).toMatchObject([
-      {
-        kind: "planning-workflow-uncertain",
-      },
-    ]);
+    expect(result.status).toBe("ready");
+    expect(result.stopReasons).toEqual([]);
     expect(result.taskCursor).toBeNull();
   });
 });
