@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
 
 const DIGEST = `sha256:${"0".repeat(64)}`;
 
@@ -112,6 +112,31 @@ describe("arc wu reconcile", () => {
     });
     expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
+  });
+
+  it("attaches the entering session only when the post-entry flag is explicit", async () => {
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+    const passive = await runArc(["wu", "reconcile", "dependent", "--json"], repo);
+
+    expect(passive.exitCode).toBe(0);
+    expect(JSON.parse(passive.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const result = await runArcAnchored(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
+    const records = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    expect(records).toHaveLength(1);
+    const record = JSON.parse(await readFile(join(lociRoot, records[0] as string), "utf8"));
+    expect(record).toMatchObject({
+      checkoutPath: repo,
+      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
+      lease: { sessionHomePath: repo, anchor: { kind: "process" } },
+    });
   });
 
   it("surfaces and applies reference-only reconcile through the shared command", async () => {

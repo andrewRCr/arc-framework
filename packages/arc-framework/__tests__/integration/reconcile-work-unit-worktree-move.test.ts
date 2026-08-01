@@ -8,12 +8,12 @@ import {
   makeGitExec,
 } from "../helpers/integration.js";
 import {
-  reconcileWorktree,
+  reconcileWorkUnitWorktree,
   resolveRenameWorktreeMove,
-  type ReconcileWorktreeContext,
-} from "../../src/lib/work-unit/mutators/reconcile-worktree.js";
+  type ReconcileWorkUnitWorktreeContext,
+} from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 
-describe("reconcileWorktree move with real Git", () => {
+describe("reconcileWorkUnitWorktree move with real Git", () => {
   let repo: string;
   let oldPath: string;
   let newPath: string;
@@ -50,7 +50,7 @@ describe("reconcileWorktree move with real Git", () => {
     expect(plan).toEqual({ status: "move", from: oldPath, to: newPath });
     if (plan.status !== "move") throw new Error("expected a worktree move plan");
 
-    const ctx: ReconcileWorktreeContext = {
+    const ctx: ReconcileWorkUnitWorktreeContext = {
       exec,
       chdir: () => {
         throw new Error("a non-self move must not change the test process locus");
@@ -65,7 +65,7 @@ describe("reconcileWorktree move with real Git", () => {
       },
     };
 
-    await expect(reconcileWorktree(ctx, {
+    await expect(reconcileWorkUnitWorktree(ctx, {
       mutation: "move",
       ...plan,
       currentLocus: repo,
@@ -96,7 +96,7 @@ describe("reconcileWorktree move with real Git", () => {
     expect(move).toEqual({ status: "move", from: oldPath, to: newPath });
     if (move.status !== "move") throw new Error("expected move resolution");
 
-    const ctx: ReconcileWorktreeContext = {
+    const ctx: ReconcileWorkUnitWorktreeContext = {
       exec,
       chdir: () => {
         throw new Error("a non-self move must not change the test process locus");
@@ -110,7 +110,7 @@ describe("reconcileWorktree move with real Git", () => {
         readDir: async () => [],
       },
     };
-    await reconcileWorktree(ctx, {
+    await reconcileWorkUnitWorktree(ctx, {
       mutation: "move",
       from: move.from,
       to: move.to,

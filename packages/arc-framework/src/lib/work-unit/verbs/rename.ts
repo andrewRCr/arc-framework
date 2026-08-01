@@ -14,7 +14,11 @@ import { patchDigest, type PatchOperation } from "../../canonical/content-digest
 import { receiptId } from "../../canonical/receipt-id.js";
 import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
-import type { RenameWorktreeMoveResolution, ReconcileWorktreeResult } from "../mutators/reconcile-worktree.js";
+import type {
+  RenameWorktreeMoveResolution,
+  ReconcileWorkUnitWorktreeResult,
+} from "../mutators/reconcile-work-unit-worktree.js";
+import type { RenameLocusOutcome } from "../rename-locus.js";
 import type {
   RenameRetirementContext,
   RenameTransitionSourceEvidence,
@@ -54,10 +58,17 @@ export type RunRenameResult =
       advisories: readonly string[];
       remote?: RenameRemoteBranchResult;
       marker?: WorktreeMarkerReadResult["kind"] | "renamed" | "foreign";
-      worktree?: RenameWorktreeMoveResolution | ReconcileWorktreeResult;
+      worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
+      locus?: RenameLocusOutcome;
     }
   | { status: "rejected"; reason: string }
   | { status: "partial"; reason: string };
+
+/** Rekey report: the record outcome plus any physical move the transaction performed. */
+export interface RenameLocusRekeyReport {
+  locus: RenameLocusOutcome;
+  worktree?: ReconcileWorkUnitWorktreeResult;
+}
 
 /** Injected operations driven by {@link runRename}. */
 export interface RunRenameContext {
@@ -73,15 +84,19 @@ export interface RunRenameContext {
   renameRemoteBranch(plan: RenamePlan): Promise<RenameRemoteBranchResult>;
   renameMarker(plan: RenamePlan): Promise<"renamed" | "absent" | "foreign" | "malformed">;
   resolveWorktreeMove(plan: RenamePlan): Promise<RenameWorktreeMoveResolution>;
-  moveWorktree(
-    plan: RenamePlan,
-    move: Extract<RenameWorktreeMoveResolution, { status: "move" }>,
-  ): Promise<ReconcileWorktreeResult>;
+  /**
+   * Rekey the renamed subject's locus record, performing any physical move inside the record-lock
+   * window so the checkout and its role never disagree outside the transaction.
+   */
+  rekeyLocus(plan: RenamePlan, move: RenameWorktreeMoveResolution): Promise<RenameLocusRekeyReport>;
+  /**
+   * Re-point the ownership marker for a resolution the rekey's own move leg cannot carry: a landed
+   * move whose marker now sits at the destination, and a self-move deferred out of the running
+   * process, which additionally records the pending relocation for a later session to complete.
+   */
   reconcileWorktreeMoveMarker(
     plan: RenamePlan,
-    move:
-      | Extract<RenameWorktreeMoveResolution, { status: "deferred-self-move" | "already-moved" }>
-      | Extract<ReconcileWorktreeResult, { mutation: "move" }>,
+    move: Extract<RenameWorktreeMoveResolution, { status: "deferred-self-move" | "already-moved" }>,
   ): Promise<"renamed" | "absent" | "foreign" | "malformed">;
 }
 
@@ -145,19 +160,18 @@ export async function runRename(
     }
 
     let marker: "renamed" | "absent" | "foreign" | "malformed" | undefined;
-    let worktree: RenameWorktreeMoveResolution | ReconcileWorktreeResult | undefined;
-    if (plan.shape === "spawned") {
-      marker = await ctx.renameMarker(plan);
-      const move = await ctx.resolveWorktreeMove(plan);
-      worktree = move.status === "move" ? await ctx.moveWorktree(plan, move) : move;
-      if (
-        ("status" in worktree
-          && (worktree.status === "deferred-self-move" || worktree.status === "already-moved"))
-        || ("mutation" in worktree && worktree.mutation === "move")
-      ) {
-        marker = await ctx.reconcileWorktreeMoveMarker(plan, worktree);
-      }
+    if (plan.shape === "spawned") marker = await ctx.renameMarker(plan);
+    const move: RenameWorktreeMoveResolution = plan.shape === "spawned"
+      ? await ctx.resolveWorktreeMove(plan)
+      : { status: "in-place" };
+    const rekey = await ctx.rekeyLocus(plan, move);
+    if (rekey.locus.kind === "refused") {
+      return { status: "partial", reason: `session locus rekey refused: ${rekey.locus.reason}` };
     }
+    if (move.status === "deferred-self-move" || move.status === "already-moved") {
+      marker = await ctx.reconcileWorktreeMoveMarker(plan, move);
+    }
+    const worktree = plan.shape === "spawned" ? rekey.worktree ?? move : undefined;
     return {
       status: "renamed",
       shape: plan.shape,
@@ -167,6 +181,7 @@ export async function runRename(
       remote,
       ...(marker === undefined ? {} : { marker }),
       ...(worktree === undefined ? {} : { worktree }),
+      locus: rekey.locus,
     };
   } catch (error) {
     return { status: "partial", reason: errorMessage(error) };

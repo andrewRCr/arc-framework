@@ -19,7 +19,8 @@ import type {
 } from "./validated-graduation-transaction.js";
 import type {
   ProvisionSpawnedWorktreeOp,
-} from "./mutators/reconcile-worktree.js";
+} from "./mutators/reconcile-work-unit-worktree.js";
+import type { WorkUnitLocusDriver, WorkUnitLocusReceipt } from "./work-unit-locus.js";
 
 /** Filesystem mechanics required by {@link atomicGraduate}. */
 export interface AtomicGraduationFs {
@@ -40,11 +41,12 @@ export interface AtomicGraduationDependencies {
   fs: AtomicGraduationFs;
   captureIndex?: typeof captureGitIndexState;
   provisionSpawnedWorktree?: (op: ProvisionSpawnedWorktreeOp) => Promise<string | null>;
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /** One exact rollback mismatch or failed restoration operation. */
 export interface GraduationRollbackFailure {
-  stage: "index" | "path" | "worktree" | "branch" | "verification";
+  stage: "index" | "path" | "worktree" | "branch" | "locus" | "verification";
   locus: string;
   detail: string;
 }
@@ -399,6 +401,7 @@ export async function atomicGraduate(
   let index: GitIndexTransaction | null = null;
   let indexInstalled = false;
   let postCreateNotice: string | null = null;
+  let locusReceipt: WorkUnitLocusReceipt | null = null;
   try {
     await verifyInitialOccupation(transaction, deps);
     occupationAttempted = true;
@@ -409,6 +412,14 @@ export async function atomicGraduate(
         throw new Error("spawned graduation provisioning is unavailable.");
       }
       postCreateNotice = await deps.provisionSpawnedWorktree(operation);
+    }
+    if (deps.workUnitLocus !== undefined) {
+      locusReceipt = await deps.workUnitLocus.reconcile({
+        checkoutPath: occupiedCwd,
+        branch: transaction.branch,
+        wuName: transaction.slug,
+        attachSession: transaction.occupation.mode === "in-place",
+      });
     }
     if (await indexTree(deps.exec, occupiedCwd) !== transaction.occupation.indexTree) {
       throw new Error("Occupied worktree index differs from the validated preimage.");
@@ -435,25 +446,53 @@ export async function atomicGraduate(
     const reason = errorMessage(error);
     if (!occupationAttempted) return { status: "rejected", reason };
     const failures: GraduationRollbackFailure[] = [];
-    if (index !== null && !indexInstalled) {
-      try {
-        await index.rollback();
-      } catch (rollbackError) {
-        failures.push({ stage: "index", locus: occupiedCwd, detail: errorMessage(rollbackError) });
+    const rollback = async (): Promise<void> => {
+      if (index !== null && !indexInstalled) {
+        try {
+          await index.rollback();
+        } catch (rollbackError) {
+          failures.push({ stage: "index", locus: occupiedCwd, detail: errorMessage(rollbackError) });
+        }
       }
+      if (indexInstalled) {
+        failures.push({
+          stage: "index",
+          locus: occupiedCwd,
+          detail: "installed index failed final parity and cannot be restored automatically",
+        });
+      }
+      if (transaction.occupation.mode === "in-place" && filesTouched) {
+        await restoreFiles(transaction, deps, occupiedCwd, failures);
+      }
+      await rollbackOccupation(transaction, deps, occupiedCwd, failures);
+      await verifyRollback(transaction, deps, failures);
+    };
+    if (locusReceipt?.roleCreated === true) {
+      const locusDriver = deps.workUnitLocus;
+      if (locusDriver?.retire === undefined) {
+        failures.push({
+          stage: "locus",
+          locus: occupiedCwd,
+          detail: "new work-unit role cannot be retired by the configured locus driver",
+        });
+      } else {
+        try {
+          await locusDriver.retire({
+            checkoutPath: occupiedCwd,
+            wuName: transaction.slug,
+            removeCheckout: async () => {
+              const before = failures.length;
+              await rollback();
+              if (failures.length !== before) throw new Error("atomic graduation rollback was incomplete");
+            },
+          });
+        } catch (rollbackError) {
+          failures.push({ stage: "locus", locus: occupiedCwd, detail: errorMessage(rollbackError) });
+        }
+      }
+    } else {
+      await rollback();
     }
-    if (indexInstalled) {
-      failures.push({
-        stage: "index",
-        locus: occupiedCwd,
-        detail: "installed index failed final parity and cannot be restored automatically",
-      });
-    }
-    if (transaction.occupation.mode === "in-place" && filesTouched) {
-      await restoreFiles(transaction, deps, occupiedCwd, failures);
-    }
-    await rollbackOccupation(transaction, deps, occupiedCwd, failures);
-    await verifyRollback(transaction, deps, failures);
     if (failures.length === 0) return { status: "rejected", reason };
     return {
       status: "graduation-recovery-required",

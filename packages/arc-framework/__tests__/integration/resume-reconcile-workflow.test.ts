@@ -23,7 +23,7 @@ describe("resume current-WU reconcile ceremony", () => {
     expect(installed).toBe(packaged);
     const pointerCommit = packaged.indexOf("chore(arc): resume {name}");
     const inPlaceCheckout = packaged.lastIndexOf("git checkout {branch}");
-    const reconcile = packaged.indexOf("arc wu reconcile {name} --apply --json");
+    const reconcile = packaged.indexOf("arc wu reconcile {name} --attach-session --apply --json");
     const dependentCommit = packaged.indexOf("chore(arc): reconcile {name} after resume");
 
     expect(pointerCommit).toBeGreaterThanOrEqual(0);

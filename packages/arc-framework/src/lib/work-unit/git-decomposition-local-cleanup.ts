@@ -18,9 +18,9 @@ import {
   type RegisteredWorktreeScanResult,
 } from "../git/worktree-roster.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import {
   resolveConfiguredBaseDecompositionAnchor,
   type ConfiguredBaseDecompositionAnchorResult,
@@ -267,14 +267,14 @@ async function removeProjectionWorktree(
   if (deps.removeWorktree !== undefined) {
     await deps.removeWorktree(worktree.path);
   } else {
-    await reconcileWorktree(
+    await reconcileWorkUnitWorktree(
       {
         exec: deps.exec,
         chdir: (path) => {
           if (deps.chdir === undefined) process.chdir(path);
           else deps.chdir(path);
         },
-        fs: nodeReconcileWorktreeFs,
+        fs: nodeReconcileWorkUnitWorktreeFs,
       },
       {
         mutation: "teardown",

@@ -11,7 +11,7 @@
  * `activate`, the preserve at `park@Active`, the local + remote teardown at
  * `park@Planning` / pre-merge `abandon`, and the merged-safe local delete the
  * post-merge teardown verb uses. Branch *creation* is not a standalone op here —
- * `reconcile-worktree` owns branch birth in both placement modes (spawn via
+ * `reconcile-work-unit-worktree` owns branch birth in both placement modes (spawn via
  * `git worktree add -b`, in-place via `git checkout -b`); `create` is a no-op in
  * this leg.
  *
@@ -54,7 +54,7 @@ export interface ReconcileBranchContext {
  *   stricter landed-in-base proof (see {@link deleteRemoteBranch}).
  * - `preserve` — leave the branch untouched (`park@Active` keeps the pushed
  *   branch as the durable shelf).
- * - `create` — a no-op here; `reconcile-worktree` creates the branch (spawn via
+ * - `create` — a no-op here; `reconcile-work-unit-worktree` creates the branch (spawn via
  *   `git worktree add -b`, in-place via `git checkout -b`).
  */
 export type ReconcileBranchOp =

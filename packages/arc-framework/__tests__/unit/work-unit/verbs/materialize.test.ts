@@ -67,7 +67,7 @@ function buildCtx(opts: { activeCandidates?: MetaFileCandidate[] } = {}): {
     setPhase: async () => ({ phase: "Active" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async () => {},
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       if (op.mutation === "spawn") {
@@ -119,6 +119,8 @@ describe("runMaterialize", () => {
       mutation: "spawn",
       inPlace: true,
       branch: "feat/foo",
+      wuName: "foo",
+      attachSession: true,
       createBranch: false,
     });
   });

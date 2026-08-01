@@ -171,7 +171,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       if (op.mutation === "teardown") {
@@ -509,7 +509,7 @@ describe("runPark — park@Active", () => {
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
     const { ctx, writes } = buildCtx([ACTIVE]);
     // Override the teardown to refuse a dirty worktree (the mutator's clean-guard).
-    ctx.executor.reconcileWorktree = async () => {
+    ctx.executor.reconcileWorkUnitWorktree = async () => {
       throw new Error("refusing to tear down a dirty worktree: /repo/../wt-foo");
     };
 
@@ -661,7 +661,7 @@ describe("runResume — the inverse", () => {
   });
 
   it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {
-    const { ctx, calls, removals } = buildCtx([PARKED]);
+    const { ctx, calls, removals, worktreeOps } = buildCtx([PARKED]);
 
     const result = await runResume(ctx, { name: "foo", inPlace: true });
 
@@ -678,6 +678,14 @@ describe("runResume — the inverse", () => {
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
     expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
+    expect(worktreeOps[0]).toMatchObject({
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/foo",
+      wuName: "foo",
+      attachSession: true,
+      deferCheckout: true,
+    });
   });
 
   it("rejects cleanly when the parked record has no preserved branch (`[none]`)", async () => {

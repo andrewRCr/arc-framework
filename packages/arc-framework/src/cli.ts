@@ -243,6 +243,7 @@ wu
   .command("reconcile [slug]")
   .description("Plan or apply version-checked repairs owned by the current work unit")
   .option("--apply", "Apply and stage the exact reported path set")
+  .option("--attach-session", "Attach this session after entering the work-unit checkout")
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

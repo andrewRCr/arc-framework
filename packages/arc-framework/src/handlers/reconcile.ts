@@ -28,11 +28,17 @@ import {
   type CurrentWuReconcileResult,
 } from "../lib/work-unit/side-effects/discharge-dep-edges.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
-import { requireArcProjectRoot } from "./shared.js";
+import {
+  createNodeWorkUnitLocusDriver,
+  type WorkUnitLocusDriver,
+  type WorkUnitLocusReceipt,
+} from "../lib/work-unit/work-unit-locus.js";
+import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 /** CLI options for `arc wu reconcile`. */
 export interface WuReconcileOptions {
   apply?: boolean;
+  attachSession?: boolean;
   json?: boolean;
 }
 
@@ -40,6 +46,7 @@ export interface WuReconcileOptions {
 export const WuReconcileCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   apply: z.boolean().optional(),
+  attachSession: z.boolean().optional(),
   json: z.boolean().optional(),
 }).strict();
 
@@ -50,6 +57,7 @@ export const wuReconcileCommandInputRegistration = {
   schemaFields: {
     "operand.slug": "slug",
     "option.apply": "apply",
+    "option.attachSession": "attachSession",
     "option.json": "json",
   },
 } satisfies CommandInputRegistration;
@@ -58,15 +66,26 @@ export const wuReconcileCommandInputRegistration = {
 export const wuReconcileCommandInputPolicyDeclarations = [{
   commandPath: "wu reconcile",
   aliases: [],
-  sites: [declareCliOptionSite("json", {
-    acquisition: "machine-mode",
-    schemaOwnership: "owned",
-    schemaField: "json",
-    cancellation: "not-applicable",
-    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-    mutationBoundary: "output selection",
-    subprocess: "none",
-  })],
+  sites: [
+    declareCliOptionSite("attach-session", {
+      acquisition: "optional",
+      schemaOwnership: "owned",
+      schemaField: "attachSession",
+      cancellation: "not-applicable",
+      automation: { noInput: "preserve-absent", flags: ["--attach-session"], acceptedSyntax: [] },
+      mutationBoundary: "current work-unit session entry",
+      subprocess: "none",
+    }),
+    declareCliOptionSite("json", {
+      acquisition: "machine-mode",
+      schemaOwnership: "owned",
+      schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection",
+      subprocess: "none",
+    }),
+  ],
 }] satisfies readonly CommandInputDeclaration[];
 
 interface ReconcileEnvelope {
@@ -105,10 +124,27 @@ export async function handleWuReconcile(
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
     getCurrentBranch(exec),
   ]);
+  if (currentBranch === null) {
+    emitConflict(input, input.slug ?? "", "current checkout has no branch identity");
+    return;
+  }
   const target = await resolveOwnedTarget(cwd, index, currentBranch, input.slug);
   if ("reason" in target) {
     emitConflict(input, target.slug, target.reason);
     return;
+  }
+  if (input.attachSession === true) {
+    const identity = await resolveIdentityWithPrompt(false);
+    if (identity === null) return;
+    try {
+      await attachCurrentWuSession(
+        createNodeWorkUnitLocusDriver({ exec, identity }),
+        { checkoutPath: cwd, branch: currentBranch, wuName: target.slug },
+      );
+    } catch (error) {
+      emitConflict(input, target.slug, error instanceof Error ? error.message : String(error));
+      return;
+    }
   }
 
   const result = await runCurrentWuReconcile({
@@ -137,15 +173,20 @@ export async function handleWuReconcile(
   if (result.status === "conflict") process.exitCode = 1;
 }
 
+/** Attach the invoking session after a work-unit entry's physical checkout has landed. */
+export function attachCurrentWuSession(
+  driver: WorkUnitLocusDriver,
+  options: { checkoutPath: string; branch: string; wuName: string },
+): Promise<WorkUnitLocusReceipt> {
+  return driver.reconcile({ ...options, attachSession: true });
+}
+
 async function resolveOwnedTarget(
   cwd: string,
   index: Awaited<ReturnType<typeof buildLifecycleIndex>>,
-  currentBranch: string | null,
+  currentBranch: string,
   slugArg: string | undefined,
 ): Promise<{ slug: string; metaPath: string } | { slug: string; reason: string }> {
-  if (currentBranch === null) {
-    return { slug: slugArg?.trim() ?? "", reason: "current checkout has no branch identity" };
-  }
   const matches: Array<{ slug: string; metaPath: string }> = [];
   for (const entry of index.values()) {
     let branch: string | null;
