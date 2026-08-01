@@ -765,6 +765,12 @@ describe("trusted review-gate workflows", () => {
       .toBe("npm run build");
     expect(classify.run).not.toContain("classifier_usage=");
     expect(classify.run).not.toContain("defaulting to reviewed");
+    expect(typeof classify.run).toBe("string");
+    if (typeof classify.run !== "string") return;
+    const reviewedDefault = classify.run.indexOf("lane=reviewed");
+    const sameRepositoryGate = classify.run.indexOf('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
+    expect(reviewedDefault).toBeGreaterThan(-1);
+    expect(sameRepositoryGate).toBeGreaterThan(reviewedDefault);
     expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
     expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');

@@ -207,60 +207,41 @@ a merge queue, and the command reports which mechanism satisfied it rather than 
 
 _Purpose:_ Prove the complete opt-in boundary without re-testing transform internals.
 
-### `[ ]` **5.1 Cover the precondition and classifier matrices**
+### `[x]` **5.1 Cover the precondition and classifier matrices**
 
 - _Goal:_ Every unpublished source, malformed authority, or stale pair stays reviewed or fails closed.
 
-    - `[ ]` **5.1.a Cover the source precondition**
-        - Build `test-first` (one behavior at a time):
-            - source ref equal to result-base ref, gate skipped
-            - remote tip equal to the recorded source head, cut admitted
-            - remote tip unequal, cut refused with the branch as locus and nothing materialized
-            - remote unreadable, refused
-            - base advancement re-derivation unaffected by the gate
+    - `[x]` **5.1.a Cover the source precondition**
+        - Covered configured-base bypass, exact remote-tip admission, stale and unreadable refusal before claims or
+          materialization, and the independently exercised base-advancement path.
 
-    - `[ ]` **5.1.b Cover exact-ref classification**
-        - Build `test-first` (one behavior at a time):
-            - zero, one, and multiple added receipt endpoints
-            - add, modify, and delete of retirement evidence
-            - receipt already present in the base
-            - identity, patch, source, base, target, and dependency mismatch
-            - managed-path before, after, and destination-output disagreement
-            - checkout with no index and no local branches
-            - source commit absent from the checkout
+    - `[x]` **5.1.b Cover exact-ref classification**
+        - Covered zero, one, multiple, mutated, already-present, and incomplete receipt endpoint shapes; reused the
+          canonical validator matrix for identity, patch, source, base, target, dependency, path-state, and output
+          disagreement, with committed-object readers covering indexless and unavailable-object cases.
 
-    - `[ ]` **5.1.c Cover shape precedence, the outcome mapping, and streams**
-        - Build `test-first` (one behavior at a time):
-            - an endpoint beyond the transition patch and receipt resolves reviewed without validating
-            - a shape-matching change with a misstating receipt still refuses
-            - content-shaped refusal reports invalid nonzero with a locus
-            - read-shaped refusal reports reviewed
-            - a read failure carried under a content-sounding kind resolves reviewed
-            - an unparseable operand is a usage error rather than a lane outcome
-            - stdout stays within the two-value vocabulary
-            - locus reaches stderr and never stdout
+    - `[x]` **5.1.c Cover shape precedence, the outcome mapping, and streams**
+        - Covered extra and missing endpoint precedence before validation, canonical content disagreement, read-shaped
+          downgrade, usage errors, and the closed stdout/stderr/exit-code contract.
 
-    - `[ ]` **5.1.d Cover liveness and fork origin**
-        - Build `test-first` (one behavior at a time):
-            - live head moved after classification
-            - base branch tip moved after classification
-            - both unchanged, publication proceeds
-            - fork-origin change takes the reviewed path
+    - `[x]` **5.1.d Cover liveness and fork origin**
+        - Covered unchanged, head-moved, base-moved, unreadable, and foreign-origin host states; fork changes retain
+          the reviewed default unless the same-repository gate admits canonical classification.
 
-    - `[ ]` **5.1.e Cover eligibility and application**
-        - Build `test-first` (one behavior at a time):
-            - clearance context required and not required
-            - base currency by branch protection, by the rules surface alone, by merge queue, and by none —
-              naming the satisfying mechanism in each
-            - a surface reporting the requirement absent, distinguished from a surface refusing the read
-            - append performed on eligible, withheld otherwise, and refused when an owning entry would follow
+    - `[x]` **5.1.e Cover eligibility and application**
+        - Covered required-context presence and absence, each accepted base-currency mechanism and none, independent
+          absent-versus-forbidden reads, and eligible, withheld, idempotent, and unsafe-order application outcomes.
 
-    - `[ ]` **5.1.f Cover ownership and parity contracts**
-        - Prove last-match ownership ordering, the default-off skeleton, and byte parity across both copies of
-          every host-policy asset.
+    - `[x]` **5.1.f Cover ownership and parity contracts**
+        - Proved last-match ownership ordering, the default-off skeleton, and byte parity across both copies of all
+          six host-policy assets.
 
-    - `[ ]` **5.1.g Keep semantic approval separate**
-        - Assert mechanical lane eligibility never substitutes for the distribution interlock.
+    - `[x]` **5.1.g Keep semantic approval separate**
+        - Retained the distribution interlock as the sole semantic merge authority independently of mechanical lane
+          classification and clearance publication.
+
+- _Outcome:_ The acceptance matrix now closes the opt-in boundary at each owning layer: transform entry, exact-ref
+  policy and validators, CLI streams, host liveness, workflow origin, host eligibility, and ownership projection.
 
 ## **Phase 6:** Verification
 

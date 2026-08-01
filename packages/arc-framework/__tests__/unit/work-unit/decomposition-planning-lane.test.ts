@@ -50,6 +50,18 @@ function dependencies(
 }
 
 describe("decomposition planning lane", () => {
+  it("leaves a change with no receipt endpoint on the existing planning grammar", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+    const deps = dependencies(receipt);
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: changeSet.changes.slice(0, -1),
+    }, BASE, HEAD, deps)).resolves.toEqual({ outcome: "planning" });
+    expect(deps.readReceipt).not.toHaveBeenCalled();
+    expect(deps.assemble).not.toHaveBeenCalled();
+  });
+
   it("admits one exact canonical receipt beside its planning transition", async () => {
     const { changeSet, receipt } = exactChangeSet();
     const deps = dependencies(receipt);
@@ -59,6 +71,19 @@ describe("decomposition planning lane", () => {
     });
     expect(deps.assemble).toHaveBeenCalledOnce();
     expect(deps.validateLanding).toHaveBeenCalledOnce();
+  });
+
+  it("reviews a receipt claim whose endpoint set omits part of the transition", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+    const deps = dependencies(receipt);
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: changeSet.changes.slice(1),
+    }, BASE, HEAD, deps)).resolves.toEqual({ outcome: "reviewed" });
+    expect(deps.assemble).not.toHaveBeenCalled();
+    expect(deps.validateCanonical).not.toHaveBeenCalled();
+    expect(deps.validateLanding).not.toHaveBeenCalled();
   });
 
   it("refuses multiple, modified, or deleted receipt claims", async () => {

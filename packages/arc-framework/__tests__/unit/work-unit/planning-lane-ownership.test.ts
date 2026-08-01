@@ -6,6 +6,25 @@ import {
 } from "../../../src/lib/work-unit/planning-lane-ownership.js";
 
 describe("assessPlanningLaneOwnershipEligibility", () => {
+  it.each([
+    ["branch protection", "branchProtection", "branch-protection"],
+    ["active rules", "rules", "rules"],
+    ["merge queue", "mergeQueue", "merge-queue"],
+  ] as const)("accepts base currency enforced by %s", (_label, field, mechanism) => {
+    const facts = {
+      branchProtection: { state: "checked" as const, requiredContext: true, baseCurrency: false },
+      rules: { state: "checked" as const, requiredContext: false, baseCurrency: false },
+      mergeQueue: { state: "checked" as const, requiredContext: false, baseCurrency: false },
+    };
+    facts[field].baseCurrency = true;
+
+    expect(assessPlanningLaneOwnershipEligibility(facts)).toMatchObject({
+      eligible: true,
+      requiredContext: { satisfied: true, mechanisms: ["branch-protection"] },
+      baseCurrency: { satisfied: true, mechanisms: [mechanism] },
+    });
+  });
+
   it("accepts guards enforced by different active mechanisms and preserves their provenance", () => {
     const result = assessPlanningLaneOwnershipEligibility({
       branchProtection: {
