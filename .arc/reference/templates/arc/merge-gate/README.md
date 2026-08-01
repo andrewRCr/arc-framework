@@ -130,10 +130,7 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
-The decomposition-receipt namespace stays owned by default. If those receipts should use the planning lane,
-first install `arc-cleared` and enforce base currency, then apply the exception through
-`arc review planning-lane-ownership <owner/repo> <base-branch> arc-cleared <ownership-file> --apply`. The command
-verifies all guards before editing; do not add the exception to the shipped skeleton.
+The decomposition-receipt namespace stays owned; do not add it to the shipped skeleton's unowned block.
 
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The

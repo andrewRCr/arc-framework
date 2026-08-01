@@ -249,13 +249,52 @@ describe("validateDescendantBaseLanding", () => {
     ["a missing candidate receipt", { candidateReceiptEntry: "missing" }],
     ["a mode-changed candidate receipt", { candidateReceiptEntry: "wrong-mode" }],
     ["a non-blob candidate receipt", { candidateReceiptEntry: "non-blob" }],
-    ["a malformed candidate receipt entry", { candidateReceiptEntry: "malformed" }],
+    ["an unreadable candidate receipt entry", { candidateReceiptEntry: "malformed" }],
     ["noncanonical candidate receipt bytes", { invalidReceiptBytes: true }],
   ] as const)("refuses %s", async (caseName, options) => {
     const h = replayHarness(options);
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "patch", locus: caseName === "an extra transition path" ? ".arc/foreign.md" : h.receiptPath },
+      mismatch: {
+        kind: "patch",
+        locus: caseName === "an extra transition path"
+          ? ".arc/foreign.md"
+          : caseName === "an unreadable candidate receipt entry"
+          ? "snapshot-read"
+          : h.receiptPath,
+      },
+    });
+  });
+
+  it("preserves an unreadable transition diff as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.changedPaths = async () => null;
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: { kind: "patch", locus: "snapshot-read" },
+    });
+  });
+
+  it("preserves unreadable transition path state as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.stateMatches = async (_ref, path) => path === h.projectionPath ? true : null;
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: { kind: "path", locus: "snapshot-read" },
+    });
+  });
+
+  it("preserves an unreadable receipt blob as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.readBlob = async () => {
+      throw new Error("blob unavailable");
+    };
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: { kind: "patch", locus: "snapshot-read" },
     });
   });
 

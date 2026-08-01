@@ -25,6 +25,7 @@ import {
   prepareGitV3DecomposeBaseAdvancement,
 } from "../../src/lib/work-unit/git-decompose-v3-base-advancement.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
+import { v3DecomposeReceiptPath } from "../../src/lib/work-unit/decompose-v3-preparation.js";
 import { classifyGitDecompositionPlanningLane } from "../../src/lib/work-unit/git-decomposition-planning-lane.js";
 import {
   executeGitV3DecomposeCommand,
@@ -39,6 +40,7 @@ import { createNodeTeardownOccupancyReader } from "../../src/lib/work-unit/teard
 import { createNodeWorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit-locus.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -397,8 +399,15 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
-  it("classifies one finalized exact-ref receipt without consulting the index", async () => {
-    const { repo, baseHead, candidateHead, dependencies } = await finalizedCandidateRepository();
+  it("classifies one finalized exact-ref receipt through the shipped command", async () => {
+    const {
+      repo,
+      candidate,
+      baseHead,
+      candidateHead,
+      receiptId,
+      dependencies,
+    } = await finalizedCandidateRepository();
     await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
 
     await expect(classifyGitDecompositionPlanningLane(baseHead, candidateHead, {
@@ -407,7 +416,36 @@ describe("Git v3 repository plan", () => {
       rawExec: rawGitExec(repo),
       readBlob: dependencies.readObject,
     })).resolves.toEqual({ outcome: "planning" });
-  });
+
+    await expect(runCli([
+      "review",
+      "planning-lane",
+      baseHead,
+      candidateHead,
+      "--repository",
+      repo,
+    ], { cwd: repo, timeout: 30_000 })).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "planning\n",
+      stderr: "",
+    });
+
+    await write(candidate, v3DecomposeReceiptPath(receiptId), "{not-json\n");
+    await git(candidate, ["add", v3DecomposeReceiptPath(receiptId)]);
+    await git(candidate, ["commit", "-m", "corrupt receipt"]);
+    const invalidHead = (await git(candidate, ["rev-parse", "HEAD"])).trim();
+    const invalid = await runCli([
+      "review",
+      "planning-lane",
+      baseHead,
+      invalidHead,
+      "--repository",
+      repo,
+    ], { cwd: repo, timeout: 30_000 });
+
+    expect(invalid).toMatchObject({ exitCode: 1, stdout: "reviewed\n" });
+    expect(invalid.stderr).toContain("invalid retirement evidence:");
+  }, 30_000);
 
   it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
     const { repo, baseHead, sourceHead, completedMap, dependencies } = await startedRepository();

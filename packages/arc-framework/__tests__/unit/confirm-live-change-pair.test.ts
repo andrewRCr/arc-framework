@@ -26,6 +26,9 @@ describe("confirm-live-change-pair.sh", () => {
     tempDirs.push(directory);
     const gh = join(directory, "gh");
     await writeFile(gh, String.raw`#!/usr/bin/env bash
+if [[ "$*" != *baseRefName* ]]; then
+  exit 90
+fi
 printf '%s' "$LIVE_PAIR_OUTPUT"
 exit "$LIVE_PAIR_STATUS"
 `);
@@ -41,15 +44,15 @@ exit "$LIVE_PAIR_STATUS"
     const result = await runScript(
       LIVE_PAIR_SCRIPT,
       ["owner/repo", "42", "main", BASE, HEAD],
-      { env: await environment(`${HEAD}\t${BASE}\tOPEN\towner/repo`) },
+      { env: await environment(`${HEAD}\t${BASE}\tmain\tOPEN\towner/repo`) },
     );
 
     expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
   });
 
   it.each([
-    [`${"c".repeat(40)}\t${BASE}\tOPEN\towner/repo`, "head-moved"],
-    [`${HEAD}\t${"c".repeat(40)}\tOPEN\towner/repo`, "base-moved"],
+    [`${"c".repeat(40)}\t${BASE}\tmain\tOPEN\towner/repo`, "head-moved"],
+    [`${HEAD}\t${"c".repeat(40)}\tmain\tOPEN\towner/repo`, "base-moved"],
   ])("refuses a moved live pair", async (output, reason) => {
     const result = await runScript(
       LIVE_PAIR_SCRIPT,
@@ -62,9 +65,21 @@ exit "$LIVE_PAIR_STATUS"
     expect(result.stderr).toContain(reason);
   });
 
+  it("refuses a pull request retargeted after classification", async () => {
+    const result = await runScript(
+      LIVE_PAIR_SCRIPT,
+      ["owner/repo", "42", "main", BASE, HEAD],
+      { env: await environment(`${HEAD}\t${BASE}\tnext\tOPEN\towner/repo`) },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("base-ref-moved");
+  });
+
   it.each([
-    [`${HEAD}\t${BASE}\tCLOSED\towner/repo`],
-    [`${HEAD}\t${BASE}\tOPEN\tother/repo`],
+    [`${HEAD}\t${BASE}\tmain\tCLOSED\towner/repo`],
+    [`${HEAD}\t${BASE}\tmain\tOPEN\tother/repo`],
   ])("refuses a change that is no longer live in the repository", async (output) => {
     const result = await runScript(
       LIVE_PAIR_SCRIPT,

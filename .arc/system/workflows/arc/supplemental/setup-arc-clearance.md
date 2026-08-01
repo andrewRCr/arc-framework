@@ -46,17 +46,20 @@ Detect the target first:
 The workflow is safe to commit before host configuration. It cannot satisfy a required context until the
 environment and branch-protection steps below are completed.
 
-## 3. Require both writers on the default branch
+## 3. Require both producer assets on the default branch
 
-Resolve the repository and default branch with `gh repo view`. **Confirm the workflow is present on the default
-branch, not only in the working branch, and that its live content retains both event types** · `[invariant]`:
+Resolve the repository and default branch with `gh repo view`. **Confirm the workflow and delegated live-pair
+comparator are present on the default branch, not only in the working branch; require the workflow's live content
+to retain both event types and the comparator to match the installed framework copy** · `[invariant]`:
 
 ```bash
 gh api "repos/{owner}/{repo}/contents/.github/workflows/arc-clearance.yml?ref={default-branch}"
+gh api "repos/{owner}/{repo}/contents/.arc/system/.internal/scripts/confirm-live-change-pair.sh?ref={default-branch}"
 ```
 
-If it is absent or either writer is missing, stop before changing required checks. Commit and merge the workflow
-through the repository's normal path, then rerun this workflow. A workflow-only partial setup is harmless.
+If either asset is absent, the comparator differs, or either writer is missing, stop before changing required
+checks. Commit and merge the canonical producer assets through the repository's normal path, then rerun this
+workflow. A producer-only partial setup is harmless.
 
 ## 4. Provision or verify the environment
 
@@ -95,27 +98,11 @@ first; do not report setup complete.
 
 ## 6. Verify
 
-Repeat the detection reads for both workflow writers, environment, deployment policy, secrets, and required
-contexts. Report which parts were already correct and which changed. The guard is ready only when the rendered
-workflow and both writers exist on the default branch, the secretless environment is constrained to that branch,
-and `arc-cleared` is additive in branch protection.
-
-## 7. Optionally unown decomposition receipts
-
-Clearance setup is complete without an ownership change. The decomposition-receipt namespace remains owned unless
-the project separately chooses to admit exact canonical receipts to the planning lane.
-
-Only after Step 6 is green, ask whether to apply that exception. On explicit approval, run the guarded command with
-the repository, default branch, required context, and the repository's existing CODEOWNERS location:
-
-```bash
-arc review planning-lane-ownership {owner}/{repo} {default-branch} arc-cleared {ownership-file} --apply
-```
-
-The command independently reads branch protection, active rules, and merge-queue configuration. It edits only when
-`arc-cleared` is required, base currency is enforced, every surface is readable, and the ownership file has a safe
-trailing unowned block. An absent guard, refused read, or unsafe ordering leaves the file unchanged. This step does
-not create a host rule, enable a merge queue, or enable auto-merge; establish those policies separately.
+Repeat the detection reads for both producer assets and workflow writers, environment, deployment policy, secrets,
+and required contexts. Report which parts were already correct and which changed. The guard is ready only when the
+rendered workflow, canonical comparator, and both writers exist on the default branch, the secretless environment
+is constrained to that branch, and `arc-cleared` is additive in branch protection.
+Clearance setup does not change CODEOWNERS; the decomposition-receipt namespace remains owned.
 
 ---
 

@@ -147,37 +147,50 @@ _Design decisions:_ Eligibility and the edit that depends on it belong to one co
 a recipe cannot be distinguished from a step that works. Base currency accepts either an up-to-date-branch rule or
 a merge queue, and the command reports which mechanism satisfied it rather than a bare boolean.
 
-### `[x]` **4.1 Compute and apply the ownership exception**
+_Verification amendment:_ The ownership-exception path is superseded for this work unit because its evidence did
+not establish the identity that produced a same-named successful status. No replacement model is selected here;
+receipts remain owned. The durable follow-up owner is the Work Unit capture **Reconsider `arc-cleared` against a
+draft-first pull-request lifecycle** in Andrew's user inbox; its target remains intentionally unsettled pending
+inbox housekeeping.
+
+### `[~]` **4.1 Compute and apply the ownership exception**
 
 - _Goal:_ The exception exists exactly where its guards do, and both the verdict and the edit are provable.
 
-    - `[x]` **4.1.a Add the command surface**
+    - `[~]` **4.1.a Add the command surface**
         - Added `review planning-lane-ownership` with repository, base branch, required context, and ownership-file
           operands, an explicit `--apply` mode, and the corresponding command-input registration.
 
-    - `[x]` **4.1.b Resolve eligibility across the enumerated mechanisms**
-        - Added three independently executed GitHub reads for branch protection, active status-check rules, and
-          merge-queue rules, preserving guard provenance and distinct absent-versus-forbidden verdicts.
+    - `[~]` **4.1.b Resolve eligibility across the enumerated mechanisms**
+        - Added independently executed GitHub reads for branch protection, active status-check rules, merge-queue
+          rules, and the live base-branch clearance workflow plus delegated comparator, preserving guard provenance
+          and distinct absent-versus-forbidden verdicts.
+        - Required both live producer assets to byte-match their packaged canonical forms, rendering the workflow
+          for the running ARC version, so a same-named status or altered comparator cannot authorize the exception.
 
-    - `[x]` **4.1.c Apply the exception on an eligible verdict**
+    - `[~]` **4.1.c Apply the exception on an eligible verdict**
         - The explicit apply mode appends the receipt namespace only after an eligible host verdict and only to a
           trailing unowned block; ineligible, already-applied, and unsafe ordering cases leave the file unchanged.
 
     - `[x]` **4.1.d Keep the shipped skeleton free of the exception**
         - Kept the package-source and project CODEOWNERS skeletons free of the receipt exception.
 
-    - `[x]` **4.1.e Preserve one-way coupling**
+    - `[~]` **4.1.e Preserve one-way coupling**
         - Added no host-rule, merge-queue, auto-merge, or implicit ownership mutation; clearance installation remains
-          independent, while the ownership exception alone depends on the verified guards.
+          independent, while the ownership exception alone depends on the verified exact-pair producer and host
+          guards.
 
 - _Outcome:_ One machine-readable command now binds host eligibility to the only ownership mutation it permits;
   an unreadable mechanism, missing guard, or unsafe CODEOWNERS ordering fails closed without changing the file.
+
+- _Superseded:_ The completed implementation was removed during verification. Workflow byte identity could not
+  prove status-producer identity, so the command would have overclaimed its authorization boundary.
 
 ### `[x]` **4.2 Keep the host-policy assets in one direction**
 
 - _Goal:_ Setup guidance, recipes, workflow, and ownership never drift between the two copies.
 
-    - `[x]` **4.2.a Edit the authoritative copies**
+    - `[~]` **4.2.a Edit the authoritative copies**
         - Updated the package-source ownership skeleton, clearance workflow, merge-gate recipe and readme, setup
           guidance, and initial-setup guidance with the guarded receipt-ownership posture.
 
@@ -187,6 +200,9 @@ a merge queue, and the command reports which mechanism satisfied it rather than 
 
 - _Outcome:_ The package remains authoritative while the integration contract makes drift across the complete
   host-policy surface a test failure.
+
+- _Deviation:_ Ownership-exception guidance was removed; the authoritative/mirror parity contract remains and
+  continues to cover the exact-head clearance and live-pair assets.
 
 ### `[x]` **4.3 State the host fetch requirement**
 
@@ -228,13 +244,13 @@ _Purpose:_ Prove the complete opt-in boundary without re-testing transform inter
         - Covered unchanged, head-moved, base-moved, unreadable, and foreign-origin host states; fork changes retain
           the reviewed default unless the same-repository gate admits canonical classification.
 
-    - `[x]` **5.1.e Cover eligibility and application**
+    - `[~]` **5.1.e Cover eligibility and application**
         - Covered required-context presence and absence, each accepted base-currency mechanism and none, independent
           absent-versus-forbidden reads, and eligible, withheld, idempotent, and unsafe-order application outcomes.
 
     - `[x]` **5.1.f Cover ownership and parity contracts**
         - Proved last-match ownership ordering, the default-off skeleton, and byte parity across both copies of all
-          six host-policy assets.
+          seven host-policy assets, including the delegated live-pair comparator.
 
     - `[x]` **5.1.g Keep semantic approval separate**
         - Retained the distribution interlock as the sole semantic merge authority independently of mechanical lane
@@ -243,35 +259,48 @@ _Purpose:_ Prove the complete opt-in boundary without re-testing transform inter
 - _Outcome:_ The acceptance matrix now closes the opt-in boundary at each owning layer: transform entry, exact-ref
   policy and validators, CLI streams, host liveness, workflow origin, host eligibility, and ownership projection.
 
+- _Superseded:_ Host-eligibility and ownership-application coverage was removed with that deferred feature; the
+  remaining acceptance matrix covers source publication, exact-ref policy, liveness, default ownership, and asset
+  parity.
+
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint and ARC audits, TypeScript and shell lint, source and test typechecks, production
+  build, and the full bounded Vitest suite passed (708 files and 9,288 tests passed; one file and one test skipped).
+  The 76 focused post-review tests also passed.
+- _Success criteria:_ 15 criteria — 14 met and one ownership-exception criterion superseded with a durable Work
+  Unit capture; the final adversarial findings were verified and resolved.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A cut whose recorded source branch tip does not match the recorded source head refuses before
+- `[x]` A cut whose recorded source branch tip does not match the recorded source head refuses before
   materializing any artifact and names that branch; a source-is-base cut is unaffected; an unreadable remote
   refuses.
-- `[ ]` Base advancement re-derives a preparation for a committed candidate without triggering the source gate.
-- `[ ]` A change whose endpoint set is not exactly the transition patch plus the receipt resolves reviewed without
+- `[x]` Base advancement re-derives a preparation for a committed candidate without triggering the source gate.
+- `[x]` A change whose endpoint set is not exactly the transition patch plus the receipt resolves reviewed without
   running the validators, so an ordinary planning commit on a decomposition branch never fails.
-- `[ ]` Exactly one canonical current receipt may accompany otherwise planning-only endpoints, with every
+- `[x]` Exactly one canonical current receipt may accompany otherwise planning-only endpoints, with every
   tree-derivable fact re-derived from the tree that holds it.
-- `[ ]` Legacy, malformed, multiple, already-in-base, unrelated, modified, deleted, and rider-bearing evidence
+- `[x]` Legacy, malformed, multiple, already-in-base, unrelated, modified, deleted, and rider-bearing evidence
   never gains planning authority.
-- `[ ]` Content-shaped refusals report invalid nonzero with a stable locus; read-shaped refusals, including an
+- `[x]` Content-shaped refusals report invalid nonzero with a stable locus; read-shaped refusals, including an
   absent source commit and a read failure carried under a content-sounding kind, report reviewed. An unparseable
   operand is a usage error rather than a lane outcome.
-- `[ ]` Standard output stays within the two-value vocabulary existing consumers parse.
-- `[ ]` A head that moved, or a base branch whose tip moved, publishes no clearance success.
-- `[ ]` Every caller resolves the lane through the one canonical command, and none downgrades a refusal.
-- `[ ]` New installs remain reviewed and default-off, with the shipped ownership skeleton carrying no exception.
-- `[ ]` The exception is appended only against an eligible verdict and only where no owning entry follows, with
-  inability to check reported distinctly.
-- `[ ]` Package and project host-policy assets remain byte-identical.
-- `[ ]` No semantic classifier, approval token, duplicate receipt validator, or transform output change is added,
+- `[x]` Standard output stays within the two-value vocabulary existing consumers parse.
+- `[x]` A head that moved, or a base branch whose tip moved, publishes no clearance success.
+- `[x]` Every caller resolves the lane through the one canonical command, and none downgrades a refusal.
+- `[x]` New installs remain reviewed and default-off, with the shipped ownership skeleton carrying no exception.
+- `[~]` The exception is appended only when the canonical exact-pair `arc-cleared` producer and base currency are
+  verified and only where no owning entry follows, with inability to check reported distinctly.
+    - _Superseded:_ Deferred because the available evidence does not prove status-producer identity; no replacement
+      model is selected in this work unit. The Work Unit capture **Reconsider `arc-cleared` against a draft-first
+      pull-request lifecycle** owns the follow-up pending inbox housekeeping.
+- `[x]` Package and project host-policy assets remain byte-identical.
+- `[x]` No semantic classifier, approval token, duplicate receipt validator, or transform output change is added,
   and no ref, branch rule, or merge queue is created.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

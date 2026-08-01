@@ -223,9 +223,6 @@ These choices are independently selectable and default off. Configure only the l
   [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
   additive `arc-cleared` required context. The workflow must land on the default branch before the context is
   required.
-- **Receipt ownership exception** — leave decomposition receipts owned by default. If exact canonical receipts
-  should enter the planning lane, complete ARC clearance and enforce base currency first, then use the guarded
-  ownership step in [Set Up ARC Clearance][setup-arc-clearance].
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -334,9 +331,6 @@ These repository choices remain independently selectable and default off:
 - **ARC merge guard** — on GitHub with full protection and admin access, run
   [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
   `arc-cleared` becomes required.
-- **Receipt ownership exception** — remains disabled unless the project separately chooses it after ARC clearance
-  and base-currency enforcement are both verified.
-
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation

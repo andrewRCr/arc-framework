@@ -239,8 +239,16 @@ Goal 6 forbids, arriving through the artifact meant to be safe.
 Eligibility and the edit that depends on it both belong to one command rather than to recipe prose, because a step
 described in a document cannot be distinguished from a step that works. The command takes the repository, the base
 branch, the required context name, and the ownership file to edit. It reports whether that context is **required**
-on the base branch — the configured requirement, not the per-change status a clearance run posts — and whether base
-currency is enforced, by an up-to-date-branch rule or by a merge queue, since either satisfies it.
+on the base branch — the configured requirement, not the per-change status a clearance run posts — whether the live
+base branch carries the canonical version-rendered workflow that produces `arc-cleared` through the exact-pair
+comparison, and whether base currency is enforced, by an up-to-date-branch rule or by a merge queue, since either
+satisfies it.
+
+The producer check is exact rather than heuristic. The command reads `.github/workflows/arc-clearance.yml` and its
+delegated `.arc/system/.internal/scripts/confirm-live-change-pair.sh` comparator from the named live base branch.
+It compares both against the packaged canonical assets, rendering the workflow for the running ARC version. A
+same-named context from another workflow or app, an altered comparator, or locally prepared producer assets that
+have not landed on the base branch therefore grant no authority.
 
 A host may express those requirements through more than one mechanism at once, and the mechanisms are read
 independently: the requirement is satisfied when **any** active mechanism enforces it, and the command reports
@@ -249,9 +257,11 @@ if any active rule requires currency, currency is required.
 
 The mechanism set is closed and enumerated rather than open-ended, because an unenumerated set cannot be
 implemented or tested: the branch-protection surface, the rules surface that can govern the same branch
-independently of it, and the merge-queue configuration. Existing setup guidance reads only the first, so the other
-two are new reads rather than adaptations. Each surface also needs its absent-versus-forbidden rule stated, since
-the two resolve differently and are easy to conflate: a surface reporting the requirement as absent is
+independently of it, and the merge-queue configuration. The clearance workflow and delegated comparator form a
+fourth, independent producer surface rather than a policy mechanism. Existing setup guidance reads only branch
+protection and the producer assets, so the other two policy reads are new rather than adaptations. Each surface
+also needs its absent-versus-forbidden rule stated, since the two resolve differently and are easy to conflate: a
+surface reporting the requirement as absent is
 "checked, not configured", while a surface refusing the read is "not permitted to check". Both are ineligible, and
 they are reported distinctly because the operator's next step differs.
 
@@ -274,14 +284,32 @@ owning rule would report success while leaving the namespace owned. The command 
 owning entry follows, and refuses rather than editing when the file's trailing region is not unowned. The
 ownership file is an operand because hosts honor more than one location and a project may have chosen any of them.
 
-Verification that cannot be performed is ineligible. Reading branch configuration requires elevated access, so
-"not permitted to check" is a real state and is reported distinctly from "checked, not configured" — the operator
-needs different things in each case, and neither is eligible.
+Verification that cannot be performed is ineligible. Reading branch configuration or the live workflow requires
+access, so "not permitted to check" is a real state and is reported distinctly from "checked, not configured" —
+the operator needs different things in each case, and neither is eligible.
 
 Nothing here installs a branch rule or a merge queue. The command reads host state and reports; establishing that
 state is the operator's act, and its absence keeps decomposition reviewed rather than triggering a fix.
 
 Clearance may be installed independently; the dependency is one-way from the ownership exception to its guards.
+
+### Verification amendment: ownership exception deferred
+
+Verification found that matching the live workflow and comparator proves which implementation is present but not
+which GitHub identity produced a same-named successful status. That leaves the proposed ownership exception with a
+stronger producer-authority claim than its evidence establishes. The ownership command, host-policy reads,
+CODEOWNERS editor, tests, and adopter guidance are therefore removed from this work unit; decomposition receipts
+remain owned.
+
+This supersedes Goal 5, the opt-in ownership-exception design above, and its corresponding success criterion for
+this work unit. It does not choose a replacement. Whether ARC should retain `arc-cleared`, narrow its role, layer
+it with a draft-first pull-request lifecycle, or replace it is deferred for separate consideration. Exact-ref
+classification, host liveness, default-off installation, and package/project parity remain in scope.
+
+The durable owner is the Work Unit capture **Reconsider `arc-cleared` against a draft-first pull-request
+lifecycle** in Andrew's user inbox. That capture records the threat model, alternatives, constraints, complete PR
+lifecycle scope, and the explicit no-decision posture; its target slug remains intentionally unsettled until inbox
+housekeeping promotes it.
 
 ### Package and project projection
 

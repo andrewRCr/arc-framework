@@ -62,7 +62,8 @@ function touchesRetirementNamespace(change: CanonicalChange): boolean {
 }
 
 function readShaped(mismatch: V3DecompositionMismatch): boolean {
-  return (mismatch.kind === "base"
+  return mismatch.locus === "snapshot-read"
+    || (mismatch.kind === "base"
       && ["object-format", "unresolvable", "binding-unavailable"].includes(mismatch.locus ?? ""))
     || (mismatch.kind === "dependency" && mismatch.locus === "snapshot-read");
 }

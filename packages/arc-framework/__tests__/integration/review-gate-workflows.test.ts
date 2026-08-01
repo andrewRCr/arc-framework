@@ -872,17 +872,15 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(/detect current state[\s\S]*workflow[\s\S]*environment[\s\S]*required context/iu);
-    expect(packaged).toMatch(/workflow is present on the (?:live )?default\s+branch/iu);
-    expect(packaged).toContain("stop before changing required checks");
+    expect(packaged).toMatch(/workflow and delegated live-pair[\s\S]*are present on the default branch/iu);
+    expect(packaged).toContain(".arc/system/.internal/scripts/confirm-live-change-pair.sh");
+    expect(packaged).toMatch(/stop before changing required\s+checks/iu);
     expect(packaged).toContain("arc-clearance");
     expect(packaged).toContain("protected_branches");
     expect(packaged).toContain("custom_branch_policies");
     expect(packaged).toContain("reviewers");
     expect(packaged).toContain("total_count");
     expect(packaged).toContain('["arc-cleared"]');
-    expect(packaged).toContain(
-      "arc review planning-lane-ownership {owner}/{repo} {default-branch} arc-cleared {ownership-file} --apply",
-    );
     expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
     expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
     expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
@@ -893,6 +891,7 @@ describe("trusted review-gate workflows", () => {
       "reference/templates/arc/merge-gate/CODEOWNERS",
       "reference/templates/arc/merge-gate/README.md",
       "reference/templates/arc/merge-gate/arc-clearance.yml",
+      "system/.internal/scripts/confirm-live-change-pair.sh",
       "system/workflows/arc/supplemental/setup-arc-clearance.md",
       "system/workflows/arc/supplemental/setup-merge-gate.md",
       "system/workflows/arc/initial-setup/01_verify-and-configure.md",
@@ -918,7 +917,7 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toContain("Frontline sources");
     expect(packaged).toContain("Standard-review sources");
     expect(packaged).toContain("ARC merge guard");
-    expect(packaged).toMatch(/receipt ownership exception/iu);
+    expect(packaged).not.toMatch(/planning-lane-ownership/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
     expect(packaged).toContain("setup-arc-clearance.md");
   });

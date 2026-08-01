@@ -21,7 +21,7 @@ export interface DescendantBaseLandingObjectReaders {
     ref: string,
     path: string,
     expected: V3ManagedPathResult["before"],
-  ): Promise<boolean>;
+  ): Promise<boolean | null>;
   changedPaths(before: string, after: string): Promise<string[] | null>;
   readBlob(oid: string): Promise<Uint8Array>;
 }
@@ -76,18 +76,21 @@ async function transitionMatches(
     ...receipt.finalized.transitionPatch.map(({ path }) => path),
     receiptPath,
   ].sort(comparePath);
-  if (actualPaths === null || canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
-    const firstDifference = actualPaths?.find((path, index) => path !== expectedPaths[index])
-      ?? expectedPaths.find((path, index) => path !== actualPaths?.[index]);
+  if (actualPaths === null) return { kind: "patch", locus: "snapshot-read" };
+  if (canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
+    const firstDifference = actualPaths.find((path, index) => path !== expectedPaths[index])
+      ?? expectedPaths.find((path, index) => path !== actualPaths[index]);
     return { kind: "patch", locus: firstDifference ?? receiptPath };
   }
   const [beforeReceipt, afterReceipt] = await Promise.all([
     deps.objects.readTreeEntry(recordedBaseOid, receiptPath),
     deps.objects.readTreeEntry(input.candidateHeadOid, receiptPath),
   ]);
+  if (beforeReceipt === false || afterReceipt === false) {
+    return { kind: "patch", locus: "snapshot-read" };
+  }
   if (beforeReceipt !== null
     || afterReceipt === null
-    || afterReceipt === false
     || afterReceipt.type !== "blob"
     || afterReceipt.mode !== "100644") return { kind: "patch", locus: receiptPath };
   try {
@@ -95,18 +98,19 @@ async function transitionMatches(
     const expectedDigest = digestBytes(new TextEncoder().encode(canonicalize(receipt)));
     if (actualDigest !== expectedDigest) return { kind: "patch", locus: receiptPath };
   } catch {
-    return { kind: "patch", locus: receiptPath };
+    return { kind: "patch", locus: "snapshot-read" };
   }
 
   const projectionPath = receipt.prepared.prospectiveProjection.roadmap.path;
   for (const entry of receipt.finalized.transitionPatch) {
-    if (entry.path !== projectionPath
-      && !await deps.objects.stateMatches(input.currentBaseOid, entry.path, entry.before)) {
-      return { kind: "path", locus: entry.path };
+    if (entry.path !== projectionPath) {
+      const beforeMatches = await deps.objects.stateMatches(input.currentBaseOid, entry.path, entry.before);
+      if (beforeMatches === null) return { kind: "path", locus: "snapshot-read" };
+      if (!beforeMatches) return { kind: "path", locus: entry.path };
     }
-    if (!await deps.objects.stateMatches(input.candidateHeadOid, entry.path, entry.after)) {
-      return { kind: "patch", locus: entry.path };
-    }
+    const afterMatches = await deps.objects.stateMatches(input.candidateHeadOid, entry.path, entry.after);
+    if (afterMatches === null) return { kind: "patch", locus: "snapshot-read" };
+    if (!afterMatches) return { kind: "patch", locus: entry.path };
   }
   return null;
 }

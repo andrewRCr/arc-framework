@@ -33,6 +33,7 @@ query='
 query($owner: String!, $name: String!, $number: Int!, $qualifiedName: String!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
+      baseRefName
       baseRepository {
         nameWithOwner
       }
@@ -56,6 +57,7 @@ if ! live_pair="$(gh api graphql \
   --jq '[
     .data.repository.pullRequest.headRefOid,
     .data.repository.ref.target.oid,
+    .data.repository.pullRequest.baseRefName,
     .data.repository.pullRequest.state,
     .data.repository.pullRequest.baseRepository.nameWithOwner
   ] | @tsv')"; then
@@ -63,10 +65,11 @@ if ! live_pair="$(gh api graphql \
   exit 1
 fi
 
-IFS=$'\t' read -r live_head live_base live_state live_repository extra <<<"${live_pair}"
+IFS=$'\t' read -r live_head live_base live_base_ref live_state live_repository extra <<<"${live_pair}"
 if [[ -n "${extra:-}"
   || ! "${live_head:-}" =~ ${OBJECT_ID}
   || ! "${live_base:-}" =~ ${OBJECT_ID}
+  || -z "${live_base_ref:-}"
   || "${#live_head}" -ne "${#classified_head}"
   || "${#live_base}" -ne "${#classified_base}" ]]; then
   echo "live-pair-unreadable" >&2
@@ -78,6 +81,10 @@ if [[ "${live_state}" != "OPEN" || "${live_repository}" != "${repository}" ]]; t
 fi
 if [[ "${live_head}" != "${classified_head}" ]]; then
   echo "head-moved" >&2
+  exit 1
+fi
+if [[ "${live_base_ref}" != "${base_ref}" ]]; then
+  echo "base-ref-moved" >&2
   exit 1
 fi
 if [[ "${live_base}" != "${classified_base}" ]]; then

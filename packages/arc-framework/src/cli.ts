@@ -121,11 +121,9 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
-  handleReviewPlanningLaneOwnership,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
-  type ReviewPlanningLaneOwnershipOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -1097,24 +1095,6 @@ reviewCmd
   .option("--repository <path>", "Repository containing both exact commits")
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
-
-reviewCmd
-  .command("planning-lane-ownership <repository> <base-branch> <required-context> <ownership-file>")
-  .description("Assess or apply the guarded planning-lane CODEOWNERS exception")
-  .option("--apply", "Apply the exception when host policy is eligible")
-  .action((
-    repository: string,
-    baseBranch: string,
-    requiredContext: string,
-    ownershipFile: string,
-    opts: ReviewPlanningLaneOwnershipOptions,
-  ) => handleReviewPlanningLaneOwnership(
-    repository,
-    baseBranch,
-    requiredContext,
-    ownershipFile,
-    opts,
-  ));
 
 reviewCmd
   .command("unlock")

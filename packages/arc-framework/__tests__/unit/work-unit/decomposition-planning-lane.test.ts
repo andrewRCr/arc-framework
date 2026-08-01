@@ -147,6 +147,7 @@ describe("decomposition planning lane", () => {
       { kind: "base" as const, locus: "unresolvable" },
       { kind: "base" as const, locus: "binding-unavailable" },
       { kind: "dependency" as const, locus: "snapshot-read" },
+      { kind: "patch" as const, locus: "snapshot-read" },
     ]) {
       await expect(classifyDecompositionPlanningLane(changeSet, BASE, HEAD, dependencies(receipt, {
         validateLanding: vi.fn(async () => ({ status: "refused" as const, mismatch })),
