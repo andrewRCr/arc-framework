@@ -43,7 +43,11 @@ and three boundaries this member consumes rather than owns.
   proves this member's half only and is named for the chain it proves, since conjoining the halves is the combined
   gate's act — § Assurance and the terminal contribution proof.
 
-**Next.** Close the authoring command's remaining surface — the last `needs-design`. Remaining gaps and their
+- **Delivery owns no trigger of its own.** Authoring is opt-in and author-invoked; the advisory that it may be
+  worth invoking rides the decomposition boundary test's recorded verdict — § Authoring, § Coordination.
+
+**Next.** The reverse lookup is the last open design question — given a repository and a head or ref, resolve the
+plan, member, and owning work unit. Everything else outstanding is a detail to settle. Remaining gaps and their
 kinds are recorded in § Open items.
 
 ---
@@ -215,6 +219,13 @@ one boundary and not. Forcing members inside authored boundaries would systemati
 compatibility caps a cut should be avoiding, so a spanning member is authored without ceremony and needs no
 separate justification field — the landability assertion it already carries bears that burden.
 
+The default is expressed as a **mode the author selects**, never a value pre-filled on their behalf: the boundary
+slot takes a discriminated value whose alignment arm the composer expands mechanically, alongside an arm carrying
+explicit boundaries. Pre-filling the slot with a derived partition would be the tempting shortcut and would defeat
+the pattern the slots exist for — an unfilled slot must stay detectable and refusable, and an author who never
+looked at a pre-filled boundary would produce a record indistinguishable from one who did. A member's landability
+is an assertion about work someone is answerable for; the record must not manufacture it on their behalf.
+
 **Two authoring entries.** A plan is populated either **from a task plan**, before implementation, or **from an
 existing branch's change structure**, after it. Both fill the same authored slots and publish the same record,
 differing only in how the machine section is derived — the task and design inventories in the first case, observed
@@ -249,6 +260,21 @@ independent of the projections that consume it. The two projections price the ob
 integration-target retrofit reaches the protected base once and needs neither coherence proof nor compatibility
 caps, while a stack retrofit needs both — so retrofit becomes available under the integration-target projection as
 soon as its reducer lands, and under the stack projection when the eligibility test does.
+
+**How authoring gets reached.** A delivery plan is opt-in, and delivery owns no trigger of its own. Authoring is
+author-invoked, and the signal that it might be worth invoking comes from the decomposition boundary test that
+already runs at every design stage. That test asks whether a concern is too big to be one work unit; when it
+answers "stays one work unit" it is also, silently, deciding that the concern is coherent — and its own primary
+signal is the count of distinct deliverables and independently reviewable surfaces. A concern that stays one unit
+_while_ that signal fired is exactly the shape a delivery plan serves, and today that pairing is computed and
+discarded.
+
+Delivery consumes that verdict rather than authoring a second test. The boundary test's recorded outcome carries
+the reason it stayed one unit, and the separable-surfaces reason is the advisory: worth surfacing once, never a
+gate, and freely declined — an author who prefers to see how implementation shakes out loses nothing, because the
+retrofit entry stays open at the same cost. Delivery therefore adds no threshold of its own at task generation,
+which also keeps the judgment where it can be made well: at task generation the evidence is materialized enough to
+threshold mechanically, and the surrounding pipeline already owns that tripwire.
 
 **Human task-list projection.** After canonical publication, the authoring command replaces one generated
 `Delivery Plan` section in `tasks-*`: exact plan revision / digest, projection, an ordered member table (title,
@@ -519,16 +545,42 @@ lifecycle queries, but it cannot authorize a merge retroactively or stand in for
 
 ---
 
+## Coordination
+
+**One requirement on the decomposition surfaces, executed elsewhere.** Two shipped surfaces — the cohort-fit
+boundary method and the work-organization strategy's sizing standard — currently define a stack as a cohort's
+dependency-ordered delivery mode and state that it is _not one work unit spread across many branches_. That
+contradicts this cohort's amended invariant, under which one work unit holds one delivery plan emitting one or
+more change requests and never derives its identity from a single branch. The contradiction is delivery's to
+name, because it is delivery's invariant.
+
+The **edit** is not delivery's to make. The decomposition-doctrine work unit is already rewriting both surfaces —
+rebalancing the discriminator with an integration-reviewability bound, making the boundary verdict a recorded
+artifact, adding a materialized-evidence tripwire at task generation, and codifying a stack-versus-coupling test
+that lands beside the very bullet this requirement touches. Two editors on one bullet would collide semantically
+as well as textually, since one of them changes what the word means. So the requirement routes there and is
+executed inside that rebalance, leaving one editor on the surface. This reassigns the coherency pass the cohort
+originally placed with this member; the reassignment is recorded rather than assumed.
+
+Two constraints ride along. The sizing standard is adopter-facing and ships, so the correction must remove the
+contradiction **without** forward-pointing to an unshipped mechanism — the vocabulary can stop being wrong before
+the thing it was wrong about exists. And the recorded boundary verdict must carry its reason in a form a consumer
+can read, since the advisory above depends on distinguishing "stayed one unit, unremarkable" from "stayed one
+unit, with separable surfaces." That is a soft prerequisite for the advisory only; every other part of this
+member stands without it.
+
+---
+
 ## Open items
 
 - **Distinguishing a coverage addition from a coverage move** — _needs-detail_. Absorb admits additions to a bound
   member and refuses moves between members, but a task added to one member is indistinguishable from a task moved
   into it unless both members' coverage is compared across revisions. The comparison is mechanical and the rule is
   settled; the exact derivation is not.
-- **The authoring command's remaining surface** — _needs-design_. The input shape, the slot-filling contract,
-  amendment, and both entries' machine contracts are settled in § Authoring. What is not: the command surface
-  itself, where task generation fires the pre-implementation entry, and how the phase-to-member alignment default
-  is expressed as a fillable slot rather than a post-hoc check.
+- **The authoring command's own shape** — _needs-detail_. Everything the command must do is settled in
+  § Authoring; what remains is its surface. Whether the two entries are separate verbs or one verb with an entry
+  selector, and where the starter map rests while it is being filled — which interacts with storage, since a
+  transient authoring file must not land in the work unit's change set either.
 - **Where the shared repository identity comes from** — _needs-detail_. § Storage settles that it must be shared
   across clones and must not reuse the existing repository-local one; its provenance is open. Minting it into the
   plan's own ref namespace on first publication keeps delivery self-contained and adds no configuration surface,
