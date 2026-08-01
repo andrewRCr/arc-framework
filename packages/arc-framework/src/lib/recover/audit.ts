@@ -68,7 +68,6 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "task-cursor-unresolved",
   "task-cursor-malformed",
   "task-cursor-mismatch",
-  "planning-workflow-uncertain",
 ]);
 export type RecoveryAuditStopKind = z.infer<typeof RecoveryAuditStopKindSchema>;
 
