@@ -3,7 +3,11 @@
 import { resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
-import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
+import {
+  scanRegisteredWorktrees,
+  type RegisteredWorktree,
+} from "../git/worktree-roster.js";
+import { canonicalLocalPath } from "../local-path-identity.js";
 import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
 import { attachLocusLease, mintDurableLocusRole } from "../locus/mutation.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
@@ -148,14 +152,15 @@ async function reconcileNodeWorkUnitLocus(
   runtime: { readonly exec: GitExec; readonly identity: string; readonly mutationAnchor?: LocusProcessAnchor },
   options: ReconcileWorkUnitLocusOptions,
 ): Promise<WorkUnitLocusReceipt> {
-  const checkoutPath = resolve(options.checkoutPath);
   const topology = await scanRegisteredWorktrees(runtime.exec);
   if (!topology.ok) throw new Error(`cannot establish work-unit session locus: ${topology.message}`);
-  const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+  const checkoutIdentity = await canonicalLocalPath(options.checkoutPath);
+  const matches = await matchingRegisteredWorktrees(topology.worktrees, checkoutIdentity);
   const target = matches.length === 1 ? matches[0] : undefined;
   if (target === undefined || target.detached || target.branch !== options.branch) {
     throw new Error("cannot establish work-unit session locus: target is not an exact live worktree roster entry");
   }
+  const checkoutPath = resolve(target.path);
 
   const inspector = createPlatformProcessInspector();
   const anchor = runtime.mutationAnchor
@@ -177,7 +182,7 @@ async function reconcileNodeWorkUnitLocus(
   const applyUnderLock = async (): Promise<WorkUnitLocusReceipt> => {
     const freshTopology = await scanRegisteredWorktrees(runtime.exec);
     if (!freshTopology.ok) throw new Error(`cannot establish work-unit session locus: ${freshTopology.message}`);
-    const freshMatches = freshTopology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+    const freshMatches = await matchingRegisteredWorktrees(freshTopology.worktrees, checkoutIdentity);
     const freshTarget = freshMatches.length === 1 ? freshMatches[0] : undefined;
     if (freshTarget === undefined || freshTarget.detached || freshTarget.branch !== options.branch) {
       throw new Error("cannot establish work-unit session locus: target roster generation changed under lock");
@@ -280,6 +285,19 @@ async function reconcileNodeWorkUnitLocus(
   const released = await releaseLocusLock(acquired.handle);
   if (released.kind !== "released") throw new Error(`cannot release work-unit session locus lock: ${released.kind}`);
   return result;
+}
+
+async function matchingRegisteredWorktrees(
+  worktrees: readonly RegisteredWorktree[],
+  canonicalCheckoutPath: string,
+): Promise<RegisteredWorktree[]> {
+  const candidates = await Promise.all(worktrees.map(async (worktree) => ({
+    worktree,
+    canonicalPath: await canonicalLocalPath(worktree.path),
+  })));
+  return candidates
+    .filter((candidate) => candidate.canonicalPath === canonicalCheckoutPath)
+    .map((candidate) => candidate.worktree);
 }
 
 async function selectMutationAnchor(

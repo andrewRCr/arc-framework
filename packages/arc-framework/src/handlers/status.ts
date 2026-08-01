@@ -677,7 +677,7 @@ export async function handleStatus(
               baseBranch: resolved.settings["branch.base"],
               exec,
             });
-            locusRoleState = classifyCurrentWuLocusRole(locusState, cwd, slug);
+            locusRoleState = await classifyCurrentWuLocusRole(locusState, cwd, slug);
           } catch {
             // Reconcile planning remains available when the independent locus read degrades.
           }

@@ -16,6 +16,7 @@ import {
   type DependencyReconcileConflictReason,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
+import { canonicalLocalPath } from "../local-path-identity.js";
 
 /** Reader-owned role state for the exact checkout entering a work-unit session. */
 export type CurrentWuLocusRoleState = "managed" | "missing" | "unknown";
@@ -104,12 +105,19 @@ export async function runCurrentWuReconcileSessionProbe(
 }
 
 /** Classify only the exact current checkout; sibling rows cannot authorize or suppress its repair. */
-export function classifyCurrentWuLocusRole(
+export async function classifyCurrentWuLocusRole(
   state: LocusStateV1,
   checkoutPath: string,
   slug: string,
-): CurrentWuLocusRoleState {
-  const matches = state.roster.rows.filter((row) => row.checkoutPath === checkoutPath);
+): Promise<CurrentWuLocusRoleState> {
+  const canonicalCheckoutPath = await canonicalLocalPath(checkoutPath);
+  const candidates = await Promise.all(state.roster.rows.map(async (row) => ({
+    row,
+    canonicalPath: row.checkoutPath === null ? null : await canonicalLocalPath(row.checkoutPath),
+  })));
+  const matches = candidates
+    .filter((candidate) => candidate.canonicalPath === canonicalCheckoutPath)
+    .map((candidate) => candidate.row);
   if (matches.length !== 1) return "unknown";
   const row = matches[0];
   if (row?.kind === "free-primary" || row?.kind === "unmanaged-checkout") return "missing";

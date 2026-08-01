@@ -12,11 +12,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { lstat, mkdir, writeFile, stat, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, writeFile, stat, readFile, readdir, realpath, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
+import { runColdStart, runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
 import { handleStart } from "../../src/handlers/start.js";
 import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { digestBytes } from "../../src/lib/canonical/canonical-json.js";
@@ -456,6 +456,40 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const { stdout } = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: wt });
     expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
+  });
+
+  it("cold-start establishes its locus through an aliased checkout path", async () => {
+    const alias = `${h.repo}-alias`;
+    await symlink(h.repo, alias, process.platform === "win32" ? "junction" : "dir");
+    h.cleanupPaths.push(alias);
+
+    const outcome = await runColdStart(
+      {
+        io: h.io,
+        internalTemplateDir: getInternalTemplatePath(),
+        workUnitLocus: workUnitLocusFor(h),
+      },
+      { worktreePath: alias, branch: "main", identity: IDENTITY, name: "aliased-widget" },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const canonical = await realpath(h.repo);
+    const locusIdentity = deriveLocusRecordId(canonical, process.platform === "win32" ? "windows" : "posix");
+    const recordPath = join(
+      h.repo,
+      ".arc",
+      "user",
+      IDENTITY,
+      ".internal",
+      "loci",
+      `locus-${locusIdentity.digest}.json`,
+    );
+    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
+      checkoutPath: canonical,
+      role: { kind: "work-unit", subject: { kind: "work-unit", key: "aliased-widget" } },
+      lease: { sessionHomePath: canonical },
+    });
   });
 
   it("pops the exact WU role only after physical checkout retirement succeeds", async () => {
