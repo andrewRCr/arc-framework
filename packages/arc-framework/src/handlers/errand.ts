@@ -1217,8 +1217,11 @@ export async function handleErrandPromote(
 
   const parsed = ErrandPromoteInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    p.log.error(z.prettifyError(parsed.error));
-    process.exitCode = 1;
+    emitErrandPromoteFailure(
+      "locus.errand-promote.input",
+      z.prettifyError(parsed.error),
+      opts.json === true,
+    );
     return;
   }
   const input = parsed.data;

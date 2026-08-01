@@ -228,6 +228,7 @@ async function replaceLocalFrame(
           originEntrySourceDigest: record.origin === "inbox"
             ? record.originEntrySourceDigest as CanonicalDigest
             : null,
+          promotionSource: { slug: record.slug, claimId: record.claimId },
         },
         parentCheckoutPath: null,
         sessionHomePath: row.checkoutPath,
@@ -344,6 +345,12 @@ async function recoverPromotedFrame(
   if (!row.lease.selfHeld) {
     return refused("lease-live", "Promoted work-unit recovery requires the current session lease.");
   }
+  if (row.role?.promotionSource?.slug !== options.slug) {
+    return refused(
+      "promotion-source-invalid",
+      "Promoted work-unit recovery does not match the originating Errand generation.",
+    );
+  }
   const branch = promotionBranch(options);
   const metaPath = promotionMetaPath(options.name);
   const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch));
@@ -358,8 +365,8 @@ async function recoverPromotedFrame(
     branch,
     metaPath,
     false,
-    row.role?.originEntry ?? null,
-    (row.role?.originEntrySourceDigest as CanonicalDigest | undefined) ?? null,
+    row.role.originEntry,
+    (row.role.originEntrySourceDigest as CanonicalDigest | undefined) ?? null,
     inspected.metaCommitted,
   );
 }
@@ -431,7 +438,11 @@ async function settlePromotedFrame(
       checkoutPath: frame.checkoutPath,
       expectedRole: locked.record.role,
       expectedLeaseId: frame.leaseId,
-      authority: { kind: "work-unit", key: options.name },
+      authority: {
+        kind: "work-unit",
+        key: options.name,
+        promotionSource: locked.record.role.promotionSource,
+      },
       parentCheckoutPath: null,
       sessionHomePath: frame.checkoutPath,
       establishedAt: locked.record.role.establishedAt,
@@ -522,16 +533,24 @@ function exactTarget(
       result: refused(matches.length === 0 ? "checkout-missing" : "duplicate-locus", "Exact live Errand session locus is unavailable."),
     };
   }
-  return { kind: "ready", row: matches[0], arm: errandRows.length === 1 ? "errand" : "work-unit" };
+  const arm = errandRows.length === 1 ? "errand" : "work-unit";
+  if (arm === "work-unit" && !matchesPromotionSource(matches[0].role?.promotionSource, record)) {
+    return {
+      kind: "refused",
+      result: refused(
+        "promotion-source-invalid",
+        "Promoted work-unit role does not match the exact Errand generation.",
+      ),
+    };
+  }
+  return { kind: "ready", row: matches[0], arm };
 }
 
 /**
  * Whether a checkout carries the evidence a completed promotion leaves behind.
  *
- * The work-unit arm of target selection and identity-absent recovery both accept a row on the
- * requested name alone, which any unrelated work unit of that name satisfies. This is what
- * separates the promotion's own replay from a stranger: the role only becomes `work-unit` after the
- * branch rename and meta write succeed, so a genuine replay always presents both.
+ * Persisted source provenance establishes identity; the renamed branch and exact meta additionally
+ * prove that the checkout-local half of the promotion reached its intended frame.
  */
 function carriesPromotedEvidence(
   inspected: { branch: string; metaMatches: boolean },
@@ -596,18 +615,37 @@ async function readLockedParent(
   | { kind: "ready"; record: LocusRecordV1 }
   | { kind: "refused"; result: Extract<PromotionFrameResult, { kind: "refused" }> }
 > {
-  if (parent.checkoutPath === null || parent.recordId === null) {
+  if (parent.checkoutPath === null || parent.recordId === null || parent.role === null || parent.lease === null) {
     return { kind: "refused", result: refused("record-malformed", "Warm parent record is incomplete.") };
   }
   const handle = handles.get(parent.checkoutPath);
   if (handle === undefined) return { kind: "refused", result: refused("record-malformed", "Warm parent lock is missing.") };
   const read = await runtime.readRecord(handle.recordPath, handle);
   if (read.kind !== "valid" || read.record.recordId !== parent.recordId
-    || read.record.role.kind !== "work-unit" || read.record.role.subject.kind !== "work-unit"
-    || (read.record.lease !== null && !isDeepStrictEqual(read.record.lease.anchor, anchor))) {
+    || read.record.checkoutPath !== parent.checkoutPath
+    || read.record.lease === null
+    || parent.lease.state !== "live"
+    || !parent.lease.selfHeld
+    || read.record.lease.leaseId !== parent.lease.leaseId
+    || read.record.lease.sessionHomePath !== parent.lease.sessionHomePath
+    || !isDeepStrictEqual(read.record.lease.anchor, anchor)
+    || !isDeepStrictEqual(projectRole(read.record.role), parent.role)) {
     return { kind: "refused", result: refused("role-conflict", "Warm parent generation changed.") };
   }
   return { kind: "ready", record: read.record };
+}
+
+function projectRole(role: LocusRecordV1["role"]): NonNullable<LocusRowV1["role"]> {
+  return {
+    kind: role.kind,
+    subject: role.subject,
+    parentCheckoutPath: role.parentCheckoutPath,
+    originEntry: role.originEntry,
+    ...(role.originEntrySourceDigest === undefined
+      ? {}
+      : { originEntrySourceDigest: role.originEntrySourceDigest }),
+    ...(role.promotionSource === undefined ? {} : { promotionSource: role.promotionSource }),
+  };
 }
 
 function classifyTargetRole(
@@ -624,10 +662,18 @@ function classifyTargetRole(
   if (record.role.kind === "work-unit" && subject.kind === "work-unit"
     && subject.key === name && subject.claimId === null && record.role.parentCheckoutPath === null
     && record.lease.sessionHomePath === record.checkoutPath
+    && matchesPromotionSource(record.role.promotionSource, identity)
     && record.role.originEntry === identity.originEntry
     && (record.role.originEntrySourceDigest ?? null)
       === (identity.origin === "inbox" ? identity.originEntrySourceDigest : null)) return "work-unit";
   return "conflict";
+}
+
+function matchesPromotionSource(
+  source: { readonly slug: string; readonly claimId: string } | undefined,
+  identity: Pick<OrdinaryErrandRecord, "slug" | "claimId">,
+): boolean {
+  return source?.slug === identity.slug && source.claimId === identity.claimId;
 }
 
 function recordIO(

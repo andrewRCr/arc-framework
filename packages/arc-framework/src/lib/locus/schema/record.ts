@@ -17,6 +17,12 @@ export const LocusRoleSubjectSchema = z.strictObject({
   claimId: LocusTokenSchema.nullable(),
 });
 
+/** Immutable ordinary-Errand generation that produced a promoted work-unit role. */
+export const LocusPromotionSourceSchema = z.strictObject({
+  slug: LocusOpaqueTextSchema,
+  claimId: LocusTokenSchema,
+});
+
 /** Durable checkout role. */
 export const LocusRoleSchema = z.strictObject({
   kind: LocusOpaqueTextSchema,
@@ -25,6 +31,7 @@ export const LocusRoleSchema = z.strictObject({
   parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
   originEntrySourceDigest: LocusDigestSchema.optional(),
+  promotionSource: LocusPromotionSourceSchema.optional(),
 }).superRefine((role, context) => {
   const pair = `${role.kind}/${role.subject.kind}`;
   const knownKinds = new Set(["work-unit", "errand", "groom", "housekeep"]);
@@ -74,6 +81,13 @@ export const LocusRoleSchema = z.strictObject({
       message: "Origin entry and source digest must be present together",
     });
   }
+  if (role.promotionSource !== undefined && pair !== "work-unit/work-unit") {
+    context.addIssue({
+      code: "custom",
+      path: ["promotionSource"],
+      message: "Promotion source is stored only for a promoted work-unit role",
+    });
+  }
 });
 
 /** Verifiable process anchor. */
@@ -116,6 +130,7 @@ export const LocusRecordV1Schema = z.strictObject({
 });
 
 export type LocusRoleSubject = z.infer<typeof LocusRoleSubjectSchema>;
+export type LocusPromotionSource = z.infer<typeof LocusPromotionSourceSchema>;
 export type LocusRole = z.infer<typeof LocusRoleSchema>;
 export type LocusProcessAnchor = z.infer<typeof LocusProcessAnchorSchema>;
 export type LocusAnchor = z.infer<typeof LocusAnchorSchema>;

@@ -121,6 +121,30 @@ describe("locus record schema", () => {
     expect(LocusRecordV1Schema.safeParse(record({ ...partial, dispatchId: "legacy" })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse({ ...(record() as object), extra: true }).success).toBe(false);
   });
+
+  it("stores an exact promotion source only on a work-unit role", () => {
+    const promoted = {
+      kind: "work-unit",
+      subject: { kind: "work-unit", key: "growth", claimId: null },
+      establishedAt: timestamp,
+      parentCheckoutPath: null,
+      originEntry: null,
+      promotionSource: { slug: "growing", claimId },
+    };
+
+    expect(LocusRecordV1Schema.parse(record(promoted))).toMatchObject({
+      role: { promotionSource: { slug: "growing", claimId } },
+    });
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...promoted,
+      kind: "errand",
+      subject: { kind: "errand", key: "growing", claimId },
+    })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...promoted,
+      promotionSource: { slug: "growing" },
+    })).success).toBe(false);
+  });
 });
 
 describe("locus identity schema", () => {

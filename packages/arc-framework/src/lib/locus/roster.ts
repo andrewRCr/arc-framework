@@ -380,6 +380,9 @@ function recordRow(
       ...(record.role.originEntrySourceDigest === undefined
         ? {}
         : { originEntrySourceDigest: record.role.originEntrySourceDigest }),
+      ...(record.role.promotionSource === undefined
+        ? {}
+        : { promotionSource: record.role.promotionSource }),
     },
     identity: resolved?.identity ?? null,
     lease: record.lease === null ? null : {

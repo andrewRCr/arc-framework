@@ -1477,6 +1477,24 @@ describe("arc errand promote", () => {
     expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
   });
 
+  it("returns one typed JSON error when --floor is missing", async () => {
+    await setFullProtection(tmpDir);
+    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
+
+    const result = await runArc(["errand", "promote", "growing", "--name", "growth", "--json"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    const lines = result.stdout.trim().split(/\r?\n/u);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? "")).toMatchObject({
+      outcome: "error",
+      operation: "errand-promote",
+      error: { code: "locus.errand-promote.input" },
+    });
+    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
+  });
+
   it("refuses a derivation promotion for a legacy record before mutation", async () => {
     await setFullProtection(tmpDir);
     await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });

@@ -16,6 +16,7 @@ import {
   type LocusAnchor,
   type LocusMutationResultV1,
   type LocusOperation,
+  type LocusPromotionSource,
   type LocusRecordV1,
   type LocusRole,
 } from "./schema/index.js";
@@ -28,6 +29,7 @@ export type LocusRoleAuthority =
       readonly key: string;
       readonly originEntry?: string | null;
       readonly originEntrySourceDigest?: CanonicalDigest | null;
+      readonly promotionSource?: LocusPromotionSource;
     }
   | { readonly kind: "identity"; readonly identity: LocusIdentityV1 }
   | {
@@ -294,6 +296,10 @@ export async function updateLocusRole(options: {
   }
   const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);
   if (desired === null) return { kind: "refused", reason: "role-conflict" };
+  if (existing.record.role.promotionSource !== undefined
+    && !isDeepStrictEqual(existing.record.role.promotionSource, desired.promotionSource)) {
+    return { kind: "refused", reason: "role-conflict" };
+  }
   const desiredLease = options.sessionHomePath === undefined || existing.record.lease === null
     ? existing.record.lease
     : { ...existing.record.lease, sessionHomePath: options.sessionHomePath };
@@ -527,6 +533,7 @@ function deriveRole(
       establishedAt,
       authority.originEntry ?? null,
       authority.originEntrySourceDigest ?? null,
+      authority.promotionSource ?? null,
     );
   } else if (authority.kind === "identity") {
     const identity = LocusIdentityV1Schema.safeParse(authority.identity);
@@ -577,6 +584,7 @@ function role(
   establishedAt: string,
   originEntry: string | null = null,
   originEntrySourceDigest: CanonicalDigest | null = null,
+  promotionSource: LocusPromotionSource | null = null,
 ): unknown {
   return {
     kind,
@@ -585,6 +593,7 @@ function role(
     parentCheckoutPath,
     originEntry,
     ...(originEntrySourceDigest === null ? {} : { originEntrySourceDigest }),
+    ...(promotionSource === null ? {} : { promotionSource }),
   };
 }
 

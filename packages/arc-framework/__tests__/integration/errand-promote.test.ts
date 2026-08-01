@@ -15,10 +15,11 @@ import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-r
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "../../src/lib/errand/identity-transitions.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { promoteOrdinaryErrandAtRuntime } from "../../src/lib/errand/promote-runtime.js";
+import { acquireLocusLock, releaseLocusLock } from "../../src/lib/locus/lock.js";
 import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
 import { createPlatformProcessInspector } from "../../src/lib/locus/platform-inspectors.js";
-import { mintLocusRecord, readLocusRecord } from "../../src/lib/locus/record-store.js";
-import { locusRecordPath, resolveLocusRoot, type LocusRoot } from "../../src/lib/locus/root.js";
+import { mintLocusRecord, readLocusRecord, replaceLocusRecord } from "../../src/lib/locus/record-store.js";
+import { locusLockPath, locusRecordPath, resolveLocusRoot, type LocusRoot } from "../../src/lib/locus/root.js";
 import type { LocusProcessAnchor, LocusRecordV1 } from "../../src/lib/locus/schema/index.js";
 import {
   cleanupTempDir,
@@ -98,6 +99,69 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
       originEntry: "Grow this concern",
       originEntrySourceDigest: ORIGIN_DIGEST,
     });
+  });
+
+  it("binds identity-absent replay to the originating Errand slug", async () => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+
+    const promoted = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    expect(promoted).toMatchObject({ outcome: "applied", operation: "errand-promote" });
+
+    const wrongSlugReplay = await promoteOrdinaryErrandAtRuntime({
+      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      slug: "different-errand",
+    });
+
+    expect(wrongSlugReplay).toMatchObject({
+      outcome: "refused",
+      operation: "errand-promote",
+      reason: "promotion-source-invalid",
+    });
+    expect((await readRecord(root, primary)).role).toMatchObject({
+      promotionSource: { slug: identity.slug, claimId: identity.claimId },
+    });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["a different claim", { slug: "growing", claimId: "d".repeat(32) }],
+  ] as const)("refuses a promoted-looking work-unit role with %s promotion provenance", async (_case, source) => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+
+    const failingExec: typeof exec = (command, args, options) => args[0] === "commit-tree"
+      ? Promise.reject(new Error("injected identity retirement failure"))
+      : exec(command, args, options);
+    expect(await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, failingExec, execInput, root, anchor)))
+      .toMatchObject({ outcome: "error" });
+    await replaceRecordGeneration(root, primary, anchor, (record) => ({
+      ...record,
+      role: { ...record.role, promotionSource: source },
+    }));
+
+    const replay = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+
+    expect(replay).toMatchObject({
+      outcome: "refused",
+      operation: "errand-promote",
+      reason: "promotion-source-invalid",
+    });
+    expect(await readIdentity(exec, execInput)).toMatchObject({ slug: identity.slug, claimId: identity.claimId });
   });
 
   it("settles the retained capture only after the promoted meta is committed", async () => {
@@ -250,6 +314,70 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     expect(JSON.parse(await readFile(join(spawned, ".arc/system/.internal/worktree-marker.json"), "utf8")))
       .toMatchObject({ wuName: "growth", createdFor: { kind: "work-unit", name: "growth" } });
   });
+
+  it.each(["lease", "role"] as const)(
+    "refuses a warm promotion when the parent %s generation changes before locking",
+    async (generation) => {
+      const exec = makeGitExec(primary);
+      const execInput = makeGitExecInput(primary);
+      const anchor = await currentAnchor();
+      await mkdir(join(primary, ".arc/active"), { recursive: true });
+      await writeFile(join(primary, ".arc/active/meta-parent.md"), renderMetaFile("parent", {
+        state: "Active", owner: IDENTITY, branch: "main",
+      }));
+      await exec("git", ["add", ".arc/active/meta-parent.md"]);
+      await makeCommit(primary, "parent meta");
+      spawned = `${primary}-spawned`;
+      await exec("git", ["worktree", "add", "-b", "chore/growing", spawned, "main"]);
+      await makeCommit(spawned, "errand work");
+      const identity = ordinaryRecord();
+      await writeIdentity(exec, execInput, identity);
+      const root = await requireRoot(exec);
+      await ensureWorktreeMarkerIgnored(spawned, exec, nodeWorktreeMarkerIgnoreFs);
+      await writeWorktreeMarker(spawned, {
+        spawnedByArc: true,
+        createdFor: { kind: "errand", slug: identity.slug, claimId: identity.claimId },
+        provisioning: "ready",
+        spawningIdentity: IDENTITY,
+        createdAt: CREATED_AT,
+      });
+      await writeRecord(root, primary, workUnitLocusRecord(primary, "parent", anchor));
+      await writeRecord(root, spawned, errandLocusRecord(spawned, identity, anchor, primary));
+
+      const replacementLeaseId = "f".repeat(32);
+      let replaced = false;
+      const racingExec: typeof exec = async (command, args, options) => {
+        const result = await exec(command, args, options);
+        if (!replaced && args[0] === "status" && options?.cwd === spawned) {
+          replaced = true;
+          await replaceRecordGeneration(root, primary, anchor, (record) => generation === "lease"
+            ? {
+                ...record,
+                lease: record.lease === null ? null : { ...record.lease, leaseId: replacementLeaseId },
+              }
+            : {
+                ...record,
+                role: { ...record.role, subject: { ...record.role.subject, key: "replacement-parent" } },
+              });
+        }
+        return result;
+      };
+
+      const result = await promoteOrdinaryErrandAtRuntime(
+        runtimeOptions(primary, racingExec, execInput, root, anchor),
+      );
+
+      expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
+      const parent = await readRecord(root, primary);
+      if (generation === "lease") expect(parent.lease).toMatchObject({ leaseId: replacementLeaseId });
+      else expect(parent.role).toMatchObject({ subject: { key: "replacement-parent" } });
+      expect((await readRecord(root, spawned)).role).toMatchObject({
+        kind: "errand",
+        subject: { key: identity.slug, claimId: identity.claimId },
+      });
+      expect(await readIdentity(exec, execInput)).toMatchObject({ slug: identity.slug, claimId: identity.claimId });
+    },
+  );
 
   it("refuses recovery when the meta carries index state the promotion never produced", async () => {
     const exec = makeGitExec(primary);
@@ -442,6 +570,35 @@ async function readRecord(root: LocusRoot, checkoutPath: string): Promise<LocusR
   const result = await readLocusRecord({ path: locusRecordPath(root, digest), expectedDigest: digest, pathFlavor: "posix" });
   if (result.kind !== "valid") throw new Error(`Locus record is ${result.kind}`);
   return result.record;
+}
+
+async function replaceRecordGeneration(
+  root: LocusRoot,
+  checkoutPath: string,
+  anchor: LocusProcessAnchor,
+  transform: (record: LocusRecordV1) => LocusRecordV1,
+): Promise<void> {
+  const digest = deriveLocusRecordId(checkoutPath, "posix").digest;
+  const path = locusRecordPath(root, digest);
+  const current = await readLocusRecord({ path, expectedDigest: digest, pathFlavor: "posix" });
+  if (current.kind !== "valid") throw new Error(`Locus record is ${current.kind}`);
+  const acquired = await acquireLocusLock({
+    path: locusLockPath(root, digest),
+    anchor,
+    inspector: createPlatformProcessInspector(),
+  });
+  if (acquired.kind !== "acquired") throw new Error(`Locus lock is ${acquired.kind}`);
+  try {
+    const replaced = await replaceLocusRecord({
+      path,
+      expectedBytes: current.bytes,
+      record: transform(current.record),
+      lock: acquired.handle,
+    });
+    if (replaced.kind !== "replaced") throw new Error("Locus record generation changed");
+  } finally {
+    await releaseLocusLock(acquired.handle);
+  }
 }
 
 async function writeIdentity(
