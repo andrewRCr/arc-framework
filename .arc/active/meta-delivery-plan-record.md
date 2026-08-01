@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft reached formalization-ready — three adversarial passes folded, both forks settled
+- **Last Completed:** create-spec — spec finalized at `detailed`/RFC, draft retired to notes, four adversarial passes folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
