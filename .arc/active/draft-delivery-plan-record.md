@@ -30,10 +30,14 @@ and three boundaries this member consumes rather than owns.
 - **Authoring is a derived starter map plus author slots**, with amendment publishing whole records — § Authoring.
 - **Two authoring entries populate one record** — from a task plan, or from an existing branch's change structure.
   The retrofit entry is first-class — § Authoring.
-- **A plan binds on its first externally visible dependency** — § Plan revisions, binding, and amendment.
+- **A plan binds on its first externally visible dependency**, and deliverable identity survives every revision of
+  its plan — § The plan record, § Plan revisions, binding, and amendment.
+- **Reconcile sorts into absorb, refuse, or replacement**, matching each outcome to what is physically possible at
+  that point in the series. The landed prefix is immutable rather than merely un-amendable — § Plan revisions,
+  binding, and amendment.
 
-**Next.** Close the authoring command's remaining surface, then the adoption remedy and the storage locus — the two
-largest open items. Remaining gaps and their kinds are recorded in § Open items.
+**Next.** Close the authoring command's remaining surface, then the storage locus — now the largest open item.
+Remaining gaps and their kinds are recorded in § Open items.
 
 ---
 
@@ -134,8 +138,13 @@ intent.
 
 `members` is the only topology-order carrier. Each author-supplied `chunkKey` derives a stable `chunkId`; granting
 that chunk a merge boundary derives its `deliverableId` from the chunk identity rather than accepting a second
-author key. A member's human label is its position in the series, qualified by the plan revision that produced it,
-following the established patch-series form; the label states position and series length and is presentation only.
+author key. Both preimages exclude plan revision and member position, so a deliverable keeps one identity across
+every revision of its plan for as long as its `chunkKey` is unchanged. That stability is load-bearing rather than
+incidental: reconcile identifies a member by `deliverableId` and asks the fingerprint only whether its meaning
+moved, so renaming a `chunkKey` is an identity change wearing the costume of an edit.
+
+A member's human label is its position in the series, qualified by the plan revision that produced it, following
+the established patch-series form; the label states position and series length and is presentation only.
 `deliverableId` alone is durable, so relabelling a member never moves its identity, and because amendment runs
 forward of the landed prefix, a landed member's label never shifts under a later revision.
 
@@ -281,12 +290,38 @@ materialized session without becoming a WU or acquiring a meta file.
 
 ## Plan revisions, binding, and amendment
 
-**Plan-revision reconcile.** Before any external binding, state may rebind to a new plan revision. Afterwards,
-automatic reconcile requires the selected topology and every bound or landed deliverable's semantic fingerprint and
-relative prefix position to be unchanged; the unbound suffix may be amended. A changed topology, changed or reordered
-bound member, or removal of a landed member returns `replacement-required`. The replacement lineage explicitly
-references its predecessor and begins only after the caller chooses a teardown / adoption remedy; the old state is
-never overwritten into the new meaning.
+**Plan-revision reconcile.** Before any external binding, state rebinds to a new plan revision freely. Afterwards
+reconcile sorts a proposed revision into one of three outcomes, chosen so that the outcome matches what is
+physically possible at that point in the series rather than treating every difference as equally severe.
+
+**Absorb** — the proposed revision changes what a bound but unlanded member _contains_ without changing what it
+_promises_. A member's `contract` is its promise; its task and design coverage are its contents. Discovering that
+a phase needs a subtask, and adding it inside a member that is already pushed, is the routine move this design
+must not punish: it advances the member's materialization generation and derives a new review target, exactly as
+a review-driven code fix does, and needs no new plan lineage. Coverage **additions** are absorbable for this
+reason. Coverage that **moves between members** or **leaves the plan** is not, because that changes the partition
+rather than the contents of one member — the same asymmetry that governs forward-only amendment.
+
+**Refuse** — the proposed revision contradicts something already true, and no remedy can make it true again.
+Removal or reordering of a **landed** member is refused rather than remedied: its change request is merged, so a
+plan that no longer claims it leaves a landing observation for a member the plan does not contain, and the
+terminal contribution proof is falsified by construction. The landed prefix is therefore immutable in the record,
+not merely un-amendable, and a replacement carries it forward exactly. A **topology change after the first
+landing** is refused on the same ground, since landed members already reached the destination the old projection
+chose. Renaming a bound member's `chunkKey` is refused as well: it is an identity change, and the guidance is to
+author a new member rather than rename a bound one.
+
+Carrying the landed prefix forward exactly is satisfiable because a landed member's fingerprint cannot drift. Its
+tasks are complete, and the digest covers only the surface the completion protocol preserves verbatim, with the
+task-id completion lock holding their identifiers. The digest-surface choice made for one reason turns out to be
+what makes landed-prefix immutability achievable.
+
+**Replacement** — the remaining case: unlanded work is re-cut while some member is bound. The remedy here is
+executable precisely where it applies, because a bound but unlanded member _can_ be torn down — its change request
+closes and its ref is removed — while a landed one cannot. So replacement is teardown of the bound-unlanded suffix
+followed by re-authoring from `firstUnlanded`. No adoption argument is needed: landed members carry forward
+unchanged by the refusal above, and bound-unlanded members are torn down rather than adopted. The replacement
+lineage explicitly references its predecessor, and the old state is never overwritten into the new meaning.
 
 **Bind point.** A plan is freely amendable until a revision acquires its first externally visible dependency — a
 pushed member ref or an opened change request. Binding follows external dependency rather than lifecycle position
@@ -418,12 +453,10 @@ queries, but it cannot authorize a merge retroactively or stand in for a require
 
 ## Open items
 
-- **The adoption remedy is named rather than designed** — _needs-design_, and the highest-priority gap.
-  `replacement-required` routes through "a teardown / adoption remedy", but on a partially-landed series teardown
-  is unavailable and adoption must prove that the replacement's member N is the predecessor's member N — which is
-  the fingerprint comparison that just failed. It is the one failure path with no floor beneath it, and it is
-  reached at the worst possible moment: mid-series, against merged members. The rest of the reconcile contract
-  assumes it exists.
+- **Distinguishing a coverage addition from a coverage move** — _needs-detail_. Absorb admits additions to a bound
+  member and refuses moves between members, but a task added to one member is indistinguishable from a task moved
+  into it unless both members' coverage is compared across revisions. The comparison is mechanical and the rule is
+  settled; the exact derivation is not.
 - **The authoring command's remaining surface** — _needs-design_. The input shape, the slot-filling contract,
   amendment, and both entries' machine contracts are settled in § Authoring. What is not: the command surface
   itself, where task generation fires the pre-implementation entry, and how the phase-to-member alignment default
