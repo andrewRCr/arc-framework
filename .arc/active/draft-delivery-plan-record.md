@@ -39,8 +39,12 @@ and three boundaries this member consumes rather than owns.
 - **Storage is stated as requirements plus a replaceable v1 materialization**, each store a port with one adapter,
   and `repositoryId` must be shared across clones — § Storage.
 
-**Next.** Close the authoring command's remaining surface and the terminal-proof authority boundary — the two
-largest remaining open items. Remaining gaps and their kinds are recorded in § Open items.
+- **Delivery binds and carries review-owned verdicts and never defines their admissibility.** The terminal record
+  proves this member's half only and is named for the chain it proves, since conjoining the halves is the combined
+  gate's act — § Assurance and the terminal contribution proof.
+
+**Next.** Close the authoring command's remaining surface — the last `needs-design`. Remaining gaps and their
+kinds are recorded in § Open items.
 
 ---
 
@@ -423,9 +427,9 @@ destination in which “landed” is observed. A requested transition is admissi
 2. the adapter proves the expected repository, projection, ordered membership, bases, heads, and trees, with no
    missing or extra member;
 3. a landing request names a non-empty contiguous prefix beginning at `firstUnlanded`;
-4. every selected member's current generation has green required checks and either its review-owned routed
-   exemption or admissible current requirement-qualification projection; every assigned seam has a `qualified`
-   projection; and every stack-selected member carries the plan's semantic landability judgment; and
+4. every selected member's current generation has green required checks, and the review system returns a
+   clearing verdict for that member and for every assigned seam at that exact generation; and every
+   stack-selected member carries the plan's semantic landability judgment; and
 5. an immutable `LandingIntent` binds the exact member set, generations, checks, review assurance, contribution
    manifest, destination, and landing mode before the applicable interlock.
 
@@ -438,6 +442,14 @@ host and accept only the requested exact result or a landing mode's explicitly c
 
 ## Assurance and the terminal contribution proof
 
+**Authority boundary.** This proof is co-owned. Membership and tree-exactness are this member's; obligation,
+coverage qualification, and the combined gate that conjoins the two halves belong to the cohort sibling that owns
+review cardinality. One rule keeps the seam clean in both directions: **delivery may bind and carry review-owned
+identities and verdicts, and must never define what makes them admissible.** Delivery asks whether an assurance
+subject is qualified at an exact generation and records the answer's identity; review decides what qualification
+means, what an exemption is, and how coverage binds. Wherever the passages below would otherwise restate a review
+admissibility rule, they name the question asked and the verdict recorded instead.
+
 **Exact assurance record chain.** Precondition evidence, human authorization, and the observed host result are
 different facts and must not collapse into one "terminal assurance" record.
 
@@ -448,9 +460,8 @@ different facts and must not collapse into one "terminal assurance" record.
     - exact destination ref plus its observed pre-landing head / tree;
     - the requested contiguous member prefix, each stable deliverable id and materialization generation, and the
       exact source base / head / tree or contribution-manifest entry used for it;
-    - current required-check observations plus each member's routed exemption or review-system qualification
-      projection, including the coverage binding that proves every non-exempt selected member and assigned seam
-      subject;
+    - current required-check observations, plus the review-owned verdict returned for every selected member and
+      assigned seam subject at its exact generation, carried by identity;
     - landing mode and exact admissible outcomes: one expected result for `single` / `atomic-prefix`, or the ordered
       list of allowed leading-subprefix result trees for `ordered-prefix`; and
     - any terminal-only delta target and its review qualification / applicability proof. The terminal intent also
@@ -469,33 +480,42 @@ different facts and must not collapse into one "terminal assurance" record.
    leading-subprefix result. An ambiguous, extra, reordered, or otherwise uncontracted mutation emits no successful
    observation and leaves the operation blocked for remedy.
 
-3. **`DeliveryCompletionRecord` — terminal fact, never merge authority.** Only the terminal reducer emits this
-   immutable record. It binds the repository, state and exact plan revision; projection; ordered landing-observation
-   ids; the exact final `main` head / tree; every member and terminal-only delta contribution or empty-delta proof;
-   every routed exemption; every member / seam / non-empty-terminal-delta coverage binding and qualification
-   projection; the exact WU verification anchor; and a canonical contribution-chain digest. The record has only a
-   proven-complete form. Incomplete and stale cases remain typed reducer verdicts rather than persistent failure
-   records.
+3. **`DeliveryContributionChain` — terminal fact, one half of a co-owned proof, never merge authority.** Only the
+   terminal reducer emits this immutable record, and it proves **this member's half only**: that the ordered
+   landing observations compose the planned membership exactly and that the resulting trees carry no delta the
+   plan does not account for. It binds the repository, state and exact plan revision; projection; ordered
+   landing-observation ids; the exact final `main` head / tree; every member and terminal-only delta contribution
+   or empty-delta proof; the review-owned verdict identity recorded for each member, seam, and non-empty terminal
+   delta; the WU verification anchor; and a canonical contribution-chain digest. It has only a proven form;
+   incomplete and stale cases remain typed reducer verdicts rather than persistent failure records.
 
-**Projection-independent terminal contribution proof.** Over that record chain, the terminal reducer verifies:
+   The record asserts no claim about the work unit being complete, because completeness conjoins this half with
+   the qualification half, and conjoining is the combined gate's act rather than this reducer's. It is named for
+   the chain it proves so that the boundary stays visible at every callsite: a terminal record named for
+   completion would read as authorizing one, and that misreading costs nothing until both members exist and
+   everything after.
+
+**Projection-independent contribution proof.** Over that record chain, the terminal reducer verifies the
+membership and tree-exactness half:
 
 - landing member sets are disjoint, ordered, contiguous, and cover `D1 … Dn` exactly once;
-- every observed tree transition equals the contribution of the named current reviewed generations, with no extra
-  WU-owned delta;
-- every member / seam assurance subject maps either to an exact review-owned routed exemption or to an admissible
-  current requirement qualification whose coverage binding names that exact subject / generation; named seams
-  always map to `qualified`;
-- the terminal-delta subject carries either an exact empty-delta proof or the corresponding admissible review
-  qualification / applicability evidence for its non-empty change set;
-- the WU verification anchor covers the same complete contribution chain and exact design revision;
+- every observed tree transition equals the contribution of the named generations, with no extra WU-owned delta;
+- the terminal-delta subject carries an exact empty-delta proof, or is recorded as a non-empty change set for the
+  qualification half to answer for;
 - each observation matches its immutable intent and an exact result that reached the applicable interlock; and
 - the final operation result and final `main` tree equal the terminal chain's expected result.
+
+For every member, seam, and non-empty terminal delta it names, the reducer asks the review system for a verdict at
+that exact subject and generation and records the verdict's identity. It does not evaluate the verdict's
+conditions: whether a routed exemption applies, what an admissible qualification requires, how a coverage binding
+proves a subject, and how work-unit verification cardinality is satisfied are all the qualification half's, and
+restating them here would fork the rule. The combined gate conjoins the two halves.
 
 The integration-target projection has one such `main` landing after separately proving its internal series. The stack
 projection may have several. Unrelated `main` advances between stack operations are legitimate new bases: they force
 suffix reconciliation but are absent from the WU contribution chain. Terminal correctness therefore does not compare
-the ambient `main` trees at WU start and finish. The completion record may support reporting and downstream lifecycle
-queries, but it cannot authorize a merge retroactively or stand in for a required host-side check.
+the ambient `main` trees at WU start and finish. The contribution chain may support reporting and downstream
+lifecycle queries, but it cannot authorize a merge retroactively or stand in for a required host-side check.
 
 ---
 
@@ -514,10 +534,10 @@ queries, but it cannot authorize a merge retroactively or stand in for a require
   plan's own ref namespace on first publication keeps delivery self-contained and adds no configuration surface,
   while a project-configuration field is more discoverable and is where a reader would look first. Deriving it
   from a remote URL is the one option to avoid — forks, mirrors, and moved remotes all break it.
-- **Terminal-proof authority boundary** — _needs-design_. The terminal proof, the landing intent's assurance
-  clause, and the completion record each specify review-owned qualification and coverage, which is the co-owner's
-  half of the named seam. A consume-versus-author pass should leave this member stating what delivery asks for
-  rather than what the review reducer decides.
+- **The shape of the verdict delivery asks for** — _needs-detail_. § Assurance settles that delivery asks and
+  records rather than evaluates, but the question's exact form — what delivery passes to identify a subject and a
+  generation, and what shape of answer it stores — is a seam to agree with the cohort sibling that owns
+  qualification rather than to fix unilaterally here.
 - **Reverse lookup** — _needs-design_. The record maps a plan to its members and their refs; a session occupying a
   member ref needs the inverse, and needs it before it knows which plan to read. Phrased as a query contract it
   survives the storage-tier change; no query is specified today.
