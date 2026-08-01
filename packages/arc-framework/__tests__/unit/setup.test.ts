@@ -9,7 +9,7 @@ import {
 } from "../../src/lib/setup.js";
 
 describe("configureRoadmapConflictRemedy", () => {
-  it("recovers from transient local Git config lock contention", async () => {
+  it("recovers from transient local Git config contention without inspecting its diagnostic", async () => {
     const configured = new Map<string, string>();
     let lockPending = true;
     const exec: GitExec = async (command, args) => {
@@ -24,7 +24,7 @@ describe("configureRoadmapConflictRemedy", () => {
           command,
           args,
           exitCode: 255,
-          stderr: "error: could not lock config file .git/config: File exists",
+          stderr: "localized Git config lock failure",
         });
       }
       configured.set(key, value);

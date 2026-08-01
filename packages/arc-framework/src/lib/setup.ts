@@ -42,12 +42,11 @@ export type RoadmapConflictRemedySetupOptions = Pick<
   GitIntegrationOptions,
   "cwd" | "exec" | "readFile" | "writeFile"
 > & {
-  /** Injectable wait boundary for bounded Git config lock retries. */
+  /** Injectable wait boundary for bounded Git config retries. */
   waitForRetry?: (delayMs: number) => Promise<void>;
 };
 
-const GIT_CONFIG_LOCK_RETRY_DELAYS_MS = [10, 25, 50, 100] as const;
-const GIT_CONFIG_LOCK_DIAGNOSTIC = /could not lock config file .*[/\\]config: File exists/iu;
+const GIT_CONFIG_RETRY_DELAYS_MS = [10, 25, 50, 100] as const;
 
 /**
  * Configure git integration for an ARC project.
@@ -88,13 +87,13 @@ export async function configureRoadmapConflictRemedy(
   enableAttribute: boolean,
 ): Promise<void> {
   const { cwd, exec, readFile, writeFile, waitForRetry = delay } = options;
-  await setLocalGitConfigWithLockRetry(
+  await setLocalGitConfigWithRetry(
     exec,
     "merge.arc-roadmap.name",
     ROADMAP_MERGE_DRIVER_NAME,
     waitForRetry,
   );
-  await setLocalGitConfigWithLockRetry(
+  await setLocalGitConfigWithRetry(
     exec,
     "merge.arc-roadmap.driver",
     ROADMAP_MERGE_DRIVER_COMMAND,
@@ -111,7 +110,7 @@ export async function configureRoadmapConflictRemedy(
   }
 }
 
-async function setLocalGitConfigWithLockRetry(
+async function setLocalGitConfigWithRetry(
   exec: CoreIO["exec"],
   key: string,
   value: string,
@@ -124,10 +123,10 @@ async function setLocalGitConfigWithLockRetry(
       return;
     } catch (error) {
       const normalized = normalizeGitRejection(error, { command: "git", args });
-      const retryDelay = GIT_CONFIG_LOCK_RETRY_DELAYS_MS[attempt];
+      const retryDelay = GIT_CONFIG_RETRY_DELAYS_MS[attempt];
       if (
         normalized.kind !== "nonzero-exit"
-        || !GIT_CONFIG_LOCK_DIAGNOSTIC.test(normalized.stderr)
+        || normalized.exitCode === undefined
         || retryDelay === undefined
       ) {
         throw normalized;
