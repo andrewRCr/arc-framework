@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Refuse a cut whose source is unpublished (line ~17)
+- **Last Completed:** Task 5.1 — Cover the precondition and classifier matrices
+- **Next Task:** Task 6.1 — Complete verification (line ~248)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Refuse a cut whose source is unpublished
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
