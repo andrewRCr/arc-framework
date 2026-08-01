@@ -7,7 +7,7 @@
  * verb).
  *
  * {@link runCreateNew} is the explicit create-new path: it cuts an isolated
- * worktree on a new `plan/<name>` branch via the `reconcile-worktree.spawn` leg
+ * worktree on a new `plan/<name>` branch via the `reconcile-work-unit-worktree.spawn` leg
  * (ARC mints it, so the ownership marker lands), then scaffolds the Planning meta
  * + SESSION-NOTES. It is what the `arc-session` skill reaches for when starting
  * fresh work.
@@ -56,9 +56,9 @@ import {
   type TransitionOutcome,
 } from "../lib/work-unit/lifecycle-executor.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "../lib/work-unit/mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+} from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
@@ -69,6 +69,7 @@ import type {
 import type {
   ValidatedGraduationTransaction,
 } from "../lib/work-unit/validated-graduation-transaction.js";
+import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -338,7 +339,7 @@ export type GraduateResult =
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
  * artifact set into `active/` and bring up its `plan/<name>` branch, dispatched
  * through {@link executeTransition} as the `start` verb. The branch comes up via
- * the `reconcile-worktree` spawn leg in one of two placement modes: a fresh
+ * the `reconcile-work-unit-worktree` spawn leg in one of two placement modes: a fresh
  * worktree (default), or — under the `--here` opt-out (`inPlace`) — a `git
  * checkout -b` in the current checkout, no spawn. The `reconcile-branch` create
  * leg stays inert either way (the worktree leg owns branch birth). The executor
@@ -698,7 +699,7 @@ export type CreateNewOutcome =
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
- * unit, recomposed on the lifecycle bundle legs: the `reconcile-worktree.spawn`
+ * unit, recomposed on the lifecycle bundle legs: the `reconcile-work-unit-worktree.spawn`
  * leg cuts the branch + worktree and writes the ownership marker (ARC mints this
  * one), then the `scaffold` + user-workspace legs (via {@link
  * scaffoldIntoWorktree}, `createdByArc: false` so the spawn's marker is kept) write
@@ -747,8 +748,13 @@ export async function runCreateNew(
   let worktreePath: string;
   let postCreateNotice: string | undefined;
   try {
-    const spawnResult = await reconcileWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorktreeFs },
+    const spawnResult = await reconcileWorkUnitWorktree(
+      {
+        exec: ctx.io.exec,
+        chdir: (dir) => { process.chdir(dir); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        locus: ctx.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
+      },
       {
         mutation: "spawn",
         branch,

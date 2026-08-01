@@ -134,7 +134,7 @@ Enter the dependent's own checkout after the tracked-branch pointer removal has 
 Run the bounded current-WU reconcile from that checkout:
 
 ```bash
-arc wu reconcile {name} --apply --json
+arc wu reconcile {name} --attach-session --apply --json
 ```
 
 - `clean` — continue without a write, stage, or commit.
