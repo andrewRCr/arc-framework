@@ -64,6 +64,8 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
 
@@ -409,6 +411,10 @@ export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
 export interface SessionRecoverProbeResult {
   mode: "recover";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** Reader-owned active frame and governing workflow selected from `locusState`. */
+  recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
@@ -729,6 +735,14 @@ export interface SessionInitProbes extends SessionSharedProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
+  /** Resolve the one close-only pre-locus Errand rollout shape, or null. */
+  legacyErrand: (
+    identity: string | null,
+    role: string | null,
+    workingMemoryPath: string | null,
+  ) => Promise<RecoveryLocusContext | null>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
@@ -739,8 +753,6 @@ export interface SessionRecoverProbes {
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

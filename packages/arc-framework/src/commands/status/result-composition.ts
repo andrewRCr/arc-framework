@@ -16,9 +16,7 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
-
-const IDENTITY_MISSING_MESSAGE =
-  "User probe skipped: `arc.identity` is not configured in git config.";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 
 function causeMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -29,7 +27,8 @@ export class SessionIdentityMissingError extends ArcError {
   readonly slot: string;
 
   constructor(slot: string) {
-    super(IDENTITY_MISSING_MESSAGE, "session.identity-missing");
+    const label = slot === "user" ? "User" : "Session locus state";
+    super(`${label} probe skipped: \`arc.identity\` is not configured in git config.`, "session.identity-missing");
     this.name = "SessionIdentityMissingError";
     this.slot = slot;
   }
@@ -97,6 +96,16 @@ export function userSlot<Value>(
   return identity === null
     ? errAsync(new SessionIdentityMissingError("user"))
     : safeProbe("user", () => probe(identity));
+}
+
+/** Declare the required identity-scoped locus-state probe without invoking it on missing identity. */
+export function locusStateSlot(
+  identity: string | null,
+  probe: (identity: string) => Promise<LocusStateV1>,
+): ResultAsync<LocusStateV1, SessionIdentityMissingError | SessionProbeError> {
+  return identity === null
+    ? errAsync(new SessionIdentityMissingError("locusState"))
+    : safeProbe("locusState", () => probe(identity));
 }
 
 /** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
