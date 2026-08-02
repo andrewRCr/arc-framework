@@ -93,6 +93,7 @@ describe("lean recovery envelope schema", () => {
     "active",
     "releaseRouting",
     "locusState",
+    "locusGuidance",
     "recoveryFrame",
     "loadSet",
   ])("requires the %s slot", (key) => {
