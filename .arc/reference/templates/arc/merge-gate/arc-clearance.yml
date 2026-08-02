@@ -2,7 +2,7 @@ name: ARC Clearance
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, edited]
   repository_dispatch:
     types: [arc-clearance]
 
@@ -49,6 +49,16 @@ jobs:
             echo "head_repository=$head_repository"
             echo "head_sha=$head_sha"
           } >>"$GITHUB_OUTPUT"
+      - id: planning-reset
+        name: Invalidate prior ARC clearance on the live head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.planning-target.outputs.head_sha }}
+        run: |
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=pending -f context=arc-cleared \
+            -f description='ARC planning lane is revalidating this exact head' -f target_url="$target"
       # Fetch branch refs: exact decomposition source commits may sit outside the PR history.
       # Pull-request content is inert classification data; no command executes from this checkout.
       - id: planning-data
@@ -133,6 +143,7 @@ jobs:
           pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PAYLOAD_PR")"
           test "$(jq -r .state <<<"$pull_request")" = open
           test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
           base_ref="$(jq -r .base.ref <<<"$pull_request")"
           base_sha="$(jq -r .base.sha <<<"$pull_request")"
           test "$(jq -r .head.sha <<<"$pull_request")" = "$PAYLOAD_HEAD"

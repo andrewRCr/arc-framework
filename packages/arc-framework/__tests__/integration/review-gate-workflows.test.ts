@@ -626,7 +626,7 @@ describe("trusted review-gate workflows", () => {
       permissions?: unknown;
     };
     expect(workflow.on).toEqual({
-      pull_request_target: { types: ["opened", "reopened", "synchronize"] },
+      pull_request_target: { types: ["opened", "reopened", "synchronize", "edited"] },
       repository_dispatch: { types: ["arc-clearance"] },
     });
     expect(workflow.permissions).toEqual({});
@@ -638,6 +638,10 @@ describe("trusted review-gate workflows", () => {
     });
     expect(validation).not.toHaveProperty("environment");
     expect(validation).not.toHaveProperty("statuses");
+    const target = stepValue(clearance, "validate", "target");
+    expect(target.run).toContain(
+      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
+    );
 
     const trustedCheckout = stepValue(clearance, "validate", "trusted-checkout");
     expect(trustedCheckout.with).toMatchObject({
@@ -754,6 +758,19 @@ describe("trusted review-gate workflows", () => {
     expect(target.run).toContain('test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
     expect(target.run).toContain('test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
 
+    const planningSteps = stamp.steps as Array<Record<string, unknown>>;
+    const targetIndex = planningSteps.findIndex((step) => step.id === "planning-target");
+    const resetIndex = planningSteps.findIndex((step) => step.id === "planning-reset");
+    const dataIndex = planningSteps.findIndex((step) => step.id === "planning-data");
+    expect(resetIndex).toBeGreaterThan(targetIndex);
+    expect(dataIndex).toBeGreaterThan(resetIndex);
+    const reset = stepValue(workflow, "planning-clearance", "planning-reset");
+    expect(reset.env).toMatchObject({
+      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+    });
+    expect(reset.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
+    expect(reset.run).toContain("-f state=pending -f context=arc-cleared");
+
     const dataCheckout = stepValue(workflow, "planning-clearance", "planning-data");
     expect(dataCheckout.with).toMatchObject({
       repository: "${{ steps.planning-target.outputs.head_repository }}",
@@ -777,7 +794,7 @@ describe("trusted review-gate workflows", () => {
     expect(publish.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_change_data\//u);
   });
 
-  it("keeps the planning stamp and reviewed unlock as disjoint writers of one context", async () => {
+  it("resets prior clearance before either exact-head writer can publish success", async () => {
     const [ci, clearance, codeowners] = await Promise.all([
       read("ci.yml"),
       read("arc-clearance.yml"),
@@ -787,6 +804,7 @@ describe("trusted review-gate workflows", () => {
       [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\S]{0,180}?context="?(\$STATUS_CONTEXT|arc-cleared)"?/gu)]
         .map((match) => ({ workflowIndex, sha: match[1], context: match[2] })));
     expect(writers).toEqual([
+      { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
       { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
       { workflowIndex: 1, sha: "VALIDATED_HEAD", context: "$STATUS_CONTEXT" },
     ]);
@@ -821,7 +839,9 @@ describe("trusted review-gate workflows", () => {
     expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-merge-gate.md");
     expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
     expect(template).toContain("npm exec --yes --package=");
-    expect(installedWorkflow.on).toHaveProperty("pull_request_target");
+    expect(installedWorkflow.on?.pull_request_target).toEqual({
+      types: ["opened", "reopened", "synchronize", "edited"],
+    });
     expect(installedWorkflow.on).not.toHaveProperty("pull_request");
     expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
     expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
@@ -833,6 +853,11 @@ describe("trusted review-gate workflows", () => {
     expect(stepValue(template, "planning-clearance", "planning-target").run).toContain(
       'pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"',
     );
+    const templateReset = stepValue(template, "planning-clearance", "planning-reset");
+    expect(templateReset.env).toMatchObject({
+      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+    });
+    expect(templateReset.run).toContain("-f state=pending -f context=arc-cleared");
     expect(stepValue(template, "planning-clearance", "planning-data").with).toMatchObject({
       repository: "${{ steps.planning-target.outputs.head_repository }}",
       ref: "${{ steps.planning-target.outputs.head_sha }}",
@@ -845,6 +870,9 @@ describe("trusted review-gate workflows", () => {
       BASE_SHA: "${{ steps.planning-target.outputs.base_sha }}",
       HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
     });
+    expect(stepValue(template, "validate", "target").run).toContain(
+      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
+    );
     expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(template).toContain(
       'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
