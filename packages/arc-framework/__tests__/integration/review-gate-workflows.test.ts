@@ -759,9 +759,13 @@ describe("trusted review-gate workflows", () => {
     expect(target.run).toContain('test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
 
     const planningSteps = stamp.steps as Array<Record<string, unknown>>;
+    const buildIndex = planningSteps.findIndex((step) => step.run === "npm run build");
     const targetIndex = planningSteps.findIndex((step) => step.id === "planning-target");
     const resetIndex = planningSteps.findIndex((step) => step.id === "planning-reset");
     const dataIndex = planningSteps.findIndex((step) => step.id === "planning-data");
+    const publishIndex = planningSteps.findIndex((step) => step.id === "planning-status");
+    expect(buildIndex).toBeGreaterThanOrEqual(0);
+    expect(publishIndex).toBeGreaterThan(buildIndex);
     expect(resetIndex).toBeGreaterThan(targetIndex);
     expect(dataIndex).toBeGreaterThan(resetIndex);
     const reset = stepValue(workflow, "planning-clearance", "planning-reset");
@@ -784,7 +788,10 @@ describe("trusted review-gate workflows", () => {
     );
 
     const publish = stepValue(workflow, "planning-clearance", "planning-status");
-    expect(publish.run).toContain('lane="$(npx arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(publish.run).toContain(
+      'lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA"',
+    );
+    expect(publish.run).not.toContain("npx arc");
     expect(publish.run).toContain('test "$lane" = planning || test "$lane" = reviewed');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
     expect(publish.run).toContain("-f context=arc-cleared");
