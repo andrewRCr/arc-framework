@@ -11,6 +11,7 @@ import {
 } from "../../../src/lib/work-unit/validate-descendant-base-landing.js";
 import { v3DecomposeReceiptPath } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 import type { V3DecomposeTreeSnapshot } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
+import { V3_DECOMPOSITION_READ_FAILURE } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const RECORDED_BASE = "b".repeat(40);
@@ -249,13 +250,67 @@ describe("validateDescendantBaseLanding", () => {
     ["a missing candidate receipt", { candidateReceiptEntry: "missing" }],
     ["a mode-changed candidate receipt", { candidateReceiptEntry: "wrong-mode" }],
     ["a non-blob candidate receipt", { candidateReceiptEntry: "non-blob" }],
-    ["a malformed candidate receipt entry", { candidateReceiptEntry: "malformed" }],
+    ["an unreadable candidate receipt entry", { candidateReceiptEntry: "malformed" }],
     ["noncanonical candidate receipt bytes", { invalidReceiptBytes: true }],
   ] as const)("refuses %s", async (caseName, options) => {
     const h = replayHarness(options);
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "patch", locus: caseName === "an extra transition path" ? ".arc/foreign.md" : h.receiptPath },
+      mismatch: {
+        kind: "patch",
+        locus: caseName === "an extra transition path"
+          ? ".arc/foreign.md"
+          : caseName === "an unreadable candidate receipt entry"
+          ? "snapshot-read"
+          : h.receiptPath,
+        ...(caseName === "an unreadable candidate receipt entry"
+          ? { evidence: V3_DECOMPOSITION_READ_FAILURE }
+          : {}),
+      },
+    });
+  });
+
+  it("preserves an unreadable transition diff as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.changedPaths = async () => null;
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: {
+        kind: "patch",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
+    });
+  });
+
+  it("preserves unreadable transition path state as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.stateMatches = async (_ref, path) => path === h.projectionPath ? true : null;
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: {
+        kind: "path",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
+    });
+  });
+
+  it("preserves an unreadable receipt blob as a read-shaped refusal", async () => {
+    const h = replayHarness();
+    h.deps.objects.readBlob = async () => {
+      throw new Error("blob unavailable");
+    };
+
+    await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
+      status: "refused",
+      mismatch: {
+        kind: "patch",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 
@@ -290,7 +345,11 @@ describe("validateDescendantBaseLanding", () => {
     const h = replayHarness({ snapshotThrows: true });
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "dependency", locus: "snapshot-read" },
+      mismatch: {
+        kind: "dependency",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 

@@ -535,16 +535,6 @@ async function runExecutable(args: string[]): Promise<void> {
     return;
   }
 
-  if (command === "planning-lane") {
-    const [base, head, ...rest] = operands;
-    const changeSet =
-      base === undefined || head === undefined || rest.length !== 0
-        ? UNKNOWN
-        : await resolveChangeSet(exec, base, head);
-    process.stdout.write(`${classifyPlanningLane(changeSet)}\n`);
-    return;
-  }
-
   const pathProjection = {
     "classify-paths": "classify",
     "lane-paths": "lane",

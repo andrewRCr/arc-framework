@@ -91,6 +91,8 @@ jobs:
 Replace `<installed-arc-version>` with the exact `framework_version` from
 `.arc/system/.internal/manifest.json`. The pinned CLI classifies Git's raw change record, so rename/copy endpoints
 and type/mode changes participate and any unreadable or malformed change remains reviewed.
+The classification checkout must fetch branch refs (`fetch-depth: 0`) rather than only the pull request's commit
+history, because an exact decomposition source commit may exist only on another branch ref.
 
 Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
@@ -127,6 +129,8 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
 3. In branch protection for your base branch, mark **`merge-ok`** as the required status check and enable
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
+
+The decomposition-receipt namespace stays owned; do not add it to the shipped skeleton's unowned block.
 
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The

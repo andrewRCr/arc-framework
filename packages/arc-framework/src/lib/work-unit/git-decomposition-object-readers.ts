@@ -90,14 +90,15 @@ export async function stateMatches(
   ref: string,
   path: string,
   expected: V3ManagedPathResult["before"],
-): Promise<boolean> {
+): Promise<boolean | null> {
   const entry = await readTreeEntry(deps.exec, ref, path);
+  if (entry === false) return null;
   if (expected.kind === "absent") return entry === null;
-  if (entry === null || entry === false || entry.type !== "blob" || entry.mode !== expected.mode) return false;
+  if (entry === null || entry.type !== "blob" || entry.mode !== expected.mode) return false;
   try {
     return digestBytes(await deps.readBlob(entry.oid)) === expected.contentDigest;
   } catch {
-    return false;
+    return null;
   }
 }
 

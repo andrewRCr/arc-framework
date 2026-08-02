@@ -16,6 +16,7 @@
 # supported directories and depths. The required arc-cleared context remains
 # authoritative for exact filenames, rename/copy endpoints, and type/mode
 # changes that CODEOWNERS cannot express.
+# Decomposition receipts stay owned here.
 /.arc/active/draft-*.md
 /.arc/active/tasks-*.md
 /.arc/active/meta-*.md
