@@ -48,6 +48,11 @@ interface PreparedBaseGuard {
   cancel(): Promise<void>;
 }
 
+type CleanBaseVerdict =
+  | { kind: "valid" }
+  | { kind: "refused"; message: string }
+  | { kind: "error"; message: string };
+
 /**
  * Restore or remove the exact owned checkout, then pop its role before identity retirement.
  *
@@ -216,9 +221,8 @@ async function prepareCheckout(
       return { kind: "error", message: errorMessage(error) };
     }
     const ready = await verifyCleanBase(options.exec, checkoutPath, options.base);
-    return ready === null
-      ? { kind: "ready", guardPath: checkoutPath }
-      : refused("role-conflict", ready);
+    if (ready.kind === "valid") return { kind: "ready", guardPath: checkoutPath };
+    return ready.kind === "error" ? ready : refused("role-conflict", ready.message);
   }
 
   const marker = await readWorktreeMarkerGeneration(checkoutPath);
@@ -250,16 +254,16 @@ async function worktreeIsDirty(exec: GitExec, checkoutPath: string): Promise<boo
   }
 }
 
-async function verifyCleanBase(exec: GitExec, checkoutPath: string, base: string): Promise<string | null> {
+async function verifyCleanBase(exec: GitExec, checkoutPath: string, base: string): Promise<CleanBaseVerdict> {
   try {
     const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
     const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
     const marker = await readWorktreeMarker(checkoutPath);
     return branch === base && dirty === "" && marker.kind === "absent"
-      ? null
-      : `Errand close lost base-checkout authority at '${checkoutPath}'.`;
+      ? { kind: "valid" }
+      : { kind: "refused", message: `Errand close lost base-checkout authority at '${checkoutPath}'.` };
   } catch (error) {
-    return errorMessage(error);
+    return { kind: "error", message: errorMessage(error) };
   }
 }
 
@@ -299,10 +303,10 @@ async function acquirePreparedBaseGuard(
 
 function createBaseCheckoutCloseGuard(exec: GitExec, checkoutPath: string, base: string): CloseAuthorityGuard {
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
-    const invalid = await verifyCleanBase(exec, checkoutPath, base);
-    return invalid === null
-      ? { kind: "valid" }
-      : { kind: "refused", reason: "role-conflict", message: invalid };
+    const verdict = await verifyCleanBase(exec, checkoutPath, base);
+    return verdict.kind === "refused"
+      ? { ...verdict, reason: "role-conflict" }
+      : verdict;
   };
   return { revalidate, acquire: () => acquireBaseCheckoutCloseLease(exec, checkoutPath, revalidate) };
 }

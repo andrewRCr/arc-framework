@@ -114,6 +114,51 @@ describe("closeOrdinaryErrand", () => {
     });
   });
 
+  it("propagates applied settlement coordinates through capture cleanup and the close result", async () => {
+    const record = awaiting();
+    const recordId = `sha256:${"1".repeat(64)}`;
+    const restoredParent = {
+      recordId: `sha256:${"2".repeat(64)}`,
+      checkoutPath: "/repo-parent",
+    };
+    const removeInbox = vi.fn(async (_record: OrdinaryErrandRecord, sessionHomePath: string | null) => {
+      expect(sessionHomePath).toBe("/repo-session");
+      return { kind: "absent" as const, nextOffer: null };
+    });
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.resolve({
+            kind: "applied",
+            guard: null,
+            recordId,
+            sessionHomePath: "/repo-session",
+            restoredParent,
+          }),
+        }),
+        cleanupRefs: async () => ({ kind: "idempotent" }),
+        removeInbox,
+        retire: async () => ({ kind: "idempotent" }),
+      },
+    });
+
+    expect(removeInbox).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-close",
+      recordId,
+      sessionHomePath: "/repo-session",
+      restoredParent,
+    });
+  });
+
   it("holds base-checkout authority through every destructive close step", async () => {
     const record = awaiting();
     const events: string[] = [];
@@ -183,6 +228,70 @@ describe("closeOrdinaryErrand", () => {
     });
 
     expect(result).toMatchObject({ outcome: "refused", reason: "preservation-unproven" });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(removeInbox).not.toHaveBeenCalled();
+    expect(retire).not.toHaveBeenCalled();
+  });
+
+  it("retains refs, capture, and identity when checkout settlement returns an error", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const removeInbox = vi.fn();
+    const retire = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.resolve({ kind: "error", message: "settlement failed" }),
+        }),
+        cleanupRefs,
+        removeInbox,
+        retire,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-close.occupancy", message: "settlement failed" },
+    });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(removeInbox).not.toHaveBeenCalled();
+    expect(retire).not.toHaveBeenCalled();
+  });
+
+  it("retains refs, capture, and identity when checkout settlement throws", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const removeInbox = vi.fn();
+    const retire = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.reject(new Error("settlement crashed")),
+        }),
+        cleanupRefs,
+        removeInbox,
+        retire,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-close.occupancy", message: "settlement crashed" },
+    });
     expect(cleanupRefs).not.toHaveBeenCalled();
     expect(removeInbox).not.toHaveBeenCalled();
     expect(retire).not.toHaveBeenCalled();

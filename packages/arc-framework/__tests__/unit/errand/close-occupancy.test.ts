@@ -94,6 +94,37 @@ describe("classifyErrandCloseOccupancy", () => {
     expect(resolved).toMatchObject({ kind: "refused", reason: "lease-live" });
   });
 
+  it("refuses resolved current-checkout occupancy whose self-held lease is no longer live", () => {
+    const dead = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true, state: "dead" } as LocusRowV1["lease"],
+      frame: "residue",
+      diagnostics: [{
+        code: "lease-dead",
+        source: { kind: "record", key: RECORD_ID },
+        message: "Lease is dead.",
+      }],
+    });
+    const resolved = classify(state([dead], {
+      kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "role-conflict" });
+  });
+
+  it("refuses self-held occupancy when the resolved current record is a different generation", () => {
+    const owned = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    });
+    const resolved = classify(state([owned], {
+      kind: "resolved",
+      activeRecordId: `sha256:${"2".repeat(64)}`,
+      parentRecordId: null,
+      sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "lease-live" });
+  });
+
   it("clears the exact self-held checkout after it switches back to base", () => {
     const switched = errandRow({
       primary: true,

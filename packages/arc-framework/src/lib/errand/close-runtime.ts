@@ -91,9 +91,10 @@ export async function closeOrdinaryErrandAtRuntime(
     ...execOptions,
     ...(execOptions?.cwd === undefined && fallbackCwd !== null ? { cwd: fallbackCwd } : {}),
   });
-  const execInput: GitExecInput = (args, input) => fallbackCwd === null
-    ? options.execInput(args, input)
-    : options.execInput(args, input, { cwd: fallbackCwd });
+  const execInput: GitExecInput = (args, input, execOptions) => options.execInput(args, input, {
+    ...execOptions,
+    ...(execOptions?.cwd === undefined && fallbackCwd !== null ? { cwd: fallbackCwd } : {}),
+  });
   const runtimeOptions = { ...options, exec };
   const io = { exec, execInput, identity: options.identity };
   const lifecyclePort = createGhChangeRequestLifecyclePort(exec);

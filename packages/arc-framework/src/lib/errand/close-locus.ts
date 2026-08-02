@@ -184,7 +184,6 @@ export async function closeOrdinaryErrand(
     target,
     lifecycle,
     record,
-    guard: settlement.guard,
     settlement,
     slug,
   }));
@@ -195,11 +194,11 @@ async function finalizeAuthorizedClose(input: {
   target: CloseTarget;
   lifecycle: ChangeRequestLifecycleEvidence;
   record: OrdinaryErrandRecord;
-  guard: CloseAuthorityGuard | null;
   settlement: Extract<CloseLocusSettlementResult, { kind: "applied" | "idempotent" }>;
   slug: string;
 }): Promise<LocusMutationResultV1> {
-  const { options, target, lifecycle, record, guard, settlement, slug } = input;
+  const { options, target, lifecycle, record, settlement, slug } = input;
+  const guard = settlement.guard;
 
   let refs: CloseRefCleanupResult;
   try {
