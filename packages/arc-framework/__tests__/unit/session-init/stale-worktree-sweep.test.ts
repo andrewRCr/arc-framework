@@ -547,7 +547,7 @@ describe("runStaleWorktreeSweep", () => {
 
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.kind).toBe("branched");
-    expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
+    expect(result.warnings).toEqual(["Could not scan registered worktrees: topology unavailable"]);
   });
 
   it("scans sibling husks from a linked worktree and excludes the exact current path", async () => {
