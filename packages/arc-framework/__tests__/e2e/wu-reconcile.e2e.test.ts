@@ -139,6 +139,32 @@ describe("arc wu reconcile", () => {
     });
   });
 
+  it("preserves unknown liveness when explicit attachment has no durable session ancestor", async () => {
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+
+    const result = await runArc(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
+    const records = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    expect(records).toHaveLength(1);
+    const record = JSON.parse(await readFile(join(lociRoot, records[0] as string), "utf8"));
+    expect(record).toMatchObject({
+      checkoutPath: repo,
+      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
+      lease: {
+        sessionHomePath: repo,
+        anchor: {
+          kind: "unverifiable",
+          reason: expect.stringMatching(/Unrecognized process boundary/iu),
+        },
+      },
+    });
+  });
+
   it("returns one JSON conflict and does not reconcile when identity resolution fails", async () => {
     await git(repo, ["config", "--unset", "arc.identity"]);
     await git(repo, ["config", "--unset", "user.name"]);

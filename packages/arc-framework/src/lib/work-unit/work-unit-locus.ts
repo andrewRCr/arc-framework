@@ -23,7 +23,7 @@ import {
   replaceLocusRecord,
 } from "../locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../locus/root.js";
-import type { LocusProcessAnchor } from "../locus/schema/index.js";
+import type { LocusAnchor, LocusProcessAnchor } from "../locus/schema/index.js";
 
 export interface ReconcileWorkUnitLocusOptions {
   readonly checkoutPath: string;
@@ -114,7 +114,8 @@ async function retireNodeWorkUnitLocus(
     }
     const lease = current.record.lease;
     if (lease !== null) {
-      const sameAnchor = lease.anchor.kind === "process"
+      const sameAnchor = anchor.kind === "process"
+        && lease.anchor.kind === "process"
         && lease.anchor.pid === anchor.pid
         && lease.anchor.startToken === anchor.startToken
         && lease.anchor.inspector === anchor.inspector;
@@ -236,7 +237,8 @@ async function reconcileNodeWorkUnitLocus(
 
     const current = await io.read();
     if (current.kind !== "valid") throw new Error("cannot attach work-unit session locus: record is unavailable");
-    const sameAnchor = current.record.lease?.anchor.kind === "process"
+    const sameAnchor = anchor.kind === "process"
+      && current.record.lease?.anchor.kind === "process"
       && current.record.lease.anchor.pid === anchor.pid
       && current.record.lease.anchor.startToken === anchor.startToken
       && current.record.lease.anchor.inspector === anchor.inspector;
@@ -304,10 +306,9 @@ async function selectMutationAnchor(
   requireSession: boolean,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
   diagnostic: string,
-) {
+): Promise<LocusAnchor> {
   const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (selected.kind === "process") return selected;
-  if (requireSession) throw new Error(`${diagnostic}: ${selected.reason}`);
+  if (selected.kind === "process" || requireSession) return selected;
   const command = await inspector.inspect(process.pid);
   if (command.kind !== "present") {
     const fallback = command.kind === "unverifiable"
