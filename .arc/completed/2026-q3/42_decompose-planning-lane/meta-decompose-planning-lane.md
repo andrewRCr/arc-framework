@@ -1,8 +1,8 @@
 # Metadata: decompose-planning-lane
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decompose-planning-lane` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the pull request
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/426>
+- **Completed:** 2026-08-02
 
 ---
 
