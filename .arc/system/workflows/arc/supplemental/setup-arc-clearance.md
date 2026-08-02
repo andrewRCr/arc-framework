@@ -33,8 +33,8 @@ Render the [clearance template][clearance-template] to
 `.github/workflows/arc-clearance.yml`, replacing every `{{ARC_FRAMEWORK_VERSION}}` token with the validated
 manifest version. Reject a version outside strict SemVer syntax before substitution. After rendering, require
 exactly two literal `@arc-framework/cli@<manifest-version>` package specs and no unresolved token. Confirm the
-rendered workflow retains both fixed writers: `pull_request` planning classification and `repository_dispatch`
-reviewed-head validation.
+rendered workflow retains both fixed writers: trusted `pull_request_target` planning classification and
+`repository_dispatch` reviewed-head validation.
 
 Detect the target first:
 

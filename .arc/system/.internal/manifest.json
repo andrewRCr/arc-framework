@@ -94,7 +94,7 @@
     "reference/templates/arc/merge-gate/arc-clearance.yml": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "b0792e2291c9d3ebdfdee8b2e65ac145bd38fd2f6c27862b763ae0290a972db7"
+      "pristine_hash": "49a3deade76acec9554db2770559278b097fc03cd32d649c790022df1bb9a667"
     },
     "reference/templates/arc/merge-gate/CODEOWNERS": {
       "classification": "Framework",
@@ -639,7 +639,7 @@
     "system/workflows/arc/supplemental/setup-arc-clearance.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "fa4b37f527a822d99ed1f9c26ebb01c416a7af2fff8d2a1d3cd570bb92bff53f"
+      "pristine_hash": "3773064e1d7a5af21e61c02357fac3cd9fd38165630a66821dd226e854f8dd15"
     },
     "system/workflows/arc/supplemental/setup-merge-gate.md": {
       "classification": "Framework",

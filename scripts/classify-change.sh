@@ -27,7 +27,7 @@ readonly EX_USAGE=64
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CHANGE_FACTS_MODULE="${SCRIPT_DIR}/../packages/arc-framework/src/lib/change-facts.ts"
-readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-${SCRIPT_DIR}/../packages/arc-framework/dist/cli.js}"
+readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
 
 # --- Heavy verification checks -------------------------------------------------
 #
@@ -106,7 +106,12 @@ cmd_planning_lane() {
     echo "planning-lane: base and head refs are required" >&2
     return "${EX_USAGE}"
   fi
-  node "${ARC_PLANNING_CLI}" review planning-lane "${base}" "${head}" \
+  if [[ -n "${ARC_PLANNING_CLI}" ]]; then
+    node "${ARC_PLANNING_CLI}" review planning-lane "${base}" "${head}" \
+      --repository "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
+    return
+  fi
+  npx arc review planning-lane "${base}" "${head}" \
     --repository "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
 }
 

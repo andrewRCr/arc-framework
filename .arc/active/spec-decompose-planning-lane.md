@@ -369,14 +369,15 @@ one. Liveness is confirmed where credentials exist, and the command owns everyth
 
 ## Cross-cutting Considerations
 
-- **Security:** ownership changes atomically with exact-head and base-current enforcement, and every unproven
-  state resolves away from clearance.
+- **Security:** ~~ownership changes atomically with exact-head and base-current enforcement~~; under the verification
+  amendment, status publication uses trusted workflow code with those same enforcement properties, and every
+  unproven state resolves away from clearance.
 - **Compatibility:** the source precondition refuses cuts that previously succeeded, so operators with unpublished
   retiring branches must publish before cutting. Only current canonical v3 receipts qualify for the lane; obsolete
   or legacy-shaped evidence cannot gain lane authority.
-- **Testing:** pure policy, the ref-addressed assembler, the source precondition, the outcome mapping, eligibility
-  and application, ownership ordering, fork-origin changes, and stale-pair cases are separated. Host-policy
-  behavior is proved through the commands that perform it rather than through assertions over recipe text.
+- **Testing:** pure policy, the ref-addressed assembler, the source precondition, the outcome mapping,
+  ~~eligibility and application, ownership ordering,~~ fork-origin changes, and stale-pair cases are separated.
+  The struck ownership-specific scope is deferred by the verification amendment.
 - **Rollout:** the feature is optional and safely absent until explicitly installed.
 - **Human authority:** the distribution interlock remains the sole semantic approval boundary.
 
@@ -401,8 +402,9 @@ one. Liveness is confirmed where credentials exist, and the command owns everyth
 - Every caller resolves the lane through the one canonical command, and none downgrades a refusal.
 - New installs remain reviewed and default-off, with the shipped CODEOWNERS skeleton carrying no receipt
   exception.
-- The exception is appended only against an eligible verdict and only where no owning entry follows it, with
-  "not permitted to check" reported distinctly from "checked, not configured".
+- ~~The exception is appended only against an eligible verdict and only where no owning entry follows it, with
+  "not permitted to check" reported distinctly from "checked, not configured".~~ Superseded by the verification
+  amendment: the ownership exception is deferred from this work unit.
 - Package and project host-policy assets remain byte-identical.
 - No semantic classifier, approval credential, duplicate receipt validator, or transform output change is added,
   and no ref, branch rule, or merge queue is created.

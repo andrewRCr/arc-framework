@@ -105,6 +105,24 @@ describe("classify-change.sh planning-lane", () => {
     return path;
   }
 
+  async function fakeNpx(expected: readonly string[]): Promise<string> {
+    const directory = await createTempRepo();
+    tempDirs.push(directory);
+    const path = join(directory, "npx");
+    await writeFile(path, [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `expected=(${expected.map((value) => JSON.stringify(value)).join(" ")})`,
+      'actual=("$@")',
+      'test "$#" -eq "${#expected[@]}"',
+      'for index in "${!expected[@]}"; do test "${actual[$index]}" = "${expected[$index]}"; done',
+      "printf 'planning\\n'",
+      "",
+    ].join("\n"));
+    await chmod(path, 0o755);
+    return directory;
+  }
+
   it("routes exact refs and the data repository through the built canonical command", async () => {
     const cli = await fakeCli(0, "planning\n");
     const base = "a".repeat(40);
@@ -131,6 +149,25 @@ describe("classify-change.sh planning-lane", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("receipt/path.json\n");
+  });
+
+  it("uses the repository npx arc command when the CLI override is unset", async () => {
+    const base = "a".repeat(40);
+    const head = "b".repeat(40);
+    const repository = "/data/repository";
+    const bin = await fakeNpx([
+      "arc", "review", "planning-lane", base, head, "--repository", repository,
+    ]);
+
+    const result = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
+      env: {
+        ARC_PLANNING_CLI: "",
+        CLASSIFY_REPOSITORY_DIR: repository,
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+      },
+    });
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: "planning\n", stderr: "" });
   });
 });
 

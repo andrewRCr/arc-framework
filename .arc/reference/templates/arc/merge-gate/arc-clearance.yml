@@ -1,7 +1,7 @@
 name: ARC Clearance
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize]
   repository_dispatch:
     types: [arc-clearance]
@@ -10,35 +10,62 @@ permissions: {}
 
 jobs:
   planning-clearance:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       pull-requests: read
       statuses: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-        with:
-          node-version: '24'
-      - id: planning-live-checkout
+      - id: planning-trusted-checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
-      # Fetch branch refs: exact decomposition source commits may sit outside the PR history.
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          node-version: '24'
+      - id: planning-target
+        name: Bind planning clearance to the live pull-request pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r .state <<<"$pull_request")" = open
+          test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          base_ref="$(jq -r .base.ref <<<"$pull_request")"
+          base_sha="$(jq -r .base.sha <<<"$pull_request")"
+          head_repository="$(jq -r .head.repo.full_name <<<"$pull_request")"
+          head_sha="$(jq -r .head.sha <<<"$pull_request")"
+          test -n "$base_ref"
+          [[ "$base_sha" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$head_sha" =~ ^[a-f0-9]{40}$ ]]
+          {
+            echo "base_ref=$base_ref"
+            echo "base_sha=$base_sha"
+            echo "head_repository=$head_repository"
+            echo "head_sha=$head_sha"
+          } >>"$GITHUB_OUTPUT"
+      # Fetch branch refs: exact decomposition source commits may sit outside the PR history.
+      # Pull-request content is inert classification data; no command executes from this checkout.
+      - id: planning-data
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          repository: ${{ steps.planning-target.outputs.head_repository }}
+          ref: ${{ steps.planning-target.outputs.head_sha }}
           path: _arc_change_data
           fetch-depth: 0
           persist-credentials: false
-      - name: Publish planning-lane ARC clearance
+      - id: planning-status
+        name: Publish planning-lane ARC clearance
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ steps.planning-target.outputs.base_ref }}
+          BASE_SHA: ${{ steps.planning-target.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.planning-target.outputs.head_sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           npm_config_audit: 'false'
           npm_config_ignore_scripts: 'true'
