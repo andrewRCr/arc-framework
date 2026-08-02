@@ -13,11 +13,16 @@ import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 import type {
   DescendantBaseLandingResult,
 } from "./validate-descendant-base-landing.js";
-import type {
-  FinalizedV3DecompositionFacts,
-  FinalizedV3DecompositionValidation,
-  V3DecompositionMismatch,
+import {
+  V3_DECOMPOSITION_READ_FAILURE,
+  type FinalizedV3DecompositionFacts,
+  type FinalizedV3DecompositionValidation,
+  type V3DecompositionMismatch,
 } from "./validate-v3-decomposition.js";
+/*
+ * The evidence discriminator above is intentionally separate from `locus`:
+ * every valid managed path must remain available as mismatch detail.
+ */
 
 /** Closed lane result consumed by stdout/stderr/exit-code adapters. */
 export type DecompositionPlanningLaneResult =
@@ -62,10 +67,9 @@ function touchesRetirementNamespace(change: CanonicalChange): boolean {
 }
 
 function readShaped(mismatch: V3DecompositionMismatch): boolean {
-  return mismatch.locus === "snapshot-read"
+  return mismatch.evidence === V3_DECOMPOSITION_READ_FAILURE
     || (mismatch.kind === "base"
-      && ["object-format", "unresolvable", "binding-unavailable"].includes(mismatch.locus ?? ""))
-    || (mismatch.kind === "dependency" && mismatch.locus === "snapshot-read");
+      && ["object-format", "unresolvable", "binding-unavailable"].includes(mismatch.locus ?? ""));
 }
 
 function mismatchLocus(mismatch: V3DecompositionMismatch, fallback: string): string {

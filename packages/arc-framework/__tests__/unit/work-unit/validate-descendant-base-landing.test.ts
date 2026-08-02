@@ -11,6 +11,7 @@ import {
 } from "../../../src/lib/work-unit/validate-descendant-base-landing.js";
 import { v3DecomposeReceiptPath } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 import type { V3DecomposeTreeSnapshot } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
+import { V3_DECOMPOSITION_READ_FAILURE } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const RECORDED_BASE = "b".repeat(40);
@@ -262,6 +263,9 @@ describe("validateDescendantBaseLanding", () => {
           : caseName === "an unreadable candidate receipt entry"
           ? "snapshot-read"
           : h.receiptPath,
+        ...(caseName === "an unreadable candidate receipt entry"
+          ? { evidence: V3_DECOMPOSITION_READ_FAILURE }
+          : {}),
       },
     });
   });
@@ -272,7 +276,11 @@ describe("validateDescendantBaseLanding", () => {
 
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "patch", locus: "snapshot-read" },
+      mismatch: {
+        kind: "patch",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 
@@ -282,7 +290,11 @@ describe("validateDescendantBaseLanding", () => {
 
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "path", locus: "snapshot-read" },
+      mismatch: {
+        kind: "path",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 
@@ -294,7 +306,11 @@ describe("validateDescendantBaseLanding", () => {
 
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "patch", locus: "snapshot-read" },
+      mismatch: {
+        kind: "patch",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 
@@ -329,7 +345,11 @@ describe("validateDescendantBaseLanding", () => {
     const h = replayHarness({ snapshotThrows: true });
     await expect(validateDescendantBaseLanding(input(DESCENDANT_BASE), h.deps)).resolves.toEqual({
       status: "refused",
-      mismatch: { kind: "dependency", locus: "snapshot-read" },
+      mismatch: {
+        kind: "dependency",
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     });
   });
 

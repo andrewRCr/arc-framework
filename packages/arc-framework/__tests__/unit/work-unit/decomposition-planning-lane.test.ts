@@ -5,6 +5,7 @@ import {
   classifyDecompositionPlanningLane,
   type DecompositionPlanningLaneDependencies,
 } from "../../../src/lib/work-unit/decomposition-planning-lane.js";
+import { V3_DECOMPOSITION_READ_FAILURE } from "../../../src/lib/work-unit/validate-v3-decomposition.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const BASE = "b".repeat(40);
@@ -146,8 +147,16 @@ describe("decomposition planning lane", () => {
     for (const mismatch of [
       { kind: "base" as const, locus: "unresolvable" },
       { kind: "base" as const, locus: "binding-unavailable" },
-      { kind: "dependency" as const, locus: "snapshot-read" },
-      { kind: "patch" as const, locus: "snapshot-read" },
+      {
+        kind: "dependency" as const,
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
+      {
+        kind: "patch" as const,
+        locus: "snapshot-read",
+        evidence: V3_DECOMPOSITION_READ_FAILURE,
+      },
     ]) {
       await expect(classifyDecompositionPlanningLane(changeSet, BASE, HEAD, dependencies(receipt, {
         validateLanding: vi.fn(async () => ({ status: "refused" as const, mismatch })),
@@ -159,5 +168,14 @@ describe("decomposition planning lane", () => {
         mismatch: { kind: "base" as const, locus: "regressed" },
       })),
     }))).resolves.toEqual({ outcome: "invalid-retirement", locus: "regressed" });
+
+    for (const kind of ["path", "patch"] as const) {
+      await expect(classifyDecompositionPlanningLane(changeSet, BASE, HEAD, dependencies(receipt, {
+        validateLanding: vi.fn(async () => ({
+          status: "refused" as const,
+          mismatch: { kind, locus: "snapshot-read" },
+        })),
+      }))).resolves.toEqual({ outcome: "invalid-retirement", locus: "snapshot-read" });
+    }
   });
 });
