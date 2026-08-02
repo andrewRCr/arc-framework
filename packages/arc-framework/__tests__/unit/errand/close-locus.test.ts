@@ -163,6 +163,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const events: string[] = [];
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: async () => {
         events.push("acquire");
         return { kind: "acquired", release: async () => { events.push("release"); } };
@@ -465,6 +466,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn().mockResolvedValue({
         kind: "refused",
@@ -503,6 +505,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn()
         .mockResolvedValueOnce({ kind: "valid" })
@@ -538,6 +541,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const cleanupRefs = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: async () => ({
         kind: "refused",
         reason: "role-conflict",

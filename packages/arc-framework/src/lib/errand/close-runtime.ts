@@ -20,12 +20,19 @@ import {
   observeExactChangeRequest,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import { resolveOptionalCommit, tearDownExactBranchGeneration } from "./exact-branch-generation.js";
+import {
+  resolveOptionalCommit,
+  tearDownExactBranchGeneration,
+  type ExactBranchTeardownLeaseResult,
+} from "./exact-branch-generation.js";
 import {
   classifyErrandCloseOccupancy,
   type BaseCheckoutCloseProof,
 } from "./close-occupancy.js";
-import { recoverFinalizedErrandCloseHeadLock } from "./close-head-lock.js";
+import {
+  acquireErrandCloseBranchDeletionHeadLocks,
+  recoverFinalizedErrandCloseHeadLock,
+} from "./close-head-lock.js";
 import {
   closeOrdinaryErrand,
   type CloseAuthorityGuard,
@@ -350,6 +357,14 @@ export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
   guard: CloseAuthorityGuard | null = null,
+  acquireLocalDelete: () => Promise<ExactBranchTeardownLeaseResult> = () =>
+    acquireErrandCloseBranchDeletionHeadLocks({
+      exec,
+      identity: { slug: target.record.slug, claimId: target.record.claimId },
+      branch: target.record.branch,
+      guard,
+      inspector: createPlatformProcessInspector(),
+    }),
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
     branch: target.record.branch,
@@ -372,6 +387,7 @@ export async function cleanupOrdinaryErrandRefs(
             message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
           };
     },
+    acquireLocalDelete,
     ...(guard === null ? {} : {
       authorizeDelete: async () => {
         const authorization = await guard.revalidate();

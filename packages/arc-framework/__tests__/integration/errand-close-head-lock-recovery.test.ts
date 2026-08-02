@@ -43,15 +43,53 @@ function record(): TransientIdentityRecord {
   });
 }
 
+async function seedIdentity(io: ErrandRecordIO): Promise<void> {
+  await transactTransientIdentities(io, {
+    remote: null,
+    message: "add done",
+    transform: () => ({
+      kind: "applied",
+      records: new Map([["done", record()]]),
+      value: null,
+    }),
+  });
+}
+
+async function writeDeadReceipt(
+  exec: ErrandRecordIO["exec"],
+  checkoutPath: string,
+): Promise<string> {
+  const gitHeadPath = (await exec("git", ["rev-parse", "--git-path", "HEAD"], {
+    cwd: checkoutPath,
+  })).stdout.trim();
+  const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
+  await writeFile(lockPath, `${JSON.stringify({
+    version: 1,
+    kind: "arc-errand-close-head-lock",
+    slug: "done",
+    claimId: CLAIM_ID,
+    checkoutPath,
+    holder: {
+      pid: 2_147_483_647,
+      startToken: "dead-holder-generation",
+      inspector: createPlatformProcessInspector().kind,
+    },
+  })}\n`, "utf8");
+  return lockPath;
+}
+
 describe("Errand close HEAD-lock recovery", () => {
   let dir: string;
+  let linkedDir: string | null;
 
   beforeEach(async () => {
     dir = await createTempRepo();
+    linkedDir = null;
     await makeCommit(dir, "init");
   });
 
   afterEach(async () => {
+    if (linkedDir !== null) await cleanupTempDir(linkedDir);
     await cleanupTempDir(dir);
   });
 
@@ -59,30 +97,32 @@ describe("Errand close HEAD-lock recovery", () => {
     const exec = makeGitExec(dir);
     const execInput = makeGitExecInput(dir);
     const io: ErrandRecordIO = { exec, execInput, identity: IDENTITY };
-    await transactTransientIdentities(io, {
-      remote: null,
-      message: "add done",
-      transform: () => ({
-        kind: "applied",
-        records: new Map([["done", record()]]),
-        value: null,
-      }),
-    });
+    await seedIdentity(io);
     const checkoutPath = (await exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
-    const gitHeadPath = (await exec("git", ["rev-parse", "--git-path", "HEAD"])).stdout.trim();
-    const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
-    await writeFile(lockPath, `${JSON.stringify({
-      version: 1,
-      kind: "arc-errand-close-head-lock",
+    const lockPath = await writeDeadReceipt(exec, checkoutPath);
+
+    await expect(readCloseIdentityAtRuntime({
       slug: "done",
-      claimId: CLAIM_ID,
-      checkoutPath,
-      holder: {
-        pid: 2_147_483_647,
-        startToken: "dead-holder-generation",
-        inspector: createPlatformProcessInspector().kind,
-      },
-    })}\n`, "utf8");
+      identity: IDENTITY,
+      exec,
+      execInput,
+    })).resolves.toMatchObject({ kind: "ready", record: { claimId: CLAIM_ID } });
+    await expect(access(lockPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("recovers the receipt-owning checkout when retry starts from a linked checkout", async () => {
+    const primaryExec = makeGitExec(dir);
+    await seedIdentity({
+      exec: primaryExec,
+      execInput: makeGitExecInput(dir),
+      identity: IDENTITY,
+    });
+    linkedDir = `${dir}-linked`;
+    await primaryExec("git", ["worktree", "add", "-b", "linked-retry", linkedDir]);
+    const primaryPath = (await primaryExec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
+    const lockPath = await writeDeadReceipt(primaryExec, primaryPath);
+    const exec = makeGitExec(linkedDir);
+    const execInput = makeGitExecInput(linkedDir);
 
     await expect(readCloseIdentityAtRuntime({
       slug: "done",

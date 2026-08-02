@@ -924,10 +924,12 @@ describe("arc errand close", () => {
   );
 
   it.runIf(process.platform !== "win32")(
-    "prevents a checkout switch at the local branch deletion boundary",
+    "prevents a linked checkout switch at the local branch deletion boundary",
     async () => {
       const slug = "merged-v3-switch-at-local-delete";
       const branch = `chore/${slug}`;
+      const linkedBranch = "feat/local-delete-race";
+      const linkedDir = `${tmpDir}-local-delete-race`;
       const gitDir = await mkdtemp(join(tmpdir(), "arc-e2e-git-local-delete-switch-"));
       const triggerPath = join(gitDir, "switch-before-local-delete");
       const blockedPath = `${triggerPath}.blocked`;
@@ -939,7 +941,7 @@ describe("arc errand close", () => {
         "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] && [ \"$#\" -eq 4 ] \\",
         "    && [ \"$1\" = update-ref ] && [ \"$2\" = -d ] \\",
         "    && [ \"$3\" = refs/heads/$ARC_TEST_ERRAND_BRANCH ]; then",
-        "  if \"$ARC_TEST_REAL_GIT\" switch \"$ARC_TEST_ERRAND_BRANCH\" >/dev/null 2>&1; then",
+        "  if \"$ARC_TEST_REAL_GIT\" -C \"$ARC_TEST_LINKED_DIR\" switch \"$ARC_TEST_ERRAND_BRANCH\" >/dev/null 2>&1; then",
         "    mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCHED\"",
         "  else",
         "    mv \"$ARC_TEST_GIT_SWITCH_TRIGGER\" \"$ARC_TEST_GIT_SWITCH_BLOCKED\"",
@@ -953,6 +955,8 @@ describe("arc errand close", () => {
       await setFullProtection(tmpDir);
       await git(tmpDir, ["add", "-A"]);
       await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+      await git(tmpDir, ["branch", linkedBranch]);
+      await git(tmpDir, ["worktree", "add", linkedDir, linkedBranch]);
       const host = await createMergedGhFixture(tmpDir, slug);
       try {
         const result = await runArcAnchoredSequence([
@@ -975,6 +979,7 @@ describe("arc errand close", () => {
             ARC_TEST_GIT_SWITCH_BLOCKED: blockedPath,
             ARC_TEST_GIT_SWITCHED: switchedPath,
             ARC_TEST_ERRAND_BRANCH: branch,
+            ARC_TEST_LINKED_DIR: linkedDir,
             ARC_TEST_REAL_GIT: realGit,
           },
           timeout: 60_000,
@@ -984,11 +989,16 @@ describe("arc errand close", () => {
         expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
         await expect(readFile(blockedPath, "utf-8")).resolves.toBe("");
         expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+        expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe(linkedBranch);
         expect((await git(tmpDir, ["branch", "--list", branch])).trim()).toBe("");
         expect((await git(tmpDir, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).trim()).toBe("");
         await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
           .rejects.toThrow();
       } finally {
+        await git(tmpDir, ["worktree", "remove", "--force", linkedDir]).catch(async () => {
+          await cleanupTempDir(linkedDir);
+          await git(tmpDir, ["worktree", "prune"]);
+        });
         await cleanupTempDir(gitDir);
         await cleanupTempDir(host.ghDir);
         await cleanupTempDir(host.remoteDir);

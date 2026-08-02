@@ -4,10 +4,15 @@ import { open, readFile, unlink } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import {
+  scanRegisteredWorktrees,
+  type RegisteredWorktree,
+} from "../git/worktree-roster.js";
 import type { ProcessInspection, ProcessInspector } from "../locus/process-inspector.js";
 import type {
   CloseAuthorityGuard,
   CloseAuthorityLeaseResult,
+  CloseAuthorityResult,
 } from "./close-locus.js";
 
 const RECEIPT_KIND = "arc-errand-close-head-lock";
@@ -53,6 +58,12 @@ const NODE_FILE_IO: CloseHeadLockFileIO = {
 export type FinalizedCloseHeadLockRecovery =
   | { kind: "absent" | "recovered" }
   | { kind: "blocked"; message: string }
+  | { kind: "error"; message: string };
+
+/** Authority held over every registered checkout during local Errand-ref deletion. */
+export type ErrandCloseBranchDeletionLeaseResult =
+  | { kind: "acquired"; release(): Promise<void> }
+  | { kind: "refused"; message: string }
   | { kind: "error"; message: string };
 
 /**
@@ -141,7 +152,7 @@ export async function acquireErrandCloseHeadLock(options: {
 /**
  * Remove an exact ARC-owned close lock after terminal absence or for the matching retained claim.
  *
- * @param options - Current checkout, finalized Errand slug, and optional file boundary.
+ * @param options - Repository, finalized Errand slug, and optional file boundary.
  * @returns Whether no matching receipt existed, it was recovered, or cleanup failed.
  */
 export async function recoverFinalizedErrandCloseHeadLock(options: {
@@ -152,19 +163,156 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
-  let checkoutPath: string;
-  try {
-    checkoutPath = (await options.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
-  } catch (error) {
-    return { kind: "error", message: errorMessage(error) };
-  }
-  if (checkoutPath === "") return { kind: "error", message: "Git returned no current checkout path." };
+  const roster = await scanRegisteredWorktrees(options.exec);
+  if (!roster.ok) return { kind: "error", message: roster.message };
 
-  const lockPath = await resolveHeadLockPath(options.exec, checkoutPath);
+  let recovered = false;
+  for (const worktree of roster.worktrees) {
+    const result = await recoverCheckoutHeadLock({
+      ...options,
+      checkoutPath: worktree.path,
+      fileIO,
+    });
+    if (result.kind === "blocked" || result.kind === "error") return result;
+    recovered ||= result.kind === "recovered";
+  }
+  return { kind: recovered ? "recovered" : "absent" };
+}
+
+/**
+ * Lock every registered checkout while one exact Errand branch is deleted locally.
+ *
+ * @param options - Exact Errand generation, target branch, and any already-held checkout guard.
+ * @returns A roster-wide lease, an occupancy refusal, or an operational failure.
+ */
+export async function acquireErrandCloseBranchDeletionHeadLocks(options: {
+  exec: GitExec;
+  identity: ErrandCloseHeadLockIdentity;
+  branch: string;
+  guard: CloseAuthorityGuard | null;
+  inspector: ProcessInspector;
+  fileIO?: CloseHeadLockFileIO;
+}): Promise<ErrandCloseBranchDeletionLeaseResult> {
+  const initial = await readBranchDeletionAuthority(options);
+  if (initial.kind !== "ready") return initial;
+  const excludedPath = options.guard?.checkoutPath;
+  if (excludedPath !== undefined
+    && !initial.worktrees.some((worktree) => worktree.path === excludedPath)) {
+    return { kind: "error", message: "The guarded checkout is absent from the registered worktree topology." };
+  }
+
+  const leases: Array<{ release(): Promise<void> }> = [];
+  for (const worktree of initial.worktrees) {
+    if (worktree.path === excludedPath) continue;
+    const acquired = await acquireErrandCloseHeadLock({
+      exec: options.exec,
+      checkoutPath: worktree.path,
+      identity: options.identity,
+      revalidate: async () => {
+        const authority = await readBranchDeletionAuthority(options);
+        return authority.kind === "ready" ? { kind: "valid" } : authorityToCloseResult(authority);
+      },
+      inspector: options.inspector,
+      ...(options.fileIO === undefined ? {} : { fileIO: options.fileIO }),
+    });
+    if (acquired.kind !== "acquired") {
+      const releaseError = await releaseHeadLockLeases(leases);
+      return releaseError === null
+        ? { kind: acquired.kind, message: acquired.message }
+        : { kind: "error", message: releaseError };
+    }
+    leases.push(acquired);
+  }
+
+  const confirmed = await readBranchDeletionAuthority(options);
+  if (confirmed.kind !== "ready"
+    || !sameRegisteredPaths(initial.worktrees, confirmed.worktrees)) {
+    const releaseError = await releaseHeadLockLeases(leases);
+    if (releaseError !== null) return { kind: "error", message: releaseError };
+    return confirmed.kind === "ready"
+      ? { kind: "refused", message: "Registered worktree topology changed during local branch deletion." }
+      : confirmed;
+  }
+  let released = false;
+  return {
+    kind: "acquired",
+    release: async () => {
+      if (released) return;
+      const releaseError = await releaseHeadLockLeases(leases);
+      if (releaseError !== null) throw new Error(releaseError);
+      released = true;
+    },
+  };
+}
+
+async function readBranchDeletionAuthority(options: {
+  exec: GitExec;
+  branch: string;
+  guard: CloseAuthorityGuard | null;
+}): Promise<
+  | { kind: "ready"; worktrees: RegisteredWorktree[] }
+  | { kind: "refused"; message: string }
+  | { kind: "error"; message: string }
+> {
+  if (options.guard !== null) {
+    const guarded = await options.guard.revalidate();
+    if (guarded.kind !== "valid") return { kind: guarded.kind, message: guarded.message };
+  }
+  const roster = await scanRegisteredWorktrees(options.exec);
+  if (!roster.ok) {
+    return { kind: "error", message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
+  }
+  const occupied = roster.worktrees.find((worktree) => worktree.branch === options.branch);
+  return occupied === undefined
+    ? { kind: "ready", worktrees: roster.worktrees }
+    : {
+        kind: "refused",
+        message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+      };
+}
+
+function authorityToCloseResult(
+  authority: { kind: "refused" | "error"; message: string },
+): Extract<CloseAuthorityResult, { kind: "refused" | "error" }> {
+  return authority.kind === "refused"
+    ? { kind: "refused", reason: "role-conflict", message: authority.message }
+    : { kind: "error", message: authority.message };
+}
+
+function sameRegisteredPaths(
+  left: readonly { path: string }[],
+  right: readonly { path: string }[],
+): boolean {
+  if (left.length !== right.length) return false;
+  const rightPaths = new Set(right.map((worktree) => worktree.path));
+  return left.every((worktree) => rightPaths.has(worktree.path));
+}
+
+async function releaseHeadLockLeases(leases: readonly { release(): Promise<void> }[]): Promise<string | null> {
+  let failure: string | null = null;
+  for (const lease of [...leases].reverse()) {
+    try {
+      await lease.release();
+    } catch (error) {
+      failure ??= errorMessage(error);
+    }
+  }
+  return failure;
+}
+
+async function recoverCheckoutHeadLock(options: {
+  exec: GitExec;
+  checkoutPath: string;
+  slug: string;
+  claimId?: string;
+  inspector: ProcessInspector;
+  fileIO: CloseHeadLockFileIO;
+}): Promise<FinalizedCloseHeadLockRecovery> {
+  const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
   if (lockPath.kind === "error") return lockPath;
   let bytes: string;
   try {
-    bytes = await fileIO.read(lockPath.path);
+    bytes = await options.fileIO.read(lockPath.path);
   } catch (error) {
     return errorCode(error) === "ENOENT"
       ? { kind: "absent" }
@@ -174,7 +322,7 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
   if (receipt === null
     || receipt.slug !== options.slug
     || (options.claimId !== undefined && receipt.claimId !== options.claimId)
-    || receipt.checkoutPath !== checkoutPath) {
+    || receipt.checkoutPath !== options.checkoutPath) {
     return { kind: "absent" };
   }
   const holderLiveness = await inspectHolder(receipt, options.inspector);
@@ -183,7 +331,7 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
   // after this recheck. Identity absence independently proves the close terminal.
   let currentBytes: string;
   try {
-    currentBytes = await fileIO.read(lockPath.path);
+    currentBytes = await options.fileIO.read(lockPath.path);
   } catch (error) {
     return errorCode(error) === "ENOENT"
       ? { kind: "absent" }
@@ -193,7 +341,7 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
     return { kind: "blocked", message: "Checkout-lock generation changed during terminal recovery." };
   }
   try {
-    await fileIO.unlink(lockPath.path);
+    await options.fileIO.unlink(lockPath.path);
   } catch (error) {
     if (errorCode(error) !== "ENOENT") return { kind: "error", message: errorMessage(error) };
   }

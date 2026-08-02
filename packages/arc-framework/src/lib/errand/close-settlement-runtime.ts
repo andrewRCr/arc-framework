@@ -352,6 +352,7 @@ async function acquirePreparedBaseGuard(
   if (acquired.kind === "refused" || acquired.kind === "error") return acquired;
   let transferred = false;
   const prepared: CloseAuthorityGuard = {
+    checkoutPath,
     revalidate: () => guard.revalidate(),
     acquire: () => {
       if (transferred) {
@@ -386,6 +387,7 @@ function createBaseCheckoutCloseGuard(
       : verdict;
   };
   return {
+    checkoutPath,
     revalidate,
     acquire: () => acquireErrandCloseHeadLock({
       exec: options.exec,

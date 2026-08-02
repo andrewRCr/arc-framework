@@ -63,6 +63,8 @@ export type CloseAuthorityLeaseResult =
   | Extract<CloseAuthorityResult, { kind: "refused" | "error" }>;
 
 export interface CloseAuthorityGuard {
+  /** Registered checkout whose HEAD lock this guard owns while acquired. */
+  readonly checkoutPath: string;
   revalidate(): Promise<CloseAuthorityResult>;
   acquire(): Promise<CloseAuthorityLeaseResult>;
 }

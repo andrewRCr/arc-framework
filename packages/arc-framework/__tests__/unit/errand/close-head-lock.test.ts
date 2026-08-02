@@ -19,7 +19,12 @@ function errno(message: string, code: string): Error & { code: string } {
 
 function fakeGit(): GitExec {
   return async (_command, args) => {
-    if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: `${CHECKOUT}\n`, stderr: "" };
+    if (args.join(" ") === "worktree list --porcelain -z") {
+      return {
+        stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`,
+        stderr: "",
+      };
+    }
     if (args.join(" ") === "rev-parse --git-path HEAD") {
       return { stdout: "/repo/.git/HEAD\n", stderr: "" };
     }
