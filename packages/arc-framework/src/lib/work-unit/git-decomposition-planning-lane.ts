@@ -42,13 +42,17 @@ export async function classifyGitDecompositionPlanningLane(
     ...options,
     cwd: options?.cwd ?? dependencies.cwd,
   });
+  const rawExec: RawGitExec = async (args, options) => await dependencies.rawExec(args, {
+    ...options,
+    cwd: options?.cwd ?? dependencies.cwd,
+  });
   const assembler = createGitDecompositionFactAssemblerDependencies({
     cwd: dependencies.cwd,
     exec,
     readBlob: async (oid) => await dependencies.readBlob(oid),
   });
   const changeSet = await resolveChangeSet(
-    async (args, options) => await dependencies.rawExec(args, options),
+    rawExec,
     base,
     head,
   );

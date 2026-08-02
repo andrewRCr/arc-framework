@@ -409,13 +409,21 @@ describe("Git v3 repository plan", () => {
       dependencies,
     } = await finalizedCandidateRepository();
     await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
+    const observedRawExecCwds: Array<string | undefined> = [];
+    const repositoryRawExec = rawGitExec(repo);
+    const rawExec: RawGitExec = async (args, options) => {
+      observedRawExecCwds.push(options?.cwd);
+      return await repositoryRawExec(args, options);
+    };
 
     await expect(classifyGitDecompositionPlanningLane(baseHead, candidateHead, {
       cwd: repo,
       exec: dependencies.exec,
-      rawExec: rawGitExec(repo),
+      rawExec,
       readBlob: dependencies.readObject,
     })).resolves.toEqual({ outcome: "planning" });
+    expect(observedRawExecCwds.length).toBeGreaterThan(0);
+    expect(observedRawExecCwds.every((cwd) => cwd === repo)).toBe(true);
 
     await expect(runCli([
       "review",

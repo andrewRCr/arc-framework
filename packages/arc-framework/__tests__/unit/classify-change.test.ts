@@ -97,11 +97,27 @@ describe("classify-change.sh planning-lane", () => {
     await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
   });
 
-  async function fakeCli(exitCode: number, stdout: string, stderr = ""): Promise<string> {
+  async function fakeCli(
+    exitCode: number,
+    stdout: string,
+    stderr: string,
+    expectedArgs: readonly string[],
+  ): Promise<string> {
     const directory = await createTempRepo();
     tempDirs.push(directory);
     const path = join(directory, "planning-cli.mjs");
-    await writeFile(path, `process.stdout.write(${JSON.stringify(stdout)});\nprocess.stderr.write(${JSON.stringify(stderr)});\nprocess.exit(${exitCode});\n`);
+    await writeFile(path, [
+      `const expected = ${JSON.stringify(expectedArgs)};`,
+      "const actual = process.argv.slice(2);",
+      "if (JSON.stringify(actual) !== JSON.stringify(expected)) {",
+      "  process.stderr.write(`unexpected arguments: ${JSON.stringify(actual)}\\n`);",
+      "  process.exit(97);",
+      "}",
+      `process.stdout.write(${JSON.stringify(stdout)});`,
+      `process.stderr.write(${JSON.stringify(stderr)});`,
+      `process.exit(${exitCode});`,
+      "",
+    ].join("\n"));
     return path;
   }
 
@@ -124,9 +140,11 @@ describe("classify-change.sh planning-lane", () => {
   }
 
   it("routes exact refs and the data repository through the built canonical command", async () => {
-    const cli = await fakeCli(0, "planning\n");
     const base = "a".repeat(40);
     const head = "b".repeat(40);
+    const cli = await fakeCli(0, "planning\n", "", [
+      "review", "planning-lane", base, head, "--repository", "/data/repository",
+    ]);
 
     const result = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
       env: { ARC_PLANNING_CLI: cli, CLASSIFY_REPOSITORY_DIR: "/data/repository" },
@@ -137,11 +155,15 @@ describe("classify-change.sh planning-lane", () => {
   });
 
   it("propagates a canonical refusal without printing a reviewed fallback", async () => {
-    const cli = await fakeCli(1, "", "receipt/path.json\n");
+    const base = "a".repeat(40);
+    const head = "b".repeat(40);
+    const cli = await fakeCli(1, "", "receipt/path.json\n", [
+      "review", "planning-lane", base, head, "--repository", "/data/repository",
+    ]);
     const result = await runScript(CLASSIFY_SCRIPT, [
       "planning-lane",
-      "a".repeat(40),
-      "b".repeat(40),
+      base,
+      head,
     ], {
       env: { ARC_PLANNING_CLI: cli, CLASSIFY_REPOSITORY_DIR: "/data/repository" },
     });
