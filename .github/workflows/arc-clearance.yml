@@ -80,7 +80,7 @@ jobs:
           HEAD_SHA: ${{ steps.planning-target.outputs.head_sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          lane="$(npx arc review planning-lane "$BASE_SHA" "$HEAD_SHA" \
+          lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA" \
             --repository "$GITHUB_WORKSPACE/_arc_change_data")"
           test "$lane" = planning || test "$lane" = reviewed
           if [ "$lane" = planning ]; then
