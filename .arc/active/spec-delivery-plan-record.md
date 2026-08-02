@@ -313,6 +313,20 @@ delivery plan are authored in the same stage, so a boundary you want is a bounda
 On retrofit, a range touching part of a parent simply reports that parent as represented in more than one member,
 which the coverage refinement below already admits. Neither hand-run cut went finer than a phase.
 
+**The digest covers `Goal` text with whitespace normalized, not its bytes.** Task lists are hard-wrapped to a
+line-length gate, so re-wrapping an unchanged `Goal` is an ordinary edit; under a verbatim-bytes digest it would
+move every dependent task digest, member fingerprint, `inventoryDigest`, and `planDigest` — and past the bind point
+would force a replacement for a reflow. So a task digest covers the descriptor's text with inter-word whitespace
+and line breaks collapsed to single spaces, and the descriptor spans its label line plus every indented
+continuation line, closing at the next peer descriptor, subtask, fence, phase, or section heading. That boundary is
+what makes the covered surface decidable rather than a matter of where an author happened to break a line. One
+authority for what a descriptor spans is the requirement; two that could disagree on nested lists or blank-line
+separation would leave the digest and the formatting gate permanently at odds. That authority already exists —
+the project's spacing pass computes exactly this extent, today as private state behind a validator answering a
+different question — so it is exposed and shared rather than duplicated, and its rules are adopted as they stand
+rather than restated in tidier form. Two consequences follow from adopting them honestly: a nested list inside a
+`Goal` falls outside the digest, and an indented line after a blank line falls inside it.
+
 `inventoryDigest` covers the normalized inventory, so rendering the plan into the task list creates no digest cycle
 and later progress updates do not amend delivery intent.
 
@@ -438,17 +452,19 @@ blesses `code review`, `maintenance`, and `incidental during …` alongside a ta
 range land under one bounding commit, and batching maps several tasks onto a single commit by design. A task with
 no attributed commit is therefore a reachable state, not a malformed one.
 
-**Attributed references normalize to the parent inventory before membership is derived, and the normalization is
-wider than the footer contract states.** The inventory binds parent tasks. The footer grammar specifies two-level
-ids — a single task, a range, a non-contiguous list — but practice has outrun it: on this repository, most
-task-naming footers carry a deeper id, dominated by subtask-level forms and including the revision family the
-task-list standard defines (`X.Y.R` at subtask level, `X.R` as a phase-level follow-on, with their own children).
-Deriving membership from what the grammar admits alone would discard most real attributions, so normalization is
-specified over what task ids actually are.
+**Attributed references normalize to the parent inventory before membership is derived.** The inventory binds
+parent tasks, while a footer names whatever id the work was actually done under. The enforced footer grammar
+admits arbitrary dotted depth, so subtask-level forms and the revision family the task-list standard defines
+(`X.Y.R` at subtask level, `X.R` as a phase-level follow-on, with their own children) all validate today; only
+the contract's documented examples are two-level, and on this repository most task-naming footers carry a deeper
+id than those examples show. Normalization is therefore required by the inventory's granularity rather than by
+any narrowness in the grammar — a reference may legitimately name something finer than the inventory binds, and
+membership must still resolve.
 
 A reference resolves upward to the nearest enclosing entry in the parent inventory; a range or list expands, then
-resolves, then deduplicates. Where the walk reaches no inventory entry — a phase-level revision item is the
-ordinary case, since it is a follow-on rather than a parent implementation task — the reference contributes no
+resolves, then deduplicates. Revision-family ids resolve to themselves rather than upward, since a phase-level
+follow-on is authored as a parent and carries its own inventory entry. Where the walk reaches no inventory entry —
+a task deleted or renumbered after the footer citing it was written — the reference contributes no
 membership and is reported. It is **not** a composition error: on the derived entry an unresolvable reference is
 the same class of evidence gap as an unattributed task, and § 2 already settles that coverage is enforced where it
 is authored and advisory where it is derived. Refusing here would fail a cut on historical footers the author
@@ -499,8 +515,16 @@ already runs at every design stage. That test asks whether a concern is too big 
 answers "stays one work unit" it is also, silently, deciding the concern is coherent — and its own primary signal
 is the count of distinct deliverables and independently reviewable surfaces. A concern that stays one unit _while_
 that signal fired is exactly the shape a delivery plan serves, and today that pairing is computed and discarded.
-Delivery consumes that recorded verdict rather than authoring a second test; the advisory is worth surfacing once,
-never a gate, and freely declined, because the retrofit entry stays open at the same cost.
+Delivery reads that judgment rather than authoring a second test; the advisory is worth surfacing once, never a
+gate, and freely declined, because the retrofit entry stays open at the same cost.
+
+**Surfaced where the judgment is made, not read from a record.** No verdict artifact exists — the boundary test
+states its separable-surfaces signal in prose and records nothing when it answers "stays one work unit," and
+creating that artifact belongs to the work unit rewriting the test. So the advisory attaches to the test's own
+"stays one unit" arm and is surfaced in the session that makes the judgment. That satisfies the surface-once bar
+without a durable record, at the cost of not firing later, which the freely-declined posture already tolerates.
+When a recorded verdict does land — carrying its reason, so "unremarkable" is distinguishable from "with separable
+surfaces" — this becomes a consumer of it without changing shape.
 
 ### 4. The human task-list projection
 
@@ -523,6 +547,11 @@ Three rendering rules follow from decisions elsewhere in this spec:
   is recorded but never consulted and never varies in a way that informs the reader, so the column is omitted.
 
 ### 5. Delivery state and the transition-bearing facts
+
+**This state record is the observations record of § 6** — the fourth of the four, not a fifth. It is named for
+what it carries here and for where it lives there, and stating the identity is what keeps a reader from
+provisioning both. It publishes by expected revision under that section's discipline, which is what `stateRevision`
+counts.
 
 One strict-current, non-evidentiary snapshot contains:
 
@@ -1094,15 +1123,23 @@ what that member enforces against, and reports which commits touch a work unit's
 enforcing the rule itself.
 
 **Coordination.** Two shipped surfaces — the cohort-fit boundary method and the work-organization strategy's sizing
-standard — currently define a stack as a cohort's dependency-ordered delivery mode and state that it is not one
-work unit spread across many branches, which contradicts this cohort's amended invariant. Naming the contradiction
-is delivery's, because the invariant is delivery's; making the edit is not. The decomposition-doctrine work unit is
-already rewriting both surfaces, and two editors on one bullet would collide semantically as well as textually, so
-the requirement routes there and is executed inside that rebalance. Two constraints ride along: the sizing standard
-ships, so the correction must remove the contradiction without forward-pointing to an unshipped mechanism; and the
-recorded boundary verdict must carry its reason in a form a consumer can read, since the § 3 advisory depends on
-distinguishing "stayed one unit, unremarkable" from "stayed one unit, with separable surfaces." That is a soft
-prerequisite for the advisory only.
+standard — define a stack as a cohort's dependency-ordered delivery mode and state that it is not one work unit
+spread across many branches, which contradicts this cohort's amended invariant. Naming the contradiction is
+delivery's, because the invariant is delivery's. The edit was routed to the decomposition-doctrine work unit on the
+premise that it was already rewriting both surfaces and two editors on one bullet would collide; that premise no
+longer holds. That work unit is paused pending its own cohort, and this one ships first, so routing the correction
+there would ship a self-contradiction and leave it standing until a paused unit resumes. The correction therefore
+lands here, bounded to the sizing statement itself, and the discriminator rebalance around it remains that unit's.
+Two constraints ride along: the sizing standard ships, so the correction must remove the contradiction without
+forward-pointing to an unshipped mechanism; and the recorded boundary verdict must carry its reason in a form a
+consumer can read, to distinguish "stayed one unit, unremarkable" from "stayed one unit, with separable surfaces."
+
+**A second contradiction is named here and deliberately not corrected.** The same strategy's single-branch doctrine
+states that one work unit is one branch from planning through integration, merged to the base exactly once. The
+amended invariant contradicts that too, and more fundamentally than the sizing bullet does — it reaches branch
+identity, worktree scope, and the artifact-location rules that hang off them, rather than one comparison between
+delivery shapes. Correcting it is not a wording pass, and it belongs with whoever settles what a work unit's branch
+identity means once delivery refs exist. Recorded so the gap is known rather than discovered.
 
 Three cohort divergences route the same way. The cohort's segment-refinement settlement rests on the premise that
 every implementation task occurs in exactly one member in task-inventory order; this member has settled both halves
