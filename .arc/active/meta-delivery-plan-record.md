@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — spec finalized at `detailed`/RFC, draft retired to notes, four adversarial passes folded
+- **Last Completed:** generate-tasks — task plan finalized at `high` depth, cut into four delivery members, activated
 - **Next Task:** Task 1.1 — Register the delivery schema family (line ~64)
 - **Blockers:** [none]
 
