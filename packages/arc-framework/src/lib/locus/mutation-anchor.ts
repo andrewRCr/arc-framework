@@ -28,13 +28,30 @@ export async function selectLocusMutationAnchor(
   ancestryInspector: ProcessAncestryInspector = createPlatformProcessAncestryInspector(),
 ): Promise<Extract<LocusAnchor, { kind: "process" }>> {
   const selected = await acquireSessionAnchor(process.pid, ancestryInspector);
-  if (selected.kind === "process") return selected;
+  return selectLocusMutationAnchorFromSessionAnchor(selected, inspector, diagnostic);
+}
+
+/**
+ * Select a process-verifiable mutation anchor from an already-resolved session boundary.
+ *
+ * @param sessionAnchor - Durable session selection, which may be unverifiable.
+ * @param inspector - Platform process inspector used for the command-level fallback.
+ * @param diagnostic - Operation-scoped prefix for the unavailable-anchor failure.
+ * @returns The selected session process or the verified running command process.
+ * @throws When an unverifiable session selection cannot fall back to the command process.
+ */
+export async function selectLocusMutationAnchorFromSessionAnchor(
+  sessionAnchor: LocusAnchor,
+  inspector: ProcessInspector,
+  diagnostic: string,
+): Promise<Extract<LocusAnchor, { kind: "process" }>> {
+  if (sessionAnchor.kind === "process") return sessionAnchor;
   const command = await inspector.inspect(process.pid);
   if (command.kind !== "present") {
     const fallback = command.kind === "unverifiable"
       ? command.reason
       : "command process is absent";
-    throw new Error(`${diagnostic}: ${selected.reason} (command fallback: ${fallback})`);
+    throw new Error(`${diagnostic}: ${sessionAnchor.reason} (command fallback: ${fallback})`);
   }
   return {
     kind: "process",

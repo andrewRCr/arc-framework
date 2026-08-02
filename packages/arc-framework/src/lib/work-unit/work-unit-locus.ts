@@ -9,6 +9,10 @@ import {
 } from "../git/worktree-roster.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
 import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
+import {
+  selectLocusMutationAnchor,
+  selectLocusMutationAnchorFromSessionAnchor,
+} from "../locus/mutation-anchor.js";
 import { attachLocusLease, mintDurableLocusRole, releaseLocusLease } from "../locus/mutation.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
 import {
@@ -23,7 +27,7 @@ import {
   replaceLocusRecord,
 } from "../locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../locus/root.js";
-import type { LocusAnchor, LocusProcessAnchor } from "../locus/schema/index.js";
+import type { LocusProcessAnchor } from "../locus/schema/index.js";
 
 export interface ReconcileWorkUnitLocusOptions {
   readonly checkoutPath: string;
@@ -79,7 +83,7 @@ async function retireNodeWorkUnitLocus(
   if (matches.length !== 1) throw new Error("cannot retire work-unit session locus: target is not an exact live roster entry");
   const inspector = createPlatformProcessInspector();
   const anchor = runtime.mutationAnchor
-    ?? await selectMutationAnchor(false, inspector, "cannot retire work-unit session locus");
+    ?? await selectLocusMutationAnchor(inspector, "cannot retire work-unit session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -114,8 +118,7 @@ async function retireNodeWorkUnitLocus(
     }
     const lease = current.record.lease;
     if (lease !== null) {
-      const sameAnchor = anchor.kind === "process"
-        && lease.anchor.kind === "process"
+      const sameAnchor = lease.anchor.kind === "process"
         && lease.anchor.pid === anchor.pid
         && lease.anchor.startToken === anchor.startToken
         && lease.anchor.inspector === anchor.inspector;
@@ -164,8 +167,15 @@ async function reconcileNodeWorkUnitLocus(
   const checkoutPath = resolve(target.path);
 
   const inspector = createPlatformProcessInspector();
-  const anchor = runtime.mutationAnchor
-    ?? await selectMutationAnchor(options.attachSession, inspector, "cannot establish work-unit session locus");
+  const diagnostic = "cannot establish work-unit session locus";
+  const sessionAnchor = options.attachSession
+    ? runtime.mutationAnchor
+      ?? await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector())
+    : null;
+  const mutationAnchor = runtime.mutationAnchor
+    ?? (sessionAnchor === null
+      ? await selectLocusMutationAnchor(inspector, diagnostic)
+      : await selectLocusMutationAnchorFromSessionAnchor(sessionAnchor, inspector, diagnostic));
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot establish work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -173,7 +183,7 @@ async function reconcileNodeWorkUnitLocus(
   const recordPath = locusRecordPath(root, identity.digest);
   const acquired = await acquireLocusLock({
     path: locusLockPath(root, identity.digest),
-    anchor,
+    anchor: mutationAnchor,
     inspector,
   });
   if (acquired.kind !== "acquired") {
@@ -234,20 +244,21 @@ async function reconcileNodeWorkUnitLocus(
       if (current.kind !== "valid") throw new Error("cannot establish work-unit session locus: minted record is unavailable");
       return { recordId: identity.recordId, leaseId: current.record.lease?.leaseId ?? null, roleCreated };
     }
+    if (sessionAnchor === null) throw new Error("cannot attach work-unit session locus: session anchor is unavailable");
 
     const current = await io.read();
     if (current.kind !== "valid") throw new Error("cannot attach work-unit session locus: record is unavailable");
-    const sameAnchor = anchor.kind === "process"
+    const sameAnchor = sessionAnchor.kind === "process"
       && current.record.lease?.anchor.kind === "process"
-      && current.record.lease.anchor.pid === anchor.pid
-      && current.record.lease.anchor.startToken === anchor.startToken
-      && current.record.lease.anchor.inspector === anchor.inspector;
+      && current.record.lease.anchor.pid === sessionAnchor.pid
+      && current.record.lease.anchor.startToken === sessionAnchor.startToken
+      && current.record.lease.anchor.inspector === sessionAnchor.inspector;
     const observedLiveness = current.record.lease === null
       ? null
       : current.record.lease.anchor.kind === "process"
         ? await verifyProcessAnchor(current.record.lease.anchor, inspector)
         : "unknown";
-    if (anchor.kind === "unverifiable") {
+    if (sessionAnchor.kind === "unverifiable") {
       if (current.record.lease === null) {
         return { recordId: identity.recordId, leaseId: null, roleCreated };
       }
@@ -268,7 +279,7 @@ async function reconcileNodeWorkUnitLocus(
     const attached = await attachLocusLease({
       recordId: identity.recordId,
       sessionHomePath: checkoutPath,
-      anchor,
+      anchor: sessionAnchor,
       ...(sameAnchor && current.record.lease !== null ? { leaseId: current.record.lease.leaseId } : {}),
       attachedAt: sameAnchor && current.record.lease !== null ? current.record.lease.attachedAt : establishedAt,
       heartbeatAt: establishedAt,
@@ -318,27 +329,4 @@ async function matchingRegisteredWorktrees(
   return candidates
     .filter((candidate) => candidate.canonicalPath === canonicalCheckoutPath)
     .map((candidate) => candidate.worktree);
-}
-
-async function selectMutationAnchor(
-  requireSession: boolean,
-  inspector: ReturnType<typeof createPlatformProcessInspector>,
-  diagnostic: string,
-): Promise<LocusAnchor> {
-  const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (selected.kind === "process" || requireSession) return selected;
-  const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") {
-    const fallback = command.kind === "unverifiable"
-      ? command.reason
-      : "command process is absent";
-    throw new Error(`${diagnostic}: ${selected.reason} (command fallback: ${fallback})`);
-  }
-  return {
-    kind: "process" as const,
-    pid: command.pid,
-    startToken: command.startToken,
-    inspector: inspector.kind,
-    selector: "arc-command",
-  };
 }
