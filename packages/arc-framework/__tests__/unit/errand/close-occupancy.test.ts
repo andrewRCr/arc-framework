@@ -36,6 +36,16 @@ function errandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
   };
 }
 
+function removedErrandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
+  return errandRow({
+    kind: "stale-record",
+    primary: null,
+    lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    frame: null,
+    ...overrides,
+  });
+}
+
 function identityRow(identity: LocusIdentityV1 = ERRAND_IDENTITY): LocusRowV1 {
   return {
     kind: "identity-only", checkoutPath: null, primary: null, recordId: null, role: null,
@@ -84,6 +94,45 @@ describe("classifyErrandCloseOccupancy", () => {
     }));
 
     expect(resolved).toEqual({ kind: "clear", authority: "current-checkout" });
+  });
+
+  it("clears an exact self-held stale record after spawned checkout removal", () => {
+    const removed = removedErrandRow();
+
+    expect(classify(state([removed, identityRow()]))).toEqual({
+      kind: "clear",
+      authority: "removed-checkout",
+    });
+  });
+
+  it("refuses stale-record replay without the exact identity or self-held lease", () => {
+    const foreign = removedErrandRow({
+      lease: { ...removedErrandRow().lease, selfHeld: false } as LocusRowV1["lease"],
+    });
+
+    expect(classify(state([removedErrandRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
+    expect(classify(state([foreign, identityRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
+  });
+
+  it("refuses stale-record replay with any authority diagnostic", () => {
+    const unreadable = removedErrandRow({
+      diagnostics: [{
+        code: "path-unavailable",
+        source: { kind: "record", key: RECORD_ID },
+        message: "The checkout path cannot be canonicalized.",
+      }],
+    });
+
+    expect(classify(state([unreadable, identityRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
   });
 
   it("refuses current-checkout occupancy held by another live session", () => {

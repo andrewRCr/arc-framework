@@ -25,7 +25,7 @@ import { acquireErrandCloseHeadLock } from "./close-head-lock.js";
 
 /** Runtime authority and production boundaries for one selected close generation. */
 export interface CloseLocusSettlementRuntimeOptions {
-  readonly authority: "current-checkout" | "base-checkout";
+  readonly authority: "current-checkout" | "base-checkout" | "removed-checkout";
   readonly target: CloseTarget;
   readonly state: LocusStateV1;
   readonly row: LocusRowV1;
@@ -62,7 +62,9 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
   const row = options.row;
   const role = row.role;
   const lease = row.lease;
-  if (row.kind !== "managed-role" || row.checkoutPath === null || row.recordId === null || role === null) {
+  const removedCheckoutReplay = options.authority === "removed-checkout" && row.kind === "stale-record";
+  if ((row.kind !== "managed-role" && !removedCheckoutReplay)
+    || row.checkoutPath === null || row.recordId === null || role === null) {
     return refused("record-malformed", "Errand close occupancy is incomplete.");
   }
   if (role.kind !== "errand" || lease === null || lease.state !== "live" || !lease.selfHeld) {
@@ -106,7 +108,9 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
         "The Errand session locus generation changed before checkout settlement.",
       );
     } else {
-      const prepared = await prepareCheckout(options, row.checkoutPath, row.primary === true);
+      const prepared = removedCheckoutReplay
+        ? await verifyRemovedCheckout(options, row.checkoutPath)
+        : await prepareCheckout(options, row.checkoutPath, row.primary === true);
       if (prepared.kind === "refused" || prepared.kind === "error") {
         result = prepared;
       } else {
@@ -142,6 +146,22 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
     return result;
   }
   return { ...result, guard: preparedGuard?.guard ?? null };
+}
+
+async function verifyRemovedCheckout(
+  options: CloseLocusSettlementRuntimeOptions,
+  checkoutPath: string,
+): Promise<
+  | { kind: "ready"; guardPath: null }
+  | Extract<CloseLocusSettlementResult, { kind: "refused" | "error" }>
+> {
+  const topology = await scanRegisteredWorktrees(options.exec);
+  if (!topology.ok) {
+    return { kind: "error", message: `Errand checkout topology is unavailable: ${topology.message}` };
+  }
+  return topology.worktrees.some((worktree) => worktree.path === checkoutPath)
+    ? refused("role-conflict", "The removed Errand checkout path is registered again.")
+    : { kind: "ready", guardPath: null };
 }
 
 async function popOwnedGeneration(
@@ -318,6 +338,7 @@ function createBaseCheckoutCloseGuard(
         claimId: options.target.record.claimId,
       },
       revalidate,
+      inspector: options.inspector,
     }),
   };
 }

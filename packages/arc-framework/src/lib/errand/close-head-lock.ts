@@ -4,6 +4,7 @@ import { open, readFile, unlink } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import type { ProcessInspection, ProcessInspector } from "../locus/process-inspector.js";
 import type {
   CloseAuthorityGuard,
   CloseAuthorityLeaseResult,
@@ -22,6 +23,11 @@ interface ErrandCloseHeadLockReceiptV1 extends ErrandCloseHeadLockIdentity {
   readonly version: 1;
   readonly kind: typeof RECEIPT_KIND;
   readonly checkoutPath: string;
+  readonly holder: {
+    readonly pid: number;
+    readonly startToken: string;
+    readonly inspector: string;
+  };
 }
 
 interface CloseHeadLockHandle {
@@ -46,6 +52,7 @@ const NODE_FILE_IO: CloseHeadLockFileIO = {
 /** Result of inspecting a terminal close receipt after its identity is absent. */
 export type FinalizedCloseHeadLockRecovery =
   | { kind: "absent" | "recovered" }
+  | { kind: "blocked"; message: string }
   | { kind: "error"; message: string };
 
 /**
@@ -59,11 +66,14 @@ export async function acquireErrandCloseHeadLock(options: {
   checkoutPath: string;
   identity: ErrandCloseHeadLockIdentity;
   revalidate: CloseAuthorityGuard["revalidate"];
+  inspector: ProcessInspector;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<CloseAuthorityLeaseResult> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
   if (lockPath.kind === "error") return lockPath;
+  const holder = await inspectCurrentHolder(options.inspector);
+  if (holder.kind === "error") return holder;
 
   let handle: CloseHeadLockHandle;
   try {
@@ -85,6 +95,7 @@ export async function acquireErrandCloseHeadLock(options: {
     slug: options.identity.slug,
     claimId: options.identity.claimId,
     checkoutPath: options.checkoutPath,
+    holder: holder.value,
   };
   try {
     await handle.writeFile(`${JSON.stringify(receipt)}\n`, "utf8");
@@ -136,6 +147,7 @@ export async function acquireErrandCloseHeadLock(options: {
 export async function recoverFinalizedErrandCloseHeadLock(options: {
   exec: GitExec;
   slug: string;
+  inspector: ProcessInspector;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
@@ -161,8 +173,21 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
   if (receipt === null || receipt.slug !== options.slug || receipt.checkoutPath !== checkoutPath) {
     return { kind: "absent" };
   }
-  // Identity absence proves the generation is terminal. A concurrent original release is already
-  // past every protected operation, and its ENOENT path below is intentionally idempotent.
+  const holderLiveness = await inspectHolder(receipt, options.inspector);
+  if (holderLiveness.kind === "blocked") return holderLiveness;
+  // A proven-dead holder cannot concurrently remove this generation and expose a replacement
+  // after this recheck. Identity absence independently proves the close terminal.
+  let currentBytes: string;
+  try {
+    currentBytes = await fileIO.read(lockPath.path);
+  } catch (error) {
+    return errorCode(error) === "ENOENT"
+      ? { kind: "absent" }
+      : { kind: "error", message: errorMessage(error) };
+  }
+  if (currentBytes !== bytes) {
+    return { kind: "blocked", message: "Checkout-lock generation changed during terminal recovery." };
+  }
   try {
     await fileIO.unlink(lockPath.path);
   } catch (error) {
@@ -210,8 +235,63 @@ function parseReceipt(bytes: string): ErrandCloseHeadLockReceiptV1 | null {
     && typeof candidate.claimId === "string"
     && CLAIM_ID_PATTERN.test(candidate.claimId)
     && typeof candidate.checkoutPath === "string"
+    && isReceiptHolder(candidate.holder)
     ? candidate as unknown as ErrandCloseHeadLockReceiptV1
     : null;
+}
+
+async function inspectCurrentHolder(
+  inspector: ProcessInspector,
+): Promise<
+  | { kind: "ready"; value: ErrandCloseHeadLockReceiptV1["holder"] }
+  | { kind: "error"; message: string }
+> {
+  let inspected: ProcessInspection;
+  try {
+    inspected = await inspector.inspect(process.pid);
+  } catch (error) {
+    return { kind: "error", message: `Could not inspect checkout-lock holder: ${errorMessage(error)}` };
+  }
+  if (inspected.kind !== "present" || inspected.pid !== process.pid || inspected.startToken.trim() === "") {
+    return { kind: "error", message: "Could not establish the checkout-lock holder generation." };
+  }
+  return {
+    kind: "ready",
+    value: { pid: inspected.pid, startToken: inspected.startToken, inspector: inspector.kind },
+  };
+}
+
+async function inspectHolder(
+  receipt: ErrandCloseHeadLockReceiptV1,
+  inspector: ProcessInspector,
+): Promise<{ kind: "dead" } | { kind: "blocked"; message: string }> {
+  if (receipt.holder.inspector !== inspector.kind) {
+    return { kind: "blocked", message: "Checkout-lock holder liveness cannot be verified by this runtime." };
+  }
+  let inspected: ProcessInspection;
+  try {
+    inspected = await inspector.inspect(receipt.holder.pid);
+  } catch (error) {
+    return { kind: "blocked", message: `Checkout-lock holder liveness is unavailable: ${errorMessage(error)}` };
+  }
+  if (inspected.kind === "absent") return { kind: "dead" };
+  if (inspected.kind === "unverifiable") {
+    return { kind: "blocked", message: `Checkout-lock holder liveness is unavailable: ${inspected.reason}` };
+  }
+  return inspected.pid === receipt.holder.pid && inspected.startToken === receipt.holder.startToken
+    ? { kind: "blocked", message: "Checkout-lock cleanup is still owned by the live close process; retry later." }
+    : { kind: "dead" };
+}
+
+function isReceiptHolder(value: unknown): value is ErrandCloseHeadLockReceiptV1["holder"] {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return Number.isSafeInteger(candidate.pid)
+    && (candidate.pid as number) > 0
+    && typeof candidate.startToken === "string"
+    && candidate.startToken.trim() !== ""
+    && typeof candidate.inspector === "string"
+    && candidate.inspector.trim() !== "";
 }
 
 function errorCode(error: unknown): string | undefined {

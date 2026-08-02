@@ -148,7 +148,12 @@ async function readReconciledCloseIdentity(
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
     if (result.value === null) {
-      const recovery = await recoverFinalizedErrandCloseHeadLock({ exec: io.exec, slug });
+      const recovery = await recoverFinalizedErrandCloseHeadLock({
+        exec: io.exec,
+        slug,
+        inspector: createPlatformProcessInspector(),
+      });
+      if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
     }
     return { kind: "ready", record: result.value };

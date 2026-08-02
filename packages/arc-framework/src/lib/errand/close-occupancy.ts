@@ -11,7 +11,7 @@ import type {
 } from "../locus/schema/index.js";
 
 export type CloseOccupancyVerdict =
-  | { kind: "clear"; authority: "unclaimed" | "current-checkout" | "base-checkout" }
+  | { kind: "clear"; authority: "unclaimed" | "current-checkout" | "base-checkout" | "removed-checkout" }
   | { kind: "refused"; reason: LocusRefusalReason; message: string };
 
 /** Positive runtime evidence for the one unresolved subject state close may clear. */
@@ -53,6 +53,9 @@ export function classifyErrandCloseOccupancy(options: {
   }
   if (isExactSelfHeldBaseCheckout(claim, options.state, options.baseCheckoutProof)) {
     return { kind: "clear", authority: "base-checkout" };
+  }
+  if (isExactSelfHeldRemovedCheckout(claim, options.state, options.slug, options.claimId)) {
+    return { kind: "clear", authority: "removed-checkout" };
   }
 
   const trusted = projectTrustedLocusRow(claim);
@@ -104,6 +107,32 @@ function isExactSelfHeldBaseCheckout(
 
 function hasExactInFlightIdentity(state: LocusStateV1, expected: LocusIdentityV1): boolean {
   return state.inFlightIdentities.filter(({ identity }) => isDeepStrictEqual(identity, expected)).length === 1;
+}
+
+function isExactSelfHeldRemovedCheckout(
+  claim: LocusRowV1,
+  state: LocusStateV1,
+  slug: string,
+  claimId: string | null,
+): boolean {
+  if (claim.kind !== "stale-record"
+    || claim.recordId === null
+    || claim.checkoutPath === null
+    || claim.primary !== null
+    || claim.role?.kind !== "errand"
+    || claim.role.subject.key !== slug
+    || claim.role.subject.claimId !== claimId
+    || claim.lease?.state !== "live"
+    || !claim.lease.selfHeld
+    || claim.diagnostics.length !== 0) return false;
+  if (state.roster.rows.some((row) => row !== claim
+    && row.checkoutPath === claim.checkoutPath
+    && row.kind !== "identity-only")) return false;
+  return state.inFlightIdentities.filter(({ identity }) =>
+    identity.kind === "errand"
+    && identity.purpose === "errand"
+    && identity.key === slug
+    && identity.claimId === claimId).length === 1;
 }
 
 function foreignReason(lease: LocusRowV1["lease"]): LocusRefusalReason {
