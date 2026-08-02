@@ -631,13 +631,22 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
   (value, context) => {
     const taskCursorRequired = value.loadSet.ok
       && value.loadSet.value.entries.some((entry) => entry.readMode.kind === "partial-strategic");
-    if (Object.hasOwn(value, "taskCursor") !== taskCursorRequired) {
+    const integrationTaskCursorAllowed = value.recoveryFrame.ok
+      && value.recoveryFrame.value.kind === "resolved"
+      && value.recoveryFrame.value.sessionType === "integration";
+    const taskCursorPresent = Object.hasOwn(value, "taskCursor");
+    if (!taskCursorPresent && taskCursorRequired) {
       context.addIssue({
         code: "custom",
         path: ["taskCursor"],
-        message: taskCursorRequired
-          ? "required by the locus-derived strategic task-list entry"
-          : "forbidden without a locus-derived strategic task-list entry",
+        message: "required by the locus-derived strategic task-list entry",
+      });
+    }
+    if (taskCursorPresent && !taskCursorRequired && !integrationTaskCursorAllowed) {
+      context.addIssue({
+        code: "custom",
+        path: ["taskCursor"],
+        message: "forbidden without a locus-derived strategic task-list entry or resolved integration frame",
       });
     }
   },

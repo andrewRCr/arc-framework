@@ -3,9 +3,17 @@
 import { resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
-import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
+import {
+  scanRegisteredWorktrees,
+  type RegisteredWorktree,
+} from "../git/worktree-roster.js";
+import { canonicalLocalPath } from "../local-path-identity.js";
 import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
-import { attachLocusLease, mintDurableLocusRole } from "../locus/mutation.js";
+import {
+  selectLocusMutationAnchor,
+  selectLocusMutationAnchorFromSessionAnchor,
+} from "../locus/mutation-anchor.js";
+import { attachLocusLease, mintDurableLocusRole, releaseLocusLease } from "../locus/mutation.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
 import {
   createPlatformProcessAncestryInspector,
@@ -75,7 +83,7 @@ async function retireNodeWorkUnitLocus(
   if (matches.length !== 1) throw new Error("cannot retire work-unit session locus: target is not an exact live roster entry");
   const inspector = createPlatformProcessInspector();
   const anchor = runtime.mutationAnchor
-    ?? await selectMutationAnchor(false, inspector, "cannot retire work-unit session locus");
+    ?? await selectLocusMutationAnchor(inspector, "cannot retire work-unit session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -148,18 +156,26 @@ async function reconcileNodeWorkUnitLocus(
   runtime: { readonly exec: GitExec; readonly identity: string; readonly mutationAnchor?: LocusProcessAnchor },
   options: ReconcileWorkUnitLocusOptions,
 ): Promise<WorkUnitLocusReceipt> {
-  const checkoutPath = resolve(options.checkoutPath);
   const topology = await scanRegisteredWorktrees(runtime.exec);
   if (!topology.ok) throw new Error(`cannot establish work-unit session locus: ${topology.message}`);
-  const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+  const checkoutIdentity = await canonicalLocalPath(options.checkoutPath);
+  const matches = await matchingRegisteredWorktrees(topology.worktrees, checkoutIdentity);
   const target = matches.length === 1 ? matches[0] : undefined;
   if (target === undefined || target.detached || target.branch !== options.branch) {
     throw new Error("cannot establish work-unit session locus: target is not an exact live worktree roster entry");
   }
+  const checkoutPath = resolve(target.path);
 
   const inspector = createPlatformProcessInspector();
-  const anchor = runtime.mutationAnchor
-    ?? await selectMutationAnchor(options.attachSession, inspector, "cannot establish work-unit session locus");
+  const diagnostic = "cannot establish work-unit session locus";
+  const sessionAnchor = options.attachSession
+    ? runtime.mutationAnchor
+      ?? await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector())
+    : null;
+  const mutationAnchor = runtime.mutationAnchor
+    ?? (sessionAnchor === null
+      ? await selectLocusMutationAnchor(inspector, diagnostic)
+      : await selectLocusMutationAnchorFromSessionAnchor(sessionAnchor, inspector, diagnostic));
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot establish work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -167,7 +183,7 @@ async function reconcileNodeWorkUnitLocus(
   const recordPath = locusRecordPath(root, identity.digest);
   const acquired = await acquireLocusLock({
     path: locusLockPath(root, identity.digest),
-    anchor,
+    anchor: mutationAnchor,
     inspector,
   });
   if (acquired.kind !== "acquired") {
@@ -177,7 +193,7 @@ async function reconcileNodeWorkUnitLocus(
   const applyUnderLock = async (): Promise<WorkUnitLocusReceipt> => {
     const freshTopology = await scanRegisteredWorktrees(runtime.exec);
     if (!freshTopology.ok) throw new Error(`cannot establish work-unit session locus: ${freshTopology.message}`);
-    const freshMatches = freshTopology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+    const freshMatches = await matchingRegisteredWorktrees(freshTopology.worktrees, checkoutIdentity);
     const freshTarget = freshMatches.length === 1 ? freshMatches[0] : undefined;
     if (freshTarget === undefined || freshTarget.detached || freshTarget.branch !== options.branch) {
       throw new Error("cannot establish work-unit session locus: target roster generation changed under lock");
@@ -228,22 +244,42 @@ async function reconcileNodeWorkUnitLocus(
       if (current.kind !== "valid") throw new Error("cannot establish work-unit session locus: minted record is unavailable");
       return { recordId: identity.recordId, leaseId: current.record.lease?.leaseId ?? null, roleCreated };
     }
+    if (sessionAnchor === null) throw new Error("cannot attach work-unit session locus: session anchor is unavailable");
 
     const current = await io.read();
     if (current.kind !== "valid") throw new Error("cannot attach work-unit session locus: record is unavailable");
-    const sameAnchor = current.record.lease?.anchor.kind === "process"
-      && current.record.lease.anchor.pid === anchor.pid
-      && current.record.lease.anchor.startToken === anchor.startToken
-      && current.record.lease.anchor.inspector === anchor.inspector;
+    const sameAnchor = sessionAnchor.kind === "process"
+      && current.record.lease?.anchor.kind === "process"
+      && current.record.lease.anchor.pid === sessionAnchor.pid
+      && current.record.lease.anchor.startToken === sessionAnchor.startToken
+      && current.record.lease.anchor.inspector === sessionAnchor.inspector;
     const observedLiveness = current.record.lease === null
       ? null
       : current.record.lease.anchor.kind === "process"
         ? await verifyProcessAnchor(current.record.lease.anchor, inspector)
         : "unknown";
+    if (sessionAnchor.kind === "unverifiable") {
+      if (current.record.lease === null) {
+        return { recordId: identity.recordId, leaseId: null, roleCreated };
+      }
+      if (observedLiveness !== "dead") {
+        const reason = observedLiveness === "live" ? "lease-live" : "lease-unknown";
+        throw new Error(`cannot attach work-unit session locus: ${reason}`);
+      }
+      const releasedLease = await releaseLocusLease({
+        recordId: identity.recordId,
+        leaseId: current.record.lease.leaseId,
+        io,
+      });
+      if (releasedLease.kind === "refused") {
+        throw new Error(`cannot attach work-unit session locus: ${releasedLease.reason}`);
+      }
+      return { recordId: identity.recordId, leaseId: null, roleCreated };
+    }
     const attached = await attachLocusLease({
       recordId: identity.recordId,
       sessionHomePath: checkoutPath,
-      anchor,
+      anchor: sessionAnchor,
       ...(sameAnchor && current.record.lease !== null ? { leaseId: current.record.lease.leaseId } : {}),
       attachedAt: sameAnchor && current.record.lease !== null ? current.record.lease.attachedAt : establishedAt,
       heartbeatAt: establishedAt,
@@ -282,26 +318,15 @@ async function reconcileNodeWorkUnitLocus(
   return result;
 }
 
-async function selectMutationAnchor(
-  requireSession: boolean,
-  inspector: ReturnType<typeof createPlatformProcessInspector>,
-  diagnostic: string,
-) {
-  const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (selected.kind === "process") return selected;
-  if (requireSession) throw new Error(`${diagnostic}: ${selected.reason}`);
-  const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") {
-    const fallback = command.kind === "unverifiable"
-      ? command.reason
-      : "command process is absent";
-    throw new Error(`${diagnostic}: ${selected.reason} (command fallback: ${fallback})`);
-  }
-  return {
-    kind: "process" as const,
-    pid: command.pid,
-    startToken: command.startToken,
-    inspector: inspector.kind,
-    selector: "arc-command",
-  };
+async function matchingRegisteredWorktrees(
+  worktrees: readonly RegisteredWorktree[],
+  canonicalCheckoutPath: string,
+): Promise<RegisteredWorktree[]> {
+  const candidates = await Promise.all(worktrees.map(async (worktree) => ({
+    worktree,
+    canonicalPath: await canonicalLocalPath(worktree.path),
+  })));
+  return candidates
+    .filter((candidate) => candidate.canonicalPath === canonicalCheckoutPath)
+    .map((candidate) => candidate.worktree);
 }

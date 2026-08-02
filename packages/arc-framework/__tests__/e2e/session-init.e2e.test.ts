@@ -351,6 +351,56 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.taskCursor).toBeUndefined();
   });
 
+  it("preserves terminal task evidence for an integrating work unit", async () => {
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
+    await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      [
+        "# Metadata: Foo",
+        "",
+        "- **State:** Integrating",
+        "- **Owner:** test-user",
+        "- **Branch:** feat/foo",
+        "- **Depends On:** [none]",
+        "- **Task List:** tasks-foo.md",
+        "- **Current Workflow:** integrate-work-unit.md",
+        "- **Next Task:** [none]",
+        "- **Next Action:** Complete integration",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(activeDir, "tasks-foo.md"),
+      taskListFixture("Complete recovery").replace("`[ ]`", "`[x]`"),
+    );
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "integrating fixture"], { cwd: tmpDir });
+
+    const adopted = await runArc(["wu", "reconcile", "foo", "--apply", "--json"], tmpDir);
+    expect(adopted.exitCode, adopted.stdout + adopted.stderr).toBe(0);
+
+    const result = await runArc(["status", "--recover", "--json"], tmpDir);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+
+    const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.recoveryFrame).toMatchObject({
+      ok: true,
+      value: { kind: "resolved", workflow: "integrate-work-unit", sessionType: "integration" },
+    });
+    expect(envelope.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
+    expect(envelope.loadSet?.value?.entries).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
+      .not.toContain(".arc/active/tasks-foo.md");
+  });
+
   it("audits the compaction seed against fresh recovery state", async () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });

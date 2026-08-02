@@ -83,7 +83,12 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
-import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
+import {
+  classifyCurrentWuLocusRole,
+  runCurrentWuReconcileSessionProbe,
+  type CurrentWuLocusRoleState,
+} from "../lib/session-init/current-wu-reconcile.js";
+import { runLocusStateProbe } from "./locus-state-probe.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -153,7 +158,6 @@ import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycl
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
-import { runLocusStateProbe } from "./locus-state-probe.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
@@ -697,8 +701,17 @@ export async function handleStatus(
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      currentWuReconcile: async ({ slug, metaPath }) =>
-        runCurrentWuReconcileSessionProbe(
+      currentWuReconcile: async ({ slug, metaPath }) => {
+        let locusRoleState: CurrentWuLocusRoleState = "unknown";
+        if (identity !== null) {
+          try {
+            const locusState = await getLocusState(identity);
+            locusRoleState = await classifyCurrentWuLocusRole(locusState, cwd, slug);
+          } catch {
+            // Reconcile planning remains available when the shared locus read degrades.
+          }
+        }
+        return runCurrentWuReconcileSessionProbe(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
             queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
@@ -707,8 +720,9 @@ export async function handleStatus(
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
           },
-          { slug, metaPath },
-        ),
+          { slug, metaPath, locusRoleState },
+        );
+      },
       userReferenceReconcile: async ({ slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;

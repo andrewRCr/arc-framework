@@ -371,7 +371,7 @@ describe("arc locus mutation commands", () => {
       "sleep 8",
     ], repository);
 
-    const recordPath = await waitForLocusRecordPath(repository);
+    const recordPath = await waitForLeasedLocusRecordPath(repository);
     const recordBefore = await readFile(recordPath, "utf8");
     const record = JSON.parse(recordBefore) as { recordId: string };
     try {
@@ -516,15 +516,18 @@ async function findLocusRecordPath(cwd: string, recordId: string): Promise<strin
   throw new Error(`Could not find locus record ${recordId}`);
 }
 
-async function waitForLocusRecordPath(cwd: string): Promise<string> {
+async function waitForLeasedLocusRecordPath(cwd: string): Promise<string> {
   const root = join(cwd, ".arc", "user", "test-user", ".internal", "loci");
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const names = await readdir(root).catch(() => []);
-    const record = names.find((name) => name.endsWith(".json"));
-    if (record !== undefined) return join(root, record);
+    for (const name of names.filter((entry) => entry.endsWith(".json"))) {
+      const path = join(root, name);
+      const record = JSON.parse(await readFile(path, "utf8")) as { lease?: unknown };
+      if (record.lease !== null && record.lease !== undefined) return path;
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("Timed out waiting for the session locus record.");
+  throw new Error("Timed out waiting for the leased session locus record.");
 }
 
 function gitWithInput(cwd: string, args: string[], input: string): Promise<string> {

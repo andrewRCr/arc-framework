@@ -10,9 +10,11 @@ import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { detectHookManager } from "./hook-manager.js";
 import { integrateHooks } from "./hook-integration.js";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { CoreIO } from "./types.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 import type { AccessFn } from "./hook-manager.js";
+import { normalizeGitRejection } from "./git/process-error.js";
 
 /** Options for git integration setup. */
 export interface GitIntegrationOptions {
@@ -39,7 +41,12 @@ export const ROADMAP_MERGE_DRIVER_COMMAND = [
 export type RoadmapConflictRemedySetupOptions = Pick<
   GitIntegrationOptions,
   "cwd" | "exec" | "readFile" | "writeFile"
->;
+> & {
+  /** Injectable wait boundary for bounded Git config retries. */
+  waitForRetry?: (delayMs: number) => Promise<void>;
+};
+
+const GIT_CONFIG_RETRY_DELAYS_MS = [10, 25, 50, 100] as const;
 
 /**
  * Configure git integration for an ARC project.
@@ -79,9 +86,19 @@ export async function configureRoadmapConflictRemedy(
   options: RoadmapConflictRemedySetupOptions,
   enableAttribute: boolean,
 ): Promise<void> {
-  const { cwd, exec, readFile, writeFile } = options;
-  await exec("git", ["config", "--local", "merge.arc-roadmap.name", ROADMAP_MERGE_DRIVER_NAME]);
-  await exec("git", ["config", "--local", "merge.arc-roadmap.driver", ROADMAP_MERGE_DRIVER_COMMAND]);
+  const { cwd, exec, readFile, writeFile, waitForRetry = delay } = options;
+  await setLocalGitConfigWithRetry(
+    exec,
+    "merge.arc-roadmap.name",
+    ROADMAP_MERGE_DRIVER_NAME,
+    waitForRetry,
+  );
+  await setLocalGitConfigWithRetry(
+    exec,
+    "merge.arc-roadmap.driver",
+    ROADMAP_MERGE_DRIVER_COMMAND,
+    waitForRetry,
+  );
 
   if (enableAttribute) {
     await writeArcGitattributesBlock(
@@ -90,6 +107,32 @@ export async function configureRoadmapConflictRemedy(
       readFile,
       writeFile,
     );
+  }
+}
+
+async function setLocalGitConfigWithRetry(
+  exec: CoreIO["exec"],
+  key: string,
+  value: string,
+  waitForRetry: (delayMs: number) => Promise<void>,
+): Promise<void> {
+  const args = ["config", "--local", key, value];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await exec("git", args);
+      return;
+    } catch (error) {
+      const normalized = normalizeGitRejection(error, { command: "git", args });
+      const retryDelay = GIT_CONFIG_RETRY_DELAYS_MS[attempt];
+      if (
+        normalized.kind !== "nonzero-exit"
+        || normalized.exitCode === undefined
+        || retryDelay === undefined
+      ) {
+        throw normalized;
+      }
+      await waitForRetry(retryDelay);
+    }
   }
 }
 

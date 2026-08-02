@@ -640,32 +640,67 @@ export async function runColdStart(
       design,
     });
   } catch (err) {
-    // Roll an auto-cut back so a scaffold failure leaves no dangling state — return
-    // the worktree to the protected base, delete the half-cut branch, and remove the
-    // meta the scaffold may have written before it threw. `git switch` leaves
-    // untracked files in place, so a lingering `.arc/active/meta-<name>.md` would
-    // read as a phantom active WU on the next `arc start`. Best-effort: the
-    // scaffold-failure refusal is the primary signal.
-    if (cutFromBase !== undefined) {
-      // Scoped pathspec — removes only the orphaned meta, never other untracked
-      // work. The SESSION-NOTES seed is gitignored (per-WU subdir) and benign: it
-      // doesn't drive active-WU detection and reconciles on the next user load.
-      const orphanMeta = projectActiveMetaPath(wuName);
-      try {
-        await ctx.io.exec("git", ["switch", cutFromBase], { cwd: params.worktreePath });
-        await ctx.io.exec("git", ["branch", "-D", branch], { cwd: params.worktreePath });
-        await ctx.io.exec("git", ["clean", "-f", "--", orphanMeta], { cwd: params.worktreePath });
-      } catch {
-        // Leave the partial state; the refusal below tells the caller to inspect.
-      }
-    }
+    await rollbackColdStart(ctx, {
+      worktreePath: params.worktreePath,
+      wuName,
+      branch,
+      cutFromBase,
+    });
     // Surface a scaffolding failure as a refusal so the no-throw contract holds
     // end to end (symmetric with runCreateNew's spawn guard).
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
+  try {
+    const locus = ctx.workUnitLocus
+      ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity });
+    await locus.reconcile({
+      checkoutPath: params.worktreePath,
+      branch,
+      wuName,
+      attachSession: true,
+    });
+  } catch (err) {
+    await rollbackColdStart(ctx, {
+      worktreePath: params.worktreePath,
+      wuName,
+      branch,
+      cutFromBase,
+    });
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `could not establish the work-unit session locus: ${message}` };
+  }
+
   return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
+}
+
+async function rollbackColdStart(
+  ctx: SpawnWorktreeContext,
+  options: {
+    worktreePath: string;
+    wuName: string;
+    branch: string;
+    cutFromBase: string | undefined;
+  },
+): Promise<void> {
+  if (options.cutFromBase !== undefined) {
+    try {
+      await ctx.io.exec("git", ["switch", options.cutFromBase], { cwd: options.worktreePath });
+      await ctx.io.exec("git", ["branch", "-D", options.branch], { cwd: options.worktreePath });
+    } catch {
+      // Best-effort rollback; the primary refusal still directs inspection.
+    }
+  }
+  try {
+    await ctx.io.exec(
+      "git",
+      ["clean", "-f", "--", projectActiveMetaPath(options.wuName)],
+      { cwd: options.worktreePath },
+    );
+  } catch {
+    // Best-effort rollback; the primary refusal still directs inspection.
+  }
 }
 
 /** Inputs for {@link runCreateNew} — the ambient context the handler resolves. */

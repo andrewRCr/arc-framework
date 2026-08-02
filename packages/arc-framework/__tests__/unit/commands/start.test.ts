@@ -72,8 +72,8 @@ const workUnitLocus: WorkUnitLocusDriver = {
   reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: true }),
 };
 
-function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath(), workUnitLocus };
+function ctx(io: UserIOContext, locus = workUnitLocus) {
+  return { io, internalTemplateDir: getInternalTemplatePath(), workUnitLocus: locus };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */
@@ -191,6 +191,34 @@ describe("runColdStart — use-existing scaffolding", () => {
     if (outcome.ok) return;
     expect(outcome.reason).toMatch(/could not scaffold the work unit/i);
     expect(outcome.reason).toMatch(/permission denied/);
+  });
+
+  it("removes its new active meta when session-locus establishment fails", async () => {
+    const refusingLocus: WorkUnitLocusDriver = {
+      reconcile: async () => { throw new Error("session anchor unavailable"); },
+    };
+    const realExec = io.exec;
+    const cleanupIo: UserIOContext = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        if (cmd === "git" && args[0] === "clean" && args[1] === "-f") {
+          const path = args.at(-1);
+          if (path !== undefined) await rm(join(options?.cwd ?? worktree, path), { force: true });
+        }
+        return realExec(cmd, args, options);
+      },
+    };
+
+    const outcome = await runColdStart(ctx(cleanupIo, refusingLocus), {
+      worktreePath: worktree,
+      branch: "feat/widget",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/session locus/iu);
+    expect(await pathExists(join(worktree, ".arc", "active", "meta-widget.md"))).toBe(false);
   });
 });
 
