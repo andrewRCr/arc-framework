@@ -33,6 +33,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/push-fetch.test.ts",
   "__tests__/unit/push-recovery.test.ts",
   "__tests__/unit/reconfigure.test.ts",
+  "__tests__/unit/session-init/current-wu-reconcile.test.ts",
   "__tests__/unit/sync-orchestrator.test.ts",
   "__tests__/unit/sync.test.ts",
   "__tests__/unit/user-handlers.test.ts",

@@ -111,7 +111,7 @@ describe("lean recovery envelope schema", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
   });
 
-  it("requires a cursor exactly when the locus-derived load set has a strategic task list", () => {
+  it("requires strategic cursors and permits cursor evidence for resolved integration", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
 
     const noTask = recovery();
@@ -122,5 +122,16 @@ describe("lean recovery envelope schema", () => {
 
     noTask.taskCursor = recovery().taskCursor;
     expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(false);
+
+    const integration = structuredClone(noTask);
+    const recoveryFrame = integration.recoveryFrame as {
+      value: { workflow: string; sessionType: string };
+    };
+    recoveryFrame.value.workflow = "integrate-work-unit";
+    recoveryFrame.value.sessionType = "integration";
+    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
+
+    delete integration.taskCursor;
+    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
   });
 });

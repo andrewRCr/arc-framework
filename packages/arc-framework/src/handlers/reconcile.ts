@@ -133,17 +133,20 @@ export async function handleWuReconcile(
     emitConflict(input, target.slug, target.reason);
     return;
   }
-  if (input.attachSession === true) {
+  let locusReceipt: WorkUnitLocusReceipt | null = null;
+  if (input.apply === true || input.attachSession === true) {
     const identity = await resolveIdentityWithPrompt(false);
     if (identity === null) {
-      emitConflict(input, target.slug, "cannot attach the work-unit session: identity resolution failed");
+      emitConflict(input, target.slug, "cannot reconcile the work-unit locus: identity resolution failed");
       return;
     }
     try {
-      await attachCurrentWuSession(
-        createNodeWorkUnitLocusDriver({ exec, identity }),
-        { checkoutPath: cwd, branch: currentBranch, wuName: target.slug },
-      );
+      locusReceipt = await createNodeWorkUnitLocusDriver({ exec, identity }).reconcile({
+        checkoutPath: cwd,
+        branch: currentBranch,
+        wuName: target.slug,
+        attachSession: input.attachSession === true,
+      });
     } catch (error) {
       emitConflict(input, target.slug, error instanceof Error ? error.message : String(error));
       return;
@@ -167,7 +170,7 @@ export async function handleWuReconcile(
     metaPath: target.metaPath,
     apply: input.apply === true,
   });
-  const envelope = toEnvelope(result);
+  const envelope = toEnvelope(result, locusReceipt?.roleCreated === true);
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(envelope)}\n`);
   } else {
@@ -228,10 +231,10 @@ async function resolveOwnedTarget(
       };
 }
 
-function toEnvelope(result: CurrentWuReconcileResult): ReconcileEnvelope {
+function toEnvelope(result: CurrentWuReconcileResult, roleCreated: boolean): ReconcileEnvelope {
   return {
     schemaVersion: 1,
-    status: result.status,
+    status: roleCreated && result.status === "clean" ? "applied" : result.status,
     slug: result.prepared.slug,
     dependency: result.prepared.plan.dependency,
     trackedReferences: result.prepared.plan.trackedReferences,
