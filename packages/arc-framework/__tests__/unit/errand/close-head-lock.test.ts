@@ -138,6 +138,29 @@ describe("Errand close HEAD lock", () => {
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
   });
 
+  it("does not recover another claim generation of the same Errand", async () => {
+    const runtime = fakeFileIO();
+    const processRuntime = fakeProcessInspector();
+    const acquired = await acquireErrandCloseHeadLock({
+      exec: fakeGit(),
+      checkoutPath: CHECKOUT,
+      identity: { slug: "done", claimId: "c".repeat(32) },
+      revalidate: async () => ({ kind: "valid" }),
+      fileIO: runtime.fileIO,
+      inspector: processRuntime.inspector,
+    });
+    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
+    processRuntime.setInspection({ kind: "absent" });
+    await expect(recoverFinalizedErrandCloseHeadLock({
+      exec: fakeGit(),
+      slug: "done",
+      claimId: "d".repeat(32),
+      fileIO: runtime.fileIO,
+      inspector: processRuntime.inspector,
+    })).resolves.toEqual({ kind: "absent" });
+    expect(runtime.files.has(LOCK_PATH)).toBe(true);
+  });
+
   it("treats a concurrent missing lock as successful release", async () => {
     const runtime = fakeFileIO();
     const processRuntime = fakeProcessInspector();

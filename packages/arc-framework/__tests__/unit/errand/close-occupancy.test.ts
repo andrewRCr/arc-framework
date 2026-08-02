@@ -53,6 +53,13 @@ function identityRow(identity: LocusIdentityV1 = ERRAND_IDENTITY): LocusRowV1 {
   };
 }
 
+function freePrimaryRow(): LocusRowV1 {
+  return {
+    kind: "free-primary", checkoutPath: CHECKOUT, primary: true, recordId: null,
+    role: null, identity: null, lease: null, frame: null, derived: null, diagnostics: [],
+  };
+}
+
 function state(rows: LocusRowV1[], current: LocusStateV1["current"] = { kind: "none" }): LocusStateV1 {
   const inFlightIdentities: LocusStateV1["inFlightIdentities"] = rows.flatMap((row) =>
     row.identity === null ? [] : [{ identity: row.identity, actions: ["resume", "abandon"] }]);
@@ -83,6 +90,13 @@ const BASE_CHECKOUT_PROOF: NonNullable<Parameters<typeof classifyErrandCloseOccu
 describe("classifyErrandCloseOccupancy", () => {
   it("clears an Errand no checkout claims", () => {
     expect(classify(state([]))).toEqual({ kind: "clear", authority: "unclaimed" });
+  });
+
+  it("retains base-checkout authority after the exact claim row is removed", () => {
+    expect(classify(state([freePrimaryRow(), identityRow()]), CLAIM_ID, BASE_CHECKOUT_PROOF)).toEqual({
+      kind: "clear",
+      authority: "base-checkout",
+    });
   });
 
   it("clears the caller's exact self-held occupancy so an in-place close still finalizes", () => {

@@ -41,7 +41,11 @@ export function classifyErrandCloseOccupancy(options: {
 }): CloseOccupancyVerdict {
   const claims = options.state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
     && row.role.subject.key === options.slug && row.role.subject.claimId === options.claimId);
-  if (claims.length === 0) return { kind: "clear", authority: "unclaimed" };
+  if (claims.length === 0) {
+    return isExactUnclaimedBaseCheckout(options.state, options.slug, options.claimId, options.baseCheckoutProof)
+      ? { kind: "clear", authority: "base-checkout" }
+      : { kind: "clear", authority: "unclaimed" };
+  }
   const claim = claims.length === 1 ? claims[0] : undefined;
   if (claim === undefined) {
     return refused("duplicate-locus", `Errand '${options.slug}' is claimed by more than one checkout.`);
@@ -66,6 +70,29 @@ export function classifyErrandCloseOccupancy(options: {
     );
   }
   return refused(foreignReason(claim.lease), foreignMessage(options.slug, claim));
+}
+
+function isExactUnclaimedBaseCheckout(
+  state: LocusStateV1,
+  slug: string,
+  claimId: string | null,
+  proof: BaseCheckoutCloseProof | null,
+): boolean {
+  if (proof === null
+    || proof.checkoutPath !== state.roster.primaryPath
+    || proof.identity.kind !== "errand"
+    || proof.identity.purpose !== "errand"
+    || proof.identity.key !== slug
+    || proof.identity.claimId !== claimId
+    || !hasExactInFlightIdentity(state, proof.identity)) return false;
+  const checkoutRows = state.roster.rows.filter((row) => row.checkoutPath === proof.checkoutPath);
+  const primary = checkoutRows.length === 1 ? checkoutRows[0] : undefined;
+  return primary?.kind === "free-primary"
+    && primary.primary === true
+    && primary.recordId === null
+    && primary.role === null
+    && primary.lease === null
+    && primary.diagnostics.length === 0;
 }
 
 function isExactSelfHeldCurrentCheckout(

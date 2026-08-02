@@ -163,6 +163,81 @@ async function removedCheckoutFixture(
   };
 }
 
+async function baseRetryFixture(): Promise<{
+  options: CloseLocusSettlementRuntimeOptions;
+  lockPath: string;
+}> {
+  const primary = await mkdtemp(join(tmpdir(), "arc-close-base-retry-"));
+  roots.push(primary);
+  await mkdir(join(primary, ".git"), { recursive: true });
+  const record = awaiting();
+  if (record.state !== "awaiting-merge") throw new Error("expected awaiting Errand");
+  const state = {
+    roster: {
+      mode: "locus",
+      ok: true,
+      primaryPath: primary,
+      rows: [{
+        kind: "free-primary",
+        checkoutPath: primary,
+        primary: true,
+        recordId: null,
+        role: null,
+        identity: null,
+        lease: null,
+        frame: null,
+        derived: null,
+        diagnostics: [],
+      }],
+      diagnostics: [],
+    },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: primary },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+  } as LocusStateV1;
+  const exec: GitExec = async (_command, args) => {
+    const command = args.join(" ");
+    if (command === "worktree list --porcelain -z") {
+      return { stdout: `worktree ${primary}\0HEAD ${HEAD}\0branch refs/heads/main\0\0`, stderr: "" };
+    }
+    if (command === "status --porcelain") return { stdout: "", stderr: "" };
+    if (command === "rev-parse --abbrev-ref HEAD") return { stdout: "main\n", stderr: "" };
+    if (command === "rev-parse --git-path HEAD") {
+      return { stdout: `${join(primary, ".git", "HEAD")}\n`, stderr: "" };
+    }
+    throw new Error(`Unexpected Git command: ${command}`);
+  };
+  return {
+    lockPath: join(primary, ".git", "HEAD.lock"),
+    options: {
+      authority: "base-checkout",
+      target: { record, changeRequest: record.changeRequest },
+      state,
+      row: null,
+      currentCheckoutPath: primary,
+      base: "main",
+      identity: "andrew",
+      postCreateScript: "",
+      registeredHarnessDirs: "",
+      anchor: ANCHOR,
+      inspector: {
+        kind: "fixture",
+        inspect: async (pid) => ({
+          kind: "present",
+          pid,
+          parentPid: 1,
+          startToken: "close-holder-generation",
+          commandIdentity: "node",
+        }),
+      },
+      pathFlavor: process.platform === "win32" ? "windows" : "posix",
+      exec,
+    },
+  };
+}
+
 describe("Errand close settlement runtime", () => {
   it("pops the exact self-held stale record after its spawned checkout was removed", async () => {
     const fixture = await removedCheckoutFixture();
@@ -183,5 +258,18 @@ describe("Errand close settlement runtime", () => {
       reason: "role-conflict",
     });
     await expect(access(fixture.recordPath)).resolves.toBeUndefined();
+  });
+
+  it("reacquires primary checkout authority after the exact locus record was popped", async () => {
+    const fixture = await baseRetryFixture();
+
+    const result = await settleOrdinaryErrandCloseLocusAtRuntime(fixture.options);
+    expect(result).toMatchObject({ kind: "idempotent", recordId: null });
+    if (result.kind !== "idempotent" || result.guard === null) throw new Error("expected base retry guard");
+    await expect(access(fixture.lockPath)).resolves.toBeUndefined();
+    const acquired = await result.guard.acquire();
+    if (acquired.kind !== "acquired") throw new Error("expected transferred base retry guard");
+    await acquired.release();
+    await expect(access(fixture.lockPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

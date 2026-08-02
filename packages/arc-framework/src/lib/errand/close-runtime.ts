@@ -147,10 +147,15 @@ async function readReconciledCloseIdentity(
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
-    if (result.value === null) {
+    const recoveryIdentity = result.value === null
+      ? { slug }
+      : result.value.version === 3 && result.value.kind === "errand" && result.value.purpose === "errand"
+        ? { slug, claimId: result.value.claimId }
+        : null;
+    if (recoveryIdentity !== null) {
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
-        slug,
+        ...recoveryIdentity,
         inspector: createPlatformProcessInspector(),
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
@@ -258,7 +263,7 @@ async function readCloseOccupancy(
   const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
     && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
   const row = rows.length === 1 ? rows[0] : undefined;
-  if (row === undefined) {
+  if (row === undefined && authority !== "base-checkout") {
     return { kind: "error", message: "Errand close lost its selected occupancy row." };
   }
   return {
@@ -267,7 +272,7 @@ async function readCloseOccupancy(
       authority,
       target,
       state,
-      row,
+      row: row ?? null,
       currentCheckoutPath,
       base: options.base,
       identity: options.identity,

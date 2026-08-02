@@ -28,7 +28,7 @@ export interface CloseLocusSettlementRuntimeOptions {
   readonly authority: "current-checkout" | "base-checkout" | "removed-checkout";
   readonly target: CloseTarget;
   readonly state: LocusStateV1;
-  readonly row: LocusRowV1;
+  readonly row: LocusRowV1 | null;
   readonly currentCheckoutPath: string;
   readonly base: string;
   readonly identity: string;
@@ -60,6 +60,11 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
   options: CloseLocusSettlementRuntimeOptions,
 ): Promise<CloseLocusSettlementResult> {
   const row = options.row;
+  if (row === null) {
+    return options.authority === "base-checkout"
+      ? settleUnclaimedBaseCheckout(options)
+      : refused("record-malformed", "Errand close occupancy is incomplete.");
+  }
   const role = row.role;
   const lease = row.lease;
   const removedCheckoutReplay = options.authority === "removed-checkout" && row.kind === "stale-record";
@@ -120,10 +125,10 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
             result = guarded;
           } else {
             preparedGuard = guarded.value;
-            result = await popOwnedGeneration(options, expectations, read, runtime, acquired.handle);
+            result = await popOwnedGeneration(options, row, expectations, read, runtime, acquired.handle);
           }
         } else {
-          result = await popOwnedGeneration(options, expectations, read, runtime, acquired.handle);
+          result = await popOwnedGeneration(options, row, expectations, read, runtime, acquired.handle);
         }
       }
     }
@@ -148,6 +153,45 @@ export async function settleOrdinaryErrandCloseLocusAtRuntime(
   return { ...result, guard: preparedGuard?.guard ?? null };
 }
 
+async function settleUnclaimedBaseCheckout(
+  options: CloseLocusSettlementRuntimeOptions,
+): Promise<CloseLocusSettlementResult> {
+  if (options.currentCheckoutPath !== options.state.roster.primaryPath) {
+    return refused("role-conflict", "The selected base checkout is no longer primary.");
+  }
+  const prepared = await prepareUnclaimedBaseCheckout(options, options.currentCheckoutPath);
+  if (prepared.kind === "refused" || prepared.kind === "error") return prepared;
+  const guarded = await acquirePreparedBaseGuard(options, prepared.guardPath, false);
+  if (guarded.kind === "refused" || guarded.kind === "error") return guarded;
+  return {
+    kind: "idempotent",
+    guard: guarded.value.guard,
+    recordId: null,
+    sessionHomePath: null,
+    restoredParent: null,
+  };
+}
+
+async function prepareUnclaimedBaseCheckout(
+  options: CloseLocusSettlementRuntimeOptions,
+  checkoutPath: string,
+): Promise<
+  | { kind: "ready"; guardPath: string }
+  | Extract<CloseLocusSettlementResult, { kind: "refused" | "error" }>
+> {
+  const topology = await scanRegisteredWorktrees(options.exec);
+  if (!topology.ok) return refused("role-conflict", `Errand checkout topology is unavailable: ${topology.message}`);
+  const matches = topology.worktrees.filter((worktree) => worktree.path === checkoutPath);
+  const worktree = matches.length === 1 ? matches[0] : undefined;
+  if (worktree === undefined || worktree.detached || !worktree.primary || worktree.branch !== options.base) {
+    return refused("role-conflict", "The selected base checkout is no longer the primary base generation.");
+  }
+  const marker = await readWorktreeMarker(checkoutPath);
+  return marker.kind === "absent"
+    ? { kind: "ready", guardPath: checkoutPath }
+    : refused("role-conflict", "The selected primary checkout carries unexpected ownership provenance.");
+}
+
 async function verifyRemovedCheckout(
   options: CloseLocusSettlementRuntimeOptions,
   checkoutPath: string,
@@ -166,6 +210,7 @@ async function verifyRemovedCheckout(
 
 async function popOwnedGeneration(
   options: CloseLocusSettlementRuntimeOptions,
+  row: LocusRowV1,
   expectations: OwnedLocusRoleExpectations,
   read: () => Promise<LocusRecordReadResult>,
   runtime: ReturnType<typeof createNodeProvisioningDependencies>,
@@ -187,9 +232,9 @@ async function popOwnedGeneration(
   return {
     kind: popped.outcome,
     guard: null,
-    recordId: options.row.recordId,
-    sessionHomePath: options.row.lease?.sessionHomePath ?? null,
-    restoredParent: restoredParent(options.state, options.row),
+    recordId: row.recordId,
+    sessionHomePath: row.lease?.sessionHomePath ?? null,
+    restoredParent: restoredParent(options.state, row),
   };
 }
 
@@ -272,11 +317,21 @@ async function worktreeIsDirty(exec: GitExec, checkoutPath: string): Promise<boo
 }
 
 async function verifyCleanBase(exec: GitExec, checkoutPath: string, base: string): Promise<CleanBaseVerdict> {
+  return verifyBaseCheckout(exec, checkoutPath, base, true);
+}
+
+async function verifyBaseCheckout(
+  exec: GitExec,
+  checkoutPath: string,
+  base: string,
+  requireClean: boolean,
+): Promise<CleanBaseVerdict> {
   try {
     const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
+    const clean = !requireClean
+      || (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout === "";
     const marker = await readWorktreeMarker(checkoutPath);
-    return branch === base && dirty === "" && marker.kind === "absent"
+    return branch === base && clean && marker.kind === "absent"
       ? { kind: "valid" }
       : { kind: "refused", message: `Errand close lost base-checkout authority at '${checkoutPath}'.` };
   } catch (error) {
@@ -287,11 +342,12 @@ async function verifyCleanBase(exec: GitExec, checkoutPath: string, base: string
 async function acquirePreparedBaseGuard(
   options: CloseLocusSettlementRuntimeOptions,
   checkoutPath: string,
+  requireClean = true,
 ): Promise<
   | { kind: "ready"; value: PreparedBaseGuard }
   | Extract<CloseLocusSettlementResult, { kind: "refused" | "error" }>
 > {
-  const guard = createBaseCheckoutCloseGuard(options, checkoutPath);
+  const guard = createBaseCheckoutCloseGuard(options, checkoutPath, requireClean);
   const acquired = await guard.acquire();
   if (acquired.kind === "refused" || acquired.kind === "error") return acquired;
   let transferred = false;
@@ -321,9 +377,10 @@ async function acquirePreparedBaseGuard(
 function createBaseCheckoutCloseGuard(
   options: CloseLocusSettlementRuntimeOptions,
   checkoutPath: string,
+  requireClean: boolean,
 ): CloseAuthorityGuard {
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
-    const verdict = await verifyCleanBase(options.exec, checkoutPath, options.base);
+    const verdict = await verifyBaseCheckout(options.exec, checkoutPath, options.base, requireClean);
     return verdict.kind === "refused"
       ? { ...verdict, reason: "role-conflict" }
       : verdict;
