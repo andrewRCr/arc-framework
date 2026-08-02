@@ -75,12 +75,23 @@ describe("classifyErrandCloseOccupancy", () => {
     expect(classify(state([]))).toEqual({ kind: "clear", authority: "unclaimed" });
   });
 
-  it("clears the caller's own occupancy so an in-place close still finalizes", () => {
-    const resolved = classify(state([errandRow()], {
+  it("clears the caller's exact self-held occupancy so an in-place close still finalizes", () => {
+    const owned = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    });
+    const resolved = classify(state([owned], {
       kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
     }));
 
     expect(resolved).toEqual({ kind: "clear", authority: "current-checkout" });
+  });
+
+  it("refuses current-checkout occupancy held by another live session", () => {
+    const resolved = classify(state([errandRow()], {
+      kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "lease-live" });
   });
 
   it("clears the exact self-held checkout after it switches back to base", () => {

@@ -50,9 +50,14 @@ export type GitExec = (
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
  * captured-output {@link GitExec} cannot provide. Production wires an
- * execa stdin adapter without shell interpolation.
+ * execa stdin adapter without shell interpolation. Callers may pin the
+ * repository when the ambient process directory is unavailable or unsafe.
  */
-export type GitExecInput = (args: string[], input: string) => Promise<string>;
+export type GitExecInput = (
+  args: string[],
+  input: string,
+  options?: Pick<GitExecOptions, "cwd">,
+) => Promise<string>;
 
 /** One Git index transaction staged through the repository's index lock. */
 export interface GitIndexTransaction {

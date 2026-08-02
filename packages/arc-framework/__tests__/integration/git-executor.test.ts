@@ -225,6 +225,16 @@ describe("production GitExecInput", () => {
     expect(second).toBe(stdout);
   });
 
+  it("pins stdin-fed Git plumbing to an explicit repository", async () => {
+    const root = await createGitRepo("arc-execa-input-cwd-");
+    const input = `repository-local-${root}\n`;
+
+    const object = (await gitExecInput(["hash-object", "-w", "--stdin"], input, { cwd: root })).trim();
+    const stored = await gitExec("git", ["cat-file", "-p", object], { cwd: root });
+
+    expect(stored.stdout).toBe(input.trimEnd());
+  });
+
   it("retains partial process-capped output in typed output-limit failures", async () => {
     const limitedInput = createExecaGitExecInput(256);
     const input = "HEAD\n".repeat(100);

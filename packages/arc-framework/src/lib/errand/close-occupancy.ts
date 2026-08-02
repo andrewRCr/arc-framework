@@ -25,10 +25,10 @@ export interface BaseCheckoutCloseProof {
  * Decide whether close may delete the Errand's refs, capture, and identity.
  *
  * Foreign occupancy — not plain occupancy — is what refuses: an Errand may finalize from inside its
- * own still-occupied checkout, leaving the role to the recovery replay path, so requiring absence
- * would refuse the one terminal an in-place merge has. When a proven base switch prevents the reader
- * from resolving that locus, the caller supplies the base checkout's path-derived generation and the
- * projection still has to prove the exact ordinary-Errand claim plus its live self-held lease.
+ * own still-occupied checkout only when the entering process owns its exact live lease. When a proven
+ * base switch prevents the reader from resolving that locus, the caller supplies the base checkout's
+ * path-derived generation and the projection still has to prove the exact ordinary-Errand claim plus
+ * its live self-held lease.
  *
  * @param options - Complete locus projection plus the exact Errand subject close resolved.
  * @returns Clearance, or the single refusal reason the claiming occupancy carries.
@@ -48,7 +48,7 @@ export function classifyErrandCloseOccupancy(options: {
   }
 
   const current = options.state.current;
-  if (current.kind === "resolved" && claim.recordId !== null && current.activeRecordId === claim.recordId) {
+  if (isExactSelfHeldCurrentCheckout(claim, current)) {
     return { kind: "clear", authority: "current-checkout" };
   }
   if (isExactSelfHeldBaseCheckout(claim, options.state, options.baseCheckoutProof)) {
@@ -63,6 +63,19 @@ export function classifyErrandCloseOccupancy(options: {
     );
   }
   return refused(foreignReason(claim.lease), foreignMessage(options.slug, claim));
+}
+
+function isExactSelfHeldCurrentCheckout(
+  claim: LocusRowV1,
+  current: LocusStateV1["current"],
+): boolean {
+  return current.kind === "resolved"
+    && claim.kind === "managed-role"
+    && claim.recordId !== null
+    && current.activeRecordId === claim.recordId
+    && claim.role?.kind === "errand"
+    && claim.lease?.state === "live"
+    && claim.lease.selfHeld;
 }
 
 function isExactSelfHeldBaseCheckout(
