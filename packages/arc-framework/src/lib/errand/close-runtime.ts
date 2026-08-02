@@ -25,6 +25,7 @@ import {
   classifyErrandCloseOccupancy,
   type BaseCheckoutCloseProof,
 } from "./close-occupancy.js";
+import { recoverFinalizedErrandCloseHeadLock } from "./close-head-lock.js";
 import {
   closeOrdinaryErrand,
   type CloseAuthorityGuard,
@@ -146,6 +147,10 @@ async function readReconciledCloseIdentity(
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
+    if (result.value === null) {
+      const recovery = await recoverFinalizedErrandCloseHeadLock({ exec: io.exec, slug });
+      if (recovery.kind === "error") return recovery;
+    }
     return { kind: "ready", record: result.value };
   }
   return result.kind === "refused"

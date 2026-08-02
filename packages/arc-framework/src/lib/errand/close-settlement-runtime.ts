@@ -1,8 +1,5 @@
 /** Exact checkout restoration and caller-owned locus settlement for ordinary Errand close. */
 
-import { open, unlink } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
-
 import type { GitExec } from "../git/exec.js";
 import {
   classifyTransientWorktreeProvenance,
@@ -21,10 +18,10 @@ import type { LocusRecordReadResult } from "../locus/record-store.js";
 import type { LocusAnchor, LocusRowV1, LocusStateV1 } from "../locus/schema/index.js";
 import type {
   CloseAuthorityGuard,
-  CloseAuthorityLeaseResult,
   CloseLocusSettlementResult,
   CloseTarget,
 } from "./close-locus.js";
+import { acquireErrandCloseHeadLock } from "./close-head-lock.js";
 
 /** Runtime authority and production boundaries for one selected close generation. */
 export interface CloseLocusSettlementRuntimeOptions {
@@ -274,7 +271,7 @@ async function acquirePreparedBaseGuard(
   | { kind: "ready"; value: PreparedBaseGuard }
   | Extract<CloseLocusSettlementResult, { kind: "refused" | "error" }>
 > {
-  const guard = createBaseCheckoutCloseGuard(options.exec, checkoutPath, options.base);
+  const guard = createBaseCheckoutCloseGuard(options, checkoutPath);
   const acquired = await guard.acquire();
   if (acquired.kind === "refused" || acquired.kind === "error") return acquired;
   let transferred = false;
@@ -301,68 +298,28 @@ async function acquirePreparedBaseGuard(
   };
 }
 
-function createBaseCheckoutCloseGuard(exec: GitExec, checkoutPath: string, base: string): CloseAuthorityGuard {
+function createBaseCheckoutCloseGuard(
+  options: CloseLocusSettlementRuntimeOptions,
+  checkoutPath: string,
+): CloseAuthorityGuard {
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
-    const verdict = await verifyCleanBase(exec, checkoutPath, base);
+    const verdict = await verifyCleanBase(options.exec, checkoutPath, options.base);
     return verdict.kind === "refused"
       ? { ...verdict, reason: "role-conflict" }
       : verdict;
   };
-  return { revalidate, acquire: () => acquireBaseCheckoutCloseLease(exec, checkoutPath, revalidate) };
-}
-
-async function acquireBaseCheckoutCloseLease(
-  exec: GitExec,
-  checkoutPath: string,
-  revalidate: CloseAuthorityGuard["revalidate"],
-): Promise<CloseAuthorityLeaseResult> {
-  let gitHeadPath: string;
-  try {
-    gitHeadPath = (await exec("git", ["rev-parse", "--git-path", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  } catch (error) {
-    return { kind: "error", message: errorMessage(error) };
-  }
-  if (gitHeadPath === "") return { kind: "error", message: "Git returned no checkout HEAD path." };
-  const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
-  let handle: Awaited<ReturnType<typeof open>>;
-  try {
-    handle = await open(lockPath, "wx", 0o600);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      return {
-        kind: "refused",
-        reason: "role-conflict",
-        message: `Errand close cannot lock checkout HEAD at '${checkoutPath}'; retry after the Git operation.`,
-      };
-    }
-    return { kind: "error", message: errorMessage(error) };
-  }
-
-  let released = false;
-  const release = async (): Promise<void> => {
-    if (released) return;
-    let failure: Error | null = null;
-    try {
-      await handle.close();
-    } catch (error) {
-      failure = new Error(errorMessage(error));
-    }
-    try {
-      await unlink(lockPath);
-    } catch (error) {
-      failure ??= new Error(errorMessage(error));
-    }
-    if (failure !== null) throw failure;
-    released = true;
+  return {
+    revalidate,
+    acquire: () => acquireErrandCloseHeadLock({
+      exec: options.exec,
+      checkoutPath,
+      identity: {
+        slug: options.target.record.slug,
+        claimId: options.target.record.claimId,
+      },
+      revalidate,
+    }),
   };
-  const authorization = await revalidate();
-  if (authorization.kind === "valid") return { kind: "acquired", release };
-  try {
-    await release();
-  } catch (error) {
-    return { kind: "error", message: `Could not release rejected checkout authority: ${errorMessage(error)}` };
-  }
-  return authorization;
 }
 
 function restoredParent(
