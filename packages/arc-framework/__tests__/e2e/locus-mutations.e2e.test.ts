@@ -271,9 +271,8 @@ describe("arc locus mutation commands", () => {
 
     const cli = [process.execPath, CLI_PATH].map(shellQuote).join(" ");
     const resolved = await runAnchoredCommands([
-      `${cli} errand open ${slug} --json`,
-      "record_file=$(find .arc/user/test-user/.internal/loci -name '*.json' -print -quit)",
-      "record_id=$(node -e 'process.stdout.write(JSON.parse(require(\"node:fs\").readFileSync(process.argv[1], \"utf8\")).recordId)' \"$record_file\")",
+      `open_result=$(${cli} errand open ${slug} --json); printf '%s\\n' "$open_result"`,
+      "record_id=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).recordId)' \"$open_result\")",
       "git push origin :refs/arc/user/test-user/errands >/dev/null",
       "git update-ref -d refs/arc/user/test-user/errands",
       "git switch main >/dev/null",
