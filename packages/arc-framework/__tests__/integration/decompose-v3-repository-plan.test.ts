@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import { createRawGitExec, type RawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
@@ -58,18 +58,6 @@ function gitExec(): GitExec {
       maxBuffer: 20 * 1024 * 1024,
     });
     return { stdout };
-  };
-}
-
-function rawGitExec(cwd: string): RawGitExec {
-  return async (args, options) => {
-    const { stdout, stderr } = await execFileAsync("git", args, {
-      cwd: options?.cwd ?? cwd,
-      encoding: "buffer",
-      maxBuffer: 20 * 1024 * 1024,
-      ...(options?.input === undefined ? {} : { input: options.input }),
-    });
-    return { stdout: new Uint8Array(stdout), stderr: new Uint8Array(stderr) };
   };
 }
 
@@ -399,6 +387,20 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it("forwards byte input through the repository raw Git boundary", async () => {
+    const { repo } = await startedRepository();
+    const sentinel = "planning-lane raw input\n";
+    const sentinelPath = ".arc/reference/planning-lane-raw-input.txt";
+    await write(repo, sentinelPath, sentinel);
+    const expectedObjectId = (await git(repo, ["hash-object", sentinelPath])).trim();
+
+    const result = await createRawGitExec(repo)(["hash-object", "--stdin"], {
+      input: new TextEncoder().encode(sentinel),
+    });
+
+    expect(new TextDecoder().decode(result.stdout).trim()).toBe(expectedObjectId);
+  });
+
   it("classifies one finalized exact-ref receipt through the shipped command", async () => {
     const {
       repo,
@@ -410,7 +412,7 @@ describe("Git v3 repository plan", () => {
     } = await finalizedCandidateRepository();
     await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
     const observedRawExecCwds: Array<string | undefined> = [];
-    const repositoryRawExec = rawGitExec(repo);
+    const repositoryRawExec = createRawGitExec(repo);
     const rawExec: RawGitExec = async (args, options) => {
       observedRawExecCwds.push(options?.cwd);
       return await repositoryRawExec(args, options);
