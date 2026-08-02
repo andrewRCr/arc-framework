@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  abandonOrdinaryErrandAtRuntime: vi.fn(),
   attachLocusAtRuntime: vi.fn(),
   readConfigSettings: vi.fn(),
   releaseLocusAtRuntime: vi.fn(),
@@ -29,10 +30,14 @@ vi.mock("../../../src/lib/locus/command-runtime.js", () => ({
   releaseLocusAtRuntime: (...args: unknown[]) => mocks.releaseLocusAtRuntime(...args),
   resolveLocusAtRuntime: (...args: unknown[]) => mocks.resolveLocusAtRuntime(...args),
 }));
+vi.mock("../../../src/lib/errand/abandon-runtime.js", () => ({
+  abandonOrdinaryErrandAtRuntime: (...args: unknown[]) => mocks.abandonOrdinaryErrandAtRuntime(...args),
+}));
 
 import { handleErrandOpen } from "../../../src/handlers/errand.js";
-import { handleLocusAttach, handleLocusRelease } from "../../../src/handlers/locus.js";
+import { handleLocusAttach, handleLocusRelease, handleLocusResolve } from "../../../src/handlers/locus.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import type { LocusMutationResultV1 } from "../../../src/lib/locus/schema/index.js";
 
 let stdout = "";
 let stderr = "";
@@ -41,6 +46,31 @@ let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 function jsonLines(): string[] {
   return stdout.trimEnd().split("\n");
+}
+
+type TestAbandonSubject = "errand" | "partial-errand" | "housekeep" | "groom";
+
+async function runAbandonDispatch(subject: TestAbandonSubject): Promise<void> {
+  mocks.resolveUserSurfaceResolver.mockResolvedValueOnce({ identityGlobalRoot: "/users/andrew" });
+  mocks.resolveLocusAtRuntime.mockImplementationOnce(async (value: unknown) => {
+    const options = value as {
+      abandon(dispatch: {
+        subject: TestAbandonSubject;
+        action: "abandon";
+        key: string;
+        selected: { recordId: string; leaseId: string };
+        confirmedNoLiveSession: boolean;
+      }): Promise<LocusMutationResultV1>;
+    };
+    return options.abandon({
+      subject,
+      action: "abandon",
+      key: "retained",
+      selected: { recordId: `sha256:${"a".repeat(64)}`, leaseId: "b".repeat(32) },
+      confirmedNoLiveSession: false,
+    });
+  });
+  await handleLocusResolve(`sha256:${"a".repeat(64)}`, { action: "abandon", json: true });
 }
 
 beforeEach(() => {
@@ -148,5 +178,44 @@ describe("locus mutation human output", () => {
       "Refused [lease-generation-mismatch]: The selected lease generation changed.\n",
     );
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("locus abandon dispatch", () => {
+  it.each(["partial-errand", "housekeep", "groom"] as const)(
+    "refuses the unavailable %s subject driver",
+    async (subject) => {
+      mocks.abandonOrdinaryErrandAtRuntime.mockResolvedValue(createLocusMutationResult({
+        outcome: "applied", operation: "errand-abandon", allocation: null,
+        recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+        identity: null, originEntry: null, restoredParent: null, nextOffer: null,
+        recommendedPromptText: "Abandoned.",
+      }));
+
+      await runAbandonDispatch(subject);
+
+      expect(JSON.parse(jsonLines()[0] ?? "")).toMatchObject({
+        outcome: "refused",
+        operation: "locus-resolve",
+        reason: "role-conflict",
+      });
+      expect(mocks.abandonOrdinaryErrandAtRuntime).not.toHaveBeenCalled();
+    },
+  );
+
+  it("delegates an ordinary Errand to its available abandon driver", async () => {
+    mocks.abandonOrdinaryErrandAtRuntime.mockResolvedValue(createLocusMutationResult({
+      outcome: "applied", operation: "errand-abandon", allocation: null,
+      recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+      identity: null, originEntry: null, restoredParent: null, nextOffer: null,
+      recommendedPromptText: "Abandoned.",
+    }));
+
+    await runAbandonDispatch("errand");
+
+    expect(JSON.parse(jsonLines()[0] ?? "")).toMatchObject({
+      outcome: "applied",
+      operation: "errand-abandon",
+    });
   });
 });

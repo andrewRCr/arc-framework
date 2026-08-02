@@ -5,7 +5,7 @@ import type { SelectedLocusGeneration } from "./selected-generation.js";
 import { locusRowAuthorityReasons, projectTrustedLocusRow, untrustedRefusalReason } from "./trusted-row.js";
 import type { LocusMutationResultV1, LocusRowV1, LocusStopReason } from "./schema/index.js";
 
-export type LocusResolveSubject = "errand" | "housekeep" | "groom";
+export type LocusResolveSubject = "errand" | "partial-errand" | "housekeep" | "groom";
 export type LocusResolveAction = "resume" | "abandon";
 
 /** One subject dispatch carrying the generation this driver validated, not just its reusable key. */
@@ -86,7 +86,8 @@ export async function resolveLocusGeneration(options: {
     return refusal("lease-live", "The selected transient lease is held by another live session.");
   }
   if (row.lease.state === "live" || row.lease.state === "unknown") {
-    const scoped = options.action === "abandon" || !isTrusted(row);
+    const scoped = options.action === "abandon"
+      || locusRowAuthorityReasons(row).includes("subject-unresolved");
     if (!options.confirmedNoLiveSession || !scoped) {
       return refusal(
         row.lease.state === "live" ? "lease-live" : "lease-unknown",
@@ -116,17 +117,12 @@ export async function resolveLocusGeneration(options: {
   return createLocusMutationResult({ ...result, operation: "locus-resolve" });
 }
 
-/** Authority established, over the same inputs the trusted-row projection reads. */
-function isTrusted(row: LocusRowV1): boolean {
-  return locusRowAuthorityReasons(row).length === 0;
-}
-
 function deriveSubject(row: LocusRowV1): LocusResolveSubject | null {
   if (row.role?.kind === "groom" && row.role.subject.kind === "groom") return "groom";
   if (row.role?.kind === "housekeep"
     && (row.role.subject.kind === "housekeep" || row.role.subject.kind === "errand")) return "housekeep";
-  if (row.role?.kind === "errand"
-    && (row.role.subject.kind === "errand" || row.role.subject.kind === "partial-errand")) return "errand";
+  if (row.role?.kind === "errand" && row.role.subject.kind === "errand") return "errand";
+  if (row.role?.kind === "errand" && row.role.subject.kind === "partial-errand") return "partial-errand";
   return null;
 }
 

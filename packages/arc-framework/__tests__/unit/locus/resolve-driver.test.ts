@@ -27,12 +27,17 @@ function leaseDiagnostics(lease: "dead" | "live" | "unknown"): LocusDiagnosticV1
   return lease === "live" ? [] : [diagnostic(lease === "dead" ? "lease-dead" : "lease-unknown")];
 }
 
-function row(kind: "errand" | "housekeep" | "groom", lease: "dead" | "live" | "unknown" = "dead"): LocusRowV1 {
-  const subjectKind = kind === "errand" ? "errand" : kind;
+function row(
+  kind: "errand" | "partial-errand" | "housekeep" | "groom",
+  lease: "dead" | "live" | "unknown" = "dead",
+): LocusRowV1 {
+  const roleKind = kind === "partial-errand" ? "errand" : kind;
   return {
     kind: "managed-role", checkoutPath: "/repo-child", primary: false, recordId: `sha256:${"1".repeat(64)}`,
     role: {
-      kind, subject: { kind: subjectKind, key: "subject", claimId: "2".repeat(32) }, parentCheckoutPath: "/repo-wu",
+      kind: roleKind,
+      subject: { kind, key: "subject", claimId: kind === "partial-errand" ? null : "2".repeat(32) },
+      parentCheckoutPath: "/repo-wu",
       originEntry: null,
     },
     identity: null,
@@ -45,26 +50,29 @@ function row(kind: "errand" | "housekeep" | "groom", lease: "dead" | "live" | "u
 }
 
 describe("locus resolve driver", () => {
-  it.each(["errand", "housekeep", "groom"] as const)("dispatches %s resume and abandon", async (subject) => {
-    for (const action of ["resume", "abandon"] as const) {
-      const run = vi.fn(async () => createLocusMutationResult({
-        outcome: "idempotent", operation: subject === "errand" ? "errand-abandon"
-          : subject === "housekeep" ? "housekeep-abandon" : "plan-abandon",
-        allocation: null, recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
-        identity: null, originEntry: null,
-        restoredParent: null, nextOffer: null, recommendedPromptText: "Delegated.",
-      }));
-      const result = await resolveLocusGeneration({
-        row: row(subject), action, checkoutClean: true, confirmedNoLiveSession: false, dependencies: { run },
-      });
-      expect(run).toHaveBeenCalledWith({
-        subject, action, key: "subject",
-        selected: { recordId: `sha256:${"1".repeat(64)}`, leaseId: "3".repeat(32) },
-        confirmedNoLiveSession: false,
-      });
-      expect(result).toMatchObject({ outcome: "idempotent", operation: "locus-resolve" });
-    }
-  });
+  it.each(["errand", "partial-errand", "housekeep", "groom"] as const)(
+    "dispatches %s resume and abandon",
+    async (subject) => {
+      for (const action of ["resume", "abandon"] as const) {
+        const run = vi.fn(async () => createLocusMutationResult({
+          outcome: "idempotent", operation: subject === "errand" || subject === "partial-errand" ? "errand-abandon"
+            : subject === "housekeep" ? "housekeep-abandon" : "plan-abandon",
+          allocation: null, recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+          identity: null, originEntry: null,
+          restoredParent: null, nextOffer: null, recommendedPromptText: "Delegated.",
+        }));
+        const result = await resolveLocusGeneration({
+          row: row(subject), action, checkoutClean: true, confirmedNoLiveSession: false, dependencies: { run },
+        });
+        expect(run).toHaveBeenCalledWith({
+          subject, action, key: "subject",
+          selected: { recordId: `sha256:${"1".repeat(64)}`, leaseId: "3".repeat(32) },
+          confirmedNoLiveSession: false,
+        });
+        expect(result).toMatchObject({ outcome: "idempotent", operation: "locus-resolve" });
+      }
+    },
+  );
 
   it("abandons a residue row carrying the diagnostics that define it", async () => {
     const run = vi.fn(async () => createLocusMutationResult({
@@ -198,6 +206,22 @@ describe("operator attestation over a lease no inspector can retire", () => {
       confirmedNoLiveSession: true, dependencies: { run },
     })).toMatchObject({ outcome: "applied" });
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ confirmedNoLiveSession: true }));
+  });
+
+  it("refuses attested resume when lease liveness is unknown", async () => {
+    const run = vi.fn(async () => createLocusMutationResult({
+      outcome: "applied", operation: "errand-abandon", allocation: null,
+      recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+      identity: null, originEntry: null, restoredParent: null, nextOffer: null,
+      recommendedPromptText: "Resumed.",
+    }));
+    const result = await resolveLocusGeneration({
+      row: row("errand", "unknown"), action: "resume", checkoutClean: true,
+      confirmedNoLiveSession: true, dependencies: { run },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "lease-unknown" });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("never lets the attestation stand in for the other guards", async () => {

@@ -118,7 +118,15 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
       };
       return resolveLocusAtRuntime({
         ...common,
-        abandon: async ({ key, selected, confirmedNoLiveSession }) => {
+        abandon: async ({ subject, key, selected, confirmedNoLiveSession }) => {
+          if (subject !== "errand") {
+            return createLocusMutationResult({
+              outcome: "refused",
+              operation: "locus-resolve",
+              reason: "role-conflict",
+              recommendedPromptText: `The ${subject} abandon driver is unavailable in this command surface.`,
+            });
+          }
           return abandonOrdinaryErrandAtRuntime({
             slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
             postCreateScript: common.postCreateScript,
