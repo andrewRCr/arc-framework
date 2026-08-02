@@ -221,7 +221,8 @@ async function runLocusMutationBoundary(
 
 function emitMutation(result: LocusMutationResultV1, json: boolean): void {
   const formatted = formatErrandOpenResult(result, json);
-  (formatted.stream === "stdout" ? process.stdout : process.stderr).write(formatted.text);
+  const text = json ? formatted.text : `${formatted.text.replace(/\n+$/u, "")}\n`;
+  (formatted.stream === "stdout" ? process.stdout : process.stderr).write(text);
   process.exitCode = formatted.exitCode;
 }
 

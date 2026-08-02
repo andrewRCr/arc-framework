@@ -1,9 +1,12 @@
-/** JSON result coverage for mutation-handler setup failures. */
+/** Result-boundary coverage for mutation-handler setup and raw output. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  attachLocusAtRuntime: vi.fn(),
   readConfigSettings: vi.fn(),
+  releaseLocusAtRuntime: vi.fn(),
+  resolveLocusAtRuntime: vi.fn(),
   resolvePrimaryWorktreePath: vi.fn(),
   resolveUserSurfaceResolver: vi.fn(),
 }));
@@ -21,12 +24,20 @@ vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
 vi.mock("../../../src/lib/user-surfaces.js", () => ({
   resolveUserSurfaceResolver: (...args: unknown[]) => mocks.resolveUserSurfaceResolver(...args),
 }));
+vi.mock("../../../src/lib/locus/command-runtime.js", () => ({
+  attachLocusAtRuntime: (...args: unknown[]) => mocks.attachLocusAtRuntime(...args),
+  releaseLocusAtRuntime: (...args: unknown[]) => mocks.releaseLocusAtRuntime(...args),
+  resolveLocusAtRuntime: (...args: unknown[]) => mocks.resolveLocusAtRuntime(...args),
+}));
 
 import { handleErrandOpen } from "../../../src/handlers/errand.js";
-import { handleLocusAttach } from "../../../src/handlers/locus.js";
+import { handleLocusAttach, handleLocusRelease } from "../../../src/handlers/locus.js";
+import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 
 let stdout = "";
+let stderr = "";
 let stdoutSpy: ReturnType<typeof vi.spyOn>;
+let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 function jsonLines(): string[] {
   return stdout.trimEnd().split("\n");
@@ -35,9 +46,14 @@ function jsonLines(): string[] {
 beforeEach(() => {
   vi.resetAllMocks();
   stdout = "";
+  stderr = "";
   process.exitCode = undefined;
   stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
     stdout += String(chunk);
+    return true;
+  });
+  stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    stderr += String(chunk);
     return true;
   });
   mocks.readConfigSettings.mockResolvedValue({
@@ -56,6 +72,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stdoutSpy.mockRestore();
+  stderrSpy.mockRestore();
   process.exitCode = undefined;
 });
 
@@ -85,6 +102,51 @@ describe("mutation handler JSON boundaries", () => {
       operation: "errand-open",
       error: { message: "user surfaces unavailable" },
     });
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("locus mutation human output", () => {
+  it("terminates a raw success on stdout", async () => {
+    mocks.attachLocusAtRuntime.mockResolvedValue(createLocusMutationResult({
+      outcome: "applied",
+      operation: "locus-attach",
+      allocation: null,
+      recordId: null,
+      leaseId: null,
+      activeLocusPath: null,
+      sessionHomePath: null,
+      identity: null,
+      originEntry: null,
+      restoredParent: null,
+      nextOffer: null,
+      recommendedPromptText: "Attached the session locus.",
+    }));
+
+    await handleLocusAttach({ json: false });
+
+    expect(stdout).toBe("Attached the session locus.\n");
+    expect(stderr).toBe("");
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("terminates a raw refusal on stderr", async () => {
+    mocks.releaseLocusAtRuntime.mockResolvedValue(createLocusMutationResult({
+      outcome: "refused",
+      operation: "locus-release",
+      reason: "lease-generation-mismatch",
+      recommendedPromptText: "The selected lease generation changed.",
+    }));
+
+    await handleLocusRelease(`sha256:${"a".repeat(64)}`, {
+      lease: "0123456789abcdef0123456789abcdef",
+      json: false,
+    });
+
+    expect(stdout).toBe("");
+    expect(stderr).toBe(
+      "Refused [lease-generation-mismatch]: The selected lease generation changed.\n",
+    );
     expect(process.exitCode).toBe(1);
   });
 });

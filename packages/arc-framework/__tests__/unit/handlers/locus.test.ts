@@ -98,6 +98,35 @@ describe("runLocusCli", () => {
     });
   });
 
+  it("renders each row diagnostic inside its human row block", async () => {
+    const sink = capture();
+    const envelope: LocusEnvelopeV1 = {
+      ...SUCCESS,
+      rows: [{
+        ...SUCCESS.rows[0]!,
+        diagnostics: [{
+          code: "lease-unknown",
+          source: { kind: "record", key: "locus-reader.json" },
+          message: "Lease liveness is unavailable",
+        }],
+      }],
+    };
+
+    await runLocusCli({ json: false }, { read: async () => envelope, output: sink.output });
+
+    expect(sink.read().stdout).toBe([
+      "Primary: /repo",
+      "Checkout: /repo/work",
+      "Role: work-unit (work-unit:reader)",
+      "Lease: live",
+      "Session home: /repo/work",
+      "Active session locus: active",
+      "Workflow/stage: process-task-loop / -",
+      "Diagnostic: lease-unknown (record:locus-reader.json) Lease liveness is unavailable",
+      "",
+    ].join("\n"));
+  });
+
   it.each([
     "identity-missing",
     "identity-root-unavailable",
@@ -176,4 +205,3 @@ describe("runLocusCli", () => {
     expect(sink.read().stdout).toContain("Role: identity-only (errand:review-docs)");
   });
 });
-
