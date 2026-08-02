@@ -139,7 +139,7 @@ describe("arc wu reconcile", () => {
     });
   });
 
-  it("preserves unknown liveness when explicit attachment has no durable session ancestor", async () => {
+  it("keeps an adopted work-unit leaseless when explicit attachment has no durable session ancestor", async () => {
     const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
 
     const result = await runArc(
@@ -155,14 +155,31 @@ describe("arc wu reconcile", () => {
     expect(record).toMatchObject({
       checkoutPath: repo,
       role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
-      lease: {
-        sessionHomePath: repo,
-        anchor: {
-          kind: "unverifiable",
-          reason: expect.stringMatching(/Unrecognized process boundary/iu),
-        },
-      },
+      lease: null,
     });
+  });
+
+  it("clears a dead work-unit lease when the next attachment has no durable session ancestor", async () => {
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+    const attached = await runArcAnchored(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+    expect(attached.exitCode).toBe(0);
+    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
+    if (recordName === undefined) throw new Error("fixture locus record missing");
+    const recordPath = join(lociRoot, recordName);
+    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
+      lease: { anchor: { kind: "process" } },
+    });
+
+    const result = await runArc(
+      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
+      repo,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({ lease: null });
   });
 
   it("returns one JSON conflict and does not reconcile when identity resolution fails", async () => {

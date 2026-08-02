@@ -9,7 +9,7 @@ import {
 } from "../git/worktree-roster.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
 import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
-import { attachLocusLease, mintDurableLocusRole } from "../locus/mutation.js";
+import { attachLocusLease, mintDurableLocusRole, releaseLocusLease } from "../locus/mutation.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
 import {
   createPlatformProcessAncestryInspector,
@@ -247,6 +247,24 @@ async function reconcileNodeWorkUnitLocus(
       : current.record.lease.anchor.kind === "process"
         ? await verifyProcessAnchor(current.record.lease.anchor, inspector)
         : "unknown";
+    if (anchor.kind === "unverifiable") {
+      if (current.record.lease === null) {
+        return { recordId: identity.recordId, leaseId: null, roleCreated };
+      }
+      if (observedLiveness !== "dead") {
+        const reason = observedLiveness === "live" ? "lease-live" : "lease-unknown";
+        throw new Error(`cannot attach work-unit session locus: ${reason}`);
+      }
+      const releasedLease = await releaseLocusLease({
+        recordId: identity.recordId,
+        leaseId: current.record.lease.leaseId,
+        io,
+      });
+      if (releasedLease.kind === "refused") {
+        throw new Error(`cannot attach work-unit session locus: ${releasedLease.reason}`);
+      }
+      return { recordId: identity.recordId, leaseId: null, roleCreated };
+    }
     const attached = await attachLocusLease({
       recordId: identity.recordId,
       sessionHomePath: checkoutPath,
