@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-close-valid-head",
+  "claimId": "efe9031880e8052df03aad9517fb33c6",
+  "createdAt": "2026-08-02T19:01:36.518Z",
+  "updatedAt": "2026-08-02T19:01:36.518Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep arc errand close attached to a valid branch",
+  "branch": "chore/errand-close-valid-head",
+  "origin": "inbox",
+  "originEntry": "Keep `arc errand close` attached to a valid branch",
+  "originEntrySourceDigest": "sha256:9eebb932205f4da28bc248bb65b7b6967bdcc552c72296a555a4363af76c74e3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
