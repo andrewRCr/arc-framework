@@ -8,6 +8,32 @@ const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
 describe("locus methodology contracts", () => {
+  it("publishes the current Errand lifecycle signature", async () => {
+    const references = await Promise.all([
+      readFile(resolve(packageArc, "reference/QUICK-REFERENCE.template.md"), "utf8"),
+      readFile(resolve(projectArc, "reference/QUICK-REFERENCE.md"), "utf8"),
+    ]);
+
+    for (const reference of references) {
+      expect(reference).toContain(
+        "arc errand open <slug> [--intent <text>] [--from-inbox <entry>] "
+          + "[--inbox-title-file <path|->] [--json]",
+      );
+      expect(reference).toContain(
+        "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",
+      );
+      expect(reference).toContain("arc errand close <slug> [--force] [--json]");
+      expect(reference).toContain("arc errand abandon <slug> [--json]");
+      expect(reference).toContain(
+        "arc errand promote <slug> [--name <name>] [--type <type>] "
+          + "--floor <derivation|scale> [--json]",
+      );
+      expect(reference).not.toMatch(/arc errand open <slug>[^\n]*--type/u);
+      expect(reference).not.toContain("arc errand retire");
+      expect(reference).not.toContain("--inbox-entry-file");
+    }
+  });
+
   it("keeps frame selection reader-owned across init, recovery, and handoff", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
