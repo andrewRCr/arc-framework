@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { z } from "zod";
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  DeliveryAssignmentsV1Codec,
+  type DeliveryAssignmentsV1,
+} from "../../src/lib/delivery/assignment.js";
 import { RepositoryDeliveryAssuranceStore } from "../../src/lib/delivery/assurance-store.js";
 import {
   RepositoryDeliveryAssignmentStore,
@@ -24,6 +28,8 @@ import {
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 
 const roots: string[] = [];
+const ASSIGNMENT_PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
+const OTHER_ASSIGNMENT_PLAN_ID = "f7f35d3f-8d46-4443-b36b-c4e7d463d5b8";
 
 const PlanValueSchema = z.strictObject({
   planId: z.string(),
@@ -74,7 +80,7 @@ async function stores(io: Partial<GitCommonStatePublisherIO> = {}) {
     commonDir,
     publisher,
     plans: new RepositoryDeliveryPlanStore(publisher, planCodec),
-    assignments: new RepositoryDeliveryAssignmentStore(publisher, revisionedCodec),
+    assignments: new RepositoryDeliveryAssignmentStore(publisher),
     assurance: new RepositoryDeliveryAssuranceStore(publisher, revisionedCodec),
     observations: new RepositoryDeliveryObservationStore(publisher, revisionedCodec),
   };
@@ -86,6 +92,42 @@ function plan(planId: string, body: string): PlanValue {
     planDigest: canonicalDigest({ planId, body }),
     body,
   };
+}
+
+function assignment(
+  generation: number,
+  options: {
+    readonly changeRequestId?: string;
+    readonly head?: string;
+    readonly materialized?: boolean;
+  } = {},
+): DeliveryAssignmentsV1 {
+  const assuranceSubjectId = canonicalDigest({ subject: "member-1" });
+  const decoded = DeliveryAssignmentsV1Codec.decode({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-assignments/v1",
+    planId: ASSIGNMENT_PLAN_ID,
+    workUnitId: "delivery-plan-record",
+    host: { adapterId: "github", providerBinding: { repository: "arc-framework" } },
+    terminalTarget: {
+      sourceRef: "refs/heads/feat/delivery-plan-record",
+      destinationRef: "refs/heads/main",
+    },
+    members: options.materialized === false ? [] : [{
+      deliverableId: canonicalDigest({ member: "member-1" }),
+      assuranceSubjectId,
+      ref: "refs/heads/feat/delivery-plan-record-record-substrate",
+      assignedHeadObjectId: options.head ?? "a".repeat(40),
+      changeRequestHandles: options.changeRequestId === undefined
+        ? []
+        : [{ providerId: "github", changeRequestId: options.changeRequestId }],
+      materializationGeneration: generation,
+      reviewRouting: { routeId: "standard", binding: {} },
+    }],
+    generationHighWater: [{ assuranceSubjectId, generation }],
+  });
+  if (decoded.status === "refused") throw new Error("invalid assignment fixture");
+  return decoded.value;
 }
 
 function okValue<T>(
@@ -130,43 +172,48 @@ describe("repository delivery record stores", () => {
     });
   });
 
-  it.each(["assignments", "observations"] as const)(
-    "increments %s under an expected integer revision",
-    async (kind) => {
-      const records = await stores();
-      const store = records[kind];
-      const first = { planId: "plan-1", body: "first" };
-      const second = { planId: "plan-1", body: "second" };
+  it("increments assignments under an expected integer revision", async () => {
+    const records = await stores();
+    const first = assignment(1);
+    const second = assignment(1, { changeRequestId: "pull/401" });
 
-      await expect(store.read("plan-1")).resolves.toEqual({ status: "ok", value: null });
-      await expect(store.publish("plan-1", first, 0)).resolves.toEqual({
-        status: "ok",
-        value: { revision: 1, value: first },
-      });
-      await expect(store.publish("plan-1", second, 1)).resolves.toEqual({
-        status: "ok",
-        value: { revision: 2, value: second },
-      });
-      await expect(store.publish("plan-1", { planId: "plan-1", body: "stale" }, 1))
-        .resolves.toEqual({ status: "refused", reason: "version-conflict" });
-      await expect(store.read("plan-1")).resolves.toEqual({
-        status: "ok",
-        value: { revision: 2, value: second },
-      });
-    },
-  );
+    await expect(records.assignments.read(ASSIGNMENT_PLAN_ID)).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.assignments.publish(ASSIGNMENT_PLAN_ID, first, 0)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 1, value: first },
+    });
+    await expect(records.assignments.publish(ASSIGNMENT_PLAN_ID, second, 1)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 2, value: second },
+    });
+    await expect(records.assignments.publish(ASSIGNMENT_PLAN_ID, first, 1))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+  });
+
+  it("increments observations under an expected integer revision", async () => {
+    const records = await stores();
+    const first = { planId: "plan-1", body: "first" };
+    const second = { planId: "plan-1", body: "second" };
+
+    await expect(records.observations.read("plan-1")).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.observations.publish("plan-1", first, 0)).resolves.toMatchObject({ status: "ok" });
+    await expect(records.observations.publish("plan-1", second, 1)).resolves.toMatchObject({ status: "ok" });
+    await expect(records.observations.publish("plan-1", { planId: "plan-1", body: "stale" }, 1))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+  });
 
   it("treats byte-identical republishes as idempotent before version checks", async () => {
     const records = await stores();
     const firstPlan = plan("plan-1", "first");
+    const assigned = assignment(1);
     const revisioned = { planId: "plan-1", body: "first" };
     await records.plans.publishCurrent("plan-1", firstPlan, null);
-    await records.assignments.publish("plan-1", revisioned, 0);
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, assigned, 0);
     await records.observations.publish("plan-1", revisioned, 0);
 
     const paths = [
       join(records.commonDir, "arc", "delivery", "plans", "plan-1.json"),
-      join(records.commonDir, "arc", "delivery", "assignments", "plan-1.json"),
+      join(records.commonDir, "arc", "delivery", "assignments", `${ASSIGNMENT_PLAN_ID}.json`),
       join(records.commonDir, "arc", "delivery", "observations", "plan-1.json"),
     ];
     const before = await Promise.all(paths.map(async (path) => readFile(path, "utf8")));
@@ -179,9 +226,9 @@ describe("repository delivery record stores", () => {
       status: "ok",
       value: { currentDigest: planCodec.digest(firstPlan) },
     });
-    await expect(records.assignments.publish("plan-1", revisioned, 99)).resolves.toEqual({
+    await expect(records.assignments.publish(ASSIGNMENT_PLAN_ID, assigned, 99)).resolves.toEqual({
       status: "ok",
-      value: { revision: 1, value: revisioned },
+      value: { revision: 1, value: assigned },
     });
     await expect(records.observations.publish("plan-1", revisioned, 99)).resolves.toEqual({
       status: "ok",
@@ -219,31 +266,38 @@ describe("repository delivery record stores", () => {
     expect([second, third]).toContainEqual(current.value);
   });
 
-  it.each(["assignments", "observations"] as const)(
-    "allows only one concurrent %s successor under the namespace lock",
-    async (kind) => {
-      const records = await stores({
-        writeFile: async (path, content) => {
-          if (typeof content === "string" && /"body":"(?:second|third)"/u.test(content)) {
-            await new Promise((resolve) => setTimeout(resolve, 25));
-          }
-          await atomicWriteFile(path, content);
-        },
-      });
-      const store = records[kind];
-      await store.publish("plan-1", { planId: "plan-1", body: "first" }, 0);
+  it("allows only one concurrent assignment successor under the namespace lock", async () => {
+    const records = await stores({
+      writeFile: async (path, content) => {
+        if (typeof content === "string" && /"changeRequestId":"pull\/(?:second|third)"/u.test(content)) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        await atomicWriteFile(path, content);
+      },
+    });
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1), 0);
 
-      const results = await Promise.all([
-        store.publish("plan-1", { planId: "plan-1", body: "second" }, 1),
-        store.publish("plan-1", { planId: "plan-1", body: "third" }, 1),
-      ]);
+    const results = await Promise.all([
+      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1, { changeRequestId: "pull/second" }), 1),
+      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1, { changeRequestId: "pull/third" }), 1),
+    ]);
 
-      expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
-      expect(results.filter((result) => result.status === "refused")).toEqual([
-        { status: "refused", reason: "version-conflict" },
-      ]);
-    },
-  );
+    expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "refused")).toEqual([
+      { status: "refused", reason: "version-conflict" },
+    ]);
+  });
+
+  it("allows only one concurrent observation successor under the namespace lock", async () => {
+    const records = await stores();
+    await records.observations.publish("plan-1", { planId: "plan-1", body: "first" }, 0);
+    const results = await Promise.all([
+      records.observations.publish("plan-1", { planId: "plan-1", body: "second" }, 1),
+      records.observations.publish("plan-1", { planId: "plan-1", body: "third" }, 1),
+    ]);
+    expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "refused")).toHaveLength(1);
+  });
 
   it("leaves no partial record when publication fails after locking", async () => {
     const crash = new Error("simulated publication crash");
@@ -256,8 +310,8 @@ describe("repository delivery record stores", () => {
     await expect(records.plans.publishCurrent("plan-1", plan("plan-1", "first"), null))
       .rejects.toBe(crash);
     await expect(records.assignments.publish(
-      "plan-2",
-      { planId: "plan-2", body: "first" },
+      ASSIGNMENT_PLAN_ID,
+      assignment(1),
       0,
     )).rejects.toBe(crash);
     await expect(records.observations.publish(
@@ -267,7 +321,7 @@ describe("repository delivery record stores", () => {
     )).rejects.toBe(crash);
 
     await expect(records.plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: null });
-    await expect(records.assignments.read("plan-2")).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.assignments.read(ASSIGNMENT_PLAN_ID)).resolves.toEqual({ status: "ok", value: null });
     await expect(records.observations.read("plan-3")).resolves.toEqual({ status: "ok", value: null });
   });
 
@@ -293,15 +347,15 @@ describe("repository delivery record stores", () => {
     );
     await records.publisher.update(
       { root: "delivery", namespace: "assignments" },
-      "plan-2.json",
+      `${OTHER_ASSIGNMENT_PLAN_ID}.json`,
       () => ({
         kind: "write",
         content: `${JSON.stringify({
           schemaVersion: 1,
           semanticsVersion: "delivery-assignment-store/v1",
-          planId: "plan-2",
+          planId: OTHER_ASSIGNMENT_PLAN_ID,
           revision: 1,
-          value: { planId: "other-plan", body: "assignment" },
+          value: assignment(1),
         })}\n`,
         result: undefined,
       }),
@@ -326,7 +380,7 @@ describe("repository delivery record stores", () => {
       status: "refused",
       reason: "record-malformed",
     });
-    await expect(records.assignments.read("plan-2")).resolves.toEqual({
+    await expect(records.assignments.read(OTHER_ASSIGNMENT_PLAN_ID)).resolves.toEqual({
       status: "refused",
       reason: "identity-mismatch",
     });
@@ -544,5 +598,34 @@ describe("repository delivery record stores", () => {
       reason: "chain-invalid",
     });
     expect(validEntry.entryDigest).not.toBe(canonicalDigest("wrong"));
+  });
+
+  it("retains generation high-water marks across rematerialization and teardown", async () => {
+    const records = await stores();
+    const store = new RepositoryDeliveryAssignmentStore(records.publisher);
+    const first = assignment(1);
+    const rematerialized = assignment(2, { head: "b".repeat(40) });
+    const tornDown = assignment(2, { materialized: false });
+    const reauthored = assignment(3, { head: "c".repeat(40) });
+
+    await expect(store.publish(ASSIGNMENT_PLAN_ID, first, 0)).resolves.toMatchObject({ status: "ok" });
+    await expect(store.publish(
+      ASSIGNMENT_PLAN_ID,
+      assignment(1, { head: "b".repeat(40) }),
+      1,
+    )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    await expect(store.publish(ASSIGNMENT_PLAN_ID, rematerialized, 1)).resolves.toMatchObject({ status: "ok" });
+    await expect(store.publish(
+      ASSIGNMENT_PLAN_ID,
+      assignment(1, { materialized: false }),
+      2,
+    )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    await expect(store.publish(ASSIGNMENT_PLAN_ID, tornDown, 2)).resolves.toMatchObject({ status: "ok" });
+    await expect(store.publish(ASSIGNMENT_PLAN_ID, reauthored, 3)).resolves.toMatchObject({ status: "ok" });
+    await expect(store.publish(
+      ASSIGNMENT_PLAN_ID,
+      assignment(2, { head: "d".repeat(40) }),
+      4,
+    )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
   });
 });

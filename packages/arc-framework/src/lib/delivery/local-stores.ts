@@ -2,6 +2,11 @@
 
 import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
 import { sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
+import {
+  DeliveryAssignmentsV1Codec,
+  isDeliveryAssignmentSuccessor,
+  type DeliveryAssignmentsV1,
+} from "./assignment.js";
 import type {
   DeliveryAssignmentStore,
   DeliveryAssignmentStoreFailure,
@@ -114,6 +119,7 @@ async function publishRevisionedRecord<T>(
   planId: string,
   value: T,
   expectedRevision: number,
+  isSuccessor?: (current: T, proposed: T) => boolean,
 ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>> {
   const proposed = codec.decode(value);
   if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
@@ -134,9 +140,12 @@ async function publishRevisionedRecord<T>(
         }
       }
       const currentRevision = current?.revision ?? 0;
-      if (currentRevision !== expectedRevision) {
-        return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
-      }
+    if (currentRevision !== expectedRevision) {
+      return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+    }
+    if (current !== null && isSuccessor !== undefined && !isSuccessor(current.value, proposed.value)) {
+      return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+    }
       const next: RevisionedEnvelope<T> = {
         schemaVersion: 1,
         semanticsVersion,
@@ -237,38 +246,42 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
 }
 
 /** Repository-common revision-checked assignment adapter. */
-export class RepositoryDeliveryAssignmentStore<TAssignment>
-implements Pick<DeliveryAssignmentStore<TAssignment>, "read" | "publish"> {
-  constructor(
-    private readonly publisher: GitCommonStatePublisher,
-    private readonly codec: DeliveryPayloadCodec<TAssignment>,
-  ) {}
+export class RepositoryDeliveryAssignmentStore
+implements Pick<DeliveryAssignmentStore<DeliveryAssignmentsV1>, "read" | "publish"> {
+  constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async read(
     planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment> | null, DeliveryAssignmentStoreFailure>> {
+  ): Promise<DeliveryStoreResult<
+    DeliveryRevisionedRecord<DeliveryAssignmentsV1> | null,
+    DeliveryAssignmentStoreFailure
+  >> {
     return readRevisionedRecord(
       this.publisher,
       ASSIGNMENT_LOCATION,
       ASSIGNMENT_SEMANTICS,
-      this.codec,
+      DeliveryAssignmentsV1Codec,
       planId,
     );
   }
 
   async publish(
     planId: string,
-    value: TAssignment,
+    value: DeliveryAssignmentsV1,
     expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment>, DeliveryAssignmentStoreFailure>> {
+  ): Promise<DeliveryStoreResult<
+    DeliveryRevisionedRecord<DeliveryAssignmentsV1>,
+    DeliveryAssignmentStoreFailure
+  >> {
     return publishRevisionedRecord(
       this.publisher,
       ASSIGNMENT_LOCATION,
       ASSIGNMENT_SEMANTICS,
-      this.codec,
+      DeliveryAssignmentsV1Codec,
       planId,
       value,
       expectedRevision,
+      isDeliveryAssignmentSuccessor,
     );
   }
 }
