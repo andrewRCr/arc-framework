@@ -71,7 +71,19 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 - _Note:_ Registration posture is `strict-current` throughout — the pre-release posture adds no migration reader
   and no compatibility alias.
 
-    - `[ ]` **1.1.a Plan, member, and seam record schemas**
+    - `[ ]` **1.1.a Expose one runtime authority for parent task ids**
+
+        - The scanner currently keeps its parent-id grammar private while the cursor duplicates the same two
+          regexes. Extract one exported runtime schema beside the scanner, make both existing consumers use it,
+          and let delivery consume that schema rather than choosing a third string shape. Preserve the current
+          accepted grammar exactly, including revision-family ids and the numeric-third-segment refusal.
+
+        - Build `test-first` (one behavior at a time):
+            - Scanner, cursor, and direct schema parsing accept the same canonical parent ids
+            - All three refuse an all-numeric third segment and malformed dotted ids identically
+            - Existing scanner and cursor results remain byte-identical across their shipped cases
+
+    - `[ ]` **1.1.b Plan, member, and seam record schemas**
 
         - Strict objects mirroring the field lists and closed wire vocabulary in
           `spec-delivery-plan-record.md` § 1. The member is a tagged `status: live | landed` union; `projectId` is
@@ -87,7 +99,7 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
             - A missing `projectId` validates and a present empty value refuses
             - A provider binding, branch or pull-request name, or review target refuses as a schema error
 
-    - `[ ]` **1.1.b Authoring-input schema that omits every derived value**
+    - `[ ]` **1.1.c Authoring-input schema that omits every derived value**
 
         - The derived set is every identity, fingerprint, owner, and digest: `planId`, `planRevision`,
           `previousPlanDigest`, `planDigest`, `deliverableId`, `incidentDeliverableIds`, `ownerDeliverableId`,
@@ -108,13 +120,29 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
             - An input carrying only authored slots parses
             - The prior validated revision is accepted alongside the input when one exists
 
-    - `[ ]` **1.1.c Registration under strict-current posture**
+    - `[ ]` **1.1.d Registration, domain separation, and production composition**
+
+        - Register the record identities as `delivery-plan`, `delivery-plan-member`, `delivery-plan-seam`, and
+          `delivery-plan-authoring-input`. Register `delivery-deliverable-id-preimage` with domain
+          `arc.delivery.deliverable-id/v1` over `{ schemaVersion: 1, semanticsVersion: "delivery-plan/v1",
+          planId, chunkKey }`. Register `delivery-assurance-subject-id-preimage` with domain
+          `arc.delivery.assurance-subject-id/v1` as a tagged member arm over `{ planId, deliverableId }` and a
+          tagged seam arm over `{ planId, seamKey }`; the subject kind is inside the preimage and is what prevents
+          a member and seam from colliding. No implementation-chosen domain string or unregistered identity
+          preimage remains.
+
+        - Export one delivery-domain composition entrypoint over a caller-owned registry. Compose it after the
+          review family in the production build, so the schemas reach `dist/schemas/kernel.json`, and extend the
+          exact production-family assertions in the schema-generation unit test, schema-artifact E2E test, and
+          production-graph workflow-contract test. Registration-only tests do not satisfy this publication
+          boundary.
 
         - Build `test-first` (one behavior at a time):
             - Each record, authoring-input, and identity-preimage schema registers once and resolves by its stable
               identity
             - A duplicate identity refuses at registration
             - The emitted JSON Schema projection is byte-identical across repeated runs
+            - A production build emits every delivery schema alongside the existing kernel and review families
 
 ### `[ ]` **1.2 Derive plan, deliverable, and assurance-subject identities**
 
@@ -380,6 +408,8 @@ namespace-closed and lives under the scripts tree, which the library tree does n
             - An invalid root, namespace, root/namespace pair, or record name refuses before filesystem access
             - Review record namespaces refuse Markdown while delivery authoring admits a safe map basename
             - `keep` preserves bytes, `write` atomically replaces them, and `delete` removes only the resolved file
+            - Repeating `delete` after the record is absent succeeds as an idempotent no-op; only `ENOENT` is
+              absorbed and every other filesystem failure remains an infrastructure error
             - Concurrent updates to one namespace serialize on the advisory lock
 
 ### `[ ]` **2.2 Declare the four record ports and their failure classes**
@@ -392,8 +422,22 @@ namespace-closed and lives under the scripts tree, which the library tree does n
   follow — behavioral interfaces with no adapter detail. Payload-parameterize the four declarations so this
   member can ship the ports before later members declare observation and terminal-assurance payloads; operations,
   concurrency tokens, and failures remain fixed. The plan port reads current and publishes against expected
-  current digest. Assignment and observation ports read `{ revision, value }` and publish against that revision.
-  The assurance port reads, appends against expected tail digest, and exports or imports a complete chain.
+  current digest, and enumerates validated current plans in canonical `planId` order for rename-safe uniqueness.
+  Assignment and observation ports read `{ revision, value }` and publish against that revision. The assignment
+  port also owns the reverse lookup. The assurance port reads, appends against expected tail digest, and exports
+  or imports a complete chain.
+
+- _Runtime boundary:_ Type parameters do not validate persisted JSON. Each local adapter receives an explicit
+  runtime codec for its payload at construction; JSON or codec rejection reports `record-malformed`, and a decoded
+  payload whose embedded identity disagrees with its addressed plan reports `identity-mismatch`. This applies to
+  the later-supplied observation and assurance payloads as well as the records this member defines.
+
+- _Failure shape:_ Port operations return a discriminated `ok | refused` result for domain outcomes; filesystem
+  and transport failures reject as infrastructure errors. The plan port admits `record-malformed`,
+  `identity-mismatch`, `version-conflict`, and `namespace-corrupt`; assignment admits those plus
+  `ambiguous-match`; observation admits the same set as plan; assurance admits `record-malformed`,
+  `identity-mismatch`, `predecessor-conflict`, `chain-invalid`, `import-nonempty`, and `namespace-corrupt`.
+  Absence remains a successful nullable read, never a refusal.
 
 - Done when all four ports declare the closed domain failures `record-malformed`, `identity-mismatch`,
   `version-conflict`, `predecessor-conflict`, `chain-invalid`, `import-nonempty`, `ambiguous-match`, and
@@ -519,6 +563,11 @@ namespace-closed and lives under the scripts tree, which the library tree does n
           make. Derive delivery's traversal separately and map the non-rename outcomes to "not a match"; altering
           the shared resolver would change the reference-reconcile contract that gates the integrate verb.
 
+        - _Result contract:_ Return `match`, `no-match`, or `indeterminate`. The indeterminate arm names
+          `ambiguous-subject`, `namespace-corrupt`, `reachability-unestablished`, or `substrate-unreachable`; it is
+          never collapsed into `no-match`, because only the latter permits minting. The traversal consumes the
+          plan port's validated enumeration rather than reaching into the local adapter.
+
         - Build `test-first` (one behavior at a time):
             - A chain terminating at the unit being authored for identifies that unit's plan
             - A chain terminating elsewhere, and a unit with no transition, are both simply not matches
@@ -529,6 +578,20 @@ namespace-closed and lives under the scripts tree, which the library tree does n
             - A cycle that has not reached the unit is not a match and does not refuse
             - Resolution runs against a ref whose reachability was established, and treats an unestablished one
               as indeterminate
+
+    - `[ ]` **2.6.c Prove lookup from an artifact-free linked worktree**
+
+        - Exercise the real Git-common adapter rather than an in-memory port: publish from one checkout, then
+          resolve from a linked worktree on a bare member ref whose tree carries none of the owning unit's
+          lifecycle artifacts. Pin rename evidence to an established ref so the test covers the authority boundary
+          as well as the pure traversal.
+
+        - Build `test-first` (one behavior at a time):
+            - Exact-head and authoritative-ref selectors resolve the same plan, member, and owning work unit from
+              the sibling checkout without reading ref spelling
+            - An ambiguous authoritative binding refuses and an unmatched selector returns the negative result
+            - A reachable rename chain adopts the existing plan, while an unestablished ref returns indeterminate
+            - Cyclic and ambiguous rename histories take their specified non-match and indeterminate arms
 
 ## **Phase 3:** The authoring spine and the plan projection
 
@@ -558,7 +621,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 
     - `[ ]` **3.1.a Machine section carrying every derived fact and identity**
 
-        - Done when the section carries exactly the derived set `1.1.b` enumerates, plus the entry's own material,
+        - Done when the section carries exactly the derived set `1.1.c` enumerates, plus the entry's own material,
           and an author editing any of it is refusable by `3.2.a`.
 
     - `[ ]` **3.1.b Authoring section as a skeleton of explicit slots**
