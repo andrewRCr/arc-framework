@@ -352,8 +352,10 @@ On merge (full) or final commit (partial), invoke `arc errand close <slug> --jso
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
 When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
-`parentCheckoutPath`). On acceptance, re-enter this workflow through the sibling's open driver; on decline,
-return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
+`parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the returned
+between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
+`arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
+decline, return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed
 from the retained checkout by the [finalize pass][finalize-pass] or the next session. Exact replay is idempotent

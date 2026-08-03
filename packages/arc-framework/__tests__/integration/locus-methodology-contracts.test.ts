@@ -80,17 +80,41 @@ describe("locus methodology contracts", () => {
   it("preserves typed cleanup guidance without promising an unproduced Errand queue", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
-      const init = await readFile(
-        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
-        "utf8",
-      );
+      const [init, probeEnvelope] = await Promise.all([
+        readFile(
+          resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+          "utf8",
+        ),
+        readFile(
+          resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"),
+          "utf8",
+        ),
+      ]);
 
       expect(init).toContain("`currentHusk.ok == true` AND `currentHusk.value != null`");
       expect(init).toContain("`sweep.value.worktrees` non-empty");
       expect(init).toContain("`orphanBranchSweep.value.orphans` non-empty");
       expect(init).toContain("render one combined\n  section instead of the primary-only sections above");
-      expect(init).not.toContain("pendingExecuteBound");
-      expect(init).not.toContain("executeBoundDiagnostics");
+      for (const surface of [init, probeEnvelope]) {
+        expect(surface).not.toContain("pendingExecuteBound");
+        expect(surface).not.toContain("executeBoundDiagnostics");
+      }
+      expect(probeEnvelope).toContain("counts routable (well-formed, non-held) `USER-INBOX` entries");
+      expect(probeEnvelope).not.toContain("non-execute-bound");
+    }
+  });
+
+  it("binds a returned sibling offer to its inbox capture", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const runErrand = await readFile(
+        resolve(base, "system/workflows/arc/supplemental/run-errand.md"),
+        "utf8",
+      );
+
+      expect(runErrand).toContain("derive and confirm a branch-safe `<slug>`");
+      expect(runErrand).toContain(
+        "`arc errand open <slug> --from-inbox <nextOffer.key> --json`",
+      );
     }
   });
 
