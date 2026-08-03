@@ -53,6 +53,10 @@ export type ProcessLiveness = "live" | "dead" | "unknown";
 export type LeaseAuthority = "self" | "foreign" | "dead" | "unverifiable";
 
 const MAX_ANCESTOR_DEPTH = 32;
+const WINDOWS_PRE_COMPACT_SEED_HOOK_COMMAND = String.raw`for /f "delims=" %i in ('git rev-parse --show-toplevel')`
+  + String.raw` do for /f "delims=" %j in ('git rev-parse --path-format=absolute --git-common-dir')`
+  + String.raw` do (cd /d "%i" && set "ARC_HOOK_HARNESS=codex-cli"`
+  + String.raw` && node "%j\..\.arc\system\.internal\harness-hooks\common\pre-compact-seed.mjs") || exit /b 0`;
 
 /**
  * Acquire and select one durable session anchor without walking above it.
@@ -246,7 +250,8 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   const args = snapshot.commandArguments ?? parseCommandArguments(commandLine);
   if ((executable === "node" || executable === "node.exe")
     && args !== null
-    && (isArcNodeInvocation(args) || isNpmArcInvocation(args) || isFlattenedNpmArcProcessTitle(args))) return true;
+    && (isArcNodeInvocation(args) || isNpmArcInvocation(args) || isFlattenedNpmArcProcessTitle(args)
+      || isPreCompactSeedHookInvocation(args))) return true;
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && args !== null
     && isNpmArcInvocation(args)) return true;
@@ -257,6 +262,11 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   // command; the arc invocation sits inside the eval payload, not after -c.
   if ((executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash")
     && isAgentSnapshotShell(snapshot, commandLine)) return true;
+  if ((isShellIdentity(executable) || isWindowsCommandShellIdentity(executable))
+    && isShellPreCompactSeedHookInvocation(snapshot, commandLine)) return true;
+  if (isWindowsCommandShellIdentity(executable) && args !== null && isWindowsCommandShellArcInvocation(args)) {
+    return true;
+  }
   return isShellIdentity(executable) && args !== null && isShellArcInvocation(args);
 }
 
@@ -284,7 +294,16 @@ function isAgentSnapshotShell(snapshot: AncestorProcessSnapshot, commandLine: st
 function shellCommandLineOperand(commandLine: string): string | null {
   const matched = /^\s*(?:"[^"]+"|'[^']+'|\S+)\s+-(?:l)?c\s+([\s\S]+)$/u.exec(commandLine);
   if (matched?.[1] === undefined) return null;
-  const operand = matched[1].trim();
+  return stripOuterCommandQuotes(matched[1]);
+}
+
+function windowsCommandLineOperand(commandLine: string): string | null {
+  const matched = /^\s*(?:"[^"]+"|\S+)(?:\s+\/[dqs])*\s+\/c\s+([\s\S]+)$/iu.exec(commandLine);
+  return matched?.[1] === undefined ? null : stripOuterCommandQuotes(matched[1]);
+}
+
+function stripOuterCommandQuotes(value: string): string {
+  const operand = value.trim();
   const quote = operand[0];
   return quote !== undefined && (quote === "'" || quote === "\"") && operand.at(-1) === quote
     ? operand.slice(1, -1)
@@ -296,6 +315,11 @@ function shellCommandOperand(args: readonly string[]): string | null {
     const option = arg.toLowerCase();
     return option === "-c" || option === "-lc";
   });
+  return optionIndex < 0 ? null : args[optionIndex + 1] ?? null;
+}
+
+function windowsCommandOperand(args: readonly string[]): string | null {
+  const optionIndex = args.findIndex((arg) => arg.toLowerCase() === "/c");
   return optionIndex < 0 ? null : args[optionIndex + 1] ?? null;
 }
 
@@ -375,6 +399,15 @@ function isArcNodeInvocation(args: readonly string[]): boolean {
   return normalized.endsWith("/dist/cli.js") || name === "arc" || name === "arc.js";
 }
 
+function isPreCompactSeedHookInvocation(args: readonly string[]): boolean {
+  const executable = args[0] === undefined ? "" : basename(args[0]).toLowerCase();
+  if (executable !== "node" && executable !== "node.exe") return false;
+  const script = args[1];
+  if (script === undefined) return false;
+  const normalized = script.replaceAll("\\", "/").toLowerCase();
+  return /(?:^|\/)\.arc\/system\/\.internal\/harness-hooks\/common\/pre-compact-seed\.mjs$/u.test(normalized);
+}
+
 function isNpmArcInvocation(args: readonly string[]): boolean {
   const executable = args[0] === undefined ? "" : basename(args[0]).toLowerCase();
   if (executable !== "npm" && executable !== "npm.cmd") return false;
@@ -401,11 +434,44 @@ function isShellArcInvocation(args: readonly string[]): boolean {
     const option = arg.toLowerCase();
     return option === "-c" || option === "-lc" || option === "-command";
   });
-  if (optionIndex < 0) return false;
-  const command = args.slice(optionIndex + 1);
+  return optionIndex < 0 ? false : isArcInvocationOperand(args.slice(optionIndex + 1));
+}
+
+function isWindowsCommandShellArcInvocation(args: readonly string[]): boolean {
+  const optionIndex = args.findIndex((arg) => arg.toLowerCase() === "/c");
+  return optionIndex < 0 ? false : isArcInvocationOperand(args.slice(optionIndex + 1));
+}
+
+function isArcInvocationOperand(command: readonly string[]): boolean {
   if (isDirectArcInvocation(command)) return true;
   const nested = command[0] === undefined ? null : parseCommandArguments(command[0]);
   return nested !== null && isDirectArcInvocation(nested);
+}
+
+function isShellPreCompactSeedHookInvocation(
+  snapshot: AncestorProcessSnapshot,
+  commandLine: string,
+): boolean {
+  const executable = basename(snapshot.commandIdentity).toLowerCase();
+  const command = snapshot.commandArguments === undefined
+    ? (isWindowsCommandShellIdentity(executable)
+        ? windowsCommandLineOperand(commandLine)
+        : shellCommandLineOperand(commandLine))
+    : (isWindowsCommandShellIdentity(executable)
+        ? windowsCommandOperand(snapshot.commandArguments)
+        : shellCommandOperand(snapshot.commandArguments));
+  if (command === null) return false;
+  if (isWindowsCommandShellIdentity(executable)) return command === WINDOWS_PRE_COMPACT_SEED_HOOK_COMMAND;
+  const commands = parseShellCommandList(command);
+  return commands !== null && commands.some((candidate) => {
+    const nodeIndex = candidate.findIndex((arg) => {
+      const executable = basename(arg).toLowerCase();
+      return executable === "node" || executable === "node.exe";
+    });
+    if (nodeIndex < 0) return false;
+    if (!candidate.slice(0, nodeIndex).every((arg) => /^[A-Za-z_][A-Za-z0-9_]*=/u.test(arg))) return false;
+    return isPreCompactSeedHookInvocation(candidate.slice(nodeIndex));
+  });
 }
 
 function isDirectArcInvocation(command: readonly string[]): boolean {
@@ -424,6 +490,11 @@ function isShellIdentity(identity: string): boolean {
   return executable === "bash" || executable === "zsh" || executable === "fish"
     || executable === "sh" || executable === "dash" || executable === "pwsh"
     || executable === "powershell.exe";
+}
+
+function isWindowsCommandShellIdentity(identity: string): boolean {
+  const executable = basename(identity).toLowerCase();
+  return executable === "cmd" || executable === "cmd.exe";
 }
 
 function parseCommandArguments(commandLine: string): readonly string[] | null {

@@ -12,6 +12,7 @@ import {
   createWindowsProcessAncestryInspector,
   createWindowsProcessInspector,
 } from "../../../src/lib/locus/platform-inspectors.js";
+import { acquireSessionAnchor } from "../../../src/lib/locus/process-inspector.js";
 import type { ProcessExec } from "../../../src/lib/locus/process-exec.js";
 
 function procStat(pid: number, parentPid: number, startToken: string, ttyNumber = "0"): string {
@@ -119,9 +120,35 @@ describe("BSD process inspector", () => {
     expect(exec).toHaveBeenCalledTimes(2);
     expect(exec).toHaveBeenLastCalledWith(
       "ps",
-      ["-p", "42", "-o", "lstart=,tty=,command="],
+      ["-ww", "-p", "42", "-o", "lstart=,tty=,command="],
       { env: { LC_ALL: "C", LANG: "C" } },
     );
+  });
+
+  it("requests the complete BSD hook command before selecting its Codex anchor", async () => {
+    const startToken = "Mon Jul 18 00:00:00 2026";
+    const hookCommand = "sh -c repo_root=\"$(git rev-parse --show-toplevel)\""
+      + " && primary=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\""
+      + " && cd \"$repo_root\""
+      + " && ARC_HOOK_HARNESS=codex-cli node"
+      + " \"$primary/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0";
+    const exec: ProcessExec = async (_command, args) => {
+      const pid = args[args.indexOf("-p") + 1];
+      const fields = args.at(-1);
+      if (fields === "ppid=,lstart=,comm=") {
+        const line = pid === "20" ? `10 ${startToken} /bin/sh` : `1 ${startToken} /opt/codex`;
+        return { kind: "success", stdout: `${line}\n`, stderr: "", exitCode: 0 };
+      }
+      const fullCommand = pid === "20" ? hookCommand : "codex";
+      const command = args.includes("-ww") ? fullCommand : fullCommand.slice(0, 72);
+      return {
+        kind: "success", stdout: `${startToken} ?? ${command}\n`, stderr: "", exitCode: 0,
+      };
+    };
+
+    await expect(acquireSessionAnchor(20, createBsdProcessAncestryInspector(exec))).resolves.toEqual({
+      kind: "process", pid: 10, startToken, inspector: "bsd-ps", selector: "codex",
+    });
   });
 
   it("confirms a diagnostic nonzero result as absent only when signal zero proves ESRCH", async () => {

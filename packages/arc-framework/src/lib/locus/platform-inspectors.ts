@@ -173,7 +173,7 @@ export function createBsdProcessAncestryInspector(
       const inspected = await base.inspect(pid);
       if (inspected.kind !== "present") return inspected;
       const env = { LC_ALL: "C", LANG: "C" };
-      const evidence = await exec("ps", ["-p", String(pid), "-o", "lstart=,tty=,command="], { env });
+      const evidence = await exec("ps", ["-ww", "-p", String(pid), "-o", "lstart=,tty=,command="], { env });
       if (evidence.kind !== "success") {
         return unknownAncestor("BSD process ancestry query is unavailable");
       }
