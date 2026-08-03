@@ -82,26 +82,11 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
           vocabulary, canonical identity shapes, safe artifact basenames, first-revision status enforcement, and
           distinct seam incidence.
 
-    - `[ ]` **1.1.c Authoring-input schema that omits every derived value**
+    - `[x]` **1.1.c Authoring-input schema that omits every derived value**
 
-        - The derived set is every identity, fingerprint, owner, and digest: `planId`, `planRevision`,
-          `previousPlanDigest`, `planDigest`, `deliverableId`, `incidentDeliverableIds`, `ownerDeliverableId`,
-          both `assuranceSubjectId` families, every `semanticFingerprint`, `tasks.inventoryDigest`, each per-task
-          and per-element `semanticDigest`, and each design artifact's `revisionDigest`. Enumerating it here is
-          what makes the starter map's slot skeleton derivable.
-
-        - _Note:_ The author references members by `chunkKey`, the one member key they supply, so a seam's
-          incidence is authored as chunk keys and composition derives the deliverable ids and the owner from them.
-          Nothing else would work: no deliverable id exists when the map is emitted, since ids derive from a
-          `planId` and a member set the author has not yet drawn.
-
-        - Build `test-first` (one behavior at a time):
-            - An input carrying any member of the derived set refuses, naming the offending field
-            - An input carries the authored member `status`, with revision one restricted to `live`
-            - A seam authored by chunk keys resolves to deliverable ids at composition
-            - A seam naming a chunk key no member carries refuses
-            - An input carrying only authored slots parses
-            - The prior validated revision is accepted alongside the input when one exists
+        - Added a strict authored-input schema that structurally excludes derived values, validates first-revision
+          status against an optional predecessor, rejects unknown seam member keys, and resolves authored chunk-key
+          incidence through the caller's deliverable-id derivation.
 
     - `[ ]` **1.1.d Registration, domain separation, and production composition**
 
