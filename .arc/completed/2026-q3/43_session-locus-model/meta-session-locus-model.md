@@ -18,7 +18,7 @@
 
 - **Next Action:** [none]
 
-- **PR URL:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/434>
 - **Completed:** 2026-08-03
 
 ## Release Notes Entry

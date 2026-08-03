@@ -2100,21 +2100,27 @@ not invoke `integrate-work-unit` or ARC's broken review architecture for it.
 - **Entry base:** `origin/main` `2bd5b01b0`, the verified S13 merge. Branch
   `chore/session-locus-model-closeout` was cut in a sibling worktree.
 - **Archive source:** The four control artifacts were copied directly from control tip `b513acc03` into
-  `.arc/completed/2026-q3/43_session-locus-model/`; no `.arc/active/**` path is present in the closeout target.
+  `.arc/completed/2026-q3/43_session-locus-model/`. An append-only terminal transition parent retires the exact
+  stale two-file planned stub while adding that same completed projection; no `.arc/active/**` path is present in
+  the target.
 - **Terminal composition:** The archived meta is shipped with no branch, workflow, task, or next action; the task
   list closes verification and explicitly defers only the four success criteria owned by the carved producer work.
-- **Exact construction measurement:** 6,298 additions across four documentation artifacts. This exceeds the
-  implementation-slice ceiling only because the closeout is the indivisible archival projection of the already
-  reviewed planning record; splitting it would publish an incomplete completed work-unit identity.
-- **Project projection:** Staged `ROADMAP` regeneration is byte-identical. `errand-transient-lifecycle` and
-  `claimed-sweep-verbs` resolve as planned in dependency order, and `locus-generation-binding` resolves as
-  provisional behind `claimed-sweep-verbs`; their predecessor remains intentionally unlanded until the closeout PR
-  URL completes the shipped meta.
-- **Publication:** [pending]
+- **Exact target measurement:** 6,305 additions plus 335 deletions across seven documentation artifacts. This exceeds
+  the implementation-slice ceiling only because the closeout is the indivisible archival projection of the already
+  reviewed planning record plus its exact stale-stub retirement; splitting it would publish an incomplete completed
+  work-unit identity.
+- **Project projection:** The closeout tree contains no active or planned `session-locus-model` artifact. `ROADMAP`
+  preserves every other live worktree while applying the isolated closeout transition: `errand-transient-lifecycle`
+  advances to ready, `claimed-sweep-verbs` moves to depth one, and the satisfied edge leaves
+  `delivery-stack-topology`. `locus-generation-binding` remains provisional behind `claimed-sweep-verbs`.
+- **Publication:** PR #434 targets `main` `2bd5b01b0` from archival seed `ffe5674e1`; the atomic lifecycle parent
+  is merged into that published branch without rewriting it. No `ci-defer-heavy` label or hosted review is
+  requested.
 - **Review posture:** The closeout is a pure archival projection with no runtime, methodology, or active-work
   change. It needs neither `ci-defer-heavy` nor hosted review; applicable GitHub-hosted documentation checks remain
   required.
-- **Next:** Publish the closeout PR, record its URL in the archived meta, and require the applicable hosted checks.
+- **Next:** Complete the append-only lifecycle transition, push it, and require the applicable GitHub-hosted checks
+  before merge authorization.
 
 #### S13 publication checklist
 
