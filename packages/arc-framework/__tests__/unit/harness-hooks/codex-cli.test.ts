@@ -481,6 +481,32 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("refuses a seed retry that remains stale after a successful repair", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(fakeArcPath, [
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, "process.exit(0);\n");
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root))).toMatchObject({
+        fallback: true,
+        reason: "seed command remained stale after repair",
+      });
+    });
+  });
+
   it("writes markers only for the Codex harness", () => {
     withTempArcProject((root) => {
       runSeedSuccess(root, { env: { ARC_HOOK_HARNESS: "claude-code" } });

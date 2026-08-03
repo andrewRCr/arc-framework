@@ -33,6 +33,9 @@ try {
     });
     if (build.status === 0) {
       result = runSeedCommand();
+      if (hasStaleBuildWarning(result)) {
+        staleBuildFailure = "seed command remained stale after repair";
+      }
     } else {
       staleBuildFailure = commandFailureMessage("stale-build repair", build);
     }
@@ -76,9 +79,10 @@ function runSeedCommand() {
 }
 
 function shouldRetryAfterBuild(result) {
-  if (staleBuildCommand.length === 0) {
-    return false;
-  }
+  return staleBuildCommand.length > 0 && hasStaleBuildWarning(result);
+}
+
+function hasStaleBuildWarning(result) {
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   return `${stderr}\n${stdout}`.includes("arc dev build is stale");
