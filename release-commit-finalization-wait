@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "release-commit-finalization-wait",
+  "claimId": "c8ee84336381d882983446e0b534c972",
+  "createdAt": "2026-08-03T16:07:01.237Z",
+  "updatedAt": "2026-08-03T16:07:01.237Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Establish and regress the release-commit finalization contract with a deliberately delayed hook and immediate push",
+  "branch": "chore/release-commit-finalization-wait",
+  "origin": "inbox",
+  "originEntry": "Make `arc release commit` wait for commit finalization before returning",
+  "originEntrySourceDigest": "sha256:4bc61eb494dabbaea698c418610937473840e83fa71c64afa5b56770c7605009",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
