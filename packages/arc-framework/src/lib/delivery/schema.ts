@@ -6,7 +6,9 @@ import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const DeliveryPlanIdSchema = z.uuid();
+/** Minted stable identity for one delivery plan across all revisions. */
+export const DeliveryPlanIdSchema = z.uuid();
+export type DeliveryPlanId = z.infer<typeof DeliveryPlanIdSchema>;
 const NonEmptyOpaqueStringSchema = z.string().min(1);
 const NonEmptyTextSchema = z.string().trim().min(1);
 const ArtifactBasenameSchema = z.string().min(1).refine(
