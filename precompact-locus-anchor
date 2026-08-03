@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "precompact-locus-anchor",
+  "claimId": "50c2f11d279f6f36f53dc8b66a876c90",
+  "createdAt": "2026-08-03T16:35:18.970Z",
+  "updatedAt": "2026-08-03T16:35:18.970Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve the owning Codex session anchor through the PreCompact seed hook so locus-aware recovery records and verifies the exact live generation",
+  "branch": "chore/precompact-locus-anchor",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
