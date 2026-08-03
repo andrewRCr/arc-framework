@@ -5,13 +5,16 @@ import { z } from "zod";
 import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+/** Runtime authority for delivery-domain canonical digests. */
+export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 /** Minted stable identity for one delivery plan across all revisions. */
 export const DeliveryPlanIdSchema = z.uuid();
 export type DeliveryPlanId = z.infer<typeof DeliveryPlanIdSchema>;
-const NonEmptyOpaqueStringSchema = z.string().min(1);
+/** Runtime authority for non-empty opaque delivery identifiers. */
+export const DeliveryOpaqueIdSchema = z.string().min(1);
 const NonEmptyTextSchema = z.string().trim().min(1);
-const ArtifactBasenameSchema = z.string().min(1).refine(
+/** Runtime authority for safe design-artifact basenames. */
+export const DeliveryArtifactBasenameSchema = z.string().min(1).refine(
   (value) => value !== "." && value !== ".." && !/[\\/\0]/u.test(value)
     && value.normalize("NFC") === value,
   "must be a safe basename",
@@ -22,15 +25,15 @@ const AuthoredDeliveryPlanMemberShape = {
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   taskIds: z.array(ParentTaskIdSchema),
-  designElementIds: z.array(NonEmptyOpaqueStringSchema),
+  designElementIds: z.array(DeliveryOpaqueIdSchema),
   mainlineLandability: z.enum(["independently-landable", "integration-only"]),
 };
 
 const DeliveryPlanMemberShape = {
   ...AuthoredDeliveryPlanMemberShape,
-  deliverableId: CanonicalDigestSchema,
-  assuranceSubjectId: CanonicalDigestSchema,
-  semanticFingerprint: CanonicalDigestSchema,
+  deliverableId: DeliveryCanonicalDigestSchema,
+  assuranceSubjectId: DeliveryCanonicalDigestSchema,
+  semanticFingerprint: DeliveryCanonicalDigestSchema,
 };
 
 /** A delivery member whose semantic fingerprint remains derivable. */
@@ -57,14 +60,14 @@ export const DeliveryPlanSeamV1Schema = z.strictObject({
   seamKey: SlugSchema,
   title: NonEmptyTextSchema,
   acceptance: NonEmptyTextSchema,
-  incidentDeliverableIds: z.array(CanonicalDigestSchema).min(2).refine(
+  incidentDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(2).refine(
     (ids) => new Set(ids).size === ids.length,
     "incident deliverables must be distinct",
   ),
-  ownerDeliverableId: CanonicalDigestSchema,
-  designElementIds: z.array(NonEmptyOpaqueStringSchema),
-  assuranceSubjectId: CanonicalDigestSchema,
-  semanticFingerprint: CanonicalDigestSchema,
+  ownerDeliverableId: DeliveryCanonicalDigestSchema,
+  designElementIds: z.array(DeliveryOpaqueIdSchema),
+  assuranceSubjectId: DeliveryCanonicalDigestSchema,
+  semanticFingerprint: DeliveryCanonicalDigestSchema,
 });
 export type DeliveryPlanSeamV1 = z.infer<typeof DeliveryPlanSeamV1Schema>;
 
@@ -72,26 +75,26 @@ export type DeliveryPlanSeamV1 = z.infer<typeof DeliveryPlanSeamV1Schema>;
 export const DeliveryPlanV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("delivery-plan/v1"),
-  projectId: NonEmptyOpaqueStringSchema.optional(),
+  projectId: DeliveryOpaqueIdSchema.optional(),
   workUnitId: SlugSchema,
   planId: DeliveryPlanIdSchema,
   planRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-  previousPlanDigest: CanonicalDigestSchema.nullable(),
+  previousPlanDigest: DeliveryCanonicalDigestSchema.nullable(),
   design: z.strictObject({
     artifacts: z.array(z.strictObject({
-      artifactId: ArtifactBasenameSchema,
-      revisionDigest: CanonicalDigestSchema,
+      artifactId: DeliveryArtifactBasenameSchema,
+      revisionDigest: DeliveryCanonicalDigestSchema,
     })),
     elements: z.array(z.strictObject({
-      elementId: NonEmptyOpaqueStringSchema,
-      semanticDigest: CanonicalDigestSchema,
+      elementId: DeliveryOpaqueIdSchema,
+      semanticDigest: DeliveryCanonicalDigestSchema,
     })),
   }),
   tasks: z.strictObject({
-    inventoryDigest: CanonicalDigestSchema,
+    inventoryDigest: DeliveryCanonicalDigestSchema,
     implementation: z.array(z.strictObject({
       taskId: ParentTaskIdSchema,
-      semanticDigest: CanonicalDigestSchema,
+      semanticDigest: DeliveryCanonicalDigestSchema,
     })),
     verificationTaskId: ParentTaskIdSchema,
   }),
@@ -102,7 +105,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
   ]),
   members: z.array(DeliveryPlanMemberV1Schema),
   seams: z.array(DeliveryPlanSeamV1Schema),
-  planDigest: CanonicalDigestSchema,
+  planDigest: DeliveryCanonicalDigestSchema,
 }).superRefine((plan, context) => {
   if (plan.planRevision !== 1) return;
   for (const [index, member] of plan.members.entries()) {
@@ -121,11 +124,11 @@ export type DeliveryPlanV1 = z.infer<typeof DeliveryPlanV1Schema>;
 export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("delivery-plan/v1"),
-  projectId: NonEmptyOpaqueStringSchema.optional(),
+  projectId: DeliveryOpaqueIdSchema.optional(),
   workUnitId: SlugSchema,
   design: z.strictObject({
-    artifacts: z.array(z.strictObject({ artifactId: ArtifactBasenameSchema })).min(1).max(2),
-    elements: z.array(z.strictObject({ elementId: NonEmptyOpaqueStringSchema })),
+    artifacts: z.array(z.strictObject({ artifactId: DeliveryArtifactBasenameSchema })).min(1).max(2),
+    elements: z.array(z.strictObject({ elementId: DeliveryOpaqueIdSchema })),
   }),
   tasks: z.strictObject({
     implementation: z.array(z.strictObject({ taskId: ParentTaskIdSchema })),
@@ -148,7 +151,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
       (keys) => new Set(keys).size === keys.length,
       "incident chunks must be distinct",
     ),
-    designElementIds: z.array(NonEmptyOpaqueStringSchema),
+    designElementIds: z.array(DeliveryOpaqueIdSchema),
   })),
 }).superRefine((input, context) => {
   const memberKeys = new Set(input.members.map((member) => member.chunkKey));
@@ -216,7 +219,7 @@ export function resolveAuthoredSeamIncidence(
   return input.seams.map((seam) => ({
     seamKey: seam.seamKey,
     incidentDeliverableIds: seam.incidentChunkKeys.map((chunkKey) => (
-      CanonicalDigestSchema.parse(deliverableIdForChunkKey(chunkKey))
+      DeliveryCanonicalDigestSchema.parse(deliverableIdForChunkKey(chunkKey))
     )),
   }));
 }
@@ -239,7 +242,7 @@ export const DeliveryAssuranceSubjectIdPreimageSchema = z.discriminatedUnion("su
     semanticsVersion: z.literal("delivery-plan/v1"),
     subjectKind: z.literal("member"),
     planId: DeliveryPlanIdSchema,
-    deliverableId: CanonicalDigestSchema,
+  deliverableId: DeliveryCanonicalDigestSchema,
   }),
   z.strictObject({
     domain: z.literal("arc.delivery.assurance-subject-id/v1"),
