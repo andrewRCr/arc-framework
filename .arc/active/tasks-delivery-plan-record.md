@@ -95,14 +95,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
   domain-separated identity preimage is discoverable from the production kernel bundle rather than only through
   local module imports.
 
-### `[ ]` **1.2 Derive plan, deliverable, and assurance-subject identities**
+### `[x]` **1.2 Derive plan, deliverable, and assurance-subject identities**
 
 - _Goal:_ A deliverable keeps one identity across every revision of its plan, and renaming the owning work unit
   moves none of them.
-
-- _Rationale:_ `planId` is minted rather than derived because its only available preimage is the work-unit slug,
-  which a shipped rename mutates while the unit is live. Deriving it would turn a sanctioned rename into a silent
-  re-mint of every member, seam, and assurance subject.
 
     - `[x]` **1.2.a Mint `planId` once and carry it forward**
 
@@ -114,12 +110,13 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Added registered-preimage hashing over only the plan and stable chunk key, with duplicate keys refused
           before a plan-ordered identity sequence is derived.
 
-    - `[ ]` **1.2.c Derive member and seam `assuranceSubjectId`**
+    - `[x]` **1.2.c Derive member and seam `assuranceSubjectId`**
 
-        - Build `test-first` (one behavior at a time):
-            - The preimage excludes plan revision and evidence-carrier identity
-            - Member and seam subjects of the same stable identity do not collide across kinds
-            - A seam carries a subject in its own right, distinct from every incident member's
+        - Added tagged member and seam derivations through the registered assurance domain, leaving revisions and
+          evidence carriers outside identity and keeping seam subjects distinct from incident members.
+
+- _Outcome:_ The minted plan spine survives work-unit renames, while every dependent member and seam identity is a
+  deterministic digest of only its stable, domain-separated preimage.
 
 ### `[ ]` **1.3 Bind the task and design inventories**
 
