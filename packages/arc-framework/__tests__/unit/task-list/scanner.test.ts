@@ -2,7 +2,21 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { scanTaskListStructure } from "../../../src/lib/task-list/scanner.js";
+import {
+  ParentTaskIdSchema,
+  scanTaskListStructure,
+} from "../../../src/lib/task-list/scanner.js";
+
+describe("ParentTaskIdSchema", () => {
+  it("accepts canonical parent ids and refuses malformed dotted ids", () => {
+    for (const id of ["1.1", "2.R", "5.R.a"]) {
+      expect(ParentTaskIdSchema.safeParse(id).success).toBe(true);
+    }
+    for (const id of ["1", "1..a", "1.2.3", "phase.1"]) {
+      expect(ParentTaskIdSchema.safeParse(id).success).toBe(false);
+    }
+  });
+});
 
 describe("scanTaskListStructure", () => {
   it("emits canonical phase, parent, subtask, and section events", () => {

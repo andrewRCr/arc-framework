@@ -4,6 +4,15 @@
  * @module
  */
 
+import { z } from "zod";
+
+/** Runtime authority for canonical parent-task identities. */
+export const ParentTaskIdSchema = z.string()
+  .regex(/^\d+(?:\.[0-9A-Za-z]+)+$/u)
+  .refine((value) => !/^\d+\.\d+\.\d+(?:\.|$)/u.test(value), {
+    error: "Numeric third task-id segments are not executable parent ids",
+  });
+
 /** Supported task checkbox markers. */
 export type TaskMarker = " " | "x" | "~";
 
@@ -41,9 +50,7 @@ const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
 const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+[^:]+:\*\*/u;
-const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
-const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
-const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
+const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
 const FENCE_RE = /^ {0,3}(?<run>`{3,}|~{3,})(?<rest>.*)$/u;
 
 interface OpenFence {
@@ -190,16 +197,18 @@ function parseTaskBody(
   const match = TASK_BODY_RE.exec(body.trim());
   const id = match?.groups?.id;
   const title = match?.groups?.title;
-  if (id === undefined || title === undefined || NUMERIC_THIRD_SEGMENT_RE.test(id)) {
+  const parsedId = ParentTaskIdSchema.safeParse(id);
+  if (!parsedId.success || title === undefined) {
     return malformed(lineNumber, "task marker must include a valid id and title");
   }
-  return { status: "parsed", item: { id, title, lineHint: lineNumber } };
+  return { status: "parsed", item: { id: parsedId.data, title, lineHint: lineNumber } };
 }
 
 function hasTaskIdLikePrefix(body: string): boolean {
   const trimmed = body.trim();
   const bold = /^\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u.exec(trimmed);
-  return TASK_ID_PREFIX_RE.test(bold?.groups?.body ?? trimmed);
+  const candidate = (bold?.groups?.body ?? trimmed).split(/\s+/u, 1)[0];
+  return candidate !== undefined && ParentTaskIdSchema.safeParse(candidate).success;
 }
 
 function markerFromMatch(value: string | undefined): TaskMarker {
