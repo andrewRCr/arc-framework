@@ -35,9 +35,13 @@ export type V3DecompositionMismatchKind =
   | "topology"
   | "publication";
 
+/** Evidence class for mismatches caused by unavailable repository reads. */
+export const V3_DECOMPOSITION_READ_FAILURE = "read-failure" as const;
+
 export interface V3DecompositionMismatch {
   kind: V3DecompositionMismatchKind;
   locus?: string;
+  evidence?: typeof V3_DECOMPOSITION_READ_FAILURE;
 }
 
 export interface FinalizedV3DecompositionFacts {

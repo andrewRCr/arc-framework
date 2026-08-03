@@ -2,10 +2,6 @@
  * Git adapter for selecting one finalized decomposition overlay from a merge snapshot.
  */
 
-import {
-  canonicalize,
-  digestBytes,
-} from "../canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import {
   selectMergeTransitionOverlay,
@@ -17,16 +13,15 @@ import {
 } from "./merge-transition-overlay.js";
 import {
   v3DecomposeReceiptPath,
-  type V3DecomposePreparation,
 } from "./decompose-v3-preparation.js";
 import {
   isV3DecomposeReceiptRestatement,
-  type V3DecomposeReceipt,
-  type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
-import { v3SourceArtifactDigest } from "./decompose-v3-schema.js";
-import { readAncestry, readTreeEntry } from "./git-decomposition-object-readers.js";
-import { readGitV3DecomposeTreeSnapshot } from "./git-decompose-v3-preflight.js";
+import { readAncestry } from "./git-decomposition-object-readers.js";
+import {
+  assembleGitFinalizedV3DecompositionFacts,
+  createGitDecompositionFactAssemblerDependencies,
+} from "./git-decomposition-fact-assembler.js";
 import {
   validateRetirementRecordEnumeration,
   type EnumeratedRetirementRecord,
@@ -329,41 +324,6 @@ async function changedPaths(
   return fields.sort(compareUtf8);
 }
 
-async function readPathState(
-  ref: string,
-  path: string,
-  deps: GitMergeTransitionOverlayDependencies,
-): Promise<V3ManagedPathResult["before"]> {
-  const { stdout } = await deps.exec("git", [
-    "ls-tree",
-    "-z",
-    ref,
-    "--",
-    `:(literal)${path}`,
-  ], { cwd: deps.cwd });
-  if (stdout === "") return { kind: "absent" };
-  const records = stdout.split("\0").filter(Boolean);
-  const match = records.length === 1 ? TREE_ENTRY_PATTERN.exec(records[0] ?? "") : null;
-  if (match?.[1] === undefined || match[2] === undefined || match[3] !== path) {
-    throw new Error(`Git returned an unsupported path state for ${path}`);
-  }
-  return {
-    kind: "file",
-    mode: match[1] as "100644" | "100755",
-    contentDigest: digestBytes(await deps.readBlob(match[2])),
-  };
-}
-
-function preparationFromReceipt(receipt: V3DecomposeReceipt): V3DecomposePreparation {
-  return {
-    kind: "prepared-decompose",
-    schemaVersion: 3,
-    receiptId: receipt.receiptId,
-    preparationId: receipt.preparationId,
-    facts: receipt.prepared,
-  };
-}
-
 async function buildCandidate(
   record: EnumeratedRetirementRecord,
   provenance: readonly PinnedMergeReceiptProvenance[],
@@ -374,66 +334,20 @@ async function buildCandidate(
     throw new Error("Cannot build a non-v3 decomposition candidate");
   }
   const receipt = record.record.value;
-  const preparation = preparationFromReceipt(receipt);
-  const machine = preparation.facts.completedMap.machine;
-  const sourceSnapshot = await readGitV3DecomposeTreeSnapshot({
-    cwd: deps.cwd,
-    exec: deps.exec,
-    readBlob: async (ref, path) => {
-      const entry = await readTreeEntry(
-        async (command, args, options) => await deps.exec(command, args, {
-          ...options,
-          cwd: options?.cwd ?? deps.cwd,
-        }),
-        ref,
-        path,
-      );
-      if (entry === null) return null;
-      if (entry === false || entry.type !== "blob") {
-        throw new Error(`Source artifact is not a blob: ${path}`);
-      }
-      return await deps.readBlob(entry.oid);
-    },
-  }, machine.source.ref, machine.source.head, machine.source.origin);
-  const sourceArtifactInventory = sourceSnapshot.sourceArtifacts.map((artifact) => ({
-    path: artifact.path,
-    objectKind: artifact.objectKind,
-    mode: artifact.mode,
-    contentDigest: digestBytes(artifact.bytes),
-  }));
-  const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
-  if (sourceArtifactDigest === null) throw new Error("Source artifact inventory is not canonical");
-  const managedPathResults = await Promise.all(receipt.finalized.managedPathResults.map(async ({ path }) => ({
-    path,
-    before: await readPathState(machine.resultBase.head, path, deps),
-    after: await readPathState(candidateTreeOid, path, deps),
-  })));
+  const assembled = await assembleGitFinalizedV3DecompositionFacts(
+    receipt,
+    candidateTreeOid,
+    createGitDecompositionFactAssemblerDependencies(deps),
+  );
+  if (assembled.status !== "assembled") {
+    throw new Error(`Cannot assemble canonical decomposition facts: ${assembled.status}`);
+  }
   return {
     receiptBytes: record.content,
     receiptPath: v3DecomposeReceiptPath(receipt.receiptId),
     derivedCandidateTreeOid: candidateTreeOid,
     provenance,
-    validationFacts: {
-      preparation,
-      receipt,
-      sourceArtifactDigest,
-      sourceArtifactInventory,
-      sourceUnits: machine.sourceUnits,
-      sourceAllocations: preparation.facts.completedMap.authoring.sourceAllocations,
-      resultBaseHead: machine.resultBase.head,
-      candidateOwnership: preparation.facts.candidateOwnership,
-      destinationOutputs: receipt.finalized.destinationDigests.map(({ destinationId, outputs }) => ({
-        destinationId,
-        outputs,
-      })),
-      incomingEdges: machine.incomingEdges,
-      outgoingEdges: machine.outgoingEdges,
-      managedPathResults,
-      transitionPatch: managedPathResults.filter(({ before, after }) =>
-        canonicalize(before) !== canonicalize(after)),
-      topology: preparation.facts.topology,
-      publication: receipt.finalized.publication,
-    },
+    validationFacts: assembled.facts,
   };
 }
 

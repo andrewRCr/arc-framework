@@ -86,6 +86,9 @@ classifier over the exact base/head before arming auto-merge; only literal `plan
 is required through the independent clearance setup, its planning writer makes the same decision structural at
 the host.
 
+The shipped skeleton deliberately keeps decomposition receipts owned; do not add that namespace to the unowned
+block while copying or reconciling the skeleton.
+
 ## Step 3: Require the merge-ok check in branch protection
 
 `merge-ok` must be the required status check on the base branch — NOT the heavy CI jobs directly (a

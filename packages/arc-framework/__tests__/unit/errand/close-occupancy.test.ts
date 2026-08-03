@@ -36,10 +36,27 @@ function errandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
   };
 }
 
+function removedErrandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
+  return errandRow({
+    kind: "stale-record",
+    primary: null,
+    lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    frame: null,
+    ...overrides,
+  });
+}
+
 function identityRow(identity: LocusIdentityV1 = ERRAND_IDENTITY): LocusRowV1 {
   return {
     kind: "identity-only", checkoutPath: null, primary: null, recordId: null, role: null,
     identity, lease: null, frame: "idle", derived: null, diagnostics: [],
+  };
+}
+
+function freePrimaryRow(): LocusRowV1 {
+  return {
+    kind: "free-primary", checkoutPath: CHECKOUT, primary: true, recordId: null,
+    role: null, identity: null, lease: null, frame: null, derived: null, diagnostics: [],
   };
 }
 
@@ -75,12 +92,100 @@ describe("classifyErrandCloseOccupancy", () => {
     expect(classify(state([]))).toEqual({ kind: "clear", authority: "unclaimed" });
   });
 
-  it("clears the caller's own occupancy so an in-place close still finalizes", () => {
-    const resolved = classify(state([errandRow()], {
+  it("retains base-checkout authority after the exact claim row is removed", () => {
+    expect(classify(state([freePrimaryRow(), identityRow()]), CLAIM_ID, BASE_CHECKOUT_PROOF)).toEqual({
+      kind: "clear",
+      authority: "base-checkout",
+    });
+  });
+
+  it("clears the caller's exact self-held occupancy so an in-place close still finalizes", () => {
+    const owned = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    });
+    const resolved = classify(state([owned], {
       kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
     }));
 
     expect(resolved).toEqual({ kind: "clear", authority: "current-checkout" });
+  });
+
+  it("clears an exact self-held stale record after spawned checkout removal", () => {
+    const removed = removedErrandRow();
+
+    expect(classify(state([removed, identityRow()]))).toEqual({
+      kind: "clear",
+      authority: "removed-checkout",
+    });
+  });
+
+  it("refuses stale-record replay without the exact identity or self-held lease", () => {
+    const foreign = removedErrandRow({
+      lease: { ...removedErrandRow().lease, selfHeld: false } as LocusRowV1["lease"],
+    });
+
+    expect(classify(state([removedErrandRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
+    expect(classify(state([foreign, identityRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
+  });
+
+  it("refuses stale-record replay with any authority diagnostic", () => {
+    const unreadable = removedErrandRow({
+      diagnostics: [{
+        code: "path-unavailable",
+        source: { kind: "record", key: RECORD_ID },
+        message: "The checkout path cannot be canonicalized.",
+      }],
+    });
+
+    expect(classify(state([unreadable, identityRow()]))).toMatchObject({
+      kind: "refused",
+      reason: "record-malformed",
+    });
+  });
+
+  it("refuses current-checkout occupancy held by another live session", () => {
+    const resolved = classify(state([errandRow()], {
+      kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "lease-live" });
+  });
+
+  it("refuses resolved current-checkout occupancy whose self-held lease is no longer live", () => {
+    const dead = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true, state: "dead" } as LocusRowV1["lease"],
+      frame: "residue",
+      diagnostics: [{
+        code: "lease-dead",
+        source: { kind: "record", key: RECORD_ID },
+        message: "Lease is dead.",
+      }],
+    });
+    const resolved = classify(state([dead], {
+      kind: "resolved", activeRecordId: RECORD_ID, parentRecordId: null, sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "role-conflict" });
+  });
+
+  it("refuses self-held occupancy when the resolved current record is a different generation", () => {
+    const owned = errandRow({
+      lease: { ...errandRow().lease, selfHeld: true } as LocusRowV1["lease"],
+    });
+    const resolved = classify(state([owned], {
+      kind: "resolved",
+      activeRecordId: `sha256:${"2".repeat(64)}`,
+      parentRecordId: null,
+      sessionHomeRecordId: null,
+    }));
+
+    expect(resolved).toMatchObject({ kind: "refused", reason: "lease-live" });
   });
 
   it("clears the exact self-held checkout after it switches back to base", () => {

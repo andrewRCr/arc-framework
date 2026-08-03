@@ -82,4 +82,21 @@ describe("git decomposition object readers", () => {
       expected,
     )).resolves.toBe(false);
   });
+
+  it("distinguishes an unreadable path state from a proven mismatch", async () => {
+    const path = ".arc/example.md";
+    const unreadable: GitExec = async () => {
+      throw new Error("tree unavailable");
+    };
+
+    await expect(stateMatches(
+      {
+        exec: unreadable,
+        readBlob: async () => new Uint8Array(),
+      },
+      ANCESTOR,
+      path,
+      { kind: "absent" },
+    )).resolves.toBeNull();
+  });
 });

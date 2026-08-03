@@ -11,7 +11,11 @@ import type {
   GitAncestryResult,
   GitTreeEntry,
 } from "./git-decomposition-object-readers.js";
-import type { V3DecompositionMismatch } from "./validate-v3-decomposition.js";
+import {
+  V3_DECOMPOSITION_READ_FAILURE,
+  type V3DecompositionMismatch,
+  type V3DecompositionMismatchKind,
+} from "./validate-v3-decomposition.js";
 
 export interface DescendantBaseLandingObjectReaders {
   resolveCommit(ref: string): Promise<string | null>;
@@ -21,7 +25,7 @@ export interface DescendantBaseLandingObjectReaders {
     ref: string,
     path: string,
     expected: V3ManagedPathResult["before"],
-  ): Promise<boolean>;
+  ): Promise<boolean | null>;
   changedPaths(before: string, after: string): Promise<string[] | null>;
   readBlob(oid: string): Promise<Uint8Array>;
 }
@@ -64,6 +68,10 @@ function comparePath(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
 }
 
+function readFailure(kind: V3DecompositionMismatchKind): V3DecompositionMismatch {
+  return { kind, locus: "snapshot-read", evidence: V3_DECOMPOSITION_READ_FAILURE };
+}
+
 async function transitionMatches(
   input: DescendantBaseLandingInput,
   receipt: NonNullable<ReturnType<typeof parseV3DecomposeReceipt>>,
@@ -76,18 +84,21 @@ async function transitionMatches(
     ...receipt.finalized.transitionPatch.map(({ path }) => path),
     receiptPath,
   ].sort(comparePath);
-  if (actualPaths === null || canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
-    const firstDifference = actualPaths?.find((path, index) => path !== expectedPaths[index])
-      ?? expectedPaths.find((path, index) => path !== actualPaths?.[index]);
+  if (actualPaths === null) return readFailure("patch");
+  if (canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
+    const firstDifference = actualPaths.find((path, index) => path !== expectedPaths[index])
+      ?? expectedPaths.find((path, index) => path !== actualPaths[index]);
     return { kind: "patch", locus: firstDifference ?? receiptPath };
   }
   const [beforeReceipt, afterReceipt] = await Promise.all([
     deps.objects.readTreeEntry(recordedBaseOid, receiptPath),
     deps.objects.readTreeEntry(input.candidateHeadOid, receiptPath),
   ]);
+  if (beforeReceipt === false || afterReceipt === false) {
+    return readFailure("patch");
+  }
   if (beforeReceipt !== null
     || afterReceipt === null
-    || afterReceipt === false
     || afterReceipt.type !== "blob"
     || afterReceipt.mode !== "100644") return { kind: "patch", locus: receiptPath };
   try {
@@ -95,18 +106,19 @@ async function transitionMatches(
     const expectedDigest = digestBytes(new TextEncoder().encode(canonicalize(receipt)));
     if (actualDigest !== expectedDigest) return { kind: "patch", locus: receiptPath };
   } catch {
-    return { kind: "patch", locus: receiptPath };
+    return readFailure("patch");
   }
 
   const projectionPath = receipt.prepared.prospectiveProjection.roadmap.path;
   for (const entry of receipt.finalized.transitionPatch) {
-    if (entry.path !== projectionPath
-      && !await deps.objects.stateMatches(input.currentBaseOid, entry.path, entry.before)) {
-      return { kind: "path", locus: entry.path };
+    if (entry.path !== projectionPath) {
+      const beforeMatches = await deps.objects.stateMatches(input.currentBaseOid, entry.path, entry.before);
+      if (beforeMatches === null) return readFailure("path");
+      if (!beforeMatches) return { kind: "path", locus: entry.path };
     }
-    if (!await deps.objects.stateMatches(input.candidateHeadOid, entry.path, entry.after)) {
-      return { kind: "patch", locus: entry.path };
-    }
+    const afterMatches = await deps.objects.stateMatches(input.candidateHeadOid, entry.path, entry.after);
+    if (afterMatches === null) return readFailure("patch");
+    if (!afterMatches) return { kind: "patch", locus: entry.path };
   }
   return null;
 }
@@ -125,7 +137,7 @@ async function dependencyMismatch(
       deps.dependencies.readSnapshot(machine.resultBase.ref, input.currentBaseOid, machine.source.origin),
     ]);
   } catch {
-    return { kind: "dependency", locus: "snapshot-read" };
+    return readFailure("dependency");
   }
   const recordedDependents = new Set(recordedSnapshot.incomingEdges.map(({ dependent }) => dependent));
   const acquired = currentSnapshot.incomingEdges.find(({ dependent }) => !recordedDependents.has(dependent));

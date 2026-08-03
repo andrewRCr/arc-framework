@@ -148,6 +148,9 @@ Medium.
   }));
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "start origin"]);
+  await git(repo, ["init", "--bare", ".git/test-origin.git"]);
+  await git(repo, ["remote", "add", "origin", ".git/test-origin.git"]);
+  await git(repo, ["push", "--set-upstream", "origin", "plan/origin"]);
   await git(repo, ["switch", "main"]);
   return repo;
 }
@@ -674,7 +677,7 @@ describe("arc decompose command modes", () => {
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
     expect(await git(repo, ["worktree", "list", "--porcelain"]))
       .toBe(beforeExecute.worktrees);
-    expect(await git(repo, ["remote"])).toBe("");
+    expect(await git(repo, ["remote"])).toBe("origin");
     expect(await readFile(sharedPath, "utf8")).toBe(sharedBefore);
 
     const existingMetaAfter = await readFile(existingMetaPath, "utf8");
@@ -848,6 +851,6 @@ describe("arc decompose command modes", () => {
     ).every((entry) => entry.readiness === undefined)).toBe(true);
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
-    expect(await git(repo, ["remote"])).toBe("");
+    expect(await git(repo, ["remote"])).toBe("origin");
   });
 });

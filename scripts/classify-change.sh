@@ -27,6 +27,7 @@ readonly EX_USAGE=64
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CHANGE_FACTS_MODULE="${SCRIPT_DIR}/../packages/arc-framework/src/lib/change-facts.ts"
+readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
 
 # --- Heavy verification checks -------------------------------------------------
 #
@@ -98,18 +99,20 @@ cmd_lane() {
 }
 
 # planning-lane <base> <head> — run the trusted classifier against explicit
-# coordinates in the caller-selected data repository. Any unreadable or
-# malformed record prints reviewed through the canonical fail-safe.
+# coordinates in the caller-selected data repository.
 cmd_planning_lane() {
   local base="${1:-}" head="${2:-}"
   if [[ -z "${base}" || -z "${head}" || "$#" -ne 2 ]]; then
     echo "planning-lane: base and head refs are required" >&2
-    return 1
+    return "${EX_USAGE}"
   fi
-  (
-    cd -- "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
-    node "${CHANGE_FACTS_MODULE}" planning-lane "${base}" "${head}" 2>/dev/null
-  ) || echo "reviewed"
+  if [[ -n "${ARC_PLANNING_CLI}" ]]; then
+    node "${ARC_PLANNING_CLI}" review planning-lane "${base}" "${head}" \
+      --repository "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
+    return
+  fi
+  npx arc review planning-lane "${base}" "${head}" \
+    --repository "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
 }
 
 # portability --stdin0 — print `true` when any changed path belongs to the

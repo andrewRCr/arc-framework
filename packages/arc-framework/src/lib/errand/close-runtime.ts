@@ -1,7 +1,6 @@
 /** Production ports for exact ordinary-v3 Errand merge finalization. */
 
-import { access, lstat, open, readFile, realpath, unlink } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
@@ -21,21 +20,29 @@ import {
   observeExactChangeRequest,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import { resolveOptionalCommit, tearDownExactBranchGeneration } from "./exact-branch-generation.js";
+import {
+  resolveOptionalCommit,
+  tearDownExactBranchGeneration,
+  type ExactBranchTeardownLeaseResult,
+} from "./exact-branch-generation.js";
 import {
   classifyErrandCloseOccupancy,
   type BaseCheckoutCloseProof,
 } from "./close-occupancy.js";
 import {
+  acquireErrandCloseBranchDeletionHeadLocks,
+  recoverFinalizedErrandCloseHeadLock,
+} from "./close-head-lock.js";
+import {
   closeOrdinaryErrand,
   type CloseAuthorityGuard,
-  type CloseAuthorityLeaseResult,
   type CloseInboxResult,
   type CloseOccupancyResult,
   type CloseRefCleanupResult,
   type CloseTarget,
   type CloseTargetResolution,
 } from "./close-locus.js";
+import { settleOrdinaryErrandCloseLocusAtRuntime } from "./close-settlement-runtime.js";
 import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
@@ -47,9 +54,11 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly force: boolean;
   readonly identity: string;
   readonly identityGlobalUserDir: string;
+  readonly postCreateScript: string;
+  readonly registeredHarnessDirs: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
-  readonly removeInbox: (record: OrdinaryErrandRecord) => Promise<CloseInboxResult>;
+  readonly removeInbox: (record: OrdinaryErrandRecord, sessionHomePath: string | null) => Promise<CloseInboxResult>;
 }
 
 /** Boundaries required to read the authoritative identity generation used by close dispatch. */
@@ -83,9 +92,21 @@ export async function readCloseIdentityAtRuntime(
 export async function closeOrdinaryErrandAtRuntime(
   options: CloseOrdinaryErrandRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
-  const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  const lifecyclePort = createGhChangeRequestLifecyclePort(options.exec);
-  const remote = await configuredIdentityRemote(options.exec);
+  // Spawned settlement removes the CLI process's original cwd. Once the roster establishes the
+  // surviving primary, every unpinned Git operation must use it explicitly.
+  let fallbackCwd: string | null = null;
+  const exec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    ...(execOptions?.cwd === undefined && fallbackCwd !== null ? { cwd: fallbackCwd } : {}),
+  });
+  const execInput: GitExecInput = (args, input, execOptions) => options.execInput(args, input, {
+    ...execOptions,
+    ...(execOptions?.cwd === undefined && fallbackCwd !== null ? { cwd: fallbackCwd } : {}),
+  });
+  const runtimeOptions = { ...options, exec };
+  const io = { exec, execInput, identity: options.identity };
+  const lifecyclePort = createGhChangeRequestLifecyclePort(exec);
+  const remote = await configuredIdentityRemote(exec);
   return closeOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
@@ -94,12 +115,12 @@ export async function closeOrdinaryErrandAtRuntime(
       readIdentity: async () => {
         return readReconciledCloseIdentity(io, options.slug, remote);
       },
-      resolveTarget: (record) => resolveCloseChangeRequest(options, record),
-      readOccupancy: (record) => readCloseOccupancy(options, record),
+      resolveTarget: (record) => resolveCloseChangeRequest(runtimeOptions, record),
+      readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, (path) => { fallbackCwd = path; }),
       readLifecycle: async (target) => {
         return lifecyclePort.read(target.changeRequest, target.changeRequest);
       },
-      cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(options.exec, target, guard),
+      cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(exec, target, guard),
       removeInbox: options.removeInbox,
       retire: async (target, lifecycle) => {
         const result = await transactTransientIdentities(io, {
@@ -133,6 +154,20 @@ async function readReconciledCloseIdentity(
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
+    const recoveryIdentity = result.value === null
+      ? { slug }
+      : result.value.version === 3 && result.value.kind === "errand" && result.value.purpose === "errand"
+        ? { slug, claimId: result.value.claimId }
+        : null;
+    if (recoveryIdentity !== null) {
+      const recovery = await recoverFinalizedErrandCloseHeadLock({
+        exec: io.exec,
+        ...recoveryIdentity,
+        inspector: createPlatformProcessInspector(),
+      });
+      if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
+      if (recovery.kind === "error") return recovery;
+    }
     return { kind: "ready", record: result.value };
   }
   return result.kind === "refused"
@@ -148,8 +183,10 @@ async function readReconciledCloseIdentity(
  */
 async function readCloseOccupancy(
   options: CloseOrdinaryErrandRuntimeOptions,
-  record: OrdinaryErrandRecord,
+  target: CloseTarget,
+  setFallbackCwd: (path: string) => void,
 ): Promise<CloseOccupancyResult> {
+  const record = target.record;
   const inspector = createPlatformProcessInspector();
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (anchor.kind !== "process") {
@@ -189,6 +226,7 @@ async function readCloseOccupancy(
         exec: options.exec,
       }),
     });
+    setFallbackCwd(state.roster.primaryPath);
     const [confirmedBranch, confirmedMarker] = await Promise.all([
       options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
       readWorktreeMarker(currentCheckoutPath),
@@ -216,112 +254,43 @@ async function readCloseOccupancy(
     baseCheckoutProof,
   });
   if (verdict.kind !== "clear") return verdict;
-  return {
-    kind: "clear",
-    guard: verdict.authority === "base-checkout"
-      ? createBaseCheckoutCloseGuard(options, currentCheckoutPath)
-      : null,
-  };
-}
-
-function createBaseCheckoutCloseGuard(
-  options: CloseOrdinaryErrandRuntimeOptions,
-  checkoutPath: string,
-): CloseAuthorityGuard {
-  const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
-    try {
-      const before = (await options.exec(
-        "git",
-        ["rev-parse", "--abbrev-ref", "HEAD"],
-        { cwd: checkoutPath },
-      )).stdout.trim();
-      const marker = await readWorktreeMarker(checkoutPath);
-      const after = (await options.exec(
-        "git",
-        ["rev-parse", "--abbrev-ref", "HEAD"],
-        { cwd: checkoutPath },
-      )).stdout.trim();
-      if (before === options.base && after === before && marker.kind === "absent") {
-        return { kind: "valid" };
-      }
-      return {
-        kind: "refused",
-        reason: "role-conflict",
-        message: `Errand close lost base-checkout authority at '${checkoutPath}'; switch it to '${options.base}' and retry.`,
-      };
-    } catch (error) {
-      return { kind: "error", message: error instanceof Error ? error.message : String(error) };
-    }
-  };
-  return {
-    revalidate,
-    acquire: () => acquireBaseCheckoutCloseLease(options, checkoutPath, revalidate),
-  };
-}
-
-async function acquireBaseCheckoutCloseLease(
-  options: CloseOrdinaryErrandRuntimeOptions,
-  checkoutPath: string,
-  revalidate: CloseAuthorityGuard["revalidate"],
-): Promise<CloseAuthorityLeaseResult> {
-  let gitHeadPath: string;
-  try {
-    gitHeadPath = (await options.exec("git", ["rev-parse", "--git-path", "HEAD"], {
-      cwd: checkoutPath,
-    })).stdout.trim();
-  } catch (error) {
-    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
-  }
-  if (gitHeadPath === "") return { kind: "error", message: "Git returned no checkout HEAD path." };
-  const lockPath = `${isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath)}.lock`;
-  let handle: Awaited<ReturnType<typeof open>>;
-  try {
-    handle = await open(lockPath, "wx", 0o600);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      return {
-        kind: "refused",
-        reason: "role-conflict",
-        message: `Errand close cannot lock checkout HEAD at '${checkoutPath}'; wait for the other Git operation and retry.`,
-      };
-    }
-    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
-  }
-
-  let released = false;
-  const release = async (): Promise<void> => {
-    if (released) return;
-    let closeError: unknown = null;
-    try {
-      await handle.close();
-    } catch (error) {
-      closeError = error;
-    }
-    let unlinkError: unknown = null;
-    try {
-      await unlink(lockPath);
-    } catch (error) {
-      unlinkError = error;
-    }
-    if (unlinkError !== null) {
-      throw unlinkError instanceof Error ? unlinkError : new Error("Unknown checkout HEAD unlock failure");
-    }
-    released = true;
-    if (closeError !== null) {
-      throw closeError instanceof Error ? closeError : new Error("Unknown checkout HEAD handle-close failure");
-    }
-  };
-  const authorization = await revalidate();
-  if (authorization.kind === "valid") return { kind: "acquired", release };
-  try {
-    await release();
-  } catch (error) {
+  const authority = verdict.authority;
+  if (authority === "unclaimed") {
     return {
-      kind: "error",
-      message: `Errand close could not release rejected checkout authority: ${error instanceof Error ? error.message : String(error)}`,
+      kind: "clear",
+      settle: () => Promise.resolve({
+        kind: "idempotent",
+        guard: null,
+        recordId: null,
+        sessionHomePath: null,
+        restoredParent: null,
+      }),
     };
   }
-  return authorization;
+  const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
+    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
+  const row = rows.length === 1 ? rows[0] : undefined;
+  if (row === undefined && authority !== "base-checkout") {
+    return { kind: "error", message: "Errand close lost its selected occupancy row." };
+  }
+  return {
+    kind: "clear",
+    settle: () => settleOrdinaryErrandCloseLocusAtRuntime({
+      authority,
+      target,
+      state,
+      row: row ?? null,
+      currentCheckoutPath,
+      base: options.base,
+      identity: options.identity,
+      postCreateScript: options.postCreateScript,
+      registeredHarnessDirs: options.registeredHarnessDirs,
+      anchor,
+      inspector,
+      pathFlavor,
+      exec: options.exec,
+    }),
+  };
 }
 
 /**
@@ -388,12 +357,37 @@ export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
   guard: CloseAuthorityGuard | null = null,
+  acquireLocalDelete: () => Promise<ExactBranchTeardownLeaseResult> = () =>
+    acquireErrandCloseBranchDeletionHeadLocks({
+      exec,
+      identity: { slug: target.record.slug, claimId: target.record.claimId },
+      branch: target.record.branch,
+      guard,
+      inspector: createPlatformProcessInspector(),
+    }),
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
     branch: target.record.branch,
     expectedHead: target.changeRequest.headSha,
     subject: "Errand",
     temporaryRefNamespace: "refs/arc/tmp/errand-close",
+    authorizeLocalDelete: async () => {
+      const roster = await scanRegisteredWorktrees(exec);
+      if (!roster.ok) {
+        return {
+          kind: "refused" as const,
+          message: `Local Errand branch occupancy cannot be proven: ${roster.message}`,
+        };
+      }
+      const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+      return occupied === undefined
+        ? { kind: "authorized" as const }
+        : {
+            kind: "refused" as const,
+            message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+          };
+    },
+    acquireLocalDelete,
     ...(guard === null ? {} : {
       authorizeDelete: async () => {
         const authorization = await guard.revalidate();
@@ -401,22 +395,6 @@ export async function cleanupOrdinaryErrandRefs(
         return authorization.kind === "refused"
           ? { kind: "refused", message: authorization.message }
           : authorization;
-      },
-      authorizeLocalDelete: async () => {
-        const roster = await scanRegisteredWorktrees(exec);
-        if (!roster.ok) {
-          return {
-            kind: "refused" as const,
-            message: `Local Errand branch occupancy cannot be proven: ${roster.message}`,
-          };
-        }
-        const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
-        return occupied === undefined
-          ? { kind: "authorized" as const }
-          : {
-              kind: "refused" as const,
-              message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
-            };
       },
     }),
   });
