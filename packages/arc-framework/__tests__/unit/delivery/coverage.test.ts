@@ -59,4 +59,15 @@ describe("validateDeliveryTaskCoverage", () => {
       issues: [{ kind: "entry-changed" }],
     });
   });
+
+  it("refuses a member reference absent from the task inventory", () => {
+    const result = validateDeliveryTaskCoverage(coverageInput({
+      memberTaskIds: [["1.1", "1.2", "9.9"]],
+    }));
+
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ kind: "unknown-task-reference", taskId: "9.9", memberIndex: 0 }],
+    });
+  });
 });

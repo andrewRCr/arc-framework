@@ -21,6 +21,7 @@ export interface DeliveryTaskCoverageAdvisory {
 /** One blocking task-coverage defect. */
 export type DeliveryTaskCoverageIssue =
   | { readonly kind: "uncovered-implementation-task"; readonly taskId: string }
+  | { readonly kind: "unknown-task-reference"; readonly taskId: string; readonly memberIndex: number }
   | { readonly kind: "verification-task-assigned"; readonly memberIndex: number }
   | { readonly kind: "entry-changed" };
 
@@ -44,7 +45,16 @@ export function validateDeliveryTaskCoverage(
   if (input.predecessorEntry !== null && input.predecessorEntry !== input.entry) {
     issues.push({ kind: "entry-changed" });
   }
+  const knownTaskIds = new Set([
+    ...input.implementationTaskIds,
+    input.verificationTaskId,
+  ]);
   for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
+    for (const taskId of new Set(taskIds)) {
+      if (!knownTaskIds.has(taskId)) {
+        issues.push({ kind: "unknown-task-reference", taskId, memberIndex });
+      }
+    }
     if (taskIds.includes(input.verificationTaskId)) {
       issues.push({ kind: "verification-task-assigned", memberIndex });
     }
