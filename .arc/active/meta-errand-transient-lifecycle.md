@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/errand-transient-lifecycle` | `Light`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** session-locus-model
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-errand-transient-lifecycle.md`
