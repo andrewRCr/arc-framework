@@ -1,7 +1,7 @@
 /** Git-common-directory adapters for current delivery plan, assignment, and observation records. */
 
 import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
-import { sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
+import { canonicalize, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
 import {
   DeliveryAssignmentsV1Codec,
   isDeliveryAssignmentSuccessor,
@@ -162,7 +162,7 @@ async function publishRevisionedRecord<T>(
         const decoded = decodeRevisionedRecord(raw, planId, semanticsVersion, codec);
         if (decoded.status === "refused") return { kind: "keep", result: decoded };
         current = decoded.value;
-        if (serialize(current.value) === serialize(proposed.value)) {
+        if (canonicalize(current.value) === canonicalize(proposed.value)) {
           return { kind: "keep", result: { status: "ok", value: current } };
         }
       }

@@ -261,6 +261,20 @@ describe("repository delivery record stores", () => {
     await expect(Promise.all(paths.map(async (path) => readFile(path, "utf8")))).resolves.toEqual(before);
   });
 
+  it("treats canonical-equivalent revisioned republishes as idempotent", async () => {
+    const records = await stores();
+    const observations = new RepositoryDeliveryObservationStore(records.publisher, keyOrderedCodec);
+    const first = { planId: "plan-1", body: { first: "one", second: "two" } };
+    const replay = { planId: "plan-1", body: { second: "two", first: "one" } };
+    const published = await observations.publish("plan-1", first, 0);
+
+    await expect(observations.publish("plan-1", replay, 0)).resolves.toEqual(published);
+    await expect(observations.read("plan-1")).resolves.toEqual({
+      status: "ok",
+      value: { revision: 1, value: first },
+    });
+  });
+
   it("allows only one of two concurrent plan successors to become current", async () => {
     const records = await stores({
       writeFile: async (path, content) => {
