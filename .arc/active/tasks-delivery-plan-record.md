@@ -63,13 +63,10 @@ is the mutable work-unit slug. Task digests cover `Goal` alone and stop at paren
 properties that make a digest both stable across completion and non-empty on every implementation parent. Full
 rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 
-### `[ ]` **1.1 Register the delivery schema family**
+### `[x]` **1.1 Register the delivery schema family**
 
 - _Goal:_ Every delivery record shape is reachable by stable identity and rejects provider bindings, review
   targets, task completion state, and workflow steps as schema errors rather than tolerating them as extra fields.
-
-- _Note:_ Registration posture is `strict-current` throughout — the pre-release posture adds no migration reader
-  and no compatibility alias.
 
     - `[x]` **1.1.a Expose one runtime authority for parent task ids**
 
@@ -88,29 +85,15 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
           status against an optional predecessor, rejects unknown seam member keys, and resolves authored chunk-key
           incidence through the caller's deliverable-id derivation.
 
-    - `[ ]` **1.1.d Registration, domain separation, and production composition**
+    - `[x]` **1.1.d Registration, domain separation, and production composition**
 
-        - Register the record identities as `delivery-plan`, `delivery-plan-member`, `delivery-plan-seam`, and
-          `delivery-plan-authoring-input`. Register `delivery-deliverable-id-preimage` with domain
-          `arc.delivery.deliverable-id/v1` over `{ schemaVersion: 1, semanticsVersion: "delivery-plan/v1",
-          planId, chunkKey }`. Register `delivery-assurance-subject-id-preimage` with domain
-          `arc.delivery.assurance-subject-id/v1` as a tagged member arm over `{ planId, deliverableId }` and a
-          tagged seam arm over `{ planId, seamKey }`; the subject kind is inside the preimage and is what prevents
-          a member and seam from colliding. No implementation-chosen domain string or unregistered identity
-          preimage remains.
+        - Registered all six strict-current delivery schemas with their fixed identity domains and composed the
+          family after review schemas in the production build, with unit, workflow-contract, build, and artifact
+          coverage over the exact emitted identity set.
 
-        - Export one delivery-domain composition entrypoint over a caller-owned registry. Compose it after the
-          review family in the production build, so the schemas reach `dist/schemas/kernel.json`, and extend the
-          exact production-family assertions in the schema-generation unit test, schema-artifact E2E test, and
-          production-graph workflow-contract test. Registration-only tests do not satisfy this publication
-          boundary.
-
-        - Build `test-first` (one behavior at a time):
-            - Each record, authoring-input, and identity-preimage schema registers once and resolves by its stable
-              identity
-            - A duplicate identity refuses at registration
-            - The emitted JSON Schema projection is byte-identical across repeated runs
-            - A production build emits every delivery schema alongside the existing kernel and review families
+- _Outcome:_ One shared parent-task grammar now feeds strict plan and authoring schemas, and every record and
+  domain-separated identity preimage is discoverable from the production kernel bundle rather than only through
+  local module imports.
 
 ### `[ ]` **1.2 Derive plan, deliverable, and assurance-subject identities**
 
