@@ -528,6 +528,7 @@ describe("session-init envelope schema", () => {
   it.each([
     "mode",
     "identity",
+    "locusGuidance",
     "user",
     "worktree",
     "baseDistance",

@@ -161,6 +161,7 @@ import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import type { LocusStateV1 } from "../lib/locus/schema/index.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -444,6 +445,15 @@ export async function handleStatus(
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
+      locusState: async (id) => {
+        const resolved = await resolvedSettingsP;
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec,
+        });
+      },
       dirty: () => runDirtyStateStatus({ exec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
@@ -483,6 +493,7 @@ export async function handleStatus(
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+      worktreeIdentity: () => resolveWorktreeIdentity(exec),
     };
     // Do not await userSurfacesFor here: a rejection would abort the composite
     // before safeProbe handling. Resolution runs inside runSessionHandoffStatus
@@ -533,6 +544,27 @@ export async function handleStatus(
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+    let locusStatePromise: Promise<LocusStateV1> | undefined;
+    const getLocusState = (id: string): Promise<LocusStateV1> => {
+      locusStatePromise ??= (async () => {
+        const resolved = await resolvedSettingsP;
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec,
+        });
+      })();
+      return locusStatePromise;
+    };
+    const getOptionalLocusState = async (): Promise<LocusStateV1 | null> => {
+      if (identity === null) return null;
+      try {
+        return await getLocusState(identity);
+      } catch {
+        return null;
+      }
+    };
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -571,9 +603,10 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs] = await Promise.all([
+        const [recordResult, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+          getOptionalLocusState(),
         ]);
         const records = recordResult.records;
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
@@ -587,6 +620,7 @@ export async function handleStatus(
           errandSlugByBranch,
           errandRecordsComplete: recordResult.complete,
           parkedSlugs,
+          locusState,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
@@ -603,6 +637,7 @@ export async function handleStatus(
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
+      locusState: getLocusState,
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -670,16 +705,10 @@ export async function handleStatus(
         let locusRoleState: CurrentWuLocusRoleState = "unknown";
         if (identity !== null) {
           try {
-            const resolved = await resolvedSettingsP;
-            const locusState = await runLocusStateProbe({
-              cwd,
-              identity,
-              baseBranch: resolved.settings["branch.base"],
-              exec,
-            });
+            const locusState = await getLocusState(identity);
             locusRoleState = await classifyCurrentWuLocusRole(locusState, cwd, slug);
           } catch {
-            // Reconcile planning remains available when the independent locus read degrades.
+            // Reconcile planning remains available when the shared locus read degrades.
           }
         }
         return runCurrentWuReconcileSessionProbe(
@@ -773,7 +802,10 @@ export async function handleStatus(
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
+        const [resolved, locusState] = await Promise.all([
+          resolvedSettingsP,
+          getOptionalLocusState(),
+        ]);
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
@@ -784,10 +816,14 @@ export async function handleStatus(
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+          locusState,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
+        const [resolved, locusState] = await Promise.all([
+          resolvedSettingsP,
+          getOptionalLocusState(),
+        ]);
         // Record-carrying errand branches are excluded — the errand surfaces
         // (resume, close replay) own their cleanup. With no resolved identity
         // the records are unreadable, so pass `null` and the sweep declines
@@ -799,6 +835,7 @@ export async function handleStatus(
           errandBranches:
             errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
           exec,
+          locusState,
         });
       },
       retiredSubdirs: async (id) => {
@@ -825,6 +862,7 @@ export async function handleStatus(
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
+        const locusState = await getOptionalLocusState();
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
         let oracleWarnings: string[] = [...recordResult.warnings];
@@ -843,6 +881,7 @@ export async function handleStatus(
           residue,
           oracleWarnings,
           records,
+          locusState,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),

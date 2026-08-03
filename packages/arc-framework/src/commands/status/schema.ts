@@ -23,6 +23,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retir
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
+import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
@@ -142,17 +143,24 @@ export const CurrentHuskAdvisoryViewSchema = z
   })
   .loose();
 
+const LOCUS_VETO_REASONS = ["locus-occupied", "locus-unverified"] as const;
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("removable") }).loose(),
   z
-    .object({ action: z.literal("blocked"), reason: z.enum(["uncommitted", "user-surfaces", "unmerged"]) })
+    .object({
+      action: z.literal("blocked"),
+      reason: z.enum(["uncommitted", "user-surfaces", "unmerged", ...LOCUS_VETO_REASONS]),
+    })
     .loose(),
   z.object({ action: z.literal("external") }).loose(),
 ]);
 const HuskCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("removable") }).loose(),
   z
-    .object({ action: z.literal("blocked"), reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch"]) })
+    .object({
+      action: z.literal("blocked"),
+      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch", ...LOCUS_VETO_REASONS]),
+    })
     .loose(),
   z
     .object({ action: z.literal("outside"), reason: z.enum(["untrusted-marker", "missing-stamp"]) })
@@ -442,6 +450,8 @@ export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
 const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
+  locusState: probe(LocusStateV1Schema),
+  locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueViewSchema),
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
@@ -605,6 +615,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
   locusState: probe(LocusStateV1Schema),
+  locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateValueViewSchema),

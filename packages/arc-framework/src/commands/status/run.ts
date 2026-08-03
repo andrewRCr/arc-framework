@@ -68,11 +68,13 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
+import { deriveLocusSessionGuidance } from "../../lib/locus/session-guidance.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import { selectCheckoutWorkUnit } from "../../lib/locus/state.js";
+import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
-import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
-import { selectCheckoutWorkUnit } from "../../lib/locus/state.js";
 import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
 import {
   fromThrowable,
@@ -167,10 +169,11 @@ export async function runSessionInitStatus(
     : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
-    user, worktree, dirty, active, releaseRouting,
+    locusState, user, worktree, dirty, active, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
+    shared.locusState,
     shared.user,
     shared.worktree,
     shared.dirty,
@@ -230,10 +233,8 @@ export async function runSessionInitStatus(
         supersession,
       } satisfies SessionInitWorktreeValue));
 
-  // Current-locus husk orientation is a linked + branchless refinement, not a
-  // new sync state. Ordinary branched resumes skip marker/archive reads. A
-  // degraded advisory probe is omitted so detached-head guidance remains the
-  // conservative fallback.
+  // Current-locus husk/transient provenance is a linked + branchless
+  // refinement, not a new sync state. Ordinary branched resumes skip the read.
   const currentHuskSlot =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
       ? await safeProbe("currentHusk", () => probes.currentHusk(worktreeIdentity.path))
@@ -455,6 +456,8 @@ export async function runSessionInitStatus(
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -533,6 +536,9 @@ export async function runRecoverStatus(
     releaseRoutingTask,
   ]);
 
+  // Physical checkout identity stays a Result through authority selection: which
+  // row recovery resolves depends on it, so an unestablished identity fails the
+  // derived slots rather than standing in a synthetic primary.
   const enrichedWorktree = worktree.andThen((value) =>
     worktreeIdentitySlot.map((identityValue) => ({
       ...value,
@@ -560,6 +566,10 @@ export async function runRecoverStatus(
         checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value),
       )
     : null;
+  // Legacy compatibility is a fallback for state the locus model never recorded,
+  // so it may stand in only from explicitly clean, record-free state. A recovery
+  // or reconciliation verdict is the reader's own authority over this checkout and
+  // outranks it — otherwise a stop becomes a successful legacy frame.
   const legacyLocusEligible = locusState.isOk()
     && worktreeIdentitySlot.isOk()
     && locusState.value.current.kind === "none"
@@ -582,6 +592,7 @@ export async function runRecoverStatus(
     mode: "recover",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
@@ -727,6 +738,7 @@ export async function runSessionHandoffStatus(
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
+  const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
@@ -739,9 +751,10 @@ export async function runSessionHandoffStatus(
     : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
-    user, worktree, dirty, active, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, inboxState, surfaces,
+    locusState, user, worktree, dirty, active, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, worktreeIdentity, inboxState, surfaces,
   ] = await Promise.all([
+    shared.locusState,
     shared.user,
     shared.worktree,
     shared.dirty,
@@ -751,6 +764,7 @@ export async function runSessionHandoffStatus(
     headTask,
     pushabilityTask,
     restateCandidatesTask,
+    worktreeIdentityTask,
     inboxStateTask,
     surfacesTask,
   ]);
@@ -776,6 +790,16 @@ export async function runSessionHandoffStatus(
       unpushedN: worktree.value.ahead,
     })
     : null;
+  const deriveHandoff = fromThrowable(
+    (input: { state: LocusStateV1; identity: WorktreeIdentity }) => deriveHandoffLocusPlan(
+      input.state,
+      checkoutPathForIdentity(input.state, input.identity),
+    ),
+    (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
+  );
+  const handoffLocus = locusState.andThen((state) => worktreeIdentity.andThen(
+    (identityValue) => deriveHandoff({ state, identity: identityValue }),
+  ));
 
   const pathSet = composeHandoffPathSet({
     surfaces,
@@ -785,6 +809,9 @@ export async function runSessionHandoffStatus(
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),
     worktree: toProbe(worktree),

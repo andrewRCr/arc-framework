@@ -16,6 +16,7 @@ import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
+import { locusStateFixture } from "../../fixtures/locus-state.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -34,7 +35,14 @@ const LOAD_SET = {
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
-    worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
+    locusState: { ok: true, value: locusStateFixture({ rows: [] }) },
+    worktree: {
+      ok: true,
+      value: {
+        branch: "feat/compaction-recovery",
+        identity: { kind: "linked", path: "/repo" },
+      },
+    },
     active: {
       ok: true,
       value: {

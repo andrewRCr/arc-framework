@@ -60,11 +60,13 @@ import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
+import type { HandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
@@ -210,6 +212,10 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
   /**
@@ -413,6 +419,8 @@ export interface SessionRecoverProbeResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   /** Reader-owned active frame and governing workflow selected from `locusState`. */
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
@@ -494,6 +502,12 @@ export interface HandoffPathSet {
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
+  /** Exact subject action derived from the same reader-owned locus snapshot. */
+  handoffLocus: Probe<HandoffLocusPlan>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
    * when the worktree probe failed.
@@ -563,6 +577,8 @@ export interface SessionHandoffResult {
  * identity-missing primitive because its `user` / `active` signatures differ.
  */
 export interface SessionSharedProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
@@ -757,6 +773,7 @@ export interface SessionRecoverProbes {
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes extends SessionSharedProbes {
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
