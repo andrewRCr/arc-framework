@@ -302,20 +302,11 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 - _Note:_ Stated as a query contract rather than a storage choice — a scan over the assignment namespace at v1,
   an ordinary indexed query under a records-canonical tier, with callers unchanged either way.
 
-    - `[ ]` **2.6.a Reverse lookup by repository and head or ref**
+    - `[x]` **2.6.a Reverse lookup by repository and head or ref**
 
-        - At v1 repository scope is ambient in the port instance rooted at the current Git common directory, not
-          the review subsystem's per-clone `repositoryId`. A head selector compares an exact object id. A ref
-          selector compares the authoritative stored binding and its recorded observed head, never spelling. A
-          supplied owning-unit pointer selects a candidate directly but remains input to validate, not proof.
-
-        - Build `test-first` (one behavior at a time):
-            - A head matching a recorded member returns its plan, member, and owning work unit
-            - Resolution reads the authoritative binding and never a ref's name or shape
-            - An unmatched head returns a negative result rather than guessing
-            - More than one authoritative match refuses as `ambiguous-match`
-            - An explicitly supplied owning-unit pointer bypasses the scan and still validates the plan, member,
-              and selector
+        - The assignment port now scans its validated repository-common namespace for exact head or stored
+          ref-and-observed-head matches, returns negative and ambiguous results explicitly, and lets a validated
+          owning-unit pointer bypass enumeration without treating the pointer as identity proof.
 
     - `[ ]` **2.6.b Resolve a unit's existing plan forward through the rename chain**
 
