@@ -25,7 +25,7 @@ export interface TaskStructureItem {
 
 /** Stable structural events emitted for task-list consumers. */
 export type TaskListStructureEvent =
-  | { type: "phase"; line: number }
+  | { type: "phase"; line: number; id: string; title: string }
   | { type: "parent"; line: number; marker: TaskMarker; item: TaskStructureItem }
   | { type: "subtask"; line: number; marker: TaskMarker; item: TaskStructureItem }
   | { type: "section"; line: number }
@@ -49,7 +49,7 @@ const SUBTASK_RE =
 const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
-const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+[^:]+:\*\*/u;
+const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
 const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
 const FENCE_RE = /^ {0,3}(?<run>`{3,}|~{3,})(?<rest>.*)$/u;
 
@@ -84,8 +84,14 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
       continue;
     }
 
-    if (PHASE_HEADING_RE.test(line)) {
-      events.push({ type: "phase", line: lineNumber });
+    const phase = PHASE_HEADING_RE.exec(line);
+    if (phase?.groups?.id !== undefined && phase.groups.title !== undefined) {
+      events.push({
+        type: "phase",
+        line: lineNumber,
+        id: phase.groups.id.trim(),
+        title: phase.groups.title.trim(),
+      });
       hasCurrentParent = false;
       continue;
     }

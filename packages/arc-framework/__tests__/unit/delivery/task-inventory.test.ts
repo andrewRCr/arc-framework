@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { extractTaskGoalInventory } from "../../../src/lib/delivery/task-inventory.js";
+import {
+  buildDeliveryTaskInventory,
+  extractTaskGoalInventory,
+} from "../../../src/lib/delivery/task-inventory.js";
 
 function taskList(goalLines: readonly string[], options?: {
   readonly marker?: " " | "x";
@@ -64,5 +67,93 @@ describe("extractTaskGoalInventory", () => {
     const after = extractTaskGoalInventory(taskList(["- _Goal:_ Bind different task intent."]))[0];
 
     expect(after?.semanticDigest).not.toBe(before?.semanticDigest);
+  });
+});
+
+describe("buildDeliveryTaskInventory", () => {
+  it("binds the sole parent in the final Verification phase outside the implementation inventory", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind the implementation task.",
+    ]));
+
+    expect(result).toMatchObject({
+      status: "ok",
+      inventory: {
+        implementation: [{ taskId: "1.1" }],
+        verificationTaskId: "2.1",
+      },
+    });
+  });
+
+  it("digests only normalized implementation task identities and Goal semantics", () => {
+    const before = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind stable implementation intent.",
+    ]));
+    const after = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind stable implementation intent.",
+    ], {
+      title: "Changed presentation title",
+      peerLines: ["", "- _Note:_ Changed non-semantic context."],
+    }).replace("2.1 Verification", "2.2 Run verification"));
+
+    expect(before.status).toBe("ok");
+    expect(after.status).toBe("ok");
+    if (before.status !== "ok" || after.status !== "ok") return;
+    expect(after.inventory.inventoryDigest).toBe(before.inventory.inventoryDigest);
+  });
+
+  it("excludes verification Goal content from entries and the inventory digest", () => {
+    const withoutGoal = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind stable implementation intent.",
+    ]));
+    const withGoal = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind stable implementation intent.",
+    ]).replace(
+      "### `[ ]` **2.1 Verification**",
+      [
+        "### `[ ]` **2.1 Verification**",
+        "",
+        "- _Goal:_ This verification text is not implementation intent.",
+      ].join("\n"),
+    ));
+
+    expect(withoutGoal.status).toBe("ok");
+    expect(withGoal.status).toBe("ok");
+    if (withoutGoal.status !== "ok" || withGoal.status !== "ok") return;
+    expect(withGoal.inventory.implementation).toHaveLength(1);
+    expect(withGoal.inventory.inventoryDigest).toBe(withoutGoal.inventory.inventoryDigest);
+  });
+
+  it("refuses when the final phase is not titled Verification", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind implementation intent.",
+    ]).replace("## **Phase 2:** Verification", "## **Phase 2:** Validation"));
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "verification-phase-missing",
+    });
+  });
+
+  it("refuses when the final Verification phase has no sole parent", () => {
+    const base = taskList(["- _Goal:_ Bind implementation intent."]);
+    const noParent = buildDeliveryTaskInventory(base.replace(
+      "### `[ ]` **2.1 Verification**",
+      "",
+    ));
+    const twoParents = buildDeliveryTaskInventory([
+      base,
+      "",
+      "### `[ ]` **2.2 Additional verification parent**",
+    ].join("\n"));
+
+    expect(noParent).toEqual({
+      status: "refused",
+      reason: "verification-task-ambiguous",
+    });
+    expect(twoParents).toEqual({
+      status: "refused",
+      reason: "verification-task-ambiguous",
+    });
   });
 });

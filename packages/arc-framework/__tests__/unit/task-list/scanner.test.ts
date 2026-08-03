@@ -39,7 +39,7 @@ describe("scanTaskListStructure", () => {
       events: [
         { type: "content", line: 1, text: "# Task List: Scanner" },
         { type: "content", line: 2, text: "" },
-        { type: "phase", line: 3 },
+        { type: "phase", line: 3, id: "1", title: "Build" },
         { type: "content", line: 4, text: "" },
         {
           type: "parent",
