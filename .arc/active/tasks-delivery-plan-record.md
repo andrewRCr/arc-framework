@@ -261,29 +261,20 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 - _Outcome:_ All three current-record stores now share one validate-lock-read-compare-publish discipline; stale
   concurrent writers refuse deterministically without partial replacement.
 
-### `[ ]` **2.4 Chain the assurance store by predecessor digest**
+### `[x]` **2.4 Chain the assurance store by predecessor digest**
 
 - _Goal:_ The one record no live query can reconstruct is tamper-evident in place and carryable to a successor
   adapter without loss.
 
-- _Context:_ A multi-entry append-only ledger with replay idempotence already ships; what does not is
-  predecessor-digest chaining, since the shipped compare-and-swap is an integer counter with no predecessor
-  pointer.
+    - `[x]` **2.4.a Append-only publication by expected predecessor digest**
 
-    - `[ ]` **2.4.a Append-only publication by expected predecessor digest**
+        - Added domain-separated entry digests over normalized payloads and predecessor pointers, stale-tail
+          refusal, and exact replay idempotence in an append-only assurance adapter.
 
-        - Build `test-first` (one behavior at a time):
-            - An append naming the current tail digest succeeds
-            - An append naming a stale predecessor digest refuses
-            - Each entry's digest covers its payload and its predecessor pointer
-            - A replayed identical append is idempotent rather than a second entry
+    - `[x]` **2.4.b Export and import across adapters**
 
-    - `[ ]` **2.4.b Export and import across adapters**
-
-        - Build `test-first` (one behavior at a time):
-            - A chain exports and re-imports with every entry and pointer intact
-            - An import whose chain does not verify refuses rather than partially applying
-            - An import into a non-empty namespace for the same plan refuses
+        - Added complete-chain export and validate-before-lock import, preserving every entry while refusing
+          malformed chains, invalid links, identity mismatches, and non-empty destinations without partial writes.
 
 ### `[ ]` **2.5 Hold assignment decisions with a monotonic per-subject generation**
 
