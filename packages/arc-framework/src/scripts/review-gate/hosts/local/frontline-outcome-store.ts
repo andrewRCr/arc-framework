@@ -8,7 +8,7 @@ import {
   type FrontlineOutcomeRecord,
 } from "../../core/advisory-records.js";
 import type { FrontlineOutcomeStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const OUTCOME_STORE_SEMANTICS = "frontline-outcome-store/v1" as const;

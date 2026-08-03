@@ -19,7 +19,7 @@ import type {
   ForwardReceiptLedger,
   ForwardReviewReceiptStore,
 } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
 const RECEIPT_RECORD = "receipts-v2.json";
 const RECEIPT_REFERENCE_PREFIX = `git-common:review-gate/evidence/${RECEIPT_RECORD}#`;

@@ -1,12 +1,10 @@
 /** Production assembly for read-only advisory review reduction. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {

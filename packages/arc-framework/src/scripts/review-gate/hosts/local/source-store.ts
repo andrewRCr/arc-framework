@@ -6,7 +6,7 @@ import {
   type LocalReviewSource,
 } from "../../core/local-review-source.js";
 import type { LocalReviewSourceStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { LocalReviewRecordStoreError } from "./record-store-error.js";
 
 function sourceRecordName(source: LocalReviewSource): string {

@@ -1,14 +1,12 @@
 /** Production assembly for approved review dispositions. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";

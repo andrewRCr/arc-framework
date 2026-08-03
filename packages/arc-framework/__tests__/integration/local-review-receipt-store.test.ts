@@ -14,7 +14,7 @@ import { createLocalChangeSetCarrier } from "../../src/scripts/review-gate/core/
 import type { ForwardReviewReceiptStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
   RepositoryGitCommonStatePublisher,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+} from "../../src/lib/git-common-state.js";
 import {
   importLocalReviewReceipt,
   LocalForwardReviewReceiptStore,

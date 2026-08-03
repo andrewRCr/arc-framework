@@ -6,7 +6,7 @@ import {
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
 import type { ApprovedDispositionRecordStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { LocalReviewRecordStoreError } from "./record-store-error.js";
 
 function recordName(operationId: string): string {

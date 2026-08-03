@@ -5,7 +5,7 @@ import {
 } from "../../../../../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import type {
   GitCommonStatePublisher,
-} from "../../../../../../src/scripts/review-gate/hosts/local/git-common-state.js";
+} from "../../../../../../src/lib/git-common-state.js";
 import {
   RepositoryLocalReviewSourceStore,
 } from "../../../../../../src/scripts/review-gate/hosts/local/source-store.js";
