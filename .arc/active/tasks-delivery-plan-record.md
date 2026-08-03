@@ -118,28 +118,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 - _Outcome:_ The minted plan spine survives work-unit renames, while every dependent member and seam identity is a
   deterministic digest of only its stable, domain-separated preimage.
 
-### `[ ]` **1.3 Bind the task and design inventories**
+### `[x]` **1.3 Bind the task and design inventories**
 
 - _Goal:_ The inventories carry exactly the content whose movement should invalidate a member, and nothing whose
   movement is ordinary progress.
-
-- _Rationale:_ `Goal` is the only surface preserved verbatim across completion and required on every
-  implementation parent. Titles are presentation; `Outcome` is added at completion and so absent from
-  authoring-time state; a subtask-granular inventory would digest the empty set for the modal leaf. The one
-  parent that carries no `Goal` is the verification task, which is why it is held as a bare id rather than as an
-  inventory entry — nothing digests it.
-
-- _Shape:_ A task digest covers the `Goal` descriptor's text with inter-word whitespace and line breaks collapsed
-  to single spaces, so re-wrapping an unchanged `Goal` to satisfy the line-length gate is digest-neutral.
-
-- _Approach:_ Descriptor extent is already computed by the package's spacing pass, privately, behind a validator
-  that returns diagnostics. Expose that computation and share it rather than deriving a second notion of what a
-  descriptor spans — and adopt its rules exactly as they stand, rather than the tidier ones they might be
-  mistaken for. A descriptor runs from its label line through following indented continuation lines that are not
-  themselves list items; a blank line does not end it; it closes at the next descriptor, at an indented list
-  item, at any unindented content, or at a structural boundary. Two consequences follow and are accepted: a
-  nested bullet list inside a `Goal` falls outside the digest, and an indented line after a blank line falls
-  inside it.
 
     - `[x]` **1.3.a Expose the descriptor-extent computation**
 
@@ -162,19 +144,14 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Added one reusable coverage refinement that refuses authored gaps, verification assignment, and revision
           entry changes while preserving retrofit gaps as typed advisories for the whole-record validator.
 
-    - `[ ]` **1.3.e Design-element binding across one or two artifacts**
+    - `[x]` **1.3.e Design-element binding across one or two artifacts**
 
-        - Consume a validated caller-supplied `DesignInventoryInput`; delivery does not parse spec forms or mint
-          element identifiers. Each of one or two artifact entries carries its basename, canonical raw-byte
-          revision digest, form discriminator, and the form authority's enumerated element ids and semantic
-          digests. Delivery form-qualifies the ids and owns validation, binding, and coverage only.
+        - Added strict one-or-two-artifact inventory binding with exact revision digests, form-qualified element
+          namespaces, duplicate and malformed-input refusal, and complete known-reference coverage that remains
+          vacuous for forms enumerating no elements.
 
-        - Build `test-first` (one behavior at a time):
-            - Missing, duplicate, or malformed artifact inventory input refuses before binding
-            - Each bound artifact contributes its own revision digest
-            - Elements carry form-qualified identifiers so a paired unit's namespaces stay distinct
-            - An element reference naming nothing in the inventory refuses
-            - A form enumerating no elements binds an empty inventory and the coverage refinement goes vacuous
+- _Outcome:_ Parent `Goal` semantics and caller-owned design elements now form stable, progress-insensitive
+  inventories, with verification identity and entry-sensitive coverage carried through reusable refinements.
 
 ### `[ ]` **1.4 Derive member and seam semantic fingerprints**
 
