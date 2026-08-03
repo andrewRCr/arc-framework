@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveDeliveryPlanId } from "../../../src/lib/delivery/identity.js";
+import {
+  deriveDeliverableId,
+  deriveUniqueDeliverableIds,
+  resolveDeliveryPlanId,
+} from "../../../src/lib/delivery/identity.js";
 import { DeliveryPlanV1Schema } from "../../../src/lib/delivery/schema.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 const firstPlanId = "123e4567-e89b-42d3-a456-426614174000";
@@ -33,5 +38,25 @@ describe("resolveDeliveryPlanId", () => {
     expect(resolveDeliveryPlanId(priorRevision(), mint)).toBe(firstPlanId);
     expect(resolveDeliveryPlanId(priorRevision("renamed-unit"), mint)).toBe(firstPlanId);
     expect(mint).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deliverable identity", () => {
+  it("derives only from the registered plan-and-chunk preimage", () => {
+    const expected = canonicalDigest({
+      domain: "arc.delivery.deliverable-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      planId: firstPlanId,
+      chunkKey: "record-substrate",
+    });
+
+    expect(deriveDeliverableId(firstPlanId, "record-substrate")).toBe(expected);
+    expect(deriveDeliverableId(firstPlanId, "record-substrate")).toBe(expected);
+  });
+
+  it("refuses duplicate chunk keys before deriving a member identity sequence", () => {
+    expect(() => deriveUniqueDeliverableIds(firstPlanId, ["record-substrate", "record-substrate"]))
+      .toThrow("duplicate chunk key");
   });
 });
