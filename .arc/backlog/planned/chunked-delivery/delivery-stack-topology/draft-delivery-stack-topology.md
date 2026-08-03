@@ -11,6 +11,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Cover retained-control closeout in the stack lifecycle-artifact contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during the
+  `session-locus-model` hand-run stack closeout.
+- _Concern:_ the terminal stack member must atomically replace the planned-on-base generation with the completed
+  generation while a retained control checkout owns the active artifacts, without producing an abandonment
+  receipt, a ROADMAP repair, or an unresolved durable locus.
+- _Fold-in:_ extend the topology contract and interruption matrix through retained-control transfer or the core
+  terminal-frame capability; keep generic recovery semantics outside this member.
+
+### `[ ]` **Validate an authored stack cut before it becomes externally binding**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` draft design from the `session-locus-model` field run.
+- _Concern:_ a retrofit author can otherwise commit to a cut before learning that independently green member heads
+  are semantically incoherent or require costly compatibility caps.
+- _Fold-in:_ make stack eligibility admit a non-binding dry run over author-drawn boundaries: construct and test
+  candidate heads, evaluate semantic landability and compatibility cost, then discard them before any pushed ref
+  or change request binds the plan. Do not derive cuts language-agnostically.
+
 ## Stack-to-`main` projection and delivery-host adapters
 
 **Stack-to-`main` reducer.** The lowest unmerged member directly targets the current stack base; each higher member

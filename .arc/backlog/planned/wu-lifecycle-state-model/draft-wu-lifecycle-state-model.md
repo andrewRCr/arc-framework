@@ -16,6 +16,20 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Recognize the archived-but-not-torn-down work unit as a proved terminal frame**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `session-locus-model` closeout recovery.
+- _Concern:_ the supported integration cadence archives the active meta before merge and physical teardown. An
+  interruption in that interval leaves a valid durable role whose active-subject projection is
+  `subject-unresolved`, even when a unique same-slug completed subject, exact checkout/head, and open change request
+  prove the monotonic terminal transition.
+- _Fold-in:_ extend the existing pending-teardown terminal-condition decision to cover this pre-merge interval and
+  define the state/projection authority recovery consumes. Coordinate exact-generation mutation and locked cleanup
+  with `locus-generation-binding`; keep arbitrary missing or ambiguous subjects fail-closed.
+- _Verification:_ cover archive-before-merge restart, merge-before-teardown, partial teardown, retained-control
+  finalization, and missing/ambiguous completed-subject negatives in reader, session-init, and recovery tests.
+
 ### `[ ]` **`decomposition-hardening` rename-move marker is an operational projection to re-vocabulary later**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during

@@ -19,6 +19,28 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Run a source-grounded planning pre-flight before adversarial review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` create-spec closeout.
+- _Concern:_ adversarial passes are being spent on deterministic source, reference, vocabulary, and return-shape
+  defects before they can reach design judgment; one measured pass produced twelve mechanical findings and two
+  design findings.
+- _Fold-in:_ define one shared pre-flight method fired by all three planning stages before their adversarial
+  callouts. It should verify shipped-behavior claims against source, rule-section constraints, internal references,
+  defined-term use, and complete composed return types, while leaving design judgment to adversarial review.
+- _Practice:_ fold a bounded few findings at a time and prefer removing constraints over adding repair machinery.
+
+### `[ ]` **Make empirical planning claims visibly source-grounded**
+
+- _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ the always-loaded verify-before-assuming rule depends on authors noticing an assumption; inherited
+  empirical claims can instead read as settled premises and survive until expensive adversarial passes.
+- _Fold-in:_ design the authoring convention and planning-stage fire point for source pointers on claims about
+  shipped behavior, coordinated with `knowledge-lint`'s mechanical enforcement half. Do not add another
+  always-loaded reminder.
+
 ### `[ ]` **Discharge the adversarial-review cap concern absorbed by convergence design**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
