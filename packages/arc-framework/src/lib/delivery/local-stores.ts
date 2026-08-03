@@ -1,4 +1,4 @@
-/** Git-common-directory adapters for delivery plan, assignment, and observation records. */
+/** Git-common-directory adapters for current delivery plan, assignment, and observation records. */
 
 import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
 import { sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
@@ -271,7 +271,6 @@ implements Pick<DeliveryAssignmentStore<TAssignment>, "read" | "publish"> {
       expectedRevision,
     );
   }
-
 }
 
 /** Repository-common revision-checked observation adapter. */

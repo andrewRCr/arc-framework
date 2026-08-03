@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { RepositoryDeliveryAssuranceStore } from "../../src/lib/delivery/assurance-store.js";
 import {
   RepositoryDeliveryAssignmentStore,
   RepositoryDeliveryObservationStore,
@@ -74,6 +75,7 @@ async function stores(io: Partial<GitCommonStatePublisherIO> = {}) {
     publisher,
     plans: new RepositoryDeliveryPlanStore(publisher, planCodec),
     assignments: new RepositoryDeliveryAssignmentStore(publisher, revisionedCodec),
+    assurance: new RepositoryDeliveryAssuranceStore(publisher, revisionedCodec),
     observations: new RepositoryDeliveryObservationStore(publisher, revisionedCodec),
   };
 }
@@ -84,6 +86,14 @@ function plan(planId: string, body: string): PlanValue {
     planDigest: canonicalDigest({ planId, body }),
     body,
   };
+}
+
+function okValue<T>(
+  result: { readonly status: "ok"; readonly value: T } | { readonly status: "refused"; readonly reason: string },
+): T {
+  expect(result.status).toBe("ok");
+  if (result.status !== "ok") throw new Error(`expected ok result, received ${result.reason}`);
+  return result.value;
 }
 
 describe("repository delivery record stores", () => {
@@ -336,5 +346,203 @@ describe("repository delivery record stores", () => {
       status: "refused",
       reason: "namespace-corrupt",
     });
+  });
+
+  it("appends assurance entries against the current predecessor digest", async () => {
+    const records = await stores();
+    const first = { planId: "plan-1", body: "first" };
+    const second = { planId: "plan-1", body: "second" };
+
+    const firstResult = await records.assurance.append("plan-1", first, null);
+    expect(firstResult).toMatchObject({
+      status: "ok",
+      value: { predecessorDigest: null, value: first },
+    });
+    const firstEntry = okValue(firstResult);
+    const secondResult = await records.assurance.append(
+      "plan-1",
+      second,
+      firstEntry.entryDigest,
+    );
+    expect(secondResult).toMatchObject({
+      status: "ok",
+      value: { predecessorDigest: firstEntry.entryDigest, value: second },
+    });
+    await expect(records.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "stale" },
+      firstEntry.entryDigest,
+    )).resolves.toEqual({ status: "refused", reason: "predecessor-conflict" });
+  });
+
+  it("binds assurance entry digests to both payload and predecessor", async () => {
+    const firstRecords = await stores();
+    const secondRecords = await stores();
+    const thirdRecords = await stores();
+    const target = { planId: "plan-1", body: "target" };
+
+    const withoutPredecessor = await firstRecords.assurance.append("plan-1", target, null);
+    const differentPayload = await secondRecords.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "different" },
+      null,
+    );
+    const prefix = await thirdRecords.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "prefix" },
+      null,
+    );
+    const withoutPredecessorEntry = okValue(withoutPredecessor);
+    const differentPayloadEntry = okValue(differentPayload);
+    const prefixEntry = okValue(prefix);
+    const withPredecessor = await thirdRecords.assurance.append(
+      "plan-1",
+      target,
+      prefixEntry.entryDigest,
+    );
+    const withPredecessorEntry = okValue(withPredecessor);
+
+    expect(withoutPredecessorEntry.entryDigest).not.toBe(differentPayloadEntry.entryDigest);
+    expect(withoutPredecessorEntry.entryDigest).not.toBe(withPredecessorEntry.entryDigest);
+  });
+
+  it("treats an identical assurance append replay as idempotent", async () => {
+    const records = await stores();
+    const value = { planId: "plan-1", body: "first" };
+    const first = await records.assurance.append("plan-1", value, null);
+    const replay = await records.assurance.append("plan-1", value, null);
+
+    expect(replay).toEqual(first);
+    await expect(records.assurance.read("plan-1")).resolves.toMatchObject({
+      status: "ok",
+      value: { entries: [expect.objectContaining({ value })] },
+    });
+  });
+
+  it("exports and imports an assurance chain without changing its entries", async () => {
+    const source = await stores();
+    const destination = await stores();
+    const first = await source.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "first" },
+      null,
+    );
+    const firstEntry = okValue(first);
+    await source.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "second" },
+      firstEntry.entryDigest,
+    );
+    const exported = await source.assurance.exportChain("plan-1");
+    const exportedChain = okValue(exported);
+    expect(exportedChain).not.toBeNull();
+    if (exportedChain === null) throw new Error("expected exported assurance chain");
+
+    await expect(destination.assurance.importChain("plan-1", exportedChain)).resolves.toEqual(exported);
+    await expect(destination.assurance.exportChain("plan-1")).resolves.toEqual(exported);
+  });
+
+  it("refuses an invalid assurance import without partially applying it", async () => {
+    const source = await stores();
+    const destination = await stores();
+    const first = await source.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "first" },
+      null,
+    );
+    okValue(first);
+    const exported = await source.assurance.exportChain("plan-1");
+    const exportedChain = okValue(exported);
+    expect(exportedChain).not.toBeNull();
+    if (exportedChain === null) throw new Error("expected exported assurance chain");
+    const invalid = {
+      ...exportedChain,
+      entries: [{ ...exportedChain.entries[0]!, predecessorDigest: canonicalDigest("wrong") }],
+    };
+
+    await expect(destination.assurance.importChain("plan-1", invalid)).resolves.toEqual({
+      status: "refused",
+      reason: "chain-invalid",
+    });
+    await expect(destination.assurance.read("plan-1")).resolves.toEqual({ status: "ok", value: null });
+  });
+
+  it("refuses assurance import when the destination already has a chain", async () => {
+    const source = await stores();
+    const destination = await stores();
+    const sourceEntry = await source.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "source" },
+      null,
+    );
+    const destinationEntry = await destination.assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: "destination" },
+      null,
+    );
+    okValue(sourceEntry);
+    okValue(destinationEntry);
+    const exported = await source.assurance.exportChain("plan-1");
+    const exportedChain = okValue(exported);
+    expect(exportedChain).not.toBeNull();
+    if (exportedChain === null) throw new Error("expected exported assurance chain");
+
+    await expect(destination.assurance.importChain("plan-1", exportedChain)).resolves.toEqual({
+      status: "refused",
+      reason: "import-nonempty",
+    });
+    await expect(destination.assurance.read("plan-1")).resolves.toMatchObject({
+      status: "ok",
+      value: { entries: [{ value: { planId: "plan-1", body: "destination" } }] },
+    });
+  });
+
+  it("distinguishes malformed, mismatched, and invalid persisted assurance chains", async () => {
+    const records = await stores();
+    const assuranceLocation = { root: "delivery", namespace: "assurance" } as const;
+    await records.publisher.update(assuranceLocation, "plan-1.json", () => ({
+      kind: "write",
+      content: "{",
+      result: undefined,
+    }));
+    await records.publisher.update(assuranceLocation, "plan-2.json", () => ({
+      kind: "write",
+      content: `${JSON.stringify({
+        schemaVersion: 1,
+        semanticsVersion: "delivery-assurance-store/v1",
+        planId: "other-plan",
+        entries: [],
+        tailDigest: null,
+      })}\n`,
+      result: undefined,
+    }));
+    const validEntry = okValue(await records.assurance.append(
+      "plan-3",
+      { planId: "plan-3", body: "value" },
+      null,
+    ));
+    await records.publisher.update(assuranceLocation, "plan-3.json", (raw) => {
+      if (raw === null) throw new Error("expected persisted assurance chain");
+      const envelope = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        kind: "write",
+        content: `${JSON.stringify({ ...envelope, tailDigest: canonicalDigest("wrong") })}\n`,
+        result: undefined,
+      };
+    });
+
+    await expect(records.assurance.read("plan-1")).resolves.toEqual({
+      status: "refused",
+      reason: "record-malformed",
+    });
+    await expect(records.assurance.read("plan-2")).resolves.toEqual({
+      status: "refused",
+      reason: "identity-mismatch",
+    });
+    await expect(records.assurance.read("plan-3")).resolves.toEqual({
+      status: "refused",
+      reason: "chain-invalid",
+    });
+    expect(validEntry.entryDigest).not.toBe(canonicalDigest("wrong"));
   });
 });
