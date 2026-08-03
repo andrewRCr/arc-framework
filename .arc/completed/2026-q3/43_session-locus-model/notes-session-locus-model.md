@@ -2105,7 +2105,7 @@ not invoke `integrate-work-unit` or ARC's broken review architecture for it.
   the target.
 - **Terminal composition:** The archived meta is shipped with no branch, workflow, task, or next action; the task
   list closes verification and explicitly defers only the four success criteria owned by the carved producer work.
-- **Exact target measurement:** 6,305 additions plus 335 deletions across seven documentation artifacts. This exceeds
+- **Exact target measurement:** 6,311 additions plus 339 deletions across seven documentation artifacts. This exceeds
   the implementation-slice ceiling only because the closeout is the indivisible archival projection of the already
   reviewed planning record plus its exact stale-stub retirement; splitting it would publish an incomplete completed
   work-unit identity.
