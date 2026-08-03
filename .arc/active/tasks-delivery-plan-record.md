@@ -217,44 +217,23 @@ The shipped review-gate store supplies the pattern and the concurrency model but
 namespace-closed and lives under the scripts tree, which the library tree does not import from. Full rationale in
 `spec-delivery-plan-record.md` § 6.
 
-### `[ ]` **2.1 Lift the locked repository-common publisher into the library layer**
+### `[x]` **2.1 Lift the locked repository-common publisher into the library layer**
 
 - _Goal:_ A locked, atomically-replacing publisher is callable from library code without widening what the review
   subsystem already relies on.
-
-- _Context:_ The shipped publisher resolves its root through the Git common directory, so every linked worktree
-  agrees on the path and checkout relocation cannot move it. Its namespace type is a closed five-member union of
-  review names and its root is hardcoded to a review-gate segment; both need widening or parameterizing.
 
     - `[x]` **2.1.a Move the publisher into the library tree**
 
         - Relocated the publisher class, interface, and closed review namespace to the library layer; review stores
           and six test surfaces now import it directly, while review-specific identity and lock helpers stay private.
 
-    - `[ ]` **2.1.b Parameterize the root segment and namespace**
+    - `[x]` **2.1.b Parameterize the root segment and namespace**
 
-        - Delivery's four namespaces resolve under `arc/delivery/`, a sibling of the review-gate segment rather
-          than an extension of it, so the review namespace union stays closed. Parameterize the existing class on
-          a closed runtime-validated root/namespace pair: `review-gate` with its existing namespaces, or `delivery`
-          with `plans`, `assignments`, `assurance`, `observations`, and `authoring`. Validate the pair before path
-          resolution; no unchecked string reaches `join`. No generic and no wrappers until a third consumer exists.
+        - Added closed runtime-validated review and delivery locations, authoring-only Markdown names, explicit
+          keep/write/delete actions, ENOENT-only deletion, and serialized namespace updates.
 
-        - Provision a fifth location under the same root for the starter map and its outstanding-map state. It is
-          transient authoring state rather than a delivery record, so it carries none of the version-check
-          discipline — but it must exist outside the working tree, which is what makes it structurally incapable
-          of landing in a change set. Record namespaces admit safe `.json` basenames; `authoring` additionally
-          admits safe `.md` basenames. Replace the publisher callback's ambiguous `content: null` result with
-          explicit `keep`, `write`, and `delete` results, migrating existing callers to `keep` without changing
-          their behavior.
-
-        - Build `test-first` (one behavior at a time):
-            - A delivery namespace resolves under its own segment, disjoint from the review-gate root
-            - An invalid root, namespace, root/namespace pair, or record name refuses before filesystem access
-            - Review record namespaces refuse Markdown while delivery authoring admits a safe map basename
-            - `keep` preserves bytes, `write` atomically replaces them, and `delete` removes only the resolved file
-            - Repeating `delete` after the record is absent succeeds as an idempotent no-op; only `ENOENT` is
-              absorbed and every other filesystem failure remains an infrastructure error
-            - Concurrent updates to one namespace serialize on the advisory lock
+- _Outcome:_ Review and delivery storage now share one Git-common publisher without sharing namespace authority;
+  transient authoring maps gain an outside-tree home while existing review-store behavior remains intact.
 
 ### `[ ]` **2.2 Declare the four record ports and their failure classes**
 
