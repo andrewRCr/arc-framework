@@ -104,11 +104,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
   which a shipped rename mutates while the unit is live. Deriving it would turn a sanctioned rename into a silent
   re-mint of every member, seam, and assurance subject.
 
-    - `[ ]` **1.2.a Mint `planId` once and carry it forward**
+    - `[x]` **1.2.a Mint `planId` once and carry it forward**
 
-        - Build `test-first` (one behavior at a time):
-            - A first authoring mints an identity; every later revision carries it unchanged
-            - The value is independent of `workUnitId`, and changing `workUnitId` leaves it untouched
+        - Added injected UUID minting for first authoring and predecessor-based carry-forward that is independent
+          of the mutable work-unit slug.
 
     - `[ ]` **1.2.b Derive `deliverableId` from `planId` and `chunkKey`**
 
