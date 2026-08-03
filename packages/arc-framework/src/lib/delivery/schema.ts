@@ -84,7 +84,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
     artifacts: z.array(z.strictObject({
       artifactId: DeliveryArtifactBasenameSchema,
       revisionDigest: DeliveryCanonicalDigestSchema,
-    })),
+    })).min(1).max(2),
     elements: z.array(z.strictObject({
       elementId: DeliveryOpaqueIdSchema,
       semanticDigest: DeliveryCanonicalDigestSchema,

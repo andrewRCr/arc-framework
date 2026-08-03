@@ -157,6 +157,27 @@ describe("DeliveryPlanV1Schema", () => {
     delete member!.mainlineLandability;
     expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
   });
+
+  it("requires one or two design artifacts in persisted plans and their JSON Schema", () => {
+    for (const count of [0, 3]) {
+      const plan = validPlan();
+      const [artifact] = (plan.design as { artifacts: Array<Record<string, unknown>> }).artifacts;
+      (plan.design as { artifacts: Array<Record<string, unknown>> }).artifacts = Array.from(
+        { length: count },
+        (_, index) => ({ ...artifact, artifactId: `spec-${String(index)}.md` }),
+      );
+      expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    }
+
+    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    const deliveryPlan = projection.schemas["delivery-plan"] as {
+      properties?: { design?: { properties?: { artifacts?: unknown } } };
+    };
+    expect(deliveryPlan.properties?.design?.properties?.artifacts).toMatchObject({
+      minItems: 1,
+      maxItems: 2,
+    });
+  });
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
