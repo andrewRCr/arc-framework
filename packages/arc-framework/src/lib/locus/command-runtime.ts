@@ -132,7 +132,7 @@ export async function attachLocusAtRuntime(options: LocusCommandRuntimeOptions):
       ...(existingLeaseId === undefined ? {} : { leaseId: existingLeaseId }),
       attachedAt: current.record.lease?.attachedAt ?? now,
       heartbeatAt: now,
-      observedLeaseId: current.record.lease?.leaseId ?? null,
+      observedLeaseId: row.lease?.leaseId ?? null,
       observedLiveness: row.lease?.state ?? null,
       io: {
         read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
