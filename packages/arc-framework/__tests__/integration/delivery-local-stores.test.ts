@@ -46,6 +46,12 @@ const RevisionedValueSchema = z.strictObject({
 });
 type RevisionedValue = z.infer<typeof RevisionedValueSchema>;
 
+const KeyOrderedValueSchema = z.strictObject({
+  planId: z.string(),
+  body: z.record(z.string(), z.string()),
+});
+type KeyOrderedValue = z.infer<typeof KeyOrderedValueSchema>;
+
 const planCodec: DeliveryPlanPayloadCodec<PlanValue> = {
   decode: (value) => {
     const parsed = PlanValueSchema.safeParse(value);
@@ -60,6 +66,16 @@ const planCodec: DeliveryPlanPayloadCodec<PlanValue> = {
 const revisionedCodec: DeliveryPayloadCodec<RevisionedValue> = {
   decode: (value) => {
     const parsed = RevisionedValueSchema.safeParse(value);
+    return parsed.success
+      ? { status: "decoded", value: parsed.data }
+      : { status: "refused" };
+  },
+  planId: (value) => value.planId,
+};
+
+const keyOrderedCodec: DeliveryPayloadCodec<KeyOrderedValue> = {
+  decode: (value) => {
+    const parsed = KeyOrderedValueSchema.safeParse(value);
     return parsed.success
       ? { status: "decoded", value: parsed.data }
       : { status: "refused" };
@@ -478,6 +494,27 @@ describe("repository delivery record stores", () => {
     await expect(records.assurance.read("plan-1")).resolves.toMatchObject({
       status: "ok",
       value: { entries: [expect.objectContaining({ value })] },
+    });
+  });
+
+  it("treats a canonical-equivalent assurance append replay as idempotent", async () => {
+    const records = await stores();
+    const assurance = new RepositoryDeliveryAssuranceStore(records.publisher, keyOrderedCodec);
+    const first = await assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: { first: "one", second: "two" } },
+      null,
+    );
+    const replay = await assurance.append(
+      "plan-1",
+      { planId: "plan-1", body: { second: "two", first: "one" } },
+      null,
+    );
+
+    expect(replay).toEqual(first);
+    await expect(assurance.read("plan-1")).resolves.toMatchObject({
+      status: "ok",
+      value: { entries: [expect.any(Object)] },
     });
   });
 

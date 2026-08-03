@@ -160,6 +160,7 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
     if (this.codec.planId(proposed.value) !== planId) {
       return { status: "refused", reason: "identity-mismatch" };
     }
+    const proposedEntryDigest = assuranceEntryDigest(expectedTailDigest, proposed.value);
     return this.publisher.update<DeliveryStoreResult<
       DeliveryAssuranceChainEntry<TAssurance>,
       DeliveryAssuranceStoreFailure
@@ -172,7 +173,7 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
         const tail = chain.entries.at(-1);
         if (tail !== undefined
           && tail.predecessorDigest === expectedTailDigest
-          && serialize(tail.value) === serialize(proposed.value)) {
+          && tail.entryDigest === proposedEntryDigest) {
           return { kind: "keep", result: { status: "ok", value: tail } };
         }
       }
@@ -181,7 +182,7 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
       }
       const entry: DeliveryAssuranceChainEntry<TAssurance> = {
         predecessorDigest: expectedTailDigest,
-        entryDigest: assuranceEntryDigest(expectedTailDigest, proposed.value),
+        entryDigest: proposedEntryDigest,
         value: proposed.value,
       };
       const next = {
