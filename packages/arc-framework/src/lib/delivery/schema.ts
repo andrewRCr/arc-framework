@@ -14,14 +14,18 @@ const ArtifactBasenameSchema = z.string().min(1).refine(
   "must be a safe basename",
 );
 
-const DeliveryPlanMemberShape = {
+const AuthoredDeliveryPlanMemberShape = {
   chunkKey: SlugSchema,
-  deliverableId: CanonicalDigestSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   taskIds: z.array(ParentTaskIdSchema),
   designElementIds: z.array(NonEmptyOpaqueStringSchema),
   mainlineLandability: z.enum(["independently-landable", "integration-only"]),
+};
+
+const DeliveryPlanMemberShape = {
+  ...AuthoredDeliveryPlanMemberShape,
+  deliverableId: CanonicalDigestSchema,
   assuranceSubjectId: CanonicalDigestSchema,
   semanticFingerprint: CanonicalDigestSchema,
 };
@@ -111,4 +115,105 @@ export const DeliveryPlanV1Schema = z.strictObject({
 export type DeliveryPlanV1 = z.infer<typeof DeliveryPlanV1Schema>;
 
 /** Authored delivery-plan input before identities and digests are derived. */
-export const DeliveryPlanAuthoringInputV1Schema = z.unknown();
+export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
+  schemaVersion: z.literal(1),
+  semanticsVersion: z.literal("delivery-plan/v1"),
+  projectId: NonEmptyOpaqueStringSchema.optional(),
+  workUnitId: SlugSchema,
+  design: z.strictObject({
+    artifacts: z.array(z.strictObject({ artifactId: ArtifactBasenameSchema })).min(1).max(2),
+    elements: z.array(z.strictObject({ elementId: NonEmptyOpaqueStringSchema })),
+  }),
+  tasks: z.strictObject({
+    implementation: z.array(z.strictObject({ taskId: ParentTaskIdSchema })),
+    verificationTaskId: ParentTaskIdSchema,
+  }),
+  entry: z.enum(["from-tasks", "from-branch"]),
+  projection: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("wu-integration-target") }),
+    z.strictObject({ kind: z.literal("stack-to-main") }),
+  ]),
+  members: z.array(z.discriminatedUnion("status", [
+    z.strictObject({ status: z.literal("live"), ...AuthoredDeliveryPlanMemberShape }),
+    z.strictObject({ status: z.literal("landed"), ...AuthoredDeliveryPlanMemberShape }),
+  ])),
+  seams: z.array(z.strictObject({
+    seamKey: SlugSchema,
+    title: NonEmptyTextSchema,
+    acceptance: NonEmptyTextSchema,
+    incidentChunkKeys: z.array(SlugSchema).min(2).refine(
+      (keys) => new Set(keys).size === keys.length,
+      "incident chunks must be distinct",
+    ),
+    designElementIds: z.array(NonEmptyOpaqueStringSchema),
+  })),
+}).superRefine((input, context) => {
+  const memberKeys = new Set(input.members.map((member) => member.chunkKey));
+  for (const [seamIndex, seam] of input.seams.entries()) {
+    for (const [incidentIndex, chunkKey] of seam.incidentChunkKeys.entries()) {
+      if (!memberKeys.has(chunkKey)) {
+        context.addIssue({
+          code: "custom",
+          message: `unknown member chunk key: ${chunkKey}`,
+          path: ["seams", seamIndex, "incidentChunkKeys", incidentIndex],
+        });
+      }
+    }
+  }
+});
+export type DeliveryPlanAuthoringInputV1 = z.infer<typeof DeliveryPlanAuthoringInputV1Schema>;
+
+const FirstDeliveryPlanAuthoringInputV1Schema = DeliveryPlanAuthoringInputV1Schema.superRefine(
+  (input, context) => {
+    for (const [index, member] of input.members.entries()) {
+      if (member.status === "landed") {
+        context.addIssue({
+          code: "custom",
+          message: "first-revision members must be live",
+          path: ["members", index, "status"],
+        });
+      }
+    }
+  },
+);
+
+/**
+ * Validate authored input against the presence or absence of a prior plan revision.
+ *
+ * @param value - Candidate authored input.
+ * @param priorRevision - The validated predecessor, or `null` for first authoring.
+ * @returns The parsed authored input or its structural validation failure.
+ */
+export function validateDeliveryPlanAuthoringInputV1(
+  value: unknown,
+  priorRevision: DeliveryPlanV1 | null,
+): ReturnType<typeof DeliveryPlanAuthoringInputV1Schema.safeParse> {
+  return (priorRevision === null
+    ? FirstDeliveryPlanAuthoringInputV1Schema
+    : DeliveryPlanAuthoringInputV1Schema).safeParse(value);
+}
+
+/** Seam incidence resolved from authored chunk keys to derived deliverable identities. */
+export interface ResolvedAuthoringSeamIncidence {
+  readonly seamKey: string;
+  readonly incidentDeliverableIds: readonly string[];
+}
+
+/**
+ * Resolve authored seam incidence through the caller's deliverable-id derivation.
+ *
+ * @param input - Validated authored input whose seam references are known members.
+ * @param deliverableIdForChunkKey - Derivation from one authored member key to its stable identity.
+ * @returns Seam keys paired with their incident deliverable identities in authored order.
+ */
+export function resolveAuthoredSeamIncidence(
+  input: DeliveryPlanAuthoringInputV1,
+  deliverableIdForChunkKey: (chunkKey: string) => string,
+): readonly ResolvedAuthoringSeamIncidence[] {
+  return input.seams.map((seam) => ({
+    seamKey: seam.seamKey,
+    incidentDeliverableIds: seam.incidentChunkKeys.map((chunkKey) => (
+      CanonicalDigestSchema.parse(deliverableIdForChunkKey(chunkKey))
+    )),
+  }));
+}
