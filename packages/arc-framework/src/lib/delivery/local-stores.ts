@@ -10,8 +10,11 @@ import {
 import type {
   DeliveryAssignmentStore,
   DeliveryAssignmentStoreFailure,
+  DeliveryMemberResolution,
+  DeliveryMemberSelector,
   DeliveryObservationStore,
   DeliveryObservationStoreFailure,
+  DeliveryOwningUnitPointer,
   DeliveryPayloadCodec,
   DeliveryPlanPayloadCodec,
   DeliveryPlanStore,
@@ -19,12 +22,36 @@ import type {
   DeliveryRevisionedRecord,
   DeliveryStoreResult,
 } from "./ports.js";
+import { DeliveryPlanIdSchema } from "./schema.js";
 
 const PLAN_LOCATION = { root: "delivery", namespace: "plans" } as const;
 const ASSIGNMENT_LOCATION = { root: "delivery", namespace: "assignments" } as const;
 const OBSERVATION_LOCATION = { root: "delivery", namespace: "observations" } as const;
 const ASSIGNMENT_SEMANTICS = "delivery-assignment-store/v1";
 const OBSERVATION_SEMANTICS = "delivery-observation-store/v1";
+
+function memberMatches(
+  member: DeliveryAssignmentsV1["members"][number],
+  selector: DeliveryMemberSelector,
+): boolean {
+  if (selector.kind === "head") return member.assignedHeadObjectId === selector.objectId;
+  return member.ref === selector.ref
+    && member.assignedHeadObjectId === selector.observedHeadObjectId;
+}
+
+function matchingMembers(
+  assignment: DeliveryAssignmentsV1,
+  selector: DeliveryMemberSelector,
+): readonly DeliveryMemberResolution<DeliveryAssignmentsV1>[] {
+  return assignment.members
+    .filter((member) => memberMatches(member, selector))
+    .map((member) => ({
+      planId: assignment.planId,
+      deliverableId: member.deliverableId as CanonicalDigest,
+      workUnitId: assignment.workUnitId,
+      assignment,
+    }));
+}
 
 function planRecordName(planId: string): string {
   return `${planId}.json`;
@@ -247,7 +274,7 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
 
 /** Repository-common revision-checked assignment adapter. */
 export class RepositoryDeliveryAssignmentStore
-implements Pick<DeliveryAssignmentStore<DeliveryAssignmentsV1>, "read" | "publish"> {
+implements DeliveryAssignmentStore<DeliveryAssignmentsV1> {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async read(
@@ -283,6 +310,46 @@ implements Pick<DeliveryAssignmentStore<DeliveryAssignmentsV1>, "read" | "publis
       expectedRevision,
       isDeliveryAssignmentSuccessor,
     );
+  }
+
+  async resolveMember(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }): Promise<DeliveryStoreResult<
+    DeliveryMemberResolution<DeliveryAssignmentsV1> | null,
+    DeliveryAssignmentStoreFailure
+  >> {
+    if (input.owningUnit !== undefined) {
+      if (!DeliveryPlanIdSchema.safeParse(input.owningUnit.planId).success) {
+        return { status: "refused", reason: "identity-mismatch" };
+      }
+      const candidate = await this.read(input.owningUnit.planId);
+      if (candidate.status === "refused") return candidate;
+      if (candidate.value === null) return { status: "ok", value: null };
+      if (candidate.value.value.workUnitId !== input.owningUnit.workUnitId) {
+        return { status: "refused", reason: "identity-mismatch" };
+      }
+      const matches = matchingMembers(candidate.value.value, input.selector);
+      if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
+      return { status: "ok", value: matches[0] ?? null };
+    }
+
+    const entries = await this.publisher.list(ASSIGNMENT_LOCATION);
+    const matches: DeliveryMemberResolution<DeliveryAssignmentsV1>[] = [];
+    for (const entry of entries) {
+      const planId = entry.name.endsWith(".json")
+        ? entry.name.slice(0, -".json".length)
+        : "";
+      if (entry.kind !== "file" || !DeliveryPlanIdSchema.safeParse(planId).success) {
+        return { status: "refused", reason: "namespace-corrupt" };
+      }
+      const candidate = await this.read(planId);
+      if (candidate.status === "refused") return candidate;
+      if (candidate.value === null) return { status: "refused", reason: "namespace-corrupt" };
+      matches.push(...matchingMembers(candidate.value.value, input.selector));
+      if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
+    }
+    return { status: "ok", value: matches[0] ?? null };
   }
 }
 

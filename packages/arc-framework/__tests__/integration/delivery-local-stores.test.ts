@@ -23,6 +23,7 @@ import { atomicWriteFile } from "../../src/lib/fs.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   RepositoryGitCommonStatePublisher,
+  type GitCommonStatePublisher,
   type GitCommonStatePublisherIO,
 } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -100,23 +101,29 @@ function assignment(
     readonly changeRequestId?: string;
     readonly head?: string;
     readonly materialized?: boolean;
+    readonly memberLabel?: string;
+    readonly planId?: string;
+    readonly ref?: string;
+    readonly subjectLabel?: string;
+    readonly workUnitId?: string;
   } = {},
 ): DeliveryAssignmentsV1 {
-  const assuranceSubjectId = canonicalDigest({ subject: "member-1" });
+  const planId = options.planId ?? ASSIGNMENT_PLAN_ID;
+  const assuranceSubjectId = canonicalDigest({ subject: options.subjectLabel ?? "member-1" });
   const decoded = DeliveryAssignmentsV1Codec.decode({
     schemaVersion: 1,
     semanticsVersion: "delivery-assignments/v1",
-    planId: ASSIGNMENT_PLAN_ID,
-    workUnitId: "delivery-plan-record",
+    planId,
+    workUnitId: options.workUnitId ?? "delivery-plan-record",
     host: { adapterId: "github", providerBinding: { repository: "arc-framework" } },
     terminalTarget: {
       sourceRef: "refs/heads/feat/delivery-plan-record",
       destinationRef: "refs/heads/main",
     },
     members: options.materialized === false ? [] : [{
-      deliverableId: canonicalDigest({ member: "member-1" }),
+      deliverableId: canonicalDigest({ member: options.memberLabel ?? "member-1" }),
       assuranceSubjectId,
-      ref: "refs/heads/feat/delivery-plan-record-record-substrate",
+      ref: options.ref ?? "refs/heads/feat/delivery-plan-record-record-substrate",
       assignedHeadObjectId: options.head ?? "a".repeat(40),
       changeRequestHandles: options.changeRequestId === undefined
         ? []
@@ -627,5 +634,73 @@ describe("repository delivery record stores", () => {
       assignment(2, { head: "d".repeat(40) }),
       4,
     )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
+  });
+
+  it("resolves the same authoritative member by exact head or stored ref binding", async () => {
+    const records = await stores();
+    const value = assignment(1, { ref: "opaque-member-binding" });
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, value, 0);
+    const member = value.members[0]!;
+    const expected = {
+      status: "ok",
+      value: {
+        planId: ASSIGNMENT_PLAN_ID,
+        deliverableId: member.deliverableId,
+        workUnitId: value.workUnitId,
+        assignment: value,
+      },
+    };
+
+    await expect(records.assignments.resolveMember({
+      selector: { kind: "head", objectId: member.assignedHeadObjectId },
+    })).resolves.toEqual(expected);
+    await expect(records.assignments.resolveMember({
+      selector: {
+        kind: "ref",
+        ref: "opaque-member-binding",
+        observedHeadObjectId: member.assignedHeadObjectId,
+      },
+    })).resolves.toEqual(expected);
+    await expect(records.assignments.resolveMember({
+      selector: { kind: "head", objectId: "f".repeat(40) },
+    })).resolves.toEqual({ status: "ok", value: null });
+  });
+
+  it("refuses more than one authoritative member match", async () => {
+    const records = await stores();
+    const head = "a".repeat(40);
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1, { head }), 0);
+    await records.assignments.publish(OTHER_ASSIGNMENT_PLAN_ID, assignment(1, {
+      head,
+      memberLabel: "member-2",
+      planId: OTHER_ASSIGNMENT_PLAN_ID,
+      subjectLabel: "member-2",
+      workUnitId: "other-work-unit",
+    }), 0);
+
+    await expect(records.assignments.resolveMember({
+      selector: { kind: "head", objectId: head },
+    })).resolves.toEqual({ status: "refused", reason: "ambiguous-match" });
+  });
+
+  it("uses an owning-unit pointer as a candidate selector but still validates it", async () => {
+    const records = await stores();
+    const value = assignment(1);
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, value, 0);
+    const noScanPublisher: GitCommonStatePublisher = {
+      read: records.publisher.read.bind(records.publisher),
+      update: records.publisher.update.bind(records.publisher),
+      list: async () => { throw new Error("assignment namespace scan should be bypassed"); },
+    };
+    const store = new RepositoryDeliveryAssignmentStore(noScanPublisher);
+
+    await expect(store.resolveMember({
+      selector: { kind: "head", objectId: value.members[0]!.assignedHeadObjectId },
+      owningUnit: { planId: ASSIGNMENT_PLAN_ID, workUnitId: value.workUnitId },
+    })).resolves.toMatchObject({ status: "ok", value: { planId: ASSIGNMENT_PLAN_ID } });
+    await expect(store.resolveMember({
+      selector: { kind: "head", objectId: value.members[0]!.assignedHeadObjectId },
+      owningUnit: { planId: ASSIGNMENT_PLAN_ID, workUnitId: "wrong-work-unit" },
+    })).resolves.toEqual({ status: "refused", reason: "identity-mismatch" });
   });
 });
