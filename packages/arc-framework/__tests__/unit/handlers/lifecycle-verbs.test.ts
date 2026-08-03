@@ -454,6 +454,30 @@ describe("handleStub", () => {
     });
   });
 
+  it("dispatches a nested cohort path", async () => {
+    await handleStub("foo", {
+      commitment: "planned",
+      priority: "P1",
+      cohort: "parent/child",
+    });
+
+    expect(mockRunStub).toHaveBeenCalledTimes(1);
+    expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      cohort: "parent/child",
+    });
+  });
+
+  it.each(["parent/child/grandchild", "parent//child"])(
+    "rejects an invalid cohort path %s before dispatch",
+    async (cohort) => {
+      await handleStub("foo", { commitment: "planned", priority: "P1", cohort });
+
+      expect(mockRunStub).not.toHaveBeenCalled();
+      expect(mockLogError).toHaveBeenCalled();
+    },
+  );
+
   it("rejects an invalid commitment before dispatch", async () => {
     await handleStub("foo", { commitment: "bogus", priority: "P1" });
     expect(mockRunStub).not.toHaveBeenCalled();
