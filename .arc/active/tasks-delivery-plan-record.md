@@ -235,39 +235,13 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 - _Outcome:_ Review and delivery storage now share one Git-common publisher without sharing namespace authority;
   transient authoring maps gain an outside-tree home while existing review-store behavior remains intact.
 
-### `[ ]` **2.2 Declare the four record ports and their failure classes**
+### `[x]` **2.2 Declare the four record ports and their failure classes**
 
 - _Goal:_ Every requirement that must outlive the v1 adapter is phrased against the port, so none reads as
   retracted when the adapter is replaced.
 
-- _Shape:_ Artifact read and write, version-check and reconcile semantics, failure classes, the assurance
-  carry-over obligation, and the reverse-lookup query. The shipped review-gate port module is the pattern to
-  follow — behavioral interfaces with no adapter detail. Payload-parameterize the four declarations so this
-  member can ship the ports before later members declare observation and terminal-assurance payloads; operations,
-  concurrency tokens, and failures remain fixed. The plan port reads current and publishes against expected
-  current digest, and enumerates validated current plans in canonical `planId` order for rename-safe uniqueness.
-  Assignment and observation ports read `{ revision, value }` and publish against that revision. The assignment
-  port also owns the reverse lookup. The assurance port reads, appends against expected tail digest, and exports
-  or imports a complete chain.
-
-- _Runtime boundary:_ Type parameters do not validate persisted JSON. Each local adapter receives an explicit
-  runtime codec for its payload at construction; JSON or codec rejection reports `record-malformed`, and a decoded
-  payload whose embedded identity disagrees with its addressed plan reports `identity-mismatch`. This applies to
-  the later-supplied observation and assurance payloads as well as the records this member defines.
-
-- _Failure shape:_ Port operations return a discriminated `ok | refused` result for domain outcomes; filesystem
-  and transport failures reject as infrastructure errors. The plan port admits `record-malformed`,
-  `identity-mismatch`, `version-conflict`, and `namespace-corrupt`; assignment admits those plus
-  `ambiguous-match`; observation admits the same set as plan; assurance admits `record-malformed`,
-  `identity-mismatch`, `predecessor-conflict`, `chain-invalid`, `import-nonempty`, and `namespace-corrupt`.
-  Absence remains a successful nullable read, never a refusal.
-
-- Done when all four ports declare the closed domain failures `record-malformed`, `identity-mismatch`,
-  `version-conflict`, `predecessor-conflict`, `chain-invalid`, `import-nonempty`, `ambiguous-match`, and
-  `namespace-corrupt`, and the assurance port declares export and import. Absence is a nullable read result;
-  filesystem and transport failures remain infrastructure errors. That every consumer compiles against the
-  declarations rather than a concrete store is a phase invariant the tasks below hold to, not a condition this one
-  can check at its own close.
+- _Outcome:_ Declared four payload-parameterized behavioral ports with fixed digest/revision tokens, nullable
+  absence, explicit runtime codecs, closed domain refusals, reverse lookup, and complete assurance-chain transfer.
 
 ### `[ ]` **2.3 Publish the plan, assignment, and observation records under their concurrency tokens**
 
