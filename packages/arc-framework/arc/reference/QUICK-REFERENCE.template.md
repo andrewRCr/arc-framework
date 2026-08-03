@@ -245,12 +245,12 @@ arc base sync [--json]
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand close <slug> [--force] [--json]
+arc errand abandon <slug> [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> [--json]
 ```
 
 ### Session State Portability

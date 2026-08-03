@@ -137,7 +137,8 @@ arc teardown {name} --force   # un-shipped / force mode: reaps the retired plan 
 
 `--force` selects the un-shipped teardown mode: the WU is parked (not in `completed/`) and its `plan/<name>` branch
 is unmerged, so the conservation safety is the durable relocate above, not git-containment. The in-place arm
-switches the primary worktree to the base branch; a linked arm removes the worktree and locus-hops.
+switches the primary worktree to the base branch; a linked arm removes the worktree and moves the process to the base
+checkout.
 
 ---
 
