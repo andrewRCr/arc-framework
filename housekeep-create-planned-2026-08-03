@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-create-planned-2026-08-03",
+  "claimId": "fcf37f968bc92d1a1b0b478740ae485f",
+  "createdAt": "2026-08-03T20:49:22.836Z",
+  "updatedAt": "2026-08-03T20:49:22.836Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Create the two approved planned work-unit stubs and regenerate the roadmap.",
+  "branch": "chore/housekeep-create-planned-2026-08-03",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
