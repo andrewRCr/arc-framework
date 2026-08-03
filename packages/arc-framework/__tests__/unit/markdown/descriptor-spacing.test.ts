@@ -2,11 +2,48 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { validateTaskDescriptorSpacing } from "../../../src/lib/markdown/descriptor-spacing.js";
+import {
+  scanTaskDescriptorExtents,
+  validateTaskDescriptorSpacing,
+} from "../../../src/lib/markdown/descriptor-spacing.js";
 
 function task(...body: string[]): string {
   return ["### `[ ]` **1.1 Describe the work**", "", ...body].join("\n");
 }
+
+describe("scanTaskDescriptorExtents", () => {
+  it("includes continuations across blanks and closes at list or unindented content", () => {
+    const content = task(
+      "- _Goal:_ Deliver the behavior across",
+      "  the first continuation.",
+      "",
+      "  the continuation after a blank.",
+      "    - Nested detail ends the descriptor.",
+      "  This is no longer part of the opening cluster.",
+    );
+
+    expect(scanTaskDescriptorExtents(content)).toMatchObject([{
+      parent: { id: "1.1", title: "Describe the work" },
+      label: "Goal",
+      startLine: 3,
+      endLine: 6,
+      wrapped: true,
+    }]);
+  });
+
+  it("ends an opening descriptor at unindented content", () => {
+    const content = task(
+      "- _Goal:_ Deliver the behavior.",
+      "Unindented content closes the cluster.",
+      "  Not a continuation.",
+    );
+    expect(scanTaskDescriptorExtents(content)).toMatchObject([{
+      startLine: 3,
+      endLine: 3,
+      wrapped: false,
+    }]);
+  });
+});
 
 describe("validateTaskDescriptorSpacing", () => {
   it("accepts tight and loose all-one-line root descriptor clusters", () => {
