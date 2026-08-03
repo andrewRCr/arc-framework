@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — formalization-ready draft captured (adversarial loop converged, 2 passes)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
