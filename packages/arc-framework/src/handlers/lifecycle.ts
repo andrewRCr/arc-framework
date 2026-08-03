@@ -36,6 +36,7 @@ import {
   readActiveMetaCandidates,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
@@ -324,6 +325,13 @@ export interface StubOptions {
   class?: string;
 }
 
+/** Canonical cohort path accepted by the `stub` command boundary. */
+const StubCohortPathSchema = z.string().refine((value) => {
+  const segments = value.split("/");
+  return segments.length <= COHORT_SEGMENT_CAP
+    && segments.every((segment) => SlugSchema.safeParse(segment).success);
+}, "Expected a canonical one- or two-segment cohort path");
+
 /** Complete schema-owned stub creation input. */
 export const StubCommandInputSchema = z.object({
   name: SlugSchema,
@@ -331,7 +339,7 @@ export const StubCommandInputSchema = z.object({
   priority: PrioritySchema,
   origin: z.string().min(1).optional(),
   design: z.string().min(1).optional(),
-  cohort: SlugSchema.optional(),
+  cohort: StubCohortPathSchema.optional(),
   class: WorkClassSchema.optional(),
 }).strict();
 
