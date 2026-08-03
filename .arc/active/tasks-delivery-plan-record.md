@@ -146,17 +146,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Exported parent-bound descriptor extents with start/end lines and continuation state, then made the
           spacing validator consume that shared result while preserving staged, indexed, and worktree behavior.
 
-    - `[ ]` **1.3.b Extract and digest parent `Goal` text**
+    - `[x]` **1.3.b Extract and digest parent `Goal` text**
 
-        - Build `test-first` (one behavior at a time):
-            - Extraction returns a parent's whole `Goal` text, continuation lines included
-            - It closes at the next peer descriptor, subtask, fence, phase, or section heading
-            - Re-wrapping an unchanged `Goal` across different line breaks leaves its digest unchanged
-            - Completing a task — marker flip, peer descriptors pruned, `Outcome` added — leaves its digest
-              unchanged
-            - Editing a parent's `Goal` moves its digest
-            - Retitling a parent leaves its digest unchanged
-            - Subtasks contribute nothing to the inventory
+        - Added parent-only `Goal` extraction over shared extents, whitespace-normalized semantic text, and
+          canonical digests invariant to wrapping, title, progress, peer descriptors, outcomes, and subtasks.
 
     - `[ ]` **1.3.c `inventoryDigest` and the verification-task identity**
 
