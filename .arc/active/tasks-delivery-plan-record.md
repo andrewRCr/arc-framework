@@ -171,69 +171,40 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 - _Outcome:_ Fingerprints now propagate task, design, landability, and cross-member contract changes to every
   affected live member without treating human labels or authored incidence order as semantic movement.
 
-### `[ ]` **1.5 Construct and validate a plan revision**
+### `[x]` **1.5 Construct and validate a plan revision**
 
 - _Goal:_ A reader holding only a record and its validated predecessor can re-check every refinement without
   observing the host.
 
-- _Shape:_ Whole-record refinements span every member regardless of discriminant; only fingerprint derivation is
-  discriminant-scoped — re-derived for a `live` member, checked as carried-value integrity for a `landed` one.
+    - `[x]` **1.5.a Canonical construction and normalization**
 
-    - `[ ]` **1.5.a Canonical construction and normalization**
+        - Preserved authored member order, normalized set-like fields, derived registered identities, and computed a
+          self-excluding whole-record digest before validation.
 
-        - Preserve source inventory and member order; normalize set-like values; derive identities through
-          registered preimages; then validate the complete record.
+    - `[x]` **1.5.b Whole-record refinements**
 
-        - Build `test-first` (one behavior at a time):
-            - Member order is preserved exactly as supplied
-            - Set-like values normalize to a canonical order without altering membership
-            - `planDigest` covers the complete record except itself
+        - Revalidated inventory binding, digests, uniqueness, coverage, seam scheduling, and projection through a
+          closed refusal-code vocabulary.
 
-    - `[ ]` **1.5.b Whole-record refinements**
+    - `[x]` **1.5.c The `live` / `landed` discriminant**
 
-        - Coverage is declared in `1.3.d` and invoked here, not restated.
+        - Re-derived live fingerprints while carrying landed fingerprints, enforcing contiguous conversion and a
+          byte-identical frozen prefix.
 
-        - Build `test-first` (one behavior at a time):
-            - Identity, digest, uniqueness, seam-owner, and projection refinements each refuse on violation with a
-              distinguishable code
-            - The coverage refinement fires through its declared form and reports the same refusal
-            - A `stack-to-main` plan with fewer than two members refuses
-            - A `stack-to-main` plan with any member not `independently-landable` refuses
+    - `[x]` **1.5.d Revision lineage**
 
-    - `[ ]` **1.5.c The `live` / `landed` discriminant**
+        - Enforced revision-one null lineage and exact predecessor identity, increment, and digest on successors.
 
-        - Build `test-first` (one behavior at a time):
-            - Revision one refuses a `landed` member
-            - A `live` member's fingerprint is re-derived by the reader
-            - A `landed` member's carried fingerprint is accepted without re-derivation
-            - A member converting to `landed` must equal its predecessor revision's payload modulo the
-              discriminant
-            - Once frozen, carried values must be byte-identical to that first frozen form
-
-    - `[ ]` **1.5.d Revision lineage**
-
-        - Build `test-first` (one behavior at a time):
-            - Revision one carries `previousPlanDigest: null`
-            - Every later revision is exactly predecessor + 1 under the same `planId`
-            - A revision naming a predecessor digest that does not match refuses
-
-    - `[ ]` **1.5.e Project identity, carried but never interpreted**
+    - `[x]` **1.5.e Project identity, carried but never interpreted**
 
         - _Goal:_ A supplied project identity survives round-trip untouched, and the record asserts nothing about
           it that no single clone could check.
 
-        - _Note:_ Every conformance property that matters — stable across clones, not derived from a remote URL,
-          named for its own scope — is unverifiable from one clone, so there is no local predicate to refuse
-          against. The only locally available value is the review subsystem's per-clone `repositoryId`, which this
-          design rules out; a shape check narrow enough to exclude it would be a semantic commitment the design
-          declines to make. So the field is optional, carried verbatim, and interpreted by nobody until a
-          conforming identity exists.
+        - Carried the optional opaque value verbatim through construction and revalidation while keeping it outside
+          every delivery identity preimage.
 
-        - Build `test-first` (one behavior at a time):
-            - A record carrying no project identity validates
-            - A supplied value is carried verbatim through construction and revalidation
-            - No conformance property is asserted against a supplied value
-            - The field stays outside every identity preimage
+- _Outcome:_ A plan and validated predecessor now suffice to reconstruct and re-check the complete immutable
+  revision offline, while landed semantics remain frozen and host observations remain outside the record.
 
 ## **Phase 2:** Storage — four ports and the v1 local adapter
 
