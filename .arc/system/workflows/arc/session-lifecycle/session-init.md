@@ -221,8 +221,7 @@ here; the arms below are the **signal-absent** path.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If
-      `locusState.value.inFlightIdentities`,
-      `inboxState.value.pendingExecuteBound`, or `materializableWorkUnits` carry available routes, surface them in
+      `locusState.value.inFlightIdentities` or `materializableWorkUnits` carry available routes, surface them in
       Step 6.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
@@ -807,7 +806,20 @@ tracked source documents the work.
   **New branch:** `{branch}` has no upstream — will be set on first push.
   ```
 
-- `worktree.value.branch == null` and `locusGuidance` does not identify a managed husk:
+- `currentHusk.ok == true` AND `currentHusk.value != null`: the current linked checkout is an exact stamped WU
+  husk. Suppress the generic detached-HEAD warning and branch on `stamp.kind` before reading variant fields.
+  For `current`, render the authorization, validated evidence, and remote proof; offer the path-qualified command
+  below. For `legacy`, render `merged-preserved (legacy stamp; remote absence revalidated by teardown)` and offer
+  the same command, which grants no remote-delete authority. For `manual-only`, render only the reason and no
+  destructive command. Teardown and manual removal must run from outside this worktree.
+
+  ```text
+  **Husk:** `{currentHusk.value.subject.name}` (`{currentHusk.value.branch}`) — {authorization}; remote
+  `{remoteRef.disposition | absent}`; pending physical teardown. From outside this worktree run
+  `arc teardown {currentHusk.value.subject.name} --husk "{currentHusk.value.worktreePath}"`.
+  ```
+
+- `worktree.value.branch == null` AND no non-null `currentHusk.value`:
 
   ```text
   **Detached HEAD:** check out a branch before push/sync.
@@ -846,6 +858,67 @@ tracked source documents the work.
   ```text
   **Deferred rename moves:** {N} renamed worktree path(s) lag:
   - `{from}` → `{to}`; `{remedy.text}` Execute the structured `{remedy.argv}` from outside the source worktree.
+  ```
+
+- `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached
+  husks linger. Branch on `kind`; never infer a label from optional fields.
+    - `branched`: label with `branch`. `removable` offers an interlock-gated
+      `git worktree remove {worktreePath}`; map `blocked.reason` as `uncommitted`, `user-surfaces`, or `unmerged`;
+      `external` is externally managed. Keep every action offer-only and never use `--force`.
+    - `husk`: label a non-null `completedWorkUnit` as work unit `{name}`; otherwise label a `work-unit` subject as
+      work unit `{subject.name}`, a `branch` subject as branch husk `{subject.ref}`, and an `errand` subject as errand
+      husk `{subject.slug}`. `removable` means clean at the exact stamped `HEAD`; offer `arc teardown {subject.name}`
+      for work units or `arc teardown --branch {subject.ref}` for branches so final user-surface reconciliation runs.
+      The reserved errand subject has no shipped cleanup driver and stays manual. Map `blocked.reason` as dirty
+      (`uncommitted`) or moved `HEAD` (`head-moved`); `outside` has untrusted terminal evidence and stays manual.
+  Removal runs from the current primary worktree.
+
+  ```text
+  **Stale worktrees:** {N} shipped worktree(s) or stamped husk(s) linger:
+  - `{branch}` — clean & merged → remove? `git worktree remove {worktreePath}`
+  - `{branch}` — {uncommitted | user surfaces not reconciled | unmerged}; surfaced, not removed
+  - `{branch}` — externally-managed (no ARC marker); remove manually if desired
+  - `work unit {completedWorkUnit}` — stamped husk, clean & exact HEAD → remove?
+    `arc teardown {subject.name}`
+  - `work unit {subject.name}` — no local completion match; clean & exact HEAD → clean up?
+    `arc teardown {subject.name}`
+  - `branch husk {subject.ref}` — stamped husk, clean & exact HEAD → clean up?
+    `arc teardown --branch {subject.ref}`
+  - `{husk label}` — {dirty | HEAD moved}; surfaced, not removed
+  - `errand husk {subject.slug}` — no shipped cleanup driver; surfaced for manual-only cleanup
+  - `{husk label}` — untrusted terminal evidence; surfaced for manual-only cleanup
+  ```
+
+- `orphanBranchSweep.value.orphans` non-empty (primary worktree only): type-prefixed local branches whose
+  upstream is `gone` linger — the residue integration leaves on every non-integrating machine (or a sibling's
+  local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
+  here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
+  carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
+  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`; never `-D`),
+  and surface an unmerged one as not-removable. Branch hygiene only — never auto-removed.
+
+  ```text
+  **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
+  - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
+  - `{branch}` — merged to base → remove? `git branch -d {branch}`
+  - `{branch}` — not merged; surfaced, not removed (never `-D`)
+  ```
+
+- Linked worktree with a non-empty `sweep.value.worktrees` or `orphanBranchSweep.value.orphans`: render one combined
+  section instead of the primary-only sections above. Branch on the typed husk subject before rendering an action:
+  a `work-unit` uses the exact path-qualified `arc teardown {subject.name} --husk "{worktreePath}"` form. `branch`
+  and `errand` husks have no exact path-qualified cleanup driver and stay manual-only.
+  `stamp.kind == manual-only`, moved/dirty husks, and unmerged non-shipped orphans also remain manual-only. Omit the
+  section when both arrays are empty; write no marker or nudge state.
+
+  ```text
+  **Cleanup residues:** {N} sibling husk(s) or orphan ref(s) linger:
+  - `{worktreePath}` — work unit `{subject.name}` ({authorization}; remote {disposition}) → clean up?
+    `arc teardown {subject.name} --husk "{worktreePath}"`
+  - `{worktreePath}` — branch husk `{subject.ref}`; no exact husk cleanup driver, manual-only
+  - `{worktreePath}` — errand husk `{subject.slug}`; no shipped cleanup driver, manual-only
+  - `{worktreePath}` — {manual-only reason | dirty | HEAD moved}; surfaced, not removed
+  - `{branch}` — {shipped → `arc teardown {shippedWorkUnit}` | merged → `git branch -d {branch}` | not merged}
   ```
 
 - `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU
@@ -900,18 +973,6 @@ tracked source documents the work.
   ```text
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
-  ```
-
-- `inboxState.value.executeBoundDiagnostics` non-empty (Resume / Orient arms): surface each queue diagnostic and do
-  not infer or skip the malformed entry.
-
-- `inboxState.value.pendingExecuteBound` non-empty (Resume / Orient arms): an interrupted or abandoned routing
-  sweep left committed execution to resume. Offer only the first file-ordered title. On acceptance, treat that title
-  as the exact `--errand` seed and follow the signal-leaf spine, binding it with `--from-inbox`; later titles remain
-  queued until the current Errand completes or is abandoned.
-
-  ```text
-  **Queued Errand:** `{pendingExecuteBound[0]}` is next ({N} queued) — run now?
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer

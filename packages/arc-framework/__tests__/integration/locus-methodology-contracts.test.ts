@@ -77,6 +77,23 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("preserves typed cleanup guidance without promising an unproduced Errand queue", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const init = await readFile(
+        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+        "utf8",
+      );
+
+      expect(init).toContain("`currentHusk.ok == true` AND `currentHusk.value != null`");
+      expect(init).toContain("`sweep.value.worktrees` non-empty");
+      expect(init).toContain("`orphanBranchSweep.value.orphans` non-empty");
+      expect(init).toContain("render one combined\n  section instead of the primary-only sections above");
+      expect(init).not.toContain("pendingExecuteBound");
+      expect(init).not.toContain("executeBoundDiagnostics");
+    }
+  });
+
   it("keeps only Errand entry on the durable transient path", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
