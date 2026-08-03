@@ -236,6 +236,48 @@ describe("release commit hook ordering", () => {
     expect(await readHookLog()).toEqual(["pre-commit", "commit-msg"]);
   });
 
+  it("returns only after a delayed commit is observable to an immediate push", async () => {
+    const remote = join(repository, ".git", "push-target.git");
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await git(["remote", "add", "origin", remote]);
+    await git(["push", "-u", "origin", "main"]);
+    await git(["config", "arc.pushInterlock", "on-workflow"]);
+    const headBefore = await gitOutput(["rev-parse", "HEAD"]);
+
+    await installHook("pre-commit", [
+      'printf "%s\\n" delayed-pre-commit-start >> "$ARC_HOOK_LOG"',
+      "sleep 1",
+      'printf "%s\\n" delayed-pre-commit-finish >> "$ARC_HOOK_LOG"',
+    ]);
+
+    const commit = await runCli([
+      "release",
+      "commit",
+      "-m",
+      "fix(release): wait for commit finalization",
+    ], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    const headAfter = await gitOutput(["rev-parse", "HEAD"]);
+    expect(commit.exitCode, JSON.stringify(commit)).toBe(0);
+    expect(headAfter).not.toBe(headBefore);
+    expect(await gitOutput(["diff", "--cached", "--name-only"])).toBe("");
+    expect(await readHookLog()).toEqual([
+      "delayed-pre-commit-start",
+      "delayed-pre-commit-finish",
+      "commit-msg",
+    ]);
+
+    const push = await runCli(["release", "push"], { cwd: repository });
+
+    expect(push.exitCode, JSON.stringify(push)).toBe(0);
+    expect(await gitOutput(["ls-remote", "origin", "refs/heads/main"])).toBe(
+      `${headAfter}\trefs/heads/main`,
+    );
+  });
+
   it.runIf(process.platform !== "win32")(
     "leaves explicitly selected -F - stdin available when interaction is forbidden",
     async () => {
