@@ -71,17 +71,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 - _Note:_ Registration posture is `strict-current` throughout — the pre-release posture adds no migration reader
   and no compatibility alias.
 
-    - `[ ]` **1.1.a Expose one runtime authority for parent task ids**
+    - `[x]` **1.1.a Expose one runtime authority for parent task ids**
 
-        - The scanner currently keeps its parent-id grammar private while the cursor duplicates the same two
-          regexes. Extract one exported runtime schema beside the scanner, make both existing consumers use it,
-          and let delivery consume that schema rather than choosing a third string shape. Preserve the current
-          accepted grammar exactly, including revision-family ids and the numeric-third-segment refusal.
-
-        - Build `test-first` (one behavior at a time):
-            - Scanner, cursor, and direct schema parsing accept the same canonical parent ids
-            - All three refuse an all-numeric third segment and malformed dotted ids identically
-            - Existing scanner and cursor results remain byte-identical across their shipped cases
+        - Exported `ParentTaskIdSchema` from the task-list scanner and made both scanner parsing and cursor
+          validation consume it, preserving revision-family ids and the numeric-third-segment refusal.
 
     - `[ ]` **1.1.b Plan, member, and seam record schemas**
 
