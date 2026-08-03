@@ -202,15 +202,22 @@ describe("local forward receipt authority", () => {
 
   it("keeps evidence and operational publication namespaces separate", async () => {
     const records = await fixture();
-    await records.publisher.update("operations", "state-v1.json", () => ({
+    await records.publisher.update({ root: "review-gate", namespace: "operations" }, "state-v1.json", () => ({
+      kind: "write",
       content: '{"kind":"suspension"}\n',
       result: undefined,
     }));
     await records.store.appendReceipt(records.receipt, 0);
 
-    await expect(records.publisher.read("operations", "state-v1.json"))
+    await expect(records.publisher.read(
+      { root: "review-gate", namespace: "operations" },
+      "state-v1.json",
+    ))
       .resolves.toBe('{"kind":"suspension"}\n');
-    await expect(records.publisher.read("evidence", "state-v1.json")).resolves.toBeNull();
+    await expect(records.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      "state-v1.json",
+    )).resolves.toBeNull();
   });
 
   it("revalidates an explicit import before appending through the destination authority", async () => {

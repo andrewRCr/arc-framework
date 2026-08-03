@@ -26,7 +26,10 @@ export class LocalApprovedDispositionRecordStore implements ApprovedDispositionR
   constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null> {
-    const raw = await this.publisher.read("evidence", recordName(operationId));
+    const raw = await this.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      recordName(operationId),
+    );
     if (raw === null) return null;
     const record = parseRecord(raw);
     if (record.operationId !== operationId) {
@@ -40,18 +43,19 @@ export class LocalApprovedDispositionRecordStore implements ApprovedDispositionR
   ): Promise<{ dispositionRecordRef: string }> {
     const record = ApprovedDispositionRecordSchema.parse(recordInput);
     const name = recordName(record.operationId);
-    return this.publisher.update("evidence", name, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "evidence" }, name, (raw) => {
       if (raw !== null) {
         const existing = parseRecord(raw);
         if (canonicalize(existing) !== canonicalize(record)) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
         }
         return {
-          content: null,
+          kind: "keep",
           result: { dispositionRecordRef: `git-common:review-gate/evidence/${name}` },
         };
       }
       return {
+        kind: "write",
         content: `${JSON.stringify(record)}\n`,
         result: { dispositionRecordRef: `git-common:review-gate/evidence/${name}` },
       };

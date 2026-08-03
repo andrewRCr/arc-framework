@@ -56,7 +56,7 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
 
   async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
     const name = recordName(operationId);
-    const raw = await this.publisher.read("operations", name);
+    const raw = await this.publisher.read({ root: "review-gate", namespace: "operations" }, name);
     if (raw === null) return { version: 0, state: null };
     const record = parseRecord(raw, operationId);
     return { version: record.version, state: record.state };
@@ -65,11 +65,11 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
   async publishOperation(state: ReviewOperationState, expectedVersion: number): Promise<{ version: number }> {
     const canonicalState = ReviewOperationStateSchema.parse(state);
     const name = recordName(canonicalState.operationId);
-    return this.publisher.update("operations", name, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "operations" }, name, (raw) => {
       if (raw !== null) {
         const current = parseRecord(raw, canonicalState.operationId);
         if (canonicalize(current.state) === canonicalize(canonicalState)) {
-          return { content: null, result: { version: current.version } };
+          return { kind: "keep", result: { version: current.version } };
         }
         if (current.version !== expectedVersion) {
           throw new LocalOperationStateStoreError("version-conflict");
@@ -79,7 +79,7 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
           version: current.version + 1,
           state: canonicalState,
         });
-        return { content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
+        return { kind: "write", content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
       }
       if (expectedVersion !== 0) throw new LocalOperationStateStoreError("version-conflict");
       const next = ReviewOperationStoreRecordSchema.parse({
@@ -89,7 +89,7 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
         version: 1,
         state: canonicalState,
       });
-      return { content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
+      return { kind: "write", content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
     });
   }
 }

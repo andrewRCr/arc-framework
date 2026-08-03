@@ -72,10 +72,10 @@ export async function resolveRepositoryIdentity(
   publisher: GitCommonStatePublisher,
   mint: () => string = randomUUID,
 ): Promise<string> {
-  return publisher.update("identity", REPOSITORY_IDENTITY_RECORD, (current) => {
+  return publisher.update({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD, (current) => {
     if (current !== null) {
       return {
-        content: null,
+        kind: "keep",
         result: RepositoryIdentityRecordSchema.parse(JSON.parse(current)).repositoryId,
       };
     }
@@ -86,6 +86,7 @@ export async function resolveRepositoryIdentity(
       repositoryId: mint(),
     });
     return {
+      kind: "write",
       content: `${JSON.stringify(record)}\n`,
       result: record.repositoryId,
     };
