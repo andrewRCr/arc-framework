@@ -308,36 +308,11 @@ namespace-closed and lives under the scripts tree, which the library tree does n
           ref-and-observed-head matches, returns negative and ambiguous results explicitly, and lets a validated
           owning-unit pointer bypass enumeration without treating the pointer as identity proof.
 
-    - `[ ]` **2.6.b Resolve a unit's existing plan forward through the rename chain**
+    - `[x]` **2.6.b Resolve a unit's existing plan forward through the rename chain**
 
-        - _Goal:_ Authoring finds a renamed unit's existing plan instead of minting a second one, which no later
-          advisory could catch because nothing would have been found to revalidate.
-
-        - _Approach:_ Resolve each stored plan's recorded `workUnitId` forward through the rename disposition,
-          transitively — never query by the unit's current name, which is a record's target and never its subject.
-
-        - _Note:_ A forward transitive resolver with cycle detection already exists in `reference-reconcile.ts`.
-          It resolves in the right direction and refuses an ambiguous subject correctly, and it returns each
-          non-rename outcome as itself across a five-variant union rather than flattening them. The one
-          incompatibility is its cycle arm, which returns a conflict — exactly the refusal this traversal must not
-          make. Derive delivery's traversal separately and map the non-rename outcomes to "not a match"; altering
-          the shared resolver would change the reference-reconcile contract that gates the integrate verb.
-
-        - _Result contract:_ Return `match`, `no-match`, or `indeterminate`. The indeterminate arm names
-          `ambiguous-subject`, `namespace-corrupt`, `reachability-unestablished`, or `substrate-unreachable`; it is
-          never collapsed into `no-match`, because only the latter permits minting. The traversal consumes the
-          plan port's validated enumeration rather than reaching into the local adapter.
-
-        - Build `test-first` (one behavior at a time):
-            - A chain terminating at the unit being authored for identifies that unit's plan
-            - A chain terminating elsewhere, and a unit with no transition, are both simply not matches
-            - A non-rename retirement does not block minting for a live unit
-            - No stored plan resolving to the unit permits minting
-            - An unresolvable chain — ambiguous subject, corrupt namespace, unreachable substrate — refuses and
-              reports the reason
-            - A cycle that has not reached the unit is not a match and does not refuse
-            - Resolution runs against a ref whose reachability was established, and treats an unestablished one
-              as indeterminate
+        - A delivery-owned traversal now consumes validated plan enumeration and authenticated retirement
+          transitions, follows unique renames transitively, treats terminal and cyclic histories as safe absence,
+          and preserves ambiguous, corrupt, unreachable, and unestablished evidence as indeterminate.
 
     - `[ ]` **2.6.c Prove lookup from an artifact-free linked worktree**
 
