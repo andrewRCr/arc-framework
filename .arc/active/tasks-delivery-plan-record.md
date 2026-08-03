@@ -153,28 +153,23 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 - _Outcome:_ Parent `Goal` semantics and caller-owned design elements now form stable, progress-insensitive
   inventories, with verification identity and entry-sensitive coverage carried through reusable refinements.
 
-### `[ ]` **1.4 Derive member and seam semantic fingerprints**
+### `[x]` **1.4 Derive member and seam semantic fingerprints**
 
 - _Goal:_ A changed cross-member contract cannot reconcile as an unchanged bound prefix, while a retitled member
   whose contract is unchanged does not force replacement.
 
-    - `[ ]` **1.4.a Member fingerprint over contract, coverage, landability, and incident seams**
+    - `[x]` **1.4.a Member fingerprint over contract, coverage, landability, and incident seams**
 
-        - Referenced task and design semantic digests enter the preimage, not identifiers alone.
+        - Bound member fingerprints to contract, referenced task and design semantic digests, landability, and
+          canonical incident-seam fingerprints while excluding presentation titles.
 
-        - Build `test-first` (one behavior at a time):
-            - Editing a referenced task's `Goal` moves the member fingerprint
-            - Editing a member's title moves the whole-plan digest but not the member fingerprint
-            - Changing an incident seam's acceptance moves every incident member's fingerprint
+    - `[x]` **1.4.b Seam fingerprint and derived scheduling owner**
 
-    - `[ ]` **1.4.b Seam fingerprint and derived scheduling owner**
+        - Derived seam fingerprints from exact acceptance and canonical incidence, then normalized incidence into
+          plan order and selected the latest incident member as owner with typed structural refusals.
 
-        - The owner is derived and never authored, so the record carries no authored value to disagree with; a
-          starter map that supplies one is refused at composition (`3.2.a`).
-
-        - Build `test-first` (one behavior at a time):
-            - The owner derives as the latest incident member in plan order
-            - Reordering the incident list without changing its set leaves the fingerprint unchanged
+- _Outcome:_ Fingerprints now propagate task, design, landability, and cross-member contract changes to every
+  affected live member without treating human labels or authored incidence order as semantic movement.
 
 ### `[ ]` **1.5 Construct and validate a plan revision**
 
