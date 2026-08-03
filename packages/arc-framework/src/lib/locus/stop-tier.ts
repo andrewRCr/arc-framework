@@ -65,4 +65,3 @@ const STOP_TIERS: Readonly<Record<LocusStopReason, LocusStopTier>> = {
 export function locusStopTier(reason: LocusStopReason): LocusStopTier {
   return STOP_TIERS[reason];
 }
-

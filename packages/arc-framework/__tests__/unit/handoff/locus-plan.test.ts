@@ -210,7 +210,6 @@ describe("deriveHandoffLocusPlan", () => {
       .toMatchObject({ kind: "refused", reason: "locus-unresolved" });
   });
 });
-
 describe("deriveHandoffLocusPlan under an unsafe primary", () => {
   const idleRow = (): LocusRowV1 => ({ ...workUnit("active"), lease: null, frame: "idle" as const });
 
@@ -254,4 +253,3 @@ describe("deriveHandoffLocusPlan under an unsafe primary", () => {
     });
   });
 });
-

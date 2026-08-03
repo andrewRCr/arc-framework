@@ -22,4 +22,3 @@ describe("locus user-sync exclusion", () => {
     expect(reads).toBe(1);
   });
 });
-

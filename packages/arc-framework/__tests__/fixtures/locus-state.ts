@@ -25,7 +25,6 @@ export function locusStateFixture(options: {
     reconciliation: { kind: "clean" },
   };
 }
-
 export function managedWorkUnitRow(name: string, checkoutPath: string): LocusRowV1 {
   return {
     kind: "managed-role",
@@ -45,4 +44,3 @@ export function managedWorkUnitRow(name: string, checkoutPath: string): LocusRow
     diagnostics: [],
   };
 }
-

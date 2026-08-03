@@ -17,7 +17,6 @@ export function locusOwnsBranch(state: LocusStateV1, branch: string): boolean {
     && row.role.subject.key === slug,
   );
 }
-
 /** Exact managed WU role for one registered checkout, when authority is retained. */
 export function locusWorkUnitAtPath(
   state: LocusStateV1,
@@ -70,4 +69,3 @@ export function locusOccupancyAtPath(state: LocusStateV1, checkoutPath: string):
   }
   return projectTrustedLocusRow(claim).kind === "trusted" ? "clear" : "manual";
 }
-

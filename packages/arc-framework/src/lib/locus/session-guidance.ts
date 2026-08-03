@@ -60,7 +60,6 @@ export function deriveLocusSessionGuidance(
       `${item.code} at ${item.source.kind} '${item.source.key}': ${item.message}`),
   });
 }
-
 function renderCurrent(state: LocusStateV1): string | null {
   const current = state.current;
   if (current.kind === "none") return null;
@@ -131,4 +130,3 @@ function renderCleanup(row: LocusRowV1): string[] {
   }
   return [];
 }
-

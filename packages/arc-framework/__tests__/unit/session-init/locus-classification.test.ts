@@ -58,7 +58,6 @@ describe("locus cleanup classification", () => {
     expect(locusOwnsBranch(state, "feat/old")).toBe(false);
   });
 });
-
 function lease(state: "live" | "dead" | "unknown"): NonNullable<LocusRowV1["lease"]> {
   return {
     leaseId: "l".repeat(32),
@@ -134,4 +133,3 @@ describe("locusOccupancyAtPath", () => {
     expect(locusOccupancyAtPath(locusStateFixture({ rows }), "/wt/archived")).toBe("manual");
   });
 });
-

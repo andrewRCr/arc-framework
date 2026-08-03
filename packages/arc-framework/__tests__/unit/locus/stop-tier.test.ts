@@ -39,4 +39,3 @@ describe("locus stop tiers", () => {
     }
   });
 });
-

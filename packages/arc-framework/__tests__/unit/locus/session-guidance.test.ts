@@ -137,7 +137,6 @@ describe("deriveLocusSessionGuidance", () => {
     });
   });
 });
-
 describe("advisory suppression and reachable residue exits", () => {
   const RECORD = `sha256:${"a".repeat(64)}`;
 
@@ -201,4 +200,3 @@ describe("advisory suppression and reachable residue exits", () => {
     expect(text).toBe(`Session locus residue ${RECORD} offers: resume → abandon.`);
   });
 });
-

@@ -152,7 +152,6 @@ export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string
     parentCheckoutPath: parent?.checkoutPath ?? null,
   });
 }
-
 function exactRow(rows: readonly LocusRowV1[], recordId: string): LocusRowV1 | null {
   const matches = rows.filter((row) => row.recordId === recordId);
   return matches.length === 1 ? matches[0] ?? null : null;
@@ -186,4 +185,3 @@ function refusal(
 ): HandoffLocusPlan {
   return HandoffLocusPlanSchema.parse({ kind: "refused", reason, recordId, recommendedPromptText });
 }
-
