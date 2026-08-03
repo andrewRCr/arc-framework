@@ -105,6 +105,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | --------------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
 | delivery-integration-target       | P1       | andrew | delivery-plan-record                                        | chunked-delivery           |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
+| errand-transient-lifecycle        | P1       | andrew | session-locus-model                                         | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                          |
 | documentation-surface-routing     | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
@@ -120,6 +121,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ------------------------- | -------- | ------ | ---------------------------------------------------------------------- | ------------------------- |
 | delivery-stack-topology   | P1       | andrew | delivery-integration-target, delivery-plan-record, session-locus-model | chunked-delivery          |
 | review-activity-contracts | P1       | andrew | review-source-authority                                                | review-protocol-alignment |
+| claimed-sweep-verbs       | P1       | andrew | errand-transient-lifecycle                                             | —                         |
 | wu5-public-release        | P3       | andrew | docs-content-sweep                                                     | release-readiness         |
 
 ### Depth 3

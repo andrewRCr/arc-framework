@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** claimed-sweep-verbs
 
 - **Origin:** [internal]
 - **Design:** `draft-locus-generation-binding.md`
@@ -17,7 +17,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Groom via `--plan locus-generation-binding` after `claimed-sweep-verbs` integrates. Reconcile the
+  cut reconcile-apply driver with the inherited exact-generation contract, then settle the owning verb, locked
+  revalidation boundary, marker atomicity, cross-record ordering, and failure-injection substrate.
 
 - **PR URL:** [none]
 - **Completed:** [none]
