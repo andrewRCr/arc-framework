@@ -1,6 +1,6 @@
 /** Locked atomic state publication under a repository's Git common directory. */
 
-import { mkdir, readFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { z } from "zod";
@@ -35,6 +35,18 @@ export type GitCommonStateUpdate<T> =
   | { readonly kind: "write"; readonly content: string; readonly result: T }
   | { readonly kind: "delete"; readonly result: T };
 
+/** Injectable mutation boundaries for deterministic publisher failure tests. */
+export interface GitCommonStatePublisherIO {
+  readonly writeFile: typeof atomicWriteFile;
+  readonly removeFile: (path: string) => Promise<void>;
+}
+
+/** One non-internal entry discovered in a repository-common namespace. */
+export interface GitCommonStateEntry {
+  readonly name: string;
+  readonly kind: "file" | "other";
+}
+
 /** Locked read/modify/publish boundary reusable by repository-common state stores. */
 export interface GitCommonStatePublisher {
   update<T>(
@@ -44,6 +56,7 @@ export interface GitCommonStatePublisher {
       | Promise<GitCommonStateUpdate<T>>,
   ): Promise<T>;
   read(location: GitCommonStateLocation, recordName: string): Promise<string | null>;
+  list(location: GitCommonStateLocation): Promise<readonly GitCommonStateEntry[]>;
 }
 
 function parseAddress(location: unknown, recordName: string): GitCommonStateLocation {
@@ -59,11 +72,17 @@ function parseAddress(location: unknown, recordName: string): GitCommonStateLoca
 
 /** Git-common-directory implementation with bounded advisory locking and atomic replacement. */
 export class RepositoryGitCommonStatePublisher implements GitCommonStatePublisher {
+  private readonly writeFile: typeof atomicWriteFile;
+  private readonly removeFile: (path: string) => Promise<void>;
+
   constructor(
     private readonly exec: GitExec,
     private readonly cwd: string,
-    private readonly removeFile: (path: string) => Promise<void> = unlink,
-  ) {}
+    io: Partial<GitCommonStatePublisherIO> = {},
+  ) {
+    this.writeFile = io.writeFile ?? atomicWriteFile;
+    this.removeFile = io.removeFile ?? unlink;
+  }
 
   async read(location: GitCommonStateLocation, recordName: string): Promise<string | null> {
     const address = parseAddress(location, recordName);
@@ -74,6 +93,20 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
+  }
+
+  async list(location: GitCommonStateLocation): Promise<readonly GitCommonStateEntry[]> {
+    const address = GitCommonStateLocationSchema.parse(location);
+    let entries;
+    try {
+      entries = await readdir(await this.namespaceRoot(address), { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    return entries
+      .filter((entry) => !entry.name.startsWith("."))
+      .map((entry) => ({ name: entry.name, kind: entry.isFile() ? "file" as const : "other" as const }));
   }
 
   async update<T>(
@@ -90,7 +123,7 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
       const current = await this.read(address, recordName);
       const next = await update(current);
       if (next.kind === "write") {
-        await atomicWriteFile(join(root, recordName), next.content);
+        await this.writeFile(join(root, recordName), next.content);
       } else if (next.kind === "delete") {
         try {
           await this.removeFile(join(root, recordName));

@@ -13,6 +13,11 @@ export interface DeliveryPayloadCodec<T> {
   planId(value: T): string;
 }
 
+/** Runtime plan codec with access to the plan's publication digest. */
+export interface DeliveryPlanPayloadCodec<T> extends DeliveryPayloadCodec<T> {
+  digest(value: T): CanonicalDigest;
+}
+
 /** Domain result returned by every delivery storage operation. */
 export type DeliveryStoreResult<T, F extends string> =
   | { readonly status: "ok"; readonly value: T }

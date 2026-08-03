@@ -132,8 +132,10 @@ describe("RepositoryGitCommonStatePublisher", () => {
       result: undefined,
     }));
     const failure = Object.assign(new Error("cannot remove"), { code: "EACCES" });
-    const failingPublisher = new RepositoryGitCommonStatePublisher(exec, root, async () => {
-      throw failure;
+    const failingPublisher = new RepositoryGitCommonStatePublisher(exec, root, {
+      removeFile: async () => {
+        throw failure;
+      },
     });
     await expect(failingPublisher.update(location, "protected.json", () => ({
       kind: "delete",
