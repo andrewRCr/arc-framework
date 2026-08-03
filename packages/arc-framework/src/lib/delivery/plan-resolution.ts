@@ -122,16 +122,20 @@ function resolvesTo(
   outcomes: ReadonlyMap<string, readonly ReachableReferenceTransition["outcome"][]>,
 ): "match" | "no-match" | "ambiguous" {
   let subject = initialSubject;
+  let traversed = false;
   const visited = new Set<string>();
-  while (subject !== currentWorkUnitId) {
+  while (!traversed || subject !== currentWorkUnitId) {
     if (visited.has(subject)) return "no-match";
     visited.add(subject);
     const candidates = outcomes.get(subject);
-    if (candidates === undefined) return "no-match";
+    if (candidates === undefined) {
+      return subject === currentWorkUnitId ? "match" : "no-match";
+    }
     if (candidates.length !== 1) return "ambiguous";
     const outcome = candidates[0];
     if (outcome === undefined || outcome.kind !== "rename") return "no-match";
     subject = outcome.targetSlug;
+    traversed = true;
   }
   return "match";
 }

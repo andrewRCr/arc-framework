@@ -92,6 +92,26 @@ describe("existing delivery plan resolution", () => {
       .resolves.toMatchObject({ status: "match", plan: { id: "direct" } });
   });
 
+  it("honors retirement evidence before accepting a reused direct slug", async () => {
+    const stored = plan("retired", "current-unit");
+
+    await expect(resolve({
+      plans: [stored],
+      transitions: [{ subject: "current-unit", outcome: { kind: "rename", targetSlug: "other-unit" } }],
+    })).resolves.toEqual({ status: "no-match" });
+    await expect(resolve({
+      plans: [stored],
+      transitions: [{ subject: "current-unit", outcome: { kind: "removed" } }],
+    })).resolves.toEqual({ status: "no-match" });
+    await expect(resolve({
+      plans: [stored],
+      transitions: [
+        { subject: "current-unit", outcome: { kind: "rename", targetSlug: "other-unit" } },
+        { subject: "current-unit", outcome: { kind: "removed" } },
+      ],
+    })).resolves.toEqual({ status: "indeterminate", reason: "ambiguous-subject" });
+  });
+
   it("preserves ambiguous, corrupt, and unreachable histories as indeterminate", async () => {
     await expect(resolve({
       plans: [plan("ambiguous", "old-unit")],
