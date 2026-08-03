@@ -13,6 +13,25 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Align the verification phase and task descriptor contract with shipped practice**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` task generation.
+- _Concern:_ the strategy and finalization checklist require a verification-phase `_Purpose:_` and task `_Goal:_`,
+  while the template and recent shipped task lists consistently use the fixed pointer shape with only
+  `_Quality gates:_` and `_Success criteria:_`.
+- _Fold-in:_ settle the verification-specific exception once and align the strategy, template, and generation
+  checklist in both framework copies.
+
+### `[ ]` **Settle phase-numbering insertion semantics and letter-suffix drift**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` draft design.
+- _Concern:_ the documented revision forms do not cover practice's ad hoc phase letters or work discovered late
+  that must execute before an existing phase, leaving document order and execution order able to disagree.
+- _Fold-in:_ define the sanctioned suffix forms and their meanings, and decide whether append-only identifiers stay
+  additive while sequencing is expressed separately.
+
 ### `[ ]` **Validate generated task-list structure before execution**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
