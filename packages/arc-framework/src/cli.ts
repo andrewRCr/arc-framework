@@ -295,7 +295,10 @@ program
   .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
-  .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
+  .option(
+    "--cohort <path>",
+    "Enrol under <cohort> or <cohort>/<subcohort>: place the member in that planned-tier cohort path",
+  )
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },

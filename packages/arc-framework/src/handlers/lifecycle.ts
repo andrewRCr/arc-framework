@@ -143,7 +143,7 @@ import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.
 import { createNodeTeardownOccupancyReader } from "../lib/work-unit/teardown-occupancy.js";
 import { createNodeTeardownLocusDriver } from "../lib/work-unit/teardown-locus.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -326,11 +326,15 @@ export interface StubOptions {
 }
 
 /** Canonical cohort path accepted by the `stub` command boundary. */
-const StubCohortPathSchema = z.string().refine((value) => {
-  const segments = value.split("/");
-  return segments.length <= COHORT_SEGMENT_CAP
-    && segments.every((segment) => SlugSchema.safeParse(segment).success);
-}, "Expected a canonical one- or two-segment cohort path");
+const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
+const stubCohortPathPattern = new RegExp(
+  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
+  "u",
+);
+const StubCohortPathSchema = z.string().regex(
+  stubCohortPathPattern,
+  "Expected a canonical one- or two-segment cohort path",
+);
 
 /** Complete schema-owned stub creation input. */
 export const StubCommandInputSchema = z.object({
