@@ -39,6 +39,45 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("walks the shipped PreCompact seed hook to the durable Codex process", async () => {
+    const entries = new Map<number, AncestorProcessInspection>([
+      [40, {
+        kind: "present",
+        snapshot: snapshot(40, 30, "node", "node /repo/dist/cli.js status --session-init --write-compaction-seed --json"),
+      }],
+      [30, {
+        kind: "present",
+        snapshot: snapshot(30, 20, "/bin/sh", "sh -c arc status --session-init --write-compaction-seed --json"),
+      }],
+      [20, {
+        kind: "present",
+        snapshot: snapshot(
+          20,
+          15,
+          "/usr/bin/node",
+          "node /repo/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs",
+        ),
+      }],
+      [15, {
+        kind: "present",
+        snapshot: snapshot(
+          15,
+          10,
+          "/bin/bash",
+          "bash -lc 'repo_root=$(git rev-parse --show-toplevel)"
+            + " && cd $repo_root"
+            + " && ARC_HOOK_HARNESS=codex-cli node $primary/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs"
+            + " || exit 0'",
+        ),
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(40, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "codex",
+    });
+  });
+
   it("walks a proven ARC shell wrapper even when it inherits an interactive terminal", async () => {
     const entries = new Map<number, AncestorProcessInspection>([
       [20, {
@@ -202,6 +241,20 @@ describe("session anchor acquisition", () => {
 
     await expect(acquireSessionAnchor(30, inspector(entries))).resolves.toEqual({
       kind: "unverifiable", reason: "Unrecognized process boundary: /opt/node/bin/node",
+    });
+  });
+
+  it.each([
+    "/repo/tools/pre-compact-seed.mjs",
+    "/repo/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs.backup",
+  ])("refuses a Node script outside the exact shipped PreCompact hook path: %s", async (script) => {
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/usr/bin/node", `node ${script}`) }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: "Unrecognized process boundary: /usr/bin/node",
     });
   });
 

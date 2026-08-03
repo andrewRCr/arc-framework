@@ -246,7 +246,8 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   const args = snapshot.commandArguments ?? parseCommandArguments(commandLine);
   if ((executable === "node" || executable === "node.exe")
     && args !== null
-    && (isArcNodeInvocation(args) || isNpmArcInvocation(args) || isFlattenedNpmArcProcessTitle(args))) return true;
+    && (isArcNodeInvocation(args) || isNpmArcInvocation(args) || isFlattenedNpmArcProcessTitle(args)
+      || isPreCompactSeedHookInvocation(args))) return true;
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && args !== null
     && isNpmArcInvocation(args)) return true;
@@ -257,6 +258,7 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   // command; the arc invocation sits inside the eval payload, not after -c.
   if ((executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash")
     && isAgentSnapshotShell(snapshot, commandLine)) return true;
+  if (isShellIdentity(executable) && args !== null && isShellPreCompactSeedHookInvocation(args)) return true;
   return isShellIdentity(executable) && args !== null && isShellArcInvocation(args);
 }
 
@@ -375,6 +377,15 @@ function isArcNodeInvocation(args: readonly string[]): boolean {
   return normalized.endsWith("/dist/cli.js") || name === "arc" || name === "arc.js";
 }
 
+function isPreCompactSeedHookInvocation(args: readonly string[]): boolean {
+  const executable = args[0] === undefined ? "" : basename(args[0]).toLowerCase();
+  if (executable !== "node" && executable !== "node.exe") return false;
+  const script = args[1];
+  if (script === undefined) return false;
+  const normalized = script.replaceAll("\\", "/").toLowerCase();
+  return /(?:^|\/)\.arc\/system\/\.internal\/harness-hooks\/common\/pre-compact-seed\.mjs$/u.test(normalized);
+}
+
 function isNpmArcInvocation(args: readonly string[]): boolean {
   const executable = args[0] === undefined ? "" : basename(args[0]).toLowerCase();
   if (executable !== "npm" && executable !== "npm.cmd") return false;
@@ -406,6 +417,21 @@ function isShellArcInvocation(args: readonly string[]): boolean {
   if (isDirectArcInvocation(command)) return true;
   const nested = command[0] === undefined ? null : parseCommandArguments(command[0]);
   return nested !== null && isDirectArcInvocation(nested);
+}
+
+function isShellPreCompactSeedHookInvocation(args: readonly string[]): boolean {
+  const command = shellCommandOperand(args);
+  if (command === null) return false;
+  const commands = parseShellCommandList(command);
+  return commands !== null && commands.some((candidate) => {
+    const nodeIndex = candidate.findIndex((arg) => {
+      const executable = basename(arg).toLowerCase();
+      return executable === "node" || executable === "node.exe";
+    });
+    if (nodeIndex < 0) return false;
+    if (!candidate.slice(0, nodeIndex).every((arg) => /^[A-Za-z_][A-Za-z0-9_]*=/u.test(arg))) return false;
+    return isPreCompactSeedHookInvocation(candidate.slice(nodeIndex));
+  });
 }
 
 function isDirectArcInvocation(command: readonly string[]): boolean {
