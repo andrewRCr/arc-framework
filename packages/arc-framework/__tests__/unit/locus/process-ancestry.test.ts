@@ -78,6 +78,51 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("walks the shipped Windows PreCompact hook to the durable Codex process", async () => {
+    const hookCommand = String.raw`for /f "delims=" %i in ('git rev-parse --show-toplevel') do for /f "delims=" %j in ('git rev-parse --path-format=absolute --git-common-dir') do (cd /d "%i" && set "ARC_HOOK_HARNESS=codex-cli" && node "%j\..\.arc\system\.internal\harness-hooks\common\pre-compact-seed.mjs") || exit /b 0`;
+    const entries = new Map<number, AncestorProcessInspection>([
+      [50, {
+        kind: "present",
+        snapshot: snapshot(50, 40, "node.exe", "node.exe C:\\repo\\dist\\cli.js status --session-init --write-compaction-seed --json"),
+      }],
+      [40, {
+        kind: "present",
+        snapshot: snapshot(40, 30, String.raw`C:\Windows\System32\cmd.exe`,
+          'cmd.exe /d /s /c "arc status --session-init --write-compaction-seed --json"'),
+      }],
+      [30, {
+        kind: "present",
+        snapshot: snapshot(30, 20, "node.exe",
+          String.raw`node.exe C:\repo\.arc\system\.internal\harness-hooks\common\pre-compact-seed.mjs`),
+      }],
+      [20, {
+        kind: "present",
+        snapshot: snapshot(20, 10, String.raw`C:\Windows\System32\cmd.exe`, `cmd.exe /d /s /c "${hookCommand}"`),
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, String.raw`C:\tools\codex.exe`, "codex.exe") }],
+    ]);
+
+    await expect(acquireSessionAnchor(50, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "codex",
+    });
+  });
+
+  it("walks a flattened BSD PreCompact hook command to the durable Codex process", async () => {
+    const flattenedHook = "sh -c repo_root=\"$(git rev-parse --show-toplevel)\""
+      + " && primary=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\""
+      + " && cd \"$repo_root\""
+      + " && ARC_HOOK_HARNESS=codex-cli node"
+      + " \"$primary/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/bin/sh", flattenedHook) }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "codex",
+    });
+  });
+
   it("walks a proven ARC shell wrapper even when it inherits an interactive terminal", async () => {
     const entries = new Map<number, AncestorProcessInspection>([
       [20, {
