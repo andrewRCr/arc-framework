@@ -243,33 +243,23 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 - _Outcome:_ Declared four payload-parameterized behavioral ports with fixed digest/revision tokens, nullable
   absence, explicit runtime codecs, closed domain refusals, reverse lookup, and complete assurance-chain transfer.
 
-### `[ ]` **2.3 Publish the plan, assignment, and observation records under their concurrency tokens**
+### `[x]` **2.3 Publish the plan, assignment, and observation records under their concurrency tokens**
 
 - _Goal:_ A write against a plan digest or record revision that advanced beneath the writer refuses instead of
   merging or overwriting.
 
-- _Note:_ The observation record is the delivery-state record `6.1` defines — the same one of the four, not a
-  second store. This task provisions its namespace and publication discipline; that task settles its contents.
-  Its revision counter is the `stateRevision` the reducer binds.
+    - `[x]` **2.3.a Digest-checked plan publication and revision-checked mutable stores**
 
-    - `[ ]` **2.3.a Digest-checked plan publication and revision-checked mutable stores**
+        - Published plans by expected digest and assignment and observation snapshots by expected revision, with
+          typed malformed, identity, and conflict refusals plus byte-identical replay idempotence.
 
-        - The shipped operation store already treats a byte-identical republish as a no-op rather than a
-          conflict; compose that behavior rather than deciding it again.
+    - `[x]` **2.3.b No lock-free publish path**
 
-        - Build `test-first` (one behavior at a time):
-            - A first plan publication names an expected current digest of `null`
-            - A successor naming the current plan digest succeeds; a stale digest refuses with a typed conflict
-            - Assignment and observation publication names the current integer revision, succeeds, and increments
-              it; a stale revision refuses with a typed conflict
-            - Republishing byte-identical content is idempotent rather than a conflict
-            - Two successors for one plan cannot both become current
+        - Serialized every mutation under the repository-common namespace lock and preserved atomic no-partial-write
+          behavior under injected publication failures.
 
-    - `[ ]` **2.3.b No lock-free publish path**
-
-        - Build `test-first` (one behavior at a time):
-            - Every store's mutating path acquires the namespace lock
-            - A crash between lock acquisition and write leaves no partial record
+- _Outcome:_ All three current-record stores now share one validate-lock-read-compare-publish discipline; stale
+  concurrent writers refuse deterministically without partial replacement.
 
 ### `[ ]` **2.4 Chain the assurance store by predecessor digest**
 
