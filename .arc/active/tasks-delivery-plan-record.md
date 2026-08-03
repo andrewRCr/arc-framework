@@ -157,15 +157,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
           its digest separately from the sole parent in the final `Verification` phase, refusing malformed or
           ambiguous structures without a second heading parser.
 
-    - `[ ]` **1.3.d Entry-scoped coverage strength**
+    - `[x]` **1.3.d Entry-scoped coverage strength**
 
-        - This task owns the coverage refinement; the whole-record validator invokes it rather than restating it.
-
-        - Build `test-first` (one behavior at a time):
-            - Under `from-tasks` an implementation task covered by no member refuses
-            - Under `from-branch` the same condition validates and reports an advisory
-            - The verification task assigned to any member refuses under both entries
-            - A revision changing `entry` refuses
+        - Added one reusable coverage refinement that refuses authored gaps, verification assignment, and revision
+          entry changes while preserving retrofit gaps as typed advisories for the whole-record validator.
 
     - `[ ]` **1.3.e Design-element binding across one or two artifacts**
 
