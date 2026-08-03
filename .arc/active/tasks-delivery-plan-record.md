@@ -151,21 +151,11 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Added parent-only `Goal` extraction over shared extents, whitespace-normalized semantic text, and
           canonical digests invariant to wrapping, title, progress, peer descriptors, outcomes, and subtasks.
 
-    - `[ ]` **1.3.c `inventoryDigest` and the verification-task identity**
+    - `[x]` **1.3.c `inventoryDigest` and the verification-task identity**
 
-        - The verification task is carried as a bare id beside the implementation inventory, never as an entry in
-          it. Extend the task-list scanner's phase event with parsed phase id and title; existing cursor and
-          descriptor-spacing consumers ignore the additive fields. Identifying verification is positional — the
-          sole parent of the final phase whose parsed title is `Verification` — because the structural scan
-          discards the trailing workflow pointer. Ambiguity refuses rather than guessing, and no second heading
-          parser is introduced.
-
-        - Build `test-first` (one behavior at a time):
-            - Phase events expose id, title, and line while existing scanner consumers retain their results
-            - Content outside implementation-parent `Goal` lines does not move the digest
-            - The verification task contributes no digest and no inventory entry
-            - A final phase with one verification parent resolves its id
-            - A final phase with none, or with more than one candidate, refuses
+        - Extended shared phase events with parsed identity, then bound the normalized implementation inventory and
+          its digest separately from the sole parent in the final `Verification` phase, refusing malformed or
+          ambiguous structures without a second heading parser.
 
     - `[ ]` **1.3.d Entry-scoped coverage strength**
 
