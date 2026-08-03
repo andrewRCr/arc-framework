@@ -76,21 +76,11 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Exported `ParentTaskIdSchema` from the task-list scanner and made both scanner parsing and cursor
           validation consume it, preserving revision-family ids and the numeric-third-segment refusal.
 
-    - `[ ]` **1.1.b Plan, member, and seam record schemas**
+    - `[x]` **1.1.b Plan, member, and seam record schemas**
 
-        - Strict objects mirroring the field lists and closed wire vocabulary in
-          `spec-delivery-plan-record.md` § 1. The member is a tagged `status: live | landed` union; `projectId` is
-          an optional non-empty opaque string; minted ids, derived ids, digests, slugs, task ids, artifact
-          basenames, form-qualified element ids, prose, ordering, uniqueness, and cardinality each use the exact
-          schema named there rather than a locally chosen string shape.
-
-        - Build `test-first` (one behavior at a time):
-            - An unknown field anywhere in the record refuses rather than being dropped
-            - First-revision members parse only in `live` form; both tagged variants reject the other arm's shape
-            - A member missing `mainlineLandability` refuses
-            - A seam with fewer than two distinct incident deliverables refuses
-            - A missing `projectId` validates and a present empty value refuses
-            - A provider binding, branch or pull-request name, or review target refuses as a schema error
+        - Added strict runtime schemas for the plan, tagged live/landed members, and seams, including closed wire
+          vocabulary, canonical identity shapes, safe artifact basenames, first-revision status enforcement, and
+          distinct seam incidence.
 
     - `[ ]` **1.1.c Authoring-input schema that omits every derived value**
 
