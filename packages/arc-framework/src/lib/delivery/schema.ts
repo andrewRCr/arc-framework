@@ -103,7 +103,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
     z.strictObject({ kind: z.literal("wu-integration-target") }),
     z.strictObject({ kind: z.literal("stack-to-main") }),
   ]),
-  members: z.array(DeliveryPlanMemberV1Schema),
+  members: z.array(DeliveryPlanMemberV1Schema).min(1),
   seams: z.array(DeliveryPlanSeamV1Schema),
   planDigest: DeliveryCanonicalDigestSchema,
 }).superRefine((plan, context) => {
@@ -142,7 +142,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
   members: z.array(z.discriminatedUnion("status", [
     z.strictObject({ status: z.literal("live"), ...AuthoredDeliveryPlanMemberShape }),
     z.strictObject({ status: z.literal("landed"), ...AuthoredDeliveryPlanMemberShape }),
-  ])),
+  ])).min(1),
   seams: z.array(z.strictObject({
     seamKey: SlugSchema,
     title: NonEmptyTextSchema,

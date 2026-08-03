@@ -178,6 +178,22 @@ describe("DeliveryPlanV1Schema", () => {
       maxItems: 2,
     });
   });
+
+  it("requires at least one member across persisted, authored, and projected schemas", () => {
+    const plan = validPlan();
+    plan.members = [];
+    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+
+    const input = validAuthoringInput();
+    input.members = [];
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+
+    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    for (const schemaId of ["delivery-plan", "delivery-plan-authoring-input"]) {
+      const schema = projection.schemas[schemaId] as { properties?: { members?: unknown } };
+      expect(schema.properties?.members).toMatchObject({ minItems: 1 });
+    }
+  });
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
