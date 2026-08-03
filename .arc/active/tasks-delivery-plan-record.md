@@ -226,22 +226,10 @@ namespace-closed and lives under the scripts tree, which the library tree does n
   agrees on the path and checkout relocation cannot move it. Its namespace type is a closed five-member union of
   review names and its root is hardcoded to a review-gate segment; both need widening or parameterizing.
 
-    - `[ ]` **2.1.a Move the publisher into the library tree**
+    - `[x]` **2.1.a Move the publisher into the library tree**
 
-        - What moves is the publisher class and its interface. Its advisory-lock primitives already live in the
-          library tree and need no relocation. Both are typed on the review namespace union, so that parameter
-          widens with the move rather than staying behind — leaving it would make the relocated module import from
-          the scripts tree, the one direction this reuse depends on excluding. What does stay is
-          review-gate-specific: both repository-lock wrappers, which hardcode a review-gate root, plus
-          `resolveRepositoryIdentity` and its record schema.
-
-        - Leave the review subsystem's call sites working through the relocated implementation rather than a copy,
-          and update their imports in the same change — no re-export shim at the old path, which the pre-release
-          posture forbids as a compatibility alias.
-
-        - Done when review-gate behavior is unchanged with its suites passing against the relocated
-          implementation. Six test files import the module by its current path, so their imports move with it;
-          an unchanged suite is not available as a criterion.
+        - Relocated the publisher class, interface, and closed review namespace to the library layer; review stores
+          and six test surfaces now import it directly, while review-specific identity and lock helpers stay private.
 
     - `[ ]` **2.1.b Parameterize the root segment and namespace**
 
