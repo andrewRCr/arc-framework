@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "cohort-field-reference-reconcile",
+  "claimId": "71721538dd1029dc2ff47f2c122ecf89",
+  "createdAt": "2026-08-03T18:59:16.318Z",
+  "updatedAt": "2026-08-03T18:59:16.318Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve cohort identity semantics when reconciling references to a decomposed work-unit origin",
+  "branch": "chore/cohort-field-reference-reconcile",
+  "origin": "inbox",
+  "originEntry": "Stop flagging a member's `Cohort` field as a stale reference to its decomposed parent",
+  "originEntrySourceDigest": "sha256:f55135d63f30e77e144505e12d6c65f80300d11e3d2e616e0277efb3c26c5fac",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
