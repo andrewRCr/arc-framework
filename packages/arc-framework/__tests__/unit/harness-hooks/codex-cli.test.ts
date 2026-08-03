@@ -409,6 +409,104 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("repairs and retries when a stale seed command exits successfully", () => {
+    withTempArcProject((root) => {
+      const statePath = join(root, "build-state.json");
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(statePath, `${JSON.stringify({ built: false, calls: 0 })}\n`);
+      writeFileSync(fakeArcPath, [
+        "import { readFileSync, writeFileSync } from 'node:fs';",
+        `const statePath = ${JSON.stringify(statePath)};`,
+        "const state = JSON.parse(readFileSync(statePath, 'utf8'));",
+        "state.calls += 1;",
+        "writeFileSync(statePath, JSON.stringify(state));",
+        "if (state.built !== true) {",
+        "  console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        "}",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, [
+        "import { readFileSync, writeFileSync } from 'node:fs';",
+        `const statePath = ${JSON.stringify(statePath)};`,
+        "const state = JSON.parse(readFileSync(statePath, 'utf8'));",
+        "writeFileSync(statePath, JSON.stringify({ ...state, built: true }));",
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(readJson<{ built: boolean; calls: number }>(statePath)).toEqual({
+        built: true,
+        calls: 2,
+      });
+      expect(readJson<PendingMarker>(identityMarkerPath(root)).fallback).toBe(false);
+    });
+  });
+
+  it("refuses a stale successful seed when its configured build repair fails", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(fakeArcPath, [
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, "process.exit(1);\n");
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root))).toMatchObject({
+        fallback: true,
+        reason: "stale-build repair exited 1",
+      });
+    });
+  });
+
+  it("refuses a seed retry that remains stale after a successful repair", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(fakeArcPath, [
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, "process.exit(0);\n");
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root))).toMatchObject({
+        fallback: true,
+        reason: "seed command remained stale after repair",
+      });
+    });
+  });
+
   it("writes markers only for the Codex harness", () => {
     withTempArcProject((root) => {
       runSeedSuccess(root, { env: { ARC_HOOK_HARNESS: "claude-code" } });
