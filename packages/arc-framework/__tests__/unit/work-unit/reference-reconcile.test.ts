@@ -127,6 +127,35 @@ describe("planReferenceReconcile", () => {
       }],
     });
   });
+
+  it.each(["origin", "origin/sub"])(
+    "does not treat the Cohort field value %s as a retired work-unit reference",
+    (cohort) => {
+      const result = planReferenceReconcile({
+        transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+        artifacts: [{
+          path: "meta-dependent.md",
+          content: [
+            `- **Cohort:** \`${cohort}\``,
+            "- **Note:** origin still appears in narrative context.",
+            "",
+          ].join("\n"),
+        }],
+      });
+
+      expect(result).toMatchObject({
+        status: "ready",
+        edits: [],
+        advisories: [{
+          line: 2,
+          context: "- **Note:** origin still appears in narrative context.",
+          referenceKind: "narrative",
+          subject: "origin",
+          suggestedDisposition: "remove-or-retarget",
+        }],
+      });
+    },
+  );
 });
 
 describe("enumerateReferenceTransitions", () => {
