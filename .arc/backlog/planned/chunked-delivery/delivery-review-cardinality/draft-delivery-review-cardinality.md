@@ -16,6 +16,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make review-verdict identities stable across clones**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` task generation.
+- _Concern:_ delivery's append-only assurance chain must revalidate away from the writing clone, while current
+  review identities derive from a per-clone repository value.
+- _Fold-in:_ settle the public qualification boundary's stable subject/generation identity and answer shape so
+  delivery can store review-owned references without copying or recomputing review authority.
+
 ### `[x]` **Coordinate multi-PR review cardinality with the reviewed-lane gate contract**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during

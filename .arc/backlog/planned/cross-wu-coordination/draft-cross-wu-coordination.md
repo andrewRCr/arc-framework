@@ -10,6 +10,23 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Revalidate landed dependency contracts when a deferred consumer first resumes**
+
+- _Routed from:_ the general half of a held `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03);
+  captured during `decompose-base-mobility`'s first session.
+- _Concern:_ dependency liveness can pass while the landed contract differs from the assumptions in a spec authored
+  earlier. The failure applies to ordinary backlog latency and parked-WU resumption; post-spec decomposition merely
+  amplifies it across sibling specs.
+- _Fold-in:_ extend the explicit-relatedness arm from liveness to conformance at first start or resume after a
+  dependency lands. Reuse readiness baselines or pinned dependency heads as look signals, but require a grounded
+  contract comparison rather than treating base drift as proof. Coordinate the decomposition-specific amplifier
+  with `decomposition-doctrine`, whose owner-adoption capture remains held.
+
 ## Structural decision (settle first at planning)
 
 This stub deliberately holds the thinking as a **single WU** for now. The proposed end-state is a **cohort**, and

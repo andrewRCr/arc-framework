@@ -8,6 +8,24 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Decide whether ARC needs a durable work-unit identifier distinct from its slug**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ the slug is ARC's current work-unit subject key, but the shipped rename transition rewrites it. That
+  works for mutable references and fails for append-only evidence or digests computed over the old slug. Locus,
+  worktree markers, Errand records, storage records, delivery, and external tracker bindings already consume the
+  identity from different angles.
+- _Fold-in:_ make the authority map's WU-identity decision cover rename-surviving consumers: either define a durable
+  ARC identifier and its mapping/rebind semantics, or require each irreversible consumer to decouple locally
+  through recorded rename transitions. Treat any implementation as a downstream cut after this WU settles the
+  identity boundary.
+
 ## Planning Continuity
 
 - **Readiness:** rough

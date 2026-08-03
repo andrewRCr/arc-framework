@@ -1,3 +1,4 @@
+import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { resolve } from "node:path";
@@ -69,5 +70,29 @@ describe("command-input schema adapter and registry", () => {
       "work-class",
       "work-unit-state",
     ].sort());
+  });
+
+  it("preserves stub cohort-path acceptance in the JSON Schema projection", () => {
+    const registry = createCommandInputRegistry(commandInputRegistrations);
+    const runtime = registry.getCommand("stub");
+    if (runtime === undefined) throw new Error("Missing stub command schema");
+
+    const bundle = registry.toJSONSchema();
+    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
+    const projected = ajv.getSchema("command-stub-input.schema.json");
+    if (projected === undefined) throw new Error("Missing projected stub command schema");
+
+    const base = { name: "member", commitment: "planned", priority: "P1" };
+    for (const { cohort, accepted } of [
+      { cohort: "parent", accepted: true },
+      { cohort: "parent/child", accepted: true },
+      { cohort: "parent/child/grandchild", accepted: false },
+      { cohort: "../../escape", accepted: false },
+    ]) {
+      const input = { ...base, cohort };
+      expect(runtime.safeParse(input).success, `${cohort}: runtime`).toBe(accepted);
+      expect(projected(input) as boolean, `${cohort}: projected ${JSON.stringify(projected.errors)}`).toBe(accepted);
+    }
   });
 });

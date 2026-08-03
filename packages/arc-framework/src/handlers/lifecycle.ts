@@ -36,6 +36,7 @@ import {
   readActiveMetaCandidates,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
@@ -142,7 +143,7 @@ import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.
 import { createNodeTeardownOccupancyReader } from "../lib/work-unit/teardown-occupancy.js";
 import { createNodeTeardownLocusDriver } from "../lib/work-unit/teardown-locus.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -324,6 +325,17 @@ export interface StubOptions {
   class?: string;
 }
 
+/** Canonical cohort path accepted by the `stub` command boundary. */
+const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
+const stubCohortPathPattern = new RegExp(
+  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
+  "u",
+);
+const StubCohortPathSchema = z.string().regex(
+  stubCohortPathPattern,
+  "Expected a canonical one- or two-segment cohort path",
+);
+
 /** Complete schema-owned stub creation input. */
 export const StubCommandInputSchema = z.object({
   name: SlugSchema,
@@ -331,7 +343,7 @@ export const StubCommandInputSchema = z.object({
   priority: PrioritySchema,
   origin: z.string().min(1).optional(),
   design: z.string().min(1).optional(),
-  cohort: SlugSchema.optional(),
+  cohort: StubCohortPathSchema.optional(),
   class: WorkClassSchema.optional(),
 }).strict();
 

@@ -54,6 +54,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | goal-aware-direction               | P2       | andrew | —          | —                             |
 | graduation-cleanup                 | P2       | andrew | —          | —                             |
 | knowledge-architecture             | P2       | andrew | —          | —                             |
+| merge-readiness-control            | P2       | andrew | —          | —                             |
 | operational-advisory-registers     | P2       | andrew | —          | —                             |
 | operational-state-docs             | P2       | andrew | —          | —                             |
 | plan-segmentation                  | P2       | andrew | —          | —                             |
@@ -69,6 +70,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | config-storage-architecture        | P3       | andrew | —          | configuration                 |
 | customization-arch-realign         | P3       | andrew | —          | configuration                 |
 | task-list-conventions              | P3       | andrew | —          | doc-conventions               |
+| traceability-identifiers           | P3       | andrew | —          | doc-conventions               |
 | scalable-core                      | P3       | andrew | —          | principle-anchored-core       |
 | binary-distribution                | P3       | andrew | —          | release-readiness             |
 | docs-site-refresh                  | P3       | andrew | —          | release-readiness             |

@@ -74,6 +74,7 @@ export type ReferenceTransitionResolution =
   | { kind: "conflict"; reason: ReferenceTransitionConflict["reason"] };
 
 const ARTIFACT_CODE_SPAN = /`([a-z]+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md`/gu;
+const COHORT_FIELD_PREFIX = /^[ \t]*-[ \t]+\*\*Cohort:\*\*[ \t]*/gmu;
 const SLUG_CHAR = /[a-z0-9-]/u;
 
 /**
@@ -149,10 +150,13 @@ export function planReferenceReconcile(input: {
   const outcomes = groupOutcomes(input.transitions);
   const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
-    .filter((subject) => input.artifacts.some((artifact) =>
-      slugOffsets(artifact.content, subject).length > 0
-      || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
-        .some((match) => match[1] !== "cohort" && match[2] === subject)))
+    .filter((subject) => input.artifacts.some((artifact) => {
+      const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
+      return slugOffsets(artifact.content, subject)
+        .some((offset) => !insideAnyRange(offset, cohortFieldRanges))
+        || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
+          .some((match) => match[1] !== "cohort" && match[2] === subject);
+    }))
     .sort(byteSort);
   for (const subject of referencedSubjects) {
     resolutions.set(subject, resolveReferenceTransition(input.transitions, subject));
@@ -170,6 +174,7 @@ export function planReferenceReconcile(input: {
   const advisories: ReferenceAdvisory[] = [];
   for (const artifact of [...input.artifacts].sort((left, right) => byteSort(left.path, right.path))) {
     const codeRanges: Array<{ start: number; end: number }> = [];
+    const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
     const replacements: TrackedReferenceReplacement[] = [];
     const nextContent = artifact.content.replace(
       ARTIFACT_CODE_SPAN,
@@ -204,7 +209,7 @@ export function planReferenceReconcile(input: {
     for (const [subject, resolution] of resolutions) {
       if (resolution.kind === "conflict" || resolution.kind === "absent") continue;
       for (const offset of slugOffsets(artifact.content, subject)) {
-        if (codeRanges.some((range) => offset >= range.start && offset < range.end)) continue;
+        if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, cohortFieldRanges)) continue;
         advisories.push(advisoryAt(
           artifact,
           offset,
@@ -221,6 +226,20 @@ export function planReferenceReconcile(input: {
     advisories: advisories.sort(compareAdvisories),
     conflicts: [],
   };
+}
+
+function cohortFieldValueRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of content.matchAll(COHORT_FIELD_PREFIX)) {
+    const start = match.index + match[0].length;
+    const lineEnd = content.indexOf("\n", start);
+    ranges.push({ start, end: lineEnd === -1 ? content.length : lineEnd });
+  }
+  return ranges;
+}
+
+function insideAnyRange(offset: number, ranges: readonly { start: number; end: number }[]): boolean {
+  return ranges.some((range) => offset >= range.start && offset < range.end);
 }
 
 /**
