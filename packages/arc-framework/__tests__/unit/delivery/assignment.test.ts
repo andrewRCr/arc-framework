@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { DeliveryAssignmentsV1Schema } from "../../../src/lib/delivery/assignment.js";
+import { deriveMemberAssuranceSubjectId } from "../../../src/lib/delivery/identity.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 
 function assignment() {
-  const assuranceSubjectId = canonicalDigest({ subject: "member-1" });
+  const planId = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
+  const deliverableId = canonicalDigest({ member: "member-1" });
+  const assuranceSubjectId = deriveMemberAssuranceSubjectId(planId, deliverableId);
   return {
     schemaVersion: 1,
     semanticsVersion: "delivery-assignments/v1",
-    planId: "8ddfd842-4c92-4ccb-9958-ae47b43e2c44",
+    planId,
     workUnitId: "delivery-plan-record",
     host: {
       adapterId: "github",
@@ -19,7 +22,7 @@ function assignment() {
       destinationRef: "refs/heads/main",
     },
     members: [{
-      deliverableId: canonicalDigest({ member: "member-1" }),
+      deliverableId,
       assuranceSubjectId,
       ref: "refs/heads/feat/delivery-plan-record-record-substrate",
       assignedHeadObjectId: "a".repeat(40),
@@ -55,6 +58,17 @@ describe("delivery assignment record", () => {
     expect(DeliveryAssignmentsV1Schema.safeParse({
       ...value,
       generationHighWater: [...value.generationHighWater, value.generationHighWater[0]],
+    }).success).toBe(false);
+  });
+
+  it("refuses a member subject that was not derived from its deliverable", () => {
+    const value = assignment();
+    const assuranceSubjectId = canonicalDigest({ subject: "different-member" });
+
+    expect(DeliveryAssignmentsV1Schema.safeParse({
+      ...value,
+      members: [{ ...value.members[0]!, assuranceSubjectId }],
+      generationHighWater: [{ assuranceSubjectId, generation: 3 }],
     }).success).toBe(false);
   });
 });

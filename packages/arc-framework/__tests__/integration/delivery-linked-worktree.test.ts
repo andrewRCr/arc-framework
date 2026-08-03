@@ -9,6 +9,7 @@ import {
   DeliveryAssignmentsV1Codec,
   type DeliveryAssignmentsV1,
 } from "../../src/lib/delivery/assignment.js";
+import { deriveMemberAssuranceSubjectId } from "../../src/lib/delivery/identity.js";
 import {
   RepositoryDeliveryAssignmentStore,
   RepositoryDeliveryPlanStore,
@@ -70,7 +71,8 @@ function assignment(input: {
   readonly ref: string;
   readonly label: string;
 }): DeliveryAssignmentsV1 {
-  const assuranceSubjectId = canonicalDigest({ subject: input.label });
+  const deliverableId = canonicalDigest({ deliverable: input.label });
+  const assuranceSubjectId = deriveMemberAssuranceSubjectId(input.planId, deliverableId);
   const decoded = DeliveryAssignmentsV1Codec.decode({
     schemaVersion: 1,
     semanticsVersion: "delivery-assignments/v1",
@@ -79,7 +81,7 @@ function assignment(input: {
     host: { adapterId: "git", providerBinding: {} },
     terminalTarget: { sourceRef: "owning-unit", destinationRef: "main" },
     members: [{
-      deliverableId: canonicalDigest({ deliverable: input.label }),
+      deliverableId,
       assuranceSubjectId,
       ref: input.ref,
       assignedHeadObjectId: input.head,

@@ -10,6 +10,7 @@ import {
   type DeliveryAssignmentsV1,
 } from "../../src/lib/delivery/assignment.js";
 import { RepositoryDeliveryAssuranceStore } from "../../src/lib/delivery/assurance-store.js";
+import { deriveMemberAssuranceSubjectId } from "../../src/lib/delivery/identity.js";
 import {
   RepositoryDeliveryAssignmentStore,
   RepositoryDeliveryObservationStore,
@@ -104,12 +105,12 @@ function assignment(
     readonly memberLabel?: string;
     readonly planId?: string;
     readonly ref?: string;
-    readonly subjectLabel?: string;
     readonly workUnitId?: string;
   } = {},
 ): DeliveryAssignmentsV1 {
   const planId = options.planId ?? ASSIGNMENT_PLAN_ID;
-  const assuranceSubjectId = canonicalDigest({ subject: options.subjectLabel ?? "member-1" });
+  const deliverableId = canonicalDigest({ member: options.memberLabel ?? "member-1" });
+  const assuranceSubjectId = deriveMemberAssuranceSubjectId(planId, deliverableId);
   const decoded = DeliveryAssignmentsV1Codec.decode({
     schemaVersion: 1,
     semanticsVersion: "delivery-assignments/v1",
@@ -121,7 +122,7 @@ function assignment(
       destinationRef: "refs/heads/main",
     },
     members: options.materialized === false ? [] : [{
-      deliverableId: canonicalDigest({ member: options.memberLabel ?? "member-1" }),
+      deliverableId,
       assuranceSubjectId,
       ref: options.ref ?? "refs/heads/feat/delivery-plan-record-record-substrate",
       assignedHeadObjectId: options.head ?? "a".repeat(40),
@@ -674,7 +675,6 @@ describe("repository delivery record stores", () => {
       head,
       memberLabel: "member-2",
       planId: OTHER_ASSIGNMENT_PLAN_ID,
-      subjectLabel: "member-2",
       workUnitId: "other-work-unit",
     }), 0);
 

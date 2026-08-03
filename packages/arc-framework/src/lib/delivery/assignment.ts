@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { canonicalize, SlugSchema } from "../kernel/index.js";
+import { deriveMemberAssuranceSubjectId } from "./identity.js";
 import type { DeliveryPayloadCodec } from "./ports.js";
 import {
   DeliveryCanonicalDigestSchema,
@@ -58,6 +59,16 @@ export const DeliveryAssignmentsV1Schema = z.strictObject({
   const deliverableIds = new Set<string>();
   const memberSubjectIds = new Set<string>();
   for (const [index, member] of assignments.members.entries()) {
+    if (member.assuranceSubjectId !== deriveMemberAssuranceSubjectId(
+      assignments.planId,
+      member.deliverableId,
+    )) {
+      context.addIssue({
+        code: "custom",
+        message: "member subject must derive from its plan and deliverable",
+        path: ["members", index, "assuranceSubjectId"],
+      });
+    }
     if (deliverableIds.has(member.deliverableId)) {
       context.addIssue({ code: "custom", message: "deliverable assignment must be unique", path: ["members", index] });
     }
