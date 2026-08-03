@@ -276,32 +276,23 @@ namespace-closed and lives under the scripts tree, which the library tree does n
         - Added complete-chain export and validate-before-lock import, preserving every entry while refusing
           malformed chains, invalid links, identity mismatches, and non-empty destinations without partial writes.
 
-### `[ ]` **2.5 Hold assignment decisions with a monotonic per-subject generation**
+### `[x]` **2.5 Hold assignment decisions with a monotonic per-subject generation**
 
 - _Goal:_ A generation never restarts for a subject identity a prior clearing verdict already answered for, so an
   earlier review cannot confer authority on materially different later content.
 
-- _Rationale:_ Assignments are otherwise a live map, so the natural reading is that teardown removes an entry —
-  but `assuranceSubjectId` excludes plan revision, so re-authoring a torn-down `chunkKey` lands on the identical
-  subject and a cleared entry would let its generation restart at one. The assurance chain cannot supply the mark
-  either, since a torn-down member never landed.
+    - `[x]` **2.5.a Assignment record and its decision-bearing contents**
 
-    - `[ ]` **2.5.a Assignment record and its decision-bearing contents**
+        - Declared a strict assignment record carrying the host and provider binding, terminal source and destination
+          refs, and each member's ref, assigned head, change-request handles, review routing, and generation.
 
-        - Each deliverable's ref and change-request handles, materialization generation, selected review routing,
-          terminal-target refs, and the chosen host adapter with its provider binding.
+    - `[x]` **2.5.b Store-enforced generation high-water mark**
 
-        - Done when every field a decision — rather than an observation — is declared here, and the reverse
-          lookup in `2.6.a` and the state record in `6.1` both read them from this record rather than
-          re-declaring them.
+        - Retained per-subject high-water marks outside the live member map and rejected unchanged generations on
+          rematerialization plus any teardown or reauthoring proposal that lowers a previously issued mark.
 
-    - `[ ]` **2.5.b Store-enforced generation high-water mark**
-
-        - Build `test-first` (one behavior at a time):
-            - Re-materializing a subject issues a strictly greater generation
-            - Teardown does not lower the mark
-            - Re-authoring the same `chunkKey` after teardown issues a generation greater than any prior
-            - A caller-supplied generation lower than the mark refuses
+- _Outcome:_ Assignment decisions now have one validated source for later state reduction and reverse lookup, while
+  review generations remain monotonic even when their live member binding is absent.
 
 ### `[ ]` **2.6 Resolve a plan and member from a bare member checkout**
 
