@@ -109,12 +109,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
         - Added injected UUID minting for first authoring and predecessor-based carry-forward that is independent
           of the mutable work-unit slug.
 
-    - `[ ]` **1.2.b Derive `deliverableId` from `planId` and `chunkKey`**
+    - `[x]` **1.2.b Derive `deliverableId` from `planId` and `chunkKey`**
 
-        - Build `test-first` (one behavior at a time):
-            - The preimage excludes plan revision and member position
-            - Identity survives an amendment that relabels positions and edits titles
-            - Two members with the same `chunkKey` in one plan refuse
+        - Added registered-preimage hashing over only the plan and stable chunk key, with duplicate keys refused
+          before a plan-ordered identity sequence is derived.
 
     - `[ ]` **1.2.c Derive member and seam `assuranceSubjectId`**
 
