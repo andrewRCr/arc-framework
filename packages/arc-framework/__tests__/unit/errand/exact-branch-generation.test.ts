@@ -113,6 +113,29 @@ describe("tearDownExactBranchGeneration", () => {
     expect(boundary.calls.some(([subcommand]) => subcommand === "push")).toBe(false);
   });
 
+  it("holds local deletion authority through the exact ref mutation", async () => {
+    const sides: Sides = { local: HEAD, remote: null };
+    const boundary = makeExec(sides);
+    let held = false;
+    const exec: GitExec = async (command, args, options) => {
+      if (args[0] === "update-ref" && args[2] === `refs/heads/${BRANCH}` && !held) {
+        throw new Error("local deletion authority was not held");
+      }
+      return boundary.exec(command, args, options);
+    };
+
+    await expect(tearDownExactBranchGeneration(exec, {
+      ...OPTIONS,
+      expectedHead: HEAD,
+      acquireLocalDelete: async () => {
+        held = true;
+        return { kind: "acquired", release: async () => { held = false; } };
+      },
+    })).resolves.toEqual({ kind: "applied" });
+    expect(sides.local).toBeNull();
+    expect(held).toBe(false);
+  });
+
   it("retains the local ref when authority changes after remote deletion and settles it on replay", async () => {
     const sides: Sides = { local: HEAD, remote: HEAD };
     let checks = 0;

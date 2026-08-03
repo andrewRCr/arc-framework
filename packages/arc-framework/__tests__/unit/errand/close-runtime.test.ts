@@ -94,14 +94,25 @@ function fakeGit(options: {
 }
 
 const BASE_GUARD: CloseAuthorityGuard = {
+  checkoutPath: "/repo",
   revalidate: async () => ({ kind: "valid" }),
   acquire: async () => { throw new Error("cleanup does not acquire the caller-owned guard"); },
 };
 
+const LOCAL_DELETE_LEASE = async () => ({
+  kind: "acquired" as const,
+  release: async () => undefined,
+});
+
 describe("cleanupOrdinaryErrandRefs", () => {
   it("deletes exact local and remote heads and replays already-deleted refs", async () => {
     const exact = fakeGit({ local: EXPECTED, remote: EXPECTED });
-    await expect(cleanupOrdinaryErrandRefs(exact.exec, target())).resolves.toEqual({ kind: "applied" });
+    await expect(cleanupOrdinaryErrandRefs(
+      exact.exec,
+      target(),
+      null,
+      LOCAL_DELETE_LEASE,
+    )).resolves.toEqual({ kind: "applied" });
     expect(exact.state).toEqual({ local: null, remote: null });
 
     const absent = fakeGit({ local: null, remote: null });

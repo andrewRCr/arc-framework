@@ -63,9 +63,25 @@ export type CloseAuthorityLeaseResult =
   | Extract<CloseAuthorityResult, { kind: "refused" | "error" }>;
 
 export interface CloseAuthorityGuard {
+  /** Registered checkout whose HEAD lock this guard owns while acquired. */
+  readonly checkoutPath: string;
   revalidate(): Promise<CloseAuthorityResult>;
   acquire(): Promise<CloseAuthorityLeaseResult>;
 }
+
+type SuccessfulCloseResult = Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }>;
+
+/** Checkout and role settlement completed before identity-bearing state may retire. */
+export type CloseLocusSettlementResult =
+  | {
+      kind: "applied" | "idempotent";
+      guard: CloseAuthorityGuard | null;
+      recordId: string | null;
+      sessionHomePath: string | null;
+      restoredParent: SuccessfulCloseResult["restoredParent"];
+    }
+  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "error"; message: string };
 
 /**
  * What local occupancy permits for the exact Errand under close.
@@ -74,7 +90,7 @@ export interface CloseAuthorityGuard {
  * which host truth alone authorized deleting refs beneath a checkout another session still holds.
  */
 export type CloseOccupancyResult =
-  | { kind: "clear"; guard: CloseAuthorityGuard | null }
+  | { kind: "clear"; settle(): Promise<CloseLocusSettlementResult> }
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
   | { kind: "error"; message: string };
 
@@ -82,9 +98,9 @@ export interface CloseOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
   resolveTarget(record: OrdinaryErrandRecord): Promise<CloseTargetResolution>;
   readLifecycle(target: CloseTarget): Promise<ChangeRequestLifecycleEvidence>;
-  readOccupancy(record: OrdinaryErrandRecord): Promise<CloseOccupancyResult>;
+  readOccupancy(target: CloseTarget): Promise<CloseOccupancyResult>;
   cleanupRefs(target: CloseTarget, guard: CloseAuthorityGuard | null): Promise<CloseRefCleanupResult>;
-  removeInbox(record: OrdinaryErrandRecord): Promise<CloseInboxResult>;
+  removeInbox(record: OrdinaryErrandRecord, sessionHomePath: string | null): Promise<CloseInboxResult>;
   retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
 }
 
@@ -149,19 +165,28 @@ export async function closeOrdinaryErrand(
   // retirement all proceed on host truth, which says nothing about who holds the checkout.
   let occupancy: CloseOccupancyResult;
   try {
-    occupancy = await options.dependencies.readOccupancy(record);
+    occupancy = await options.dependencies.readOccupancy(target);
   } catch (error) {
     return failure("locus.errand-close.occupancy", message(error));
   }
   if (occupancy.kind === "refused") return refusal(occupancy.reason, occupancy.message);
   if (occupancy.kind === "error") return failure("locus.errand-close.occupancy", occupancy.message);
 
-  return runWithCloseAuthority(occupancy.guard, () => finalizeAuthorizedClose({
+  let settlement: CloseLocusSettlementResult;
+  try {
+    settlement = await occupancy.settle();
+  } catch (error) {
+    return failure("locus.errand-close.occupancy", message(error));
+  }
+  if (settlement.kind === "refused") return refusal(settlement.reason, settlement.message);
+  if (settlement.kind === "error") return failure("locus.errand-close.occupancy", settlement.message);
+
+  return runWithCloseAuthority(settlement.guard, () => finalizeAuthorizedClose({
     options,
     target,
     lifecycle,
     record,
-    guard: occupancy.guard,
+    settlement,
     slug,
   }));
 }
@@ -171,10 +196,11 @@ async function finalizeAuthorizedClose(input: {
   target: CloseTarget;
   lifecycle: ChangeRequestLifecycleEvidence;
   record: OrdinaryErrandRecord;
-  guard: CloseAuthorityGuard | null;
+  settlement: Extract<CloseLocusSettlementResult, { kind: "applied" | "idempotent" }>;
   slug: string;
 }): Promise<LocusMutationResultV1> {
-  const { options, target, lifecycle, record, guard, slug } = input;
+  const { options, target, lifecycle, record, settlement, slug } = input;
+  const guard = settlement.guard;
 
   let refs: CloseRefCleanupResult;
   try {
@@ -195,7 +221,7 @@ async function finalizeAuthorizedClose(input: {
 
   let inbox: CloseInboxResult;
   try {
-    inbox = await options.dependencies.removeInbox(record);
+    inbox = await options.dependencies.removeInbox(record, settlement.sessionHomePath);
   } catch (error) {
     return failure("locus.errand-close.inbox", message(error));
   }
@@ -223,20 +249,21 @@ async function finalizeAuthorizedClose(input: {
   }
   if (retired.kind === "error") return failure("locus.errand-close.identity", retired.message);
 
-  const outcome = refs.kind === "applied" || inbox.kind === "removed" || retired.kind === "applied"
+  const outcome = settlement.kind === "applied" || refs.kind === "applied"
+    || inbox.kind === "removed" || retired.kind === "applied"
     ? "applied"
     : "idempotent";
   return createLocusMutationResult({
     outcome,
     operation: "errand-close",
     allocation: null,
-    recordId: null,
+    recordId: settlement.recordId,
     leaseId: null,
     activeLocusPath: null,
-    sessionHomePath: null,
+    sessionHomePath: settlement.sessionHomePath,
     identity: null,
     originEntry: record.originEntry,
-    restoredParent: null,
+    restoredParent: settlement.restoredParent,
     nextOffer: inbox.nextOffer,
     recommendedPromptText: `Finalized merged Errand '${slug}' and retired its identity.`,
   });

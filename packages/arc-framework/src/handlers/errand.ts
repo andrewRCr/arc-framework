@@ -794,11 +794,18 @@ export async function handleErrandClose(
           force: opts.force === true,
           identity,
           identityGlobalUserDir,
+          postCreateScript: settings["worktree.post_create"],
+          registeredHarnessDirs: settings["worktree.harness_dirs"],
           exec: io.exec,
           execInput: io.execInput,
-          removeInbox: async (record) => {
+          removeInbox: async (record, sessionHomePath) => {
             if (record.originEntry === null) return { kind: "absent", nextOffer: null };
-            const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: record.originEntry });
+            const removed = await removeCurrentInboxEntry({
+              cwd: sessionHomePath ?? cwd,
+              io,
+              identity,
+              title: record.originEntry,
+            });
             if (removed.postImage.state !== "present") {
               return { kind: removed.removed ? "removed" : "absent", nextOffer: null };
             }
