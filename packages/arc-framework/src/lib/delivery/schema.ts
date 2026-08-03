@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 
-import { SlugSchema } from "../kernel/index.js";
+import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DeliveryPlanIdSchema = z.uuid();
 const NonEmptyOpaqueStringSchema = z.string().min(1);
 const NonEmptyTextSchema = z.string().trim().min(1);
 const ArtifactBasenameSchema = z.string().min(1).refine(
@@ -71,7 +72,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
   semanticsVersion: z.literal("delivery-plan/v1"),
   projectId: NonEmptyOpaqueStringSchema.optional(),
   workUnitId: SlugSchema,
-  planId: z.uuid(),
+  planId: DeliveryPlanIdSchema,
   planRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   previousPlanDigest: CanonicalDigestSchema.nullable(),
   design: z.strictObject({
@@ -216,4 +217,72 @@ export function resolveAuthoredSeamIncidence(
       CanonicalDigestSchema.parse(deliverableIdForChunkKey(chunkKey))
     )),
   }));
+}
+
+/** Domain-separated preimage for a stable delivery-member identity. */
+export const DeliveryDeliverableIdPreimageSchema = z.strictObject({
+  domain: z.literal("arc.delivery.deliverable-id/v1"),
+  schemaVersion: z.literal(1),
+  semanticsVersion: z.literal("delivery-plan/v1"),
+  planId: DeliveryPlanIdSchema,
+  chunkKey: SlugSchema,
+}).readonly();
+export type DeliveryDeliverableIdPreimage = z.infer<typeof DeliveryDeliverableIdPreimageSchema>;
+
+/** Domain-separated preimage for member and seam assurance subjects. */
+export const DeliveryAssuranceSubjectIdPreimageSchema = z.discriminatedUnion("subjectKind", [
+  z.strictObject({
+    domain: z.literal("arc.delivery.assurance-subject-id/v1"),
+    schemaVersion: z.literal(1),
+    semanticsVersion: z.literal("delivery-plan/v1"),
+    subjectKind: z.literal("member"),
+    planId: DeliveryPlanIdSchema,
+    deliverableId: CanonicalDigestSchema,
+  }),
+  z.strictObject({
+    domain: z.literal("arc.delivery.assurance-subject-id/v1"),
+    schemaVersion: z.literal(1),
+    semanticsVersion: z.literal("delivery-plan/v1"),
+    subjectKind: z.literal("seam"),
+    planId: DeliveryPlanIdSchema,
+    seamKey: SlugSchema,
+  }),
+]).readonly();
+export type DeliveryAssuranceSubjectIdPreimage = z.infer<
+  typeof DeliveryAssuranceSubjectIdPreimageSchema
+>;
+
+/** Compose every delivery-domain schema into a caller-owned registry. */
+export function registerDeliveryDomainSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(DeliveryPlanV1Schema, {
+    id: "delivery-plan",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryPlanMemberV1Schema, {
+    id: "delivery-plan-member",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryPlanSeamV1Schema, {
+    id: "delivery-plan-seam",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryPlanAuthoringInputV1Schema, {
+    id: "delivery-plan-authoring-input",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryDeliverableIdPreimageSchema, {
+    id: "delivery-deliverable-id-preimage",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryAssuranceSubjectIdPreimageSchema, {
+    id: "delivery-assurance-subject-id-preimage",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
 }

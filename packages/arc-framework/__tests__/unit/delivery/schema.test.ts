@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DeliveryAssuranceSubjectIdPreimageSchema,
+  DeliveryDeliverableIdPreimageSchema,
   DeliveryPlanAuthoringInputV1Schema,
+  DeliveryPlanMemberV1Schema,
+  DeliveryPlanSeamV1Schema,
   DeliveryPlanV1Schema,
   LandedDeliveryPlanMemberV1Schema,
   LiveDeliveryPlanMemberV1Schema,
   resolveAuthoredSeamIncidence,
+  registerDeliveryDomainSchemas,
   validateDeliveryPlanAuthoringInputV1,
 } from "../../../src/lib/delivery/schema.js";
+import { createKernelRegistry, SchemaError } from "../../../src/lib/kernel/index.js";
+import {
+  projectKernelSchemas,
+  serializeKernelSchemaBundle,
+} from "../../../src/lib/kernel/schema/generate.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 
@@ -244,5 +254,68 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
     const [seam] = input.seams as Array<Record<string, unknown>>;
     seam!.incidentChunkKeys = ["record-substrate", "missing-member"];
     expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe("delivery schema registration", () => {
+  it("pins the exact domain-separated identity preimages", () => {
+    const planId = "123e4567-e89b-42d3-a456-426614174000";
+    expect(DeliveryDeliverableIdPreimageSchema.safeParse({
+      domain: "arc.delivery.deliverable-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      planId,
+      chunkKey: "record-substrate",
+    }).success).toBe(true);
+    expect(DeliveryDeliverableIdPreimageSchema.safeParse({
+      domain: "arc.delivery.deliverable/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      planId,
+      chunkKey: "record-substrate",
+    }).success).toBe(false);
+
+    expect(DeliveryAssuranceSubjectIdPreimageSchema.safeParse({
+      domain: "arc.delivery.assurance-subject-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      subjectKind: "member",
+      planId,
+      deliverableId: digest,
+    }).success).toBe(true);
+    expect(DeliveryAssuranceSubjectIdPreimageSchema.safeParse({
+      domain: "arc.delivery.assurance-subject-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      subjectKind: "seam",
+      planId,
+      seamKey: "schema-publication",
+    }).success).toBe(true);
+  });
+
+  it("registers every record and identity preimage once under stable identities", () => {
+    const registry = createKernelRegistry();
+    expect(registerDeliveryDomainSchemas(registry)).toBe(registry);
+
+    const expected = [
+      ["delivery-plan", DeliveryPlanV1Schema],
+      ["delivery-plan-member", DeliveryPlanMemberV1Schema],
+      ["delivery-plan-seam", DeliveryPlanSeamV1Schema],
+      ["delivery-plan-authoring-input", DeliveryPlanAuthoringInputV1Schema],
+      ["delivery-deliverable-id-preimage", DeliveryDeliverableIdPreimageSchema],
+      ["delivery-assurance-subject-id-preimage", DeliveryAssuranceSubjectIdPreimageSchema],
+    ] as const;
+    for (const [id, schema] of expected) {
+      expect(registry.get(id)).toBe(schema);
+      expect(registry.meta(id)).toEqual({ id, version: 1, migrationPosture: "strict-current" });
+    }
+    expect(() => registerDeliveryDomainSchemas(registry)).toThrowError(SchemaError);
+  });
+
+  it("projects byte-identical JSON Schema across repeated composition", () => {
+    const first = registerDeliveryDomainSchemas(createKernelRegistry());
+    const second = registerDeliveryDomainSchemas(createKernelRegistry());
+    expect(serializeKernelSchemaBundle(projectKernelSchemas(first)))
+      .toBe(serializeKernelSchemaBundle(projectKernelSchemas(second)));
   });
 });
