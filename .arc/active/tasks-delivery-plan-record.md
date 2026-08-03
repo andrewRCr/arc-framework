@@ -141,20 +141,10 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
   nested bullet list inside a `Goal` falls outside the digest, and an indented line after a blank line falls
   inside it.
 
-    - `[ ]` **1.3.a Expose the descriptor-extent computation**
+    - `[x]` **1.3.a Expose the descriptor-extent computation**
 
-        - _Goal:_ Descriptor start, end, and continuation handling are reachable as a value rather than only as a
-          side effect of spacing validation, so one definition serves both consumers.
-
-        - The spacing validator keeps its current behavior and result shape, consuming the exposed extent rather
-          than a private copy of it. Its existing consumers — the staged gate, the indexed lint, and the worktree
-          pass — are unaffected.
-
-        - Build `test-first` (one behavior at a time):
-            - Extent resolves a descriptor's first and last line including indented continuations
-            - A blank line inside a descriptor does not end it
-            - An indented list item ends it, and so does any unindented content
-            - The spacing diagnostics are byte-identical to their existing results across the shipped cases
+        - Exported parent-bound descriptor extents with start/end lines and continuation state, then made the
+          spacing validator consume that shared result while preserving staged, indexed, and worktree behavior.
 
     - `[ ]` **1.3.b Extract and digest parent `Goal` text**
 
