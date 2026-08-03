@@ -35,14 +35,17 @@ function fakeGit(): GitExec {
 function fakeFileIO(): {
   fileIO: CloseHeadLockFileIO;
   files: Map<string, string>;
+  failNextWrite(): void;
   failNextUnlink(): void;
   replaceAfterNextRead(bytes: string): void;
 } {
   const files = new Map<string, string>();
+  let writeFailure: Error | null = null;
   let unlinkFailure: Error | null = null;
   let replacementAfterRead: string | null = null;
   return {
     files,
+    failNextWrite: () => { writeFailure = new Error("simulated write failure"); },
     failNextUnlink: () => { unlinkFailure = new Error("simulated unlink failure"); },
     replaceAfterNextRead: (bytes) => { replacementAfterRead = bytes; },
     fileIO: {
@@ -50,10 +53,23 @@ function fakeFileIO(): {
         if (files.has(path)) throw errno("already exists", "EEXIST");
         files.set(path, "");
         return {
-          writeFile: async (data) => { files.set(path, data); },
+          writeFile: async (data) => {
+            if (writeFailure !== null) {
+              const failure = writeFailure;
+              writeFailure = null;
+              throw failure;
+            }
+            files.set(path, data);
+          },
           sync: async () => undefined,
           close: async () => undefined,
         };
+      },
+      link: async (existingPath, newPath) => {
+        if (files.has(newPath)) throw errno("already exists", "EEXIST");
+        const value = files.get(existingPath);
+        if (value === undefined) throw errno("not found", "ENOENT");
+        files.set(newPath, value);
       },
       read: async (path) => {
         const value = files.get(path);
@@ -94,6 +110,31 @@ function fakeProcessInspector(): {
 }
 
 describe("Errand close HEAD lock", () => {
+  it("keeps failed receipt initialization from blocking retry", async () => {
+    const runtime = fakeFileIO();
+    const processRuntime = fakeProcessInspector();
+    runtime.failNextWrite();
+    runtime.failNextUnlink();
+
+    await expect(acquireErrandCloseHeadLock({
+      exec: fakeGit(),
+      checkoutPath: CHECKOUT,
+      identity: { slug: "done", claimId: "c".repeat(32) },
+      revalidate: async () => ({ kind: "valid" }),
+      fileIO: runtime.fileIO,
+      inspector: processRuntime.inspector,
+    })).resolves.toMatchObject({ kind: "error" });
+
+    await expect(acquireErrandCloseHeadLock({
+      exec: fakeGit(),
+      checkoutPath: CHECKOUT,
+      identity: { slug: "done", claimId: "c".repeat(32) },
+      revalidate: async () => ({ kind: "valid" }),
+      fileIO: runtime.fileIO,
+      inspector: processRuntime.inspector,
+    })).resolves.toMatchObject({ kind: "acquired" });
+  });
+
   it("recovers its exact durable receipt when terminal release failed", async () => {
     const runtime = fakeFileIO();
     const processRuntime = fakeProcessInspector();

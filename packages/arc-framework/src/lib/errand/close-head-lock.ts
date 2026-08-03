@@ -1,6 +1,7 @@
 /** Durable ownership and retry cleanup for Errand close checkout locks. */
 
-import { open, readFile, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { link, open, readFile, unlink } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
@@ -44,12 +45,14 @@ interface CloseHeadLockHandle {
 /** File boundaries used to persist and recover one checkout lock receipt. */
 export interface CloseHeadLockFileIO {
   openExclusive(path: string): Promise<CloseHeadLockHandle>;
+  link(existingPath: string, newPath: string): Promise<void>;
   read(path: string): Promise<string>;
   unlink(path: string): Promise<void>;
 }
 
 const NODE_FILE_IO: CloseHeadLockFileIO = {
   openExclusive: (path) => open(path, "wx", 0o600),
+  link,
   read: (path) => readFile(path, "utf8"),
   unlink,
 };
@@ -86,20 +89,6 @@ export async function acquireErrandCloseHeadLock(options: {
   const holder = await inspectCurrentHolder(options.inspector);
   if (holder.kind === "error") return holder;
 
-  let handle: CloseHeadLockHandle;
-  try {
-    handle = await fileIO.openExclusive(lockPath.path);
-  } catch (error) {
-    if (errorCode(error) === "EEXIST") {
-      return {
-        kind: "refused",
-        reason: "role-conflict",
-        message: `Errand close cannot lock checkout HEAD at '${options.checkoutPath}'; retry after the Git operation.`,
-      };
-    }
-    return { kind: "error", message: errorMessage(error) };
-  }
-
   const receipt: ErrandCloseHeadLockReceiptV1 = {
     version: 1,
     kind: RECEIPT_KIND,
@@ -108,35 +97,32 @@ export async function acquireErrandCloseHeadLock(options: {
     checkoutPath: options.checkoutPath,
     holder: holder.value,
   };
-  try {
-    await handle.writeFile(`${JSON.stringify(receipt)}\n`, "utf8");
-    await handle.sync();
-  } catch (error) {
-    await closeAndUnlinkAfterInitializationFailure(handle, lockPath.path, fileIO);
-    return { kind: "error", message: `Could not persist checkout authority: ${errorMessage(error)}` };
+  const published = await publishInitializedHeadLock(
+    lockPath.path,
+    `${JSON.stringify(receipt)}\n`,
+    fileIO,
+  );
+  if (published.kind === "occupied") {
+    return {
+      kind: "refused",
+      reason: "role-conflict",
+      message: `Errand close cannot lock checkout HEAD at '${options.checkoutPath}'; retry after the Git operation.`,
+    };
+  }
+  if (published.kind === "error") {
+    return { kind: "error", message: `Could not persist checkout authority: ${published.message}` };
   }
 
-  let closed = false;
   let released = false;
   const release = async (): Promise<void> => {
     if (released) return;
-    let failure: Error | null = null;
-    if (!closed) {
-      try {
-        await handle.close();
-        closed = true;
-      } catch (error) {
-        failure = new Error(errorMessage(error));
-      }
-    }
     try {
       await fileIO.unlink(lockPath.path);
       released = true;
     } catch (error) {
       if (errorCode(error) === "ENOENT") released = true;
-      else failure ??= new Error(errorMessage(error));
+      else throw new Error(errorMessage(error), { cause: error });
     }
-    if (failure !== null) throw failure;
   };
 
   const authorization = await options.revalidate();
@@ -363,13 +349,35 @@ async function resolveHeadLockPath(
   return { kind: "ready", path: `${path}.lock` };
 }
 
-async function closeAndUnlinkAfterInitializationFailure(
-  handle: CloseHeadLockHandle,
+async function publishInitializedHeadLock(
   lockPath: string,
+  receipt: string,
   fileIO: CloseHeadLockFileIO,
-): Promise<void> {
-  await handle.close().catch(() => undefined);
-  await fileIO.unlink(lockPath).catch(() => undefined);
+): Promise<{ kind: "published" | "occupied" } | { kind: "error"; message: string }> {
+  const temporaryPath = `${lockPath}.arc-${randomUUID()}.tmp`;
+  let handle: CloseHeadLockHandle | null = null;
+  try {
+    handle = await fileIO.openExclusive(temporaryPath);
+    await handle.writeFile(receipt, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+  } catch (error) {
+    await handle?.close().catch(() => undefined);
+    await fileIO.unlink(temporaryPath).catch(() => undefined);
+    return { kind: "error", message: errorMessage(error) };
+  }
+
+  try {
+    await fileIO.link(temporaryPath, lockPath);
+  } catch (error) {
+    await fileIO.unlink(temporaryPath).catch(() => undefined);
+    return errorCode(error) === "EEXIST"
+      ? { kind: "occupied" }
+      : { kind: "error", message: errorMessage(error) };
+  }
+  await fileIO.unlink(temporaryPath).catch(() => undefined);
+  return { kind: "published" };
 }
 
 function parseReceipt(bytes: string): ErrandCloseHeadLockReceiptV1 | null {
