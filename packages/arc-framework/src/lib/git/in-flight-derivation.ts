@@ -28,6 +28,8 @@ import {
 } from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { readLiveDecomposeTransientClaimProjection } from "../work-unit/decompose-transient-claim-store.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
+import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
 import type { GitExec } from "./exec.js";
 import {
@@ -41,6 +43,13 @@ import {
   type RefTipMap,
 } from "./remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "./worktree-roster.js";
+import {
+  classifyTransientWorktreeProvenance,
+  readWorktreeMarker,
+  type TransientWorktreeProvenance,
+  type TransientWorktreeSubject,
+  type WorktreeMarkerReadResult,
+} from "./worktree-marker.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
 const DEFAULT_REMOTE = "origin";
@@ -133,6 +142,8 @@ interface InFlightLocation {
   pr?: OpenPrSignal;
   /** Degradation/indeterminacy marks; absent on healthy entries. */
   marks?: readonly InFlightEntryMark[];
+  /** Diagnostic-only ownership-marker state for a locally materialized transient checkout. */
+  transientProvenance?: TransientWorktreeProvenance;
 }
 
 /** A work unit in flight — a branch/ref candidate backed by an active meta. */
@@ -243,8 +254,14 @@ export interface DeriveInFlightOptions {
    * meta presence alone.
    */
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /** Exact current transient identity generation keyed by branch. */
+  expectedTransientByBranch?: ReadonlyMap<string, TransientWorktreeSubject>;
+  /** Ownership-marker read seam for local transient provenance projection. */
+  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   /** Whether the record index was read completely; false degrades record-dependent classification. */
   errandRecordsComplete?: boolean;
+  /** Complete locus projection; null means cleanup classification is unavailable. */
+  locusState?: LocusStateV1 | null;
   /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
@@ -301,6 +318,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         localBranchesComplete,
         errandSlugByBranch,
         errandRecordsComplete,
+        options.locusState,
       ),
     ),
   );
@@ -399,8 +417,14 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
-
-  const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
+  const entriesWithProvenance = await enrichWithTransientProvenance(
+    entriesForIdentity,
+    options.expectedTransientByBranch ?? new Map(),
+    options.readMarker ?? readWorktreeMarker,
+  );
+  const entries = prSource === undefined
+    ? entriesWithProvenance
+    : await enrichWithPrState(entriesWithProvenance, prSource);
   return {
     entries,
     residue,
@@ -410,6 +434,28 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     liveRefs: branchSet.liveRefs,
     reachable: branchSet.reachable,
   };
+}
+
+async function enrichWithTransientProvenance(
+  entries: InFlightEntry[],
+  expectedByBranch: ReadonlyMap<string, TransientWorktreeSubject>,
+  readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>,
+): Promise<InFlightEntry[]> {
+  return Promise.all(entries.map(async (entry) => {
+    if (entry.worktreePath === undefined) return entry;
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await readMarker(entry.worktreePath);
+    } catch (error) {
+      marker = {
+        kind: "malformed",
+        path: entry.worktreePath,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+    const provenance = classifyTransientWorktreeProvenance(marker, expectedByBranch.get(entry.branch));
+    return provenance === null ? entry : { ...entry, transientProvenance: provenance };
+  }));
 }
 
 interface InputResolution {
@@ -878,6 +924,7 @@ async function classifyInput(
   localBranchesComplete: boolean,
   errandSlugByBranch: ReadonlyMap<string, string>,
   errandRecordsComplete: boolean,
+  locusState: LocusStateV1 | null | undefined,
 ): Promise<InputClassification> {
   const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths, localBranches, localBranchesComplete);
@@ -930,13 +977,28 @@ async function classifyInput(
     };
   }
   if (listed.paths.length === 0) {
+    const locusOwned = locusState !== undefined && locusState !== null && locusOwnsBranch(locusState, branch);
+    if (locusOwned) {
+      // Locus ownership answers whether this branch is residue; it does not answer
+      // whether this checkout is authoritative for its branch location. A worktree
+      // carrying no active meta still tombstones its stale upstream twin, or an
+      // archived work unit's old remote meta resurrects it as in flight.
+      return {
+        input,
+        errand: null,
+        residue: null,
+        workUnits: [],
+        warnings: [],
+        shadowsSameBranchRemote: input.source === "worktree",
+      };
+    }
     return {
       input,
       errand: null,
       residue: {
         residue: branchResidue(
           input,
-          errandRecordsComplete ? "no-record-or-meta" : "classification-unavailable",
+          errandRecordsComplete && locusState !== null ? "no-record-or-meta" : "classification-unavailable",
         ),
         index: input.index,
         source: input.source,

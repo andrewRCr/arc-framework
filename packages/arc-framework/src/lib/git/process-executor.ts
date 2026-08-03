@@ -89,9 +89,13 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
  * @returns A raw-stdout {@link GitExecInput} implementation.
  */
 export function createExecaGitExecInput(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExecInput {
-  return async (args, input) => {
+  return async (args, input, options) => {
+    const environment = environmentForGitCwd(options?.cwd);
     try {
       const result = await execa("git", args, {
+        cwd: options?.cwd,
+        env: environment,
+        extendEnv: environment === undefined,
         input,
         maxBuffer,
         stripFinalNewline: false,

@@ -76,4 +76,15 @@ describe("change-facts executable", () => {
 
     expect(JSON.parse(result.stdout)).toEqual({ changeSet: "unknown", changes: [] });
   });
+
+  it("does not expose planning-lane classification through the legacy executable", async () => {
+    const result = await execFileAsync(
+      process.execPath,
+      [MODULE_PATH, "planning-lane", base, head],
+      { cwd: repo },
+    );
+
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toEqual({ changeSet: "unknown", changes: [] });
+  });
 });

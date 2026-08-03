@@ -26,6 +26,7 @@ import {
 
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 
 import type {
   Probe,
@@ -106,10 +107,28 @@ function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
   ].join("\n");
 }
 
+function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
+  if (value.kind === "unavailable") return value.message;
+  const lines = [
+    value.currentFrame,
+    value.primaryAvailability,
+    value.recovery,
+    value.reconciliation,
+    ...value.identities,
+    ...value.cleanup,
+    ...value.diagnostics,
+  ].filter((line): line is string => line !== undefined);
+  return lines.length === 0 ? null : lines.join("\n");
+}
+
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
+  const locusGuidance = buildLocusGuidanceSummary(result.locusGuidance);
   const sections: string[] = [
     renderIdentity(result.identity),
+    ...(locusGuidance === null
+      ? []
+      : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),

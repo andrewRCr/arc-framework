@@ -155,12 +155,11 @@ export async function serialize(
 
   for (const entry of entries) {
     // Extract basename for filtering (entry.name may be a relative path for subdirs)
-    const basename = entry.name.includes("/")
-      ? entry.name.substring(entry.name.lastIndexOf("/") + 1)
-      : entry.name;
+    const segments = entry.name.split("/");
+    const basename = segments.at(-1) ?? entry.name;
 
-    // Skip dotfiles (infrastructure, not user content)
-    if (basename.startsWith(".")) continue;
+    // Skip dotfiles and descendants of dot-directories (infrastructure, not user content)
+    if (segments.some((segment) => segment.startsWith("."))) continue;
 
     // Skip framework-managed files
     if (EXCLUDED_NAMES.has(basename)) continue;

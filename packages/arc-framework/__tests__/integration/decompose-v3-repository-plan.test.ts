@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { createRawGitExec, type RawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
@@ -24,6 +25,8 @@ import {
   prepareGitV3DecomposeBaseAdvancement,
 } from "../../src/lib/work-unit/git-decompose-v3-base-advancement.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
+import { v3DecomposeReceiptPath } from "../../src/lib/work-unit/decompose-v3-preparation.js";
+import { classifyGitDecompositionPlanningLane } from "../../src/lib/work-unit/git-decomposition-planning-lane.js";
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
@@ -37,6 +40,7 @@ import { createNodeTeardownOccupancyReader } from "../../src/lib/work-unit/teard
 import { createNodeWorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit-locus.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -179,6 +183,12 @@ Medium.
   const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
   await git(repo, ["switch", "main"]);
 
+  const remote = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-remote-"));
+  roots.push(remote);
+  await git(remote, ["init", "--bare"]);
+  await git(repo, ["remote", "add", "origin", remote]);
+  await git(repo, ["push", "origin", "main", "plan/origin"]);
+
   const dependencies = await repositoryDependencies(repo);
   const preflight = await createGitV3DecomposePreflight({
     cwd: repo,
@@ -220,7 +230,7 @@ Medium.
       outgoingDispositions: [],
     },
   };
-  return { repo, baseHead, sourceHead, completedMap, dependencies };
+  return { repo, remote, baseHead, sourceHead, completedMap, dependencies };
 }
 
 async function finalizedCandidateRepository() {
@@ -377,6 +387,76 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it("forwards byte input through the repository raw Git boundary", async () => {
+    const { repo } = await startedRepository();
+    const sentinel = "planning-lane raw input\n";
+    const sentinelPath = ".arc/reference/planning-lane-raw-input.txt";
+    await write(repo, sentinelPath, sentinel);
+    const expectedObjectId = (await git(repo, ["hash-object", sentinelPath])).trim();
+
+    const result = await createRawGitExec(repo)(["hash-object", "--stdin"], {
+      input: new TextEncoder().encode(sentinel),
+    });
+
+    expect(new TextDecoder().decode(result.stdout).trim()).toBe(expectedObjectId);
+  });
+
+  it("classifies one finalized exact-ref receipt through the shipped command", async () => {
+    const {
+      repo,
+      candidate,
+      baseHead,
+      candidateHead,
+      receiptId,
+      dependencies,
+    } = await finalizedCandidateRepository();
+    await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
+    const observedRawExecCwds: Array<string | undefined> = [];
+    const repositoryRawExec = createRawGitExec(repo);
+    const rawExec: RawGitExec = async (args, options) => {
+      observedRawExecCwds.push(options?.cwd);
+      return await repositoryRawExec(args, options);
+    };
+
+    await expect(classifyGitDecompositionPlanningLane(baseHead, candidateHead, {
+      cwd: repo,
+      exec: dependencies.exec,
+      rawExec,
+      readBlob: dependencies.readObject,
+    })).resolves.toEqual({ outcome: "planning" });
+    expect(observedRawExecCwds.length).toBeGreaterThan(0);
+    expect(observedRawExecCwds.every((cwd) => cwd === repo)).toBe(true);
+
+    await expect(runCli([
+      "review",
+      "planning-lane",
+      baseHead,
+      candidateHead,
+      "--repository",
+      repo,
+    ], { cwd: repo, timeout: 30_000 })).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "planning\n",
+      stderr: "",
+    });
+
+    await write(candidate, v3DecomposeReceiptPath(receiptId), "{not-json\n");
+    await git(candidate, ["add", v3DecomposeReceiptPath(receiptId)]);
+    await git(candidate, ["commit", "-m", "corrupt receipt"]);
+    const invalidHead = (await git(candidate, ["rev-parse", "HEAD"])).trim();
+    const invalid = await runCli([
+      "review",
+      "planning-lane",
+      baseHead,
+      invalidHead,
+      "--repository",
+      repo,
+    ], { cwd: repo, timeout: 30_000 });
+
+    expect(invalid).toMatchObject({ exitCode: 1, stdout: "reviewed\n" });
+    expect(invalid.stderr).toContain("invalid retirement evidence:");
+  }, 30_000);
+
   it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
     const { repo, baseHead, sourceHead, completedMap, dependencies } = await startedRepository();
     const refsBefore = await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]);
@@ -465,6 +545,59 @@ describe("Git v3 repository plan", () => {
         command: `arc decompose origin --discard ${cutMapPath}`,
       },
     });
+  });
+
+  it("refuses an unpublished source before claiming or materializing a candidate", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(repo, ["push", "--force", "origin", "main:plan/origin"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "source-unpublished",
+      locus: "plan/origin",
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+  });
+
+  it("refuses when the source remote cannot be read", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(repo, ["remote", "set-url", "origin", join(repo, "missing-remote.git")]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "source-unpublished",
+      locus: "plan/origin",
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
   });
 
   it("preserves unexpected Git adapter diagnostics in the refusal locus", async () => {

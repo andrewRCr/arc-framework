@@ -409,8 +409,11 @@ describe("trusted review-gate workflows", () => {
     expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
 
     const complete = sectionBetween(packaged, "### Complete");
-    expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
-    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
+    expect(complete).toMatch(
+      /arc errand close <slug> --json[\s\S]*finalizes the exact v3 identity tail[\s\S]*reaps refs[\s\S]*drops only its origin capture/iu,
+    );
+    expect(complete).toMatch(/nextOffer[\s\S]*exact file-ordered execute-bound sibling[\s\S]*Never scan the inbox/iu);
+    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*Exact replay is idempotent/iu);
   });
 
   it("keeps auto-merge arming on canonical classification without requiring ARC clearance", async () => {
@@ -625,7 +628,10 @@ describe("trusted review-gate workflows", () => {
       on?: unknown;
       permissions?: unknown;
     };
-    expect(workflow.on).toEqual({ repository_dispatch: { types: ["arc-clearance"] } });
+    expect(workflow.on).toEqual({
+      pull_request_target: { types: ["opened", "reopened", "synchronize", "edited"] },
+      repository_dispatch: { types: ["arc-clearance"] },
+    });
     expect(workflow.permissions).toEqual({});
 
     const validation = jobValue(clearance, "validate");
@@ -635,6 +641,10 @@ describe("trusted review-gate workflows", () => {
     });
     expect(validation).not.toHaveProperty("environment");
     expect(validation).not.toHaveProperty("statuses");
+    const target = stepValue(clearance, "validate", "target");
+    expect(target.run).toContain(
+      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
+    );
 
     const trustedCheckout = stepValue(clearance, "validate", "trusted-checkout");
     expect(trustedCheckout.with).toMatchObject({
@@ -649,7 +659,6 @@ describe("trusted review-gate workflows", () => {
       path: "_arc_pr_data",
       "persist-credentials": false,
     });
-
     const readiness = stepValue(clearance, "validate", "readiness");
     expect(readiness.run).toContain(
       "./node_modules/.bin/tsx packages/arc-framework/src/cli.ts review readiness",
@@ -673,6 +682,7 @@ describe("trusted review-gate workflows", () => {
     expect(writer.if).toBe("${{ needs.validate.result == 'success' }}");
     expect(writer.environment).toBe("arc-clearance");
     expect(writer.permissions).toEqual({
+      contents: "read",
       "pull-requests": "read",
       statuses: "write",
     });
@@ -680,20 +690,27 @@ describe("trusted review-gate workflows", () => {
 
     const steps = writer.steps;
     expect(Array.isArray(steps)).toBe(true);
-    expect(steps).toHaveLength(1);
-    const publish = (steps as Array<Record<string, unknown>>)[0] ?? {};
+    expect(steps).toHaveLength(2);
+    const trustedCheckout = stepValue(clearance, "write-status", "live-pair-checkout");
+    expect(trustedCheckout.with).toMatchObject({
+      ref: "${{ github.workflow_sha }}",
+      "persist-credentials": false,
+    });
+    const publish = (steps as Array<Record<string, unknown>>)[1] ?? {};
     expect(publish).not.toHaveProperty("uses");
     expect(publish.env).toMatchObject({
       PR_NUMBER: "${{ github.event.client_payload.pull_request }}",
       STATUS_CONTEXT: "arc-cleared",
+      VALIDATED_BASE: "${{ needs.validate.outputs.base_sha }}",
+      VALIDATED_BASE_REF: "${{ needs.validate.outputs.base_ref }}",
       VALIDATED_HEAD: "${{ needs.validate.outputs.head_sha }}",
       READINESS_JSON: "${{ needs.validate.outputs.readiness_json }}",
     });
     expect(publish.run).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
     expect(publish.run).toContain('test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"');
-    expect(publish.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
-    expect(publish.run).toContain('live_head="$(jq -r .head.sha <<<"$pull_request")"');
-    expect(publish.run).toContain('test "$live_head" = "$VALIDATED_HEAD"');
+    expect(publish.run).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
     expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
     expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
@@ -715,54 +732,79 @@ describe("trusted review-gate workflows", () => {
     expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
 
-  it("runs base-pinned classification on every CI event and posts clearance only for planning", async () => {
-    const workflow = await read("ci.yml");
-    const classifier = jobValue(workflow, "planning-classify");
+  it("publishes planning clearance only from trusted pull-request-target code", async () => {
+    const [ci, workflow] = await Promise.all([read("ci.yml"), read("arc-clearance.yml")]);
+    const parsed = load(workflow) as { on?: Record<string, unknown> };
     const stamp = jobValue(workflow, "planning-clearance");
-    expect(classifier.name).toBe("Classify PR lane for ARC clearance");
-    expect(stamp.name).toBe("Post ARC clearance for planning-only PR");
-    expect(classifier).not.toHaveProperty("if");
-    expect(classifier.permissions).toEqual({ contents: "read" });
-    expect(stamp.if).toBe("${{ needs.planning-classify.outputs.lane == 'planning' }}");
-    expect(stamp.needs).toBe("planning-classify");
-    expect(stamp.permissions).toEqual({ statuses: "write" });
-    expect(classifier["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
-    expect(stamp["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
 
-    const trustedCheckout = stepValue(workflow, "planning-classify", "planning-classifier");
+    expect(ci).not.toContain("planning-classify:");
+    expect(ci).not.toContain("planning-clearance:");
+    expect(parsed.on).toHaveProperty("pull_request_target");
+    expect(parsed.on).not.toHaveProperty("pull_request");
+    expect(stamp.if).toContain("github.event_name == 'pull_request_target'");
+    expect(stamp.if).toContain("head.repo.full_name == github.repository");
+    expect(stamp.permissions).toEqual({
+      contents: "read",
+      "pull-requests": "read",
+      statuses: "write",
+    });
+    expect(stamp["runs-on"]).toBe("ubuntu-latest");
+
+    const trustedCheckout = stepValue(workflow, "planning-clearance", "planning-trusted-checkout");
     expect(trustedCheckout.with).toMatchObject({
-      ref: "${{ github.event.pull_request.base.sha || github.sha }}",
+      ref: "${{ github.workflow_sha }}",
       "persist-credentials": false,
     });
-    const dataCheckout = stepValue(workflow, "planning-classify", "planning-data");
-    expect(dataCheckout.if).toContain("head.repo.full_name == github.repository");
+    const target = stepValue(workflow, "planning-clearance", "planning-target");
+    expect(target.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
+    expect(target.run).toContain('test "$(jq -r .state <<<"$pull_request")" = open');
+    expect(target.run).toContain('test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
+    expect(target.run).toContain('test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
+
+    const planningSteps = stamp.steps as Array<Record<string, unknown>>;
+    const buildIndex = planningSteps.findIndex((step) => step.run === "npm run build");
+    const targetIndex = planningSteps.findIndex((step) => step.id === "planning-target");
+    const resetIndex = planningSteps.findIndex((step) => step.id === "planning-reset");
+    const dataIndex = planningSteps.findIndex((step) => step.id === "planning-data");
+    const publishIndex = planningSteps.findIndex((step) => step.id === "planning-status");
+    expect(buildIndex).toBeGreaterThanOrEqual(0);
+    expect(publishIndex).toBeGreaterThan(buildIndex);
+    expect(resetIndex).toBeGreaterThan(targetIndex);
+    expect(dataIndex).toBeGreaterThan(resetIndex);
+    const reset = stepValue(workflow, "planning-clearance", "planning-reset");
+    expect(reset.env).toMatchObject({
+      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+    });
+    expect(reset.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
+    expect(reset.run).toContain("-f state=pending -f context=arc-cleared");
+
+    const dataCheckout = stepValue(workflow, "planning-clearance", "planning-data");
     expect(dataCheckout.with).toMatchObject({
-      repository: "${{ github.event.pull_request.head.repo.full_name }}",
-      ref: "${{ github.event.pull_request.head.sha }}",
+      repository: "${{ steps.planning-target.outputs.head_repository }}",
+      ref: "${{ steps.planning-target.outputs.head_sha }}",
       path: "_arc_change_data",
       "fetch-depth": 0,
       "persist-credentials": false,
     });
-
-    const classify = stepValue(workflow, "planning-classify", "planning-lane");
-    expect(classify.run).toContain("classifier_usage=");
-    expect(classify.run).toContain("trusted base predates planning-lane; defaulting to reviewed");
-    expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
-    expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
-    expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
+    expect(workflow).toContain(
+      "Pull-request content is inert classification data; no command executes from this checkout.",
+    );
 
     const publish = stepValue(workflow, "planning-clearance", "planning-status");
-    expect(publish.run).toContain('if [ "$LANE" = planning ]; then');
+    expect(publish.run).toContain(
+      'lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA"',
+    );
+    expect(publish.run).not.toContain("npx arc");
+    expect(publish.run).toContain('test "$lane" = planning || test "$lane" = reviewed');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
     expect(publish.run).toContain("-f context=arc-cleared");
-    expect(JSON.stringify(stamp)).not.toContain("needs.classify.outputs.lane");
-    expect(JSON.stringify(stamp)).not.toMatch(/actions\/checkout|_arc_change_data/u);
-
-    expect(jobValue(workflow, "ci_ok").needs).not.toContain("planning-clearance");
-    expect(jobValue(workflow, "merge-ok").needs).toBe("ci_ok");
+    expect(publish.run).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
+    expect(publish.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_change_data\//u);
   });
 
-  it("keeps the planning stamp and reviewed unlock as disjoint writers of one context", async () => {
+  it("resets prior clearance before either exact-head writer can publish success", async () => {
     const [ci, clearance, codeowners] = await Promise.all([
       read("ci.yml"),
       read("arc-clearance.yml"),
@@ -772,10 +814,12 @@ describe("trusted review-gate workflows", () => {
       [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\S]{0,180}?context="?(\$STATUS_CONTEXT|arc-cleared)"?/gu)]
         .map((match) => ({ workflowIndex, sha: match[1], context: match[2] })));
     expect(writers).toEqual([
-      { workflowIndex: 0, sha: "HEAD_SHA", context: "arc-cleared" },
+      { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
+      { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
       { workflowIndex: 1, sha: "VALIDATED_HEAD", context: "$STATUS_CONTEXT" },
     ]);
-    expect(ci).toContain('if [ "$LANE" = planning ]; then');
+    expect(ci).not.toContain("statuses/$HEAD_SHA");
+    expect(clearance).toContain('if [ "$lane" = planning ]; then');
     expect(clearance).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
     expect(codeowners).toContain("* @andrewRCr");
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
@@ -805,20 +849,62 @@ describe("trusted review-gate workflows", () => {
     expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-merge-gate.md");
     expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
     expect(template).toContain("npm exec --yes --package=");
-    expect(installedWorkflow.on).toHaveProperty("pull_request");
+    expect(installedWorkflow.on?.pull_request_target).toEqual({
+      types: ["opened", "reopened", "synchronize", "edited"],
+    });
+    expect(installedWorkflow.on).not.toHaveProperty("pull_request");
     expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
     expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
+    expect(jobValue(template, "planning-clearance").if).toContain("head.repo.full_name == github.repository");
+    expect(stepValue(template, "planning-clearance", "planning-trusted-checkout").with).toMatchObject({
+      ref: "${{ github.workflow_sha }}",
+      "persist-credentials": false,
+    });
+    expect(stepValue(template, "planning-clearance", "planning-target").run).toContain(
+      'pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"',
+    );
+    const templateReset = stepValue(template, "planning-clearance", "planning-reset");
+    expect(templateReset.env).toMatchObject({
+      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+    });
+    expect(templateReset.run).toContain("-f state=pending -f context=arc-cleared");
+    expect(stepValue(template, "planning-clearance", "planning-data").with).toMatchObject({
+      repository: "${{ steps.planning-target.outputs.head_repository }}",
+      ref: "${{ steps.planning-target.outputs.head_sha }}",
+      path: "_arc_change_data",
+      "fetch-depth": 0,
+      "persist-credentials": false,
+    });
+    expect(stepValue(template, "planning-clearance", "planning-status").env).toMatchObject({
+      BASE_REF: "${{ steps.planning-target.outputs.base_ref }}",
+      BASE_SHA: "${{ steps.planning-target.outputs.base_sha }}",
+      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+    });
+    expect(stepValue(template, "validate", "target").run).toContain(
+      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
+    );
     expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(template).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
+    expect(inventory.include_files).toContain(
+      "system/.internal/scripts/confirm-live-change-pair.sh",
+    );
     expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
     expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
     expect(template).toContain("path: _arc_pr_data");
+    expect(template).toContain(
+      "Fetch branch refs: exact decomposition source commits may sit outside the PR history.",
+    );
     expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
     expect(codeowners).not.toContain("/.arc/backlog/**/");
     expect(codeowners).toContain("/.arc/backlog/planned/*/*/spec-*.md");
     expect(codeowners).toContain("/.arc/backlog/provisional/*/meta-*.md");
+    expect(codeowners).not.toContain("/.arc/system/.internal/retirement-receipts/*.json");
     expect(recipeReadme).not.toContain("git diff --name-only");
     expect(recipeReadme).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(recipeReadme).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
+    expect(recipeReadme).toContain("classification checkout must fetch branch refs");
     expect(setup).toContain(".arc/system/.internal/manifest.json");
     expect(setup).toContain("arc --version");
     expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
@@ -834,8 +920,9 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(/detect current state[\s\S]*workflow[\s\S]*environment[\s\S]*required context/iu);
-    expect(packaged).toMatch(/workflow is present on the (?:live )?default\s+branch/iu);
-    expect(packaged).toContain("stop before changing required checks");
+    expect(packaged).toMatch(/workflow and delegated live-pair[\s\S]*are present on the default branch/iu);
+    expect(packaged).toContain(".arc/system/.internal/scripts/confirm-live-change-pair.sh");
+    expect(packaged).toMatch(/stop before changing required\s+checks/iu);
     expect(packaged).toContain("arc-clearance");
     expect(packaged).toContain("protected_branches");
     expect(packaged).toContain("custom_branch_policies");
@@ -845,6 +932,26 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
     expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
     expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
+  });
+
+  it("keeps every shipped host-policy asset byte-identical to its project mirror", async () => {
+    const paths = [
+      "reference/templates/arc/merge-gate/CODEOWNERS",
+      "reference/templates/arc/merge-gate/README.md",
+      "reference/templates/arc/merge-gate/arc-clearance.yml",
+      "system/.internal/scripts/confirm-live-change-pair.sh",
+      "system/workflows/arc/supplemental/setup-arc-clearance.md",
+      "system/workflows/arc/supplemental/setup-merge-gate.md",
+      "system/workflows/arc/initial-setup/01_verify-and-configure.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project, path).toBe(packaged);
+    }
   });
 
   it("offers review-source and merge-guard setup as independent default-off choices", async () => {
@@ -858,6 +965,7 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toContain("Frontline sources");
     expect(packaged).toContain("Standard-review sources");
     expect(packaged).toContain("ARC merge guard");
+    expect(packaged).not.toMatch(/planning-lane-ownership/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
     expect(packaged).toContain("setup-arc-clearance.md");
   });

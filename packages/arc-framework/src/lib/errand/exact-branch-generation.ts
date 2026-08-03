@@ -48,11 +48,19 @@ export interface ExactBranchTeardownOptions extends ExactBranchGenerationOptions
   readonly authorizeDelete?: () => Promise<ExactBranchTeardownAuthorization>;
   /** Prove local branch deletion is safe after caller authority and immediately before mutation. */
   readonly authorizeLocalDelete?: () => Promise<ExactBranchTeardownAuthorization>;
+  /** Acquire authority that remains held through the exact local-ref deletion. */
+  readonly acquireLocalDelete?: () => Promise<ExactBranchTeardownLeaseResult>;
 }
 
 /** Caller-owned authority checked inside the ref teardown boundary. */
 export type ExactBranchTeardownAuthorization =
   | { kind: "authorized" }
+  | { kind: "refused"; message: string }
+  | { kind: "error"; message: string };
+
+/** Caller-owned authority held across the exact local-ref mutation. */
+export type ExactBranchTeardownLeaseResult =
+  | { kind: "acquired"; release(): Promise<void> }
   | { kind: "refused"; message: string }
   | { kind: "error"; message: string };
 
@@ -147,15 +155,40 @@ export async function tearDownExactBranchGeneration(
     if (authorization.kind !== "authorized") return authorization;
     const localAuthorization = await authorizeLocalDeletion(options);
     if (localAuthorization.kind !== "authorized") return localAuthorization;
+    const localLease = await acquireLocalDeletion(options);
+    if (localLease.kind !== "acquired") return localLease;
     const args = ["update-ref", "-d", `refs/heads/${options.branch}`, options.expectedHead];
+    let deletionError: { kind: "error"; message: string } | null = null;
     try {
       await exec("git", args);
       changed = true;
     } catch (error) {
-      return gitReadError(error, args);
+      deletionError = gitReadError(error, args);
     }
+    try {
+      await localLease.release();
+    } catch (error) {
+      if (deletionError === null) {
+        return { kind: "error", message: `Could not release local deletion authority: ${errorMessage(error)}` };
+      }
+    }
+    if (deletionError !== null) return deletionError;
   }
   return { kind: changed ? "applied" : "idempotent" };
+}
+
+async function acquireLocalDeletion(
+  options: ExactBranchTeardownOptions,
+): Promise<Extract<ExactBranchTeardownResult, { kind: "refused" | "error" }> | { kind: "acquired"; release(): Promise<void> }> {
+  if (options.acquireLocalDelete === undefined) {
+    return { kind: "acquired", release: () => Promise.resolve() };
+  }
+  try {
+    const result = await options.acquireLocalDelete();
+    return result.kind === "refused" ? { kind: "refused", message: result.message } : result;
+  } catch (error) {
+    return { kind: "error", message: errorMessage(error) };
+  }
 }
 
 async function authorizeLocalDeletion(
@@ -237,4 +270,8 @@ async function fetchExactRemoteHead(exec: GitExec, remoteRef: string, temporaryR
 
 function gitReadError(error: unknown, args: string[]): { kind: "error"; message: string } {
   return { kind: "error", message: normalizeGitRejection(error, { command: "git", args }).message };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

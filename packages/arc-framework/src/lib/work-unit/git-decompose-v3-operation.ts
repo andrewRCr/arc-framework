@@ -40,6 +40,7 @@ import {
 } from "./retirement-record-store.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
+import { readLiveRemoteBranchTip } from "../git/remote-ref-reader.js";
 import {
   renderV3DecomposeDiscardCommand,
   renderV3DecomposeExecuteCommand,
@@ -392,6 +393,31 @@ export async function executeGitV3DecomposeCommand(
       recovery: { kind: "none" },
       remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
     };
+  }
+  const { source, resultBase } = revalidated.completedMap.machine;
+  if (source.ref !== resultBase.ref) {
+    const branch = source.logicalBranch;
+    const expectedRef = `refs/heads/${branch}`;
+    const live = source.ref === expectedRef
+      ? await readLiveRemoteBranchTip({
+          exec: async (command, args, options) => await dependencies.exec(command, args, {
+            ...options,
+            cwd: options?.cwd ?? dependencies.cwd,
+          }),
+          remote: "origin",
+          branch,
+        })
+      : { reachable: true, tip: null };
+    if (!live.reachable || live.tip !== source.head) {
+      return {
+        status: "refused",
+        stage: "repository-plan",
+        reason: "source-unpublished",
+        locus: branch,
+        recovery: { kind: "none" },
+        remedy: "Publish the reported source branch to origin before retrying.",
+      };
+    }
   }
   const result = await executeGitV3DecomposeOperation(dependencies, {
     protection: input.protection,

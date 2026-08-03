@@ -331,7 +331,6 @@ These repository choices remain independently selectable and default off:
 - **ARC merge guard** — on GitHub with full protection and admin access, run
   [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
   `arc-cleared` becomes required.
-
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation

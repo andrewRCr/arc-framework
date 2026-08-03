@@ -1,8 +1,12 @@
-/** Ordinary v3 Errand finalization after local occupancy has already left. */
+/** Ordinary v3 Errand finalization after exact checkout and role settlement. */
 
 import { describe, expect, it, vi } from "vitest";
 
-import { closeOrdinaryErrand, type CloseAuthorityGuard } from "../../../src/lib/errand/close-locus.js";
+import {
+  closeOrdinaryErrand,
+  type CloseAuthorityGuard,
+  type CloseOccupancyResult,
+} from "../../../src/lib/errand/close-locus.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { ChangeRequestLifecycleEvidence } from "../../../src/lib/errand/change-request-lifecycle.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
@@ -59,6 +63,25 @@ function merged(record: OrdinaryErrandRecord): ChangeRequestLifecycleEvidence {
   return { kind: "merged", changeRequest: record.changeRequest } as ChangeRequestLifecycleEvidence;
 }
 
+function clearOccupancy(
+  guard: CloseAuthorityGuard | null = null,
+  onSettle: () => void = () => undefined,
+): CloseOccupancyResult {
+  return {
+    kind: "clear",
+    settle: () => {
+      onSettle();
+      return Promise.resolve({
+        kind: "idempotent",
+        guard,
+        recordId: null,
+        sessionHomePath: null,
+        restoredParent: null,
+      });
+    },
+  };
+}
+
 describe("closeOrdinaryErrand", () => {
   it("finalizes exact merged refs, removes the inbox capture, and returns the next execute-bound offer", async () => {
     const record = awaiting();
@@ -71,7 +94,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(null, () => { events.push("settle"); }),
         cleanupRefs: async () => (events.push("refs"), { kind: "applied" }),
         removeInbox: async () => (events.push("inbox"), {
           kind: "removed",
@@ -81,7 +104,7 @@ describe("closeOrdinaryErrand", () => {
       },
     });
 
-    expect(events).toEqual(["refs", "inbox", "identity"]);
+    expect(events).toEqual(["settle", "refs", "inbox", "identity"]);
     expect(result).toMatchObject({
       outcome: "applied",
       operation: "errand-close",
@@ -91,10 +114,56 @@ describe("closeOrdinaryErrand", () => {
     });
   });
 
+  it("propagates applied settlement coordinates through capture cleanup and the close result", async () => {
+    const record = awaiting();
+    const recordId = `sha256:${"1".repeat(64)}`;
+    const restoredParent = {
+      recordId: `sha256:${"2".repeat(64)}`,
+      checkoutPath: "/repo-parent",
+    };
+    const removeInbox = vi.fn(async (_record: OrdinaryErrandRecord, sessionHomePath: string | null) => {
+      expect(sessionHomePath).toBe("/repo-session");
+      return { kind: "absent" as const, nextOffer: null };
+    });
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.resolve({
+            kind: "applied",
+            guard: null,
+            recordId,
+            sessionHomePath: "/repo-session",
+            restoredParent,
+          }),
+        }),
+        cleanupRefs: async () => ({ kind: "idempotent" }),
+        removeInbox,
+        retire: async () => ({ kind: "idempotent" }),
+      },
+    });
+
+    expect(removeInbox).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-close",
+      recordId,
+      sessionHomePath: "/repo-session",
+      restoredParent,
+    });
+  });
+
   it("holds base-checkout authority through every destructive close step", async () => {
     const record = awaiting();
     const events: string[] = [];
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: async () => {
         events.push("acquire");
         return { kind: "acquired", release: async () => { events.push("release"); } };
@@ -112,7 +181,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard }),
+        readOccupancy: async () => clearOccupancy(guard, () => { events.push("settle"); }),
         cleanupRefs: async () => (events.push("refs"), { kind: "applied" }),
         removeInbox: async () => (events.push("inbox"), { kind: "removed", nextOffer: null }),
         retire: async () => (events.push("identity"), { kind: "applied" }),
@@ -121,6 +190,7 @@ describe("closeOrdinaryErrand", () => {
 
     expect(result).toMatchObject({ outcome: "applied", operation: "errand-close" });
     expect(events).toEqual([
+      "settle",
       "acquire",
       "refs",
       "revalidate",
@@ -129,6 +199,103 @@ describe("closeOrdinaryErrand", () => {
       "identity",
       "release",
     ]);
+  });
+
+  it("retains refs, capture, and identity when checkout settlement refuses", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const removeInbox = vi.fn();
+    const retire = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.resolve({
+            kind: "refused",
+            reason: "preservation-unproven",
+            message: "The occupied Errand checkout is dirty.",
+          }),
+        }),
+        cleanupRefs,
+        removeInbox,
+        retire,
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "preservation-unproven" });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(removeInbox).not.toHaveBeenCalled();
+    expect(retire).not.toHaveBeenCalled();
+  });
+
+  it("retains refs, capture, and identity when checkout settlement returns an error", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const removeInbox = vi.fn();
+    const retire = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.resolve({ kind: "error", message: "settlement failed" }),
+        }),
+        cleanupRefs,
+        removeInbox,
+        retire,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-close.occupancy", message: "settlement failed" },
+    });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(removeInbox).not.toHaveBeenCalled();
+    expect(retire).not.toHaveBeenCalled();
+  });
+
+  it("retains refs, capture, and identity when checkout settlement throws", async () => {
+    const record = awaiting();
+    const cleanupRefs = vi.fn();
+    const removeInbox = vi.fn();
+    const retire = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async () => merged(record),
+        readOccupancy: async () => ({
+          kind: "clear",
+          settle: () => Promise.reject(new Error("settlement crashed")),
+        }),
+        cleanupRefs,
+        removeInbox,
+        retire,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.errand-close.occupancy", message: "settlement crashed" },
+    });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+    expect(removeInbox).not.toHaveBeenCalled();
+    expect(retire).not.toHaveBeenCalled();
   });
 
   it("finalizes an Errand that merged while its checkout was still occupied", async () => {
@@ -145,7 +312,7 @@ describe("closeOrdinaryErrand", () => {
           kind: "merged",
           changeRequest: target.changeRequest,
         } as ChangeRequestLifecycleEvidence),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: async (target) => (targets.push(target), { kind: "applied" }),
         removeInbox: async () => ({ kind: "removed", nextOffer: null }),
         retire: async (target) => (targets.push(target), { kind: "applied" }),
@@ -176,7 +343,7 @@ describe("closeOrdinaryErrand", () => {
           message: "Expected exactly one merged change request for the Errand branch.",
         }),
         readLifecycle: vi.fn(),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs,
         removeInbox: vi.fn(),
         retire: vi.fn(),
@@ -203,7 +370,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: paused }),
         resolveTarget,
         readLifecycle: vi.fn(),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: vi.fn(),
         removeInbox: vi.fn(),
         retire: vi.fn(),
@@ -225,7 +392,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: async () => ({ kind: "refused", reason: "preservation-unproven", message: "head moved" }),
         removeInbox: vi.fn(),
         retire,
@@ -242,7 +409,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: async () => ({ kind: "idempotent" }),
         removeInbox: async () => ({ kind: "error", message: "notes lock raced" }),
         retire,
@@ -262,7 +429,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: async () => ({ kind: "applied" }),
         removeInbox: async () => ({ kind: "refused", reason: "capture generation changed" }),
         retire: vi.fn(),
@@ -282,7 +449,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs: async () => ({ kind: "idempotent" }),
         removeInbox: async () => ({ kind: "removed", nextOffer: null }),
         retire: async () => ({ kind: "refused", reason: "identity generation changed" }),
@@ -299,6 +466,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn().mockResolvedValue({
         kind: "refused",
@@ -316,7 +484,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard }),
+        readOccupancy: async () => clearOccupancy(guard),
         cleanupRefs: async (_target, receivedGuard) => {
           expect(receivedGuard).toBe(guard);
           return { kind: "applied" };
@@ -337,6 +505,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const release = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: vi.fn().mockResolvedValue({ kind: "acquired", release }),
       revalidate: vi.fn()
         .mockResolvedValueOnce({ kind: "valid" })
@@ -355,7 +524,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard }),
+        readOccupancy: async () => clearOccupancy(guard),
         cleanupRefs: async () => ({ kind: "applied" }),
         removeInbox: async () => ({ kind: "removed", nextOffer: null }),
         retire,
@@ -372,6 +541,7 @@ describe("closeOrdinaryErrand", () => {
     const record = awaiting();
     const cleanupRefs = vi.fn();
     const guard: CloseAuthorityGuard = {
+      checkoutPath: "/repo",
       acquire: async () => ({
         kind: "refused",
         reason: "role-conflict",
@@ -387,7 +557,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
-        readOccupancy: async () => ({ kind: "clear", guard }),
+        readOccupancy: async () => clearOccupancy(guard),
         cleanupRefs,
         removeInbox: vi.fn(),
         retire: vi.fn(),
@@ -462,7 +632,7 @@ describe("closeOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record }),
         resolveTarget: async () => resolved(),
         readLifecycle: vi.fn(),
-        readOccupancy: async () => ({ kind: "clear", guard: null }),
+        readOccupancy: async () => clearOccupancy(),
         cleanupRefs,
         removeInbox: vi.fn(),
         retire: vi.fn(),
@@ -482,7 +652,7 @@ describe("closeOrdinaryErrand", () => {
           readIdentity: async () => ({ kind: "ready", record }),
           resolveTarget: async () => resolved(),
           readLifecycle: async () => ({ kind, changeRequest: record.changeRequest } as ChangeRequestLifecycleEvidence),
-          readOccupancy: async () => ({ kind: "clear", guard: null }),
+          readOccupancy: async () => clearOccupancy(),
           cleanupRefs,
           removeInbox: vi.fn(),
           retire: vi.fn(),

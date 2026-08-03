@@ -156,7 +156,7 @@ const hostedHandle = {
 
 describe("handleReviewPlanningLane", () => {
   it("parses the exact-change operands before invoking the classifier", async () => {
-    const classify = vi.fn().mockResolvedValue("planning");
+    const classify = vi.fn().mockResolvedValue({ outcome: "planning" });
     const output: string[] = [];
 
     await handleReviewPlanningLane(
@@ -171,18 +171,64 @@ describe("handleReviewPlanningLane", () => {
   });
 
   it("fails closed without invoking the classifier when syntax-owned input is invalid", async () => {
-    const classify = vi.fn().mockResolvedValue("planning");
+    const classify = vi.fn().mockResolvedValue({ outcome: "planning" });
     const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
 
     await handleReviewPlanningLane(
       "not-a-sha",
       "b".repeat(40),
       {},
-      { classify, write: (text) => output.push(text) },
+      {
+        classify,
+        write: (text) => output.push(text),
+        writeError: (text) => errors.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      },
     );
 
     expect(classify).not.toHaveBeenCalled();
+    expect(output).toEqual([]);
+    expect(errors).toEqual(["planning-lane: invalid exact-change operands\n"]);
+    expect(exitCodes).toEqual([64]);
+  });
+
+  it("carries invalid retirement through stderr and the exit code without widening stdout", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleReviewPlanningLane("a".repeat(40), "b".repeat(40), {}, {
+      classify: vi.fn().mockResolvedValue({
+        outcome: "invalid-retirement",
+        locus: ".arc/active/meta-origin.md",
+      }),
+      write: (text) => output.push(text),
+      writeError: (text) => errors.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
     expect(output).toEqual(["reviewed\n"]);
+    expect(errors).toEqual(["invalid retirement evidence: .arc/active/meta-origin.md\n"]);
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("does not downgrade an unexpected classifier failure", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleReviewPlanningLane("a".repeat(40), "b".repeat(40), {}, {
+      classify: vi.fn().mockRejectedValue(new Error("boom")),
+      write: (text) => output.push(text),
+      writeError: (text) => errors.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(output).toEqual([]);
+    expect(errors).toEqual(["planning-lane classification failed\n"]);
+    expect(exitCodes).toEqual([1]);
   });
 });
 

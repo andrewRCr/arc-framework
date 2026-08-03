@@ -119,6 +119,46 @@ export interface ReadLiveRemoteHeadsOptions {
   timeoutMs?: number;
 }
 
+/** Outcome of reading one exact live remote branch tip. */
+export interface LiveRemoteBranchTipResult {
+  /** False when the bounded remote query failed or timed out. */
+  reachable: boolean;
+  /** Exact tip when the remote returned one well-formed record for the requested branch. */
+  tip: string | null;
+}
+
+/** Inputs for {@link readLiveRemoteBranchTip}. */
+export interface ReadLiveRemoteBranchTipOptions extends ReadLiveRemoteHeadsOptions {
+  /** Short branch name without the `refs/heads/` prefix. */
+  branch: string;
+}
+
+/** Read one remote branch through a bounded, exact-ref query. */
+export async function readLiveRemoteBranchTip(
+  options: ReadLiveRemoteBranchTipOptions,
+): Promise<LiveRemoteBranchTipResult> {
+  const {
+    exec,
+    branch,
+    remote = DEFAULT_REMOTE,
+    timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+  } = options;
+  const ref = `refs/heads/${branch}`;
+  const result = await runBounded(exec, ["ls-remote", "--heads", remote, ref], timeoutMs);
+  if (!result.ok) return { reachable: false, tip: null };
+  const records = result.stdout.split("\n").filter((line) => line.trim() !== "");
+  if (records.length !== 1) return { reachable: true, tip: null };
+  const [record] = records;
+  const tab = record?.indexOf("\t") ?? -1;
+  if (tab === -1) return { reachable: true, tip: null };
+  const oid = record?.slice(0, tab).trim() ?? "";
+  const returnedRef = record?.slice(tab + 1).trim() ?? "";
+  return {
+    reachable: true,
+    tip: GIT_OBJECT_ID_PATTERN.test(oid) && returnedRef === ref ? oid : null,
+  };
+}
+
 /** Read a bounded, proof-aware snapshot of live remote branch heads. */
 export async function readLiveRemoteHeads(
   options: ReadLiveRemoteHeadsOptions,
