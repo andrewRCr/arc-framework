@@ -91,7 +91,7 @@ one exists; the input omits every derived identity, fingerprint, owner, and dige
 DeliveryPlanV1 {
   schemaVersion: 1
   semanticsVersion: "delivery-plan/v1"
-  projectId
+  projectId?
   workUnitId
   planId
   planRevision
@@ -113,6 +113,7 @@ DeliveryPlanV1 {
 }
 
 DeliveryPlanMemberV1 {
+  status: "live" | "landed"
   chunkKey
   deliverableId
   title
@@ -135,6 +136,23 @@ DeliveryPlanSeamV1 {
   semanticFingerprint
 }
 ```
+
+The wire vocabulary is closed here rather than left to the constructor. `planId` is a minted UUID; every derived
+identity and semantic or revision digest uses the kernel's canonical `sha256:` digest shape; `workUnitId`,
+`chunkKey`, and `seamKey` use the existing slug vocabulary; task ids use the task-list scanner's parent-id grammar;
+artifact ids are safe basenames — non-empty, neither `.` nor `..`, and containing no slash, backslash, or NUL; and
+form-qualified element ids are non-empty opaque strings supplied by the design-inventory authority below. Human
+titles, contracts, and acceptance statements are trimmed non-empty strings. `planRevision` is a positive safe
+integer. Arrays preserve authored order where the record says order is semantic and otherwise normalize by canonical
+bytes; uniqueness and minimum-cardinality refinements remain the record's checks rather than looser schema
+coercions. `projectId`, when available, is an optional non-empty opaque string. No current local predicate claims
+that such a string is a conforming cross-clone project identity.
+
+The authoring input carries `status`; it is not a derived field. A first revision accepts only `live` members. A
+later revision may assert `landed` only by converting the next contiguous member from a validated predecessor, and
+the constructor requires equality with that predecessor's member payload modulo `status`. This makes the assertion
+explicit without pretending the offline record observed the host; § 8 remains the authority that checks it against
+the host-derived landed prefix.
 
 `projectId` and `workUnitId` both come from their owning authorities; delivery mints neither. `workUnitId` is the
 work unit's canonical identity **as its own authority resolves it** — the name a lifecycle query answers to, not
@@ -210,7 +228,8 @@ rather than of what the record says, in both the current tier and the one the st
 including it would denormalize the address into the contents. Revision one carries `previousPlanDigest: null`;
 every later revision is exactly predecessor + 1 under the same `planId` and names that predecessor's digest.
 `planDigest` covers the complete canonical record except itself. The plan store publishes by expected predecessor
-digest, preventing two successors from both becoming current.
+digest expressed as the expected current plan digest (`null` for first publication), preventing two successors from
+both becoming current.
 
 Granting a chunk a merge boundary derives its `deliverableId` from `planId` and the author-supplied `chunkKey`
 rather than accepting a second author key. No intermediate chunk identity is stored: nothing in the record,
@@ -330,6 +349,12 @@ rather than restated in tidier form. Two consequences follow from adopting them 
 `inventoryDigest` covers the normalized inventory, so rendering the plan into the task list creates no digest cycle
 and later progress updates do not amend delivery intent.
 
+The task-list scanner remains the structural authority. Its phase event is extended to carry the parsed phase id
+and title in addition to the line number, so verification discovery does not create a second heading parser. The
+verification task is the sole parent in the final phase whose parsed title is `Verification`; absence, multiplicity,
+or a differently named final phase refuses. Existing cursor and descriptor-spacing consumers ignore the additive
+phase fields and retain byte-identical behavior.
+
 **Coverage is a record refinement whose strength the record itself declares; partition is a composition check.**
 Every implementation task is covered by **at least one** member, and the work-unit verification task by none.
 Coverage is enforced where it is authored and advisory where it is derived: on the pre-implementation entry the
@@ -375,6 +400,14 @@ work unit carries one design artifact or a paired pair, so the binding admits bo
 its own revision digest, and elements carry form-qualified identifiers so a paired unit's requirement and design
 namespaces stay distinct.
 
+Delivery consumes that inventory through a validated caller-supplied `DesignInventoryInput`; it does not parse spec
+forms or mint the external element-identifier family. The input carries one or two artifact basenames, each
+artifact's canonical raw-byte revision digest, its form discriminator, and the form authority's enumerated
+`{ elementId, semanticDigest }` entries. Delivery qualifies each element id with the form discriminator, rejects
+duplicates and unknown member or seam references, and binds an empty inventory when the supplying form enumerates
+no elements. The planning/form authority is responsible for producing the input; delivery is responsible for
+validating and consuming it. This resolves the ownership boundary without re-deriving another element grammar.
+
 ### 3. Two authoring entries and the starter-map contract
 
 **Authoring is two-phase and never accepts a hand-composed record.** The command first emits a starter map whose
@@ -389,7 +422,7 @@ computed and presented rather than described in prose.
 ```text
 arc delivery plan from-tasks     # from a task plan, before implementation
 arc delivery plan from-branch    # from an existing branch's change structure
-arc delivery compose <map>       # shared: validate the filled map, publish the record
+arc delivery compose             # shared: resolve the unit's map, validate it, publish the record
 ```
 
 They are named by their **source** rather than by their timing, so neither reads as remedial, and they are
@@ -400,8 +433,9 @@ first contact. Anticipating change size during planning is best-effort, and auth
 already exists is an ordinary act, not a recovery from a planning failure.
 
 Amendment reuses the same path: a starter map seeded from the current revision produces a complete successor
-record, published against the expected predecessor digest. Revisions are whole records rather than deltas, so each
-validates independently and no delta vocabulary becomes a second topology language.
+record, published against the expected current plan digest that the successor records as `previousPlanDigest`.
+Revisions are whole records rather than deltas, so each validates independently and no delta vocabulary becomes a
+second topology language.
 
 The starter map is **transient authoring state, not a delivery record**: it exists before a plan does, is
 hand-edited, and is discarded once composition succeeds or is abandoned. It is not one of § 6's four records and
@@ -604,11 +638,11 @@ decisions that travel inside a record named for its dominant content.
    are a resumed operation writing against a revision that advanced beneath it, and a retry after a partially
    applied outcome. The assurance store publishes append-only by expected predecessor digest — it is a growing chain
    that must
-   survive export and import across adapters, where digest chaining is what makes it tamper-evident. The plan,
-   assignment, and observation stores publish by expected revision: § 1 already makes each plan revision exactly
-   predecessor + 1 and binds it to its predecessor's content, so a revision counter refuses two concurrent
-   successors identically and the plan store retains no history. Every store publishes under the same advisory write lock;
-   no store has a lock-free publish path.
+   survive export and import across adapters, where digest chaining is what makes it tamper-evident. The plan store
+   publishes by expected current plan digest (`null` for first publication), the same token authoring already holds
+   and the successor records as `previousPlanDigest`; assignment and observation stores publish by expected integer
+   revision. The plan store retains no history. Every store publishes under the same advisory-lock discipline; no
+   store has a lock-free publish path.
 4. **The assignment record retains a per-subject generation high-water mark that teardown does not lower.**
    Assignments are otherwise a live map, so the natural reading is that tearing a member down removes its entry —
    which would break monotonicity, since `assuranceSubjectId` excludes plan revision and derives from `chunkKey`,
@@ -633,20 +667,38 @@ live in the repository's Git common directory, alongside the review subsystem's 
 location every linked worktree resolves identically, which checkout-path relocation cannot move, and which is
 absent from every tree. Each of the four occupies its own namespace (`plans`, `assignments`, `assurance`,
 `observations`) holding one record per plan, with advisory locking, atomic replacement, and a version-checked
-publish that refuses a stale expected revision. This composes the review subsystem's existing operation-store
-pattern rather than introducing a second concurrency model.
+publish that refuses a stale expected digest or revision. This composes the review subsystem's existing
+operation-store pattern rather than introducing a second concurrency model.
+
+**The four ports have fixed operations and payload-parameterized declarations.** The plan port reads the current
+plan and publishes a successor against the expected current digest. The assignment and observation ports read a
+`{ revision, value }` snapshot and publish against that integer revision. The assurance port reads a chain, appends
+against the expected tail digest, and exports or imports a complete verified chain. Payload type parameters let this
+member ship the storage boundary before later members declare the observation and terminal-assurance payloads; they
+do not make the operations, concurrency tokens, or failures generic. The closed domain failures are
+`record-malformed`, `identity-mismatch`, `version-conflict`, `predecessor-conflict`, `chain-invalid`,
+`import-nonempty`, `ambiguous-match`, and `namespace-corrupt`; absence is a nullable read result, and filesystem or
+transport failures remain infrastructure errors rather than being flattened into domain refusals.
 
 **What that reuse actually costs.** The shipped implementation is review-gate-private: its publisher hardcodes a
 `<git-common-dir>/arc/review-gate/<namespace>` root over a **closed** namespace union of five review names, the
 store above it is typed to review operation state, and it lives under the scripts tree, which the library tree
 does not import from. So delivery reuses a proven _pattern_ plus an existing concurrency model, not a class it can
 call. Realizing it requires four things, named here so task generation prices them rather than discovering them:
-lifting the publisher into the library layer; widening or parameterizing the namespace; and giving the assurance store
+lifting the publisher into the library layer; parameterizing a runtime-validated root plus namespace; adding an
+explicit delete result and safe Markdown name for transient authoring state; and giving the assurance store
 **predecessor-digest publication** over a **multi-entry append** shape, since the shipped compare-and-swap is an
 integer revision counter with no predecessor pointer and the shipped store holds one record per name. The plan,
-assignment, and observation stores map onto the shipped discipline as-is. The lock this composes is the existing bounded-wait
-advisory lockfile, acquired per namespace rather than per record — that is what "mutation lease" names here, and
-the per-namespace granularity is adequate only because § 6 scopes operation to one at a time.
+assignment, and observation stores otherwise map onto the shipped discipline. The lock this composes is the existing
+bounded-wait advisory lockfile, acquired per namespace rather than per record — that is what "mutation lease" names
+here, and the per-namespace granularity is adequate only because § 6 scopes operation to one at a time.
+
+The generalized publisher accepts only a closed root/namespace pair validated before path resolution:
+`review-gate` with its existing five namespaces, or `delivery` with `plans`, `assignments`, `assurance`,
+`observations`, and `authoring`. Record namespaces admit safe `.json` basenames only; `authoring` additionally admits
+safe `.md` basenames. Its update result is explicitly `keep`, `write`, or `delete` — the existing `content: null`
+meaning migrates to `keep`, never silently changes into deletion. This is enough for abandoning a starter map
+without exposing an unchecked path-shaped API.
 
 **One operator at a time.** A work unit has a single owner, and one person cannot operate two machines at once, so
 concurrent delivery operations against one plan are out of scope and the mutation lease is local. The boundary is
@@ -673,7 +725,12 @@ change is transparent: at v1 it is a scan over the assignment namespace, and und
 it is an ordinary indexed record query. Because it is a lookup in an authoritative binding rather than an inference
 from a ref's shape, it reintroduces none of the branch-derived identity the record refuses. A command may instead
 receive the owning work-unit pointer explicitly, and the session-locus layer carries only that subject pointer
-rather than a copy of delivery state.
+rather than a copy of delivery state. At v1 the repository parameter is ambient in the port instance rooted at the
+current Git common directory; it is not the review subsystem's per-clone `repositoryId`. A head query compares an
+exact object id. A ref query compares the authoritative stored binding and its recorded observed head; it never
+infers identity from ref spelling. Exactly one match is required: no match returns a negative result, while multiple
+matches refuse as `ambiguous-match`. An explicitly supplied owning-unit pointer selects the candidate plan directly
+but still validates the plan, member, and selector instead of trusting the pointer as proof.
 
 **The v1 boundary, stated rather than discovered.** No record is pushed, so no delivery record survives a clone or
 reaches a second machine. An operator who moves machines mid-delivery leaves the plan stranded on the first. This
@@ -705,9 +762,9 @@ retracted the moment that contract is replaced.
 **Project scope belongs to the address, not to the identity.** Delivery records are never addressed
 project-agnostically: at v1 they live in one repository's Git common directory, and under the storage direction the
 backing store is keyed by project, so the path carries the same fact in both tiers. Putting project scope inside
-`planId` would copy the container into the contents. So `projectId` stays a **field** and leaves the **preimage** —
-the record stays self-describing, the value is validated wherever a conforming one exists, and the day a project
-identity is supplied is an upgrade rather than a schema change. The residual cost is bounded: two projects can mint
+`planId` would copy the container into the contents. So optional `projectId` stays a **field** and leaves the
+**preimage** — the record is self-describing when a conforming value is available, and the day a project identity is
+supplied is an upgrade rather than a schema change. The residual cost is bounded: two projects can mint
 the same `planId`, which bites only where their records meet, which needs a federating backing service — and such a
 service would know which project it serves, so scope would be ambient in its addressing too.
 
@@ -725,10 +782,11 @@ does not yet have them; delivery contributes its requirement as an input to that
 since ruling out remote-URL derivation rules out that chain's current first fallback — and neither mints nor
 configures the value meanwhile.
 
-The guard is therefore **inert until a conforming identity is available**: a supplied value is validated for
-conformance whenever present, and the transition reducer proves it before admitting a transition, but no weaker
-locally-checkable property is asserted in the meantime, because the only locally available value is the per-clone
-identity this design explicitly rules out.
+The guard is therefore **inert until a conforming identity authority is available**: today the schema checks only
+that a supplied value is a non-empty opaque string and the constructor carries it verbatim. Once an authority can
+establish conformance, the transition reducer compares that supplied value with the expected project before
+admitting a transition. No weaker local predicate is asserted in the meantime, because the only locally available
+value is the per-clone identity this design explicitly rules out.
 
 ### 7. Plan revisions, binding, and amendment
 
@@ -1192,7 +1250,7 @@ for the cohort record to absorb rather than being treated as wording.
 9. **Position resolves from a member checkout** via the reverse-lookup query, in a checkout carrying none of the
    work unit's artifacts, without reading identity from any ref name.
 10. **No delivery record is writable into a work unit's change set**, and every mutating write refuses a stale
-   expected revision.
+   expected plan digest, assignment revision, observation revision, or assurance predecessor digest as applicable.
 11. **A terminal contribution chain is emitted only when membership and tree-exactness both hold**, and it records
     review-owned verdict identities without evaluating their conditions. The assurance port declares export and import,
     and the v1 adapter round-trips a chain through both without loss.
@@ -1209,8 +1267,6 @@ for the cohort record to absorb rather than being treated as wording.
   one — `planId` is minted and rename resolves through the recorded transition — but the underlying question is
   general, since the slug is the subject key for several subsystems. Delivery consumes a conforming identifier as
   `workUnitId` the day one exists, which is an upgrade rather than a schema change.
-- **The enumerable-element identifier family** the design inventory consumes is owned outside this work unit and is
-  not re-derived here.
 
 **One assumption is recorded here because nothing else records it.** Positional task ids are sound only if a
 completed task's id keeps pointing at the same work. No rule in this project states that — the revision scheme

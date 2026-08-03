@@ -42,11 +42,13 @@ as claims about the codebase, not as settled fact.
 
 Then cut from the `main` containing the predecessor; retarget to `main` as the predecessor lands. Close with a
 Tier 3 run at the exact head before opening the pull request. **Members 1 through 3 exclude this work unit's own
-lifecycle artifacts** — metadata, spec, notes, and this task list stay out of their change sets, so no concurrent
-work unit's session resolution is perturbed while the series is partial; member 4 carries them together with
-archival. The cost is that a member reviewer cannot see which tasks the member closes; the table above is the
-substitute. Topology, ordering rationale, and the
-manual runbook live in `notes-delivery-plan-record.md` § Delivery topology and sequence.
+lifecycle artifacts**, and member 4's implementation-review head excludes them too — metadata, spec, notes, and
+this task list stay out of the series while implementation review is in flight, so no concurrent work unit's
+session resolution is perturbed. After member 4's implementation candidate settles, append the lifecycle artifacts
+and same-slug archival as a documentation-only terminal tail on that same pull request during one attended closeout
+window; this is not a fifth member. The cost is that a member reviewer cannot see which tasks the member closes;
+the table above is the substitute. Topology, ordering rationale, and the manual runbook live in
+`notes-delivery-plan-record.md` § Delivery topology and sequence.
 
 ---
 
@@ -71,12 +73,18 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 
     - `[ ]` **1.1.a Plan, member, and seam record schemas**
 
-        - Strict objects mirroring the field lists in `spec-delivery-plan-record.md` § 1.
+        - Strict objects mirroring the field lists and closed wire vocabulary in
+          `spec-delivery-plan-record.md` § 1. The member is a tagged `status: live | landed` union; `projectId` is
+          an optional non-empty opaque string; minted ids, derived ids, digests, slugs, task ids, artifact
+          basenames, form-qualified element ids, prose, ordering, uniqueness, and cardinality each use the exact
+          schema named there rather than a locally chosen string shape.
 
         - Build `test-first` (one behavior at a time):
             - An unknown field anywhere in the record refuses rather than being dropped
+            - First-revision members parse only in `live` form; both tagged variants reject the other arm's shape
             - A member missing `mainlineLandability` refuses
             - A seam with fewer than two distinct incident deliverables refuses
+            - A missing `projectId` validates and a present empty value refuses
             - A provider binding, branch or pull-request name, or review target refuses as a schema error
 
     - `[ ]` **1.1.b Authoring-input schema that omits every derived value**
@@ -94,6 +102,7 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 
         - Build `test-first` (one behavior at a time):
             - An input carrying any member of the derived set refuses, naming the offending field
+            - An input carries the authored member `status`, with revision one restricted to `live`
             - A seam authored by chunk keys resolves to deliverable ids at composition
             - A seam naming a chunk key no member carries refuses
             - An input carrying only authored slots parses
@@ -102,7 +111,8 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
     - `[ ]` **1.1.c Registration under strict-current posture**
 
         - Build `test-first` (one behavior at a time):
-            - Each schema registers once and resolves by its stable identity
+            - Each record, authoring-input, and identity-preimage schema registers once and resolves by its stable
+              identity
             - A duplicate identity refuses at registration
             - The emitted JSON Schema projection is byte-identical across repeated runs
 
@@ -188,11 +198,14 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
     - `[ ]` **1.3.c `inventoryDigest` and the verification-task identity**
 
         - The verification task is carried as a bare id beside the implementation inventory, never as an entry in
-          it. Identifying it is positional — the sole parent of the final phase whose heading names verification —
-          because the structural scan discards the trailing workflow pointer and exposes only id, title, and line.
-          Ambiguity refuses rather than guessing.
+          it. Extend the task-list scanner's phase event with parsed phase id and title; existing cursor and
+          descriptor-spacing consumers ignore the additive fields. Identifying verification is positional — the
+          sole parent of the final phase whose parsed title is `Verification` — because the structural scan
+          discards the trailing workflow pointer. Ambiguity refuses rather than guessing, and no second heading
+          parser is introduced.
 
         - Build `test-first` (one behavior at a time):
+            - Phase events expose id, title, and line while existing scanner consumers retain their results
             - Content outside implementation-parent `Goal` lines does not move the digest
             - The verification task contributes no digest and no inventory entry
             - A final phase with one verification parent resolves its id
@@ -210,7 +223,13 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
 
     - `[ ]` **1.3.e Design-element binding across one or two artifacts**
 
+        - Consume a validated caller-supplied `DesignInventoryInput`; delivery does not parse spec forms or mint
+          element identifiers. Each of one or two artifact entries carries its basename, canonical raw-byte
+          revision digest, form discriminator, and the form authority's enumerated element ids and semantic
+          digests. Delivery form-qualifies the ids and owns validation, binding, and coverage only.
+
         - Build `test-first` (one behavior at a time):
+            - Missing, duplicate, or malformed artifact inventory input refuses before binding
             - Each bound artifact contributes its own revision digest
             - Elements carry form-qualified identifiers so a paired unit's namespaces stay distinct
             - An element reference naming nothing in the inventory refuses
@@ -271,6 +290,7 @@ rationale in `spec-delivery-plan-record.md` § 1 and § 2.
     - `[ ]` **1.5.c The `live` / `landed` discriminant**
 
         - Build `test-first` (one behavior at a time):
+            - Revision one refuses a `landed` member
             - A `live` member's fingerprint is re-derived by the reader
             - A `landed` member's carried fingerprint is accepted without re-derivation
             - A member converting to `landed` must equal its predecessor revision's payload modulo the
@@ -342,17 +362,24 @@ namespace-closed and lives under the scripts tree, which the library tree does n
     - `[ ]` **2.1.b Parameterize the root segment and namespace**
 
         - Delivery's four namespaces resolve under `arc/delivery/`, a sibling of the review-gate segment rather
-          than an extension of it, so the review namespace union stays closed. Parameterize root and namespace on
-          the existing class; no generic and no wrappers until a third consumer exists.
+          than an extension of it, so the review namespace union stays closed. Parameterize the existing class on
+          a closed runtime-validated root/namespace pair: `review-gate` with its existing namespaces, or `delivery`
+          with `plans`, `assignments`, `assurance`, `observations`, and `authoring`. Validate the pair before path
+          resolution; no unchecked string reaches `join`. No generic and no wrappers until a third consumer exists.
 
         - Provision a fifth location under the same root for the starter map and its outstanding-map state. It is
           transient authoring state rather than a delivery record, so it carries none of the version-check
           discipline — but it must exist outside the working tree, which is what makes it structurally incapable
-          of landing in a change set.
+          of landing in a change set. Record namespaces admit safe `.json` basenames; `authoring` additionally
+          admits safe `.md` basenames. Replace the publisher callback's ambiguous `content: null` result with
+          explicit `keep`, `write`, and `delete` results, migrating existing callers to `keep` without changing
+          their behavior.
 
         - Build `test-first` (one behavior at a time):
             - A delivery namespace resolves under its own segment, disjoint from the review-gate root
-            - An invalid record name refuses before any filesystem access
+            - An invalid root, namespace, root/namespace pair, or record name refuses before filesystem access
+            - Review record namespaces refuse Markdown while delivery authoring admits a safe map basename
+            - `keep` preserves bytes, `write` atomically replaces them, and `delete` removes only the resolved file
             - Concurrent updates to one namespace serialize on the advisory lock
 
 ### `[ ]` **2.2 Declare the four record ports and their failure classes**
@@ -362,28 +389,38 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 
 - _Shape:_ Artifact read and write, version-check and reconcile semantics, failure classes, the assurance
   carry-over obligation, and the reverse-lookup query. The shipped review-gate port module is the pattern to
-  follow — behavioral interfaces with no adapter detail.
+  follow — behavioral interfaces with no adapter detail. Payload-parameterize the four declarations so this
+  member can ship the ports before later members declare observation and terminal-assurance payloads; operations,
+  concurrency tokens, and failures remain fixed. The plan port reads current and publishes against expected
+  current digest. Assignment and observation ports read `{ revision, value }` and publish against that revision.
+  The assurance port reads, appends against expected tail digest, and exports or imports a complete chain.
 
-- Done when all four ports are declared with exhaustive named failure classes and the assurance port declares
-  export and import. That every consumer compiles against the declarations rather than a concrete store is a
-  phase invariant the tasks below hold to, not a condition this one can check at its own close.
+- Done when all four ports declare the closed domain failures `record-malformed`, `identity-mismatch`,
+  `version-conflict`, `predecessor-conflict`, `chain-invalid`, `import-nonempty`, `ambiguous-match`, and
+  `namespace-corrupt`, and the assurance port declares export and import. Absence is a nullable read result;
+  filesystem and transport failures remain infrastructure errors. That every consumer compiles against the
+  declarations rather than a concrete store is a phase invariant the tasks below hold to, not a condition this one
+  can check at its own close.
 
-### `[ ]` **2.3 Publish the plan, assignment, and observation records under expected-revision checks**
+### `[ ]` **2.3 Publish the plan, assignment, and observation records under their concurrency tokens**
 
-- _Goal:_ A write against a revision that advanced beneath the writer refuses instead of merging or overwriting.
+- _Goal:_ A write against a plan digest or record revision that advanced beneath the writer refuses instead of
+  merging or overwriting.
 
 - _Note:_ The observation record is the delivery-state record `6.1` defines — the same one of the four, not a
   second store. This task provisions its namespace and publication discipline; that task settles its contents.
   Its revision counter is the `stateRevision` the reducer binds.
 
-    - `[ ]` **2.3.a Version-checked publication for the three revision-counted stores**
+    - `[ ]` **2.3.a Digest-checked plan publication and revision-checked mutable stores**
 
         - The shipped operation store already treats a byte-identical republish as a no-op rather than a
           conflict; compose that behavior rather than deciding it again.
 
         - Build `test-first` (one behavior at a time):
-            - A publish naming a stale expected revision refuses with a typed conflict
-            - A publish naming the current revision succeeds and increments it
+            - A first plan publication names an expected current digest of `null`
+            - A successor naming the current plan digest succeeds; a stale digest refuses with a typed conflict
+            - Assignment and observation publication names the current integer revision, succeeds, and increments
+              it; a stale revision refuses with a typed conflict
             - Republishing byte-identical content is idempotent rather than a conflict
             - Two successors for one plan cannot both become current
 
@@ -454,11 +491,18 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 
     - `[ ]` **2.6.a Reverse lookup by repository and head or ref**
 
+        - At v1 repository scope is ambient in the port instance rooted at the current Git common directory, not
+          the review subsystem's per-clone `repositoryId`. A head selector compares an exact object id. A ref
+          selector compares the authoritative stored binding and its recorded observed head, never spelling. A
+          supplied owning-unit pointer selects a candidate directly but remains input to validate, not proof.
+
         - Build `test-first` (one behavior at a time):
             - A head matching a recorded member returns its plan, member, and owning work unit
             - Resolution reads the authoritative binding and never a ref's name or shape
             - An unmatched head returns a negative result rather than guessing
-            - An explicitly supplied owning-unit pointer bypasses the scan
+            - More than one authoritative match refuses as `ambiguous-match`
+            - An explicitly supplied owning-unit pointer bypasses the scan and still validates the plan, member,
+              and selector
 
     - `[ ]` **2.6.b Resolve a unit's existing plan forward through the rename chain**
 
@@ -583,12 +627,12 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - Minting a second plan for a unit that already has one refuses
             - Replacement produces a new revision under the same `planId`, never a second plan
 
-    - `[ ]` **3.3.c Publish against the expected predecessor digest**
+    - `[ ]` **3.3.c Publish against the expected current plan digest**
 
         - Build `test-first` (one behavior at a time):
             - A first publication succeeds with no predecessor
             - A successor names its predecessor's digest and succeeds
-            - A stale expected predecessor refuses
+            - A stale expected current digest refuses
 
 ### `[ ]` **3.4 Render the delivery-plan section into the task list**
 
@@ -1251,7 +1295,7 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
   work unit's artifacts, without reading identity from any ref name
 
 - `[ ]` No delivery record is writable into a work unit's change set, and every mutating write refuses a stale
-  expected revision
+  expected plan digest, assignment revision, observation revision, or assurance predecessor digest as applicable
 
 - `[ ]` A terminal contribution chain is emitted only when membership and tree-exactness both hold, and it
   records review-owned verdict identities without evaluating their conditions

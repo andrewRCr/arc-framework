@@ -167,9 +167,10 @@ per member before cutting, since it is an assessment of shape rather than a meas
 against a concurrent work unit — `ambiguous-active-wu` commit refusals, multiple-candidate session resolution,
 a null session-notes pointer, shadowing advisories at every lifecycle invocation — came from the first slice
 publishing its unit's artifacts to the base in active state. Members 1 through 3 therefore exclude this unit's
-metadata, spec, notes, and task list; member 4 carries them together with archival. The exclusion is stated as an
-invariant that `delivery-stack-topology` will enforce, but obeying it needs no machinery. Its cost is that a
-member reviewer cannot see which tasks the member closes, which the task list's member table substitutes for.
+metadata, spec, notes, and task list, and member 4's implementation-review head excludes them too. The artifacts
+arrive only as member 4's same-PR terminal tail, together with archival. The exclusion is stated as an invariant
+that `delivery-stack-topology` will enforce, but obeying it needs no machinery. Its cost is that a member reviewer
+cannot see which tasks the member closes, which the task list's member table substitutes for.
 
 **Runbook.** Cut each member from the `main` containing its predecessor, target the predecessor's branch, and
 retarget to `main` as the predecessor lands. Close each member with a Tier 3 run at its exact head before opening
@@ -178,6 +179,18 @@ live alongside this one, that reconciliation is the principal running cost of th
 how long the series stays partial rather than with member count alone. Where ARC's own review clearance cannot
 admit a member ref, use an explicitly authorized administrative merge, as the thirteen-slice run is doing; the
 gate's admission of delivery refs is a known open edge and is not a gating consideration here.
+
+Member 4 closes differently at the tail without becoming a fifth member. Publish, test, and request manual hosted
+review of its implementation candidate while the retained control checkout still carries the active lifecycle
+generation and the candidate carries none of those artifacts. Once that implementation candidate is settled,
+enter one attended terminal window: quiesce scratch and member checkouts; persist the exact control/member heads and
+pull-request coordinates; advance the retained control ref so no separate ref exposes the active group; and append
+one atomic same-slug lifecycle transition that deletes the planned materialization, adds the completed archive, and
+regenerates ROADMAP. Push that documentation-only delta to member 4's existing pull request, rerun required hosted
+checks, and explicitly resolve manual-review applicability for the new exact head. Then obtain exact-head admin-merge
+authorization, merge, and retire the work-unit locus and worktree without an intentional session break. Never delete
+a locus record by hand. If the window is interrupted after the lifecycle transition begins, stop and recover from
+the persisted coordinates rather than improvising cleanup.
 
 **This cut becomes a third field-evidence datapoint.** It is the first run authored _before_ implementation
 rather than retrofitted, so it exercises the `from-tasks` shape the two recorded runs could not. Watch for the
