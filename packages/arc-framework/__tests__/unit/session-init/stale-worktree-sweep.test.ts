@@ -9,7 +9,7 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
-import { locusStateFixture } from "../../fixtures/locus-state.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const shipped = new Set(["work-organization-reform"]);
@@ -255,6 +255,33 @@ describe("runStaleWorktreeSweep", () => {
       exec: buildExec({ clean: true, merged: true }),
       readMarker: async () => presentMarker,
       userSurfaceFs: emptyUserSurfaceFs,
+    });
+
+    expect(result.worktrees).toEqual([]);
+  });
+
+  it("does not project retained branched roles from a linked worktree", async () => {
+    const retainedPath = "/wt/retained";
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      locusState: locusStateFixture({
+        rows: [managedWorkUnitRow("work-organization-reform", retainedPath)],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{
+          path: retainedPath,
+          head: "1111111111111111111111111111111111111111",
+          branch: "feat/work-organization-reform",
+          detached: false,
+          primary: false,
+        }],
+      }),
     });
 
     expect(result.worktrees).toEqual([]);

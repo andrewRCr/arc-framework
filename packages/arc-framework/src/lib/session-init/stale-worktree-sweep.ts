@@ -227,7 +227,7 @@ export async function runStaleWorktreeSweep(
     : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
-  const retainedRoleCandidates = scan.ok
+  const retainedRoleCandidates = worktreeIdentity.kind === "primary" && scan.ok
     ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
         if (entry.primary || entry.branch === null) return [];
         const owned = locusWorkUnitAtPath(locusState, entry.path);
