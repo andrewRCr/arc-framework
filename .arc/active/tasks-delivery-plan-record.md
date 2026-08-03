@@ -294,13 +294,10 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 - _Outcome:_ Assignment decisions now have one validated source for later state reduction and reverse lookup, while
   review generations remain monotonic even when their live member binding is absent.
 
-### `[ ]` **2.6 Resolve a plan and member from a bare member checkout**
+### `[x]` **2.6 Resolve a plan and member from a bare member checkout**
 
 - _Goal:_ A session occupying a member ref learns which plan, member, and owning work unit it is on before it
   knows which plan to read, from a checkout carrying none of that unit's artifacts.
-
-- _Note:_ Stated as a query contract rather than a storage choice — a scan over the assignment namespace at v1,
-  an ordinary indexed query under a records-canonical tier, with callers unchanged either way.
 
     - `[x]` **2.6.a Reverse lookup by repository and head or ref**
 
@@ -314,19 +311,14 @@ namespace-closed and lives under the scripts tree, which the library tree does n
           transitions, follows unique renames transitively, treats terminal and cyclic histories as safe absence,
           and preserves ambiguous, corrupt, unreachable, and unestablished evidence as indeterminate.
 
-    - `[ ]` **2.6.c Prove lookup from an artifact-free linked worktree**
+    - `[x]` **2.6.c Prove lookup from an artifact-free linked worktree**
 
-        - Exercise the real Git-common adapter rather than an in-memory port: publish from one checkout, then
-          resolve from a linked worktree on a bare member ref whose tree carries none of the owning unit's
-          lifecycle artifacts. Pin rename evidence to an established ref so the test covers the authority boundary
-          as well as the pure traversal.
+        - Real-Git integration coverage now publishes records from a primary checkout and resolves exact,
+          ambiguous, unmatched, renamed, cyclic, and unestablished cases from an artifact-free linked worktree
+          against explicitly established retirement evidence.
 
-        - Build `test-first` (one behavior at a time):
-            - Exact-head and authoritative-ref selectors resolve the same plan, member, and owning work unit from
-              the sibling checkout without reading ref spelling
-            - An ambiguous authoritative binding refuses and an unmatched selector returns the negative result
-            - A reachable rename chain adopts the existing plan, while an unestablished ref returns indeterminate
-            - Cyclic and ambiguous rename histories take their specified non-match and indeterminate arms
+- _Outcome:_ Repository-common assignment and plan queries now recover member-session position without lifecycle
+  artifacts or branch-name inference, while only authoritative absence permits a caller to mint a new plan.
 
 ## **Phase 3:** The authoring spine and the plan projection
 
