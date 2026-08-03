@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   deriveDeliverableId,
+  deriveMemberAssuranceSubjectId,
+  deriveSeamAssuranceSubjectId,
   deriveUniqueDeliverableIds,
   resolveDeliveryPlanId,
 } from "../../../src/lib/delivery/identity.js";
@@ -58,5 +60,31 @@ describe("deliverable identity", () => {
   it("refuses duplicate chunk keys before deriving a member identity sequence", () => {
     expect(() => deriveUniqueDeliverableIds(firstPlanId, ["record-substrate", "record-substrate"]))
       .toThrow("duplicate chunk key");
+  });
+});
+
+describe("assurance-subject identity", () => {
+  it("derives stable and distinct member and seam subjects from tagged preimages", () => {
+    const deliverableId = deriveDeliverableId(firstPlanId, "record-substrate");
+    const expectedMember = canonicalDigest({
+      domain: "arc.delivery.assurance-subject-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      subjectKind: "member",
+      planId: firstPlanId,
+      deliverableId,
+    });
+    const expectedSeam = canonicalDigest({
+      domain: "arc.delivery.assurance-subject-id/v1",
+      schemaVersion: 1,
+      semanticsVersion: "delivery-plan/v1",
+      subjectKind: "seam",
+      planId: firstPlanId,
+      seamKey: "record-substrate",
+    });
+
+    expect(deriveMemberAssuranceSubjectId(firstPlanId, deliverableId)).toBe(expectedMember);
+    expect(deriveSeamAssuranceSubjectId(firstPlanId, "record-substrate")).toBe(expectedSeam);
+    expect(expectedSeam).not.toBe(expectedMember);
   });
 });

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { canonicalDigest, type CanonicalDigest } from "../kernel/index.js";
 import {
+  DeliveryAssuranceSubjectIdPreimageSchema,
   DeliveryDeliverableIdPreimageSchema,
   DeliveryPlanIdSchema,
   type DeliveryPlanId,
@@ -44,4 +45,31 @@ export function deriveUniqueDeliverableIds(
     throw new Error("duplicate chunk key");
   }
   return chunkKeys.map((chunkKey) => deriveDeliverableId(planId, chunkKey));
+}
+
+/** Derive the assurance subject for one stable delivery member. */
+export function deriveMemberAssuranceSubjectId(
+  planId: string,
+  deliverableId: string,
+): CanonicalDigest {
+  return canonicalDigest(DeliveryAssuranceSubjectIdPreimageSchema.parse({
+    domain: "arc.delivery.assurance-subject-id/v1",
+    schemaVersion: 1,
+    semanticsVersion: "delivery-plan/v1",
+    subjectKind: "member",
+    planId,
+    deliverableId,
+  }));
+}
+
+/** Derive the assurance subject for one stable cross-member seam. */
+export function deriveSeamAssuranceSubjectId(planId: string, seamKey: string): CanonicalDigest {
+  return canonicalDigest(DeliveryAssuranceSubjectIdPreimageSchema.parse({
+    domain: "arc.delivery.assurance-subject-id/v1",
+    schemaVersion: 1,
+    semanticsVersion: "delivery-plan/v1",
+    subjectKind: "seam",
+    planId,
+    seamKey,
+  }));
 }
