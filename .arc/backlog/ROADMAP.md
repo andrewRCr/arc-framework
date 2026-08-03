@@ -18,9 +18,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`   | delivery-plan-record          | P1       | andrew | —          | chunked-delivery          |
 | `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
 | `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
+| `Planning` | errand-transient-lifecycle    | P1       | andrew | —          | —                         |
 | `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                         |
 | `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
 | `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                         |
+| `Planning` | merge-readiness-control       | P2       | andrew | —          | —                         |
 
 ## Ready
 
@@ -34,7 +36,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-finalization-scaling     | P1       | andrew | —          | decompose-core-hardening      |
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
 | delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
-| errand-transient-lifecycle         | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
 | roadmap-tooling                    | P1       | andrew | —          | —                             |
 | wu-lifecycle-state-model           | P1       | andrew | —          | —                             |
@@ -54,7 +55,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | goal-aware-direction               | P2       | andrew | —          | —                             |
 | graduation-cleanup                 | P2       | andrew | —          | —                             |
 | knowledge-architecture             | P2       | andrew | —          | —                             |
-| merge-readiness-control            | P2       | andrew | —          | —                             |
 | operational-advisory-registers     | P2       | andrew | —          | —                             |
 | operational-state-docs             | P2       | andrew | —          | —                             |
 | plan-segmentation                  | P2       | andrew | —          | —                             |
