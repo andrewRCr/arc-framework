@@ -51,6 +51,7 @@ const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*
 const SECTION_HEADING_RE = /^##\s+/u;
 const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
 const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
+const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
 const FENCE_RE = /^ {0,3}(?<run>`{3,}|~{3,})(?<rest>.*)$/u;
 
 interface OpenFence {
@@ -213,8 +214,7 @@ function parseTaskBody(
 function hasTaskIdLikePrefix(body: string): boolean {
   const trimmed = body.trim();
   const bold = /^\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u.exec(trimmed);
-  const candidate = (bold?.groups?.body ?? trimmed).split(/\s+/u, 1)[0];
-  return candidate !== undefined && ParentTaskIdSchema.safeParse(candidate).success;
+  return TASK_ID_PREFIX_RE.test(bold?.groups?.body ?? trimmed);
 }
 
 function markerFromMatch(value: string | undefined): TaskMarker {
