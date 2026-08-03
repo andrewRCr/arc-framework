@@ -124,6 +124,17 @@ describe("buildDeliveryTaskInventory", () => {
     expect(withGoal.inventory.inventoryDigest).toBe(withoutGoal.inventory.inventoryDigest);
   });
 
+  it.each([
+    ["missing", []],
+    ["empty", ["- _Goal:_"]],
+    ["duplicate", ["- _Goal:_ First intent.", "", "- _Goal:_ Second intent."]],
+  ] as const)("refuses an implementation parent with a %s Goal", (_kind, goalLines) => {
+    expect(buildDeliveryTaskInventory(taskList(goalLines))).toEqual({
+      status: "refused",
+      reason: "task-list-malformed",
+    });
+  });
+
   it("refuses when the final phase is not titled Verification", () => {
     const result = buildDeliveryTaskInventory(taskList([
       "- _Goal:_ Bind implementation intent.",

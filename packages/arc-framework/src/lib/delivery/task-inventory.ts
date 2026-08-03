@@ -90,7 +90,20 @@ export function buildDeliveryTaskInventory(content: string): DeliveryTaskInvento
     return { status: "refused", reason: "verification-task-ambiguous" };
   }
 
-  const implementation = extractTaskGoalInventory(content)
+  const goalInventory = extractTaskGoalInventory(content);
+  const implementationParents = scan.events.filter(
+    (event): event is Extract<typeof event, { type: "parent" }> => (
+      event.type === "parent" && event.line < finalPhase.line
+    ),
+  );
+  if (implementationParents.some((parent) => {
+    const goals = goalInventory.filter((entry) => entry.taskId === parent.item.id);
+    return goals.length !== 1 || goals[0]?.goal === "";
+  })) {
+    return { status: "refused", reason: "task-list-malformed" };
+  }
+
+  const implementation = goalInventory
     .filter((entry) => entry.taskId !== verificationTask.id)
     .map(({ taskId, semanticDigest }) => ({ taskId, semanticDigest }));
   return {
