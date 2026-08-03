@@ -240,6 +240,33 @@ describe("arc locus mutation commands", () => {
 
   });
 
+  it("abandons an identity-backed primary Errand from its confirmed self-held session", async () => {
+    const slug = "confirmed-primary";
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+
+    const cli = [process.execPath, CLI_PATH].map(shellQuote).join(" ");
+    const resolved = await runAnchoredCommands([
+      `open_result=$(${cli} errand open ${slug} --json); printf '%s\\n' "$open_result"`,
+      "record_id=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).recordId)' \"$open_result\")",
+      "git switch main >/dev/null",
+      `${cli} locus resolve "$record_id" --action abandon --confirm-no-live-session --json`,
+    ], repository);
+
+    expect(resolved.exitCode, JSON.stringify(resolved)).toBe(0);
+    expect(resolved.results).toHaveLength(2);
+    expect(resolved.results[1]).toMatchObject({
+      outcome: "applied",
+      operation: "locus-resolve",
+      recordId: null,
+      leaseId: null,
+    });
+    expect(await git(repository, ["branch", "--show-current"])).toBe("main");
+    expect(await git(repository, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
+    await expect(git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+      .rejects.toThrow();
+  });
+
   it("releases an identity-retired primary Errand from its self-held session", async () => {
     const slug = "retired-primary";
     remote = await createBareRemote(repository);

@@ -321,10 +321,11 @@ async function cleanupResidue(
     };
   }
   const row = target.row;
-  if (row.lease?.state === "live") {
+  const confirmedNoLiveSession = options.confirmedNoLiveSession;
+  if (row.lease?.state === "live" && (!row.lease.selfHeld || !confirmedNoLiveSession)) {
     return { kind: "refused", reason: "lease-live", message: "The Errand session locus still has a live lease." };
   }
-  if (row.lease?.state === "unknown") {
+  if (row.lease?.state === "unknown" && !confirmedNoLiveSession) {
     return { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
   }
   if (row.checkoutPath === null || row.recordId === null) {
@@ -340,7 +341,7 @@ async function cleanupResidue(
     pathFlavor,
     row: { ...row, checkoutPath, recordId },
     branch: record.branch,
-    confirmedLeaseRelease: false,
+    confirmedLeaseRelease: row.lease !== null && row.lease.state !== "dead",
     validateLockedRecord: (locked) => locked.recordId === recordId
       && locked.checkoutPath === checkoutPath
       && locked.role.subject.kind === "errand"
@@ -348,7 +349,13 @@ async function cleanupResidue(
       && locked.role.subject.claimId === record.claimId
       && locked.lease?.leaseId === row.lease?.leaseId,
     prepareCheckout: async () => {
-      const clean = await cleanExactCheckout(options.exec, checkoutPath, record.branch, expectedHead.head);
+      const clean = await proveCleanupCheckout(
+        options.exec,
+        checkoutPath,
+        record.branch,
+        expectedHead.head,
+        row.primary === true ? options.base : null,
+      );
       if (clean !== null) return clean;
       if (row.primary === true) {
         try {
@@ -432,19 +439,26 @@ function exactResidue(
   return { kind: "ready", row: matches[0] ?? null };
 }
 
-async function cleanExactCheckout(
+async function proveCleanupCheckout(
   exec: GitExec,
   checkoutPath: string,
   branch: string,
   expectedHead: string,
+  baseBranch: string | null,
 ): Promise<Extract<AbandonStepResult, { kind: "refused" | "error" }> | null> {
   try {
     const currentBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
     const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
     const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-    return currentBranch === branch && head === expectedHead && dirty === ""
+    const exactErrandCheckout = currentBranch === branch && head === expectedHead;
+    const alreadyOnBase = baseBranch !== null && currentBranch === baseBranch;
+    return dirty === "" && (exactErrandCheckout || alreadyOnBase)
       ? null
-      : { kind: "refused", reason: "preservation-unproven", message: "Errand checkout is dirty, moved, or off branch." };
+      : {
+          kind: "refused",
+          reason: "preservation-unproven",
+          message: "Errand checkout is dirty, moved, or outside its Errand and base branches.",
+        };
   } catch (error) {
     return { kind: "error", message: errorMessage(error) };
   }
