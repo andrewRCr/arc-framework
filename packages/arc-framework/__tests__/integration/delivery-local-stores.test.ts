@@ -174,6 +174,7 @@ describe("repository delivery record stores", () => {
     const publisher: GitCommonStatePublisher = {
       read: async () => { throw forbidden; },
       list: async () => { throw forbidden; },
+      snapshot: async () => { throw forbidden; },
       update: async () => { throw forbidden; },
     };
     const plans = new RepositoryDeliveryPlanStore(publisher, planCodec);
@@ -411,6 +412,57 @@ describe("repository delivery record stores", () => {
     ]);
   });
 
+  it("resolves assignments from one locked namespace snapshot", async () => {
+    let markSecondWriteStarted: (() => void) | undefined;
+    let releaseSecondWrite: (() => void) | undefined;
+    const secondWriteStarted = new Promise<void>((resolve) => { markSecondWriteStarted = resolve; });
+    const holdSecondWrite = new Promise<void>((resolve) => { releaseSecondWrite = resolve; });
+    const records = await stores({
+      writeFile: async (path, content) => {
+        if (path.endsWith(`${OTHER_ASSIGNMENT_PLAN_ID}.json`)) {
+          markSecondWriteStarted?.();
+          await holdSecondWrite;
+        }
+        await atomicWriteFile(path, content);
+      },
+    });
+    await records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1), 0);
+
+    let markListed: (() => void) | undefined;
+    let markSnapshotStarted: (() => void) | undefined;
+    const listed = new Promise<void>((resolve) => { markListed = resolve; });
+    const snapshotStarted = new Promise<void>((resolve) => { markSnapshotStarted = resolve; });
+    const publisher = {
+      read: records.publisher.read.bind(records.publisher),
+      update: records.publisher.update.bind(records.publisher),
+      list: async (location: Parameters<GitCommonStatePublisher["list"]>[0]) => {
+        const entries = await records.publisher.list(location);
+        markListed?.();
+        return entries;
+      },
+      snapshot: async (location: Parameters<GitCommonStatePublisher["list"]>[0]) => {
+        markSnapshotStarted?.();
+        return records.publisher.snapshot(location);
+      },
+    };
+    const store = new RepositoryDeliveryAssignmentStore(publisher);
+    const secondPublication = records.assignments.publish(
+      OTHER_ASSIGNMENT_PLAN_ID,
+      assignment(1, { planId: OTHER_ASSIGNMENT_PLAN_ID }),
+      0,
+    );
+    await secondWriteStarted;
+
+    const resolution = store.resolveMember({
+      selector: { kind: "head", objectId: "a".repeat(40) },
+    });
+    await Promise.race([listed, snapshotStarted]);
+    releaseSecondWrite?.();
+
+    await expect(secondPublication).resolves.toMatchObject({ status: "ok" });
+    await expect(resolution).resolves.toEqual({ status: "refused", reason: "ambiguous-match" });
+  });
+
   it("allows only one concurrent observation successor under the namespace lock", async () => {
     const records = await stores();
     await records.observations.publish(PLAN_ID_1, { planId: PLAN_ID_1, body: "first" }, 0);
@@ -459,6 +511,53 @@ describe("repository delivery record stores", () => {
       status: "ok",
       value: [first, second],
     });
+  });
+
+  it("enumerates plans from one locked namespace snapshot", async () => {
+    let markSecondWriteStarted: (() => void) | undefined;
+    let releaseSecondWrite: (() => void) | undefined;
+    const secondWriteStarted = new Promise<void>((resolve) => { markSecondWriteStarted = resolve; });
+    const holdSecondWrite = new Promise<void>((resolve) => { releaseSecondWrite = resolve; });
+    const records = await stores({
+      writeFile: async (path, content) => {
+        if (path.endsWith(`${PLAN_ID_B}.json`)) {
+          markSecondWriteStarted?.();
+          await holdSecondWrite;
+        }
+        await atomicWriteFile(path, content);
+      },
+    });
+    const first = plan(PLAN_ID_A, "first");
+    const second = plan(PLAN_ID_B, "second");
+    await records.plans.publishCurrent(PLAN_ID_A, first, null);
+
+    let markListed: (() => void) | undefined;
+    let markSnapshotStarted: (() => void) | undefined;
+    const listed = new Promise<void>((resolve) => { markListed = resolve; });
+    const snapshotStarted = new Promise<void>((resolve) => { markSnapshotStarted = resolve; });
+    const publisher = {
+      read: records.publisher.read.bind(records.publisher),
+      update: records.publisher.update.bind(records.publisher),
+      list: async (location: Parameters<GitCommonStatePublisher["list"]>[0]) => {
+        const entries = await records.publisher.list(location);
+        markListed?.();
+        return entries;
+      },
+      snapshot: async (location: Parameters<GitCommonStatePublisher["list"]>[0]) => {
+        markSnapshotStarted?.();
+        return records.publisher.snapshot(location);
+      },
+    };
+    const plans = new RepositoryDeliveryPlanStore(publisher, planCodec);
+    const secondPublication = records.plans.publishCurrent(PLAN_ID_B, second, null);
+    await secondWriteStarted;
+
+    const enumeration = plans.enumerateCurrent();
+    await Promise.race([listed, snapshotStarted]);
+    releaseSecondWrite?.();
+
+    await expect(secondPublication).resolves.toMatchObject({ status: "ok" });
+    await expect(enumeration).resolves.toEqual({ status: "ok", value: [first, second] });
   });
 
   it("distinguishes malformed payloads from addressed-plan identity mismatches", async () => {
@@ -827,6 +926,7 @@ describe("repository delivery record stores", () => {
       read: records.publisher.read.bind(records.publisher),
       update: records.publisher.update.bind(records.publisher),
       list: async () => { throw new Error("assignment namespace scan should be bypassed"); },
+      snapshot: async () => { throw new Error("assignment namespace scan should be bypassed"); },
     };
     const store = new RepositoryDeliveryAssignmentStore(noScanPublisher);
 

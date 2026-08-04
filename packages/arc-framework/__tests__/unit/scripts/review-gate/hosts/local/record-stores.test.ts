@@ -13,6 +13,7 @@ import {
 function publisher(raw: string): GitCommonStatePublisher {
   return {
     list: async () => [],
+    snapshot: async () => [],
     read: async () => raw,
     update: async (_namespace, _recordName, update) => (await update(raw)).result,
   };

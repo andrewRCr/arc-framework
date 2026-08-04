@@ -47,6 +47,11 @@ export interface GitCommonStateEntry {
   readonly kind: "file" | "other";
 }
 
+/** One namespace entry read while the namespace publication lock is held. */
+export type GitCommonStateSnapshotEntry =
+  | { readonly name: string; readonly kind: "file"; readonly content: string }
+  | { readonly name: string; readonly kind: "other" };
+
 /** Locked read/modify/publish boundary reusable by repository-common state stores. */
 export interface GitCommonStatePublisher {
   update<T>(
@@ -57,6 +62,7 @@ export interface GitCommonStatePublisher {
   ): Promise<T>;
   read(location: GitCommonStateLocation, recordName: string): Promise<string | null>;
   list(location: GitCommonStateLocation): Promise<readonly GitCommonStateEntry[]>;
+  snapshot(location: GitCommonStateLocation): Promise<readonly GitCommonStateSnapshotEntry[]>;
 }
 
 function parseAddress(location: unknown, recordName: string): GitCommonStateLocation {
@@ -107,6 +113,24 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
     return entries
       .filter((entry) => !entry.name.startsWith("."))
       .map((entry) => ({ name: entry.name, kind: entry.isFile() ? "file" as const : "other" as const }));
+  }
+
+  async snapshot(location: GitCommonStateLocation): Promise<readonly GitCommonStateSnapshotEntry[]> {
+    const address = GitCommonStateLocationSchema.parse(location);
+    const root = await this.namespaceRoot(address);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
+    try {
+      const entries = (await readdir(root, { withFileTypes: true }))
+        .filter((entry) => !entry.name.startsWith("."));
+      return await Promise.all(entries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
+        entry.isFile()
+          ? { name: entry.name, kind: "file", content: await readFile(join(root, entry.name), "utf8") }
+          : { name: entry.name, kind: "other" }
+      )));
+    } finally {
+      await releaseAdvisoryLock(lock);
+    }
   }
 
   async update<T>(

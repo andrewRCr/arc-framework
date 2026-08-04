@@ -265,16 +265,16 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
   }
 
   async enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>> {
-    const entries = await this.publisher.list(PLAN_LOCATION);
+    const entries = await this.publisher.snapshot(PLAN_LOCATION);
     const plansById = new Map<string, TPlan>();
     for (const entry of entries) {
       if (entry.kind !== "file" || !/^[a-z0-9][a-z0-9.-]*\.json$/u.test(entry.name)) {
         return { status: "refused", reason: "namespace-corrupt" };
       }
       const planId = entry.name.slice(0, -".json".length);
-      const current = await this.readCurrent(planId);
+      const current = decodeRecord(entry.content, planId, this.codec);
       if (current.status === "refused") return current;
-      if (current.value === null || plansById.has(planId)) {
+      if (plansById.has(planId)) {
         return { status: "refused", reason: "namespace-corrupt" };
       }
       plansById.set(planId, current.value);
@@ -352,7 +352,7 @@ implements DeliveryAssignmentStore<DeliveryAssignmentsV1> {
       return { status: "ok", value: matches[0] ?? null };
     }
 
-    const entries = await this.publisher.list(ASSIGNMENT_LOCATION);
+    const entries = await this.publisher.snapshot(ASSIGNMENT_LOCATION);
     const matches: DeliveryMemberResolution<DeliveryAssignmentsV1>[] = [];
     for (const entry of entries) {
       const planId = entry.name.endsWith(".json")
@@ -361,9 +361,13 @@ implements DeliveryAssignmentStore<DeliveryAssignmentsV1> {
       if (entry.kind !== "file" || !DeliveryPlanIdSchema.safeParse(planId).success) {
         return { status: "refused", reason: "namespace-corrupt" };
       }
-      const candidate = await this.read(planId);
+      const candidate = decodeRevisionedRecord(
+        entry.content,
+        planId,
+        ASSIGNMENT_SEMANTICS,
+        DeliveryAssignmentsV1Codec,
+      );
       if (candidate.status === "refused") return candidate;
-      if (candidate.value === null) return { status: "refused", reason: "namespace-corrupt" };
       matches.push(...matchingMembers(candidate.value.value, input.selector));
       if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
     }
