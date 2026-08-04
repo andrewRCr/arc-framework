@@ -100,6 +100,31 @@ describe("delivery assignment record", () => {
     expect(isDeliveryAssignmentSuccessor(current, advanced)).toBe(true);
   });
 
+  it("requires every active member generation to advance when the terminal target changes", () => {
+    const current = DeliveryAssignmentsV1Schema.parse(assignment());
+    const rebound = DeliveryAssignmentsV1Schema.parse({
+      ...current,
+      terminalTarget: {
+        ...current.terminalTarget,
+        destinationRef: "refs/heads/release",
+      },
+    });
+    const advanced = DeliveryAssignmentsV1Schema.parse({
+      ...rebound,
+      members: rebound.members.map((member) => ({
+        ...member,
+        materializationGeneration: member.materializationGeneration + 1,
+      })),
+      generationHighWater: rebound.generationHighWater.map((mark) => ({
+        ...mark,
+        generation: mark.generation + 1,
+      })),
+    });
+
+    expect(isDeliveryAssignmentSuccessor(current, rebound)).toBe(false);
+    expect(isDeliveryAssignmentSuccessor(current, advanced)).toBe(true);
+  });
+
   it("requires a member generation to advance when its change request is rebound", () => {
     const current = DeliveryAssignmentsV1Schema.parse(assignment());
     const rebound = DeliveryAssignmentsV1Schema.parse({

@@ -117,9 +117,11 @@ export const DeliveryAssignmentsV1Codec: DeliveryPayloadCodec<DeliveryAssignment
 function materializationBinding(
   member: DeliveryMemberAssignmentV1,
   host: DeliveryAssignmentsV1["host"],
+  terminalTarget: DeliveryAssignmentsV1["terminalTarget"],
 ): string {
   return canonicalize({
     host,
+    terminalTarget,
     deliverableId: member.deliverableId,
     assuranceSubjectId: member.assuranceSubjectId,
     ref: member.ref,
@@ -153,7 +155,8 @@ export function isDeliveryAssignmentSuccessor(
     if (previousMark === undefined) continue;
     const previous = currentMembers.get(member.assuranceSubjectId);
     if (previous === undefined
-      || materializationBinding(previous, current.host) !== materializationBinding(member, proposed.host)) {
+      || materializationBinding(previous, current.host, current.terminalTarget)
+        !== materializationBinding(member, proposed.host, proposed.terminalTarget)) {
       if (member.materializationGeneration <= previousMark) return false;
     } else if (member.materializationGeneration !== previous.materializationGeneration) {
       return false;
