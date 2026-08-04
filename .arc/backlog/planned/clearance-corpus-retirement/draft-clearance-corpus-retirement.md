@@ -11,7 +11,7 @@
 
 `merge-readiness-control` replaces the `arc-cleared` required-status merge gate with a draft-first pull-request
 lifecycle driven by `arc merge lock` verbs, and removes the required-status producer, this repository's CI
-workflow, and its ruleset check. It deliberately leaves the **documentation** surface standing.
+workflow, and the base-branch requirement on the status. It deliberately leaves the **documentation** surface standing.
 
 The split is by review burden. A single change set ran past this project's pull-request size target; the
 mechanism half carries essentially all of the review burden, while this half is largely whole-file deletion and
@@ -49,11 +49,14 @@ untouched throughout.
    historical record, banner-marked as retired machinery; the coupling-audit corpus manifest
    (`packages/arc-framework/audits/coupling-blast-radius/manifest.json`, which lists the deleted
    `arc-clearance.yml`) is digest-pinned historical audit input — retain untouched.
-6. **Installed script:** `confirm-live-change-pair.sh` (consumed only by the clearance workflow) with its unit
-   test and README entries, plus the then-dangling `LIVE_PAIR_SCRIPT` export in
-   `__tests__/helpers/run-script.ts` — its sole consumer is that removed test; the rest of the helper stays.
-7. **Recipe and manifests:** `init-recipe.json` drops the `arc-clearance.yml` template, the
-   `setup-arc-clearance.md` entry, and the `confirm-live-change-pair.sh` entry;
+6. **Installed script — check before removing:** `confirm-live-change-pair.sh` was originally scoped here as
+   consumed only by the clearance workflow. `merge-readiness-control` falsifies that: the auto-merge lane's
+   extracted attestation gate still shells out to it, and that gate's context is a required base-branch check,
+   so removing the script would fail a required check on every planning-lane pull request. Confirm the live
+   consumer set before touching it; if the gate still uses it, the script and its unit test stay and only the
+   `LIVE_PAIR_SCRIPT` export question remains open.
+7. **Recipe and manifests:** `init-recipe.json` drops the `arc-clearance.yml` template and the
+   `setup-arc-clearance.md` entry — and the `confirm-live-change-pair.sh` entry only if item 6 clears it;
    `system/.internal/manifest.json` and the scripts `README.md` entries regenerate or excise with the file
    removals.
 8. **Coupled test updates:** `pr-open-extensions.test.ts` assertions on TECHNICAL-OVERVIEW's `arc-cleared`

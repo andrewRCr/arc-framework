@@ -39,8 +39,8 @@ authorization and the unlocked window is momentary.
 2. The control requires zero host-side setup — no workflow, no required check, no ruleset — so enabling it is a
    config edit against machinery the CLI already ships.
 3. The `arc-cleared` **mechanism** stops existing: the required-status producer inside the CLI's unlock path,
-   this repository's CI workflow, and its ruleset check. The documentation surface that describes it retires in
-   the dependent follow-on (D6a).
+   this repository's CI workflow, and the base-branch requirement on the status. The documentation surface that
+   describes it retires in the dependent follow-on (D6a).
 4. Exact-head merge authorization survives unchanged as an independent invariant, regardless of which host
    control is selected.
 5. ARC's platform-agnostic posture is preserved: the control is a config axis with a `none` degenerate mode,
@@ -52,8 +52,13 @@ authorization and the unlocked window is momentary.
 - Host adapters for GitLab / Gitea / Forgejo / Bitbucket — draft-family portability is recorded, not built.
 - Detection machinery for out-of-lane PRs — the fail-open installation boundary is accepted and priced (§
   Proposed Design D5).
-- Changing the auto-merge grooming lane — its control shape (classifier gate, `--match-head-commit` arming,
-  repo auto-merge setting) survives unchanged.
+- Restructuring `integrate-work-unit.md` / `run-errand.md` beyond the fire-site substitution — the one
+  exception is D3's provenance-update site, where the integration workflow's review-record replacement moves
+  ahead of the release, because a released pull request that a human may open must already carry the record.
+- Rebuilding the auto-merge grooming lane's landing mechanics — its `--match-head-commit` arming and repo
+  auto-merge setting survive unchanged. Its server-side gate does not survive as a _veto_: retiring the
+  clearance status necessarily converts it to attestation (D5), which is a decision this work unit makes rather
+  than a constraint it inherits.
 - Restructuring `integrate-work-unit.md` / `run-errand.md` — this WU performs only the minimal substitution: the
   clearance verb invocation is replaced verb-for-verb at its existing site, and one resolve call is added at each
   PR-open site. No step is reordered, merged, or resequenced; deeper restructuring lands with the owning work
@@ -91,12 +96,19 @@ Verified mechanics (sourced research pass plus fixture PR #442, 2026-08-03):
 - Project-only, runtime setting. **The lock verbs (D3) are its sole behavioral consumer** — `arc config status`
   displays it, and no workflow prose reads it, compares it, or branches on it. Changing it is a direct config
   edit, no reconfigure.
-- `draft` enables the draft-first lifecycle for lock-bearing lanes (D3). Enabling is a config edit — the
-  mechanism needs no host-side machinery.
+- `draft` enables the draft-first lifecycle for every pull request ARC's lifecycle lanes open (D3). Enabling is
+  a config edit — the mechanism needs no host-side machinery.
 - `none` is the degenerate mode: interlocks plus harness permissions only, for hosts without a draft state and
   for the unverified Free-plan-private-repo residual.
+- **The lock's own read fails closed.** The shared settings reader is deliberately fail-soft — it degrades an
+  unreadable config to a warning and substitutes defaults, and validates enums for a short hand-maintained key
+  list only. Consumed that way, `merge.lock` would resolve to `none` whenever the config could not be read,
+  silently disabling the control. The lock verbs therefore resolve the key strictly: absent is the documented
+  `none` default, while unreadable or out-of-domain is `blocked / stop`.
 - Implementation footprint: register the key in the config catalog (`src/lib/config/schema.ts`, enum
-  `draft | none`, default `none`) so `arc config status` exposes it and `arc config validate` accepts it; ship
+  `draft | none`, default `none`) so `arc config status` exposes it and `arc config validate` accepts it — the
+  validate surface renders from its own hand-maintained key order and needs its own entry, not just the catalog
+  one; ship
   the key in the `arc-config.yml` template (package source and `.arc/` copies per the sync rule); document the
   axis in `strategy-configurability-architecture.md` (project-only `merge.*` classification, runtime-settings
   list); load it in the lock verbs' resolution path (D3). Config-field tests ride the existing coverage; the
@@ -107,21 +119,27 @@ beside `merge.strategy`. The verb namespace names where the control operates (D9
 
 ### D3. Lifecycle touchpoints — typed verb contract
 
-The lock's workflow surface is four touchpoints plus one transition. Each is a **fire site** at which the
-workflow invokes a lock verb and dispatches on its typed action — the same shape the retired clearance step
-already used (`arc review unlock -` → `dispatched / await-clearance`). No workflow prose evaluates
-`merge.lock`, lane membership, or PR draft state; the CLI computes the disposition and the workflow follows
-only the returned action.
+The lock's workflow surface is five **fire sites**, four of which invoke a lock verb and dispatch on its typed
+action — the same shape the retired clearance step already used (`arc review unlock -` →
+`dispatched / await-clearance`). No workflow prose evaluates `merge.lock` or reads live lock state; the CLI
+computes the disposition and the workflow follows only the returned action.
 
-**Three verbs, named for the transition.** Which transition a site performs is fixed by the site itself —
-triage can only lock, the ready flip can only release, escalation can only lock — so the verb name carries
-that information rather than a parameter. One call per site, and each invocation says what it does when read
-in isolation. `resolve` covers the one site that is genuinely a query: the pre-open call, where no pull
-request exists to act on.
+**Every lock-bearing pull request opens locked, on both lanes.** The alternative — opening the errand grooming
+lane unlocked because it expects to land unreviewed — is not available: the merge lane is deliberately
+undetermined at PR-open, and `run-errand` says so in as many words at its pre-PR stage. It first resolves two
+steps later, after the routed review settles. So neither the workflow nor the verb can classify the lane at the
+moment the pull request is created, and locking is the fail-closed answer. The grooming lane then releases
+before it arms auto-merge — which it must do regardless, since auto-merge cannot be armed on a locked pull
+request (D1).
+
+**Three verbs, named for the transition.** Which transition a site performs is fixed by the site itself — a
+release site can only release, a re-lock site can only lock — so the verb name carries that information rather
+than a parameter. One call per site, and each invocation says what it does when read in isolation. `resolve`
+covers the one site that is genuinely a query: the pre-open call, where no pull request exists to act on.
 
 ```text
 arc merge lock resolve -
-  input:  treeRoot, vehicle
+  input:  treeRoot
   action: locked / open-locked · none / open-plain · blocked / stop
 
 arc merge lock hold -
@@ -133,30 +151,35 @@ arc merge lock release -
   action: released / proceed · no-lock / none · blocked / stop
 ```
 
-Each verb reads the rest itself: `merge.lock`, the vehicle's lane, live PR draft state, open findings, and
-lifecycle readiness. `no-lock / none` is the ordinary answer under `merge.lock: none`, on a non-lock-bearing
-lane, or when the pull request already holds the requested state — so a workflow calls unconditionally and
-dispatches, never testing whether the call applies.
+`resolve` takes no vehicle because no vehicle-dependent behavior survives the open-locked rule above — every
+lock-bearing pull request opens the same way, and the lane that would have differentiated them is not knowable
+there. `hold` and `release` carry the vehicle because the readiness evaluation consumes it.
+
+Each verb reads the rest itself: `merge.lock`, live lock state, and lifecycle readiness. `no-lock / none` is
+the ordinary answer under `merge.lock: none` or when the pull request already holds the requested state — so a
+workflow calls unconditionally and dispatches, never testing whether the call applies.
 
 **The fire sites:**
 
-- **draft-open** — `resolve`, immediately before `gh pr create`, on both lanes. It returns
-  `locked / open-locked` for a lock-bearing lane under `merge.lock: draft` — work-unit integration PRs, and
-  Errand PRs expecting a routed review — and `none / open-plain` otherwise, which is how create-and-land
-  grooming PRs (the auto-merge lane) stay unlocked without the workflow classifying the lane itself. The action
-  selects whether `--draft` is passed; nothing else about the creation call changes.
+- **open-locked** — `resolve`, immediately before `gh pr create`, on both lanes and both vehicle kinds. Under
+  `merge.lock: draft` it returns `locked / open-locked`; under `none`, `none / open-plain`. The action selects
+  whether the pull request is created locked; nothing else about the creation call changes.
 - **provenance-update** — the PR-body provenance update (review passes run, finding counts, triage identity)
   lands **before** the release, so a human reviewer opens onto a complete "what has been done" view. Prose
   ordering only; no verb call.
-- **ready-flip** — `release`, at the site the retired unlock invocation already occupies. The release always
-  rides an existing gate, never floats free. In solo flow that gate is explicit merge authorization, and the
-  release opens the terminal sequence (D4). Where the change instead goes to a human — the errand reviewed
-  lane's hand-off for owner review, and team flow at the agentic-triage-complete boundary riding the triage
+- **release** — at the site the retired unlock invocation already occupies. The release always rides an
+  existing gate, never floats free. In solo flow that gate is explicit merge authorization, and the release
+  opens the terminal sequence (D4). Where the change instead goes to a human — the errand reviewed lane's
+  hand-off for owner review, and team flow at the agentic-triage-complete boundary riding the triage
   disposition approval — the same verb fires at the same site, and the release is the review handoff.
+- **grooming-release** — `release` on the errand auto-merge lane, immediately before it arms auto-merge. Not a
+  concession to the open-locked rule but a structural requirement: auto-merge cannot be armed on a locked pull
+  request. It rides the lane action's existing gate.
 - **re-lock** — `hold`, when review surfaces findings after a release.
-- **re-lock-on-escalation** — `hold`, where the lane classifier reruns immediately before the auto-merge lane
-  arms. `planning → reviewed` escalation is one-way, and a PR that opened unlocked on the grooming lane must
-  convert on that reroute, before the escalated change re-enters the reviewed path.
+
+There is no escalation fire site. A `planning → reviewed` reroute would have needed one only if the grooming
+lane had opened unlocked; under the open-locked rule that pull request is still locked, so the escalation needs
+no transition at all.
 
 `hold` and `release` retain the exact-head preflight the clearance verb carried — authenticated repository
 match, PR open and matching, and the requested SHA equal to the live head — and `release` additionally retains
@@ -184,9 +207,36 @@ tool, governed by its classifier gate.
   interlock): the trade buys zero setup and no producer machinery for a residual the exact-head invariant plus
   explicit merge authorization already bound. A team wanting lock-to-authorization holds draft through human
   review — a posture, not a shipped variant; manual review routing is its cost.
-- **Installation.** The lock exists only where the opening act performed draft-open — per-PR and procedural,
-  so it fails open: a hand-opened PR, a PR opened by a non-ARC agent, or an Errand whose lane prediction
-  missed carries no lock. `arc-cleared` failed closed repo-wide. The pricing: the uncovered class requires two
+- **Grooming-lane arming window.** The errand auto-merge lane releases immediately before arming auto-merge, so
+  it carries a genuinely unlocked window between the two — a couple of commands wide, inside the lane action's
+  own gate and after its exact-head recheck. This is the cost of the open-locked rule (D3), and it buys the
+  errand lane a lock across everything upstream of it: PR-open, review, and triage, none of which the previous
+  design covered because it could not classify the lane in time.
+- **Grooming-lane gate: veto becomes attestation.** The clearance status carried two jobs on one context — the
+  work-unit lane's readiness lock and the grooming lane's eligibility gate — and only kept both because two
+  producers turned it green for different reasons. Retiring the lock's producer breaks that: a single required
+  check cannot both block a mis-classified auto-merge and let every reviewed-lane pull request through, and
+  GitHub has no conditional requirement. So the gate is preserved as **attestation** — it classifies
+  server-side on the exact head, confirms the live pull-request pair, and records its verdict, but no longer
+  vetoes.
+
+  The residual is narrow and priced deliberately. A classifier gap is not covered either way, because the gate
+  runs the same classifier the lane does; head movement and base advance are already covered by the
+  exact-head arming guard and the lane's own pre-arming re-run. What the veto covered and attestation does not
+  is an agent that arms auto-merge without honoring its own classification step — and an agent that ignores a
+  fail-closed workflow step can merge directly regardless, which is the hostile-actor case this design places
+  out of scope. Buying that slice back would cost the bespoke producer machinery this work unit exists to
+  retire.
+- **Lifecycle lanes without a lock.** `park-work-unit` and `resume-work-unit` also open pull requests against
+  the base branch, and the retired status gated them as it gated everything else. They stay unlocked
+  deliberately: both are mechanical lifecycle rotations carrying no code content, opened and merged by the same
+  authorized session within one ceremony, so the two-deliberate-acts property the lock buys adds ceremony
+  without narrowing the accidental window. The inbox drain is treated differently — it opens auto-merge pull
+  requests with nothing human in the loop, which is the grooming lane's shape, so it takes the same fire sites
+  (D6).
+- **Installation.** The lock exists only where the opening act performed open-locked — per-PR and procedural,
+  so it fails open: a hand-opened PR, or a PR opened by a non-ARC agent, carries no lock. `arc-cleared` failed
+  closed repo-wide. The pricing: the uncovered class requires two
   independent lapses (a mis-opened PR **and** an accidental merge act) where `arc-cleared` bounded it to one.
   Accepted per the accidental threat model; no detection machinery is added.
 
@@ -194,7 +244,8 @@ tool, governed by its classifier gate.
 
 Package source and `.arc/` copies both, per the package-project sync rule.
 
-**Fire-site substitution (minimal):** in `run-errand.md` / `integrate-work-unit.md`, the `arc review unlock -`
+**Fire-site substitution (minimal):** in `run-errand.md` / `integrate-work-unit.md` / `drain-inbox.md`, the
+`arc review unlock -`
 invocation and its typed-action dispatch are replaced by the matching D3 verb and its actions, and a `resolve`
 call is added immediately before each `gh pr create`. Enough that every fire site is covered, no more; concrete
 mechanics sequence to the owning restructure work units per § Cross-cutting → Coordination.
@@ -262,10 +313,41 @@ registrations with them.
    `init.e2e.test.ts` assertions all track files the corpus retirement removes — they land with it (D6a), not
    here. This repository's own rendered clearance workflow is the exception below, because the required check
    cannot outlive the dispatch.
-6. **This repo's host-side teardown (dogfooding install):** delete `.github/workflows/arc-clearance.yml`; drop
-   the `arc-cleared` required check from the base-branch ruleset (host-side act); set `merge.lock: draft` in
-   this repo's `arc-config.yml`. The first two are welded to item 3's dispatch removal — with the producer gone
-   and the context still required, no pull request can merge.
+6. **This repo's host-side teardown (dogfooding install):** preserve the auto-merge lane's server-side gate,
+   retire the clearance producer, remove the `arc-cleared` requirement from base-branch protection (host-side
+   act), and set `merge.lock: draft` in this repo's `arc-config.yml`. The producer removal and the requirement
+   removal are welded to item 3's dispatch removal — with the producer gone and the context still required, no
+   pull request can merge.
+
+   `.github/workflows/arc-clearance.yml` holds **two unrelated mechanisms**. Its `repository_dispatch` jobs are
+   the clearance producer this work unit retires. Its `pull_request_target` job is the auto-merge grooming
+   lane's gate: it posts the status pending on every pull request, classifies server-side, confirms the live
+   pull-request pair, and clears only a genuine planning-lane change.
+
+   The gate is **extracted before the rest is deleted**, and converted to attestation per D5: it moves to its
+   own workflow, its posted context is renamed off `arc-cleared`, and — the change that makes extraction
+   viable — it posts a **terminal** state on both classifier arms rather than leaving a non-planning change
+   pending forever. Preserved verbatim it would strand every reviewed-lane pull request on a required context
+   no surviving producer could resolve, reproducing the exact failure the D6a split exists to prevent. The
+   verdict and the live-pair confirmation ride the status description, so the independent check the classifier
+   cannot perform for itself is retained and recorded. The renamed context is **not** added to any required-check
+   list. Requiring it would deadlock twice over: a `pull_request_target` workflow executes from the base
+   branch, so the requirement would outrun its own producer until this change merged, and the job skips fork
+   pull requests by design — a skipped job posts nothing, which would strand the contributor path permanently.
+   The attestation is observational, and that is the whole of what D5 prices.
+
+   `confirm-live-change-pair.sh` therefore keeps a live consumer. The corpus retirement's inventory records it
+   as consumed only by the clearance workflow; that premise is corrected there, since the extracted gate
+   inherits the dependency and the ruleset entry raises the cost of removing it.
+
+   The requirement lives in **classic branch protection**, not the `main-protection` ruleset — both are active
+   on `main`, and the ruleset requires only the CI roll-up alias. The removal is performed by retiring classic
+   protection outright rather than editing its required-checks list: the ruleset covers every protection classic
+   provides and is stricter on two axes (it requires review-thread resolution and admits no bypass actors, where
+   classic permits admin bypass), so the deletion removes the requirement and a redundant enforcement surface in
+   one act. The overlap is incidental rather than designed. Verify the coverage comparison against both surfaces
+   before acting, and capture the live classic configuration to `notes-{name}.md` first — branch protection is
+   not versioned, so no diff records its removal.
 
 Renames land in place under the pre-public-release posture — no compatibility aliases, no deprecated
 `review unlock` shim (`DEV-RULES.PROJECT` § Engineering Standards).
@@ -357,11 +439,12 @@ No third native mechanism exists to evaluate: GitHub offers no label-based or ma
    accidental act (UI click, `gh pr merge`, even `--admin`) from open through review, triage, and composition,
    until the authorized terminal sequence flips ready and exact-head merges it. Team flow: the same holds to
    the review handoff; required-approvals cover the human-review window, with the recorded post-approval
-   residual. Both scope to PRs opened through ARC lifecycle lanes (the draft-open touchpoint).
+   residual. Both scope to PRs opened through ARC lifecycle lanes (the open-locked fire site).
 2. No `arc-cleared` **producer or enforcement point** survives: `grep -riE "arc.cleared|arc.clearance"` over
-   `packages/arc-framework/src/`, `packages/arc-framework/__tests__/`, and `.github/` returns nothing, and the
-   base-branch ruleset requires no such context. The documentation surface still names it until the follow-on
-   lands (D6a).
+   `packages/arc-framework/src/` and `.github/workflows/` returns nothing, and no base-branch enforcement
+   surface requires the context. Test assertions on the retired documentation text and the `.github/CODEOWNERS`
+   comment are D6a's (D7.5), so `__tests__/` and `.github/CODEOWNERS` stay out of this criterion's scope and
+   still name it until the follow-on lands.
 3. All quality gates green: Markdown lint, ARC contract checks, both type checks, full test suite, build; CI
    green on the integration PR.
 4. `arc merge lock resolve`, `arc merge lock hold`, and `arc merge lock release` exist with the D3 typed
@@ -374,7 +457,11 @@ No third native mechanism exists to evaluate: GitHub offers no label-based or ma
    state.
 6. ADR-031 exists and ADR-029 carries the Tier-2 amendment.
 7. This repo's host-side teardown is complete: no `arc-clearance.yml` workflow, no `arc-cleared` required
-   check in the ruleset, `merge.lock: draft` set.
+   status on any base-branch enforcement surface, `merge.lock: draft` set, `main` protected by the ruleset
+   alone, and the ruleset's required-check list unchanged apart from the retired context's removal.
+8. The lane-classification gate still runs on every pull request under its renamed context, posts a terminal
+   state on both classifier arms, and records its verdict and live-pair result — the independent check survives
+   as attestation, and the veto it replaced is priced in D5 rather than reconstructed.
 
 ## Open Questions
 

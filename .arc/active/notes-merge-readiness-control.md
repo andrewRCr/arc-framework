@@ -22,6 +22,31 @@ spec's D1 mechanism claims.
   page all checked; the old Team/Enterprise-only wording for private repos is gone.
 - Residual uncertainty applies to Free-plan private repos only, covered by `merge.lock: none`.
 
+## Base-branch enforcement surfaces (observed 2026-08-04)
+
+Two surfaces are live on `main` simultaneously. The overlap is incidental rather than designed, and the
+clearance status is required by the classic surface only — the ruleset never carried it.
+
+| Protection             | Classic branch protection      | `main-protection` ruleset          |
+| ---------------------- | ------------------------------ | ---------------------------------- |
+| Required checks        | `merge-ok`, `arc-cleared`      | `merge-ok`                         |
+| Block deletion         | yes                            | yes                                |
+| Block force push       | yes                            | yes                                |
+| Require pull request   | yes                            | yes (0 approvals)                  |
+| Thread resolution      | no                             | **yes**                            |
+| Bypass                 | **admins permitted**           | **none** (`bypass_actors: []`)     |
+
+The ruleset covers every protection classic provides and is stricter on the last two rows, which is what makes
+retiring classic protection a coverage-preserving act rather than a reduction. `merge-ok` is documented in
+`ci.yml` as a thin compatibility alias over the `ci-ok` roll-up.
+
+Classic protection also carried, all disabled: required signatures, linear history, block creations,
+conversation resolution, lock branch, fork syncing. Its required-reviews block was present with stale-review
+dismissal and code-owner review both off.
+
+This table is the recovery baseline: branch protection is not versioned, so nothing in the change record shows
+what was removed. Re-read both surfaces before acting — this reflects one point in time.
+
 ## Auto-merge disarm semantics (source of D4's incompatibility claim)
 
 Native auto-merge disarms only when someone **without** write access pushes, or the base branch switches; it
