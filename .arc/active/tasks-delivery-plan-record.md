@@ -590,41 +590,25 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
   as membership-free landmarks, and partitions canonical contribution steps through the same publication spine as
   task-derived authoring.
 
-### `[ ]` **4.3 Normalize attributed task references to the parent inventory**
+### `[x]` **4.3 Normalize attributed task references to the parent inventory**
 
 - _Goal:_ Membership derives from what task ids actually are in practice, not from what the footer grammar
   admits, so a real branch's attributions are not discarded.
 
-- _Context:_ The enforced footer grammar admits arbitrary dotted depth — `X.Y.a`, `X.Y.R`, and `X.R` all validate
-  today, and only the documented examples are two-level. Normalization is therefore needed because the inventory
-  binds parents, not because the grammar is narrow. Attribution is separately sparse by design: review fixes,
-  maintenance, and incidental work name no task, and deferred review lets a range land under one commit.
+    - `[x]` **4.3.a Upward resolution to the nearest enclosing parent**
 
-- _Shape:_ Extract and export one parse-only structured task-reference function from commit-check policy. Commit
-  validation and delivery both consume it; the handoff candidate extractor remains intentionally lossy and is not
-  a delivery parser.
+        - Exported one structured parser shared by commit validation and delivery. Branch attribution expands
+          ranges and lists, resolves references to the nearest current parent, retains revision parents, and reports
+          stale references without deriving membership from another work unit's task list.
 
-    - `[ ]` **4.3.a Upward resolution to the nearest enclosing parent**
+    - `[x]` **4.3.b At-least-once semantics preserved**
 
-        - Revision-family ids are parents in their own right — a phase-level follow-on renders as a parent
-          heading and parses as a parent id — so a footer citing one resolves to it rather than reaching nothing.
-          What actually reaches nothing is an id absent from the inventory: a task deleted or renumbered after
-          the footer was written.
+        - Derived each member's represented parents from its contribution commits without imposing ownership;
+          repeated parent membership across members remains admissible, and source advisories survive publication
+          cleanup retries.
 
-        - Build `test-first` (one behavior at a time):
-            - A subtask-level id resolves to its enclosing parent
-            - A phase-level follow-on id resolves to itself, since it is a parent
-            - A range and a non-contiguous list each expand, resolve, then deduplicate
-            - Validator acceptance and parser output stay in parity for every supported single, range, and list
-              form
-            - An id absent from the inventory contributes no membership and is reported
-            - An unresolvable id is advisory on the derived entry and an error on the authored one
-
-    - `[ ]` **4.3.b At-least-once semantics preserved**
-
-        - Build `test-first` (one behavior at a time):
-            - A resolved reference claims the parent is represented in the member, not owned by it
-            - A parent represented in two members is admissible
+- _Outcome:_ Retrofit membership now reflects the full enforced footer grammar while remaining inventory-bound:
+  sparse or stale history stays author-visible, and repeated evidence across delivery members is preserved.
 
 ### `[ ]` **4.4 Report co-change structure and lifecycle-artifact touches**
 
