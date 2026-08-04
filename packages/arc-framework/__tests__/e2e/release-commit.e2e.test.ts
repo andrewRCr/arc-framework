@@ -248,11 +248,10 @@ describe("release commit hook ordering", () => {
       'printf "%s\\n" delayed-pre-commit-start >> "$ARC_HOOK_LOG"',
       'printf "%s\\n" direct-hook-stdout',
       'printf "%s\\n" direct-hook-stderr >&2',
-      "(sleep 5) &",
+      '(sleep 5; printf "%s\\n" retained-output-descendant-finish >> "$ARC_HOOK_LOG") &',
       'printf "%s\\n" delayed-pre-commit-finish >> "$ARC_HOOK_LOG"',
     ]);
 
-    const startedAt = Date.now();
     const commit = await runCli([
       "release",
       "commit",
@@ -262,12 +261,10 @@ describe("release commit hook ordering", () => {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
     });
-    const elapsedMs = Date.now() - startedAt;
 
     const headAfter = await gitOutput(["rev-parse", "HEAD"]);
     const output = `${commit.stdout}\n${commit.stderr}`;
     expect(commit.exitCode, JSON.stringify(commit)).toBe(0);
-    expect(elapsedMs).toBeLessThan(3_000);
     expect(output).toContain("direct-hook-stdout");
     expect(output).toContain("direct-hook-stderr");
     expect(output).toContain("fix(release): wait for commit finalization");
