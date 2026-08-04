@@ -85,6 +85,12 @@ export interface GitCommonStateTransactionPublisher extends GitCommonStatePublis
       current: ReadonlyMap<string, string | null>,
     ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
   ): Promise<T>;
+  transactSnapshot<T>(
+    location: GitCommonStateLocation,
+    transaction: (
+      current: readonly GitCommonStateSnapshotEntry[],
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T>;
 }
 
 function parseAddress(location: unknown, recordName: string): GitCommonStateLocation {
@@ -215,6 +221,48 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
       for (const mutation of next.mutations) {
         if (!current.has(mutation.recordName) || mutated.has(mutation.recordName)) {
           throw new Error("Git common state transaction mutated an undeclared or duplicate record");
+        }
+        mutated.add(mutation.recordName);
+        if (mutation.kind === "write") {
+          await this.writeFile(join(root, mutation.recordName), mutation.content);
+        } else {
+          try {
+            await this.removeFile(join(root, mutation.recordName));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+        }
+      }
+      return next.result;
+    } finally {
+      await releaseAdvisoryLock(lock);
+    }
+  }
+
+  async transactSnapshot<T>(
+    location: GitCommonStateLocation,
+    transaction: (
+      current: readonly GitCommonStateSnapshotEntry[],
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T> {
+    const address = GitCommonStateLocationSchema.parse(location);
+    const root = await this.namespaceRoot(address);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
+    try {
+      const directoryEntries = (await readdir(root, { withFileTypes: true }))
+        .filter((entry) => !entry.name.startsWith("."));
+      const current = await Promise.all(directoryEntries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
+        entry.isFile()
+          ? { name: entry.name, kind: "file", content: await readFile(join(root, entry.name), "utf8") }
+          : { name: entry.name, kind: "other" }
+      )));
+      const next = await transaction(current);
+      const mutated = new Set<string>();
+      for (const mutation of next.mutations) {
+        parseAddress(address, mutation.recordName);
+        if (mutated.has(mutation.recordName)) {
+          throw new Error("Git common state transaction mutated a duplicate record");
         }
         mutated.add(mutation.recordName);
         if (mutation.kind === "write") {

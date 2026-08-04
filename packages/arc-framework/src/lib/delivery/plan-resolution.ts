@@ -51,6 +51,15 @@ export type ForwardDeliverySubjectResolution<TRecord> =
       | "substrate-unreachable";
   };
 
+/** Resolution after transition authority has already been established and loaded. */
+export type ForwardDeliverySubjectTransitionResolution<TRecord> =
+  | { readonly status: "match"; readonly record: TRecord }
+  | { readonly status: "no-match" }
+  | {
+    readonly status: "indeterminate";
+    readonly reason: "ambiguous-subject" | "namespace-corrupt";
+  };
+
 /** Git-backed source of authenticated retirement transitions from one established ref. */
 export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransitionSource {
   constructor(private readonly exec: GitExec) {}
@@ -124,7 +133,27 @@ export async function resolveForwardDeliverySubject<TRecord>(input: {
   if (transitions.status === "refused") {
     return { status: "indeterminate", reason: transitions.reason };
   }
-  const outcomes = groupOutcomes(transitions.value);
+  return resolveForwardDeliverySubjectFromTransitions({
+    records: input.records,
+    currentWorkUnitId: input.currentWorkUnitId,
+    recordWorkUnitId: input.recordWorkUnitId,
+    transitions: transitions.value,
+  });
+}
+
+/**
+ * Resolve records against an already-authenticated transition snapshot.
+ *
+ * @param input - Validated records, identity accessor, current subject, and reachable transitions
+ * @returns One matching record, safe absence, or an authority-preserving indeterminate result
+ */
+export function resolveForwardDeliverySubjectFromTransitions<TRecord>(input: {
+  readonly records: readonly TRecord[];
+  readonly currentWorkUnitId: string;
+  readonly recordWorkUnitId: (record: TRecord) => string;
+  readonly transitions: readonly ReachableReferenceTransition[];
+}): ForwardDeliverySubjectTransitionResolution<TRecord> {
+  const outcomes = groupOutcomes(input.transitions);
   const matches: TRecord[] = [];
   for (const record of input.records) {
     const resolution = resolvesTo(

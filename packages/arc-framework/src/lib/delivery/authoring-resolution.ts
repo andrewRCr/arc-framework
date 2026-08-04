@@ -66,14 +66,18 @@ export class DeliveryAuthoringManager {
     if (input.pair.snapshot.originalWorkUnitId !== input.currentWorkUnitId) {
       return { status: "refused", reason: "identity-mismatch" };
     }
-    const existing = await this.resolve(input.currentWorkUnitId, input.authority);
-    if (existing.status === "indeterminate") {
-      return { status: "refused", reason: existing.reason };
+    if (input.authority.status === "unestablished") {
+      return { status: "refused", reason: "reachability-unestablished" };
     }
-    if (existing.status === "match") {
-      return { status: "refused", reason: "authoring-state-exists" };
+    const transitions = await this.transitionSource.enumerate(input.authority.ref);
+    if (transitions.status === "refused") {
+      return { status: "refused", reason: transitions.reason };
     }
-    return this.store.create(input.pair);
+    return this.store.createResolved({
+      pair: input.pair,
+      currentWorkUnitId: input.currentWorkUnitId,
+      transitions: transitions.value,
+    });
   }
 
   async abandon(input: {

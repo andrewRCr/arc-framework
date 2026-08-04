@@ -1,11 +1,16 @@
 /** Repository-common storage for one canonical snapshot and its editable Markdown map. */
 
-import type { GitCommonStateTransactionPublisher } from "../git-common-state.js";
+import type {
+  GitCommonStateSnapshotEntry,
+  GitCommonStateTransactionPublisher,
+} from "../git-common-state.js";
 import { canonicalize, SlugSchema } from "../kernel/index.js";
+import type { ReachableReferenceTransition } from "../work-unit/reference-reconcile.js";
 import {
   DeliveryAuthoringSnapshotV1Schema,
   type DeliveryAuthoringSnapshotV1,
 } from "./authoring-schema.js";
+import { resolveForwardDeliverySubjectFromTransitions } from "./plan-resolution.js";
 
 const AUTHORING_LOCATION = { root: "delivery", namespace: "authoring" } as const;
 
@@ -25,7 +30,9 @@ export interface DeliveryAuthoringRecord {
 export type DeliveryAuthoringStoreFailure =
   | "authoring-state-exists"
   | "authoring-state-corrupt"
+  | "ambiguous-subject"
   | "identity-mismatch"
+  | "namespace-corrupt"
   | "record-malformed"
   | "version-conflict";
 
@@ -37,6 +44,11 @@ export type DeliveryAuthoringStoreResult<T> =
 /** Storage contract consumed by singleton resolution and command handlers. */
 export interface DeliveryAuthoringStore {
   create(pair: DeliveryAuthoringPair): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>>;
+  createResolved(input: {
+    readonly pair: DeliveryAuthoringPair;
+    readonly currentWorkUnitId: string;
+    readonly transitions: readonly ReachableReferenceTransition[];
+  }): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>>;
   enumerate(): Promise<DeliveryAuthoringStoreResult<readonly DeliveryAuthoringRecord[]>>;
   abandon(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
 }
@@ -69,6 +81,36 @@ function decodeSnapshot(raw: string, mapId: string): DeliveryAuthoringStoreResul
   return { status: "ok", value: parsed.data };
 }
 
+function decodeRecords(
+  entries: readonly GitCommonStateSnapshotEntry[],
+): DeliveryAuthoringStoreResult<readonly DeliveryAuthoringRecord[]> {
+  const grouped = new Map<string, { json?: string; markdown?: string }>();
+  for (const entry of entries) {
+    if (entry.kind !== "file") return { status: "refused", reason: "authoring-state-corrupt" };
+    const match = /^(?<mapId>.+)\.(?<extension>json|md)$/u.exec(entry.name);
+    const parsedMapId = SlugSchema.safeParse(match?.groups?.mapId);
+    const extension = match?.groups?.extension;
+    if (!parsedMapId.success || (extension !== "json" && extension !== "md")) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const record = grouped.get(parsedMapId.data) ?? {};
+    if (extension === "json") record.json = entry.content;
+    else record.markdown = entry.content;
+    grouped.set(parsedMapId.data, record);
+  }
+
+  const records: DeliveryAuthoringRecord[] = [];
+  for (const [mapId, record] of [...grouped].sort(([left], [right]) => left.localeCompare(right))) {
+    if (record.json === undefined) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const decoded = decodeSnapshot(record.json, mapId);
+    if (decoded.status === "refused") return decoded;
+    records.push({ snapshot: decoded.value, markdown: record.markdown ?? null });
+  }
+  return { status: "ok", value: records };
+}
+
 /** Namespace-locked adapter preserving the JSON/Markdown pair as one logical record. */
 export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore, DeliveryAuthoringCompositionStore {
   constructor(private readonly publisher: GitCommonStateTransactionPublisher) {}
@@ -96,6 +138,54 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
             { recordName: names.markdown, kind: "write", content: pair.markdown },
           ],
           result: { status: "ok", value: stored } as const,
+        };
+      },
+    );
+  }
+
+  async createResolved(input: {
+    readonly pair: DeliveryAuthoringPair;
+    readonly currentWorkUnitId: string;
+    readonly transitions: readonly ReachableReferenceTransition[];
+  }): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>> {
+    const parsed = DeliveryAuthoringSnapshotV1Schema.safeParse(input.pair.snapshot);
+    if (!parsed.success || input.pair.markdown.length === 0) {
+      return { status: "refused", reason: "record-malformed" };
+    }
+    if (parsed.data.originalWorkUnitId !== input.currentWorkUnitId) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+    const names = recordNames(parsed.data.mapId);
+    return this.publisher.transactSnapshot<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>>(
+      AUTHORING_LOCATION,
+      (current) => {
+        const records = decodeRecords(current);
+        if (records.status === "refused") return { mutations: [], result: records };
+        if (records.value.some((record) => record.snapshot.mapId === parsed.data.mapId)) {
+          return {
+            mutations: [],
+            result: { status: "refused", reason: "authoring-state-exists" },
+          };
+        }
+        const existing = resolveForwardDeliverySubjectFromTransitions({
+          records: records.value,
+          currentWorkUnitId: input.currentWorkUnitId,
+          recordWorkUnitId: (record) => record.snapshot.originalWorkUnitId,
+          transitions: input.transitions,
+        });
+        if (existing.status === "indeterminate") {
+          return { mutations: [], result: { status: "refused", reason: existing.reason } };
+        }
+        if (existing.status === "match") {
+          return { mutations: [], result: { status: "refused", reason: "authoring-state-exists" } };
+        }
+        const stored = { snapshot: parsed.data, markdown: input.pair.markdown };
+        return {
+          mutations: [
+            { recordName: names.json, kind: "write", content: `${canonicalize(parsed.data)}\n` },
+            { recordName: names.markdown, kind: "write", content: input.pair.markdown },
+          ],
+          result: { status: "ok", value: stored },
         };
       },
     );
@@ -135,32 +225,7 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
   }
 
   async enumerate(): Promise<DeliveryAuthoringStoreResult<readonly DeliveryAuthoringRecord[]>> {
-    const entries = await this.publisher.snapshot(AUTHORING_LOCATION);
-    const grouped = new Map<string, { json?: string; markdown?: string }>();
-    for (const entry of entries) {
-      if (entry.kind !== "file") return { status: "refused", reason: "authoring-state-corrupt" };
-      const match = /^(?<mapId>.+)\.(?<extension>json|md)$/u.exec(entry.name);
-      const parsedMapId = SlugSchema.safeParse(match?.groups?.mapId);
-      const extension = match?.groups?.extension;
-      if (!parsedMapId.success || (extension !== "json" && extension !== "md")) {
-        return { status: "refused", reason: "authoring-state-corrupt" };
-      }
-      const record = grouped.get(parsedMapId.data) ?? {};
-      if (extension === "json") record.json = entry.content;
-      else record.markdown = entry.content;
-      grouped.set(parsedMapId.data, record);
-    }
-
-    const records: DeliveryAuthoringRecord[] = [];
-    for (const [mapId, record] of [...grouped].sort(([left], [right]) => left.localeCompare(right))) {
-      if (record.json === undefined) {
-        return { status: "refused", reason: "authoring-state-corrupt" };
-      }
-      const decoded = decodeSnapshot(record.json, mapId);
-      if (decoded.status === "refused") return decoded;
-      records.push({ snapshot: decoded.value, markdown: record.markdown ?? null });
-    }
-    return { status: "ok", value: records };
+    return decodeRecords(await this.publisher.snapshot(AUTHORING_LOCATION));
   }
 
   async abandon(

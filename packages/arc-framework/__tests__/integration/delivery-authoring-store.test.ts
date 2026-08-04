@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   RepositoryDeliveryAuthoringStore,
 } from "../../src/lib/delivery/authoring-store.js";
+import { DeliveryAuthoringManager } from "../../src/lib/delivery/authoring-resolution.js";
+import type { DeliveryRenameTransitionSource } from "../../src/lib/delivery/plan-resolution.js";
 import {
   createDeliveryAuthoringSnapshot,
 } from "../../src/lib/delivery/authoring-schema.js";
@@ -25,18 +27,20 @@ async function authoringStore() {
   roots.push(root);
   const commonDir = join(root, "common.git");
   const exec: GitExec = async () => ({ stdout: `${commonDir}\n` });
+  const createStore = () => new RepositoryDeliveryAuthoringStore(
+    new RepositoryGitCommonStatePublisher(exec, root),
+  );
   return {
     commonDir,
-    store: new RepositoryDeliveryAuthoringStore(
-      new RepositoryGitCommonStatePublisher(exec, root),
-    ),
+    store: createStore(),
+    createStore,
   };
 }
 
-function snapshot() {
+function snapshot(mapId = "authoring-map") {
   const taskDigest = canonicalDigest({ goal: "Implement" });
   return createDeliveryAuthoringSnapshot({
-    mapId: "authoring-map",
+    mapId,
     originalWorkUnitId: "delivery-plan-record",
     planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
     expectedCurrentPlanDigest: null,
@@ -59,6 +63,64 @@ function snapshot() {
 }
 
 describe("repository delivery authoring store", () => {
+  it("admits only one concurrent map for the same resolved work unit", async () => {
+    const records = await authoringStore();
+    let transitionReads = 0;
+    let releaseTransitionReads = () => {};
+    const transitionBarrier = new Promise<void>((resolve) => { releaseTransitionReads = resolve; });
+    const transitionSource: DeliveryRenameTransitionSource = {
+      enumerate: async (ref) => {
+        if (ref !== "refs/heads/main") {
+          return { status: "refused", reason: "substrate-unreachable" };
+        }
+        transitionReads += 1;
+        if (transitionReads === 2) releaseTransitionReads();
+        await transitionBarrier;
+        return { status: "ok", value: [] };
+      },
+    };
+    const authority = { status: "established", ref: "refs/heads/main" } as const;
+    const managers = [records.store, records.createStore()].map(
+      (store) => new DeliveryAuthoringManager(store, transitionSource),
+    );
+
+    const results = await Promise.all(managers.map((manager, index) => {
+      const proposed = snapshot(`authoring-map-${String(index + 1)}`);
+      return manager.create({
+        pair: { snapshot: proposed, markdown: `# Map ${String(index + 1)}\n` },
+        currentWorkUnitId: "delivery-plan-record",
+        authority,
+      });
+    }));
+
+    expect(results.map((result) => result.status === "ok" ? "ok" : result.reason).sort())
+      .toEqual(["authoring-state-exists", "ok"]);
+    await expect(records.store.enumerate()).resolves.toMatchObject({
+      status: "ok",
+      value: [{ snapshot: { originalWorkUnitId: "delivery-plan-record" } }],
+    });
+  });
+
+  it("does not overwrite an existing map id owned by another work unit", async () => {
+    const records = await authoringStore();
+    const original = snapshot();
+    await records.store.create({ snapshot: original, markdown: "# Original\n" });
+    const proposed = createDeliveryAuthoringSnapshot({
+      ...original,
+      originalWorkUnitId: "another-work-unit",
+    });
+
+    await expect(records.store.createResolved({
+      pair: { snapshot: proposed, markdown: "# Replacement\n" },
+      currentWorkUnitId: "another-work-unit",
+      transitions: [],
+    })).resolves.toEqual({ status: "refused", reason: "authoring-state-exists" });
+    await expect(records.store.read(original.mapId)).resolves.toEqual({
+      status: "ok",
+      value: { snapshot: original, markdown: "# Original\n" },
+    });
+  });
+
   it("publishes and reads the canonical JSON and Markdown as one pair", async () => {
     const records = await authoringStore();
     const proposed = snapshot();

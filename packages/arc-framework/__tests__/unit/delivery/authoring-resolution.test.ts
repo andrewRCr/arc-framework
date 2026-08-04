@@ -48,6 +48,11 @@ function store(records: readonly DeliveryAuthoringRecord[], refused = false): De
   const create = vi.fn<DeliveryAuthoringStore["create"]>(async (proposed) => (
     { status: "ok", value: proposed }
   ));
+  const createResolved = vi.fn<DeliveryAuthoringStore["createResolved"]>(async ({ pair: proposed }) => (
+    records.length > 0
+      ? { status: "refused", reason: "authoring-state-exists" }
+      : { status: "ok", value: proposed }
+  ));
   const enumerate = vi.fn<DeliveryAuthoringStore["enumerate"]>(async () => refused
     ? { status: "refused", reason: "authoring-state-corrupt" }
     : { status: "ok", value: records });
@@ -56,6 +61,7 @@ function store(records: readonly DeliveryAuthoringRecord[], refused = false): De
   ));
   return {
     create,
+    createResolved,
     enumerate,
     abandon,
   };
@@ -147,7 +153,6 @@ describe("delivery authoring map resolution", () => {
       currentWorkUnitId: "current-unit",
       authority,
     })).resolves.toEqual({ status: "refused", reason: "authoring-state-exists" });
-    expect(records.create).not.toHaveBeenCalled();
     await expect(manager.abandon({
       currentWorkUnitId: "current-unit",
       authority,
