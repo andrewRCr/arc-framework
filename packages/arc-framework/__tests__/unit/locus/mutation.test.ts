@@ -10,7 +10,7 @@ import {
   popLocusRole,
   refreshLocusLeaseHeartbeat,
   releaseLocusLease,
-  resumeDeadTransientLease,
+  resumeTransientLease,
   updateLocusRole,
   validateOwnedLocusRole,
   type LocusLeaseMutationIO,
@@ -523,20 +523,75 @@ describe("durable locus role minting", () => {
       attachedAt: "2026-07-20T02:00:00.000Z",
       heartbeatAt: "2026-07-20T02:00:00.000Z",
       observedLiveness: "dead" as const,
+      confirmedNoLiveSession: false,
       io: store.io,
     };
 
-    expect(await resumeDeadTransientLease(request)).toMatchObject({
+    expect(await resumeTransientLease(request)).toMatchObject({
       kind: "applied",
       record: { lease: { leaseId: "b".repeat(32), anchor: request.anchor } },
     });
-    expect(await resumeDeadTransientLease(request))
+    expect(await resumeTransientLease(request))
       .toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
-    expect(await resumeDeadTransientLease({
+    expect(await resumeTransientLease({
       ...request,
       expectedLeaseId: "b".repeat(32),
       observedLiveness: "live",
     })).toEqual({ kind: "refused", reason: "lease-live" });
+  });
+
+  it("replaces an exact unknown transient lease only after operator attestation", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity: errandIdentity("errand") },
+      io: store.io,
+    });
+    const originalAnchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "old",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor: originalAnchor,
+      leaseId: "a".repeat(32),
+      attachedAt: "2026-07-20T01:00:00.000Z",
+      heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLeaseId: null,
+      observedLiveness: null,
+      io: store.io,
+    });
+    const request = {
+      recordId: BASE.recordId,
+      expectedLeaseId: "a".repeat(32),
+      sessionHomePath: BASE.checkoutPath,
+      anchor: { ...originalAnchor, pid: 43, startToken: "new" },
+      leaseId: "b".repeat(32),
+      attachedAt: "2026-07-20T02:00:00.000Z",
+      heartbeatAt: "2026-07-20T02:00:00.000Z",
+      observedLiveness: "unknown" as const,
+      confirmedNoLiveSession: false,
+      io: store.io,
+    };
+
+    expect(await resumeTransientLease(request))
+      .toEqual({ kind: "refused", reason: "lease-unknown" });
+    expect(await resumeTransientLease({ ...request, confirmedNoLiveSession: true })).toMatchObject({
+      kind: "applied",
+      record: { lease: { leaseId: "b".repeat(32), anchor: request.anchor } },
+    });
+    expect(await resumeTransientLease({
+      ...request,
+      expectedLeaseId: "b".repeat(32),
+      observedLiveness: "live",
+      confirmedNoLiveSession: true,
+    })).toEqual({ kind: "refused", reason: "lease-live" });
+    expect(await resumeTransientLease({ ...request, confirmedNoLiveSession: true }))
+      .toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
   });
 
   it("updates a directed role and parent only from the exact prior role generation", async () => {

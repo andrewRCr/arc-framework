@@ -249,7 +249,7 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
           PAGER: "cat",
         }
       : environmentForGitCwd(cwd);
-    const result = await execa("git", invocation, {
+    const subprocess = execa("git", invocation, {
       cwd,
       env,
       extendEnv: false,
@@ -262,6 +262,14 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
       stripFinalNewline: false,
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
+    // Execa normally waits for captured-stream EOF after the child exits. A hook can
+    // background a descendant that inherits those descriptors, so close ARC's read
+    // ends at the direct Git boundary instead of waiting on unrelated process lifetime.
+    subprocess.nodeChildProcess.once("exit", () => {
+      subprocess.stdout.destroy();
+      subprocess.stderr.destroy();
+    });
+    const result = await subprocess;
     if (!result.failed) return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
 
     const error = normalizeGitRejection(result, { command: "git", args: invocation });
