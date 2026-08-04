@@ -4,6 +4,7 @@ import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -238,6 +239,100 @@ describe("arc locus mutation commands", () => {
       lease: { anchor: { kind: "unverifiable" } },
     });
 
+  });
+
+  it("materializes a remote-only paused Errand with exact provenance", async () => {
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+    const errand = "remote-errand";
+    const errandBranch = `chore/${errand}`;
+    const claimId = "e".repeat(32);
+    await git(repository, ["switch", "-c", errandBranch, "main"]);
+    const expectedHead = (await git(repository, ["rev-parse", "HEAD"])).trim();
+    await git(repository, ["push", "origin", errandBranch]);
+    await seedPausedErrandIdentity(repository, errand, claimId, expectedHead);
+    await git(repository, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", errandBranch]);
+    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
+
+    const materialized = await runAnchored(["errand", "materialize", errand, "--json"], repository);
+    expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
+    const result = JSON.parse(materialized.stdout.trim()) as {
+      activeLocusPath: string;
+      identity: { claimId: string; state: string };
+    };
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-materialize",
+      allocation: { kind: "spawned" },
+      identity: { claimId, state: "open" },
+    });
+    linkedCheckout = result.activeLocusPath;
+    expect(await readMarker(linkedCheckout)).toMatchObject({
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: errand, claimId },
+      provisioning: "ready",
+    });
+  });
+
+  it.each([
+    { label: "exact awaiting-merge", observedHead: "exact", expectedExit: 0 },
+    { label: "moved awaiting-merge head", observedHead: "moved", expectedExit: 1 },
+  ] as const)("materializes or rolls back an $label identity", async ({ observedHead, expectedExit }) => {
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+    const slug = `review-${observedHead}`;
+    const branch = `chore/${slug}`;
+    const claimId = observedHead === "exact" ? "a".repeat(32) : "b".repeat(32);
+    await git(repository, ["switch", "-c", branch, "main"]);
+    const expectedHead = (await git(repository, ["rev-parse", "HEAD"])).trim();
+    await git(repository, ["push", "origin", branch]);
+    await seedAwaitingErrandIdentity(repository, slug, claimId, expectedHead);
+    await git(repository, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", branch]);
+    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
+
+    const hostHarness = await mkdtemp(join(tmpdir(), "arc-materialize-gh-"));
+    const fakeGh = join(hostHarness, "gh");
+    await writeFile(fakeGh, [
+      "#!/bin/sh",
+      "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$ARC_TEST_HEAD\"",
+      "printf '\"reviewDecision\":\"\"}]\\n'",
+    ].join("\n"));
+    await execFileAsync("chmod", ["+x", fakeGh]);
+    const hostUrl = "https://github.com/owner/repo.git";
+    await git(repository, ["remote", "set-url", "origin", hostUrl]);
+    await git(repository, ["config", `url.${pathToFileURL(remote).href}.insteadOf`, hostUrl]);
+    try {
+      const result = await runAnchored(["errand", "materialize", slug, "--json"], repository, {
+        PATH: `${hostHarness}:${process.env.PATH ?? ""}`,
+        ARC_TEST_BRANCH: branch,
+        ARC_TEST_HEAD: observedHead === "exact" ? expectedHead : "f".repeat(40),
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(expectedExit);
+      const payload = JSON.parse(result.stdout.trim());
+      if (expectedExit === 0) {
+        expect(payload).toMatchObject({
+          outcome: "applied",
+          operation: "errand-materialize",
+          identity: { claimId, state: "open" },
+        });
+        linkedCheckout = payload.activeLocusPath as string;
+      } else {
+        expect(payload).toMatchObject({
+          outcome: "refused",
+          operation: "errand-materialize",
+          reason: "change-request-unverifiable",
+        });
+        expect(await git(repository, ["branch", "--list", branch])).toBe("");
+        expect(await checkoutForBranch(repository, branch)).toBeNull();
+      }
+    } finally {
+      await removeGitBackedDir(hostHarness);
+    }
   });
 
   it("abandons an identity-backed primary Errand from its confirmed self-held session", async () => {
@@ -490,6 +585,69 @@ async function seedOpenErrandIdentity(cwd: string, slug: string, claimId: string
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
+async function seedPausedErrandIdentity(
+  cwd: string,
+  slug: string,
+  claimId: string,
+  savedHead: string,
+): Promise<void> {
+  const record = {
+    version: 3,
+    slug,
+    claimId,
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: slug,
+    branch: `chore/${slug}`,
+    origin: "description",
+    originEntry: null,
+    state: "paused",
+    savedHead,
+    changeRequest: null,
+  };
+  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`)).trim();
+  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
+  const commit = await git(cwd, ["commit-tree", tree, "-m", `seed ${slug}`]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
+async function seedAwaitingErrandIdentity(
+  cwd: string,
+  slug: string,
+  claimId: string,
+  headSha: string,
+): Promise<void> {
+  const branch = `chore/${slug}`;
+  const record = {
+    version: 3,
+    slug,
+    claimId,
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: slug,
+    branch,
+    origin: "description",
+    originEntry: null,
+    state: "awaiting-merge",
+    savedHead: null,
+    changeRequest: {
+      repositoryRef: "owner/repo",
+      hostRef: "github.com",
+      baseRef: "main",
+      headRef: branch,
+      headSha,
+    },
+  };
+  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`)).trim();
+  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
+  const commit = await git(cwd, ["commit-tree", tree, "-m", `seed ${slug}`]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
 async function createBareRemote(cwd: string): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "arc-locus-materialize-remote-"));
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", path]);
@@ -574,7 +732,7 @@ function gitWithInput(cwd: string, args: string[], input: string): Promise<strin
   });
 }
 
-async function runAnchored(args: string[], cwd: string): Promise<{
+async function runAnchored(args: string[], cwd: string, extraEnv: Readonly<Record<string, string>> = {}): Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -585,7 +743,7 @@ async function runAnchored(args: string[], cwd: string): Promise<{
     const { stdout, stderr } = await execFileAsync(
       "script",
       ["-qec", `bash --noprofile --norc -ic ${shellQuote(interactiveCommand)}`, "/dev/null"],
-      { cwd, env: { ...process.env, NO_COLOR: "1", PS1: "" } },
+      { cwd, env: { ...process.env, ...extraEnv, NO_COLOR: "1", PS1: "" } },
     );
     return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
   } catch (error) {

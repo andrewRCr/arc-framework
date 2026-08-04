@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { chmod, copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -57,6 +58,66 @@ describe("ordinary Errand promotion", () => {
 
   afterEach(async () => {
     await cleanupTempDir(repository);
+  });
+
+  it("resumes an awaiting-merge tail from an ordinary open change request", async () => {
+    const remote = await createBareRemote(repository);
+    const harness = await createCodexHarness();
+    const hostHarness = await mkdtemp(join(tmpdir(), "arc-locus-roundtrip-gh-"));
+    const fakeGh = join(hostHarness, "gh");
+    const slug = "review-roundtrip";
+    const errandBranch = `chore/${slug}`;
+    await writeFile(
+      fakeGh,
+      [
+        "#!/bin/sh",
+        "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
+        "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
+        "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+        "printf '\"reviewDecision\":\"\"}]\\n'",
+      ].join("\n"),
+    );
+    await chmod(fakeGh, 0o755);
+    try {
+      const hostUrl = "https://github.com/owner/repo.git";
+      await git(repository, ["remote", "set-url", "origin", hostUrl]);
+      await git(repository, ["config", `url.${pathToFileURL(remote).href}.insteadOf`, hostUrl]);
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        {
+          command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
+        { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
+        { args: ["errand", "open", slug, "--json"], cwd: repository },
+      ], repository, {
+        timeout: 90_000,
+        anchorShellPath: harness.executable,
+        env: {
+          PATH: `${hostHarness}:${process.env.PATH ?? ""}`,
+          ARC_TEST_BRANCH: errandBranch,
+        },
+      });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      const [opened, left, resumed] = [sequence.results[0], sequence.results[1], sequence.results[2]] as Record<string, unknown>[];
+      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
+      expect(left).toMatchObject({
+        outcome: "applied",
+        operation: "errand-leave",
+        identity: { state: "awaiting-merge" },
+      });
+      expect(resumed).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        identity: { state: "open", changeRequest: null },
+      });
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harness.directory);
+      await removeGitBackedDir(hostHarness);
+    }
   });
 
   it.each([

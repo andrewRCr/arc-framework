@@ -122,33 +122,32 @@ _Design decisions:_ One combined test phase rather than per-verb slices — the 
 resume) spans both verbs. The inherited e2e scope is three named blocks across three files, not a wholesale
 move; each ports at `describe` / `it` granularity with harness helpers adapted to the current files' shapes.
 
-### `[ ]` **3.1 Port the carved e2e blocks** (SC 1, 2, 3)
+### `[x]` **3.1 Port the carved e2e blocks** (SC 1, 2, 3)
 
 - _Goal:_ Inherited end-to-end behavior lands in the current suite: leave proofs (pause push-proof,
   awaiting-merge coordinate match), refusal paths, materialize with exact provenance, and the resume tail
   through the base's open driver returning identity state to `open` — with no WU meta, task list, or
   SESSION-NOTES created.
 
-    - `[ ]` **3.1.a Port the `describe("arc errand leave")` block** into `errand.e2e.test.ts` (~28 lines at
+    - `[x]` **3.1.a Port the `describe("arc errand leave")` block** into `errand.e2e.test.ts` (~28 lines at
       the tag)
 
-    - `[ ]` **3.1.b Port the paused-Errand materialize `it`** ("materializes a remote-only paused Errand with
+    - `[x]` **3.1.b Port the paused-Errand materialize `it`** ("materializes a remote-only paused Errand with
       exact provenance") into `locus-mutations.e2e.test.ts`, beside its surviving work-unit sibling
 
-    - `[ ]` **3.1.c Port the awaiting-merge resume `it`** ("resumes an awaiting-merge tail from an ordinary
+    - `[x]` **3.1.c Port the awaiting-merge resume `it`** ("resumes an awaiting-merge tail from an ordinary
       open change request") into `locus-errand-roundtrip.e2e.test.ts`, plus any adjacent paused-resume blocks
       the tag carries in that file
 
-### `[ ]` **3.2 Close the owned materialize e2e gap — verify, then fill** (SC 6; open item)
+### `[x]` **3.2 Close the owned materialize e2e gap — verify, then fill** (SC 6; open item)
 
 - _Goal:_ The materialize path is asserted end-to-end against real v3 Errands — paused at `savedHead`,
   awaiting-merge at its change-request head, and a failed-open rollback that deletes the exact created local
   branch and leaves no markerless worktree — with no seeded legacy-record reliance. The awaiting-merge lane also
   proves a moved change-request head is refused rather than admitted under ordinary resume's advisory policy.
 
-- _Note:_ Verify first what the ported 3.1.b test already proves; the net-new work is the remainder (likely
-  the awaiting-merge success arm and the failed-open rollback). This closes the origin review's `E5-V1`
-  materialize half — the one piece of net-new test authorship in the WU.
+- _Outcome:_ Real-v3 coverage now proves paused and awaiting-merge materialization, ordinary awaiting-tail resume,
+  strict moved-head refusal, exact local-branch rollback, and absence of a surviving worktree on failed open.
 
 ## **Phase 4:** Replace legacy discovery and flip the workflow surface
 
