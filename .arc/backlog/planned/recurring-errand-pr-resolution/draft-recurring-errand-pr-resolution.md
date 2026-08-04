@@ -8,6 +8,9 @@
 Fixed-slug errands can reuse one branch name across multiple runs. PR lookup by owner and branch then returns every
 historical PR for that name, and the multiple-match arm stops even when all prior matches are merged at old heads and
 the current head is new. The 2026-07-19 housekeep drain hit this with historical PRs #82 and #105 before PR #302.
+The 2026-08-04 staleness-policy grooming pass reproduced the same stop when merged PR #38 shared the current
+branch name at an older head; publication required abandoning the exact Errand generation, reopening under a unique
+slug, and replaying the approved commits before PR #447 could open.
 
 ## Approach / Scope
 

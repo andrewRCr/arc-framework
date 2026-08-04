@@ -21,6 +21,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Integrating` | errand-transient-lifecycle    | P1       | andrew | —          | —                         |
 | `Planning`    | integration-boundary-accuracy | P1       | andrew | —          | —                         |
 | `Planning`    | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
+| `Planning`    | staleness-guard-policy        | P1       | andrew | —          | —                         |
 | `Planning`    | stub-mint-to-launch           | P1       | andrew | —          | —                         |
 | `Planning`    | merge-readiness-control       | P2       | andrew | —          | —                         |
 
@@ -37,8 +38,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
 | delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
+| recurring-errand-pr-resolution     | P1       | andrew | —          | —                             |
 | roadmap-tooling                    | P1       | andrew | —          | —                             |
-| staleness-guard-policy             | P1       | andrew | —          | —                             |
 | wu-lifecycle-state-model           | P1       | andrew | —          | —                             |
 | composable-workflows               | P2       | andrew | —          | agent-context-optimization    |
 | loadset-composition                | P2       | andrew | —          | agent-context-optimization    |
