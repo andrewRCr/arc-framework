@@ -898,6 +898,15 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.config", `Unsupported branch.protection value '${protection}'.`, opts.json === true);
         return;
       }
+      const base = settings["branch.base"].trim();
+      if (base === "") {
+        emitErrandLeaveFailure(
+          "locus.errand-leave.config",
+          "No branch.base configured — cannot restore the parent checkout.",
+          opts.json === true,
+        );
+        return;
+      }
       const identity = await resolveIdentityWithPrompt(false);
       if (!identity) {
         emitErrandLeaveFailure("locus.errand-leave.identity", "No identity resolved — set arc.identity before leaving an Errand.", opts.json === true);
@@ -917,7 +926,7 @@ export async function handleErrandLeave(
         slug: parsed.data.slug,
         state: parsed.data.state,
         protection,
-        base: settings["branch.base"],
+        base,
         updatedAt: new Date().toISOString(),
         identity,
         identityGlobalUserDir,

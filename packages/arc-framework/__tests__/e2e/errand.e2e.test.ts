@@ -307,6 +307,27 @@ describe("arc errand leave", () => {
       reason: "full-protection-required",
     });
   });
+
+  it("refuses a blank base before attempting to leave", async () => {
+    await setFullProtection(repository);
+    const configPath = join(repository, ".arc", "system", "arc-config.yml");
+    const config = await readFile(configPath, "utf-8");
+    const updated = config.replace("branch.base: main", "branch.base: '   '");
+    expect(updated).not.toBe(config);
+    await writeFile(configPath, updated, "utf-8");
+
+    const result = await runArc([
+      "errand", "leave", "anything", "--state", "paused", "--json",
+    ], repository);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-leave",
+      error: { code: "locus.errand-leave.config" },
+    });
+    expect(result.stderr).toBe("");
+  });
 });
 
 describe("arc errand open", () => {
