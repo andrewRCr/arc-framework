@@ -40,6 +40,12 @@ import {
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import {
+  handleDeliveryCompose,
+  handleDeliveryPlanAbandon,
+  type DeliveryComposeOptions,
+  type DeliveryPlanAbandonOptions,
+} from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -618,6 +624,32 @@ plan
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+  ));
+
+const delivery = program
+  .command("delivery")
+  .description("Author, compose, and manage delivery plans");
+
+delivery
+  .command("compose")
+  .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--json", "Emit the typed composition result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryComposeOptions) => handleDeliveryCompose(opts, context),
+  ));
+
+const deliveryPlan = delivery
+  .command("plan")
+  .description("Create or abandon transient delivery-plan authoring state");
+
+deliveryPlan
+  .command("abandon")
+  .description("Delete the outstanding authoring map idempotently")
+  .option("--json", "Emit the typed abandonment result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
   ));
 
 // --- Lifecycle ---
