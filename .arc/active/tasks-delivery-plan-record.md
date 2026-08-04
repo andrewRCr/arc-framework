@@ -346,7 +346,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
   ordinary edits and drift by comparing the Markdown with the snapshot; it does not claim resistance to a hostile
   operator who rewrites both local files.
 
-    - `[ ]` **3.1.a Machine section carrying every derived fact and identity**
+    - `[x]` **3.1.a Machine section carrying every derived fact and identity**
 
         - Done when the canonical snapshot carries exactly the derived set `1.1.c` enumerates plus the entry's own
           inputs, and the Markdown machine section reproduces that material in a form `3.2.a` can compare.
@@ -356,7 +356,11 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - The snapshot pins the design inventory, task list or Git coordinates, facts, identities, and order
             - A partial pair without a matching composed-plan receipt refuses as corrupt authoring state
 
-    - `[ ]` **3.1.b Authoring section as a skeleton of explicit slots**
+        - _Outcome:_ Added a strict canonical snapshot over source inputs, facts, inventories, and ordered
+          identities; published it with its Markdown peer under one namespace lock; repeated its immutable machine
+          material in the map; and refused a torn pair as corrupt authoring state.
+
+    - `[x]` **3.1.b Authoring section as a skeleton of explicit slots**
 
         - The boundary slot takes a discriminated value — an alignment arm the composer expands mechanically, or
           an arm carrying explicit boundaries.
@@ -365,6 +369,10 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - Every irreducible judgment has exactly one slot
             - No boundary slot arrives pre-filled with a derived partition
             - The landability assertion is an author slot, never manufactured
+
+        - _Outcome:_ Emitted one strict author-slot object for projection, boundary choice, member judgments, and
+          seams; the starter leaves every arm visibly unfilled and exposes landability only inside authored member
+          values, with no editable or pre-filled seam owner.
 
     - `[ ]` **3.1.c Single outstanding map per unit**
 
@@ -380,7 +388,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
               authority cases preserve the plan resolver's established refusal and safe-absence semantics
             - Abandoning a map idempotently deletes both files and clears the outstanding state
 
-### `[ ]` **3.2 Refuse a record no author authored**
+### `[x]` **3.2 Refuse a record no author authored**
 
 - _Goal:_ The three ways a map can arrive un-authored each refuse with their own code, so an author's judgment is
   the only thing composition can be carrying.
@@ -388,7 +396,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Note:_ Covered directly rather than inferred from composition's success path — these refusals are the
   mechanism that makes an authored judgment trustworthy.
 
-    - `[ ]` **3.2.a The three typed refusals**
+    - `[x]` **3.2.a The three typed refusals**
 
         - Build `test-first` (one behavior at a time):
             - A map that does not parse refuses before any slot is inspected
@@ -398,6 +406,13 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - A reordered identity sequence refuses with its typed code
             - A map whose machine and authored identity sequences still match validates
             - Editing only the JSON snapshot is detected by the same comparison boundary
+
+        - _Outcome:_ Added a deterministic sentinel-bounded Markdown codec and integrity boundary that refuses
+          malformed maps, unfilled slots, derived mutations, and identity reordering distinctly before record
+          construction, including JSON-only drift and attempted author ownership of a derived seam.
+
+- _Outcome:_ Composition now receives only a completely filled author-slot object whose immutable machine material
+  still matches the CLI-owned snapshot; every un-authored or drifted state stops with a stable typed reason.
 
 ### `[ ]` **3.3 Validate and publish through `arc delivery compose`**
 
