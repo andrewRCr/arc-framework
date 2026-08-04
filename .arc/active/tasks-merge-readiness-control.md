@@ -396,6 +396,9 @@ new-versus-old split.
 
     - `[x]` **4.1.b Delete the remaining clearance workflow**
         - Confirmed before deleting: only the dispatch-triggered `validate` / `write-status` pair was left.
+        - The coupling audit's checked-in corpus inventory pins repository-root paths exactly, so the rename
+          had to land there too — a second inventory the plan did not name, found by Tier 2 rather than by
+          reading the task text.
 
     - `[x]` **4.1.c Re-assert the extracted workflow's security properties**
         - _Goal:_ The properties that make the gate trustworthy are pinned by tests in its new home, rather
