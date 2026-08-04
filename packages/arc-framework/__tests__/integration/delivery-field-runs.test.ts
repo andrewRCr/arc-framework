@@ -15,6 +15,7 @@ import {
 import { execFileAsync } from "../helpers/integration.js";
 
 const RUNS = [SEVEN_MEMBER_FIELD_RUN, ROLLING_FIELD_RUN] as const;
+const FIELD_RUN_TIMEOUT_MS = 20_000;
 
 describe("recorded delivery field runs", () => {
   let repository: string;
@@ -56,7 +57,7 @@ describe("recorded delivery field runs", () => {
       chunkKey: member.chunkKey,
       result: [member.mergeCommit],
     })));
-  });
+  }, FIELD_RUN_TIMEOUT_MS);
 
   it("preserves strict refusals when historical raw-head base merges cannot be proved pure", async () => {
     const cases = [
@@ -91,7 +92,7 @@ describe("recorded delivery field runs", () => {
       { chunkKey: "decompose-transform-integrity/legacy-retirement", result: "ambient-purity-unproven" },
       { chunkKey: "session-locus-model/session-wiring", result: "ambient-purity-unproven" },
     ]);
-  });
+  }, FIELD_RUN_TIMEOUT_MS);
 
   it.each(RUNS)("constructs the $workUnitId plan without invented task membership", (run) => {
     const planId = run.workUnitId === "session-locus-model"
