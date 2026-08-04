@@ -79,6 +79,7 @@ import {
   type LocusMutationResultV1,
 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import { PrioritySchema, SlugSchema, WorkClassSchema, type CanonicalDigest } from "../lib/kernel/index.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
@@ -742,8 +743,13 @@ export async function handleErrandMaterialize(
         emitMaterializeError("input", z.prettifyError(parsed.error), opts.json === true);
         return;
       }
-      const cwd = requireArcProjectRoot();
-      if (!cwd) return;
+      const cwd = opts.json === true ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+      if (!cwd) {
+        if (opts.json === true) {
+          emitMaterializeError("topology", "ARC project root is unavailable.", true);
+        }
+        return;
+      }
       const { settings } = await readConfigSettings(cwd);
       if (settings["branch.protection"] !== "full") {
         emitMaterializeRefusal("full-protection-required", "Errand materialization requires full branch protection.", opts.json === true);
@@ -921,8 +927,17 @@ export async function handleErrandLeave(
     emitErrandLeaveResult,
     "Inspect the preserved identity tail and local session locus residue before retrying.",
     async () => {
-      const cwd = requireArcProjectRoot();
-      if (!cwd) return;
+      const cwd = opts.json === true ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+      if (!cwd) {
+        if (opts.json === true) {
+          emitErrandLeaveFailure(
+            "locus.errand-leave.topology",
+            "ARC project root is unavailable.",
+            true,
+          );
+        }
+        return;
+      }
       const { settings } = await readConfigSettings(cwd);
       const protection = settings["branch.protection"];
       if (protection !== "full" && protection !== "partial") {

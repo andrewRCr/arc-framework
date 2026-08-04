@@ -281,6 +281,35 @@ describe("arc errand check", () => {
   });
 });
 
+describe("arc errand JSON topology failures", () => {
+  it.each([
+    {
+      operation: "errand-leave",
+      args: ["errand", "leave", "anything", "--state", "paused", "--json"],
+      code: "locus.errand-leave.topology",
+    },
+    {
+      operation: "errand-materialize",
+      args: ["errand", "materialize", "anything", "--json"],
+      code: "locus.errand-materialize.topology",
+    },
+  ])("emits a $operation error envelope outside an ARC project", async ({ operation, args, code }) => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-outside-project-"));
+    try {
+      const result = await runArc(args, outsideProject);
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout.trim())).toMatchObject({
+        outcome: "error",
+        operation,
+        error: { code },
+      });
+    } finally {
+      await cleanupTempDir(outsideProject);
+    }
+  });
+});
+
 describe("arc errand leave", () => {
   let repository: string;
 
