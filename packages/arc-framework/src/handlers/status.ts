@@ -114,6 +114,8 @@ import type { GitExec } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
   type ErrandRecord,
   type ListErrandRecordsResult,
 } from "../lib/errand/record.js";
@@ -584,6 +586,11 @@ export async function handleStatus(
     // (resume + discovery). Identity-scoped and local, so read once and reused;
     // empty when no identity resolved (no record ref exists).
     let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
+    let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+    const getTransientIndexes = () => {
+      transientIndexesPromise ??= readTransientInFlightIndexes({ exec, identity });
+      return transientIndexesPromise;
+    };
     const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
         ? Promise.resolve({ records: [], complete: true, warnings: [] })
@@ -603,13 +610,19 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs, locusState] = await Promise.all([
+        const [recordResult, transientRead, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
+          getTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalLocusState(),
         ]);
         const records = recordResult.records;
-        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
+        const transient = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transient.indexes;
+        const errandSlugByBranch = new Map([
+          ...records.map((record) => [record.branch, record.slug] as const),
+          ...transientIndexes.slugByBranch,
+        ]);
         const result = await deriveInFlight({
           exec,
           decompositionClaimCwd: cwd,
@@ -618,7 +631,8 @@ export async function handleStatus(
           identity,
           teamMode,
           errandSlugByBranch,
-          errandRecordsComplete: recordResult.complete,
+          expectedTransientByBranch: transientIndexes.expectedByBranch,
+          errandRecordsComplete: recordResult.complete && transient.complete,
           parkedSlugs,
           locusState,
         });
@@ -862,10 +876,18 @@ export async function handleStatus(
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
-        const locusState = await getOptionalLocusState();
+        const [transientRead, locusState] = await Promise.all([
+          getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
+        const transientState = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
-        let oracleWarnings: string[] = [...recordResult.warnings];
+        let oracleWarnings: string[] = [
+          ...recordResult.warnings,
+          ...(transientState.degraded === null ? [] : [transientState.degraded]),
+        ];
         if (input.includeDiscovery) {
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
@@ -881,6 +903,7 @@ export async function handleStatus(
           residue,
           oracleWarnings,
           records,
+          transientRecords: transientIndexes.records,
           locusState,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,

@@ -156,20 +156,16 @@ path. The current branch-oracle producer still advertises record-less legacy bra
 docs treat a remote-only Errand identity as retained evidence and code-side docs still describe the raw
 `git worktree add` flow this WU replaces.
 
-### `[ ]` **4.1 Replace branch-derived materialization discovery with identity-backed candidates** (SC 4, 5)
+### `[x]` **4.1 Replace branch-derived materialization discovery with identity-backed candidates** (SC 4, 5)
 
 - _Goal:_ `errandState.value.materializable.candidates` contains only remote-only ordinary v3 identities in
   `paused` or `awaiting-merge` state that `arc errand materialize` can actually accept — never an `open` identity
   or a record-less branch-derived legacy candidate — so session-init's candidate list is a correctness mechanism,
   not a dead-route advisory.
 
-    - Build `test-first` (one behavior at a time):
-        - Derive eligibility from exact identity/locus evidence rather than the branch oracle's `remoteOnly`
-          Errand classification; preserve branch-only legacy entries only on non-materialization advisory surfaces
-        - Admit eligible `paused` / `awaiting-merge` identity-only rows and exclude `open`, incomplete, occupied,
-          and record-less branch candidates
-        - Update `materializable-errands.test.ts`, `errand-state.test.ts`, envelope fixtures/schema, and call sites
-          to remove the raw branch-derived candidate contract
+- _Outcome:_ Session status now projects materializable Errands only when an ordinary v3 paused or awaiting-merge
+  identity matches remote-only branch evidence, carrying its exact claim, head, state, and origin context while
+  retaining record-less legacy branches solely on advisory surfaces.
 
 ### `[ ]` **4.2 Update package-source workflow templates and reference docs** (SC 5, 7)
 

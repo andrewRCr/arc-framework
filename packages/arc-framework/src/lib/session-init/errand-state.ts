@@ -2,8 +2,8 @@
  * Errand-state composer for session-init.
  *
  * The I/O boundary around the pure errand helpers. Identity is record-backed:
- * the injected errand records form a branch→slug index that resolves each
- * errand's slug (a record-less branch degrades to the branch-derived slug).
+ * legacy records form the branch→slug index used by compatibility advisories,
+ * while current identity records exclusively authorize materialization.
  * Presence and merge status stay oracle-backed. It detects a resumable current
  * branch (cheap, always), and — when discovery is on — classifies the oracle's
  * in-flight errand entries and selects the remote-only ones as materialize
@@ -25,6 +25,7 @@ import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-flight-derivation.js";
 import { isLandedInBase } from "../git/branch-containment.js";
 import type { ErrandRecord } from "../errand/record.js";
+import type { TransientIdentityRecord } from "../errand/identity-record.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
@@ -49,7 +50,7 @@ export interface ErrandStateResult {
   resume: ErrandResumeResult;
   /** Orient-only advisory over the oracle's in-flight `chore/` errands. */
   inFlight: InFlightErrandSweepResult;
-  /** Remote-only `chore/` errands that can be materialized locally. */
+  /** Exact ordinary-v3 tails that can be materialized locally. */
   materializable: MaterializableErrandsResult;
   /** Branch/record residue surfaced for advisory cleanup. */
   residue: InFlightResidue[];
@@ -85,6 +86,8 @@ export interface RunErrandStateOptions {
    * record-less errand branch then degrades to its branch-derived slug.
    */
   records: readonly ErrandRecord[];
+  /** Exact current-generation identities used by materialization projections. */
+  transientRecords?: readonly TransientIdentityRecord[];
   /** Integration base branch short-name, e.g. `main`. */
   baseBranch: string;
   /** Whole-day threshold for classifying in-progress branches as stale. */
@@ -127,7 +130,10 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     );
   }
 
-  const materializable = findMaterializableErrands({ entries: options.entries, slugByBranch });
+  const materializable = findMaterializableErrands({
+    entries: options.entries,
+    records: options.transientRecords ?? [],
+  });
   const errands = options.entries.filter(
     (entry): entry is InFlightErrand => entry.kind === "errand",
   );
@@ -264,3 +270,4 @@ async function readErrandTimestamps(exec: GitExec): Promise<ErrandTimestamps> {
   }
   return { local, remote, warnings: [] };
 }
+

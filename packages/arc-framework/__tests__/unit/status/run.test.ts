@@ -2577,7 +2577,14 @@ describe("runSessionInitStatus — errand-state slot", () => {
       active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
       errandState: vi.fn(async () =>
         errandStateResult({
-          materializable: { candidates: [{ slug: "fix", branch: "chore/fix" }] },
+          materializable: { candidates: [{
+            slug: "fix",
+            claimId: "a".repeat(32),
+            branch: "chore/fix",
+            expectedHead: "b".repeat(40),
+            state: "paused",
+            originEntry: null,
+          }] },
         })),
     });
 
@@ -2591,7 +2598,14 @@ describe("runSessionInitStatus — errand-state slot", () => {
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
       expect(result.errandState.value.materializable.candidates).toEqual([
-        { slug: "fix", branch: "chore/fix" },
+        {
+          slug: "fix",
+          claimId: "a".repeat(32),
+          branch: "chore/fix",
+          expectedHead: "b".repeat(40),
+          state: "paused",
+          originEntry: null,
+        },
       ]);
     }
   });
