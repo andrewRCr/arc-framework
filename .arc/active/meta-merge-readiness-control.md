@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2 (Tasks 2.1–2.5) — the three lock verbs ship as `arc merge lock`; the clearance CLI
-  path is retired
-- **Next Task:** Task 3.1 — Substitute the fire sites in `integrate-work-unit.md` (line ~268)
+- **Last Completed:** Phase 4 (Tasks 4.1–4.3) — clearance producer and required status retired together,
+  `merge.lock: draft` live on this repository, ADR-031 recorded
+- **Next Task:** Task 5.1 — Complete verification (line ~471)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — put `resolve` before `gh pr create` and `release` at the integration
-  interlock, in both the package source and this instance
+- **Next Action:** Begin Task 5.1 — load `verify-work-unit.md` and verify the work unit against its success
+  criteria; this WU's own PR is the first to run the draft-first lifecycle end to end
 
 - **PR URL:** [none]
 - **Completed:** [none]
