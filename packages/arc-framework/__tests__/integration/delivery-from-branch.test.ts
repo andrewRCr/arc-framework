@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -32,7 +32,10 @@ describe("branch-derived delivery facts", () => {
     await commitFile(repository, "feature-one.txt", "one\n", "first contribution");
     firstContribution = await oid(repository, "HEAD");
     await git(repository, ["checkout", "main"]);
-    await commitFile(repository, "base-only.txt", "advance\n", "base advance");
+    await writeFile(join(repository, "base-only.txt"), "advance\n");
+    await writeFile(join(repository, "ambient-pair.txt"), "ambient\n");
+    await git(repository, ["add", "--", "base-only.txt", "ambient-pair.txt"]);
+    await git(repository, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "base advance"]);
     baseAdvance = await oid(repository, "HEAD");
     await git(repository, ["checkout", "feature"]);
     await git(repository, ["merge", "--no-ff", "main", "-m", "absorb base"]);
@@ -285,6 +288,74 @@ describe("branch-derived delivery facts", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
     expect(prepared.snapshot.source.facts).toMatchObject({ taskAttributions: [], advisories: [] });
+  });
+
+  it("reports contribution co-change and lifecycle-artifact touches without constraining the cut", async () => {
+    await writeFile(join(repository, "zeta.txt"), "one\n");
+    await writeFile(join(repository, "alpha.txt"), "one\n");
+    await git(repository, ["add", "--", "zeta.txt", "alpha.txt"]);
+    await git(repository, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "first co-change"]);
+    const firstPair = await oid(repository, "HEAD");
+    await writeFile(join(repository, "zeta.txt"), "two\n");
+    await writeFile(join(repository, "alpha.txt"), "two\n");
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), "# Metadata: demo\n");
+    await git(repository, ["add", "--", "zeta.txt", "alpha.txt", ".arc/active/meta-demo.md"]);
+    await git(repository, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "second co-change"]);
+    const secondPair = await oid(repository, "HEAD");
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.snapshot.source.facts).toMatchObject({
+      coChangePairs: expect.arrayContaining([{
+        paths: ["alpha.txt", "zeta.txt"],
+        contributionStepIds: [firstPair, secondPair]
+          .sort((left, right) => Buffer.from(left).compare(Buffer.from(right))),
+      }]),
+      lifecycleArtifactTouches: [{
+        commit: secondPair,
+        paths: [".arc/active/meta-demo.md"],
+      }],
+    });
+    const reports = prepared.snapshot.source.facts as {
+      coChangePairs: { paths: string[] }[];
+    };
+    expect(reports.coChangePairs.flatMap((pair) => pair.paths)).not.toContain("ambient-pair.txt");
+    const projection = resolveDeliveryFromBranchProjection({
+      snapshot: prepared.snapshot,
+      slots: DeliveryAuthoringSlotsV1Schema.parse({
+        projection: { kind: "wu-integration-target" },
+        boundary: {
+          kind: "explicit",
+          segments: [{
+            chunkKey: "only",
+            sourceIds: prepared.inspection.contributionStepIds,
+          }],
+        },
+        members: [memberSlot("only")],
+        seams: [],
+      }),
+    });
+    expect(projection.status).toBe("resolved");
   });
 });
 

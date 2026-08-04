@@ -93,6 +93,14 @@ const DeliveryFromBranchFactsSchema = z.strictObject({
     commit: z.string().min(1),
     taskId: z.string().min(1),
   })),
+  coChangePairs: z.array(z.strictObject({
+    paths: z.tuple([z.string().min(1), z.string().min(1)]),
+    contributionStepIds: z.array(z.string().min(1)).min(1),
+  })),
+  lifecycleArtifactTouches: z.array(z.strictObject({
+    commit: z.string().min(1),
+    paths: z.array(z.string().min(1)).min(1),
+  })),
 });
 
 /** Inputs for one branch-derived authoring map. */
@@ -255,6 +263,10 @@ export async function prepareDeliveryFromBranchAuthoring(
     ...inspection,
     taskAttributions: attribution.value.taskAttributions,
     advisories: attribution.value.advisories,
+    ...deriveBranchStructureReports(
+      inspection.steps,
+      lifecycleArtifactBasenames(input.workUnitId, design.inventory.artifacts.map(({ artifactId }) => artifactId)),
+    ),
   };
 
   try {
@@ -375,14 +387,94 @@ function branchFactsMatchSnapshot(
       taskId,
     }))
   ));
+  const expectedReports = deriveBranchStructureReports(
+    facts.steps,
+    lifecycleArtifactBasenames(
+      snapshot.originalWorkUnitId,
+      snapshot.design.artifacts.map(({ artifactId }) => artifactId),
+    ),
+  );
   return JSON.stringify(stepIds) === JSON.stringify(snapshot.source.identitySequence)
     && JSON.stringify(contributionIds) === JSON.stringify(facts.contributionStepIds)
     && attributionPositions.every((position, index) => position !== -1
       && (index === 0 || position > (attributionPositions[index - 1] ?? position)))
     && new Set(attributionCommits).size === attributionCommits.length
     && JSON.stringify(expectedAdvisories) === JSON.stringify(facts.advisories)
+    && JSON.stringify(expectedReports.coChangePairs) === JSON.stringify(facts.coChangePairs)
+    && JSON.stringify(expectedReports.lifecycleArtifactTouches)
+      === JSON.stringify(facts.lifecycleArtifactTouches)
     && first.predecessor === facts.originalDivergence.predecessor
     && first.commit === facts.originalDivergence.commit;
+}
+
+function deriveBranchStructureReports(
+  steps: readonly DeliveryBranchStep[],
+  lifecycleBasenames: ReadonlySet<string>,
+): {
+  readonly coChangePairs: readonly {
+    readonly paths: readonly [string, string];
+    readonly contributionStepIds: readonly string[];
+  }[];
+  readonly lifecycleArtifactTouches: readonly {
+    readonly commit: string;
+    readonly paths: readonly string[];
+  }[];
+} {
+  const pairs = new Map<string, {
+    readonly paths: readonly [string, string];
+    readonly contributionStepIds: string[];
+  }>();
+  const lifecycleArtifactTouches: { readonly commit: string; readonly paths: readonly string[] }[] = [];
+  for (const step of steps) {
+    if (step.classification !== "contribution") continue;
+    const paths = sortCanonicalBytes(new Set(affectedPaths(step.changeSet.changes)));
+    for (let leftIndex = 0; leftIndex < paths.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < paths.length; rightIndex += 1) {
+        const left = paths[leftIndex];
+        const right = paths[rightIndex];
+        if (left === undefined || right === undefined) continue;
+        const key = JSON.stringify([left, right]);
+        const existing = pairs.get(key);
+        if (existing === undefined) {
+          pairs.set(key, { paths: [left, right], contributionStepIds: [step.commit] });
+        } else {
+          existing.contributionStepIds.push(step.commit);
+        }
+      }
+    }
+    const lifecyclePaths = paths.filter((path) => lifecycleBasenames.has(artifactBasename(path)));
+    if (lifecyclePaths.length > 0) {
+      lifecycleArtifactTouches.push({ commit: step.commit, paths: lifecyclePaths });
+    }
+  }
+  return {
+    coChangePairs: [...pairs.values()]
+      .map((pair) => ({
+        paths: pair.paths,
+        contributionStepIds: sortCanonicalBytes(pair.contributionStepIds),
+      }))
+      .sort((left, right) => comparePathPairs(left.paths, right.paths)),
+    lifecycleArtifactTouches,
+  };
+}
+
+function lifecycleArtifactBasenames(
+  workUnitId: string,
+  designArtifactIds: readonly string[],
+): ReadonlySet<string> {
+  return new Set([
+    `meta-${workUnitId}.md`,
+    `draft-${workUnitId}.md`,
+    `spec-${workUnitId}.md`,
+    `notes-${workUnitId}.md`,
+    `tasks-${workUnitId}.md`,
+    ...designArtifactIds,
+  ]);
+}
+
+function comparePathPairs(left: readonly [string, string], right: readonly [string, string]): number {
+  return Buffer.from(left[0]).compare(Buffer.from(right[0]))
+    || Buffer.from(left[1]).compare(Buffer.from(right[1]));
 }
 
 const TASK_CONTEXT_PATTERN = /^(?<filename>tasks-[A-Za-z0-9-]+\.md) \((?<reference>.+)\)$/u;

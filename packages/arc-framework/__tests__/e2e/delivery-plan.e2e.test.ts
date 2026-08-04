@@ -72,7 +72,16 @@ describe("arc delivery", () => {
     const base = await git(repository, ["rev-parse", "HEAD"]);
     await git(repository, ["checkout", "-b", "feature"]);
     await writeFile(join(repository, "contribution.txt"), "branch contribution\n");
-    await git(repository, ["add", "--", "contribution.txt"]);
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
+      "# Metadata: demo",
+      "",
+      "- **State:** Active",
+      "- **Branch:** feat/demo",
+      "- **Task List:** `tasks-demo.md`",
+      "- **Next Action:** Author delivery boundaries",
+      "",
+    ].join("\n"));
+    await git(repository, ["add", "--", "contribution.txt", ".arc/active/meta-demo.md"]);
     await git(repository, ["commit", "-m", "branch contribution"]);
     const head = await git(repository, ["rev-parse", "HEAD"]);
 
@@ -95,6 +104,8 @@ describe("arc delivery", () => {
     const map = await readFile(join(authoring, mapName), "utf8");
     expect(map).toContain('"entry": "from-branch"');
     expect(map).toContain('"classification": "contribution"');
+    expect(map).toContain('"lifecycleArtifactTouches"');
+    expect(map).toContain('".arc/active/meta-demo.md"');
     expect(map).toContain('"boundary": null');
     await fillSlots(join(authoring, mapName), {
       projection: { kind: "wu-integration-target" },
