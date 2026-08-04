@@ -106,6 +106,11 @@ aren't self-describing); inter-member order, when it exists, lives in `Depends O
 The method produces either **"stays one WU"** or the author-owned half of the v3 cut-map. The CLI supplies the
 immutable source units and dependency edges; complete only these authoring decisions:
 
+When the result is **"stays one WU"**, carry one advisory only if the sizing read found distinct deliverables or
+independently reviewable surfaces: **"Delivery-plan candidate — keep the concern as one WU while giving its
+separable surfaces independent delivery boundaries."** The advisory is never a gate; omit it when that signal did
+not fire.
+
 - **shape** — `symmetric` or `heterogeneous`;
 - **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
 - **destinations** — each exact `new-member`, `existing-home`, or `cohort-coordination` target;

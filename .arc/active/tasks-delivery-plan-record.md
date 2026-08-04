@@ -659,33 +659,16 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
   later-member seam ownership. Historical mixed merges remain strict refusals instead of losing authored delta,
   while landed-result replay and a synthetic pure absorb cover the two distinct evidence cases.
 
-### `[ ]` **4.6 Surface delivery-plan candidacy at the design-stage boundary read**
+### `[x]` **4.6 Surface delivery-plan candidacy at the design-stage boundary read**
 
 - _Goal:_ An author whose concern stayed one work unit while the separable-surfaces signal fired learns that a
   delivery plan serves that shape, at the moment the judgment is already being made.
 
-- _Approach:_ Read the signal where the boundary test already states it and attach the note to its "stays one
-  work unit" arm. Delivery authors no second test and owns no trigger; the note is worth surfacing once, is never
-  a gate, and is freely declined because the retrofit entry stays open at the same cost.
+    - `[x]` **4.6.a Add the candidacy note to the boundary test's stays-one-unit arm**
 
-- _Context:_ The boundary test states its separable-surfaces signal in prose and records no verdict when it
-  answers "stays one work unit" — no artifact exists to consume, and creating one belongs to the work unit
-  rewriting that method. So the note is surfaced in the same session that makes the judgment, which meets the
-  surface-once bar without a durable record. When a recorded verdict does land, this upgrades to consuming it
-  without changing shape.
-
-- _Note:_ Edit the package source and let it sync; both copies are currently byte-identical. Write the addition
-  in the shipped-content register — no references to this work unit's own planning artifacts.
-
-    - `[ ]` **4.6.a Add the candidacy note to the boundary test's stays-one-unit arm**
-
-        - The signal is stated in the method's sizing heuristics, where distinct deliverables and independently
-          reviewable surfaces are named the primary signal; the arm that answers "stays one work unit" is in its
-          output section. The note attaches to the output arm and refers to the signal, so one surface produces
-          the judgment and one records what follows from it.
-
-        - Done when a "stays one work unit" answer reached while that signal fired carries the note, and one
-          reached without it does not.
+        - Added one conditional, non-gating advisory to the method's "stays one WU" output: it surfaces only when
+          the existing distinct-deliverables or independently-reviewable-surfaces signal fired and otherwise emits
+          nothing.
 
 ### `[ ]` **4.7 Reconcile the shipped sizing doctrine with the delivery invariant**
 
