@@ -30,16 +30,28 @@ derived internal actions, primary, and `current` (active, parent, session home).
 function: never named, never exported, never reused. The concept was written once as an implementation detail
 rather than as an authority, so nothing carried it and nothing failed when the next aggregation skipped it.
 
-**Deviation 2 — the entry side refuses.** `5c6dd5c74` made `arc errand open` and `arc locus attach` refuse when
-the entering process anchor is unverifiable. It was an unblock under pressure — ARC had stopped cooperating,
-including compaction recovery — and it worked by preventing the mint of the leases poisoning the read side. Its
-cost is that ARC now hard-refuses at entry on identity recognition, which the specification forbids in
-terms (below), and which takes every unrecognized harness offline: an ordinary session on a harness outside the
-recognized set cannot open an errand or attach at all.
+**Deviation 2 — the lifecycle refuses on identity recognition.** Nine sites return `lease-unknown` from an
+unconditional `anchor.kind !== "process"` check, before any state read: `errand open` (`lib/errand/open.ts:118`),
+`locus attach` and the shared `prepare` path serving attach and release
+(`lib/locus/command-runtime.ts:155,448`), `locus resolve` (`:370`), and `errand close`, `leave`, `promote`,
+`abandon` (twice), and `partial-settle` in their respective runtimes. The specification forbids exactly this on
+routine paths (below), and the effect is that any session on a harness outside the recognized set cannot run the
+Errand lifecycle at all.
 
-**The two are causally linked, which is what makes restoration coherent.** Deviation 2 exists only because
-deviation 1 made an unknown lease globally poisonous. Fixing the fault domain removes the pressure that produced
-the entry refusal, so the entry posture can return to its specified shape without inventing anything.
+**Only three of the nine came from the emergency.** `5c6dd5c74` added the `open`, `attach`, and `prepare` guards
+under pressure — ARC had stopped cooperating, including compaction recovery — by preventing the mint of the leases
+poisoning the read side. The other six predate it. That ordering matters twice over: reverting the hotfix alone
+would leave a session able to open an Errand it could not close, leave, promote, abandon, or settle, which is
+worse than refusing at the door; and the hotfix is better read as making entry consistent with an existing
+lifecycle posture than as introducing a new one.
+
+**A conformant reference already exists in the tree.** `lib/work-unit/work-unit-locus.ts:261` handles an
+unverifiable session anchor the way the specification describes: it proceeds when no lease is present and refuses
+only an existing lease whose liveness it cannot establish. The work is therefore to propagate a posture already
+implemented here, not to derive one.
+
+**Deviation 1 is what makes deviation 2 safe to unwind.** The emergency guards exist because an unknown lease was
+globally poisonous. Fixing the fault domain removes that pressure, which is why containment sequences first.
 
 **A second incident, routed in from a sibling session, is the same amplifier by a different cause.** A
 behind-base checkout read a valid v3 Errand identity through a legacy branch-local probe accepting only v1/v2
@@ -117,10 +129,15 @@ between them.
 not stop me. Authority — an unrelated degraded row is not mine to act on either. The second is what keeps
 containment from opening a concurrency hole.
 
-**2. Restore the entry posture.** Return `arc errand open` and `arc locus attach` to recording an unverifiable
-anchor and continuing with an advisory, per D1. Recover the prior implementation and its test from `5c6dd5c74^`
-rather than re-deriving them. This unblocks every harness at once — no allowlist, no declaration channel, no new
-mechanism — and it is safe only once part 1 lands, which fixes the sequencing.
+**2. Bring the lifecycle verbs into conformance.** All nine identity-keyed refusals record an unverifiable anchor
+and continue with an advisory, per D1, following the posture `work-unit-locus.ts:261` already implements: proceed
+when no lease is present; refuse only an existing lease whose liveness cannot be established. The three
+hotfix-added guards recover their prior implementation and test from `5c6dd5c74^`; the six older ones are
+converted against the reference. This unblocks every harness at once — no allowlist, no declaration channel, no
+new mechanism — and it is safe only once part 1 lands.
+
+The audit is part of this, not adjacent to it: the nine were found by sweep rather than by knowing where to look,
+so every locus and Errand refusal site is classified routine-or-destructive against the boundary and reconciled.
 
 **3. Consequence-class declarations, and a conformance suite derived from them.** Every locus mutation site
 declares its consequence class (`routine` / `destructive`) as a required, typed property. The conformance suite
@@ -211,6 +228,15 @@ operator attestation through `arc locus resolve`, which already exists.
 **The harness-identity provider seam is dropped.** It was adopted while recognition was believed load-bearing.
 Under D1 it carries no permission semantics, so a provider registry solves a problem the boundary dissolves.
 
+**The degraded-anchor lifecycle does not survive today, and the drift is systemic — settled by sweep,
+2026-08-04.** Reads are unaffected: a session-init probe orients cleanly under an unverifiable anchor. Every
+lifecycle verb refuses. Nine identity-keyed refusal sites exist, six of them predating the emergency, so
+reverting the hotfix alone would strand a session mid-Errand rather than restore operability. The sweep also
+found the conformant reference at `work-unit-locus.ts:261`, which converts this from deriving a posture to
+propagating one. Dynamic confirmation was not pursued past the static reading: the nine are unconditional early
+returns ahead of any state read, and reaching them at runtime requires valid arguments that would mutate real
+state.
+
 ## Open questions
 
 **Q1 — What is the consequence-class declaration's exact shape?** A required argument is weak (a call site can
@@ -219,17 +245,11 @@ is stronger. Whether the derived conformance suite enumerates sites from the typ
 a registry is unsettled, and it decides whether this leaves behind an authority or a fifth copy that happens to be
 shared today.
 
-**Q2 — Does the full lifecycle survive a degraded anchor?** The deleted test covered only `openOrdinaryErrand`
-returning provisioned. Nobody has walked open → work → close → return → recovery with an unverifiable anchor, and
-a second blocker would hide exactly there. **Bounded spike:** locally revert the two refusal guards, walk the
-lifecycle in a scratch fixture, and record what else refuses. This worktree already produces unverifiable anchors,
-so the substrate is free. Run before committing to the restoration sequence.
-
-**Q3 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
+**Q2 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
 expressible, but a degraded sibling is advisory while a degraded current locus gates.
 `operational-advisory-registers` may own that vocabulary; check before minting a local one.
 
-**Q4 — Is `unsupported-version` the right tier when the reader is the stale party?** It sits at `hard`, correct
+**Q3 — Is `unsupported-version` the right tier when the reader is the stale party?** It sits at `hard`, correct
 when a record cannot be identified. A current record read by an out-of-date checkout is different: the record is
 fine, the reader is behind, and the remedy is freshening the reader.
 
@@ -251,7 +271,8 @@ fine, the reader is behind, and the remedy is freshening the reader.
 
 ## Continuity
 
-**Readiness:** `maturing`. Direction is restoration; scope is closed pending the Q2 spike's outcome.
+**Readiness:** `maturing`. Direction is restoration and scope is closed; the remaining opens are local calls that
+can settle at spec time.
 
 **Resolved this pass:**
 
@@ -267,5 +288,10 @@ fine, the reader is behind, and the remedy is freshening the reader.
 - `Class` holds at `Heavy`: scope grew in breadth but the design is now composition and restoration rather than
   invention.
 
-**Next:** run the Q2 spike — it is the one input that could still change the sequence. Then Q1's declaration
-shape, which parts 3 and 4 both depend on. Q3 and Q4 are local calls that can settle at spec time.
+- The degraded-anchor sweep changed part 2's shape: nine refusal sites rather than one hotfix to revert, six of
+  them older than the emergency, plus a conformant in-tree reference to propagate. The audit moved from an
+  additive nicety into the core of that part.
+
+**Next:** Q1's declaration shape, which parts 3 and 4 both depend on and which the nine-site sweep now gives a
+concrete target set. Q2 and Q3 are local calls that can settle at spec time. The draft is otherwise a suitable
+input for `create-spec`.
