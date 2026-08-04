@@ -158,6 +158,25 @@ describe("branch-derived delivery facts", () => {
     });
   });
 
+  it("inspects a feature branch that has not absorbed the latest base", async () => {
+    await git(repository, ["checkout", "-b", "stale-feature", originalBase]);
+    await commitFile(repository, "stale-feature.txt", "stale\n", "stale branch contribution");
+    const staleContribution = await oid(repository, "HEAD");
+
+    await expect(inspectDeliveryBranch({
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    })).resolves.toMatchObject({
+      status: "inspected",
+      base: baseAdvance,
+      head: staleContribution,
+      originalDivergence: { predecessor: originalBase, commit: staleContribution },
+      steps: [{ commit: staleContribution, classification: "contribution" }],
+      contributionStepIds: [staleContribution],
+    });
+  });
+
   it("refuses missing and non-ancestor boundaries with typed reasons", async () => {
     await expect(inspectDeliveryBranch({
       exec: createRawGitExec(repository),

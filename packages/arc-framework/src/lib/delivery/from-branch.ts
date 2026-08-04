@@ -223,7 +223,9 @@ export async function inspectDeliveryBranch(input: {
   } catch {
     return { status: "refused", reason: "git-coordinate-unresolved" };
   }
-  if (!await isAncestor(input.exec, base, head)) {
+  try {
+    await gitLine(input.exec, ["merge-base", base, head]);
+  } catch {
     return { status: "refused", reason: "base-not-ancestor" };
   }
 
