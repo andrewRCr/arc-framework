@@ -22,7 +22,7 @@ import {
   createLocusMutationResult,
   mintDurableLocusRole,
   releaseLocusLease,
-  resumeDeadTransientLease,
+  resumeTransientLease,
   type LocusRoleAuthority,
 } from "./mutation.js";
 import { deriveLocusRecordId } from "./path-identity.js";
@@ -152,6 +152,9 @@ async function adoptTrustedRoleAtRuntime(
   options: LocusCommandRuntimeOptions,
 ): Promise<{ kind: "not-applicable" } | { kind: "result"; result: LocusMutationResultV1 }> {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") {
+    return { kind: "result", result: refusal("locus-attach", "lease-unknown", anchor.reason) };
+  }
   const checkoutPath = resolve(options.cwd, options.checkout ?? ".");
   const roster = await scanRegisteredWorktrees(options.io.exec);
   if (!roster.ok) return { kind: "not-applicable" };
@@ -254,11 +257,11 @@ async function adoptTrustedRoleAtRuntime(
       identity: adoption.identity,
       lease: attached.record.lease === null ? null : {
         ...attached.record.lease,
-        state: anchor.kind === "process" ? "live" : "unknown",
+        state: "live",
         // This row is the lease this invocation just attached under its own anchor.
-        selfHeld: anchor.kind === "process",
+        selfHeld: true,
       },
-      frame: anchor.kind === "process" ? "active" : "residue",
+      frame: "active",
       derived: null,
       diagnostics: [],
     };
@@ -361,7 +364,7 @@ export async function releaseLocusAtRuntime(
   }
 }
 
-/** Resolve one exact dead transient role through reattach or its subject abandonment driver. */
+/** Resolve one exact transient residue role through reattach or its subject abandonment driver. */
 export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions): Promise<LocusMutationResultV1> {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (anchor.kind !== "process") return refusal("locus-resolve", "lease-unknown", anchor.reason);
@@ -378,19 +381,20 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
     dependencies: {
       run: async (dispatch) => dispatch.action === "abandon"
         ? options.abandon(dispatch)
-        : resumeDeadAtRuntime(options, row, anchor, inspector),
+        : resumeAtRuntime(options, row, anchor, inspector, dispatch.confirmedNoLiveSession),
     },
   });
 }
 
-async function resumeDeadAtRuntime(
+async function resumeAtRuntime(
   options: ResolveLocusRuntimeOptions,
   row: LocusRowV1,
   anchor: Extract<Awaited<ReturnType<typeof acquireSessionAnchor>>, { kind: "process" }>,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
+  confirmedNoLiveSession: boolean,
 ): Promise<LocusMutationResultV1> {
   if (row.checkoutPath === null || row.recordId === null || row.lease === null) {
-    return refusal("locus-resolve", "record-malformed", "The dead transient generation is incomplete.");
+    return refusal("locus-resolve", "record-malformed", "The transient residue generation is incomplete.");
   }
   const runtime = createNodeProvisioningDependencies({
     exec: options.io.exec, identity: options.identity, anchor, inspector,
@@ -402,23 +406,24 @@ async function resumeDeadAtRuntime(
   if (acquired.kind !== "acquired") return lockRefusal("locus-resolve", acquired.reason);
   try {
     const now = new Date().toISOString();
-    const resumed = await resumeDeadTransientLease({
+    const resumed = await resumeTransientLease({
       recordId: row.recordId, expectedLeaseId: row.lease.leaseId,
       sessionHomePath: row.checkoutPath, anchor, attachedAt: now, heartbeatAt: now,
       observedLiveness: row.lease.state,
+      confirmedNoLiveSession,
       io: {
         read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
         replace: (bytes, record) => runtime.replaceRecord(acquired.handle.recordPath, bytes, record, acquired.handle),
       },
     });
-    if (resumed.kind === "refused") return refusal("locus-resolve", resumed.reason, "The dead transient generation changed before resume.");
+    if (resumed.kind === "refused") return refusal("locus-resolve", resumed.reason, "The transient residue generation changed before resume.");
     return createLocusMutationResult({
       outcome: resumed.kind, operation: "locus-resolve", allocation: null,
       recordId: row.recordId, leaseId: resumed.record.lease?.leaseId ?? null,
       activeLocusPath: row.checkoutPath, sessionHomePath: row.checkoutPath,
       identity: row.identity, originEntry: row.role?.originEntry ?? null,
       restoredParent: null, nextOffer: null,
-      recommendedPromptText: `Resumed the exact dead transient generation at ${row.checkoutPath}.`,
+      recommendedPromptText: `Resumed the exact transient residue generation at ${row.checkoutPath}.`,
     });
   } finally {
     await runtime.releaseRecordLock(acquired.handle);
@@ -440,6 +445,9 @@ async function prepare(
     }
 > {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") {
+    return { kind: "result", result: refusal(operation, "lease-unknown", anchor.reason) };
+  }
   const inspector = createPlatformProcessInspector();
   const state = await readCommandLocusState(options, anchor, inspector);
   const target = options.checkout === undefined ? null : resolve(options.cwd, options.checkout);

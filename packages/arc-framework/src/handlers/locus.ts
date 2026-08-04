@@ -64,7 +64,7 @@ export async function handleLocusRelease(recordId: string, options: LocusRelease
   await handleLocusMutation("release", { ...options, recordId });
 }
 
-/** Resume or abandon one exact conclusively dead transient generation. */
+/** Resume or abandon one exact transient residue generation. */
 export async function handleLocusResolve(recordId: string, options: LocusResolveOptions): Promise<void> {
   if (options.action !== "resume" && options.action !== "abandon") {
     emitMutation(createLocusMutationResult({
