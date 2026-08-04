@@ -10,7 +10,9 @@ import { describe, it, expect } from "vitest";
 
 import {
   checkDevBuildStaleness,
+  createDevCheckDeps,
   hashSourceInputs,
+  isBuiltBundleEntry,
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
@@ -147,6 +149,53 @@ describe("checkDevBuildStaleness", () => {
       }),
     );
     expect(mtimeFresh).toEqual({ kind: "fresh" });
+  });
+});
+
+describe("isBuiltBundleEntry", () => {
+  const PKG = join("/repo", "packages", "arc-framework");
+
+  it("qualifies a .js entry whose parent directory is dist", () => {
+    expect(isBuiltBundleEntry(join(PKG, "dist", "cli.js"))).toBe(true);
+  });
+
+  it("rejects a .ts entry under src/", () => {
+    expect(isBuiltBundleEntry(join(PKG, "src", "cli.ts"))).toBe(false);
+  });
+
+  it("rejects a .ts entry whose parent directory is dist", () => {
+    // Without this case, dropping the extension condition still passes every
+    // other one.
+    expect(isBuiltBundleEntry(join(PKG, "dist", "cli.ts"))).toBe(false);
+  });
+
+  it("rejects a .js entry outside any dist directory", () => {
+    expect(isBuiltBundleEntry(join(PKG, "scripts", "cli.js"))).toBe(false);
+  });
+});
+
+describe("createDevCheckDeps", () => {
+  it("yields skip for a non-qualifying entry even when src/ is populated", () => {
+    // Running from source, the check would otherwise read `src/` as its own
+    // output directory and compare source mtimes against the entry point — a
+    // verdict that is stale by construction.
+    const pkgDir = mkdtempSync(join(tmpdir(), "arc-dev-check-entry-"));
+    mkdirSync(join(pkgDir, "src"), { recursive: true });
+    writeFileSync(join(pkgDir, "src", "cli.ts"), "export {};\n");
+
+    const result = checkDevBuildStaleness(createDevCheckDeps(join(pkgDir, "src", "cli.ts")));
+
+    expect(result).toEqual({ kind: "skip" });
+  });
+
+  it("yields skip for a qualifying entry with no adjacent src/ (published install)", () => {
+    const pkgDir = mkdtempSync(join(tmpdir(), "arc-dev-check-entry-"));
+    mkdirSync(join(pkgDir, "dist"), { recursive: true });
+    writeFileSync(join(pkgDir, "dist", "cli.js"), "#!/usr/bin/env node\n");
+
+    const result = checkDevBuildStaleness(createDevCheckDeps(join(pkgDir, "dist", "cli.js")));
+
+    expect(result).toEqual({ kind: "skip" });
   });
 });
 

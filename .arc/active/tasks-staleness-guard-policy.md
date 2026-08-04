@@ -64,34 +64,18 @@ process, so that half is covered end to end rather than by unit.
 `notes-staleness-guard-policy.md` records the alternatives to refusal that were weighed and rejected, which is
 the ground to re-read before reopening any of this rather than re-deriving it.
 
-### `[ ]` **2.1 Confine the guard to the built bundle**
+### `[x]` **2.1 Confine the guard to the built bundle**
 
 - _Goal:_ Invoking the CLI from source produces no staleness verdict, so the guard never judges a tree against
   itself.
 
-- _Rationale:_ The dev-mode discriminator is `src/` adjacency, which holds for the built bundle and is false when
-  the entry is the TypeScript source — there the check reads `src/` as its own output directory, finds no stamp,
-  and falls back to comparing source mtimes against the entry point. That verdict is stale by construction, and
-  unconditional refusal would turn it into a hard failure on every unrelated source edit.
-
-- _Shape:_ The entry qualifies when it is a `.js` file whose parent directory is named `dist`. Both conditions
-  are false for the source entry, and neither depends on the bundle's filename, which the build config owns.
-
-- _Note:_ The first four behaviors below test the predicate directly; the fifth tests the dependency factory,
-  which carries no tests today — the existing unit file covers the pure verdict function and the two hashing
-  helpers alone.
-
-    - The module docblock names `src/` adjacency from the built bundle as the dev-mode discriminator. That
-      sentence describes what this task replaces, so it is corrected here.
-
-    - Build `test-first` (one behavior at a time):
-        - A `.js` entry whose parent directory is named `dist` qualifies
-        - A `.ts` entry under `src/` does not qualify
-        - A `.ts` entry whose parent directory is named `dist` does not qualify — without this case, dropping
-          the extension condition passes every other one
-        - A `.js` entry outside any `dist` directory does not qualify
-        - A non-qualifying entry makes the factory yield skip, and a qualifying entry with no adjacent `src/`
-          still does — the published-install path stays independent of the new condition
+- _Outcome:_ `isBuiltBundleEntry` in `dev-check.ts` is the exported predicate — a `.js` entry whose parent
+  directory is named `dist` — and `createDevCheckDeps` gates `resolveInputFiles` on it, so a non-qualifying entry
+  yields `skip` through the existing published-install path rather than a second exit. The dev-mode discriminator
+  is now two conditions rather than one, and the module docblock says so. Five behaviors driven one at a time;
+  the `.ts`-in-`dist` case is what keeps the extension condition from being droppable, and the `.js`-outside-
+  `dist` case passed on arrival as a regression guard on the directory condition. `createDevCheckDeps` had no
+  tests before this — the file covered the pure verdict function and the two hashing helpers alone.
 
 ### `[ ]` **2.2 Refuse every command against a stale build**
 
