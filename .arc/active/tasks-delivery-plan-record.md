@@ -571,46 +571,21 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 - **Additional Context:** `notes-delivery-plan-record.md` § Field-evidence anchors — the concrete base-merge
   commit to use as a fixture rather than a hypothetical.
 
-    - `[ ]` **4.2.a First-parent traversal from base to head**
+    - `[x]` **4.2.a First-parent traversal from base to head**
 
-        - `--head` defaults to `HEAD`; the selected base line comes from configured base unless `--base` supplies an
-          explicit commit-ish. Derive original divergence by walking the head's first-parent chain backwards to the
-          unique earliest head-side step not reachable from the selected base whose first parent is reachable.
-          Missing or ambiguous boundaries refuse and request `--base`; an explicit base must still be an ancestor
-          of head. This is **not** the moving merge base, which can silently drop earlier contribution.
+        - Pinned the selected coordinates, found the original first-parent divergence after base absorbs, and emitted
+          one ordered transition per first-parent step. Invalid coordinates and missing or disconnected boundaries
+          return typed refusals.
 
-        - Build `test-first` (one behavior at a time):
-            - Each step has exactly one predecessor and one change shape
-            - A two-parent merge inside the range yields a single step
-            - A branch that has absorbed its base still traverses from the original divergence point
-            - An explicitly supplied base overrides the derivation
-            - Missing, multiple, non-ancestor, and disconnected boundary candidates refuse with typed reasons
+    - `[x]` **4.2.b Contribution versus ambient base absorb**
 
-    - `[ ]` **4.2.b Contribution versus ambient base absorb**
+        - Classified a selected-base merge as ambient only when an exact remerge-tree proof matches its committed
+          tree. Ambient steps remain ordering landmarks without membership; unprovable conflict resolutions refuse.
 
-        - A merge is ambient only when its non-first parent belongs to the selected base line and a remerge
-          comparison, or equivalent tree proof, shows no merge-only work-unit delta. An unprovable or
-          conflict-resolving merge refuses rather than silently discarding work.
+    - `[x]` **4.2.c Per-step and cumulative change shape**
 
-        - Build `test-first` (one behavior at a time):
-            - A proven-pure merge bringing the selected base line forward classifies as ambient absorb
-            - Only contribution steps participate in the partition
-            - An ambient absorb is retained as an ordering landmark carrying no membership
-            - Contiguity is evaluated over contribution alone
-            - A merge from another line and a base merge with conflict-resolution delta do not classify as ambient
-            - Failure to prove ambient purity returns a typed refusal
-
-    - `[ ]` **4.2.c Per-step and cumulative change shape**
-
-        - Reuse the byte-preserving `ChangeSet` and `affectedPaths` contracts. Each contribution step carries its
-          commit, first-parent predecessor, and `ChangeSet`; unknown change facts refuse. Cumulative shape is the
-          canonical byte-sorted union of affected paths through that step, including both rename/copy endpoints.
-
-        - Build `test-first` (one behavior at a time):
-            - Each contribution step reports its canonical change set
-            - The cumulative path shape at any step equals the contribution-path union up to it
-            - An ambient absorb contributes nothing to the cumulative shape
-            - Arbitrary byte-preserving Git paths and rename/copy endpoints survive the real Git boundary
+        - Reused canonical `ChangeSet` facts for every step and accumulated only contribution paths in byte order,
+          preserving arbitrary Git path bytes and both rename or copy endpoints.
 
     - `[ ]` **4.2.d Register `plan from-branch`**
 
