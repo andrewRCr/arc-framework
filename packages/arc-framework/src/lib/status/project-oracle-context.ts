@@ -1,6 +1,6 @@
 /** Shared non-work-unit inputs for project-readiness oracle composition. */
 
-import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
+import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
 import type { GitExec } from "../git/exec.js";
 import { readConfiguredIdentity } from "../git/identity.js";
 
@@ -25,13 +25,12 @@ export async function resolveProjectErrandOracleContext(exec: GitExec): Promise<
     if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
     identityReadFailed = true;
   }
-  const recordResult: ListErrandRecordsResult = identityReadFailed
-    ? { records: [], complete: false, warnings: ["arc.identity read failed; errand records unavailable"] }
-    : identity === null
-      ? { records: [], complete: true, warnings: [] }
-      : await listErrandRecordsResult({ exec, identity });
+  if (identityReadFailed) {
+    return { errandSlugByBranch: new Map(), errandRecordsComplete: false };
+  }
+  const transient = projectTransientInFlightRead(await readTransientInFlightIndexes({ exec, identity }));
   return {
-    errandSlugByBranch: new Map(recordResult.records.map((record) => [record.branch, record.slug])),
-    errandRecordsComplete: recordResult.complete,
+    errandSlugByBranch: transient.indexes.slugByBranch,
+    errandRecordsComplete: transient.complete,
   };
 }

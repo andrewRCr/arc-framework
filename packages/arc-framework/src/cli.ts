@@ -22,12 +22,16 @@ import {
   handleErrandCheck,
   handleErrandOpen,
   handleErrandLink,
+  handleErrandMaterialize,
+  handleErrandLeave,
   handleErrandClose,
   handleErrandAbandon,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
+  type ErrandMaterializeOptions,
+  type ErrandLeaveOptions,
   type ErrandCloseOptions,
   type ErrandAbandonOptions,
   type ErrandPromoteOptions,
@@ -503,7 +507,7 @@ program
 
 const errand = program
   .command("errand")
-  .description("Errand operations. `open` launches an errand; `check` reports in-flight overlap.");
+  .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
 
 errand
   .command("check")
@@ -540,6 +544,29 @@ errand
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+  ));
+
+errand
+  .command("leave <slug>")
+  .description("Preserve an Errand tail and close its local occupancy")
+  .addOption(new Option("--state <state>", "Tail state")
+    .choices(["paused", "awaiting-merge"])
+    .makeOptionMandatory())
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
+  ));
+
+errand
+  .command("materialize <slug>")
+  .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--claim-id <claim-id>", "Require the selected Errand claim generation")
+  .option("--expected-head <oid>", "Require the selected retained head")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
   ));
 
 errand

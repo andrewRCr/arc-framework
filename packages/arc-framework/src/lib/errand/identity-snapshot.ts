@@ -111,9 +111,7 @@ export async function readTransientIdentitySnapshotAtRef(
     const decoded = deserializeTransientIdentityRecord(blob, entry.key);
     if (decoded.kind === "valid") {
       records.set(entry.key, decoded.record);
-      if (decoded.record.version === 3) {
-        projections.set(entry.key, projectLocusIdentity(decoded.record));
-      }
+      projections.set(entry.key, projectLocusIdentity(decoded.record));
     } else {
       diagnostics.push({ key: entry.key, ...decoded });
     }

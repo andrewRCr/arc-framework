@@ -166,7 +166,7 @@ function success(
 }
 
 function isOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
-  return record.version === 3 && record.kind === "errand" && record.purpose === "errand";
+  return record.kind === "errand" && record.purpose === "errand";
 }
 
 function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {

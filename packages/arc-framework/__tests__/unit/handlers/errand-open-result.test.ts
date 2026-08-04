@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatErrandAbandonResult,
+  formatErrandLeaveResult,
   formatErrandLinkResult,
   formatErrandOpenResult,
   formatErrandPromoteResult,
@@ -15,6 +16,43 @@ const refusal = createLocusMutationResult({
   operation: "errand-open",
   reason: "lease-unknown",
   recommendedPromptText: "The existing lease cannot be verified.",
+});
+
+describe("errand leave result rendering", () => {
+  const leaveRefusal = createLocusMutationResult({
+    outcome: "refused",
+    operation: "errand-leave",
+    reason: "preservation-unproven",
+    recommendedPromptText: "Push the exact Errand head before leaving.",
+  });
+
+  it("keeps JSON and human refusal output on the same producer result", () => {
+    const json = formatErrandLeaveResult(leaveRefusal, true);
+    expect(JSON.parse(json.text)).toStrictEqual(leaveRefusal);
+    expect(json).toMatchObject({ stream: "stdout", exitCode: 1 });
+    expect(formatErrandLeaveResult(leaveRefusal, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [preservation-unproven]: Push the exact Errand head before leaving.",
+      exitCode: 1,
+    });
+  });
+});
+
+describe("errand materialize result rendering", () => {
+  it("preserves the validated materialize operation across JSON and human rendering", () => {
+    const result = createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-materialize",
+      reason: "preservation-unproven",
+      recommendedPromptText: "The remote head changed.",
+    });
+    expect(JSON.parse(formatErrandOpenResult(result, true).text)).toStrictEqual(result);
+    expect(formatErrandOpenResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [preservation-unproven]: The remote head changed.",
+      exitCode: 1,
+    });
+  });
 });
 
 describe("errand open result rendering", () => {

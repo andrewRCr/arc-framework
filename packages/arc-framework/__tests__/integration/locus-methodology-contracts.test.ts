@@ -22,6 +22,12 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain(
         "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",
       );
+      expect(reference).toContain(
+        "arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]",
+      );
+      expect(reference).toContain(
+        "arc errand leave <slug> --state <paused|awaiting-merge> [--json]",
+      );
       expect(reference).toContain("arc errand close <slug> [--force] [--json]");
       expect(reference).toContain("arc errand abandon <slug> [--json]");
       expect(reference).toContain(
@@ -59,6 +65,9 @@ describe("locus methodology contracts", () => {
         "select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES",
       );
       expect(init).toContain("If the composite call itself fails, surface the failure and stop.");
+      expect(init).toContain(
+        "arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json",
+      );
       expect(init).not.toContain("Probe failure fallback");
       expect(init).not.toContain("`locusState.inFlightIdentities`");
 
@@ -131,6 +140,27 @@ describe("locus methodology contracts", () => {
         "`--housekeep` / `--plan` — run the selected workflow's write-context preflight",
       );
       expect(init).toContain("do not create a durable transient role");
+    }
+  });
+
+  it("stops materialization unless the returned Errand generation and checkout are exact", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const init = await readFile(
+        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+        "utf8",
+      );
+
+      expect(init).toMatch(
+        /If the result is refused or reports an error, render its\s+diagnostic and stop\./u,
+      );
+      expect(init).toMatch(
+        /returned `identity\.key`,\s+`identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
+      );
+      expect(init).toMatch(/non-null\s+`activeLocusPath`/u);
+      expect(init).toMatch(
+        /row's checkout path equals the returned `activeLocusPath` and its role subject carries the same claim ID/u,
+      );
     }
   });
 

@@ -74,11 +74,13 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
    - **Resume mode:** consume the exact checkout and freshly attached lease selected by session-init. Do not invoke
      `arc errand open` again; residue recovery already ran `arc locus resolve <record-id> --action resume`, and a
-     live role already ran `arc locus attach`.
+     live role already ran `arc locus attach`. A remote-only eligible generation first runs
+     `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
+     candidate's claim ID and expected head; accept only its exact returned generation and path. A recorded head
+     that no longer matches the fetched remote or open change request refuses materialization. Open identities,
+     legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
 
-   Execute every subsequent command from `activeLocusPath` while retaining `sessionHomePath` for restoration. A
-   remote-only generation cannot enter on this machine; surface its exact identity and use the checkout that
-   retains its local role.
+   Execute every subsequent command from `activeLocusPath` while retaining `sessionHomePath` for restoration.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
@@ -329,17 +331,18 @@ lane action.
    The auto-merge lane invokes no unlock: when the optional guard is installed, its trusted CI poster supplies
    `arc-cleared`; otherwise no such context is required.
 
-7. **Retain the local checkout when review continues asynchronously.** After the exact PR head is pushed and the
-   change request is open, keep the exact role, lease, and checkout intact. A later session enters that checkout;
-   session-init resolves its dead lease through `arc locus resolve <record-id> --action resume` before this workflow
-   resumes. If work is interrupted before PR creation, commit and push the checkpoint first. Never remove the
-   checkout or release its role while the Errand is incomplete.
+7. **Leave the local checkout when review continues asynchronously.** After the exact PR head is pushed and the
+   change request is open, invoke `arc errand leave <slug> --state awaiting-merge --json`. The driver persists the
+   exact change request and head, closes local occupancy, and restores the optional parent WU. If work is
+   deliberately interrupted before PR creation, commit and push the checkpoint first, then use `--state paused`.
+   Partial mode and unpushed or unproven heads refuse. Requested work later resumes through the identity's owning
+   open or materialize driver; never leave an unleased local role as waiting state.
 
 ### Ship — partial protection
 
 No branch and no PR: the Errand is a direct base-branch commit, so there is no merge step. The base push follows
-the project's normal discipline. It cannot pause or await merge; completion must pop the exact partial role and
-remove any originating capture before the session can leave.
+the project's normal discipline. It cannot pause, await merge, materialize, or hand off; completion must pop the
+exact partial role and remove any originating capture before the session can leave.
 
 ### Complete
 

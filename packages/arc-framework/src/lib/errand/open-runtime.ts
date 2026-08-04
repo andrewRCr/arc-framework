@@ -23,9 +23,11 @@ import {
   rollbackOrdinaryErrandResumeTransform,
   type OrdinaryErrandRecord,
 } from "./identity-transitions.js";
+import type { TransientIdentityRecord } from "./identity-record.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import {
-  openOrdinaryErrand,
+  openOrdinaryErrandWithDisposition,
+  type OpenOrdinaryErrandExecution,
   type ResumeAuthorizationResult,
 } from "./open.js";
 import {
@@ -47,6 +49,12 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly repo: string;
   readonly leaseId: string;
   readonly isolation?: "prefer-primary" | "require-isolation";
+  readonly changeRequestReentry?: "advisory" | "strict";
+  readonly pausedHeadReentry?: "ancestry" | "exact";
+  readonly expectedResumeGeneration?: {
+    readonly claimId: string;
+    readonly expectedHead: string;
+  };
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
   readonly identityGlobalUserDir: string;
@@ -54,15 +62,30 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
 }
 
-/** Run the complete production ordinary-Errand open composition. */
+/**
+ * Run the complete production ordinary-Errand open composition.
+ * @param options - Runtime identity, topology, and provisioning inputs.
+ * @returns The public mutation result.
+ */
 export async function openOrdinaryErrandAtRuntime(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
+  return (await openOrdinaryErrandAtRuntimeWithDisposition(options)).result;
+}
+
+/**
+ * Run production ordinary-Errand open with internal rollback evidence for composing callers.
+ * @param options - Runtime identity, topology, and provisioning inputs.
+ * @returns The mutation result and whether failed provisioning retained recovery state.
+ */
+export async function openOrdinaryErrandAtRuntimeWithDisposition(
+  options: OpenOrdinaryErrandRuntimeOptions,
+): Promise<OpenOrdinaryErrandExecution> {
   const inspector = createPlatformProcessInspector();
   const ancestry = createPlatformProcessAncestryInspector();
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let selectedAnchor: LocusAnchor | null = null;
-  return openOrdinaryErrand({
+  return openOrdinaryErrandWithDisposition({
     slug: options.slug,
     intent: options.intent,
     inbox: options.inbox,
@@ -116,13 +139,23 @@ export async function openOrdinaryErrandAtRuntime(
           transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
         });
         if (read.kind === "applied" || read.kind === "idempotent") {
+          if (options.expectedResumeGeneration !== undefined
+            && !matchesExpectedResumeGeneration(read.value, options.expectedResumeGeneration)) {
+            return { kind: "refused" as const, reason: "Errand generation changed before materialization." };
+          }
           return { kind: "ready" as const, record: read.value };
         }
         return read.kind === "refused"
           ? { kind: "refused" as const, reason: read.reason }
           : { kind: "error" as const, message: read.message };
       },
-      authorizeResume: (record) => authorizeOrdinaryErrandResume(options.exec, options.base, record),
+      authorizeResume: (record) => authorizeOrdinaryErrandResume(
+        options.exec,
+        options.base,
+        record,
+        options.changeRequestReentry,
+        options.pausedHeadReentry,
+      ),
       recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, record),
       claim: async (record) => {
         const claimed = await transactTransientIdentities({
@@ -208,6 +241,16 @@ export async function openOrdinaryErrandAtRuntime(
   });
 }
 
+function matchesExpectedResumeGeneration(
+  record: TransientIdentityRecord | null,
+  expected: { readonly claimId: string; readonly expectedHead: string },
+): boolean {
+  if (record === null || record.kind !== "errand" || record.purpose !== "errand"
+    || record.claimId !== expected.claimId) return false;
+  if (record.state === "paused") return record.savedHead === expected.expectedHead;
+  return record.state === "awaiting-merge" && record.changeRequest.headSha === expected.expectedHead;
+}
+
 async function recoverOpenIdentityBranch(
   exec: GitExec,
   record: OrdinaryErrandRecord,
@@ -244,6 +287,8 @@ export async function authorizeOrdinaryErrandResume(
   exec: GitExec,
   base: string,
   record: OrdinaryErrandRecord,
+  changeRequestReentry: "advisory" | "strict" = "advisory",
+  pausedHeadReentry: "ancestry" | "exact" = "ancestry",
 ): Promise<ResumeAuthorizationResult> {
   if (record.state === "paused") {
     const proof = await provePauseHead(exec, {
@@ -251,7 +296,12 @@ export async function authorizeOrdinaryErrandResume(
       branch: record.branch,
       savedHead: record.savedHead,
     });
-    if (proof.kind === "proven") return { kind: "authorized", authorization: proof.evidence };
+    if (proof.kind === "proven") {
+      if (pausedHeadReentry === "exact" && proof.evidence.remoteBranchTip !== record.savedHead) {
+        return { kind: "refused", reason: "Paused materialization requires the exact remote head." };
+      }
+      return { kind: "authorized", authorization: proof.evidence };
+    }
     return proof.kind === "refused"
       ? { kind: "refused", reason: proof.reason }
       : { kind: "error", message: proof.message };
@@ -263,6 +313,10 @@ export async function authorizeOrdinaryErrandResume(
     }
     const lifecycle = await createGhChangeRequestLifecyclePort(exec).read(configured, record.changeRequest);
     const reentry = evaluateChangeRequestReentry(lifecycle, record.changeRequest);
+    if (changeRequestReentry === "strict" && reentry.kind === "authorized"
+      && lifecycle.kind !== "open" && lifecycle.kind !== "requested-work") {
+      return { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not an exact open change request.` };
+    }
     return reentry.kind === "authorized"
       ? { kind: "authorized", authorization: lifecycle, ...(reentry.advisory === undefined ? {} : { advisory: reentry.advisory }) }
       : reentry;
