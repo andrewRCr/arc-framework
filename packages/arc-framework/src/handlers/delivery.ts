@@ -14,6 +14,10 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import { DeliveryPlanComposer } from "../lib/delivery/compose.js";
 import type { BoundDesignInventory } from "../lib/delivery/design-inventory.js";
 import {
+  prepareDeliveryFromBranchAuthoring,
+  resolveDeliveryFromBranchProjection,
+} from "../lib/delivery/from-branch.js";
+import {
   prepareDeliveryFromTasksAuthoring,
   resolveDeliveryFromTasksProjection,
 } from "../lib/delivery/from-tasks.js";
@@ -28,7 +32,7 @@ import { RepositoryDeliveryPlanStore } from "../lib/delivery/local-stores.js";
 import { GitDeliveryRenameTransitionSource } from "../lib/delivery/plan-resolution.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { assertCanonicalDigest } from "../lib/kernel/index.js";
-import { createGitExec } from "../lib/io-context.js";
+import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import type { DeliveryTaskInventory } from "../lib/delivery/task-inventory.js";
 import { RepositoryDeliveryTaskListRenderer } from "../lib/delivery/task-list-render.js";
@@ -38,26 +42,55 @@ const DeliveryPlanFromTasksInputSchema = z.strictObject({
   designInventory: z.string().trim().min(1),
   json: z.boolean().optional(),
 });
+const DeliveryPlanFromBranchInputSchema = z.strictObject({
+  designInventory: z.string().trim().min(1),
+  base: z.string().trim().min(1).optional(),
+  head: z.string().trim().min(1).optional(),
+  json: z.boolean().optional(),
+});
 const DeliveryComposeInputSchema = z.strictObject({ json: z.boolean().optional() });
 const DeliveryPlanAbandonInputSchema = z.strictObject({ json: z.boolean().optional() });
 const FromTasksSourceInputsSchema = z.strictObject({ taskListPath: z.string().min(1) });
+const FromBranchSourceInputsSchema = z.strictObject({
+  taskListPath: z.string().min(1),
+  base: z.string().min(1),
+  head: z.string().min(1),
+});
 
 export interface DeliveryPlanFromTasksOptions {
   readonly designInventory?: string;
+  readonly json?: boolean;
+}
+export interface DeliveryPlanFromBranchOptions {
+  readonly designInventory?: string;
+  readonly base?: string;
+  readonly head?: string;
   readonly json?: boolean;
 }
 export interface DeliveryComposeOptions { readonly json?: boolean }
 export interface DeliveryPlanAbandonOptions { readonly json?: boolean }
 
 /** Command-input schema owned by the value-taking task-list authoring command. */
-export const deliveryCommandInputRegistrations = [{
-  commandPath: "delivery plan from-tasks",
-  schema: DeliveryPlanFromTasksInputSchema,
-  schemaFields: {
-    "option.designInventory": "designInventory",
-    "option.json": "json",
+export const deliveryCommandInputRegistrations = [
+  {
+    commandPath: "delivery plan from-tasks",
+    schema: DeliveryPlanFromTasksInputSchema,
+    schemaFields: {
+      "option.designInventory": "designInventory",
+      "option.json": "json",
+    },
   },
-}] as const satisfies readonly CommandInputRegistration[];
+  {
+    commandPath: "delivery plan from-branch",
+    schema: DeliveryPlanFromBranchInputSchema,
+    schemaFields: {
+      "option.designInventory": "designInventory",
+      "option.base": "base",
+      "option.head": "head",
+      "option.json": "json",
+    },
+  },
+] as const satisfies readonly CommandInputRegistration[];
 
 /** Machine-output policies owned by the delivery command family. */
 export const deliveryCommandInputPolicyDeclarations = [
@@ -76,6 +109,62 @@ export const deliveryCommandInputPolicyDeclarations = [
           acceptedSyntax: ["--design-inventory <json-path>"],
         },
         mutationBoundary: "delivery authoring input validation",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("json", {
+        acquisition: "machine-mode",
+        schemaOwnership: "owned",
+        schemaField: "json",
+        cancellation: "not-applicable",
+        automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+        mutationBoundary: "output selection",
+        subprocess: "none",
+      }),
+    ],
+  },
+  {
+    commandPath: "delivery plan from-branch",
+    aliases: [],
+    sites: [
+      declareCliOptionSite("design-inventory", {
+        acquisition: "parser-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "require-explicit",
+          flags: ["--design-inventory"],
+          acceptedSyntax: ["--design-inventory <json-path>"],
+        },
+        mutationBoundary: "delivery authoring input validation",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("base", {
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "base",
+        defaultSource: "configured base branch",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "use-default",
+          flags: ["--base"],
+          acceptedSyntax: ["--base <commit-ish>"],
+        },
+        mutationBoundary: "branch inspection",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("head", {
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "head",
+        defaultSource: "HEAD",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "use-default",
+          flags: ["--head"],
+          acceptedSyntax: ["--head <commit-ish>"],
+        },
+        mutationBoundary: "branch inspection",
         subprocess: "none",
       }),
       declareCliOptionSite("json", {
@@ -171,6 +260,70 @@ export async function handleDeliveryPlanFromTasks(
     });
 }
 
+/** Build and persist one branch-derived starter map after all inputs validate. */
+export async function handleDeliveryPlanFromBranch(
+  opts: DeliveryPlanFromBranchOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
+  const parsed = DeliveryPlanFromBranchInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    emit("delivery plan from-branch", opts.json === true, {
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    return;
+  }
+  const context = await resolveDeliveryContext(interaction);
+  if (context.status === "refused") {
+    emit("delivery plan from-branch", parsed.data.json === true, context);
+    return;
+  }
+  const inputs = await readFromTasksInputs(
+    context.cwd,
+    context.activePath,
+    parsed.data.designInventory,
+  );
+  if (inputs.status === "refused") {
+    emit("delivery plan from-branch", parsed.data.json === true, inputs);
+    return;
+  }
+  const prepared = await prepareDeliveryFromBranchAuthoring({
+    mapId: `map-${randomUUID()}`,
+    planId: randomUUID(),
+    workUnitId: context.workUnitId,
+    expectedCurrentPlanDigest: null,
+    taskListPath: inputs.taskListPath,
+    taskListContent: inputs.taskListContent,
+    designInventory: inputs.designInventory,
+    exec: createRawGitExec(context.cwd),
+    base: parsed.data.base ?? context.baseBranch,
+    head: parsed.data.head ?? "HEAD",
+  });
+  if (prepared.status === "refused") {
+    emit("delivery plan from-branch", parsed.data.json === true, prepared);
+    return;
+  }
+  const result = await new DeliveryAuthoringManager(
+    context.authoringStore,
+    context.transitionSource,
+  ).create({
+    pair: { snapshot: prepared.snapshot, markdown: prepared.markdown },
+    currentWorkUnitId: context.workUnitId,
+    authority: context.authority,
+  });
+  emit("delivery plan from-branch", parsed.data.json === true, result.status === "refused"
+    ? result
+    : {
+      status: "ok",
+      value: {
+        mapId: result.value.snapshot.mapId,
+        taskListPath: inputs.taskListPath,
+        base: prepared.inspection.base,
+        head: prepared.inspection.head,
+      },
+    });
+}
+
 /** Resolve and integrity-check the singleton map before entry adapters project it. */
 export async function handleDeliveryCompose(
   opts: DeliveryComposeOptions,
@@ -233,24 +386,22 @@ export async function handleDeliveryCompose(
     emit("delivery compose", parsed.data.json === true, integrity);
     return;
   }
-  if (resolution.record.snapshot.source.entry !== "from-tasks") {
-    emit("delivery compose", parsed.data.json === true, {
-      status: "refused",
-      reason: "authoring-entry-projection-unavailable",
+  const projection = resolution.record.snapshot.source.entry === "from-tasks"
+    ? resolveDeliveryFromTasksProjection({
+      snapshot: resolution.record.snapshot,
+      slots: integrity.slots,
+    })
+    : resolveDeliveryFromBranchProjection({
+      snapshot: resolution.record.snapshot,
+      slots: integrity.slots,
     });
-    return;
-  }
-  const projection = resolveDeliveryFromTasksProjection({
-    snapshot: resolution.record.snapshot,
-    slots: integrity.slots,
-  });
   if (projection.status === "refused") {
     emit("delivery compose", parsed.data.json === true, projection);
     return;
   }
-  const sourceInputs = FromTasksSourceInputsSchema.safeParse(
-    resolution.record.snapshot.source.inputs,
-  );
+  const sourceInputs = resolution.record.snapshot.source.entry === "from-tasks"
+    ? FromTasksSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs)
+    : FromBranchSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs);
   if (!sourceInputs.success) {
     emit("delivery compose", parsed.data.json === true, {
       status: "refused",
@@ -330,6 +481,7 @@ async function resolveDeliveryContext(interaction?: InteractionContext) {
     cwd,
     activePath: active.path,
     workUnitId: active.name,
+    baseBranch: base,
     authority,
     authoringStore: new RepositoryDeliveryAuthoringStore(publisher),
     planStore: new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec),

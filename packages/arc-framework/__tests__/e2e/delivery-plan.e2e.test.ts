@@ -27,6 +27,9 @@ describe("arc delivery", () => {
   it("registers compose and plan abandon from the built entry point", async () => {
     await expect(runArc(["delivery", "plan", "from-tasks", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
+    const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
+    expect(branchHelp).toMatchObject({ exitCode: 0 });
+    expect(branchHelp.stdout).toContain("--base <commit-ish>");
     await expect(runArc(["delivery", "compose", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
@@ -53,6 +56,83 @@ describe("arc delivery", () => {
     const common = await gitCommonDir(repository);
     await expect(readdir(join(common, "arc", "delivery", "authoring")))
       .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("authors a branch-derived map from default and explicit coordinates", async () => {
+    await installTaskFixture(repository);
+    const missingDesign = await runArc([
+      "delivery", "plan", "from-branch", "--json",
+    ], repository);
+    expect(missingDesign.exitCode).toBe(1);
+    expect(JSON.parse(missingDesign.stdout)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    await writeDesignInventory(repository);
+    const base = await git(repository, ["rev-parse", "HEAD"]);
+    await git(repository, ["checkout", "-b", "feature"]);
+    await writeFile(join(repository, "contribution.txt"), "branch contribution\n");
+    await git(repository, ["add", "--", "contribution.txt"]);
+    await git(repository, ["commit", "-m", "branch contribution"]);
+    const head = await git(repository, ["rev-parse", "HEAD"]);
+
+    const author = await runArc([
+      "delivery", "plan", "from-branch",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+    expect(author.exitCode, author.stdout + author.stderr).toBe(0);
+    expect(JSON.parse(author.stdout)).toMatchObject({
+      command: "delivery plan from-branch",
+      status: "ok",
+      value: { base, head },
+    });
+    const common = await gitCommonDir(repository);
+    const authoring = join(common, "arc", "delivery", "authoring");
+    const mapName = (await readdir(authoring)).find((name) => name.endsWith(".md"));
+    expect(mapName).toBeDefined();
+    if (mapName === undefined) return;
+    const map = await readFile(join(authoring, mapName), "utf8");
+    expect(map).toContain('"entry": "from-branch"');
+    expect(map).toContain('"classification": "contribution"');
+    expect(map).toContain('"boundary": null');
+    await fillSlots(join(authoring, mapName), {
+      projection: { kind: "wu-integration-target" },
+      boundary: {
+        kind: "explicit",
+        segments: [{ chunkKey: "branch", sourceIds: [head] }],
+      },
+      members: [{
+        status: "live",
+        chunkKey: "branch",
+        title: "Branch contribution",
+        contract: "Publish the inspected branch contribution",
+        designElementIds: ["detailed:deliverable-contract"],
+        mainlineLandability: "integration-only",
+      }],
+      seams: [],
+    });
+    const compose = await runArc(["delivery", "compose", "--json"], repository);
+    expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
+    expect(JSON.parse(compose.stdout)).toMatchObject({
+      status: "ok",
+      value: {
+        advisories: [{ kind: "uncovered-implementation-task", taskId: "1.1" }],
+      },
+    });
+
+    const explicit = await runArc([
+      "delivery", "plan", "from-branch",
+      "--design-inventory", "design-inventory.json",
+      "--base", base,
+      "--head", head,
+      "--json",
+    ], repository);
+    expect(explicit.exitCode, explicit.stdout + explicit.stderr).toBe(0);
+    expect(JSON.parse(explicit.stdout)).toMatchObject({
+      status: "ok",
+      value: { base, head },
+    });
   });
 
   it("authors, fills, composes, publishes, and renders a task-derived plan", async () => {

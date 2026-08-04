@@ -43,9 +43,11 @@ import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import {
   handleDeliveryCompose,
   handleDeliveryPlanAbandon,
+  handleDeliveryPlanFromBranch,
   handleDeliveryPlanFromTasks,
   type DeliveryComposeOptions,
   type DeliveryPlanAbandonOptions,
+  type DeliveryPlanFromBranchOptions,
   type DeliveryPlanFromTasksOptions,
 } from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
@@ -653,6 +655,18 @@ deliveryPlan
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+  ));
+
+deliveryPlan
+  .command("from-branch")
+  .description("Create a delivery authoring map from a branch contribution")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--base <commit-ish>", "Selected base line (defaults to the configured base)")
+  .option("--head <commit-ish>", "Branch head (defaults to HEAD)")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromBranchOptions) => handleDeliveryPlanFromBranch(opts, context),
   ));
 
 deliveryPlan

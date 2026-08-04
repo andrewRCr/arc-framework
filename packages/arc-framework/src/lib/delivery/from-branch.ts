@@ -1,11 +1,26 @@
 /** First-parent branch inspection for retrofit delivery authoring. */
 
+import { z } from "zod";
+
 import {
   affectedPaths,
   resolveChangeSet,
   type ChangeSet,
   type RawGitExec,
 } from "../change-facts.js";
+import { ChangeSetSchema } from "../change-facts.schema.js";
+import {
+  createDeliveryAuthoringSnapshot,
+  type DeliveryAuthoringSnapshotV1,
+} from "./authoring-schema.js";
+import {
+  renderDeliveryAuthoringMap,
+  type DeliveryAuthoringSlotsV1,
+} from "./authoring-map.js";
+import type { DeliveryCompositionProjection } from "./compose.js";
+import { bindDesignInventory } from "./design-inventory.js";
+import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
+import { buildDeliveryTaskInventory } from "./task-inventory.js";
 
 /** One exact first-parent transition and its contribution classification. */
 export interface DeliveryBranchStep {
@@ -39,6 +54,58 @@ export type InspectDeliveryBranchRefusal = {
     | "ambient-purity-unproven"
     | "change-facts-unknown";
 };
+
+const DeliveryFromBranchFactsSchema = z.strictObject({
+  status: z.literal("inspected"),
+  base: z.string().min(1),
+  head: z.string().min(1),
+  originalDivergence: z.strictObject({
+    predecessor: z.string().min(1),
+    commit: z.string().min(1),
+  }),
+  steps: z.array(z.strictObject({
+    commit: z.string().min(1),
+    predecessor: z.string().min(1),
+    parents: z.array(z.string().min(1)).min(1),
+    classification: z.enum(["contribution", "ambient-base-absorb"]),
+    changeSet: ChangeSetSchema,
+    cumulativePaths: z.array(z.string().min(1)),
+  })).min(1),
+  contributionStepIds: z.array(z.string().min(1)).min(1),
+});
+
+/** Inputs for one branch-derived authoring map. */
+export interface PrepareDeliveryFromBranchAuthoringInput {
+  readonly mapId: string;
+  readonly planId: string;
+  readonly workUnitId: string;
+  readonly expectedCurrentPlanDigest: string | null;
+  readonly taskListPath: string;
+  readonly taskListContent: string;
+  readonly designInventory: unknown;
+  readonly exec: RawGitExec;
+  readonly base: string;
+  readonly head: string;
+}
+
+/** Result of preparing transient branch-derived authoring state. */
+export type PrepareDeliveryFromBranchAuthoringResult =
+  | {
+    readonly status: "prepared";
+    readonly snapshot: DeliveryAuthoringSnapshotV1;
+    readonly markdown: string;
+    readonly inspection: InspectedDeliveryBranch;
+  }
+  | {
+    readonly status: "refused";
+    readonly reason:
+      | "invalid-design-inventory"
+      | "task-list-malformed"
+      | "verification-phase-missing"
+      | "verification-task-ambiguous"
+      | "invalid-authoring-identity"
+      | InspectDeliveryBranchRefusal["reason"];
+  };
 
 /** Inspect one selected base line and branch head. */
 export async function inspectDeliveryBranch(input: {
@@ -133,6 +200,133 @@ export async function inspectDeliveryBranch(input: {
       .filter((step) => step.classification === "contribution")
       .map((step) => step.commit),
   };
+}
+
+/**
+ * Prepare one branch-derived authoring map without writing repository state.
+ *
+ * @param input - Validated identity, design, task-list, and Git coordinates
+ * @returns A complete transient pair or a typed refusal
+ */
+export async function prepareDeliveryFromBranchAuthoring(
+  input: PrepareDeliveryFromBranchAuthoringInput,
+): Promise<PrepareDeliveryFromBranchAuthoringResult> {
+  const design = bindDesignInventory(input.designInventory);
+  if (design.status === "refused") return design;
+  const tasks = buildDeliveryTaskInventory(input.taskListContent);
+  if (tasks.status === "refused") return tasks;
+  const inspection = await inspectDeliveryBranch({
+    exec: input.exec,
+    base: input.base,
+    head: input.head,
+  });
+  if (inspection.status === "refused") return inspection;
+
+  try {
+    const snapshot = createDeliveryAuthoringSnapshot({
+      mapId: input.mapId,
+      originalWorkUnitId: input.workUnitId,
+      planId: input.planId,
+      expectedCurrentPlanDigest: input.expectedCurrentPlanDigest,
+      design: design.inventory,
+      tasks: tasks.inventory,
+      source: {
+        entry: "from-branch",
+        inputs: {
+          taskListPath: input.taskListPath,
+          base: inspection.base,
+          head: inspection.head,
+        },
+        facts: inspection,
+        identitySequence: inspection.steps.map((step) => step.commit),
+      },
+    });
+    return {
+      status: "prepared",
+      snapshot,
+      markdown: renderDeliveryAuthoringMap(snapshot),
+      inspection,
+    };
+  } catch {
+    return { status: "refused", reason: "invalid-authoring-identity" };
+  }
+}
+
+/** Resolve authored branch boundaries into the entry-neutral composition projection. */
+export function resolveDeliveryFromBranchProjection(input: {
+  readonly snapshot: DeliveryAuthoringSnapshotV1;
+  readonly slots: DeliveryAuthoringSlotsV1;
+}): {
+  readonly status: "refused";
+  readonly reason:
+    | "from-branch-facts-malformed"
+    | "branch-boundary-mode-invalid"
+    | "boundary-member-mismatch"
+    | "authoring-projection-invalid";
+} | { readonly status: "resolved"; readonly projection: DeliveryCompositionProjection } {
+  if (input.snapshot.source.entry !== "from-branch") {
+    return { status: "refused", reason: "from-branch-facts-malformed" };
+  }
+  const facts = DeliveryFromBranchFactsSchema.safeParse(input.snapshot.source.facts);
+  if (!facts.success || !branchFactsMatchSnapshot(input.snapshot, facts.data)) {
+    return { status: "refused", reason: "from-branch-facts-malformed" };
+  }
+  if (input.slots.boundary.kind !== "explicit") {
+    return { status: "refused", reason: "branch-boundary-mode-invalid" };
+  }
+  const segments = input.slots.boundary.segments;
+  if (segments.length !== input.slots.members.length
+    || segments.some((segment, index) => segment.chunkKey !== input.slots.members[index]?.chunkKey)) {
+    return { status: "refused", reason: "boundary-member-mismatch" };
+  }
+
+  const authoring = DeliveryPlanAuthoringInputV1Schema.safeParse({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-plan/v1",
+    workUnitId: input.snapshot.originalWorkUnitId,
+    design: {
+      artifacts: input.snapshot.design.artifacts.map(({ artifactId }) => ({ artifactId })),
+      elements: input.snapshot.design.elements.map(({ elementId }) => ({ elementId })),
+    },
+    tasks: {
+      implementation: input.snapshot.tasks.implementation.map(({ taskId }) => ({ taskId })),
+      verificationTaskId: input.snapshot.tasks.verificationTaskId,
+    },
+    entry: "from-branch",
+    projection: input.slots.projection,
+    members: input.slots.members.map((member) => ({ ...member, taskIds: [] })),
+    seams: input.slots.seams,
+  });
+  if (!authoring.success) {
+    return { status: "refused", reason: "authoring-projection-invalid" };
+  }
+  return {
+    status: "resolved",
+    projection: {
+      authoring: authoring.data,
+      contributionStepIds: facts.data.contributionStepIds,
+      memberContributionSteps: segments.map((segment) => ({
+        chunkKey: segment.chunkKey,
+        contributionStepIds: segment.sourceIds,
+      })),
+    },
+  };
+}
+
+function branchFactsMatchSnapshot(
+  snapshot: DeliveryAuthoringSnapshotV1,
+  facts: z.infer<typeof DeliveryFromBranchFactsSchema>,
+): boolean {
+  const first = facts.steps[0];
+  if (first === undefined) return false;
+  const stepIds = facts.steps.map((step) => step.commit);
+  const contributionIds = facts.steps
+    .filter((step) => step.classification === "contribution")
+    .map((step) => step.commit);
+  return JSON.stringify(stepIds) === JSON.stringify(snapshot.source.identitySequence)
+    && JSON.stringify(contributionIds) === JSON.stringify(facts.contributionStepIds)
+    && first.predecessor === facts.originalDivergence.predecessor
+    && first.commit === facts.originalDivergence.commit;
 }
 
 async function classifyStep(
