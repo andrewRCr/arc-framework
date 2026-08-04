@@ -3,7 +3,6 @@
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import type { LocusMutationResultV1 } from "../locus/schema/index.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
-import { readTransientIdentitySnapshot } from "./identity-snapshot.js";
 import { ordinaryErrandTransform } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import { linkOrdinaryErrand } from "./link.js";
@@ -28,13 +27,6 @@ export async function linkOrdinaryErrandAtRuntime(
     updatedAt: options.updatedAt,
     dependencies: {
       readIdentity: async (slug) => {
-        const local = await readTransientIdentitySnapshot(io);
-        if (local.kind === "complete") {
-          const localRecord = local.records.get(slug);
-          if (localRecord?.version === 1 || localRecord?.version === 2) {
-            return { kind: "idempotent", value: localRecord, tip: local.tip };
-          }
-        }
         return transactTransientIdentities(io, {
           remote: "origin",
           message: `arc: reconcile errand identity ${slug}`,

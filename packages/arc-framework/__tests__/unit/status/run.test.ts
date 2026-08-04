@@ -76,7 +76,6 @@ import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-c
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
-import type { RecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 
 // --- Fixtures ---
 
@@ -160,21 +159,6 @@ function recoveryWorkUnitLocus(): LocusStateV1 {
     inFlightIdentities: [],
     recovery: { kind: "resume", activeRecordId: recordId, parentRecordId: null },
     reconciliation: { kind: "clean" },
-  };
-}
-
-function legacyErrandContext(): RecoveryLocusContext {
-  return {
-    frame: {
-      kind: "legacy-errand",
-      workflow: "run-errand",
-      sessionType: "execution",
-      slug: "legacy",
-      branch: "chore/legacy",
-      returnBranch: "feat/parent",
-    },
-    loadSet: { manifestVersion: 1, entries: [] },
-    taskCursor: null,
   };
 }
 
@@ -584,7 +568,6 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
 function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
   return {
     locusState: vi.fn(async () => locusState()),
-    legacyErrand: vi.fn(async () => null),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
@@ -1216,58 +1199,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
       ok: true,
       value: expect.objectContaining({ status: "found" }),
     });
-  });
-
-  it("uses the bounded legacy Errand context only from record-free state", async () => {
-    const probes = sessionRecoverProbes({
-      legacyErrand: vi.fn(async (): Promise<RecoveryLocusContext> => ({
-        ...legacyErrandContext(),
-        loadSet: {
-          manifestVersion: 1,
-          entries: [{ path: ".arc/system/workflows/arc/supplemental/run-errand.md", readMode: { kind: "full" } }],
-        },
-      })),
-    });
-    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
-
-    expect(result.recoveryFrame).toEqual({
-      ok: true,
-      value: expect.objectContaining({ kind: "legacy-errand", slug: "legacy" }),
-    });
-    expect(result.loadSet.ok && result.loadSet.value.entries.at(-1)?.path)
-      .toBe(".arc/system/workflows/arc/supplemental/run-errand.md");
-  });
-
-  it("does not let legacy compatibility override a leaseless WU checkout", async () => {
-    const idle = recoveryWorkUnitLocus();
-    const row = idle.roster.rows[0];
-    if (row === undefined || row.recordId === null) throw new Error("missing WU fixture row");
-    row.lease = null;
-    row.frame = "idle";
-    idle.current = { kind: "none" };
-    idle.recovery = { kind: "none" };
-    const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => idle),
-      legacyErrand: vi.fn(async () => legacyErrandContext()),
-    });
-    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
-
-    expect(result.recoveryFrame).toEqual({
-      ok: true,
-      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
-    });
-  });
-
-  it("does not let legacy compatibility stand in for a reader-owned stop", async () => {
-    const stopped = locusState();
-    stopped.recovery = { kind: "stop", reasons: ["role-conflict"] };
-    const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => stopped),
-      legacyErrand: vi.fn(async () => legacyErrandContext()),
-    });
-    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
-
-    expect(result.recoveryFrame.ok).toBe(false);
   });
 
   it("resolves the linked checkout's own work unit", async () => {
@@ -2577,7 +2508,14 @@ describe("runSessionInitStatus — errand-state slot", () => {
       active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
       errandState: vi.fn(async () =>
         errandStateResult({
-          materializable: { candidates: [{ slug: "fix", branch: "chore/fix" }] },
+          materializable: { candidates: [{
+            slug: "fix",
+            claimId: "a".repeat(32),
+            branch: "chore/fix",
+            expectedHead: "b".repeat(40),
+            state: "paused",
+            originEntry: null,
+          }] },
         })),
     });
 
@@ -2591,7 +2529,14 @@ describe("runSessionInitStatus — errand-state slot", () => {
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
       expect(result.errandState.value.materializable.candidates).toEqual([
-        { slug: "fix", branch: "chore/fix" },
+        {
+          slug: "fix",
+          claimId: "a".repeat(32),
+          branch: "chore/fix",
+          expectedHead: "b".repeat(40),
+          state: "paused",
+          originEntry: null,
+        },
       ]);
     }
   });

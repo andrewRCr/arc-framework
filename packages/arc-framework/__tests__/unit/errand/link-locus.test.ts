@@ -155,30 +155,6 @@ describe("linkOrdinaryErrand", () => {
       reason: "identity-conflict",
       recommendedPromptText: `Errand identity '${previous.slug}' does not exist.`,
     }],
-    ["v1 legacy", basis({
-      version: 1,
-      slug: previous.slug,
-      origin: "description",
-      intent: "Fix output",
-      branch: previous.branch,
-      createdAt: previous.createdAt,
-    }), {
-      outcome: "refused",
-      reason: "identity-conflict",
-      recommendedPromptText: `Identity '${previous.slug}' is not a current ordinary Errand.`,
-    }],
-    ["v2 legacy", basis({
-      version: 2,
-      slug: previous.slug,
-      origin: "description",
-      intent: "Fix output",
-      branch: previous.branch,
-      createdAt: previous.createdAt,
-    }), {
-      outcome: "refused",
-      reason: "identity-conflict",
-      recommendedPromptText: `Identity '${previous.slug}' is not a current ordinary Errand.`,
-    }],
     ["refused", { kind: "refused", reason: "Identity basis changed" }, {
       outcome: "refused",
       reason: "identity-conflict",

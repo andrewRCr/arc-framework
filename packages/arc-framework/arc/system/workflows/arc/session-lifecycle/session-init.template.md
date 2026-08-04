@@ -221,8 +221,8 @@ here; the arms below are the **signal-absent** path.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If
-      `locusState.value.inFlightIdentities` or `materializableWorkUnits` carry available routes, surface them in
-      Step 6.
+      `locusState.value.inFlightIdentities`, `errandState.value.materializable.candidates`, or
+      `materializableWorkUnits` carry available routes, surface them in Step 6.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
@@ -240,11 +240,20 @@ here; the arms below are the **signal-absent** path.
   blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
   **Resume**. On decline, fall through to **Orient**.
 - **Materialize** — the probe surfaces remote-only work units in
-  `materializableWorkUnits.value.candidates`. Surface the candidates and ask which to materialize when more than
-  one is present; never guess — the candidate list _is_ the correctness mechanism. Run `arc materialize <name>`
-  (or `arc materialize <name> --here` when explicitly materializing in the current checkout), then
-  `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. A remote-only Errand
-  identity is retained evidence, not a materialization candidate.
+  `materializableWorkUnits.value.candidates` and eligible identity-backed Errands in
+  `errandState.value.materializable.candidates`. Surface the candidates and ask which to materialize when more
+  than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a work unit, run
+  `arc materialize <name>` (or `arc materialize <name> --here` when explicitly materializing in the current
+  checkout), then `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an
+  Errand, run
+  `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
+  candidate's claim ID and expected head. If the result is refused or reports an error, render its
+  diagnostic and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
+  `identity.claimId`, and `identity.branch` exactly match the selected candidate, and it carries a non-null
+  `activeLocusPath`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected
+  transient row's checkout path equals the returned `activeLocusPath` and its role subject carries the same claim ID
+  before proceeding as **Transient-resume**. The Errand verb accepts only the candidate's exact recorded remote head;
+  head drift or change-request mismatch refuses instead of selecting a descendant or replacement generation.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume** or **Transient-resume**. **Resume**, **Transient-resume**,
@@ -956,8 +965,8 @@ tracked source documents the work.
 
 - `locusState.value.inFlightIdentities` non-empty: render each `locusGuidance.identities` line and offer only an
   action backed by a registered owning verb. A local ordinary Errand may resume, finalize, or abandon; a
-  remote-only or unsupported identity remains retained evidence. Never derive availability or state from a
-  `chore/` branch name.
+  remote-only identity outside `errandState.value.materializable.candidates` and any unsupported identity remains
+  retained evidence. Never derive availability or state from a `chore/` branch name.
 
 - `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
@@ -982,6 +991,16 @@ tracked source documents the work.
   ```text
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
+  ```
+
+- `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): exact remote-only paused or
+  awaiting-merge Errand generations can be materialized onto this machine for cross-machine pickup. Surface each
+  candidate's slug, branch, state, and expected head as a route; on selection, follow Step 2's Materialize arm.
+  Record-less branches and identities without matching remote-only evidence never appear in this list.
+
+  ```text
+  **Materializable Errands:** {N} remote Errand generation(s) available:
+  - `{slug}` (`{branch}` at `{expectedHead}`, `{state}`) — materialize and resume?
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer

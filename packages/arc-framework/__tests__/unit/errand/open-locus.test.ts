@@ -936,29 +936,4 @@ describe("openOrdinaryErrand", () => {
     expect(provision).not.toHaveBeenCalled();
   });
 
-  it("keeps legacy identity conflicts close-only without provisioning a new locus", async () => {
-    const provision = vi.fn();
-    const result = await openOrdinaryErrand({
-      slug: "legacy",
-      protection: "full",
-      base: "main",
-      createdAt: "2026-07-21T12:00:00.000Z",
-      identityName: "andrew",
-      locationTemplate: "/work/{repo}.{name}",
-      repo: "repo",
-      leaseId: LEASE_ID,
-      dependencies: {
-        mintClaimId: () => CLAIM_ID,
-        acquireAnchor: async () => ANCHOR,
-        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
-        readIdentity: async () => ({ kind: "ready", record: null }),
-        claim: async () => ({ kind: "refused", reason: "Legacy v2 identity is close-only" }),
-        rollbackClaim: vi.fn(),
-        provision,
-      },
-    });
-
-    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
-    expect(provision).not.toHaveBeenCalled();
-  });
 });

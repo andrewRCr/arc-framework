@@ -156,7 +156,7 @@ async function readReconciledCloseIdentity(
   if (result.kind === "applied" || result.kind === "idempotent") {
     const recoveryIdentity = result.value === null
       ? { slug }
-      : result.value.version === 3 && result.value.kind === "errand" && result.value.purpose === "errand"
+      : result.value.kind === "errand" && result.value.purpose === "errand"
         ? { slug, claimId: result.value.claimId }
         : null;
     if (recoveryIdentity !== null) {

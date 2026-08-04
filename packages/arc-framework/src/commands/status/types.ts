@@ -67,7 +67,7 @@ import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
-import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
+import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
 
@@ -753,12 +753,6 @@ export interface SessionInitProbes extends SessionSharedProbes {
 export interface SessionRecoverProbes {
   /** Resolve the shared, network-free machine-local locus interpretation. */
   locusState: (identity: string) => Promise<LocusStateV1>;
-  /** Resolve the one close-only pre-locus Errand rollout shape, or null. */
-  legacyErrand: (
-    identity: string | null,
-    role: string | null,
-    workingMemoryPath: string | null,
-  ) => Promise<RecoveryLocusContext | null>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;

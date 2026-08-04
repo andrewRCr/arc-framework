@@ -29,17 +29,6 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({ settings: { "branch.base": "main", "team.mode": "false" } }),
 }));
 
-vi.mock("../../../src/lib/errand/index.js", () => ({
-  DEFAULT_ERRAND_BRANCH_TYPE: "chore",
-  ERRAND_BRANCH_TYPES: ["chore"],
-  closeErrand: vi.fn(),
-  isErrandBranchType: vi.fn(),
-  linkErrandToInbox: vi.fn(),
-  openErrand: vi.fn(),
-  promoteErrand: vi.fn(),
-  retireErrand: vi.fn(),
-}));
-
 vi.mock("../../../src/lib/io-context.js", () => ({
   gitExec: (...args: unknown[]) => mockGitExec(...args),
   createGitExec: () => mockGitExec,

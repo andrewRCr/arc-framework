@@ -172,9 +172,6 @@ Resume without a routine prompt by dispatching only on `report.recover.recoveryF
   Never persist or reconstruct a third frame.
 - `kind: "none"` — the reader proves a record-free between-WUs frame. Use the harness summary only for the
   volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
-- `kind: "legacy-errand"` — use the bounded legacy close/resume compatibility carried by the typed frame. No new
-  operation may recreate its `returnBranch` shape.
-
 For a resolved WU, `workflow` selects execution, planning, or integration directly. For a resolved transient, the
 subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and
 the harness summary never select recovery mode.

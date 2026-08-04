@@ -31,7 +31,11 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { notesRef } from "../../src/commands/user/shared.js";
-import { writeErrandRecord, type ErrandRecord } from "../../src/lib/errand/record.js";
+import {
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../src/lib/errand/identity-record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
 import type { CoreIO } from "../../src/lib/types.js";
 import {
@@ -144,15 +148,34 @@ async function main(): Promise<void> {
     }
     case "errand": {
       const slug = req(extra[0], "slug");
-      const record: ErrandRecord = {
-        version: 1,
+      const record: TransientIdentityRecord = TransientIdentityRecordV3Schema.parse({
+        version: 3,
+        kind: "errand",
         slug,
+        claimId: "a".repeat(32),
+        purpose: "errand",
         origin: "description",
+        originEntry: null,
         intent: `true-race ${slug}`,
         branch: `chore/${slug}`,
+        state: "open",
+        savedHead: null,
+        changeRequest: null,
         createdAt: FIXED_CREATED_AT,
-      };
-      await writeErrandRecord({ exec, execInput, identity: id }, record);
+        updatedAt: FIXED_CREATED_AT,
+      });
+      const outcome = await transactTransientIdentities({ exec, execInput, identity: id }, {
+        remote: null,
+        message: `true-race ${slug}`,
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, [slug, record]]),
+          value: null,
+        }),
+      });
+      if (outcome.kind !== "applied" && outcome.kind !== "idempotent") {
+        throw new Error(`identity write failed: ${outcome.kind}`);
+      }
       process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
       break;
     }

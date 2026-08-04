@@ -238,6 +238,7 @@ describe("release commit hook ordering", () => {
 
   it("returns at Git exit when a hook descendant retains captured output", async () => {
     const remote = join(repository, ".git", "push-target.git");
+    const descendantRelease = join(repository, "release-hook-descendant");
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(["remote", "add", "origin", remote]);
     await git(["push", "-u", "origin", "main"]);
@@ -248,35 +249,51 @@ describe("release commit hook ordering", () => {
       'printf "%s\\n" delayed-pre-commit-start >> "$ARC_HOOK_LOG"',
       'printf "%s\\n" direct-hook-stdout',
       'printf "%s\\n" direct-hook-stderr >&2',
-      "(sleep 5) &",
+      '(while [ ! -f "$ARC_DESCENDANT_RELEASE" ]; do sleep 0.05; done; '
+        + 'printf "%s\\n" retained-output-descendant-finish >> "$ARC_HOOK_LOG") &',
       'printf "%s\\n" delayed-pre-commit-finish >> "$ARC_HOOK_LOG"',
     ]);
 
-    const startedAt = Date.now();
-    const commit = await runCli([
-      "release",
-      "commit",
-      "-m",
-      "fix(release): wait for commit finalization",
-    ], {
-      cwd: repository,
-      env: { ARC_HOOK_LOG: hookLog },
-    });
-    const elapsedMs = Date.now() - startedAt;
+    const headAfter = await (async () => {
+      try {
+        const commit = await runCli([
+          "release",
+          "commit",
+          "-m",
+          "fix(release): wait for commit finalization",
+        ], {
+          cwd: repository,
+          env: {
+            ARC_DESCENDANT_RELEASE: descendantRelease,
+            ARC_HOOK_LOG: hookLog,
+          },
+        });
 
-    const headAfter = await gitOutput(["rev-parse", "HEAD"]);
-    const output = `${commit.stdout}\n${commit.stderr}`;
-    expect(commit.exitCode, JSON.stringify(commit)).toBe(0);
-    expect(elapsedMs).toBeLessThan(3_000);
-    expect(output).toContain("direct-hook-stdout");
-    expect(output).toContain("direct-hook-stderr");
-    expect(output).toContain("fix(release): wait for commit finalization");
-    expect(headAfter).not.toBe(headBefore);
-    expect(await gitOutput(["diff", "--cached", "--name-only"])).toBe("");
+        const committedHead = await gitOutput(["rev-parse", "HEAD"]);
+        const output = `${commit.stdout}\n${commit.stderr}`;
+        expect(commit.exitCode, JSON.stringify(commit)).toBe(0);
+        expect(output).toContain("direct-hook-stdout");
+        expect(output).toContain("direct-hook-stderr");
+        expect(output).toContain("fix(release): wait for commit finalization");
+        expect(committedHead).not.toBe(headBefore);
+        expect(await gitOutput(["diff", "--cached", "--name-only"])).toBe("");
+        expect(await readHookLog()).toEqual([
+          "delayed-pre-commit-start",
+          "delayed-pre-commit-finish",
+          "commit-msg",
+        ]);
+        return committedHead;
+      } finally {
+        await writeFile(descendantRelease, "release\n");
+      }
+    })();
+
+    await expect.poll(() => readHookLog()).toContain("retained-output-descendant-finish");
     expect(await readHookLog()).toEqual([
       "delayed-pre-commit-start",
       "delayed-pre-commit-finish",
       "commit-msg",
+      "retained-output-descendant-finish",
     ]);
 
     const push = await runCli(["release", "push"], { cwd: repository });
@@ -285,7 +302,7 @@ describe("release commit hook ordering", () => {
     expect(await gitOutput(["ls-remote", "origin", "refs/heads/main"])).toBe(
       `${headAfter}\trefs/heads/main`,
     );
-  });
+  }, 20_000);
 
   it.runIf(process.platform !== "win32")(
     "leaves explicitly selected -F - stdin available when interaction is forbidden",

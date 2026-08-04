@@ -20,28 +20,64 @@ import {
   execFileAsync,
 } from "../helpers/integration.js";
 import {
-  writeErrandRecord,
-  listErrandRecords,
   reconcileErrandPush,
   errandsRef,
-  type ErrandRecord,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
+import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
+import {
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../src/lib/errand/identity-record.js";
+import type { OrdinaryErrandRecord } from "../../src/lib/errand/identity-transitions.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
 const IDENTITY = "andrew";
 const REF = errandsRef(IDENTITY);
 
-function recordFor(slug: string, overrides: Partial<ErrandRecord> = {}): ErrandRecord {
-  return {
-    version: 1,
+function recordFor(slug: string, overrides: Partial<OrdinaryErrandRecord> = {}): OrdinaryErrandRecord {
+  return TransientIdentityRecordV3Schema.parse({
+    version: 3,
+    kind: "errand",
     slug,
+    claimId: "a".repeat(32),
+    purpose: "errand",
     origin: "description",
+    originEntry: null,
     intent: `do ${slug}`,
     branch: `chore/${slug}`,
+    state: "open",
+    savedHead: null,
+    changeRequest: null,
     createdAt: "2026-06-19T12:00:00.000Z",
+    updatedAt: "2026-06-19T12:00:00.000Z",
     ...overrides,
-  };
+  }) as OrdinaryErrandRecord;
+}
+
+async function writeIdentity(io: ErrandRecordIO, record: TransientIdentityRecord): Promise<void> {
+  const outcome = await transactTransientIdentities(io, {
+    remote: null,
+    message: `write ${record.slug}`,
+    transform: (basis) => ({
+      kind: "applied",
+      records: new Map([...basis, [record.slug, record]]),
+      value: null,
+    }),
+  });
+  if (outcome.kind !== "applied" && outcome.kind !== "idempotent") {
+    throw new Error(`identity write failed: ${outcome.kind}`);
+  }
+}
+
+async function listRecords(io: ErrandRecordIO): Promise<TransientIdentityRecord[]> {
+  const snapshot = await readTransientIdentitySnapshot(io);
+  if (snapshot.kind === "absent") return [];
+  if (snapshot.kind === "error" || snapshot.diagnostics.length > 0) {
+    throw new Error("identity snapshot is incomplete");
+  }
+  return [...snapshot.records.values()];
 }
 
 function ioFor(dir: string): ErrandRecordIO {
@@ -89,7 +125,7 @@ describe("errand-ref reconcile-push", () => {
   });
 
   it("creates an absent remote ref on the first push (no merge needed)", async () => {
-    await writeErrandRecord(ioA, recordFor("first"));
+    await writeIdentity(ioA, recordFor("first"));
 
     expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
     expect(await remoteSlugs(repoA)).toEqual(["first"]);
@@ -100,15 +136,15 @@ describe("errand-ref reconcile-push", () => {
   });
 
   it("unions errands created on two clones over a non-fast-forward push", async () => {
-    await writeErrandRecord(ioA, recordFor("from-a"));
+    await writeIdentity(ioA, recordFor("from-a"));
     await reconcileErrandPush(ioA);
 
     // repoB never fetched the ref, so its write forks a divergent root.
-    await writeErrandRecord(ioB, recordFor("from-b"));
+    await writeIdentity(ioB, recordFor("from-b"));
     expect(await reconcileErrandPush(ioB)).toEqual({ kind: "reconciled" });
 
     expect(await remoteSlugs(repoB)).toEqual(["from-a", "from-b"]);
-    expect((await listErrandRecords(ioB)).map((r) => r.slug).sort()).toEqual([
+    expect((await listRecords(ioB)).map((r) => r.slug).sort()).toEqual([
       "from-a",
       "from-b",
     ]);
@@ -117,12 +153,12 @@ describe("errand-ref reconcile-push", () => {
   it("merges a byte-identical same-slug errand without collision", async () => {
     // Each clone also carries a distinct errand, so the trees genuinely diverge
     // (forcing a real non-fast-forward) while `shared` is byte-identical on both.
-    await writeErrandRecord(ioA, recordFor("a-side"));
-    await writeErrandRecord(ioA, recordFor("shared"));
+    await writeIdentity(ioA, recordFor("a-side"));
+    await writeIdentity(ioA, recordFor("shared"));
     await reconcileErrandPush(ioA);
 
-    await writeErrandRecord(ioB, recordFor("b-side"));
-    await writeErrandRecord(ioB, recordFor("shared"));
+    await writeIdentity(ioB, recordFor("b-side"));
+    await writeIdentity(ioB, recordFor("shared"));
     expect(await reconcileErrandPush(ioB)).toEqual({ kind: "reconciled" });
 
     // `shared` survives once — unioned, not collided.
@@ -130,26 +166,26 @@ describe("errand-ref reconcile-push", () => {
   });
 
   it("rejects a divergent same-slug errand as a collision and pushes nothing", async () => {
-    await writeErrandRecord(ioA, recordFor("clash", { intent: "the A version" }));
+    await writeIdentity(ioA, recordFor("clash", { intent: "the A version" }));
     await reconcileErrandPush(ioA);
 
-    await writeErrandRecord(ioB, recordFor("clash", { intent: "the B version" }));
+    await writeIdentity(ioB, recordFor("clash", { intent: "the B version" }));
     expect(await reconcileErrandPush(ioB)).toEqual({ kind: "conflict", slugs: ["clash"] });
 
     // Remote keeps A's version; B's local ref is left intact.
     expect(await remoteSlugs(repoB)).toEqual(["clash"]);
-    expect((await listErrandRecords(ioB))[0]?.intent).toBe("the B version");
+    expect((await listRecords(ioB))[0]).toMatchObject({ intent: "the B version" });
   });
 
   it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
-    await writeErrandRecord(ioA, recordFor("from-a"));
+    await writeIdentity(ioA, recordFor("from-a"));
     await reconcileErrandPush(ioA);
 
     // repoB's divergent write makes its push a genuine non-fast-forward, entering
     // the reconcile path. Instrument so the reconcile's local-commit update-ref
     // hits a CAS rejection (a concurrent same-machine writer moved the ref); it
     // must surface through the outcome union, never escape as a raw rejection.
-    await writeErrandRecord(ioB, recordFor("from-b"));
+    await writeIdentity(ioB, recordFor("from-b"));
 
     const realExec = makeGitExec(repoB);
     let casHits = 0;

@@ -1,105 +1,100 @@
-/**
- * Unit tests for materializable-errand detection — filtering the oracle's
- * in-flight entries to the remote-only errands session-init offers to
- * materialize (git worktree add → run-errand resume), with identity (slug)
- * resolved from the errand records and a branch-derived legacy fallback.
- */
+/** Exact ordinary-v3 materialization projections. */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import type {
-  InFlightErrand,
-  InFlightWorkUnit,
-} from "../../../src/lib/git/in-flight-derivation.js";
+import type { TransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
+import type { InFlightErrand, InFlightWorkUnit } from "../../../src/lib/git/in-flight-derivation.js";
 import { findMaterializableErrands } from "../../../src/lib/session-init/materializable-errands.js";
 
+const HEAD = "a".repeat(40);
+
 const errand = (over: Partial<InFlightErrand> = {}): InFlightErrand => ({
-  kind: "errand",
-  slug: "fix-typo",
-  branch: "chore/fix-typo",
-  remoteOnly: true,
-  ...over,
+  kind: "errand", slug: "fix-typo", branch: "chore/fix-typo", remoteOnly: true, ...over,
+});
+const wu = (): InFlightWorkUnit => ({
+  kind: "work-unit", name: "feature-x", branch: "feat/feature-x", state: "Active",
+  remoteOnly: true, dependsOn: [],
 });
 
-const wu = (over: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit => ({
-  kind: "work-unit",
-  name: "feature-x",
-  branch: "feat/feature-x",
-  state: "Active",
-  remoteOnly: true,
-  dependsOn: [],
-  ...over,
-});
-
-/** Build a branch→slug index as the composer derives it from the errand records. */
-function index(entries: Record<string, string> = {}): ReadonlyMap<string, string> {
-  return new Map(Object.entries(entries));
+function paused(over: Record<string, unknown> = {}): TransientIdentityRecord {
+  return {
+    version: 3, slug: "fix-typo", claimId: "c".repeat(32),
+    createdAt: "2026-07-21T00:00:00.000Z", updatedAt: "2026-07-21T00:01:00.000Z",
+    kind: "errand", purpose: "errand", intent: "fix typo", branch: "chore/fix-typo",
+    origin: "inbox", originEntry: "Fix typo",
+    state: "paused", savedHead: HEAD, changeRequest: null, ...over,
+  } as TransientIdentityRecord;
 }
 
 describe("findMaterializableErrands", () => {
-  it("selects a remote-only errand, taking the slug from the record", () => {
+  it("projects exact paused and requested-work awaiting generations", () => {
+    const awaiting = paused({
+      slug: "review", branch: "chore/review", state: "awaiting-merge", savedHead: null,
+      changeRequest: {
+        repositoryRef: "owner/repo", hostRef: "github", baseRef: "main",
+        headRef: "chore/review", headSha: "b".repeat(40),
+      },
+    });
     const result = findMaterializableErrands({
-      entries: [errand({ branch: "chore/fix-typo" })],
-      slugByBranch: index({ "chore/fix-typo": "fix-typo" }),
+      entries: [errand(), errand({ slug: "review", branch: "chore/review" })],
+      records: [paused(), awaiting],
+      remoteTips: new Map([
+        ["chore/fix-typo", HEAD],
+        ["chore/review", "b".repeat(40)],
+      ]),
     });
 
-    expect(result.candidates).toEqual([{ slug: "fix-typo", branch: "chore/fix-typo" }]);
+    expect(result.candidates).toEqual([
+      {
+        slug: "fix-typo", claimId: "c".repeat(32), branch: "chore/fix-typo", expectedHead: HEAD,
+        state: "paused", originEntry: "Fix typo",
+      },
+      {
+        slug: "review", claimId: "c".repeat(32), branch: "chore/review", expectedHead: "b".repeat(40),
+        state: "awaiting-merge", originEntry: "Fix typo",
+      },
+    ]);
   });
 
-  it("resolves a nature-typed remote-only errand from the record", () => {
+  it("excludes open, malformed awaiting, local, and work-unit bases", () => {
     const result = findMaterializableErrands({
-      entries: [errand({ slug: "extract-helper", branch: "refactor/extract-helper" })],
-      slugByBranch: index({ "refactor/extract-helper": "extract-helper" }),
-    });
-
-    expect(result.candidates).toEqual([{ slug: "extract-helper", branch: "refactor/extract-helper" }]);
-  });
-
-  it("degrades a record-less remote-only chore/ errand to its branch-derived slug", () => {
-    const result = findMaterializableErrands({
-      entries: [errand({ slug: "legacy", branch: "chore/legacy" })],
-      slugByBranch: index(),
-    });
-
-    expect(result.candidates).toEqual([{ slug: "legacy", branch: "chore/legacy" }]);
-  });
-
-  it("excludes an errand checked out locally (remoteOnly false → a resume, not a materialize)", () => {
-    const result = findMaterializableErrands({
-      entries: [errand({ remoteOnly: false, worktreePath: "/repos/x" })],
-      slugByBranch: index({ "chore/fix-typo": "fix-typo" }),
+      entries: [errand(), errand({
+        slug: "local", branch: "chore/local", remoteOnly: false,
+      }), wu()],
+      records: [paused({ state: "open", savedHead: null }), paused({
+        state: "awaiting-merge", savedHead: null,
+        changeRequest: {
+          repositoryRef: "owner/repo", hostRef: "github", baseRef: "main",
+          headRef: "chore/other", headSha: HEAD,
+        },
+      })],
+      remoteTips: new Map([["chore/fix-typo", HEAD]]),
     });
 
     expect(result.candidates).toEqual([]);
   });
 
-  it("excludes an errand with an unoccupied local branch", () => {
+  it("does not derive a recordless candidate and sorts projections stably by slug", () => {
     const result = findMaterializableErrands({
-      entries: [errand({ remoteOnly: false })],
-      slugByBranch: index({ "chore/fix-typo": "fix-typo" }),
+      entries: [errand({ slug: "recordless", branch: "chore/recordless" }),
+        errand({ slug: "z", branch: "chore/z" }), errand({ slug: "a", branch: "chore/a" })],
+      records: [paused({ slug: "z", branch: "chore/z" }), paused({ slug: "a", branch: "chore/a" })],
+      remoteTips: new Map([
+        ["chore/z", HEAD],
+        ["chore/a", HEAD],
+      ]),
+    });
+
+    expect(result.candidates.map((candidate) => candidate.slug)).toEqual(["a", "z"]);
+  });
+
+  it("excludes an identity whose expected head differs from the live remote tip", () => {
+    const result = findMaterializableErrands({
+      entries: [errand()],
+      records: [paused()],
+      remoteTips: new Map([["chore/fix-typo", "b".repeat(40)]]),
     });
 
     expect(result.candidates).toEqual([]);
-  });
-
-  it("excludes work-unit entries (only errands are materialize-errand candidates)", () => {
-    expect(findMaterializableErrands({ entries: [wu()], slugByBranch: index() }).candidates).toEqual([]);
-  });
-
-  it("evaluates each entry independently", () => {
-    const result = findMaterializableErrands({
-      entries: [
-        errand({ slug: "a", branch: "chore/a" }),
-        errand({ slug: "b", branch: "chore/b", remoteOnly: false, worktreePath: "/wt/b" }),
-        wu(),
-      ],
-      slugByBranch: index({ "chore/a": "a" }),
-    });
-
-    expect(result.candidates).toEqual([{ slug: "a", branch: "chore/a" }]);
-  });
-
-  it("returns no candidates for an empty entry set", () => {
-    expect(findMaterializableErrands({ entries: [], slugByBranch: index() }).candidates).toEqual([]);
   });
 });

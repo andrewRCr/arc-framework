@@ -108,8 +108,9 @@ That was measured on a throwaway carve, not estimated.
 
 ## Open items
 
-- **Materialize e2e coverage** is the one piece of remaining implementation work, carried from the origin's
-  review as the materialize half of its `E5-V1` finding. Everything else in this deliverable is built and green;
-  this path is asserted today against seeded legacy records rather than a real v3 Errand.
+- **Materialize e2e coverage** is implemented against ordinary v3 paused and awaiting-merge identities, including
+  failed-open rollback. Verification additionally composes the producer and consumer path: a tail written by
+  `arc errand leave` is made remote-only, materialized through the public verb, and checked for exact marker and
+  role provenance.
 
 ---
