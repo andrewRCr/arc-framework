@@ -227,6 +227,9 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
         if (expectedCurrentDigest !== null) {
           return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
         }
+        if (!this.codec.isValidSuccessor(null, proposed.value)) {
+          return { kind: "keep", result: { status: "refused", reason: "record-malformed" } };
+        }
         return {
           kind: "write",
           content,
@@ -237,6 +240,9 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
       if (current.status === "refused") return { kind: "keep", result: current };
       if (this.codec.digest(current.value) !== expectedCurrentDigest) {
         return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      if (!this.codec.isValidSuccessor(current.value, proposed.value)) {
+        return { kind: "keep", result: { status: "refused", reason: "record-malformed" } };
       }
       return {
         kind: "write",

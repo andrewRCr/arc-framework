@@ -36,6 +36,7 @@ import {
   type DeliveryPlanMemberV1,
   type DeliveryPlanV1,
 } from "./schema.js";
+import type { DeliveryPlanPayloadCodec } from "./ports.js";
 
 interface AssembledDeliveryPlanSeam {
   readonly seamKey: string;
@@ -124,6 +125,19 @@ export type DeliveryPlanValidationResult =
     readonly advisories: readonly DeliveryTaskCoverageAdvisory[];
   }
   | { readonly status: "refused"; readonly issues: readonly DeliveryPlanIssue[] };
+
+/** Persisted canonical-plan codec with predecessor-aware publication validation. */
+export const DeliveryPlanV1Codec: DeliveryPlanPayloadCodec<DeliveryPlanV1> = {
+  decode: (value) => {
+    const parsed = DeliveryPlanV1Schema.safeParse(value);
+    return parsed.success
+      ? { status: "decoded", value: parsed.data }
+      : { status: "refused" };
+  },
+  planId: (value) => value.planId,
+  digest: (value) => asCanonicalDigest(value.planDigest),
+  isValidSuccessor: (current, proposed) => validateDeliveryPlanRevision(proposed, current).status === "valid",
+};
 
 /**
  * Assemble and validate one canonical delivery-plan revision.

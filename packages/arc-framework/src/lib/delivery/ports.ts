@@ -16,6 +16,7 @@ export interface DeliveryPayloadCodec<T> {
 /** Runtime plan codec with access to the plan's publication digest. */
 export interface DeliveryPlanPayloadCodec<T> extends DeliveryPayloadCodec<T> {
   digest(value: T): CanonicalDigest;
+  isValidSuccessor(current: T | null, proposed: T): boolean;
 }
 
 /** Domain result returned by every delivery storage operation. */

@@ -61,6 +61,7 @@ const planCodec: DeliveryPlanPayloadCodec<PlanValue> = {
   },
   planId: (value) => value.planId,
   digest: (value) => canonicalDigest({ planDigest: value.planDigest }),
+  isValidSuccessor: () => true,
 };
 
 const revisionedCodec: DeliveryPayloadCodec<RevisionedValue> = {
@@ -194,6 +195,45 @@ describe("repository delivery record stores", () => {
       status: "ok",
       value: second,
     });
+  });
+
+  it("refuses a plan replacement that fails predecessor-aware validation", async () => {
+    const records = await stores();
+    const predecessorAwareCodec = {
+      ...planCodec,
+      isValidSuccessor: (current: PlanValue | null, proposed: PlanValue) => current === null
+        ? proposed.body === "first"
+        : proposed.body === `${current.body}-successor`,
+    };
+    const plans = new RepositoryDeliveryPlanStore(records.publisher, predecessorAwareCodec);
+    const first = plan("plan-1", "first");
+    const unrelated = plan("plan-1", "unrelated");
+
+    await plans.publishCurrent("plan-1", first, null);
+
+    await expect(plans.publishCurrent(
+      "plan-1",
+      unrelated,
+      planCodec.digest(first),
+    )).resolves.toEqual({ status: "refused", reason: "record-malformed" });
+    await expect(plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: first });
+  });
+
+  it("refuses a first plan that fails null-predecessor validation", async () => {
+    const records = await stores();
+    const predecessorAwareCodec = {
+      ...planCodec,
+      isValidSuccessor: (current: PlanValue | null, proposed: PlanValue) => current === null
+        && proposed.body === "first",
+    };
+    const plans = new RepositoryDeliveryPlanStore(records.publisher, predecessorAwareCodec);
+
+    await expect(plans.publishCurrent(
+      "plan-1",
+      plan("plan-1", "later-revision"),
+      null,
+    )).resolves.toEqual({ status: "refused", reason: "record-malformed" });
+    await expect(plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: null });
   });
 
   it("increments assignments under an expected integer revision", async () => {

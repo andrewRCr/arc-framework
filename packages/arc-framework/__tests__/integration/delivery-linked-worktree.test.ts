@@ -54,6 +54,7 @@ const planCodec: DeliveryPlanPayloadCodec<LinkedPlan> = {
   },
   planId: (value) => value.planId,
   digest: (value) => canonicalDigest({ planId: value.planId, workUnitId: value.workUnitId }),
+  isValidSuccessor: () => true,
 };
 
 function plan(planId: string, workUnitId: string): LinkedPlan {
