@@ -6,6 +6,16 @@ import {
 } from "../../../src/lib/delivery/compose.js";
 
 describe("delivery composition checks", () => {
+  it("accepts an ordered contiguous contribution partition", () => {
+    expect(validateDeliveryContributionPartition({
+      contributionStepIds: ["a", "b", "c"],
+      members: [
+        { chunkKey: "first", contributionStepIds: ["a", "b"] },
+        { chunkKey: "second", contributionStepIds: ["c"] },
+      ],
+    })).toEqual({ status: "valid" });
+  });
+
   it("refuses contribution steps covered more than once", () => {
     expect(validateDeliveryContributionPartition({
       contributionStepIds: ["a", "b", "c"],
@@ -83,6 +93,18 @@ describe("delivery composition checks", () => {
         adjacentMemberChunkKey: "first",
       }],
     });
+  });
+
+  it("accepts fully covered authored tasks without advisories", () => {
+    expect(validateDeliveryCompositionCoverage({
+      entry: "from-tasks",
+      implementationTaskIds: ["1.1", "1.2"],
+      verificationTaskId: "2.1",
+      members: [
+        { chunkKey: "first", taskIds: ["1.1"] },
+        { chunkKey: "second", taskIds: ["1.2"] },
+      ],
+    })).toEqual({ status: "valid", advisories: [] });
   });
 
   it("admits a member with no task references when all tasks are covered elsewhere", () => {
