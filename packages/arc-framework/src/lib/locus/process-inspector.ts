@@ -281,17 +281,17 @@ function isAgentSnapshotShell(snapshot: AncestorProcessSnapshot, commandLine: st
   if (source?.[0] !== "source" || source[1] === undefined) return false;
   const snapshotPath = source[1].replaceAll("\\", "/");
   if (!/[\\/]shell-snapshots[\\/]snapshot-[^/]+\.sh$/u.test(snapshotPath)) return false;
-  const evalIndex = commands.findIndex((words, index) => index > 0 && words[0] === "eval");
-  if (evalIndex < 0) return false;
   // Whatever the shell does between restoring its snapshot and evaluating the request is the
-  // harness's own prologue: alias cleanup, option resets, and whatever it adds next. Only the
-  // snapshot restore and the evaluated invocation identify the boundary, so the interleaving is
-  // deliberately unconstrained — matching it exactly would make session identity depend on a
-  // prologue that changes without notice, and an unrecognized boundary yields no anchor at all.
-  const evalPayload = commands[evalIndex]?.[1];
-  if (evalPayload === undefined) return false;
-  const evaluatedCommands = parseShellCommandList(evalPayload);
-  return evaluatedCommands !== null && evaluatedCommands.some(isDirectArcInvocation);
+  // harness's own prologue: alias cleanup, option resets, evals of its own, and whatever it adds
+  // next. Only the snapshot restore and the evaluated invocation identify the boundary, so neither
+  // the interleaving nor which eval carries the request is constrained — matching either would make
+  // session identity depend on a prologue that changes without notice, and an unrecognized boundary
+  // yields no anchor at all.
+  return commands.some((words, index) =>
+    index > 0
+    && words[0] === "eval"
+    && words[1] !== undefined
+    && (parseShellCommandList(words[1])?.some(isDirectArcInvocation) ?? false));
 }
 
 function shellCommandLineOperand(commandLine: string): string | null {
