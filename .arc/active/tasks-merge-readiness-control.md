@@ -369,13 +369,18 @@ unit — a deleted producer with a live required context blocks every pull reque
 own included. That coupling is what forced the corpus retirement into its own follow-on rather than allowing a
 new-versus-old split.
 
-### `[ ]` **4.1 Retire this repository's clearance CI workflow and required status**
+### `[x]` **4.1 Retire this repository's clearance CI workflow and required status**
 
 - _Goal:_ Nothing produces or requires the clearance status on this repository, and no pull request waits on a
   context that will never post.
 
 - **Additional Context:** `notes-merge-readiness-control.md` § Base-branch enforcement surfaces — the recorded
   baseline and the coverage comparison 4.1.d depends on.
+
+- _Outcome:_ `grep -riE "arc.cleared|arc.clearance"` over the CLI source and the host workflows returns
+  nothing, and no base-branch enforcement surface requires the context. The producer and the requirement left
+  together, as the design's coupling demanded: between the two acts this repository could not have merged
+  anything, which is why they belong to one phase rather than two.
 
     - `[x]` **4.1.a Extract the lane-classification gate into its own workflow, as attestation**
         - _Goal:_ The grooming lane keeps a server-side classification of the exact head, recorded where a
@@ -411,28 +416,21 @@ new-versus-old split.
           write on the same head, no failing state, and both arms reaching the write.
         - Closes the half of Task 2.5.b deferred here.
 
-    - `[ ]` **4.1.d Retire classic branch protection, which holds the requirement**
+    - `[x]` **4.1.d Retire classic branch protection, which holds the requirement**
         - _Goal:_ Nothing requires the clearance status, and `main` is left under one enforcement surface
           instead of two.
 
-        - _Approach:_ Two surfaces are live on `main` at once — classic branch protection and the
-          `main-protection` ruleset. The clearance status sits in the classic required-checks list beside the CI
-          roll-up alias; the ruleset requires the alias alone. Deleting classic protection removes the
-          requirement in one act rather than surgically editing a two-element list, and leaves no redundant
-          surface for the next reader to trip over.
-
-        - _Rationale:_ The ruleset covers every protection classic provides — deletion, force-push, required
-          pull request, the CI alias — and is stricter on two axes: it requires review-thread resolution, and it
-          admits no bypass actors where classic permits admin bypass. Verify that comparison against both
-          surfaces at implementation rather than trusting it; the whole act rests on it.
-
-        - Re-read both surfaces and refresh the recorded baseline **before** deleting. Branch protection is not
-          versioned and no diff records its removal, so the recovery path has to be a file in the repository,
-          and the recorded state reflects one point in time.
-        - A host-side act against repository settings — re-read both surfaces afterwards rather than assuming
-          the change took, and confirm the ruleset is still `active`.
-        - Do this before the work unit's own pull request needs to merge; the status has no producer from
-          Phase 2 onward, so the requirement can never be satisfied again.
+        - Classic protection deleted outright rather than edited down to one context, so the redundant surface
+          goes with the requirement.
+        - The coverage comparison was re-verified against both live surfaces before acting, and came back
+          wider than recorded: the ruleset is stricter on four axes, not two — it also pins the required
+          check's producer to an integration ID where classic accepted any writer, and restricts merge methods
+          where classic did not.
+        - Baseline refreshed from the live API before the deletion and the post-state recorded after it.
+          Nothing else in the repository records what classic carried, so the note is the whole recovery path.
+        - Verified after: classic returns `404 Branch not protected`, `main` is still `protected: true`, and
+          all four ruleset rules resolve for `main` at `enforcement: active` with no bypass actors. Required
+          checks are `merge-ok` alone.
 
 ### `[x]` **4.2 Enable `merge.lock: draft` for this repository**
 

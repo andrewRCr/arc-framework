@@ -51,6 +51,12 @@ This table is the recovery baseline: branch protection is not versioned, so noth
 what was removed. Every row above was re-read from the live API rather than carried forward, and it still
 reflects one point in time — re-read both surfaces before acting on it again.
 
+**Post-state (2026-08-04, verified after the deletion).** Classic protection returns `404 Branch not protected`;
+`main` still reports `protected: true`, and `repos/.../rules/branches/main` resolves all four ruleset rules
+(`deletion`, `pull_request`, `required_status_checks`, `non_fast_forward`) with `enforcement: active` and
+`bypass_actors: []`. Required checks on `main` are `merge-ok` alone. Restoring the classic surface means
+recreating every row of the table above by hand — the ruleset does not carry it and nothing else records it.
+
 ## Auto-merge disarm semantics (source of D4's incompatibility claim)
 
 Native auto-merge disarms only when someone **without** write access pushes, or the base branch switches; it
