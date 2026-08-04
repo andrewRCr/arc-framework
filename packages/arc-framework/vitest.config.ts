@@ -81,6 +81,7 @@ export default defineConfig({
           name: "integration",
           root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
+          globalSetup: ["__tests__/integration/global-setup.ts"],
           passWithNoTests: true,
         },
       },

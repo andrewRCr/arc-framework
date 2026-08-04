@@ -114,27 +114,22 @@ the ground to re-read before reopening any of this rather than re-deriving it.
           standard output, for the seed invocation — the sentence and the exit code discriminate neither.
         - Fail-first proven by exempting every command: the refusal case fails, the exemption case still passes.
 
-### `[ ]` **2.3 Settle the integration tier's build prerequisite**
+### `[x]` **2.3 Settle the integration tier's build prerequisite**
 
 - _Goal:_ A local integration run states what it needs instead of failing on a refusal it cannot explain.
 
-- _Context:_ Two integration tests spawn the built bundle through the shared CLI helper. That test project has no
-  build step of its own — only the end-to-end project builds — so a stale bundle turns their exit-code and
-  stderr assertions into refusals. Continuous integration is unaffected: it downloads a freshly built bundle,
-  stamp included.
-
-- _Note:_ This lands in the same phase as the refusal. The phase's own quality-gate run would otherwise pass only
-  because the executor had just rebuilt — the exact reliance this task removes.
-
-    - `[ ]` **2.3.a Build in the project's setup, or state the prerequisite**
-        - Done when the integration project either builds before its run or documents the requirement, and both
-          affected files impose the same expectation. At least one of them already imposes it today.
-        - The build branch mirrors the end-to-end project's setup shape, which honors the skip-build variable
-          continuous integration already sets on the integration job. A hand-rolled build ignores it and makes
-          that job rebuild instead of using the bundle it downloaded.
-        - That branch also invokes `build:fast`, turns a variable named for one tier into a switch over two,
-          and costs a second build on a local full-suite run, since setup runs per project with no sharing
-          between them. The documentation branch carries none of that and no gate coverage either.
+    - `[x]` **2.3.a Build in the project's setup, or state the prerequisite**
+        - Took the build branch: `__tests__/integration/global-setup.ts` mirrors the end-to-end setup's shape —
+          same `ARC_E2E_SKIP_BUILD` gate, same post-build artifact check — and invokes `build:fast`. The two
+          setup files now impose the same expectation, and the end-to-end docblock records that the variable
+          gates both tiers.
+        - Chosen over documenting the prerequisite because it closes the failure mode rather than explaining it,
+          and continuous integration already sets that variable on the integration job, so the downloaded bundle
+          is still used rather than rebuilt.
+        - Accepted costs: a tier-named variable now switches two tiers, and a local full-suite run pays one extra
+          fast build, since setup runs per project with no sharing between them.
+        - Verified against a genuinely stale bundle — the guard refused before setup, the setup rebuilt through
+          the fast config, and all 979 integration tests passed; with the variable set, no build runs.
 
 ## **Phase 3:** Consumer surfaces
 
