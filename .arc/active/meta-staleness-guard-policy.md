@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Generated `tasks-staleness-guard-policy.md` — 3 substantive phases, 8 parent tasks, folded
-  through two adversarial passes — and activated the work unit onto `fix/staleness-guard-policy` (2026-08-04).
-- **Next Task:** Task 1.1 — Add the runtime-only build path (line ~19)
+- **Last Completed:** Phases 1 and 2 — the runtime-only `build:fast` path, then unconditional refusal against a
+  stale bundle with the compaction-seed write as its sole exception (Tasks 1.1, 2.1–2.3).
+- **Next Task:** Task 3.1 — Point the compaction repair at the fast script (line ~139)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — derive the declaration-free tsup config and expose `build:fast` at the
-  package and the repository root
+- **Next Action:** Begin Task 3.1 — retarget the repo-local Codex hook's repair command in `.codex/hooks.json`
+  at `build:fast`
 
 - **PR URL:** [none]
 - **Completed:** [none]
