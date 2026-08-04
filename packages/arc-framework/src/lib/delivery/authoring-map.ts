@@ -153,8 +153,9 @@ function extractJsonBlock(
 
 /** Parse both exact sentinel-bounded JSON blocks without interpreting authored slots. */
 export function parseDeliveryAuthoringMap(content: string): ParseDeliveryAuthoringMapResult {
-  const machine = extractJsonBlock(content, MACHINE_START, MACHINE_END);
-  const slots = extractJsonBlock(content, SLOTS_START, SLOTS_END);
+  const normalized = content.replaceAll("\r\n", "\n");
+  const machine = extractJsonBlock(normalized, MACHINE_START, MACHINE_END);
+  const slots = extractJsonBlock(normalized, SLOTS_START, SLOTS_END);
   return machine.status === "refused" || slots.status === "refused"
     ? { status: "refused", reason: "map-malformed" }
     : { status: "parsed", machine: machine.value, slots: slots.value };

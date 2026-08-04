@@ -87,6 +87,15 @@ describe("delivery authoring map", () => {
     });
   });
 
+  it("accepts CRLF line endings", () => {
+    const proposed = snapshot();
+    const crlf = renderDeliveryAuthoringMap(proposed, filledSlots).replaceAll("\n", "\r\n");
+    expect(validateDeliveryAuthoringMap(crlf, proposed)).toEqual({
+      status: "valid",
+      slots: filledSlots,
+    });
+  });
+
   it("refuses every unfilled starter slot with its typed code", () => {
     const proposed = snapshot();
     expect(validateDeliveryAuthoringMap(renderDeliveryAuthoringMap(proposed), proposed)).toEqual({
