@@ -252,6 +252,21 @@ _vocabulary_; aggregation sites are _call sites_, which a `Record` does not enum
 is a required argument, a branded return type, a lint check, or something else is unsettled — and it decides whether
 this work leaves behind an authority or merely a fifth copy that happens to be shared today.
 
+**One failure mode underlies most of this work, and it constrains the answer.** Three defects in this domain are the
+same disease — a hand-maintained enumeration coupled to a surface that moves underneath it, where drift is silent
+because nothing fails when the list falls behind:
+
+- the fault-domain predicate, written once and shared by none across four aggregation sites;
+- the vendor shell-preamble allowlist, which encodes a prologue its author never agreed to hold still;
+- `lib/handoff-critical.ts`'s errand-mutator enumeration, which drifts in **both** directions at once — it still
+  guards `errand retire` after `lib/errand/retire.ts` was removed, while `leave`, `materialize`, and `abandon`
+  shipped without ever entering it. Verified against `origin/main`; surfaced by the `staleness-guard-policy`
+  session, which is inverting that default rather than extending the list.
+
+The remedy shape is therefore common across all three: **derive the set, or fail closed when it is incomplete —
+never hand-maintain it.** Q3's mechanism should be judged against that bar rather than against whether it fixes
+today's four sites, and the same bar applies to Q5's provider registry.
+
 **Q4 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
 expressible, but a degraded sibling is advisory while a degraded current locus gates. `operational-advisory-registers`
 may own that vocabulary; check before minting a local one.
@@ -295,6 +310,11 @@ Revised from the stub. Conditions 3 and 4 below carried scope that is not this w
   spine. It adds the reader axis to attribution and opens Q6 on the `unsupported-version` tier.
 - Q5 has a leaning — declaration over inference, behind a harness-identity provider, justified by existing fan-in
   across three surfaces rather than by anticipation.
+- The common failure mode is named: hand-maintained enumeration against a moving surface, with silent drift. It
+  sets the bar Q3's and Q5's mechanisms are judged against — derive or fail closed, never maintain by hand.
+- `staleness-guard-policy` confirmed the boundary and scoped session-identity recognition out of its spec
+  explicitly; the version-skew seam is to be routed there explicitly if Q6 needs freshness policy, though it may
+  compose better with that WU's open capture on widening detection beyond first-party sources.
 
 **Next:** confirm Q5's provider scope, then Q3 — the enforcement mechanism's shape, which decides whether this
 leaves behind an authority or a fifth copy that happens to be shared. Then Q2's horizon validation and Q6's tier
