@@ -9,97 +9,68 @@
 _Purpose:_ Register the opt-in axis the lock verbs resolve against, so the control has a validated key to read
 before anything consumes it. Foundation phase — Phases 2 and 4 both depend on it.
 
-### `[ ]` **1.1 Register `merge.lock` in the config catalog**
+### `[x]` **1.1 Register `merge.lock` in the config catalog**
 
 - _Goal:_ `arc config status` reports `merge.lock`, and `arc config validate` rejects any value outside
   `draft | none`.
 
-- _Context:_ Two independent registries, not one. The catalog in `src/lib/config/schema.ts` drives
-  `arc config status`, the settings type, and the defaults. The validate surface renders from its **own**
-  hand-maintained key order in `src/commands/config/validate.ts`, which is neither derived from the catalog nor
-  in the same sequence — it omits several catalog keys outright and has no fallback branch for a known key it
-  does not list. A catalog-only edit therefore produces no validate check line and no rejection of a bad value.
+    - `[x]` **1.1.a Register the field in the catalog**
+        - Added `enumField("merge.lock", ["draft", "none"], "none")` immediately after `merge.strategy` in
+          `src/lib/config/schema.ts` — the catalog index the packaged template mirrors.
 
-- _Note:_ No shell-side work: the hook library parses only the commit-check keys, so a non-`hooks.` key stays
-  clear of the shell/TypeScript parity surface.
-
-    - `[ ]` **1.1.a Register the field in the catalog**
-        - Add it beside `merge.strategy` in `src/lib/config/schema.ts` — an enum over `draft | none` defaulting
-          to `none`, following the `enumField` shape its neighbours use.
-        - Position is load-bearing twice over. `config/schema.test.ts` asserts the whole catalog as an ordered,
-          exhaustive key/default list; `config/inventory.test.ts` asserts ordered equality between the packaged
-          template's key sequence and the catalog. The second means **the catalog index and the template index
-          must match exactly** — 1.2.a's placement is not an independent choice.
-        - _Note:_ That same inventory assertion goes red the moment this subtask lands and stays red until
-          1.2.a ships the template key. It is the one place in this plan where a phase is not green at every
-          internal boundary; run the two together and land them in one increment.
-
-        - Build `test-first` (one behavior at a time):
-            - An absent key reports the documented `none` default
-            - `draft` and `none` both validate
-            - Any other value is rejected
-
-    - `[ ]` **1.1.b Register the field in the validate domain order**
+    - `[x]` **1.1.b Register the field in the validate domain order**
         - _Goal:_ `arc config validate` actually gates the key, rather than passing it over in silence.
-        - Add it to `VALIDATION_DOMAIN_ORDER` in `src/commands/config/validate.ts`. Its position there is
-          independent of the catalog position — the two lists disagree by design — so read the surrounding
-          entries rather than mirroring 1.1.a.
+        - Added to `VALIDATION_DOMAIN_ORDER` in `src/commands/config/validate.ts` after `merge.strategy` —
+          where that list's own domain grouping puts it, which happens to agree with the catalog here.
 
-    - `[ ]` **1.1.c Update the settings fixtures the new key breaks**
-        - Type-check-enforced, so the compiler names them: the full-settings literals in `config-format.test.ts`,
-          `status-format.test.ts`, `handlers/release/push.test.ts`, `status/run.test.ts`,
-          `release/interlock-validation.test.ts`, `release-push-upstream-init.test.ts`, and
-          `handlers/release/commit.test.ts`.
-        - Four more break without any compiler help, and each is exhaustive by construction:
-          `integration/config.test.ts` (an every-key config-file fixture), `config/schema.test.ts` (the ordered
-          catalog assertion above), `config/inventory.test.ts` (the template-versus-catalog ordering), and
-          `config/status-reader.test.ts` (writes an all-keys file and asserts nothing was defaulted).
-        - `user-handlers.test.ts` supplies its settings through an untyped mock, so it will fail at runtime
-          rather than at compile time — do not expect the compiler to name it.
+    - `[x]` **1.1.c Update the settings fixtures the new key breaks**
+        - The seven type-checked full-settings literals took `"merge.lock": "none"`, exactly as predicted:
+          `config-format.test.ts`, `status-format.test.ts`, `handlers/release/push.test.ts`,
+          `status/run.test.ts`, `release/interlock-validation.test.ts`, `release-push-upstream-init.test.ts`,
+          and `handlers/release/commit.test.ts`.
+        - The compiler-invisible set was **not** the predicted one. `config/schema.test.ts`,
+          `config/inventory.test.ts`, and `config/status-reader.test.ts` broke as expected, but
+          `integration/config.test.ts` and `user-handlers.test.ts` did not. The shared fixture corpus
+          `__tests__/fixtures/config/cases.ts` did instead — seven validator pass counts, consumed through
+          `config/compatibility-validator.test.ts`.
 
-    - `[ ]` **1.1.d Extend the validate-output assertion**
-        - `commands/config/validate.test.ts` asserts an exact ordered line list plus a hard-coded total in both
-          the summary line and the check count. Insert the new line at its **validate-order** position — not its
-          catalog position — and move both numbers.
+    - `[x]` **1.1.d Extend the validate-output assertion**
+        - `commands/config/validate.test.ts` took the new line at its validate-order position. All four
+          hard-coded pass counts moved, not only the empty-file summary/total pair.
 
-### `[ ]` **1.2 Ship the key in the `arc-config.yml` template and project instance**
+- _Outcome:_ The key is live on both surfaces — `arc config status` exposes it, `arc config validate` gates it.
+  `AGENT_CONSUMABLE_KEYS` went 29 → 30, which two tests assert by bare count
+  (`config/status-reader.test.ts`, `status-format.test.ts`); together with the shared fixture corpus above,
+  a single new config key costs edits in twelve test files, several of which name no key at all.
+
+### `[x]` **1.2 Ship the key in the `arc-config.yml` template and project instance**
 
 - _Goal:_ A project installing ARC receives `merge.lock: none` with a comment block that explains both modes
   and what enabling costs.
 
-- _Context:_ `arc-config.yml` is a Configurable file whose two copies diverge by design — this repository's
-  instance already overrides `branch.protection`, the review sources, and the hook patterns. Targeted edits to
-  each copy, never `cp`; the pre-commit sync check blocks a blind copy but only after it has already flattened
-  the working tree.
+    - `[x]` **1.2.a Add the key and its comment block to the package source**
+        - Added after `merge.strategy`, with the section heading widened to `# --- Merge ---`.
+        - The comment prices both modes in project terms: `draft` holds every pull request unmergeable until
+          release — the cost being a release step before each merge, plus review automation that skips drafts
+          staying quiet until then; `none` leaves interlocks and harness permissions as the only guard. It
+          names no verb, since the command surface does not exist until Phase 2.
 
-    - `[ ]` **1.2.a Add the key and its comment block to the package source**
-        - Place it after `merge.strategy` so the two merge settings read together, and widen that section's
-          heading from `# --- Merge Strategy ---` to `# --- Merge ---`: it now covers two keys and only one of
-          them is a strategy.
-        - Describe the degenerate mode in terms of what the project gets, not what ARC does internally: `none`
-          leaves interlocks and harness permissions as the only guard.
+    - `[x]` **1.2.b Mirror the edit into this repository's instance**
+        - Applied the same diff by hand, heading included. `diff` between the copies leaves only the
+          pre-existing project overrides — no schema, key, or comment delta.
 
-    - `[ ]` **1.2.b Mirror the edit into this repository's instance**
-        - Apply the same diff by hand, including the heading rename, leaving every project-specific value
-          untouched.
-        - Verify with `diff` between the copies: the remaining delta should be project overrides only, with no
-          schema, key, or comment differences.
-
-### `[ ]` **1.3 Classify the axis in `strategy-configurability-architecture.md`**
+### `[x]` **1.3 Classify the axis in `strategy-configurability-architecture.md`**
 
 - _Goal:_ Someone reading the configurability model meets `merge.lock` everywhere they already meet
   `merge.strategy`, rather than discovering it only in the config file.
 
-- _Note:_ The project-only scope list already classifies `merge.*` wholesale, so it needs no edit — the new key
-  inherits that classification.
-
-- _Note:_ This file is a Framework file present identically in both trees; every edit below lands in the package
-  source and this repository's instance.
-
-    - Add it to the runtime-settings list, since it is a direct config edit with no reconfigure.
-    - Add it to the behavioral-implications section, beside the `merge.strategy` entry: a control with a
-      degenerate mode has consequences a reader should meet before choosing a value.
-    - Add it to the sample `arc-config.yml` block, which shows the merge settings together.
+    - Added to the runtime-settings list as a host-side hold on merging an open pull request.
+    - Added to the behavioral-implications section under **Merge lock**, pricing both values: `none` leaves
+      interlocks and harness permissions as the only guard, `draft` makes the hold structural rather than
+      procedural at the cost of a release step and quiet draft-skipping review automation.
+    - Added to the sample `arc-config.yml` block after `merge.strategy`.
+    - Both copies edited package-source-first and verified byte-identical by `diff`. The project-only scope
+      list needed no edit, as expected — `merge.*` is classified wholesale.
 
 ## **Phase 2:** The merge-lock verbs
 
