@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — formalization-ready draft captured (adversarial loop converged, 2 passes)
+- **Last Completed:** create-spec — spec finalized (detailed RFC; adversarial loop converged at the Heavy cap)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
