@@ -16,7 +16,11 @@ import type {
 } from "../../../src/lib/delivery/authoring-store.js";
 import type { DeliveryPlanStore } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryTaskListRenderer } from "../../../src/lib/delivery/task-list-render.js";
-import { canonicalDigest, type CanonicalDigest } from "../../../src/lib/kernel/index.js";
+import {
+  canonicalDigest,
+  canonicalize,
+  type CanonicalDigest,
+} from "../../../src/lib/kernel/index.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
   type DeliveryPlanV1,
@@ -101,15 +105,20 @@ class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
     mapId: string,
     expected: DeliveryAuthoringRecord["snapshot"],
     candidatePlanDigest: CanonicalDigest,
+    candidateProjectionDigest: CanonicalDigest,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringRecord["snapshot"]>> {
     this.calls.push("candidate");
     if (this.record === null || this.record.snapshot.mapId !== mapId
-      || this.record.snapshot.candidatePlanDigest !== expected.candidatePlanDigest) {
+      || canonicalize(this.record.snapshot) !== canonicalize(expected)) {
       return { status: "refused", reason: "version-conflict" };
     }
     this.record = {
       ...this.record,
-      snapshot: { ...this.record.snapshot, candidatePlanDigest },
+      snapshot: {
+        ...this.record.snapshot,
+        candidatePlanDigest,
+        candidateProjectionDigest,
+      },
     };
     return { status: "ok", value: this.record.snapshot };
   }
@@ -344,6 +353,46 @@ describe("delivery plan publication orchestration", () => {
       record: authoring.record,
     })).resolves.toMatchObject({ status: "composed", plan: { planRevision: 1 } });
     expect(plans.calls).toEqual(["publish"]);
+  });
+
+  it("refuses authoring edits after the candidate has been published", async () => {
+    const value = fixture();
+    const authoring = new MemoryAuthoringStore(value.record);
+    const plans = new MemoryPlanStore();
+    const renderer = new MemoryRenderer();
+    renderer.fail = true;
+    await expect(composer(authoring, plans, renderer).compose(input(value)))
+      .resolves.toEqual({ status: "refused", reason: "task-list-unreadable" });
+    if (authoring.record === null) throw new Error("expected retryable authoring state");
+
+    const editedTitle = "Edited member";
+    const editedSlots = DeliveryAuthoringSlotsV1Schema.parse({
+      ...value.slots,
+      members: value.slots.members.map((member) => ({ ...member, title: editedTitle })),
+    });
+    const editedProjection: DeliveryCompositionProjection = {
+      ...value.projection,
+      authoring: {
+        ...value.projection.authoring,
+        members: value.projection.authoring.members.map((member) => ({
+          ...member,
+          title: editedTitle,
+        })),
+      },
+    };
+    authoring.record = {
+      ...authoring.record,
+      markdown: renderDeliveryAuthoringMap(authoring.record.snapshot, editedSlots),
+    };
+    renderer.fail = false;
+
+    await expect(composer(authoring, plans, renderer).compose({
+      ...input(value),
+      record: authoring.record,
+      projection: editedProjection,
+    })).resolves.toEqual({ status: "refused", reason: "authoring-state-corrupt" });
+    expect(authoring.record.markdown).not.toBeNull();
+    expect(plans.current?.members[0]?.title).toBe("Only member");
   });
 
   it("leaves a matching JSON receipt when final cleanup fails and completes it on retry", async () => {

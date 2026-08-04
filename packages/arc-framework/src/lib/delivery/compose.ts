@@ -1,6 +1,11 @@
 /** Entry-neutral composition checks shared by both delivery authoring sources. */
 
-import { assertCanonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
+import {
+  assertCanonicalDigest,
+  canonicalDigest,
+  canonicalize,
+  type CanonicalDigest,
+} from "../kernel/index.js";
 import {
   validateDeliveryAuthoringMap,
   type DeliveryAuthoringSlotsV1,
@@ -290,7 +295,9 @@ export class DeliveryPlanComposer {
     }
 
     if (input.record.markdown === null) {
-      if (input.record.snapshot.candidatePlanDigest === null || current === null
+      if (input.record.snapshot.candidatePlanDigest === null
+        || input.record.snapshot.candidateProjectionDigest === null
+        || current === null
         || input.record.snapshot.candidatePlanDigest !== current.planDigest) {
         return { status: "refused", reason: "authoring-state-corrupt" };
       }
@@ -335,9 +342,18 @@ export class DeliveryPlanComposer {
     if (coverage.status === "refused") {
       return { status: "refused", reason: "coverage-refused", issues: coverage.issues };
     }
+    const candidateProjectionDigest = canonicalDigest(input.projection.authoring);
+    const hasCandidatePlan = input.record.snapshot.candidatePlanDigest !== null;
+    const hasCandidateProjection = input.record.snapshot.candidateProjectionDigest !== null;
+    if (hasCandidatePlan !== hasCandidateProjection) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
 
     let candidate: DeliveryPlanV1;
     if (current !== null && input.record.snapshot.candidatePlanDigest === current.planDigest) {
+      if (input.record.snapshot.candidateProjectionDigest !== candidateProjectionDigest) {
+        return { status: "refused", reason: "authoring-state-corrupt" };
+      }
       candidate = current;
     } else {
       const expectedDigest = asCanonicalDigestOrNull(input.record.snapshot.expectedCurrentPlanDigest);
@@ -359,10 +375,15 @@ export class DeliveryPlanComposer {
         && input.record.snapshot.candidatePlanDigest !== candidate.planDigest) {
         return { status: "refused", reason: "authoring-state-corrupt" };
       }
+      if (input.record.snapshot.candidateProjectionDigest !== null
+        && input.record.snapshot.candidateProjectionDigest !== candidateProjectionDigest) {
+        return { status: "refused", reason: "authoring-state-corrupt" };
+      }
       const receipt = await this.dependencies.authoringStore.recordCandidate(
         input.record.snapshot.mapId,
         input.record.snapshot,
         candidate.planDigest,
+        candidateProjectionDigest,
       );
       if (receipt.status === "refused") return receipt;
       const publication = await this.dependencies.planStore.publishCurrent(

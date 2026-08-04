@@ -59,6 +59,7 @@ export interface DeliveryAuthoringCompositionStore {
     mapId: string,
     expected: DeliveryAuthoringSnapshotV1,
     candidatePlanDigest: string,
+    candidateProjectionDigest: string,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>>;
   deleteMarkdown(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
   deleteSnapshot(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
@@ -254,6 +255,7 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
     mapId: string,
     expected: DeliveryAuthoringSnapshotV1,
     candidatePlanDigest: string,
+    candidateProjectionDigest: string,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>> {
     const parsedMapId = SlugSchema.safeParse(mapId);
     if (!parsedMapId.success || expected.mapId !== parsedMapId.data) {
@@ -276,6 +278,7 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
         const next = DeliveryAuthoringSnapshotV1Schema.safeParse({
           ...decoded.value,
           candidatePlanDigest,
+          candidateProjectionDigest,
         });
         if (!next.success) {
           return { mutations: [], result: { status: "refused", reason: "record-malformed" } };

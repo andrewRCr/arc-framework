@@ -78,6 +78,7 @@ const LooseSlotsSchema = z.strictObject({
 
 const DeliveryAuthoringMachineV1Schema = DeliveryAuthoringSnapshotV1Schema.omit({
   candidatePlanDigest: true,
+  candidateProjectionDigest: true,
 });
 type DeliveryAuthoringMachineV1 = z.infer<typeof DeliveryAuthoringMachineV1Schema>;
 
@@ -99,8 +100,9 @@ export type ValidateDeliveryAuthoringMapResult =
   };
 
 function machineMaterial(snapshot: DeliveryAuthoringSnapshotV1): DeliveryAuthoringMachineV1 {
-  const { candidatePlanDigest, ...machine } = snapshot;
+  const { candidatePlanDigest, candidateProjectionDigest, ...machine } = snapshot;
   void candidatePlanDigest;
+  void candidateProjectionDigest;
   return DeliveryAuthoringMachineV1Schema.parse(machine);
 }
 

@@ -404,8 +404,10 @@ export async function handleDeliveryCompose(
   }
   if (resolution.record.markdown === null) {
     const receipt = resolution.record.snapshot.candidatePlanDigest;
+    const projectionReceipt = resolution.record.snapshot.candidateProjectionDigest;
     const current = await context.planStore.readCurrent(resolution.record.snapshot.planId);
-    if (receipt === null || current.status === "refused" || current.value?.planDigest !== receipt) {
+    if (receipt === null || projectionReceipt === null
+      || current.status === "refused" || current.value?.planDigest !== receipt) {
       emit("delivery compose", parsed.data.json === true, {
         status: "refused",
         reason: "authoring-state-corrupt",

@@ -47,6 +47,7 @@ export const DeliveryAuthoringSnapshotV1Schema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   expectedCurrentPlanDigest: DeliveryCanonicalDigestSchema.nullable(),
   candidatePlanDigest: DeliveryCanonicalDigestSchema.nullable(),
+  candidateProjectionDigest: DeliveryCanonicalDigestSchema.nullable(),
   design: DeliveryAuthoringDesignInventorySchema,
   tasks: DeliveryAuthoringTaskInventorySchema,
   source: z.strictObject({
@@ -97,6 +98,7 @@ export function createDeliveryAuthoringSnapshot(
     planId: input.planId,
     expectedCurrentPlanDigest: input.expectedCurrentPlanDigest,
     candidatePlanDigest: null,
+    candidateProjectionDigest: null,
     design,
     tasks,
     source: input.source,
