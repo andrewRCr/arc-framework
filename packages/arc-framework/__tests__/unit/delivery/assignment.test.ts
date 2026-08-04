@@ -99,4 +99,29 @@ describe("delivery assignment record", () => {
     expect(isDeliveryAssignmentSuccessor(current, rebound)).toBe(false);
     expect(isDeliveryAssignmentSuccessor(current, advanced)).toBe(true);
   });
+
+  it("requires a member generation to advance when its change request is rebound", () => {
+    const current = DeliveryAssignmentsV1Schema.parse(assignment());
+    const rebound = DeliveryAssignmentsV1Schema.parse({
+      ...current,
+      members: current.members.map((member) => ({
+        ...member,
+        changeRequestHandles: [{ providerId: "github", changeRequestId: "pull/402" }],
+      })),
+    });
+    const advanced = DeliveryAssignmentsV1Schema.parse({
+      ...rebound,
+      members: rebound.members.map((member) => ({
+        ...member,
+        materializationGeneration: member.materializationGeneration + 1,
+      })),
+      generationHighWater: rebound.generationHighWater.map((mark) => ({
+        ...mark,
+        generation: mark.generation + 1,
+      })),
+    });
+
+    expect(isDeliveryAssignmentSuccessor(current, rebound)).toBe(false);
+    expect(isDeliveryAssignmentSuccessor(current, advanced)).toBe(true);
+  });
 });

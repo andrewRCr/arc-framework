@@ -124,6 +124,7 @@ function materializationBinding(
     assuranceSubjectId: member.assuranceSubjectId,
     ref: member.ref,
     assignedHeadObjectId: member.assignedHeadObjectId,
+    changeRequestHandles: member.changeRequestHandles,
     reviewRouting: member.reviewRouting,
   });
 }

@@ -312,7 +312,7 @@ describe("repository delivery record stores", () => {
   it("increments assignments under an expected integer revision", async () => {
     const records = await stores();
     const first = assignment(1);
-    const second = assignment(1, { changeRequestId: "pull/401" });
+    const second = assignment(2, { changeRequestId: "pull/401" });
 
     await expect(records.assignments.read(ASSIGNMENT_PLAN_ID)).resolves.toEqual({ status: "ok", value: null });
     await expect(records.assignments.publish(ASSIGNMENT_PLAN_ID, first, 0)).resolves.toEqual({
@@ -429,8 +429,8 @@ describe("repository delivery record stores", () => {
     await records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1), 0);
 
     const results = await Promise.all([
-      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1, { changeRequestId: "pull/second" }), 1),
-      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(1, { changeRequestId: "pull/third" }), 1),
+      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(2, { changeRequestId: "pull/second" }), 1),
+      records.assignments.publish(ASSIGNMENT_PLAN_ID, assignment(2, { changeRequestId: "pull/third" }), 1),
     ]);
 
     expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
