@@ -115,6 +115,12 @@ const DeliveryFromBranchFactsSchema = z.strictObject({
   })),
 });
 
+const DeliveryFromBranchSourceInputsSchema = z.strictObject({
+  taskListPath: z.string().min(1),
+  base: z.string().min(1),
+  head: z.string().min(1),
+});
+
 /** Inputs for one branch-derived authoring map. */
 export interface PrepareDeliveryFromBranchAuthoringInput {
   readonly mapId: string;
@@ -146,6 +152,7 @@ export type PrepareDeliveryFromBranchAuthoringResult =
       | "verification-task-ambiguous"
       | "invalid-authoring-identity"
       | "commit-attribution-unreadable"
+      | "contribution-step-missing"
       | InspectDeliveryBranchRefusal["reason"];
   };
 
@@ -261,6 +268,9 @@ export async function prepareDeliveryFromBranchAuthoring(
     head: input.head,
   });
   if (inspection.status === "refused") return inspection;
+  if (inspection.contributionStepIds.length === 0) {
+    return { status: "refused", reason: "contribution-step-missing" };
+  }
   const attribution = await deriveTaskAttributions(
     input.exec,
     inspection,
@@ -326,7 +336,9 @@ export function resolveDeliveryFromBranchProjection(input: {
     return { status: "refused", reason: "from-branch-facts-malformed" };
   }
   const facts = DeliveryFromBranchFactsSchema.safeParse(input.snapshot.source.facts);
-  if (!facts.success || !branchFactsMatchSnapshot(input.snapshot, facts.data)) {
+  const sourceInputs = DeliveryFromBranchSourceInputsSchema.safeParse(input.snapshot.source.inputs);
+  if (!facts.success || !sourceInputs.success
+    || !branchFactsMatchSnapshot(input.snapshot, facts.data, sourceInputs.data)) {
     return { status: "refused", reason: "from-branch-facts-malformed" };
   }
   if (input.slots.boundary.kind !== "explicit") {
@@ -383,6 +395,7 @@ export function resolveDeliveryFromBranchProjection(input: {
 function branchFactsMatchSnapshot(
   snapshot: DeliveryAuthoringSnapshotV1,
   facts: z.infer<typeof DeliveryFromBranchFactsSchema>,
+  sourceInputs: z.infer<typeof DeliveryFromBranchSourceInputsSchema>,
 ): boolean {
   const first = facts.steps[0];
   if (first === undefined) return false;
@@ -416,6 +429,8 @@ function branchFactsMatchSnapshot(
     ),
   );
   return JSON.stringify(stepIds) === JSON.stringify(snapshot.source.identitySequence)
+    && facts.base === sourceInputs.base
+    && facts.head === sourceInputs.head
     && JSON.stringify(contributionIds) === JSON.stringify(facts.contributionStepIds)
     && attributionPositions.every((position, index) => position !== -1
       && (index === 0 || position > (attributionPositions[index - 1] ?? position)))

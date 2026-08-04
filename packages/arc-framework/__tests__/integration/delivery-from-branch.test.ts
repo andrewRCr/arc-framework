@@ -75,7 +75,11 @@ describe("branch-derived delivery facts", () => {
   it("inspects only the selected first-parent range instead of materializing repository history", async () => {
     const exec = createRawGitExec(repository);
     const boundedExec: typeof exec = async (args, options) => {
-      if (args[0] === "rev-list" && args.length === 2) {
+      const isParentLookup = args[0] === "rev-list" && args[1] === "--parents";
+      const isSelectedTraversal = JSON.stringify(args) === JSON.stringify([
+        "rev-list", "--first-parent", "--reverse", head, "--not", baseAdvance,
+      ]);
+      if (args[0] === "rev-list" && !isParentLookup && !isSelectedTraversal) {
         throw new Error("unbounded history traversal");
       }
       return exec(args, options);
@@ -89,6 +93,35 @@ describe("branch-derived delivery facts", () => {
       status: "inspected",
       contributionStepIds: [firstContribution, head],
     });
+  });
+
+  it("refuses to persist branch authoring state with no contribution steps", async () => {
+    await git(repository, ["checkout", "-b", "ambient-only", originalBase]);
+    await git(repository, [
+      "-c", "core.hooksPath=/dev/null", "merge", "--no-ff", "main", "-m", "absorb base only",
+    ]);
+
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared).toEqual({ status: "refused", reason: "contribution-step-missing" });
   });
 
   it("distinguishes an unsupported merge-tree capability from an impure ambient merge", async () => {
@@ -347,6 +380,63 @@ describe("branch-derived delivery facts", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
     expect(prepared.snapshot.source.facts).toMatchObject({ taskAttributions: [], advisories: [] });
+  });
+
+  it("refuses branch facts whose pinned coordinates differ from the source inputs", async () => {
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    const slots = DeliveryAuthoringSlotsV1Schema.parse({
+      projection: { kind: "wu-integration-target" },
+      boundary: {
+        kind: "explicit",
+        segments: [{
+          chunkKey: "only",
+          sourceIds: prepared.inspection.contributionStepIds,
+        }],
+      },
+      members: [memberSlot("only")],
+      seams: [],
+    });
+    const facts = prepared.snapshot.source.facts;
+    expect(facts).toBeTypeOf("object");
+    if (typeof facts !== "object" || facts === null || Array.isArray(facts)) return;
+    const results = (["base", "head"] as const).map((coordinate) => (
+      resolveDeliveryFromBranchProjection({
+        snapshot: {
+          ...prepared.snapshot,
+          source: {
+            ...prepared.snapshot.source,
+            facts: { ...facts, [coordinate]: originalBase },
+          },
+        },
+        slots,
+      })
+    ));
+
+    expect(results).toEqual([
+      { status: "refused", reason: "from-branch-facts-malformed" },
+      { status: "refused", reason: "from-branch-facts-malformed" },
+    ]);
   });
 
   it("reports contribution co-change and lifecycle-artifact touches without constraining the cut", async () => {
