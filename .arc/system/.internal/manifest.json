@@ -584,7 +584,7 @@
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "df49f79dc237ac027c21306270e3eea21dd1201adf23eb6d91dfad0a9739d0a9"
+      "pristine_hash": "350a9fb0681050fe6786dbf3bf01daa18e098eb72c235734be2b1ebd5d228edb"
     },
     "system/workflows/arc/initial-setup/02_define-project.md": {
       "classification": "Framework",

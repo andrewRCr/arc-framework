@@ -19,6 +19,7 @@ import {
 import {
   registerReviewDomainSchemas,
 } from "../../../src/scripts/review-gate/core/register-review-schemas.js";
+import { registerDeliveryDomainSchemas } from "../../../src/lib/delivery/schema.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -37,9 +38,9 @@ describe("kernel schema artifact generation", () => {
     ]);
   });
 
-  it("projects the composed review family with stable references and bytes", () => {
-    const first = registerReviewDomainSchemas(createKernelRegistry());
-    const second = registerReviewDomainSchemas(createKernelRegistry());
+  it("projects the composed production families with stable references and bytes", () => {
+    const first = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
+    const second = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
@@ -49,6 +50,12 @@ describe("kernel schema artifact generation", () => {
       "canonical-change-set",
       "change-path-fact",
       "change-path-set",
+      "delivery-assurance-subject-id-preimage",
+      "delivery-deliverable-id-preimage",
+      "delivery-plan",
+      "delivery-plan-authoring-input",
+      "delivery-plan-member",
+      "delivery-plan-seam",
       "disposition-approval",
       "disposition-report-item",
       "disposition-set",

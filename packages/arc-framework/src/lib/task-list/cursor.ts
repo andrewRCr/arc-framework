@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import {
+  ParentTaskIdSchema,
   scanTaskListStructure,
   type TaskListStructureEvent,
   type TaskMarker,
@@ -27,18 +28,13 @@ interface ParsedSubtask {
   marker: TaskMarker;
 }
 
-const TASK_CURSOR_ID_SCHEMA = z.string()
-  .regex(/^\d+(?:\.[0-9A-Za-z]+)+$/u)
-  .refine((value) => !/^\d+\.\d+\.\d+(?:\.|$)/u.test(value), {
-    error: "Numeric third task-id segments are not executable cursor ids",
-  });
 const NON_EMPTY_TEXT_SCHEMA = z.string().refine((value) => value.trim().length > 0, {
   error: "Value must contain non-whitespace text",
 });
 const POSITIVE_SAFE_INTEGER_SCHEMA = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 
 const TASK_CURSOR_ITEM_SHAPE = {
-  id: TASK_CURSOR_ID_SCHEMA,
+  id: ParentTaskIdSchema,
   title: NON_EMPTY_TEXT_SCHEMA,
   lineHint: POSITIVE_SAFE_INTEGER_SCHEMA,
 };

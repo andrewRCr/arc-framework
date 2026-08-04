@@ -12,7 +12,7 @@ import {
 import { parseEvidence } from "../../src/scripts/review-gate/core/evidence.js";
 import {
   RepositoryGitCommonStatePublisher,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+} from "../../src/lib/git-common-state.js";
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";

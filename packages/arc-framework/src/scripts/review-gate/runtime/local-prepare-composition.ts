@@ -2,12 +2,12 @@
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
 import {
-  RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
   withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";
