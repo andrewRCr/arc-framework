@@ -10,8 +10,8 @@ arc:
 
 # Workflow: Decompose Work Unit
 
-The operator owns semantic distribution. `arc decompose` owns source discovery, evidence, topology, mutation,
-validation, recovery, and the landed handoff.
+**The operator owns semantic distribution; `arc decompose` owns source discovery, evidence, topology, mutation,
+validation, recovery, and the landed handoff** · `[invariant]`.
 
 Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy
 unchanged, stop, and re-enter only at the reported action. Never construct identifiers, evidence, Git topology, or

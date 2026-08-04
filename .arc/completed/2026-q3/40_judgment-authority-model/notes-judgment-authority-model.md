@@ -1741,6 +1741,22 @@ markers are recorded against a 39-line preflight stub whose park-exit choreograp
 as missing. Re-run this document's inventory once the remaining slices land; nothing else in the region is
 mid-transformation.
 
+### Addendum — settled `decompose-work-unit` re-run (2026-08-04)
+
+`decompose-transform-integrity` has landed, and the final 184-line workflow is byte-identical across its shipped and
+project copies. Re-running the workflow-region method yields 47 imperative groups: one marker candidate and 46
+accepted reclassifications.
+
+| Document                         | M | A  | Marker character (families)                                                  |
+| -------------------------------- | - | -- | ---------------------------------------------------------------------------- |
+| `decompose-work-unit` _(settled)_ | 1 | 46 | E, I, O — operator semantics and CLI-owned evidence, topology, and mutation |
+
+The four interim candidates collapse into the workflow's new opening two-owner rule. The detailed refusal,
+machine-field, exact-command, evidence, branch, and cleanup clauses restate that parent (reason 6); eligibility and
+result-shape statements are definitional (reason 4); allocation completeness is mechanically validated (reason 2);
+and authoring or dispatch instructions remain craft (reason 3). The release-control blocks restate the marked
+approval and merge parents (reason 6). No new family or unrelated defect surfaced.
+
 ---
 
 ## Corpus-wide classification sweep — the extension region (Task 4.4)
