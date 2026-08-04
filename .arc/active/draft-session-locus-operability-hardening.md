@@ -5,9 +5,8 @@
   commit `5c6dd5c74`.
 - **Purpose:** Give session-locus refusals a fault domain, so one degraded checkout stops only the commands it
   actually bears on, and make a stopped state say which locus stopped it.
-- **State:** Draft — `maturing`. The containment spine is settled and the incident premise is resolved by
-  reproduction; the open items are mechanism and validation rather than fundamentals, with one scope confirmation
-  outstanding (Q5's provider seam).
+- **State:** Draft — `maturing`. The containment spine is settled, the incident premise is resolved by
+  reproduction, and scope is closed. Every open item is mechanism or validation rather than fundamentals.
 - **Created:** 2026-08-04
 
 ---
@@ -122,7 +121,7 @@ Ran the four sibling check-docs. `strategy-procedure-evolution.md` and `strategy
 **In:** the fault-domain authority and its enforcement mechanism; attribution on every stop reason and every
 producer, across both axes (which locus, and which reader); the four aggregation sites above; the staleness
 horizon; the guidance-composer rewrite that consumes attribution; session-identity recognition and its failure
-mode, including the harness-identity provider seam if Q5's leaning is confirmed.
+mode, including the harness-identity provider seam.
 
 **Out:** cross-machine arbitration and backend storage evolution, unless Q2 cannot be settled without them.
 
@@ -189,8 +188,9 @@ Three consequences for this work:
 
 ## Open questions
 
-**Q5 — What identifies a harness session, if not vendor preamble text?** Leaning: **invert inference into
-declaration, behind one harness-identity provider.** Confirm the scope before building.
+**Q5 — What identifies a harness session, if not vendor preamble text?** Direction settled: **invert inference
+into declaration, behind one harness-identity provider**, and the seam is this work's to own. What remains open is
+mechanism — which declaration channel, and whether the hook timing holds (below) — not whether to build it.
 
 Today ARC _infers_ session identity by reading a vendor's process text, so an unrecognized preamble means no
 identity at all. A `SessionStart`-class hook runs inside the harness's own context and can record the session
@@ -291,7 +291,7 @@ Revised from the stub. Conditions 3 and 4 below carried scope that is not this w
 
 ## Continuity
 
-**Readiness:** `maturing`. Scope is known; Q5's provider seam is the one scope confirmation still outstanding.
+**Readiness:** `maturing`. Scope is closed; what remains is mechanism selection and validation.
 
 **Resolved this pass:**
 
@@ -316,6 +316,7 @@ Revised from the stub. Conditions 3 and 4 below carried scope that is not this w
   explicitly; the version-skew seam is to be routed there explicitly if Q6 needs freshness policy, though it may
   compose better with that WU's open capture on widening detection beyond first-party sources.
 
-**Next:** confirm Q5's provider scope, then Q3 — the enforcement mechanism's shape, which decides whether this
-leaves behind an authority or a fifth copy that happens to be shared. Then Q2's horizon validation and Q6's tier
-call. A stopgap for the live anchor breakage runs as its own increment outside this loop.
+**Next:** Q3 — the enforcement mechanism's shape, which decides whether this leaves behind an authority or a fifth
+copy that happens to be shared, and which the provider registry is then held to as well. Then Q5's declaration
+channel and its hook-timing validation, Q2's horizon validation, and Q6's tier call. The stopgap for the live
+anchor breakage ran as its own increment outside this loop.
