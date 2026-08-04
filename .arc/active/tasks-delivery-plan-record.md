@@ -559,17 +559,10 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 - _Outcome:_ Pre-implementation authoring now states boundaries once in a transient map, while the command path
   derives every task/design fact and delegates the shared publish/render transaction to the authoring spine.
 
-### `[ ]` **4.2 Partition a branch's first-parent contribution (`from-branch`)**
+### `[x]` **4.2 Partition a branch's first-parent contribution (`from-branch`)**
 
 - _Goal:_ A cut authored over a real branch partitions the work unit's own contribution, with base merges
   carrying no membership.
-
-- _Rationale:_ A branch's history is not linear — a base merge inside a slice is ordinary, and one appears inside
-  a slice of the very field run the success signal requires to round-trip. First-parent traversal gives each step
-  exactly one predecessor and a single well-defined change shape, which is what makes contiguity mean anything.
-
-- **Additional Context:** `notes-delivery-plan-record.md` § Field-evidence anchors — the concrete base-merge
-  commit to use as a fixture rather than a hypothetical.
 
     - `[x]` **4.2.a First-parent traversal from base to head**
 
@@ -587,12 +580,15 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
         - Reused canonical `ChangeSet` facts for every step and accumulated only contribution paths in byte order,
           preserving arbitrary Git path bytes and both rename or copy endpoints.
 
-    - `[ ]` **4.2.d Register `plan from-branch`**
+    - `[x]` **4.2.d Register `plan from-branch`**
 
-        - Build `test-first` (one behavior at a time):
-            - The subcommand registers and appears in the command-input inventory
-            - It requires a valid design inventory and accepts explicit base and head overrides
-            - It emits a map over a real branch range without requiring a task partition
+        - Registered the schema-owned command with configured-base and `HEAD` defaults plus explicit overrides.
+          The real CLI persists, composes, publishes, renders, and cleans a branch-derived map while uncovered task
+          coverage remains advisory.
+
+- _Outcome:_ Retrofit authoring now pins the original contribution across base absorbs, keeps proven ambient merges
+  as membership-free landmarks, and partitions canonical contribution steps through the same publication spine as
+  task-derived authoring.
 
 ### `[ ]` **4.3 Normalize attributed task references to the parent inventory**
 
