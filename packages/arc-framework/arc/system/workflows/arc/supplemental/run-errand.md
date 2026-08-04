@@ -209,8 +209,14 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
    ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
 
+   Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
+   `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
+   creation before any PR exists. The lane is still unresolved here — it settles in Step 4 — so both lanes open the
+   same way, and no lane input reaches this call.
+
    ```bash
-   gh pr create --base <base-branch> --head <branch>
+   gh pr create --base <base-branch> --head <branch>            # open-plain
+   gh pr create --base <base-branch> --head <branch> --draft    # open-locked
    ```
 
 4. **Enter the open PR.** On both newly-created and reused-open paths, compose
@@ -295,9 +301,9 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 > `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the
 > reviewed lane. Surface the exact head, review applicability calls and targeted verification, proposed final
 > dispositions and `## Review` record, PR checks, required approvals, base freshness, and the resolved lane. State
-> that approval applies final dispositions and channel settlement, ends review, invokes exact-head unlock only for
-> the reviewed lane, and authorizes the lane action only if ordinary exact-head rechecks succeed unchanged. Close
-> with `Approve (or redirect)?`.
+> that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
+> whichever lane resolves, and authorizes the lane action only if ordinary exact-head rechecks succeed unchanged.
+> Close with `Approve (or redirect)?`.
 
 Immediately after approval, apply approved final dispositions and channel settlements, then recompose the exact
 current head and re-read PR status and requirements. A changed head or unsettled requirement invalidates approval
@@ -313,23 +319,32 @@ lane action.
 
    **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
    arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
-   failure or malformed output stops. Then resolve `merge.strategy` via the config probe and arm native auto-merge
-   with the matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
+   failure or malformed output stops. Then invoke `arc merge lock release -` for the exact approved target —
+   auto-merge cannot be armed on a locked PR, so the release is structurally required here rather than a courtesy.
+   Placing it after the classifier recheck keeps the released window as narrow as the arming sequence itself.
+   Finally, resolve `merge.strategy` via the config probe and arm native auto-merge with the matching method
+   (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
 
    ```bash
    arc review planning-lane <base-sha> {approved-head-sha}
+   arc merge lock release -
    arc config status --json   # read settings["merge.strategy"]
    gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
 
-   **Reviewed-lane** — invoke `arc review unlock -` for the exact approved target. Follow only its typed action:
-   `dispatched / await-clearance` waits for the required `arc-cleared` status; `no-unlock / none` continues because
-   the default-branch workflow is absent; `blocked / stop` invalidates approval. Re-read the required checks on the
-   unchanged head, then leave the PR open for owner review on `{approved-head-sha}`. A head change restarts Step 4;
-   native owner approval satisfies its own requirement but never replaces the integration-interlock.
+   **Reviewed-lane** — invoke `arc merge lock release -` for the exact approved target. On both lanes, follow only
+   the verb's typed action: `released / proceed` continues; `no-lock / none` continues because no lock applies or
+   the PR already holds that state; `blocked / stop` invalidates approval. Re-read the required checks on the
+   unchanged head, then leave the PR open for owner review on `{approved-head-sha}`. Native owner approval satisfies
+   its own requirement but never replaces the integration-interlock.
 
-   The auto-merge lane invokes no unlock: when the optional guard is installed, its trusted CI poster supplies
-   `arc-cleared`; otherwise no such context is required.
+   A head change restarts Step 4, and it is the one place a released PR starts accepting commits again — so invoke
+   `arc merge lock hold -` for the new head before re-entering, and the change returns to review locked. An
+   escalating auto-merge-lane PR needs no such transition: it was never released.
+
+   Both lanes release, and the release ends the lock rather than the gate that authorized it. The auto-merge lane
+   must release to arm at all, and the server-side classifier still reruns over the exact base/head pair and records
+   its own verdict independently of the lane's classification.
 
 7. **Leave the local checkout when review continues asynchronously.** After the exact PR head is pushed and the
    change request is open, invoke `arc errand leave <slug> --state awaiting-merge --json`. The driver persists the

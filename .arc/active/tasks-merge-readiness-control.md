@@ -300,7 +300,7 @@ priced in the design, not an omission.
   replacement ahead of the release is what makes the released window safe to hand to a human, and it is the one
   resequencing the design sanctions.
 
-### `[ ]` **3.2 Substitute the fire sites in `run-errand.md`**
+### `[x]` **3.2 Substitute the fire sites in `run-errand.md`**
 
 - _Goal:_ Both errand lanes route through the lock verbs — the pull request opens locked whichever lane it
   turns out to belong to, the reviewed lane releases at its owner-review hand-off, and the grooming lane
@@ -311,30 +311,35 @@ priced in the design, not an omission.
   the resolve call needs no lane input and why the escalation reroute needs no transition: an escalating pull
   request was never released.
 
-- _Note:_ Every edit below lands in both the package source and this repository's instance.
+    - `[x]` **3.2.a Resolve before `gh pr create` and dispatch on all three actions**
+        - Sits after the exact-head remote recheck the lane already performs, so the resolve is the last thing
+          before creation. The prose states outright that the lane is unresolved here and that no lane input
+          reaches the call — the reason the verb takes none.
 
-    - `[ ]` **3.2.a Resolve before `gh pr create` and dispatch on all three actions**
-        - Same three-way mapping as the integration lane, including the `blocked / stop` halt.
+    - `[x]` **3.2.b Replace the reviewed-lane unlock invocation with a release**
+        - The three-action dispatch is stated once for both lanes rather than twice, since 3.2.c gave the
+          grooming lane the same verb two paragraphs above.
 
-    - `[ ]` 3.2.b Replace the reviewed-lane unlock invocation with a release
+    - `[x]` **3.2.c Release on the grooming lane before arming auto-merge**
+        - Placed after the classifier recheck and before the config probe, so an escalating change returns to
+          Step 5 while still locked and the released window is exactly the arming sequence.
 
-    - `[ ]` **3.2.c Release on the grooming lane before arming auto-merge**
-        - Structurally required rather than a courtesy: auto-merge cannot be armed on a locked pull request.
-        - Place it after the lane action's own exact-head recheck, so the unlocked window stays as narrow as
-          the arming sequence itself.
-        - Leave the escalation reroute alone — it needs no lock transition, and adding one would be the bug.
+    - `[x]` **3.2.d Correct the lane-closing paragraph and the interlock text**
+        - The paragraph now says both lanes release and that the release ends the lock rather than the gate:
+          the grooming lane must release to arm at all, and the server-side classifier still reruns over the
+          exact base/head pair and records its own verdict.
+        - The step-5 interlock text names the exact-head release on whichever lane resolves, replacing the
+          reviewed-lane-only unlock.
 
-    - `[ ]` **3.2.d Correct the lane-closing paragraph and the interlock text**
-        - The paragraph closing the lane section states that the auto-merge lane invokes no unlock because a
-          trusted CI poster supplies the status — it becomes false the moment 3.2.c lands, two lines above it.
-          Rewrite it to describe the release the lane now performs and the gate that still verifies it.
-        - The step-5 interlock text also names the exact-head unlock for the reviewed lane; repoint it.
-
-    - `[ ]` **3.2.e Re-lock when a head change restarts the reviewed lane**
+    - `[x]` **3.2.e Re-lock when a head change restarts the reviewed lane**
         - _Goal:_ A fix pushed in response to owner review re-enters review locked, not released.
-        - The reviewed lane leaves the pull request open and released for owner review, and a head change
-          returns it to the review loop — the one place in this workflow where a released pull request starts
-          accepting commits again.
+        - The re-lock and the escalation exemption are stated together — the one place a released pull request
+          starts accepting commits again, next to the one reroute that needs no transition because it was
+          never released. Separating them invites adding the transition the design calls a bug.
+
+- _Outcome:_ The open-locked rule is what makes the lane-undetermined PR-open safe, and both lanes now carry
+  the release their own landing mechanics require. The auto-merge lane's is structural — arming is impossible
+  otherwise — so the lock costs it only the window between the two commands.
 
 ### `[ ]` **3.3 Substitute the fire sites in `drain-inbox.md`**
 
