@@ -377,45 +377,36 @@ new-versus-old split.
 - **Additional Context:** `notes-merge-readiness-control.md` § Base-branch enforcement surfaces — the recorded
   baseline and the coverage comparison 4.1.d depends on.
 
-    - `[ ]` **4.1.a Extract the lane-classification gate into its own workflow, as attestation**
+    - `[x]` **4.1.a Extract the lane-classification gate into its own workflow, as attestation**
         - _Goal:_ The grooming lane keeps a server-side classification of the exact head, recorded where a
           later reader can check it against what the lane actually did.
 
-        - _Context:_ The clearance workflow holds two unrelated mechanisms. Its dispatch-triggered jobs are the
-          producer this work unit retires; its pull-request-triggered job is the grooming lane's gate — it posts
-          pending on every pull request, classifies, confirms the live pull-request pair, and posts success only
-          for a planning-lane change.
-
-        - _Approach:_ Move that job to its own workflow, rename the context it posts, and make it terminal on
-          **both** classifier arms. Preserved verbatim it strands every reviewed-lane pull request on a required
-          context nothing resolves — the single-producer trap the design turns on. Carry the classifier verdict
-          and the live-pair result in the status description, so the check that is genuinely independent of the
-          lane's own classification survives even though the veto does not.
-
-        - Rename the step names too, not just the posted context — they name the retired machinery and the
-          verification criterion greps for it.
+        - `arc-lane-attestation.yml` carries the pull-request-triggered job under the `arc-lane` context,
+          keeping the trusted-checkout / reset / inert-data-checkout / publish sequence intact. Its trigger set
+          narrows to `pull_request_target` alone — the dispatch trigger belonged to the producer.
+        - Both classifier arms now reach one terminal `success` write and the verdict rides the description:
+          the planning arm confirms the live pair and says so, the reviewed arm records that no auto-merge
+          eligibility was asserted. A failing state was available and rejected — the context is required
+          nowhere, so a red mark on an ordinary reviewed-lane change would report a problem that does not
+          exist, and pending-forever is what the extraction exists to end.
         - _Note:_ The renamed context is **not** added to any required-check list. A `pull_request_target`
           workflow runs from the base branch, so requiring it would outrun its own producer until this change
           merges; and the job skips fork pull requests by design, so a required context nothing posts would
           strand the contributor path. The attestation is observational.
-        - Keep the trigger set and permissions otherwise as they are: the job's value is that it runs where the
-          agent's token does not.
 
-    - `[ ]` **4.1.b Delete the remaining clearance workflow**
-        - Only the dispatch-triggered producer is left by this point; confirm that before deleting.
+    - `[x]` **4.1.b Delete the remaining clearance workflow**
+        - Confirmed before deleting: only the dispatch-triggered `validate` / `write-status` pair was left.
 
-    - `[ ]` **4.1.c Re-assert the extracted workflow's security properties**
+    - `[x]` **4.1.c Re-assert the extracted workflow's security properties**
         - _Goal:_ The properties that make the gate trustworthy are pinned by tests in its new home, rather
           than surviving the move by luck.
-        - The host-workflow suite pins the clearance file by name in more than a dozen places, including this
-          job's trusted checkout, its target resolution, and its status reset — all asserted against the old
-          filename. Those assertions move with the job or die with the dispatch producer; decide which per
-          assertion rather than deleting the block.
-        - The properties worth re-asserting are the ones extraction could silently lose: the trusted checkout
-          pinned to the workflow SHA rather than the pull-request head, file-level permissions, and that
-          nothing executes out of the pull-request data checkout.
-        - The assertion that the retired file is the only workflow surviving its family needs rewriting, not
-          deleting — the extracted workflow is its successor.
+        - Per assertion: the two dispatch-producer blocks died with their subject; the extracted job's block
+          moved and absorbed the file-level `permissions: {}`, the path-less trusted checkout, and the
+          nothing-executes-from-the-data-checkout sweep the producer's block had owned. The family-survivor
+          assertion was rewritten onto the successor and now also pins the retired file's absence.
+        - A second block covers what extraction newly has to prove: exactly one pending reset and one terminal
+          write on the same head, no failing state, and both arms reaching the write.
+        - Closes the half of Task 2.5.b deferred here.
 
     - `[ ]` **4.1.d Retire classic branch protection, which holds the requirement**
         - _Goal:_ Nothing requires the clearance status, and `main` is left under one enforcement surface
