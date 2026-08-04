@@ -41,6 +41,14 @@ We will divide review authority by the kind of decision being made.
 
 ## Consequences
 
+**Amendment (2026-08-04):** [ADR-031] displaces Decision #4's mechanism. `arc-cleared` — the required status,
+its default-branch producer, and its push re-lock — is retired in favor of the host's native draft state, held
+through the same window and released at the same interlock. The lock's purpose, its exact-current-candidate
+scope, and its refusal to claim provider-evidence or autonomous merge authority are unchanged; only the host
+mechanism that implements it is replaced. The authority division — Decisions #1–3 and #5 — stands as written,
+and Decision #1's assignment of exact-head lock/unlock operations to the CLI is what the replacement verbs
+implement.
+
 ### Positive
 
 - Review mechanics remain deterministic and testable without forcing contextual judgment into proxy evidence rules.
@@ -68,3 +76,4 @@ We will divide review authority by the kind of decision being made.
 ---
 
 [ADR-028]: adr-028-compose-review-evidence-under-app-gate.md
+[ADR-031]: adr-031-lock-merges-with-draft-state.md

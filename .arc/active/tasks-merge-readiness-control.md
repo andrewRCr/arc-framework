@@ -440,26 +440,30 @@ new-versus-old split.
   `arc merge lock resolve -` returns `locked / open-locked` against the live tree. Verified by running the verb
   rather than by reading the key back, since the strict read is the half that could fail silently.
 
-### `[ ]` **4.3 Record ADR-031 and amend ADR-029**
+### `[x]` **4.3 Record ADR-031 and amend ADR-029**
 
 - _Goal:_ A reader who asks why ARC stopped using a required status finds the threat model, the alternatives,
   and the priced boundaries in one place rather than reconstructing them from the change.
 
-    - `[ ]` **4.3.a Author ADR-031**
-        - Cover the settled threat model, the alternatives weighed and why each lost, the three narrowed
-          boundaries as priced trades, the config axis, and the command naming.
-        - Record the retained-property honesty the design already carries: the retired mechanism was better on
-          push re-lock and on fail-closed installation, and the trade was made anyway.
+    - `[x]` **4.3.a Author ADR-031**
+        - `adr-031-lock-merges-with-draft-state.md` carries the settled threat model, the two limits the
+          verification exposed, the six decisions, and the boundaries as priced trades rather than as
+          consequences that happened to fall out.
+        - The retained-property honesty leads the Negative section outright — push re-lock and fail-closed
+          installation were both better on the retired mechanism, and the trade was made anyway.
+        - The producer-identity limit is recorded as proportionality rather than as a defect, and the
+          admin-bypass one as configuration-conditional. Overstating either would make the decision look
+          forced when it was a cost judgment.
 
-    - `[ ]` **4.3.b Amend ADR-029**
+    - `[x]` **4.3.b Amend ADR-029**
         - _Goal:_ A reader of the older decision is routed to the newer one without either record being
           rewritten.
 
-        - Scope the amendment to Decision #4 alone. Decision #1 already assigns the CLI exact-head lock and
-          unlock operations, which is what the new verbs do — the design lands inside authority that decision
-          already granted, so it needs no amendment and claiming otherwise would overstate the change.
-        - Follow the amendment convention: append-only, placed in the Consequences section, opening with a
-          dated annotation, and mentioned in the commit message.
+        - Scoped to Decision #4's mechanism: the lock's purpose, its exact-current-candidate scope, and its
+          refusal to claim evidence or merge authority are stated as unchanged, so only the host mechanism
+          reads as replaced. The amendment names Decision #1 as the authority the new verbs land inside
+          rather than as something amended.
+        - Append-only, dated, at the head of Consequences.
 
 ## **Phase 5:** Verification
 
