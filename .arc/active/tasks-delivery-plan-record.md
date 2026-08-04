@@ -322,10 +322,10 @@ namespace-closed and lives under the scripts tree, which the library tree does n
 
 ## **Phase 3:** The authoring spine and the plan projection
 
-_Purpose:_ Make authoring two-phase and un-forgeable — a machine section the author cannot alter, an explicit
-slot for every irreducible judgment, one composition verb both entries feed, and a human-readable rendering of
-what was published that no workflow ever parses back — and stand the command group up so those verbs are
-invocable rather than library functions nothing reaches.
+_Purpose:_ Make authoring two-phase and drift-detecting — a machine section checked against CLI-owned canonical
+state, an explicit slot for every irreducible judgment, one composition verb both entries feed, and a human-readable
+rendering of what was published that no workflow ever parses back — and stand the command group up so those verbs
+are invocable rather than library functions nothing reaches.
 
 _Design decisions:_ Which judgments are irreducible is computed and presented rather than described in prose, so
 the slot skeleton is the contract. Composition validates that a boundary is well-formed and never that it is
@@ -336,20 +336,25 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Goal:_ An author receives every derived fact already computed and exactly one slot per judgment only they can
   make, in a form that cannot be confused with a delivery record.
 
-- _Context:_ The map is transient authoring state — it exists before a plan does, is hand-edited, and is
-  discarded once composition succeeds or is abandoned. It rests beside the delivery records under the same local
-  root rather than in the working tree, so it is structurally incapable of landing in the work unit's change set.
+- _Context:_ The map is transient authoring state — it exists before a plan does and is discarded once composition
+  succeeds or an explicit abandonment does. It rests beside the delivery records under the same local root rather
+  than in the working tree, so it is structurally incapable of landing in the work unit's change set.
 
-- _Shape:_ Because it is not one of the four records, it does not pass through their record-name guard and is not
-  constrained to their serialization. It is authored as Markdown, since its author slots carry prose — a member's
-  contract, a seam's acceptance statement — that no one should hand-edit inside a JSON string. And because
-  `3.1.c` makes it a singleton resolved from the work unit, `compose` takes no path operand; the design's command
-  sketch shows one, and this supersedes it.
+- _Shape:_ The authoring state is a pair: a CLI-owned canonical JSON snapshot pins every input and derived fact,
+  while a Markdown map repeats its machine section and carries the prose slots an author edits. Composition takes
+  no path operand because `3.1.c` resolves the singleton pair from the work unit. The integrity boundary detects
+  ordinary edits and drift by comparing the Markdown with the snapshot; it does not claim resistance to a hostile
+  operator who rewrites both local files.
 
     - `[ ]` **3.1.a Machine section carrying every derived fact and identity**
 
-        - Done when the section carries exactly the derived set `1.1.c` enumerates, plus the entry's own material,
-          and an author editing any of it is refusable by `3.2.a`.
+        - Done when the canonical snapshot carries exactly the derived set `1.1.c` enumerates plus the entry's own
+          inputs, and the Markdown machine section reproduces that material in a form `3.2.a` can compare.
+
+        - Build `test-first` (one behavior at a time):
+            - The JSON and Markdown files are published as one authoring pair
+            - The snapshot pins the design inventory, task list or Git coordinates, facts, identities, and order
+            - A partial pair without a matching composed-plan receipt refuses as corrupt authoring state
 
     - `[ ]` **3.1.b Authoring section as a skeleton of explicit slots**
 
@@ -363,14 +368,17 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 
     - `[ ]` **3.1.c Single outstanding map per unit**
 
-        - The map exists before a plan does, so it cannot key on `planId`, and the work-unit slug it must key on
-          instead is mutable while the unit is live. Resolve the key through the rename traversal `2.6.b` builds,
-          or a rename mid-authoring permits a second outstanding map at a surface no record refinement re-checks.
+        - The map exists before a plan does, so it cannot key on `planId`, and the work-unit slug it records is
+          mutable while the unit is live. Extract a storage-independent forward subject resolver from `2.6.b`;
+          plan and authoring stores both enumerate their records and resolve each recorded original subject through
+          authenticated retirement transitions to the current work unit.
 
         - Build `test-first` (one behavior at a time):
             - A second map for the same unit refuses while one is outstanding
             - A rename while a map is outstanding still resolves to the same outstanding map
-            - Abandoning a map clears the outstanding state
+            - Chained rename, terminal retirement, cycle, corrupt, ambiguous, unreachable, and unestablished
+              authority cases preserve the plan resolver's established refusal and safe-absence semantics
+            - Abandoning a map idempotently deletes both files and clears the outstanding state
 
 ### `[ ]` **3.2 Refuse a record no author authored**
 
@@ -389,6 +397,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - A seam owner supplied by the author is one such mutated value, since the owner is derived
             - A reordered identity sequence refuses with its typed code
             - A map whose machine and authored identity sequences still match validates
+            - Editing only the JSON snapshot is detected by the same comparison boundary
 
 ### `[ ]` **3.3 Validate and publish through `arc delivery compose`**
 
@@ -423,6 +432,12 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - A first publication succeeds with no predecessor
             - A successor names its predecessor's digest and succeeds
             - A stale expected current digest refuses
+            - A publication refusal leaves the task list untouched and the authoring pair retryable
+            - Construction records the candidate plan digest in the snapshot before publication
+            - Rendering follows publication; render failure leaves the pair retryable and same-plan retry is
+              idempotent
+            - Cleanup deletes Markdown first and the canonical snapshot last; a failure between deletes leaves the
+              snapshot and pinned candidate plan digest sufficient for retry
 
 ### `[ ]` **3.4 Render the delivery-plan section into the task list**
 
@@ -435,7 +450,10 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
     - `[ ]` **3.4.a Ordered member table and named-seam table**
 
         - Build `test-first` (one behavior at a time):
-            - Exactly one generated section is replaced, leaving surrounding content untouched
+            - First publication replaces one unmarked top-level `Delivery Plan` section and installs exact start
+              and end sentinels
+            - Subsequent publication replaces only the sentinel range, leaving surrounding content untouched
+            - An absent, duplicate, or malformed replacement locus refuses without changing the task list
             - A single-deliverable plan renders the same shape with one row
             - A task appearing against more than one member is marked shared rather than restructured
             - A landed member renders its as-of-landing values with an explicit marker
@@ -455,18 +473,19 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Shape:_ `plan` and `compose` are sibling subcommands of one group, never one verb with a mode flag, so the
   group is stood up once here and each entry registers its own subcommand in `4.1` and `4.2`.
 
-    - `[ ]` **3.5.a Stand up the group and register `compose`**
+    - `[ ]` **3.5.a Stand up the group and register `compose` and `plan abandon`**
 
         - Build `test-first` (one behavior at a time):
-            - The group and its `compose` subcommand resolve from the CLI entry point
+            - The group, `compose`, and `plan abandon` resolve from the CLI entry point
             - Every registered path appears in the command-input inventory
             - A machine-readable envelope is emitted when requested, with a distinguishable exit code on refusal
             - A refusal carries the typed code from `3.2.a` rather than prose alone
+            - The abandon command removes the pair idempotently and can finish a prior partial cleanup
 
 ## **Phase 4:** The two authoring entries
 
 _Purpose:_ Feed that spine from both sources as peers — a task plan before implementation, and a branch's own
-change structure afterwards — prove the retrofit entry against the two cuts that were actually run by hand, which
+change structure afterwards — prove the retrofit entry against the two deliveries actually run by hand, which
 is the check this design is most at risk of failing, give an author the one signal that invoking it is worth
 considering at all, and leave the shipped sizing doctrine consistent with the invariant this record establishes.
 
@@ -481,13 +500,18 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 
     - `[ ]` **4.1.a Machine section from the task inventory and design inventory**
 
-        - Done when the parent-task inventory and every declared design element reach the map with their digests,
-          and the verification task is present but marked ineligible for membership.
+        - Both entries require `--design-inventory <json-path>` and validate that JSON through the strict shipped
+          `DesignInventoryInput` schema. Done when the parent-task inventory and every declared design element reach
+          the map with their digests, and the verification task is present but marked ineligible for membership.
+
+        - Preserve the canonical flat task inventory. Derive an authoring-only phase grouping directly from the task
+          scanner's ordered phase and parent events; never infer a phase from dotted task-id spelling.
 
     - `[ ]` **4.1.b Mechanical expansion of the alignment arm**
 
         - Build `test-first` (one behavior at a time):
             - The alignment arm expands to phase-aligned boundaries deterministically
+            - Phase alignment follows scanner events even when task ids do not encode their containing phase
             - The explicit-boundaries arm passes authored boundaries through unchanged
             - A member spanning an authored boundary is accepted without a justification field
             - Neither arm arrives selected
@@ -499,6 +523,7 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 
         - Build `test-first` (one behavior at a time):
             - The subcommand registers and appears in the command-input inventory
+            - Missing or invalid `--design-inventory` input refuses before authoring state is written
             - Emitting a map, filling its slots, and composing publishes a validating record
             - The task list's delivery-plan section renders from the published record
             - An uncovered implementation task refuses at composition, and the verification task refuses as a
@@ -518,37 +543,50 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 
     - `[ ]` **4.2.a First-parent traversal from base to head**
 
-        - The base is the branch's original divergence point, taken from first-parent history, or supplied
-          explicitly by the author. It is **not** the merge base: once a branch absorbs its base through a merge,
-          the merge base moves forward past earlier contribution steps, and a walk starting there silently drops
-          work while still partitioning contiguously and composing cleanly. The recorded fixture is exactly that
-          shape, so the wrong rule fails invisibly on the run the success signal depends on.
+        - `--head` defaults to `HEAD`; the selected base line comes from configured base unless `--base` supplies an
+          explicit commit-ish. Derive original divergence by walking the head's first-parent chain backwards to the
+          unique earliest head-side step not reachable from the selected base whose first parent is reachable.
+          Missing or ambiguous boundaries refuse and request `--base`; an explicit base must still be an ancestor
+          of head. This is **not** the moving merge base, which can silently drop earlier contribution.
 
         - Build `test-first` (one behavior at a time):
             - Each step has exactly one predecessor and one change shape
             - A two-parent merge inside the range yields a single step
             - A branch that has absorbed its base still traverses from the original divergence point
             - An explicitly supplied base overrides the derivation
+            - Missing, multiple, non-ancestor, and disconnected boundary candidates refuse with typed reasons
 
     - `[ ]` **4.2.b Contribution versus ambient base absorb**
 
+        - A merge is ambient only when its non-first parent belongs to the selected base line and a remerge
+          comparison, or equivalent tree proof, shows no merge-only work-unit delta. An unprovable or
+          conflict-resolving merge refuses rather than silently discarding work.
+
         - Build `test-first` (one behavior at a time):
-            - A merge bringing the base forward classifies as ambient absorb
+            - A proven-pure merge bringing the selected base line forward classifies as ambient absorb
             - Only contribution steps participate in the partition
             - An ambient absorb is retained as an ordering landmark carrying no membership
             - Contiguity is evaluated over contribution alone
+            - A merge from another line and a base merge with conflict-resolution delta do not classify as ambient
+            - Failure to prove ambient purity returns a typed refusal
 
     - `[ ]` **4.2.c Per-step and cumulative change shape**
 
+        - Reuse the byte-preserving `ChangeSet` and `affectedPaths` contracts. Each contribution step carries its
+          commit, first-parent predecessor, and `ChangeSet`; unknown change facts refuse. Cumulative shape is the
+          canonical byte-sorted union of affected paths through that step, including both rename/copy endpoints.
+
         - Build `test-first` (one behavior at a time):
-            - Each contribution step reports its own change shape
-            - The cumulative shape at any step equals the composition of the contribution steps up to it
+            - Each contribution step reports its canonical change set
+            - The cumulative path shape at any step equals the contribution-path union up to it
             - An ambient absorb contributes nothing to the cumulative shape
+            - Arbitrary byte-preserving Git paths and rename/copy endpoints survive the real Git boundary
 
     - `[ ]` **4.2.d Register `plan from-branch`**
 
         - Build `test-first` (one behavior at a time):
             - The subcommand registers and appears in the command-input inventory
+            - It requires a valid design inventory and accepts explicit base and head overrides
             - It emits a map over a real branch range without requiring a task partition
 
 ### `[ ]` **4.3 Normalize attributed task references to the parent inventory**
@@ -561,6 +599,10 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
   binds parents, not because the grammar is narrow. Attribution is separately sparse by design: review fixes,
   maintenance, and incidental work name no task, and deferred review lets a range land under one commit.
 
+- _Shape:_ Extract and export one parse-only structured task-reference function from commit-check policy. Commit
+  validation and delivery both consume it; the handoff candidate extractor remains intentionally lossy and is not
+  a delivery parser.
+
     - `[ ]` **4.3.a Upward resolution to the nearest enclosing parent**
 
         - Revision-family ids are parents in their own right — a phase-level follow-on renders as a parent
@@ -572,6 +614,8 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
             - A subtask-level id resolves to its enclosing parent
             - A phase-level follow-on id resolves to itself, since it is a parent
             - A range and a non-contiguous list each expand, resolve, then deduplicate
+            - Validator acceptance and parser output stay in parity for every supported single, range, and list
+              form
             - An id absent from the inventory contributes no membership and is reported
             - An unresolvable id is advisory on the derived entry and an error on the authored one
 
@@ -592,6 +636,9 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 
     - `[ ]` **4.4.a File-level co-change structure across contribution steps**
 
+        - Emit canonical byte-sorted unordered path pairs, each carrying the byte-sorted contribution commit ids
+          in which the pair co-occurs.
+
         - Build `test-first` (one behavior at a time):
             - Files changing together across contribution steps are reported as co-changing
             - The report is derivable language-agnostically, proposing no boundary of its own
@@ -603,14 +650,14 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
             - Steps touching the unit's own artifacts are reported
             - A cut whose members touch them still composes successfully
 
-### `[ ]` **4.5 Reconstruct both hand-run cuts as authored plans**
+### `[ ]` **4.5 Reconstruct both hand-run deliveries as authored plans**
 
-- _Goal:_ The two cuts that were actually executed by hand round-trip through the retrofit entry, producing plans
-  whose members carry the boundaries shipped and whose seams match the ones those runs recorded, with no
+- _Goal:_ The two deliveries that were actually executed by hand round-trip through the retrofit entry, producing
+  plans whose members carry the boundaries shipped and whose seams match the ones those runs recorded, with no
   fabricated task partition.
 
-- _Context:_ This is the falsifiable check the design is most at risk of failing. Both cuts were authored after
-  implementation, so an entry serving only pre-implementation authoring fails outright; both cut along change
+- _Context:_ This is the falsifiable check the design is most at risk of failing. Both deliveries were authored
+  after implementation, so an entry serving only pre-implementation authoring fails outright; both cut along change
   structure rather than task structure, so a hard task-partition refinement fails; both carry recorded seams, so
   a seam model that cannot express what they found fails.
 
@@ -619,11 +666,12 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
         - Its slice branches have been reaped, so base and head pairs come from the recorded merge parents, which
           the criterion admits as equivalent evidence.
 
-    - `[ ]` **4.5.b Reconstruct the thirteen-slice cut**
+    - `[ ]` **4.5.b Reconstruct the completed rolling session-locus delivery**
 
-        - Its branches exist in one clone only, with no remote counterpart, and belong to a work unit still in
-          flight — so they can move. Pin the base and head commits into a committed fixture rather than reading
-          live branch tips, or the suite passes on one machine and drifts under its owner's next rebase.
+        - Reconstruct the 21 landed rows from the durable ledger in `notes-session-locus-model.md`, using each
+          recorded merge commit's parents as immutable base/head evidence. The earlier thirteen-branch standing
+          stack was superseded and is not the fixture. Bespoke closeout PR #434 is terminal archival rather than a
+          plan member and stays outside the reconstruction.
 
     - `[ ]` **4.5.c Validate both reconstructions against the record's refinements**
 
@@ -631,6 +679,8 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
             - Each reconstruction validates without a fabricated task partition
             - Recorded seams are expressible and their derived owners match the runs
             - The slice containing an ambient base merge partitions over contribution alone
+            - Every fixture coordinate is reachable and names the recorded merge-parent pair
+            - Real CLI reconstruction runs in a temporary repository rather than only through injected libraries
 
 ### `[ ]` **4.6 Surface delivery-plan candidacy at the design-stage boundary read**
 
@@ -1050,13 +1100,14 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
 
 ## Success Criteria
 
-- `[ ]` Both hand-run cuts reconstruct through `from-branch` — the thirteen-slice and seven-slice cuts each
-  produce a validating plan whose members carry the boundaries actually shipped and whose seams match the ones
-  those runs recorded, with no fabricated task partition
+- `[ ]` Both hand-run deliveries reconstruct through `from-branch` — the seven-slice cut and the 21-row rolling
+  session-locus delivery each produce a validating plan whose members carry the boundaries actually shipped and
+  whose seams match the recorded runs, with no fabricated task partition; bespoke session-locus closeout remains
+  outside the plan
 
-- `[ ]` A `from-tasks` plan against a current task list validates, publishes, and renders its task-list
-  projection, with an uncovered implementation task refused at composition and the verification task refused as
-  a member
+- `[ ]` A `from-tasks` plan against a current task list and validated design inventory publishes and renders its
+  task-list projection, with an uncovered implementation task refused at composition and the verification task
+  refused as a member
 
 - `[ ]` A member's `deliverableId` is unchanged across an amendment that alters titles, adds coverage, and
   relabels positions; renaming a `chunkKey` on a bound member is refused
@@ -1071,15 +1122,16 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
 - `[ ]` Tearing down a member and re-authoring the same `chunkKey` yields a generation strictly greater than any
   previously issued for that subject
 
-- `[ ]` The starter map refuses an unfilled slot, a mutated derived value, and a reordered identity sequence,
-  each with its typed code, and no boundary slot arrives pre-filled
+- `[ ]` The starter map refuses an unfilled slot, a machine section differing from its CLI-owned canonical
+  snapshot, and a reordered identity sequence, each with its typed code; no boundary slot arrives pre-filled; and
+  interrupted post-publication cleanup remains safely retryable
 
 - `[ ]` After `arc rename`, authoring resolves the existing plan through the recorded rename rather than minting
   a second one; `planId` and every dependent identity are unchanged; and a chained rename resolves transitively
 
 - `[ ]` A plan whose `landed`-discriminated prefix disagrees with the host-derived `landedPrefix` is refused at
   admissibility, and a cut whose range contains an ambient base merge partitions over contribution alone, with
-  the merge carrying no membership
+  the merge carrying no membership; a base merge whose merge-only delta cannot be proved empty refuses
 
 - `[ ]` Position resolves from a member checkout via the reverse-lookup query, in a checkout carrying none of the
   work unit's artifacts, without reading identity from any ref name

@@ -102,9 +102,11 @@ reader. When adding an identity, name its consumer first.
 
 ## Field-evidence anchors
 
-**The two hand-run cuts the success signal round-trips.** The seven-slice stack plus its terminal merge is fully
-shipped; its slice branches have since been reaped, so base and head pairs must be reconstructed from the recorded
-merge parents. The thirteen-slice cut's branches still exist locally.
+**The two hand-run deliveries the success signal round-trips.** The seven-slice stack plus its terminal merge is
+fully shipped. The session-locus run also completed, but not as its superseded thirteen-branch standing stack: its
+durable ledger records 21 landed delivery and corrective rows from S0 through S13 before bespoke closeout. Both
+branch sets have been reaped, so fixtures reconstruct immutable base/head coordinates from each recorded merge
+commit's parents. Session-locus closeout PR #434 is terminal archival rather than a delivery-plan member.
 
 **A base merge sits inside a delivery slice.** Commit `a0e6d1533` — "Merge current base into legacy delivery" — is a
 genuine two-parent merge inside slice 06 of the shipped stack, and its second parent is the previous slice's merge
@@ -177,7 +179,7 @@ retarget to `main` as the predecessor lands. Close each member with a Tier 3 run
 the pull request. Reconcile the unlanded suffix after every base advance the series absorbs — with two work units
 live alongside this one, that reconciliation is the principal running cost of the projection, and it scales with
 how long the series stays partial rather than with member count alone. Where ARC's own review clearance cannot
-admit a member ref, use an explicitly authorized administrative merge, as the thirteen-slice run is doing; the
+admit a member ref, use an explicitly authorized administrative merge, as the completed session-locus run did; the
 gate's admission of delivery refs is a known open edge and is not a gating consideration here.
 
 Member 4 closes differently at the tail without becoming a fifth member. Publish, test, and request manual hosted

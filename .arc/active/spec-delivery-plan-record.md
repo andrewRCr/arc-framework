@@ -29,13 +29,14 @@ projected, but not executed until the integration-target member lands. That is d
 reviewable without being independently useful, which is the correct shape for substrate work, and it keeps both
 members at a reviewable size.
 
-The design rests on field evidence rather than projection. Two delivery cuts have been executed by hand:
+The design rests on field evidence rather than projection. Two deliveries have been executed by hand:
 `decompose-transform-integrity` shipped a full seven-slice stack plus its terminal merge, and
-`session-locus-model` authored a thirteen-slice cut following its module import graph across 72 new modules, with
-its seam inventory and ordering proof recorded up front. Those runs are this work unit's missing input, and the
-success signal below is stated against them.
+`session-locus-model` shipped a rolling sequence of 21 delivery and corrective members before bespoke closeout.
+The latter began from a thirteen-slice module-graph design, then superseded its standing stack as live delivery
+added a planning baseline, a control-isolation bridge, a split slice, and corrective members. Those runs are this
+work unit's missing input, and the success signal below is stated against the delivery actually executed.
 
-Three properties of those runs shaped the design decisively. Both cuts were authored **after** implementation, so
+Three properties of those runs shaped the design decisively. Both deliveries were authored **after** implementation, so
 an entry serving only pre-implementation authoring would fail on first contact. Both cut along **change
 structure** rather than task structure, so a record demanding an exact task partition would force the author to
 invent an assignment the cut never made. And the first run found candidate heads that were simultaneously
@@ -413,16 +414,17 @@ validating and consuming it. This resolves the ownership boundary without re-der
 **Authoring is two-phase and never accepts a hand-composed record.** The command first emits a starter map whose
 machine section carries every derived fact and identity, and whose authoring section is a skeleton of explicit
 author slots — one per irreducible judgment. The author fills only those slots. Composition then validates that no
-derived value was altered and that the machine and authored identity sequences still match, refusing with a typed
-code on an unfilled slot, a mutated identity, or a reordered sequence. Which judgments are irreducible is therefore
-computed and presented rather than described in prose.
+derived value drifted from the paired canonical snapshot and that the machine and authored identity sequences still
+match, refusing with a typed code on an unfilled slot, a mutated identity, or a reordered sequence. Which judgments
+are irreducible is therefore computed and presented rather than described in prose.
 
 **The two entries are peers in the command surface, not a primary and a fallback:**
 
 ```text
-arc delivery plan from-tasks     # from a task plan, before implementation
-arc delivery plan from-branch    # from an existing branch's change structure
-arc delivery compose             # shared: resolve the unit's map, validate it, publish the record
+arc delivery plan from-tasks --design-inventory <json-path>
+arc delivery plan from-branch --design-inventory <json-path> [--base <commit-ish>] [--head <commit-ish>]
+arc delivery compose
+arc delivery plan abandon
 ```
 
 They are named by their **source** rather than by their timing, so neither reads as remedial, and they are
@@ -437,12 +439,28 @@ record, published against the expected current plan digest that the successor re
 Revisions are whole records rather than deltas, so each validates independently and no delta vocabulary becomes a
 second topology language.
 
-The starter map is **transient authoring state, not a delivery record**: it exists before a plan does, is
-hand-edited, and is discarded once composition succeeds or is abandoned. It is not one of § 6's four records and
-carries none of their version-check discipline. It rests beside them under the same local root while it is being
-filled — not in the working tree — so it is structurally incapable of landing in the work unit's change set, which
-the lifecycle-artifact exclusion would otherwise have to police. A second map for the same unit is refused while
-one is outstanding, on the same single-operator ground § 6 records.
+Both entries require a `--design-inventory <json-path>` document validated by the already-shipped strict
+`DesignInventoryInput` schema. The CLI never guesses design elements or digests from prose. `from-tasks` reads the
+active work unit's task list and derives phase groups directly from the task scanner's phase and parent events;
+the flat canonical task inventory remains unchanged. `from-branch` defaults `--head` to `HEAD` and selects the
+configured base ref as the base line unless `--base` is supplied explicitly.
+
+The starter map is **transient authoring state, not a delivery record**: it exists before a plan does and is
+discarded once composition succeeds or `arc delivery plan abandon` succeeds. It is represented by a paired
+CLI-owned canonical JSON snapshot and an author-edited Markdown map under the `authoring` namespace. The snapshot
+pins every entry input, derived fact, identity, and ordering fact; the Markdown repeats the machine section plus the
+author slots. Composition reparses the Markdown and compares its machine section and identity order with the
+snapshot before constructing a record. This detects ordinary hand edits and authoring drift; it is not a defense
+against a hostile operator who rewrites both local files. Neither file is a § 6 delivery record or carries its
+version discipline. Both rest outside the working tree and are deleted only after successful composition, or
+together on explicit abandonment. A second map for the same unit is refused while one is outstanding.
+
+The pair is keyed by the map's recorded original work-unit id, not by its mutable current slug. Resolution first
+enumerates authoring snapshots, then follows authenticated retirement transitions from each recorded subject to
+the current work unit. Plan lookup and map lookup share one storage-independent forward subject resolver; terminal
+retirement, cycles, or an unreachable current subject are safe absence, while corrupt, ambiguous, or unestablished
+authority refuses. Rename chains therefore preserve one outstanding-map identity without coupling the resolver to
+either store.
 
 **Boundary defaults** (the `from-tasks` entry). Phase-to-member alignment is that entry's default, and it is never
 an invariant. It does not carry to `from-branch`, where the authored unit is a commit range rather than a task
@@ -464,14 +482,29 @@ answerable for; the record must not manufacture it on their behalf.
 each authored boundary needs — never candidate boundaries themselves. Derivable language-agnostically: the
 first-parent commit sequence from base to head; each step's context classification and, where it names one, the
 task it closed; per-step and cumulative change shape; file-level co-change structure; and which steps touch the
-work unit's own lifecycle artifacts.
+work unit's own lifecycle artifacts. Every per-step change is the shipped byte-preserving `ChangeSet`; an unknown
+change set refuses rather than degrading to paths guessed from text. A step's cumulative change shape is the
+byte-sorted union of `affectedPaths` from contribution steps through that point, including both endpoints of a
+rename or copy. A co-change edge is a canonical byte-sorted unordered path pair plus the byte-sorted contribution
+commit ids in which the pair co-occurs. Ambient absorbs add neither paths nor edges.
 
 **The partition basis is work-unit-owned contribution along the first parent, not raw commits.** A branch's
 history is not linear — a base merge inside a slice is ordinary, and one appears inside a slice of the very field
 run the success signal requires to round-trip. Two things follow. Traversal is **first-parent**, so each step has
 exactly one predecessor and a single well-defined change shape, which is what makes "contiguous" mean anything.
-And each step is classified as **work-unit-owned contribution** or **ambient base absorb** — a merge that brings
-the base forward advances the branch without contributing any of the unit's own work.
+And each step is classified as **work-unit-owned contribution** or **ambient base absorb** only when the evidence
+proves that classification.
+
+The original divergence is derived against the selected base line, never from the moving merge base. Walking the
+head's first-parent chain backwards must find exactly one earliest head-side step that is not reachable from the
+selected base while its first parent is reachable; a missing or ambiguous boundary refuses and asks for an explicit
+`--base`. An explicit base is authoritative but must still be an ancestor of the selected head. Each resulting
+step records its commit, first-parent predecessor, and canonical `ChangeSet`.
+
+A merge is ambient only when its non-first parent belongs to the selected base line and a remerge comparison, or an
+equivalent tree proof, establishes that the merge carries no merge-only work-unit delta. A conflict resolution or
+other merge-only delta is never silently discarded: when purity cannot be proved, retrofit refuses with a typed
+ambient-classification reason. Ordinary contribution commits remain contribution steps.
 
 Only contribution participates in the partition; an ambient absorb is an ordering landmark carrying no membership.
 This reuses the distinction § 9 already draws at the proof layer rather than minting a second one: that section
@@ -493,7 +526,10 @@ admits arbitrary dotted depth, so subtask-level forms and the revision family th
 the contract's documented examples are two-level, and on this repository most task-naming footers carry a deeper
 id than those examples show. Normalization is therefore required by the inventory's granularity rather than by
 any narrowness in the grammar — a reference may legitimately name something finer than the inventory binds, and
-membership must still resolve.
+membership must still resolve. The grammar is exported from the commit-check policy as one parse-only structured
+task-reference function returning the accepted singles, ranges, and lists. Commit validation and delivery both
+consume that function; delivery does not reuse the handoff candidate extractor, whose intentionally lossy contract
+does not expand the full grammar.
 
 A reference resolves upward to the nearest enclosing entry in the parent inventory; a range or list expands, then
 resolves, then deduplicates. Revision-family ids resolve to themselves rather than upward, since a phase-level
@@ -567,6 +603,21 @@ exact plan revision and digest, projection, an ordered member table (title, chun
 predecessor), and a named-seam table (incident members, owner, acceptance). Single-deliverable plans render the
 same shape with one row. The section is informative and replaceable; workflows and reducers never parse it, and
 per-task delivery tags do not create a second authority.
+
+The generated range is bounded by exact `<!-- arc:delivery-plan:start -->` and
+`<!-- arc:delivery-plan:end -->` sentinels. On first publication only, one unmarked top-level `## Delivery Plan`
+section may be replaced and the sentinels installed. Duplicate sections, duplicate or malformed sentinels, or an
+absent replacement locus refuse without touching the task list. Later publications replace only the exact sentinel
+range.
+
+Composition orders its effects as validate and resolve, construct, record the candidate plan digest in the
+canonical snapshot, publish the plan by expected current digest, atomically render the task-list range, then clean
+up the authoring pair last. A publication refusal leaves the task list untouched. If rendering fails, the pair
+remains intact and retrying the same already-published plan is
+idempotent rather than a uniqueness failure. Cleanup deletes the Markdown first and the canonical snapshot last;
+the snapshot pins the candidate plan digest, so a failure between deletes leaves enough authority for retry to
+finish cleanup without re-authoring. Explicit abandonment uses the same idempotent deletion order without
+publishing or rendering.
 
 Three rendering rules follow from decisions elsewhere in this spec:
 
@@ -1161,15 +1212,18 @@ is live at a time, enforced by the `activeOperation` reservation. Every mutating
 refuses rather than merges. The reservation and any blocked latch stay local by design, because what they protect
 against is a crash rather than a clone — an interrupted operation should be loud where it happened.
 
-**Testing.** The success signal below is the primary integration-level check and is runnable against real branches.
-Unit coverage is expected on identity preimage derivation and digest stability, the coverage and partition
+**Testing.** The success signal below is the primary integration-level check and is runnable against immutable Git
+fixtures. Unit coverage is expected on identity preimage derivation and digest stability, the coverage and partition
 refinements at both entries, the absorb / refuse / replacement sort including the landed-prefix byte-identity
-check, seam owner derivation, generation monotonicity across teardown and re-authoring, attributed-reference
-normalization to the parent inventory, rename-chain resolution including a cycle, and reducer admissibility. The
-starter map's three refusals — unfilled slot, mutated derived value, reordered identity sequence — are covered
+check, seam owner derivation, generation monotonicity across teardown and re-authoring, shared task-reference parser
+parity, rename-chain resolution including a cycle, and reducer admissibility. The starter map's three refusals —
+unfilled slot, mutated derived value, reordered identity sequence — plus partial-pair corruption are covered
 directly rather than inferred from composition's success path, since they are the mechanism that makes an authored
 judgment trustworthy. The two authoring entries share composition, so composition is tested once against both
-derivations.
+derivations. Temporary-repository real-CLI tests cover successful compose, same-plan retry after render failure,
+sentinel-bounded overwrite, explicit abandon, and refusal paths that must leave published and rendered state
+untouched. Git fixtures include an absorbed base, an unprovable conflict-resolution merge, and byte-preserving
+rename/copy paths.
 
 **Performance.** The reverse-lookup query is a scan over the assignment namespace at v1, bounded by the number of
 plans in one repository — a handful — and stated as a query contract so a later tier may index it without changing
@@ -1215,21 +1269,20 @@ for the cohort record to absorb rather than being treated as wording.
 
 ## Success Criteria
 
-1. **Both hand-run delivery cuts reconstruct as authored plans against their real branches, and the record
-   validates them.** The thirteen-slice stack cut and the seven-slice cut each round-trip through the
+1. **Both hand-run deliveries reconstruct as authored plans from immutable evidence, and the record validates
+   them.** The seven-slice cut and the completed 21-row rolling session-locus delivery each round-trip through the
    `from-branch` entry, producing a plan whose members carry the boundaries actually shipped, whose seams match the
-   ones those runs recorded, and whose refinements pass without a fabricated task partition. Where a cut's slice
-   branches have since been reaped, its
-   base and head pairs are reconstructed from the recorded merge parents, which the criterion admits as equivalent
-   evidence. This is the falsifiable
-   check the design is most at risk of failing: both cuts were authored after implementation, so a record serving
-   only the pre-implementation entry fails it outright; both cut along change structure rather than task structure,
-   so a hard task-partition refinement fails it; and both carry recorded seams, so a seam model that cannot express
+   recorded runs, and whose refinements pass without a fabricated task partition. Their base and head pairs are
+   reconstructed from the recorded merge parents. The earlier thirteen-branch session-locus stack was superseded;
+   bespoke closeout PR #434 is terminal archival rather than a plan member. This is the falsifiable
+   check the design is most at risk of failing: both deliveries were authored after implementation, so a record
+   serving only the pre-implementation entry fails it outright; both cut along change structure rather than task
+   structure, so a hard task-partition refinement fails it; and both carry recorded seams, so a seam model that cannot express
    what they found fails it. Reconstruction exercises authoring and validation only, so it needs neither projection
    reducer and stays inside this member's boundary.
-2. **A plan authored through `from-tasks` against a current task list validates, publishes, and renders** its task
-   list projection, with an uncovered implementation task refused at composition and the verification task refused
-   as a member.
+2. **A plan authored through `from-tasks` against a current task list and validated design inventory publishes and
+   renders** its task-list projection, with an uncovered implementation task refused at composition and the
+   verification task refused as a member.
 3. **Deliverable identity survives revision.** A member's `deliverableId` is unchanged across an amendment that
    alters titles, adds coverage, and relabels positions; renaming a `chunkKey` on a bound member is refused.
 4. **The three reconcile outcomes sort correctly against a bound plan** — a coverage addition to a bound unlanded
@@ -1239,14 +1292,16 @@ for the cohort record to absorb rather than being treated as wording.
    converting member equals its predecessor's payload modulo the discriminant, and is refused when it does not.
 5. **Generation monotonicity holds across teardown.** Tearing down a member and re-authoring the same `chunkKey`
    yields a generation strictly greater than any previously issued for that subject.
-6. **The starter map refuses a record no author actually authored** — an unfilled slot, a mutated derived value,
-   and a reordered identity sequence each refuse with their typed code, and no boundary slot arrives pre-filled.
+6. **The starter map refuses a record no author actually authored** — an unfilled slot, a machine section that
+   differs from its CLI-owned canonical snapshot, and a reordered identity sequence each refuse with their typed
+   code; no boundary slot arrives pre-filled; and interrupted post-publication cleanup remains safely retryable.
 7. **A renamed work unit keeps its plan.** After `arc rename`, authoring resolves the existing plan through the
    recorded rename rather than minting a second one; `planId` and every dependent identity are unchanged; and a
    chained rename resolves transitively.
 8. **A false landing assertion is caught at the reducer.** A plan whose `landed`-discriminated prefix disagrees
    with the host-derived `landedPrefix` is refused at admissibility, and a cut whose range contains an ambient base
-   merge partitions over contribution alone, with the merge carrying no membership.
+   merge partitions over contribution alone, with the merge carrying no membership; a base merge whose merge-only
+   delta cannot be proved empty refuses rather than disappearing from the contribution.
 9. **Position resolves from a member checkout** via the reverse-lookup query, in a checkout carrying none of the
    work unit's artifacts, without reading identity from any ref name.
 10. **No delivery record is writable into a work unit's change set**, and every mutating write refuses a stale
