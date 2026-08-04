@@ -263,47 +263,42 @@ _Design decisions:_ Park and resume also open pull requests and are deliberately
 lifecycle rotations carrying no code content, opened and merged inside one authorized session. The exclusion is
 priced in the design, not an omission.
 
-### `[ ]` **3.1 Substitute the fire sites in `integrate-work-unit.md`**
+### `[x]` **3.1 Substitute the fire sites in `integrate-work-unit.md`**
 
 - _Goal:_ The integration workflow opens its pull request locked and releases inside explicit merge
   authorization, dispatching on returned actions rather than reading config or pull-request state itself.
 
-- _Note:_ The terminal sequence stays direct-merge, never auto-merge — see `notes-merge-readiness-control.md`
-  § Auto-merge disarm semantics for why arming-time guards cannot substitute for it.
+    - `[x]` **3.1.a Resolve before `gh pr create` and dispatch on all three actions**
+        - The resolve call sits with the pre-open composition, and the creation block carries both arms —
+          plain and `--draft` — selected by the returned action, so the only thing the action changes about
+          the call is whether the pull request opens locked.
+        - `blocked / stop` halts creation, the new behavior the verb's fail-closed config read exists for.
 
-- _Note:_ Every edit below lands in both the package source and this repository's instance.
+    - `[x]` **3.1.b Replace the unlock invocation at the integration interlock**
+        - `arc merge lock release -` takes the site, dispatching `released / proceed`, `no-lock / none`, and
+          `blocked / stop`. The interlock's own text now states the exact-head release and drops the required
+          status from what approval authorizes; the gate's structure and authority are untouched.
+        - The driver-lifecycle assertion pins all three verbs rather than the one it replaced — the resolve and
+          hold sites are as load-bearing as the release, and pinning only the release would let either of the
+          other two disappear silently.
 
-    - `[ ]` **3.1.a Resolve before `gh pr create` and dispatch on all three actions**
-        - `locked / open-locked` creates the pull request locked; `none / open-plain` creates it as today.
-        - `blocked / stop` halts creation. This is a new behavior for the workflow — an unreadable or
-          out-of-domain config now aborts before a pull request exists, which is the fail-closed property the
-          verb is built for and the only place it can be honored.
-
-    - `[ ]` **3.1.b Replace the unlock invocation at the integration interlock**
-        - The gate's structure and authority are unchanged; its **text** is not. The interlock block itself
-          instructs the agent to state that approval "invokes the exact-head unlock" and authorizes merge only
-          if "the required status" rechecks succeed — both name machinery this work unit retires, inside the
-          very gate being retargeted.
-        - Update the driver-lifecycle assertion that pins the retired verb name to this workflow's text, in the
-          same increment — it fails the moment the prose changes.
-
-    - `[ ]` **3.1.c Move the provenance update ahead of the release**
+    - `[x]` **3.1.c Move the provenance update ahead of the release**
         - _Goal:_ A human opening a released pull request sees the complete record of what was done, rather
           than a summary that lands after the lock is already off.
-        - The review-record replacement currently sits after the release, two steps before the merge. The
-          errand workflow already orders it correctly; only this one is out of order.
-        - _Note:_ This is the single resequencing the design sanctions, against a Non-Goal that otherwise
-          forbids reordering steps — it is a named fire site, not an opportunistic tidy.
+        - The review-record replacement now precedes the release rather than following it.
 
-    - `[ ]` **3.1.d Re-lock on any non-merge exit after the release**
+    - `[x]` **3.1.d Re-lock on any non-merge exit after the release**
         - _Goal:_ A released pull request that is not about to merge is locked again, whatever ends the
           sequence.
-        - Between release and merge the workflow re-reads required checks, replaces the review record, and
-          re-reads base drift — and the drift read alone has three outcomes, only one of which merges. Any exit
-          that is not the merge command leaves the pull request released and open with no return path that
-          re-locks it, so the re-lock is scoped to every such exit rather than enumerated per check.
-        - Review and triage run before the integration interlock, so findings always arrive while the pull
-          request is still locked; this window is the only one that needs the re-lock.
+        - Scoped as a standing rule over the release-to-merge window rather than enumerated per check, so the
+          drift read's non-clean verdicts and any stop the rechecks surface are all covered. A `blocked / stop`
+          hold is surfaced with the exit that prompted it rather than in place of it — a failed re-lock must
+          not swallow the reason the workflow was leaving.
+
+- _Outcome:_ The lock verbs bracket the whole live-pull-request window: locked at creation, released only
+  inside merge authorization, and re-locked on every exit that is not the merge command. Sequencing the record
+  replacement ahead of the release is what makes the released window safe to hand to a human, and it is the one
+  resequencing the design sanctions.
 
 ### `[ ]` **3.2 Substitute the fire sites in `run-errand.md`**
 

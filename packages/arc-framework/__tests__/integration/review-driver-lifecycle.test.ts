@@ -42,13 +42,15 @@ describe("lifecycle review driver", () => {
     expect(packaged).not.toContain("coordinate-pr-review");
   });
 
-  it("combines WU convergence, exact-head unlock, and truthful review disclosure", async () => {
+  it("combines WU convergence, exact-head release, and truthful review disclosure", async () => {
     const workflow = await readFile(
       resolve(packageArc, workflows[0] ?? ""),
       "utf8",
     );
     expect(workflow).toContain("arc review readiness -");
-    expect(workflow).toContain("arc review unlock -");
+    expect(workflow).toContain("arc merge lock resolve -");
+    expect(workflow).toContain("arc merge lock release -");
+    expect(workflow).toContain("arc merge lock hold -");
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");

@@ -192,10 +192,14 @@ is active, execute its numbered `.actions` in authored order. Halt before later 
 `gh pr create` does not make the hook durable: retry the creation path and its retry-safe actions. Skip this hook
 whenever an open PR already exists.
 
-Open the PR:
+Invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action: `locked / open-locked`
+creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
+
+Open the PR on the resolved action:
 
 ```bash
-gh pr create --base {base-branch} --head {type}/{name}
+gh pr create --base {base-branch} --head {type}/{name}            # open-plain
+gh pr create --base {base-branch} --head {type}/{name} --draft    # open-locked
 ```
 
 Single PR per WU. The PR title's Conventional Commits type carries the signal.
@@ -496,8 +500,8 @@ incomplete candidate-tail step; never infer readiness from later products that h
 > `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, every
 > review applicability call and targeted verification, the proposed final dispositions and `## Review` record, PR
 > status, requirements, merge method, lifecycle readiness, and the clean base-drift result. State that approval
-> applies final dispositions and channel settlement, ends review, invokes the exact-head unlock when available, and
-> authorizes merge only if the required status and ordinary exact-head rechecks succeed unchanged. Close with
+> applies final dispositions and channel settlement, ends review, invokes the exact-head release when a lock
+> applies, and authorizes merge only if the ordinary exact-head rechecks succeed unchanged. Close with
 > `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
@@ -511,10 +515,17 @@ invalidate the approval and return through review applicability. Otherwise, re-r
 If threads, required approvals, or required checks are no longer settled, invalidate the approval and return
 through review.
 
-Invoke `arc review unlock -` with the exact approved target, vehicle, and tree root. Follow only its typed action:
-`dispatched / await-clearance` waits for the required `arc-cleared` status; `no-unlock / none` continues because the
-default-branch workflow is absent; `blocked / stop` invalidates approval. Re-read required checks on the unchanged
-head, then replace any stale PR review summary with the previewed `## Review` record immediately before merge.
+Replace any stale PR review summary with the previewed `## Review` record, so a released PR a human may open
+already carries the complete record of what was done.
+
+Invoke `arc merge lock release -` with the exact approved target, vehicle, and tree root. Follow only its typed
+action: `released / proceed` continues; `no-lock / none` continues because no lock applies or the PR already holds
+that state; `blocked / stop` invalidates approval. Re-read required checks on the unchanged head.
+
+From that release until the merge command, the PR is open and released, so **every exit that is not that merge
+command re-locks first** — each non-merge outcome of the reads below, and any stop they surface. Invoke
+`arc merge lock hold -` with the same target, vehicle, and tree root, then take the exit; dispatch on its typed
+action as above, and surface a `blocked / stop` hold with the exit that prompted it rather than in place of it.
 
 With PR state still settled, immediately invoke `arc base drift --json` once more and apply the same strict
 validation. `unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop
