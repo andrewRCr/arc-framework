@@ -308,7 +308,7 @@ write only the selected harness recipe into the current project:
 
 Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
 and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
-`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
+`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostToolUse`,
 `UserPromptSubmit`, and cleanup-only `SessionStart(clear)` as the documented workaround for Codex's
 missing immediate post-compaction context injection. Codex's pending marker is scoped to the current
 thread, and recovery restores ARC session context; repository instruction files such as `AGENTS.md`

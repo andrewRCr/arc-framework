@@ -16,6 +16,14 @@ const selfHostedHooksPath = resolve(
   packageRoot,
   "../../.arc/system/.internal/harness-hooks/codex-cli/hooks.json",
 );
+const workflowPath = resolve(
+  packageRoot,
+  "arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+);
+const selfHostedWorkflowPath = resolve(
+  packageRoot,
+  "../../.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+);
 const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
 const markerScriptPath = resolve(hookRoot, "common/codex-recovery-marker.mjs");
 const clearScriptPath = resolve(hookRoot, "common/clear-codex-recovery-pending.mjs");
@@ -256,6 +264,25 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       "hooks = true",
       "",
     ].join("\n"));
+  });
+
+  it("keeps both setup paths aligned with the Codex hook recipe", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
+    const setupSections = [
+      ...workflow.matchAll(
+        /^### Optional: Install Compaction Recovery Hooks\n([\s\S]*?)(?=^### )/gmu,
+      ),
+    ];
+
+    expect(readFileSync(selfHostedWorkflowPath, "utf8")).toBe(workflow);
+    expect(setupSections).toHaveLength(2);
+    for (const [, section] of setupSections) {
+      expect(section).toContain("`PreCompact(manual|auto)`");
+      expect(section).toContain("`PostToolUse`");
+      expect(section).toContain("`UserPromptSubmit`");
+      expect(section).toContain("`SessionStart(clear)`");
+      expect(section).not.toContain("PostCompact");
+    }
   });
 
   it("defines a nonblocking PreCompact seed-write hook for manual and auto compaction", () => {
