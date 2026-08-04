@@ -190,17 +190,8 @@ describe("arc locus mutation commands", () => {
     });
   });
 
-  it("adopts only an exact markerless primary work-unit match", async () => {
+  it("refuses markerless primary adoption before minting an unverifiable lease", async () => {
     const slug = "primary-work-unit";
-    await git(repository, ["switch", "-c", "feat/unowned"]);
-    const refused = await runAnchored(["locus", "attach", "--json"], repository);
-    expect(refused.exitCode).toBe(1);
-    expect(JSON.parse(refused.stdout.trim())).toMatchObject({
-      outcome: "refused",
-      operation: "locus-attach",
-      reason: "role-conflict",
-    });
-
     await git(repository, ["switch", "-c", `feat/${slug}`]);
     await mkdir(join(repository, ".arc", "active"), { recursive: true });
     await writeFile(join(repository, ".arc", "active", `meta-${slug}.md`), [
@@ -220,25 +211,16 @@ describe("arc locus mutation commands", () => {
       "",
     ].join("\n"), "utf8");
 
-    const adopted = await runCli(["locus", "attach", "--json"], { cwd: repository });
-    expect(adopted.exitCode, adopted.stdout + adopted.stderr).toBe(0);
-    const adoption = JSON.parse(adopted.stdout.trim()) as { recordId: string };
-    expect(adoption).toMatchObject({
-      outcome: "applied",
+    const refused = await runCli(["locus", "attach", "--json"], { cwd: repository });
+    expect(refused.exitCode).toBe(1);
+    expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+      outcome: "refused",
       operation: "locus-attach",
-      identity: null,
-      activeLocusPath: repository,
-      recommendedPromptText: expect.stringMatching(/confirm.*direct commands/iu),
+      reason: "lease-unknown",
     });
     const lociRoot = join(repository, ".arc", "user", "test-user", ".internal", "loci");
-    const recordName = (await readdir(lociRoot)).find((name) => name.endsWith(".json"));
-    expect(recordName).toBeDefined();
-    const record = JSON.parse(await readFile(join(lociRoot, recordName as string), "utf8"));
-    expect(record).toMatchObject({
-      recordId: adoption.recordId,
-      lease: { anchor: { kind: "unverifiable" } },
-    });
-
+    expect((await readdir(lociRoot).catch(() => [])).filter((name) => name.endsWith(".json")))
+      .toHaveLength(0);
   });
 
   it("materializes a remote-only paused Errand with exact provenance", async () => {
@@ -478,36 +460,53 @@ describe("arc locus mutation commands", () => {
     expect(await readFile(unrelatedRecordPath, "utf8")).toBe(unrelatedRecordBefore);
   });
 
-  it("releases a confirmed identity-retired Errand whose lease cannot be inspected", async () => {
+  it("resumes an exact unknown Errand lease only after operator confirmation", async () => {
     const slug = "unverifiable-primary";
     remote = await createBareRemote(repository);
     await git(repository, ["push", "-u", "origin", "main"]);
 
-    const opened = await runCli(["errand", "open", slug, "--json"], { cwd: repository });
+    const opened = await runAnchored(["errand", "open", slug, "--json"], repository);
     expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
-    const openResult = JSON.parse(opened.stdout.trim()) as { recordId: string };
+    const openResult = JSON.parse(opened.stdout.trim()) as { recordId: string; leaseId: string };
     const recordPath = await findLocusRecordPath(repository, openResult.recordId);
-    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
+    const record = JSON.parse(await readFile(recordPath, "utf8")) as {
+      lease: { anchor: unknown; leaseId: string };
+    };
+    record.lease.anchor = { kind: "unverifiable", reason: "fixture cannot inspect the opening session" };
+    await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    const unknownBytes = await readFile(recordPath, "utf8");
+    expect(JSON.parse(unknownBytes)).toMatchObject({
       lease: { anchor: { kind: "unverifiable" } },
     });
 
-    await git(repository, ["push", "origin", ":refs/arc/user/test-user/errands"]);
-    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
-    await git(repository, ["switch", "main"]);
-    await git(repository, ["branch", "-D", `chore/${slug}`]);
+    const unconfirmed = await runAnchored([
+      "locus", "resolve", openResult.recordId, "--action", "resume", "--json",
+    ], repository);
+    expect(unconfirmed.exitCode).toBe(1);
+    expect(JSON.parse(unconfirmed.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "locus-resolve",
+      reason: "lease-unknown",
+    });
+    expect(await readFile(recordPath, "utf8")).toBe(unknownBytes);
+
     const resolved = await runAnchored([
-      "locus", "resolve", openResult.recordId, "--action", "abandon",
+      "locus", "resolve", openResult.recordId, "--action", "resume",
       "--confirm-no-live-session", "--json",
     ], repository);
 
     expect(resolved.exitCode, resolved.stdout + resolved.stderr).toBe(0);
-    expect(JSON.parse(resolved.stdout.trim())).toMatchObject({
+    const resolution = JSON.parse(resolved.stdout.trim()) as { leaseId: string };
+    expect(resolution).toMatchObject({
       outcome: "applied",
       operation: "locus-resolve",
-      recordId: null,
-      leaseId: null,
+      recordId: openResult.recordId,
+      activeLocusPath: repository,
     });
-    await expect(readFile(recordPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(resolution.leaseId).not.toBe(openResult.leaseId);
+    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
+      lease: { leaseId: resolution.leaseId, anchor: { kind: "process" } },
+    });
   });
 
   it("preserves the ordinary dead-lease exit without requiring confirmation", async () => {

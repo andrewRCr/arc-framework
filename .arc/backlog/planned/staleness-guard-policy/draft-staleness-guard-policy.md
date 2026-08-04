@@ -11,6 +11,20 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Fail closed when stale policy does not recognize a newly critical command**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-04); reclassified after the reported npm-shell
+  ancestry defect failed reproduction against both current source and a freshly built CLI.
+- _Concern:_ A stale bundle can correctly detect that its source inputs have changed yet still decide to warn and
+  proceed because its own `isHandoffCritical` policy predates a newly introduced state-mutating command. The
+  observed stale bundle predated durable process inspection and treated `errand open` as warn-only, allowing it to
+  mint an unverifiable session anchor. Current code recognizes the exact npm-to-`dash` wrapper chain; the remaining
+  defect is the stale bundle's authority to classify an unknown/new command as safe.
+- _Approach:_ Resolve the guard policy so a stale bundle fails closed when its command-safety knowledge cannot
+  authorize the invocation, while preserving the explicit compaction-seed exception and any deliberately safe
+  read-only surface. Reproduce with a deliberately stale bundle whose command policy predates the invoked mutator,
+  not by weakening arbitrary-shell trust in the process inspector.
+
 ### `[ ]` **Content-hash the dev-build guard's bundle inputs**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-13); reclassified because the content-hash

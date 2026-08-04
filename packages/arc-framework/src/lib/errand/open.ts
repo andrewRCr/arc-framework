@@ -125,6 +125,12 @@ export async function openOrdinaryErrand(
   } catch (error) {
     return openError("locus.errand-open.anchor", error instanceof Error ? error.message : String(error));
   }
+  if (anchor.kind !== "process") {
+    return openRefusal(
+      "lease-unknown",
+      `Errand open cannot establish a verifiable session anchor: ${anchor.reason}`,
+    );
+  }
   let state: LocusStateV1;
   try {
     state = await options.dependencies.readState();

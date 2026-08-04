@@ -1,14 +1,12 @@
 /** Production adapters for the local review resume command. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import {
   ensureLocalReviewSourceMaterialized,

@@ -236,7 +236,7 @@ describe("release commit hook ordering", () => {
     expect(await readHookLog()).toEqual(["pre-commit", "commit-msg"]);
   });
 
-  it("returns only after a delayed commit is observable to an immediate push", async () => {
+  it("returns at Git exit when a hook descendant retains captured output", async () => {
     const remote = join(repository, ".git", "push-target.git");
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(["remote", "add", "origin", remote]);
@@ -246,10 +246,13 @@ describe("release commit hook ordering", () => {
 
     await installHook("pre-commit", [
       'printf "%s\\n" delayed-pre-commit-start >> "$ARC_HOOK_LOG"',
-      "sleep 1",
+      'printf "%s\\n" direct-hook-stdout',
+      'printf "%s\\n" direct-hook-stderr >&2',
+      "(sleep 5) &",
       'printf "%s\\n" delayed-pre-commit-finish >> "$ARC_HOOK_LOG"',
     ]);
 
+    const startedAt = Date.now();
     const commit = await runCli([
       "release",
       "commit",
@@ -259,9 +262,15 @@ describe("release commit hook ordering", () => {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
     });
+    const elapsedMs = Date.now() - startedAt;
 
     const headAfter = await gitOutput(["rev-parse", "HEAD"]);
+    const output = `${commit.stdout}\n${commit.stderr}`;
     expect(commit.exitCode, JSON.stringify(commit)).toBe(0);
+    expect(elapsedMs).toBeLessThan(3_000);
+    expect(output).toContain("direct-hook-stdout");
+    expect(output).toContain("direct-hook-stderr");
+    expect(output).toContain("fix(release): wait for commit finalization");
     expect(headAfter).not.toBe(headBefore);
     expect(await gitOutput(["diff", "--cached", "--name-only"])).toBe("");
     expect(await readHookLog()).toEqual([

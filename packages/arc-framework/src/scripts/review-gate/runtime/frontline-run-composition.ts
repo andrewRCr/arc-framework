@@ -2,16 +2,14 @@
 
 import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";
 import {
   prepareFrontlineTargetMaterialization,
 } from "../hosts/local/frontline-materialization.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  withRepositoryReviewOperationLock,
-} from "../hosts/local/git-common-state.js";
+import { withRepositoryReviewOperationLock } from "../hosts/local/git-common-state.js";
 import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
