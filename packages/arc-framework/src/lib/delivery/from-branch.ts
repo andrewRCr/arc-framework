@@ -712,10 +712,9 @@ function taskIdsForSegment(
   const represented = new Set(attributions
     .filter((attribution) => commitIds.includes(attribution.commit))
     .flatMap((attribution) => attribution.taskIds));
-  return [
-    ...snapshot.tasks.implementation.map((task) => task.taskId),
-    snapshot.tasks.verificationTaskId,
-  ].filter((taskId) => represented.has(taskId));
+  return snapshot.tasks.implementation
+    .map((task) => task.taskId)
+    .filter((taskId) => represented.has(taskId));
 }
 
 async function classifyStep(

@@ -445,6 +445,64 @@ describe("branch-derived delivery facts", () => {
     });
   });
 
+  it("keeps verification attribution out of member task coverage", async () => {
+    await commitFile(repository, "verification.txt", "verified\n", [
+      "test(delivery): verify the work unit",
+      "",
+      "Context: tasks-demo.md (Task 2.1)",
+    ].join("\n"));
+    const verificationCommit = await oid(repository, "HEAD");
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.snapshot.source.facts).toMatchObject({
+      taskAttributions: [{
+        commit: verificationCommit,
+        referencedTaskIds: ["2.1"],
+        taskIds: ["2.1"],
+        unresolvedTaskIds: [],
+      }],
+      advisories: [],
+    });
+    expect(resolveDeliveryFromBranchProjection({
+      snapshot: prepared.snapshot,
+      slots: DeliveryAuthoringSlotsV1Schema.parse({
+        projection: { kind: "wu-integration-target" },
+        boundary: {
+          kind: "explicit",
+          segments: [{
+            chunkKey: "only",
+            sourceIds: prepared.inspection.contributionStepIds,
+          }],
+        },
+        members: [memberSlot("only")],
+        seams: [],
+      }),
+    })).toMatchObject({
+      status: "resolved",
+      projection: { authoring: { members: [{ taskIds: [] }] } },
+    });
+  });
+
   it("refuses branch facts whose pinned coordinates differ from the source inputs", async () => {
     const prepared = await prepareDeliveryFromBranchAuthoring({
       mapId: "branch-map",
