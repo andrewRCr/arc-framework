@@ -462,7 +462,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - Cleanup deletes Markdown first and the canonical snapshot last; a failure between deletes leaves the
               snapshot and pinned candidate plan digest sufficient for retry
 
-### `[ ]` **3.4 Render the delivery-plan section into the task list**
+### `[x]` **3.4 Render the delivery-plan section into the task list**
 
 - _Goal:_ A reader sees the published plan's shape without any workflow or reducer ever reading the rendering
   back.
@@ -470,7 +470,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Note:_ The section is informative and replaceable; per-task delivery tags would create a second authority and
   are not emitted.
 
-    - `[ ]` **3.4.a Ordered member table and named-seam table**
+    - `[x]` **3.4.a Ordered member table and named-seam table**
 
         - Build `test-first` (one behavior at a time):
             - First publication replaces one unmarked top-level `Delivery Plan` section and installs exact start
@@ -481,6 +481,13 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - A task appearing against more than one member is marked shared rather than restructured
             - A landed member renders its as-of-landing values with an explicit marker
             - The landability column renders under `stack-to-main` and is omitted otherwise
+
+        - _Outcome:_ Added a write-only projection that bootstraps one exact top-level section, thereafter replaces
+          only its sentinel range, refuses every ambiguous or malformed locus before writing, and renders ordered
+          members, shared tasks, landed markers, conditional landability, and named seams from the validated plan.
+
+- _Outcome:_ Published delivery intent can now replace its informative task-list projection atomically while all
+  surrounding bytes remain untouched and no reader treats the rendering as authority.
 
 ### `[ ]` **3.5 Register the `arc delivery` command group**
 
