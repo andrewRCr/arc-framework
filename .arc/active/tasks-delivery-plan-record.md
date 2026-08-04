@@ -331,7 +331,7 @@ _Design decisions:_ Which judgments are irreducible is computed and presented ra
 the slot skeleton is the contract. Composition validates that a boundary is well-formed and never that it is
 well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 
-### `[ ]` **3.1 Emit the starter map**
+### `[x]` **3.1 Emit the starter map**
 
 - _Goal:_ An author receives every derived fact already computed and exactly one slot per judgment only they can
   make, in a form that cannot be confused with a delivery record.
@@ -374,7 +374,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
           seams; the starter leaves every arm visibly unfilled and exposes landability only inside authored member
           values, with no editable or pre-filled seam owner.
 
-    - `[ ]` **3.1.c Single outstanding map per unit**
+    - `[x]` **3.1.c Single outstanding map per unit**
 
         - The map exists before a plan does, so it cannot key on `planId`, and the work-unit slug it records is
           mutable while the unit is live. Extract a storage-independent forward subject resolver from `2.6.b`;
@@ -387,6 +387,14 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - Chained rename, terminal retirement, cycle, corrupt, ambiguous, unreachable, and unestablished
               authority cases preserve the plan resolver's established refusal and safe-absence semantics
             - Abandoning a map idempotently deletes both files and clears the outstanding state
+
+        - _Outcome:_ Reused the payload-neutral forward resolver over enumerated authoring snapshots, enforcing one
+          map through direct and chained renames while preserving safe absence and indeterminate authority; explicit
+          abandonment now deletes complete or JSON-only cleanup state in Markdown-first order and is idempotent.
+
+- _Outcome:_ Authoring now begins from one outside-tree, rename-stable JSON/Markdown pair whose machine material is
+  pinned, whose author judgments begin visibly unfilled, and whose complete or cleanup-torn lifetime is managed as
+  one singleton per work unit.
 
 ### `[x]` **3.2 Refuse a record no author authored**
 
