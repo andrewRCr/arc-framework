@@ -76,9 +76,9 @@ method consumes ([strategy-work-organization][work-org] § WU sizing standard) �
   review surfaces in one WU says _look closer_.
 - **LOC and file count are secondary heads-up signals, not thresholds:** roughly `>~few-hundred LOC`,
   `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_, never _cut here_.
-- **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** (dependency-ordered WUs, each its
-  own branch, merged in order); independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
-  dependency-ordered delivery mode, not one WU spread across many branches.
+- **Stack vs. cohort:** a **stack** orders deliverables by dependency; a **cohort** groups sibling WUs. A cohort may
+  order its members, and one WU's delivery plan may order several deliverables — delivery topology does not decide
+  the concern boundary.
 
 The mental model is **cohort ≈ epic, WU ≈ story** — this method fills the codified
 concern → WU-count mapping.
