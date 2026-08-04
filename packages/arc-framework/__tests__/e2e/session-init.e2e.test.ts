@@ -13,7 +13,7 @@
  * deliberate spot-checks.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -88,6 +88,7 @@ interface SessionInitEnvelope {
   errandState?: {
     ok: boolean;
     value?: {
+      warnings: string[];
       residue: Array<{
         branch: string;
         slug: string;
@@ -192,6 +193,48 @@ function parseRecoverAuditReport(stdout: string): RecoverAuditReport {
   return JSON.parse(stdout.trim()) as RecoverAuditReport;
 }
 
+async function gitWithInput(cwd: string, args: string[], input: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn("git", args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(`git ${args.join(" ")} exited ${String(code)}: ${stderr}`));
+    });
+    child.stdin.end(input);
+  });
+}
+
+async function seedOpenErrandIdentity(cwd: string, slug: string): Promise<void> {
+  const timestamp = "2026-08-04T00:00:00.000Z";
+  const record = {
+    version: 3,
+    kind: "errand",
+    slug,
+    claimId: "c".repeat(32),
+    purpose: "errand",
+    origin: "description",
+    originEntry: null,
+    intent: slug,
+    branch: `chore/${slug}`,
+    state: "open",
+    savedHead: null,
+    changeRequest: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  const blob = await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`);
+  const tree = await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`);
+  const commit = await git(cwd, ["commit-tree", tree, "-m", `seed v3 errand ${slug}`]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
 function taskListFixture(title: string): string {
   return [
     "# Task List: Foo",
@@ -214,6 +257,19 @@ describe("session-init E2E — sessionType across type variants", () => {
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
+  });
+
+  it("does not warn that a valid v3 Errand identity is malformed", async () => {
+    await seedOpenErrandIdentity(tmpDir, "valid-v3");
+
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = parseJsonEnvelope(result.stdout);
+
+    expect(envelope.errandState?.ok).toBe(true);
+    expect(envelope.errandState?.value?.warnings).not.toContain(
+      "Errand record `valid-v3` is malformed.",
+    );
   });
 
   it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {

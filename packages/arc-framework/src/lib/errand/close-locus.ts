@@ -315,7 +315,7 @@ async function revalidateCloseAuthority(guard: CloseAuthorityGuard | null): Prom
  * own merge. A paused Errand has no change request to finalize and resumes instead.
  */
 function isCloseableOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
-  return record.version === 3 && record.kind === "errand" && record.purpose === "errand"
+  return record.kind === "errand" && record.purpose === "errand"
     && (record.state === "awaiting-merge" || record.state === "open");
 }
 

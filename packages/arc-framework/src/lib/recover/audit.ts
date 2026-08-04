@@ -286,17 +286,6 @@ function auditLocusHint(
 
   const state = options.recover.locusState.value;
   const frame = options.recover.recoveryFrame.value;
-  if (frame.kind === "legacy-errand") {
-    if (state.current.kind === "none" && expected === null) {
-      return { expected: null, actual: null, match: true };
-    }
-    stopReasons.push({
-      kind: "locus-unresolved",
-      message: "legacy Errand recovery requires no current session locus generation or seed hint",
-      detail: { expected, current: state.current, frame },
-    });
-    return { expected, actual: null, match: false };
-  }
   if (frame.kind === "none") {
     if (state.current.kind !== "none" || expected !== null) {
       stopReasons.push({
@@ -476,7 +465,6 @@ function auditLoadSet(
 function recoveryCompatibilityWorkflowPath(options: AuditRecoveryStateOptions): string | null {
   if (!options.recover.recoveryFrame.ok) return null;
   const frame = options.recover.recoveryFrame.value;
-  if (frame.kind === "legacy-errand") return RUN_ERRAND_WORKFLOW_PATH;
   if (frame.kind !== "resolved"
     || options.seed.locus !== undefined
     || options.seed.locusAbsence !== undefined

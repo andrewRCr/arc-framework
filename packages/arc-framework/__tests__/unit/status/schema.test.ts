@@ -382,7 +382,14 @@ describe("deep advisory routing views", () => {
       resume: { resumable: true, slug: "kept" },
       inFlight: { errands: [{ state: "in-progress", detail: "kept" }] },
       materializable: {
-        candidates: [{ slug: "legacy title", branch: "chore/legacy" }],
+        candidates: [{
+          slug: "exact-title",
+          claimId: "c".repeat(32),
+          branch: "chore/exact-title",
+          expectedHead: "a".repeat(40),
+          state: "paused",
+          originEntry: "Exact title",
+        }],
       },
       nudge: { shouldNudge: true, markerPath: "kept" },
       residue: [],
@@ -392,7 +399,14 @@ describe("deep advisory routing views", () => {
       ErrandStateValueViewSchema.safeParse({
         ...value,
         materializable: {
-          candidates: [{ slug: "", branch: "chore/legacy" }],
+          candidates: [{
+            slug: "",
+            claimId: "c".repeat(32),
+            branch: "chore/exact-title",
+            expectedHead: "a".repeat(40),
+            state: "paused",
+            originEntry: "Exact title",
+          }],
         },
       }).success,
     ).toBe(false);

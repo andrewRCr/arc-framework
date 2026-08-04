@@ -464,11 +464,11 @@ export async function rollbackIdentityClaim(
 }
 
 function isGroom(record: TransientIdentityRecord): record is GroomIdentityRecord {
-  return record.version === 3 && record.kind === "groom";
+  return record.kind === "groom";
 }
 
 function isHousekeep(record: TransientIdentityRecord): record is HousekeepIdentityRecord {
-  return record.version === 3 && record.kind === "errand" && record.purpose === "housekeep-routing";
+  return record.kind === "errand" && record.purpose === "housekeep-routing";
 }
 
 function sameMembers(left: readonly string[], right: readonly string[]): boolean {

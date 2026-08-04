@@ -3,8 +3,8 @@
  * presence/merge/age and record-backed for identity: it resolves each errand's
  * slug from the injected records (a branch→slug index), classifies the oracle's
  * in-flight errand entries, and selects the remote-only ones as materialize
- * candidates, while resume and nudge stay independent of discovery. A record-less
- * legacy branch degrades to its branch-derived slug.
+ * candidates, while resume and nudge stay independent of discovery. A branch
+ * with no identity degrades to its branch-derived slug.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -17,7 +17,12 @@ import type {
   InFlightResidue,
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
-import type { ErrandRecord } from "../../../src/lib/errand/record.js";
+import {
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../../src/lib/errand/identity-record.js";
+import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
+import { locusStateFixture } from "../../fixtures/locus-state.js";
 
 const NOW = "2026-06-01T12:00:00.000Z";
 const TODAY = "2026-06-01";
@@ -50,15 +55,46 @@ const wu = (over: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit => ({
   ...over,
 });
 
-const record = (over: Partial<ErrandRecord> = {}): ErrandRecord => ({
-  version: 1,
+type OrdinaryRecordOverrides = Omit<Partial<OrdinaryErrandRecord>, "slug"> & { slug?: string };
+
+const record = (over: OrdinaryRecordOverrides = {}): TransientIdentityRecord =>
+  TransientIdentityRecordV3Schema.parse({
+  version: 3,
+  kind: "errand",
   slug: "fix-typo",
+  claimId: "b".repeat(32),
+  purpose: "errand",
   origin: "description",
+  originEntry: null,
   intent: "fix the typo",
   branch: "chore/fix-typo",
+  state: "open",
+  savedHead: null,
+  changeRequest: null,
   createdAt: "2026-06-01T09:00:00.000Z",
-  ...over,
-});
+  updatedAt: "2026-06-01T09:00:00.000Z",
+    ...over,
+  });
+
+const paused = (over: OrdinaryRecordOverrides = {}): TransientIdentityRecord =>
+  TransientIdentityRecordV3Schema.parse({
+  version: 3,
+  slug: "fix-typo",
+  claimId: "c".repeat(32),
+  createdAt: "2026-06-01T09:00:00.000Z",
+  updatedAt: "2026-06-01T10:00:00.000Z",
+  kind: "errand",
+  purpose: "errand",
+  intent: "fix typo",
+  branch: "chore/fix-typo",
+  origin: "inbox",
+  originEntry: "Fix typo",
+  originEntrySourceDigest: `sha256:${"d".repeat(64)}`,
+  state: "paused",
+  savedHead: "a".repeat(40),
+  changeRequest: null,
+    ...over,
+  });
 
 /**
  * Git mock: `for-each-ref` returns the supplied ref/committerdate lines;
@@ -83,16 +119,46 @@ function buildExec(options: { refs?: string; merged?: readonly string[] } = {}):
 }
 
 describe("runErrandState", () => {
+  it("surfaces locus identity tails in their fixed reader-owned action order", async () => {
+    const identity = {
+      kind: "errand" as const,
+      key: "fix-typo",
+      claimId: "c".repeat(32),
+      protection: "full" as const,
+      branch: "chore/fix-typo",
+      purpose: "errand" as const,
+      origin: "inbox" as const,
+      originEntry: "Fix typo",
+      originEntrySourceDigest: `sha256:${"d".repeat(64)}`,
+      state: "paused" as const,
+      savedHead: "a".repeat(40),
+      changeRequest: null,
+    };
+    const locusState = locusStateFixture({
+      rows: [],
+      inFlightIdentities: [{ identity, actions: ["resume", "abandon"] }],
+    });
+    const result = await runErrandState({
+      exec: buildExec(), currentBranch: "main", hasBackingMeta: false, includeDiscovery: false,
+      entries: null, records: [], remoteTips: new Map(), recordsComplete: true,
+      baseBranch: "main", staleThresholdDays: 1, nudge: nudge(false), locusState,
+    });
+
+    expect(result.identities).toEqual([{ identity, actions: ["resume", "abandon"] }]);
+  });
+
   it("resolves a resumable current branch from its record, without running discovery", async () => {
     const exec = buildExec();
 
     const result = await runErrandState({
       exec,
-      currentBranch: "refactor/extract-helper",
+      currentBranch: "chore/extract-helper",
       hasBackingMeta: false,
       includeDiscovery: false,
       entries: null,
-      records: [record({ slug: "extract-helper", branch: "refactor/extract-helper" })],
+      records: [record({ slug: "extract-helper", branch: "chore/extract-helper" })],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -117,6 +183,8 @@ describe("runErrandState", () => {
       entries: null,
       oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
       records: [],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -141,6 +209,8 @@ describe("runErrandState", () => {
       includeDiscovery: false,
       entries: null,
       records: [],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -159,6 +229,8 @@ describe("runErrandState", () => {
       includeDiscovery: false,
       entries: null,
       records: [record({ slug: "promoted", branch: "chore/promoted" })],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -194,6 +266,8 @@ describe("runErrandState", () => {
       includeDiscovery: true,
       entries,
       records: [],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -211,11 +285,11 @@ describe("runErrandState", () => {
 
   it("takes in-flight and materialize identity from the record, not the entry's branch-derived slug", async () => {
     const exec = buildExec({
-      refs: [`refs/remotes/origin/fix/typo\t${RECENT}`].join("\n"),
+      refs: [`refs/remotes/origin/chore/record-slug\t${RECENT}`].join("\n"),
     });
 
     // The entry carries a stale branch-derived slug; the record is authoritative.
-    const entries: InFlightEntry[] = [errand({ slug: "branch-derived", branch: "fix/typo" })];
+    const entries: InFlightEntry[] = [errand({ slug: "branch-derived", branch: "chore/record-slug" })];
 
     const result = await runErrandState({
       exec,
@@ -223,7 +297,9 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries,
-      records: [record({ slug: "record-slug", branch: "fix/typo" })],
+      records: [paused({ slug: "record-slug", branch: "chore/record-slug" })],
+      remoteTips: new Map([["chore/record-slug", "a".repeat(40)]]),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -231,10 +307,13 @@ describe("runErrandState", () => {
     });
 
     expect(result.inFlight.errands).toEqual([
-      { slug: "record-slug", branch: "fix/typo", state: "in-progress", ageDays: 0 },
+      { slug: "record-slug", branch: "chore/record-slug", state: "in-progress", ageDays: 0 },
     ]);
     expect(result.materializable.candidates).toEqual([
-      { slug: "record-slug", branch: "fix/typo" },
+      {
+        slug: "record-slug", claimId: "c".repeat(32), branch: "chore/record-slug",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo",
+      },
     ]);
   });
 
@@ -258,7 +337,9 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries,
-      records: [],
+      records: [paused({ slug: "remote-a", branch: "chore/remote-a" })],
+      remoteTips: new Map([["chore/remote-a", "a".repeat(40)]]),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -266,7 +347,10 @@ describe("runErrandState", () => {
     });
 
     expect(result.materializable.candidates).toEqual([
-      { slug: "remote-a", branch: "chore/remote-a" },
+      {
+        slug: "remote-a", claimId: "c".repeat(32), branch: "chore/remote-a",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo",
+      },
     ]);
   });
 
@@ -292,6 +376,8 @@ describe("runErrandState", () => {
         }),
       ],
       records: [record({ slug: "local-unpushed", branch: "chore/local-unpushed" })],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -329,6 +415,8 @@ describe("runErrandState", () => {
       residue,
       oracleWarnings: ["Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`."],
       records: [],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -358,6 +446,8 @@ describe("runErrandState", () => {
       entries: [wu()],
       oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
       records: [],
+      remoteTips: new Map(),
+      recordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -370,5 +460,26 @@ describe("runErrandState", () => {
       "Unable to list git worktrees; local checkout status is degraded.",
     ]);
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("suppresses materialization when the transient identity snapshot is incomplete", async () => {
+    const result = await runErrandState({
+      exec: buildExec({ refs: `refs/remotes/origin/chore/fix-typo\t${RECENT}` }),
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      entries: [errand()],
+      records: [paused()],
+      remoteTips: new Map([["chore/fix-typo", "a".repeat(40)]]),
+      recordsComplete: false,
+      oracleWarnings: ["Transient identity discovery is incomplete."],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+    });
+
+    expect(result.materializable.candidates).toEqual([]);
+    expect(result.warnings).toContain("Transient identity discovery is incomplete.");
   });
 });

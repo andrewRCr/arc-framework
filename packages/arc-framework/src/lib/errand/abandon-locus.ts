@@ -144,7 +144,7 @@ async function runStep(
 }
 
 function isOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
-  return record.version === 3 && record.kind === "errand" && record.purpose === "errand";
+  return record.kind === "errand" && record.purpose === "errand";
 }
 
 function sameChangeRequest(evidence: ChangeRequestLifecycleEvidence, record: OrdinaryErrandRecord): boolean {
