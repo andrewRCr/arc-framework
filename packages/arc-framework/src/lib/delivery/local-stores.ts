@@ -133,6 +133,9 @@ async function readRevisionedRecord<T>(
   codec: DeliveryPayloadCodec<T>,
   planId: string,
 ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T> | null, RevisionStoreFailure>> {
+  if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+    return { status: "refused", reason: "identity-mismatch" };
+  }
   const raw = await publisher.read(location, planRecordName(planId));
   if (raw === null) return { status: "ok", value: null };
   return decodeRevisionedRecord(raw, planId, semanticsVersion, codec);
@@ -148,6 +151,9 @@ async function publishRevisionedRecord<T>(
   expectedRevision: number,
   isSuccessor?: (current: T, proposed: T) => boolean,
 ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>> {
+  if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+    return { status: "refused", reason: "identity-mismatch" };
+  }
   const proposed = codec.decode(value);
   if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
   if (codec.planId(proposed.value) !== planId) {
@@ -199,6 +205,9 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
   async readCurrent(
     planId: string,
   ): Promise<DeliveryStoreResult<TPlan | null, DeliveryPlanStoreFailure>> {
+    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
     const raw = await this.publisher.read(PLAN_LOCATION, planRecordName(planId));
     if (raw === null) return { status: "ok", value: null };
     return decodeRecord(raw, planId, this.codec);
@@ -209,6 +218,9 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     plan: TPlan,
     expectedCurrentDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>> {
+    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
     const proposed = this.codec.decode(plan);
     if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
     if (this.codec.planId(proposed.value) !== planId) {

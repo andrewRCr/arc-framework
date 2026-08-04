@@ -10,6 +10,7 @@ import type {
   DeliveryPayloadCodec,
   DeliveryStoreResult,
 } from "./ports.js";
+import { DeliveryPlanIdSchema } from "./schema.js";
 
 const ASSURANCE_LOCATION = { root: "delivery", namespace: "assurance" } as const;
 const ASSURANCE_SEMANTICS = "delivery-assurance-store/v1";
@@ -145,6 +146,9 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
   async read(
     planId: string,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>> {
+    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
     const raw = await this.publisher.read(ASSURANCE_LOCATION, recordName(planId));
     if (raw === null) return { status: "ok", value: null };
     return decodeAssuranceEnvelope(raw, planId, this.codec);
@@ -155,6 +159,9 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
     value: TAssurance,
     expectedTailDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChainEntry<TAssurance>, DeliveryAssuranceStoreFailure>> {
+    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
     const proposed = this.codec.decode(value);
     if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
     if (this.codec.planId(proposed.value) !== planId) {
@@ -207,6 +214,9 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
     planId: string,
     chain: DeliveryAssuranceChain<TAssurance>,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance>, DeliveryAssuranceStoreFailure>> {
+    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
     const decoded = decodeAssuranceChain(chain, planId, this.codec);
     if (decoded.status === "refused") return decoded;
     return this.publisher.update<DeliveryStoreResult<

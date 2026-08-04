@@ -30,6 +30,11 @@ import {
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 
 const roots: string[] = [];
+const PLAN_ID_1 = "00000000-0000-4000-8000-000000000001";
+const PLAN_ID_2 = "00000000-0000-4000-8000-000000000002";
+const PLAN_ID_3 = "00000000-0000-4000-8000-000000000003";
+const PLAN_ID_A = "10000000-0000-4000-8000-000000000001";
+const PLAN_ID_B = "20000000-0000-4000-8000-000000000001";
 const ASSIGNMENT_PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const OTHER_ASSIGNMENT_PLAN_ID = "f7f35d3f-8d46-4443-b36b-c4e7d463d5b8";
 
@@ -164,22 +169,62 @@ function okValue<T>(
 }
 
 describe("repository delivery record stores", () => {
+  it("refuses noncanonical plan addresses before repository-common access", async () => {
+    const forbidden = new Error("repository-common storage must not be reached");
+    const publisher: GitCommonStatePublisher = {
+      read: async () => { throw forbidden; },
+      list: async () => { throw forbidden; },
+      update: async () => { throw forbidden; },
+    };
+    const plans = new RepositoryDeliveryPlanStore(publisher, planCodec);
+    const assignments = new RepositoryDeliveryAssignmentStore(publisher);
+    const assurance = new RepositoryDeliveryAssuranceStore(publisher, revisionedCodec);
+    const observations = new RepositoryDeliveryObservationStore(publisher, revisionedCodec);
+    const invalidPlanId = "not-a-plan-id";
+    const refusal = { status: "refused", reason: "identity-mismatch" };
+
+    await expect(plans.readCurrent(invalidPlanId)).resolves.toEqual(refusal);
+    await expect(plans.publishCurrent(
+      invalidPlanId,
+      plan(invalidPlanId, "value"),
+      null,
+    )).resolves.toEqual(refusal);
+    await expect(assignments.read(invalidPlanId)).resolves.toEqual(refusal);
+    await expect(observations.read(invalidPlanId)).resolves.toEqual(refusal);
+    await expect(observations.publish(
+      invalidPlanId,
+      { planId: invalidPlanId, body: "value" },
+      0,
+    )).resolves.toEqual(refusal);
+    await expect(assurance.read(invalidPlanId)).resolves.toEqual(refusal);
+    await expect(assurance.append(
+      invalidPlanId,
+      { planId: invalidPlanId, body: "value" },
+      null,
+    )).resolves.toEqual(refusal);
+    await expect(assurance.exportChain(invalidPlanId)).resolves.toEqual(refusal);
+    await expect(assurance.importChain(
+      invalidPlanId,
+      { entries: [], tailDigest: null },
+    )).resolves.toEqual(refusal);
+  });
+
   it("publishes a first plan and only accepts a successor naming the current digest", async () => {
     const records = await stores();
-    const first = plan("plan-1", "first");
-    const second = plan("plan-1", "second");
-    const stale = plan("plan-1", "stale");
+    const first = plan(PLAN_ID_1, "first");
+    const second = plan(PLAN_ID_1, "second");
+    const stale = plan(PLAN_ID_1, "stale");
 
-    await expect(records.plans.readCurrent("plan-1")).resolves.toEqual({
+    await expect(records.plans.readCurrent(PLAN_ID_1)).resolves.toEqual({
       status: "ok",
       value: null,
     });
-    await expect(records.plans.publishCurrent("plan-1", first, null)).resolves.toEqual({
+    await expect(records.plans.publishCurrent(PLAN_ID_1, first, null)).resolves.toEqual({
       status: "ok",
       value: { currentDigest: planCodec.digest(first) },
     });
     await expect(records.plans.publishCurrent(
-      "plan-1",
+      PLAN_ID_1,
       second,
       planCodec.digest(first),
     )).resolves.toEqual({
@@ -187,11 +232,11 @@ describe("repository delivery record stores", () => {
       value: { currentDigest: planCodec.digest(second) },
     });
     await expect(records.plans.publishCurrent(
-      "plan-1",
+      PLAN_ID_1,
       stale,
       planCodec.digest(first),
     )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
-    await expect(records.plans.readCurrent("plan-1")).resolves.toEqual({
+    await expect(records.plans.readCurrent(PLAN_ID_1)).resolves.toEqual({
       status: "ok",
       value: second,
     });
@@ -206,17 +251,17 @@ describe("repository delivery record stores", () => {
         : proposed.body === `${current.body}-successor`,
     };
     const plans = new RepositoryDeliveryPlanStore(records.publisher, predecessorAwareCodec);
-    const first = plan("plan-1", "first");
-    const unrelated = plan("plan-1", "unrelated");
+    const first = plan(PLAN_ID_1, "first");
+    const unrelated = plan(PLAN_ID_1, "unrelated");
 
-    await plans.publishCurrent("plan-1", first, null);
+    await plans.publishCurrent(PLAN_ID_1, first, null);
 
     await expect(plans.publishCurrent(
-      "plan-1",
+      PLAN_ID_1,
       unrelated,
       planCodec.digest(first),
     )).resolves.toEqual({ status: "refused", reason: "record-malformed" });
-    await expect(plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: first });
+    await expect(plans.readCurrent(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: first });
   });
 
   it("refuses a first plan that fails null-predecessor validation", async () => {
@@ -229,11 +274,11 @@ describe("repository delivery record stores", () => {
     const plans = new RepositoryDeliveryPlanStore(records.publisher, predecessorAwareCodec);
 
     await expect(plans.publishCurrent(
-      "plan-1",
-      plan("plan-1", "later-revision"),
+      PLAN_ID_1,
+      plan(PLAN_ID_1, "later-revision"),
       null,
     )).resolves.toEqual({ status: "refused", reason: "record-malformed" });
-    await expect(plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: null });
+    await expect(plans.readCurrent(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: null });
   });
 
   it("increments assignments under an expected integer revision", async () => {
@@ -256,34 +301,34 @@ describe("repository delivery record stores", () => {
 
   it("increments observations under an expected integer revision", async () => {
     const records = await stores();
-    const first = { planId: "plan-1", body: "first" };
-    const second = { planId: "plan-1", body: "second" };
+    const first = { planId: PLAN_ID_1, body: "first" };
+    const second = { planId: PLAN_ID_1, body: "second" };
 
-    await expect(records.observations.read("plan-1")).resolves.toEqual({ status: "ok", value: null });
-    await expect(records.observations.publish("plan-1", first, 0)).resolves.toMatchObject({ status: "ok" });
-    await expect(records.observations.publish("plan-1", second, 1)).resolves.toMatchObject({ status: "ok" });
-    await expect(records.observations.publish("plan-1", { planId: "plan-1", body: "stale" }, 1))
+    await expect(records.observations.read(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.observations.publish(PLAN_ID_1, first, 0)).resolves.toMatchObject({ status: "ok" });
+    await expect(records.observations.publish(PLAN_ID_1, second, 1)).resolves.toMatchObject({ status: "ok" });
+    await expect(records.observations.publish(PLAN_ID_1, { planId: PLAN_ID_1, body: "stale" }, 1))
       .resolves.toEqual({ status: "refused", reason: "version-conflict" });
   });
 
   it("treats byte-identical republishes as idempotent before version checks", async () => {
     const records = await stores();
-    const firstPlan = plan("plan-1", "first");
+    const firstPlan = plan(PLAN_ID_1, "first");
     const assigned = assignment(1);
-    const revisioned = { planId: "plan-1", body: "first" };
-    await records.plans.publishCurrent("plan-1", firstPlan, null);
+    const revisioned = { planId: PLAN_ID_1, body: "first" };
+    await records.plans.publishCurrent(PLAN_ID_1, firstPlan, null);
     await records.assignments.publish(ASSIGNMENT_PLAN_ID, assigned, 0);
-    await records.observations.publish("plan-1", revisioned, 0);
+    await records.observations.publish(PLAN_ID_1, revisioned, 0);
 
     const paths = [
-      join(records.commonDir, "arc", "delivery", "plans", "plan-1.json"),
+      join(records.commonDir, "arc", "delivery", "plans", `${PLAN_ID_1}.json`),
       join(records.commonDir, "arc", "delivery", "assignments", `${ASSIGNMENT_PLAN_ID}.json`),
-      join(records.commonDir, "arc", "delivery", "observations", "plan-1.json"),
+      join(records.commonDir, "arc", "delivery", "observations", `${PLAN_ID_1}.json`),
     ];
     const before = await Promise.all(paths.map(async (path) => readFile(path, "utf8")));
 
     await expect(records.plans.publishCurrent(
-      "plan-1",
+      PLAN_ID_1,
       firstPlan,
       canonicalDigest({ stale: true }),
     )).resolves.toEqual({
@@ -294,7 +339,7 @@ describe("repository delivery record stores", () => {
       status: "ok",
       value: { revision: 1, value: assigned },
     });
-    await expect(records.observations.publish("plan-1", revisioned, 99)).resolves.toEqual({
+    await expect(records.observations.publish(PLAN_ID_1, revisioned, 99)).resolves.toEqual({
       status: "ok",
       value: { revision: 1, value: revisioned },
     });
@@ -304,12 +349,12 @@ describe("repository delivery record stores", () => {
   it("treats canonical-equivalent revisioned republishes as idempotent", async () => {
     const records = await stores();
     const observations = new RepositoryDeliveryObservationStore(records.publisher, keyOrderedCodec);
-    const first = { planId: "plan-1", body: { first: "one", second: "two" } };
-    const replay = { planId: "plan-1", body: { second: "two", first: "one" } };
-    const published = await observations.publish("plan-1", first, 0);
+    const first = { planId: PLAN_ID_1, body: { first: "one", second: "two" } };
+    const replay = { planId: PLAN_ID_1, body: { second: "two", first: "one" } };
+    const published = await observations.publish(PLAN_ID_1, first, 0);
 
-    await expect(observations.publish("plan-1", replay, 0)).resolves.toEqual(published);
-    await expect(observations.read("plan-1")).resolves.toEqual({
+    await expect(observations.publish(PLAN_ID_1, replay, 0)).resolves.toEqual(published);
+    await expect(observations.read(PLAN_ID_1)).resolves.toEqual({
       status: "ok",
       value: { revision: 1, value: first },
     });
@@ -324,21 +369,21 @@ describe("repository delivery record stores", () => {
         await atomicWriteFile(path, content);
       },
     });
-    const first = plan("plan-1", "first");
-    const second = plan("plan-1", "second");
-    const third = plan("plan-1", "third");
-    await records.plans.publishCurrent("plan-1", first, null);
+    const first = plan(PLAN_ID_1, "first");
+    const second = plan(PLAN_ID_1, "second");
+    const third = plan(PLAN_ID_1, "third");
+    await records.plans.publishCurrent(PLAN_ID_1, first, null);
 
     const results = await Promise.all([
-      records.plans.publishCurrent("plan-1", second, planCodec.digest(first)),
-      records.plans.publishCurrent("plan-1", third, planCodec.digest(first)),
+      records.plans.publishCurrent(PLAN_ID_1, second, planCodec.digest(first)),
+      records.plans.publishCurrent(PLAN_ID_1, third, planCodec.digest(first)),
     ]);
 
     expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
     expect(results.filter((result) => result.status === "refused")).toEqual([
       { status: "refused", reason: "version-conflict" },
     ]);
-    const current = await records.plans.readCurrent("plan-1");
+    const current = await records.plans.readCurrent(PLAN_ID_1);
     expect(current).toMatchObject({ status: "ok" });
     if (current.status !== "ok" || current.value === null) return;
     expect([second, third]).toContainEqual(current.value);
@@ -368,10 +413,10 @@ describe("repository delivery record stores", () => {
 
   it("allows only one concurrent observation successor under the namespace lock", async () => {
     const records = await stores();
-    await records.observations.publish("plan-1", { planId: "plan-1", body: "first" }, 0);
+    await records.observations.publish(PLAN_ID_1, { planId: PLAN_ID_1, body: "first" }, 0);
     const results = await Promise.all([
-      records.observations.publish("plan-1", { planId: "plan-1", body: "second" }, 1),
-      records.observations.publish("plan-1", { planId: "plan-1", body: "third" }, 1),
+      records.observations.publish(PLAN_ID_1, { planId: PLAN_ID_1, body: "second" }, 1),
+      records.observations.publish(PLAN_ID_1, { planId: PLAN_ID_1, body: "third" }, 1),
     ]);
     expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
     expect(results.filter((result) => result.status === "refused")).toHaveLength(1);
@@ -385,7 +430,7 @@ describe("repository delivery record stores", () => {
       },
     });
 
-    await expect(records.plans.publishCurrent("plan-1", plan("plan-1", "first"), null))
+    await expect(records.plans.publishCurrent(PLAN_ID_1, plan(PLAN_ID_1, "first"), null))
       .rejects.toBe(crash);
     await expect(records.assignments.publish(
       ASSIGNMENT_PLAN_ID,
@@ -393,22 +438,22 @@ describe("repository delivery record stores", () => {
       0,
     )).rejects.toBe(crash);
     await expect(records.observations.publish(
-      "plan-3",
-      { planId: "plan-3", body: "first" },
+      PLAN_ID_3,
+      { planId: PLAN_ID_3, body: "first" },
       0,
     )).rejects.toBe(crash);
 
-    await expect(records.plans.readCurrent("plan-1")).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.plans.readCurrent(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: null });
     await expect(records.assignments.read(ASSIGNMENT_PLAN_ID)).resolves.toEqual({ status: "ok", value: null });
-    await expect(records.observations.read("plan-3")).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.observations.read(PLAN_ID_3)).resolves.toEqual({ status: "ok", value: null });
   });
 
   it("enumerates validated current plans in canonical plan-id order", async () => {
     const records = await stores();
-    const second = plan("plan-b", "second");
-    const first = plan("plan-a", "first");
-    await records.plans.publishCurrent("plan-b", second, null);
-    await records.plans.publishCurrent("plan-a", first, null);
+    const second = plan(PLAN_ID_B, "second");
+    const first = plan(PLAN_ID_A, "first");
+    await records.plans.publishCurrent(PLAN_ID_B, second, null);
+    await records.plans.publishCurrent(PLAN_ID_A, first, null);
 
     await expect(records.plans.enumerateCurrent()).resolves.toEqual({
       status: "ok",
@@ -420,7 +465,7 @@ describe("repository delivery record stores", () => {
     const records = await stores();
     await records.publisher.update(
       { root: "delivery", namespace: "plans" },
-      "plan-1.json",
+      `${PLAN_ID_1}.json`,
       () => ({ kind: "write", content: "{", result: undefined }),
     );
     await records.publisher.update(
@@ -440,21 +485,21 @@ describe("repository delivery record stores", () => {
     );
     await records.publisher.update(
       { root: "delivery", namespace: "observations" },
-      "plan-3.json",
+      `${PLAN_ID_3}.json`,
       () => ({
         kind: "write",
         content: `${JSON.stringify({
           schemaVersion: 1,
           semanticsVersion: "delivery-observation-store/v1",
-          planId: "plan-3",
+          planId: PLAN_ID_3,
           revision: 1,
-          value: { planId: "plan-3", body: 3 },
+          value: { planId: PLAN_ID_3, body: 3 },
         })}\n`,
         result: undefined,
       }),
     );
 
-    await expect(records.plans.readCurrent("plan-1")).resolves.toEqual({
+    await expect(records.plans.readCurrent(PLAN_ID_1)).resolves.toEqual({
       status: "refused",
       reason: "record-malformed",
     });
@@ -462,7 +507,7 @@ describe("repository delivery record stores", () => {
       status: "refused",
       reason: "identity-mismatch",
     });
-    await expect(records.observations.read("plan-3")).resolves.toEqual({
+    await expect(records.observations.read(PLAN_ID_3)).resolves.toEqual({
       status: "refused",
       reason: "record-malformed",
     });
@@ -482,17 +527,17 @@ describe("repository delivery record stores", () => {
 
   it("appends assurance entries against the current predecessor digest", async () => {
     const records = await stores();
-    const first = { planId: "plan-1", body: "first" };
-    const second = { planId: "plan-1", body: "second" };
+    const first = { planId: PLAN_ID_1, body: "first" };
+    const second = { planId: PLAN_ID_1, body: "second" };
 
-    const firstResult = await records.assurance.append("plan-1", first, null);
+    const firstResult = await records.assurance.append(PLAN_ID_1, first, null);
     expect(firstResult).toMatchObject({
       status: "ok",
       value: { predecessorDigest: null, value: first },
     });
     const firstEntry = okValue(firstResult);
     const secondResult = await records.assurance.append(
-      "plan-1",
+      PLAN_ID_1,
       second,
       firstEntry.entryDigest,
     );
@@ -501,8 +546,8 @@ describe("repository delivery record stores", () => {
       value: { predecessorDigest: firstEntry.entryDigest, value: second },
     });
     await expect(records.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "stale" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "stale" },
       firstEntry.entryDigest,
     )).resolves.toEqual({ status: "refused", reason: "predecessor-conflict" });
   });
@@ -511,24 +556,24 @@ describe("repository delivery record stores", () => {
     const firstRecords = await stores();
     const secondRecords = await stores();
     const thirdRecords = await stores();
-    const target = { planId: "plan-1", body: "target" };
+    const target = { planId: PLAN_ID_1, body: "target" };
 
-    const withoutPredecessor = await firstRecords.assurance.append("plan-1", target, null);
+    const withoutPredecessor = await firstRecords.assurance.append(PLAN_ID_1, target, null);
     const differentPayload = await secondRecords.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "different" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "different" },
       null,
     );
     const prefix = await thirdRecords.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "prefix" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "prefix" },
       null,
     );
     const withoutPredecessorEntry = okValue(withoutPredecessor);
     const differentPayloadEntry = okValue(differentPayload);
     const prefixEntry = okValue(prefix);
     const withPredecessor = await thirdRecords.assurance.append(
-      "plan-1",
+      PLAN_ID_1,
       target,
       prefixEntry.entryDigest,
     );
@@ -540,12 +585,12 @@ describe("repository delivery record stores", () => {
 
   it("treats an identical assurance append replay as idempotent", async () => {
     const records = await stores();
-    const value = { planId: "plan-1", body: "first" };
-    const first = await records.assurance.append("plan-1", value, null);
-    const replay = await records.assurance.append("plan-1", value, null);
+    const value = { planId: PLAN_ID_1, body: "first" };
+    const first = await records.assurance.append(PLAN_ID_1, value, null);
+    const replay = await records.assurance.append(PLAN_ID_1, value, null);
 
     expect(replay).toEqual(first);
-    await expect(records.assurance.read("plan-1")).resolves.toMatchObject({
+    await expect(records.assurance.read(PLAN_ID_1)).resolves.toMatchObject({
       status: "ok",
       value: { entries: [expect.objectContaining({ value })] },
     });
@@ -555,18 +600,18 @@ describe("repository delivery record stores", () => {
     const records = await stores();
     const assurance = new RepositoryDeliveryAssuranceStore(records.publisher, keyOrderedCodec);
     const first = await assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: { first: "one", second: "two" } },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: { first: "one", second: "two" } },
       null,
     );
     const replay = await assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: { second: "two", first: "one" } },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: { second: "two", first: "one" } },
       null,
     );
 
     expect(replay).toEqual(first);
-    await expect(assurance.read("plan-1")).resolves.toMatchObject({
+    await expect(assurance.read(PLAN_ID_1)).resolves.toMatchObject({
       status: "ok",
       value: { entries: [expect.any(Object)] },
     });
@@ -576,35 +621,35 @@ describe("repository delivery record stores", () => {
     const source = await stores();
     const destination = await stores();
     const first = await source.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "first" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "first" },
       null,
     );
     const firstEntry = okValue(first);
     await source.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "second" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "second" },
       firstEntry.entryDigest,
     );
-    const exported = await source.assurance.exportChain("plan-1");
+    const exported = await source.assurance.exportChain(PLAN_ID_1);
     const exportedChain = okValue(exported);
     expect(exportedChain).not.toBeNull();
     if (exportedChain === null) throw new Error("expected exported assurance chain");
 
-    await expect(destination.assurance.importChain("plan-1", exportedChain)).resolves.toEqual(exported);
-    await expect(destination.assurance.exportChain("plan-1")).resolves.toEqual(exported);
+    await expect(destination.assurance.importChain(PLAN_ID_1, exportedChain)).resolves.toEqual(exported);
+    await expect(destination.assurance.exportChain(PLAN_ID_1)).resolves.toEqual(exported);
   });
 
   it("refuses an invalid assurance import without partially applying it", async () => {
     const source = await stores();
     const destination = await stores();
     const first = await source.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "first" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "first" },
       null,
     );
     okValue(first);
-    const exported = await source.assurance.exportChain("plan-1");
+    const exported = await source.assurance.exportChain(PLAN_ID_1);
     const exportedChain = okValue(exported);
     expect(exportedChain).not.toBeNull();
     if (exportedChain === null) throw new Error("expected exported assurance chain");
@@ -613,52 +658,52 @@ describe("repository delivery record stores", () => {
       entries: [{ ...exportedChain.entries[0]!, predecessorDigest: canonicalDigest("wrong") }],
     };
 
-    await expect(destination.assurance.importChain("plan-1", invalid)).resolves.toEqual({
+    await expect(destination.assurance.importChain(PLAN_ID_1, invalid)).resolves.toEqual({
       status: "refused",
       reason: "chain-invalid",
     });
-    await expect(destination.assurance.read("plan-1")).resolves.toEqual({ status: "ok", value: null });
+    await expect(destination.assurance.read(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: null });
   });
 
   it("refuses assurance import when the destination already has a chain", async () => {
     const source = await stores();
     const destination = await stores();
     const sourceEntry = await source.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "source" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "source" },
       null,
     );
     const destinationEntry = await destination.assurance.append(
-      "plan-1",
-      { planId: "plan-1", body: "destination" },
+      PLAN_ID_1,
+      { planId: PLAN_ID_1, body: "destination" },
       null,
     );
     okValue(sourceEntry);
     okValue(destinationEntry);
-    const exported = await source.assurance.exportChain("plan-1");
+    const exported = await source.assurance.exportChain(PLAN_ID_1);
     const exportedChain = okValue(exported);
     expect(exportedChain).not.toBeNull();
     if (exportedChain === null) throw new Error("expected exported assurance chain");
 
-    await expect(destination.assurance.importChain("plan-1", exportedChain)).resolves.toEqual({
+    await expect(destination.assurance.importChain(PLAN_ID_1, exportedChain)).resolves.toEqual({
       status: "refused",
       reason: "import-nonempty",
     });
-    await expect(destination.assurance.read("plan-1")).resolves.toMatchObject({
+    await expect(destination.assurance.read(PLAN_ID_1)).resolves.toMatchObject({
       status: "ok",
-      value: { entries: [{ value: { planId: "plan-1", body: "destination" } }] },
+      value: { entries: [{ value: { planId: PLAN_ID_1, body: "destination" } }] },
     });
   });
 
   it("distinguishes malformed, mismatched, and invalid persisted assurance chains", async () => {
     const records = await stores();
     const assuranceLocation = { root: "delivery", namespace: "assurance" } as const;
-    await records.publisher.update(assuranceLocation, "plan-1.json", () => ({
+    await records.publisher.update(assuranceLocation, `${PLAN_ID_1}.json`, () => ({
       kind: "write",
       content: "{",
       result: undefined,
     }));
-    await records.publisher.update(assuranceLocation, "plan-2.json", () => ({
+    await records.publisher.update(assuranceLocation, `${PLAN_ID_2}.json`, () => ({
       kind: "write",
       content: `${JSON.stringify({
         schemaVersion: 1,
@@ -670,11 +715,11 @@ describe("repository delivery record stores", () => {
       result: undefined,
     }));
     const validEntry = okValue(await records.assurance.append(
-      "plan-3",
-      { planId: "plan-3", body: "value" },
+      PLAN_ID_3,
+      { planId: PLAN_ID_3, body: "value" },
       null,
     ));
-    await records.publisher.update(assuranceLocation, "plan-3.json", (raw) => {
+    await records.publisher.update(assuranceLocation, `${PLAN_ID_3}.json`, (raw) => {
       if (raw === null) throw new Error("expected persisted assurance chain");
       const envelope = JSON.parse(raw) as Record<string, unknown>;
       return {
@@ -684,15 +729,15 @@ describe("repository delivery record stores", () => {
       };
     });
 
-    await expect(records.assurance.read("plan-1")).resolves.toEqual({
+    await expect(records.assurance.read(PLAN_ID_1)).resolves.toEqual({
       status: "refused",
       reason: "record-malformed",
     });
-    await expect(records.assurance.read("plan-2")).resolves.toEqual({
+    await expect(records.assurance.read(PLAN_ID_2)).resolves.toEqual({
       status: "refused",
       reason: "identity-mismatch",
     });
-    await expect(records.assurance.read("plan-3")).resolves.toEqual({
+    await expect(records.assurance.read(PLAN_ID_3)).resolves.toEqual({
       status: "refused",
       reason: "chain-invalid",
     });
