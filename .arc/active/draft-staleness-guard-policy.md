@@ -3,9 +3,9 @@
 - **Origin:** [internal] — routed from `USER-INBOX` at the work-routing-discipline housekeep drain (2026-06-01);
   the asymmetry was surfaced in that work unit's pre-PR review. Two later captures (2026-07-13, 2026-08-04) routed
   in and are folded into the body below.
-- **Purpose:** Replace the guard's per-command hard-fail taxonomy with a fail-safe default and on-demand rebuild,
-  so a stale `dist/cli.js` can never silently execute a state-mutating command — and so the guard stops requiring
-  a hand-maintained classification that must be extended every time a command is added.
+- **Purpose:** Replace the guard's per-command hard-fail taxonomy with unconditional refusal and a one-second
+  remedy, so a stale `dist/cli.js` can never silently execute a state-mutating command — and so the guard stops
+  requiring a hand-maintained classification that must be extended every time a command is added.
 
 - **Readiness state:** formalization-ready — direction and mechanisms settled; residual risks recorded, not open.
 
@@ -24,8 +24,8 @@ unverifiable session anchor. The response was to add the missing entries, and th
 twice — lifecycle mutations in July, then the tracked-state remedy days later. Each fix restores correctness for
 the commands someone remembered; none of them changes the property that makes the next gap inevitable.
 
-**The enumeration is also already incomplete against a fresh build.** The guard names roughly fifteen command
-paths; the CLI exposes roughly ninety. Durable-state mutators currently outside the set include `integrate`,
+**The enumeration is also already incomplete against a fresh build.** The guard names seventeen command paths; the
+CLI exposes roughly ninety leaf commands. Durable-state mutators currently outside the set include `integrate`,
 `archive`, `teardown`, `decompose`, `materialize`, `init`, `join`, `stub`, `set-stage`, `finalize`,
 `repoint-design`, `park`, `resume`, `promote`, `demote`, and `rename`, plus `user load` / `pull` and
 `locus attach` / `resolve`. So the drift is not merely a risk carried by stale bundles — the current bundle is
@@ -34,81 +34,73 @@ forever.
 
 Two properties of the surrounding system decide what to do about it:
 
-- **Detection is already exact.** The build writes a content hash of the bundle's real input graph to
+- **Detection no longer false-positives.** The build writes a content hash of the bundle's real input graph to
   `dist/dev-build-stamp.json`, and the check treats matching hashes as fresh. Timestamp churn from a checkout or
-  rebase no longer reads as stale, so a strict policy no longer fires spuriously.
-- **The remedy is cheap.** A runtime-only rebuild measures ~1.3s wall clock (349ms of bundling). The 27s figure
-  for a full build is entirely the `.d.ts` emit, which the running CLI never loads.
+  rebase no longer reads as stale, so a strict policy no longer fires spuriously. The hash covers first-party
+  `src/**/*.ts` inputs only — a bundled-dependency bump or a build-config edit is outside its scope. That
+  limitation is pre-existing and unchanged here, but it bounds what "detects exactly" claims: exact against
+  spurious staleness, not against every way the bundle can drift from its inputs.
+- **The remedy is cheap.** A runtime-only rebuild measures ~1.0s wall clock (~250ms of bundling). A full build is
+  ~9.8s, of which ~8.8s is the `.d.ts` emit that the running CLI never loads.
 
-Cheap, exact, and fully self-remediable is the profile under which every comparable tool stops classifying and
-starts either rebuilding or refusing wholesale.
+Cheap detection plus a one-second remedy means a strict policy costs almost nothing to comply with. That is what
+makes wholesale refusal affordable, and it is the fact the design turns on.
 
 ## Direction
 
-Delete the taxonomy. The guard becomes: **detect exactly, rebuild if stale, refuse if the rebuild fails.**
+Delete the taxonomy. The guard becomes: **detect, refuse if stale, and make the remedy one cheap command.**
 
 1. **Remove `isHandoffCritical` and its tests.** The warn-and-proceed tier goes with it — that tier is the
-   fail-open mode responsible for the original incident, and under rebuild-on-invoke there is nowhere for it to
-   live. Every invocation is either fresh or refused.
-2. **Move the entry point up one level.** A small, dependency-free, unbundled launcher becomes the package `bin`
-   target. It checks freshness, rebuilds when stale, and only then dynamically imports the bundle.
-3. **Rebuild by spawning the runtime-only build into a unique temporary output directory**, then publish by
-   renaming its outputs into place. Directory cleaning stays disabled on this path, so no window exists in which
-   the bundle is absent.
-4. **Refuse when the rebuild fails**, with one named exception: the compaction-seed write still proceeds, because
-   a seed produced by stale logic is revalidated when recovery reads it and is strictly better than no seed. This
-   is a single exception on one failure branch, not a classification.
-5. **Add a fast build script** for the runtime-only path, so the manual remedy is ~1.3s rather than ~27s.
+   fail-open mode responsible for the original incident. Every invocation is either fresh or refused.
+2. **Refuse on stale for every command**, with one named exception: the compaction-seed write still proceeds,
+   because a seed produced by stale logic is revalidated when recovery reads it and is strictly better than no
+   seed. The exception already exists as a single option test at the guard call site and stays exactly there.
+3. **The exception keeps emitting the stale-build message.** The shipped `pre-compact-seed` harness hook
+   string-matches that message to trigger its own repair-and-retry, so the text is a consumed contract rather than
+   incidental output. Preserving it keeps the hook's existing self-repair working unchanged.
+4. **Add a fast runtime-only build script**, exposed at the repository root as well as in the package, since all
+   development invocation runs from the root.
+5. **The refusal message names that fast script.** See below — this is a requirement, not wording.
 
-### Why the launcher, specifically
+### Why refuse rather than rebuild
 
-The re-exec that an in-bundle guard would need is not incidental complexity — it is forced. `dist/cli.js` is
-itself the entry point, so by the time any code inside it runs, the stale module graph is fully loaded; nothing
-in-process can repair that, only replace it. Moving the entry up one level dissolves the constraint: the launcher
-imports the bundle _after_ rebuilding, and the loader reads the fresh bytes. No spawn of the CLI, no argv
-reconstruction, no stdio inheritance, no exit-code propagation, no recursion guard.
+Rebuilding on invoke is the ergonomically nicer behavior, and it is what comparable tools do. It is rejected here
+because of one structural fact: **`arc` would be rebuilding `arc`.**
 
-It also puts the freshness decision outside the artifact being judged. This is the trusting-trust problem in
-miniature, and the standard escape is a minimal trusted core that does not derive from the thing it validates
-[[thompson]][thompson]. The launcher qualifies as long as two properties hold: it stays out of the bundle, and its
-verdict depends only on signals independent of the bundle's own claims — which the existing source-hash-versus-stamp
-comparison already satisfies.
+The freshness check lives inside the bundle whose freshness is in question. Code inside `dist/cli.js` cannot
+rebuild and then run the new code — by the time it executes, the stale module graph is already resolved, and
+nothing in-process can replace it. Transparent rebuild therefore requires moving the entry point out of the bundle
+into a separate launcher, and that move is where the cost sits: the launcher needs its own copy of the freshness
+logic (a second implementation of a hash contract, whose drift produces exactly the silent false-fresh this work
+exists to eliminate), a package `bin` change that leaves every not-yet-reinstalled checkout running with no guard
+at all, and a concurrent-publication mechanism for the rebuild's outputs.
 
-Secondary benefit: `npx arc` currently cannot run at all on a fresh clone before a build. The launcher would just
-build.
+That is also the distinction the prior-art survey obscures. The tools that transparently rebuild — `make`,
+`cargo run`, `go run` — are each an outer runner _distinct from_ the artifact they rebuild. Their trusted core
+already exists. Here it would have to be built, and the whole cost of the rebuild direction is the cost of
+building it.
 
-### Publication — the stamp is the commit record
+Two further properties favor refusal on its own terms:
 
-Without a lock, two invocations can rebuild concurrently, so publication has to be safe on its own. It is, because
-the freshness check never hashes the bundle: it compares a live hash of the source inputs against the hash recorded
-in `dev-build-stamp.json`. The stamp is what makes a build _visible_ as fresh, which makes it the commit record —
-the same write-the-data-then-flip-the-pointer shape as a git ref update after its objects land, a write-ahead log's
-commit record, or CPython's temp-then-rename `.pyc` write.
+- **Refusal is legible.** A refusal is a visible event with a stated reason. A silent rebuild is silent when it
+  works and equally silent when it misbehaves — and its failure modes end in running stale code, which is the
+  condition being guarded against.
+- **The friction is one second.** The case for absorbing the launcher's cost was that unbounded refusal would
+  invite the guard being worked around. At a one-second remedy that argument is weak; it was originally weighed
+  against a believed ~27s remedy.
 
-So the outputs do not need to land atomically as a set. One ordering rule carries the whole design:
+### Operator guidance is part of the design
 
-> Build into a unique temporary directory, rename each output into place, and **rename the stamp last.**
+The refusal is only cheap if the message says how to fix it in one second. Two things carry that and are therefore
+design requirements rather than implementation detail:
 
-Nothing is ever written at `dist/cli.js` — only renamed onto it — so a partial bundle cannot be observed there. A
-reader checking before the stamp lands sees the old hash, judges stale, and rebuilds: redundant but safe. A reader
-checking after sees the new hash, and the bundle it names is already complete. A reader mid-import keeps its open
-descriptor on the previous inode while a new open gets the complete new file. Unique temporary directories keep
-concurrent builders from colliding, and because the build is deterministic, last-rename-wins publishes identical
-bytes.
+- The fast build script must exist **at the repository root**, not only in the package — the root is where all
+  development invocation happens.
+- The refusal message must name **that** script. The message today names the full build, so shipping the refusal
+  without rewording it would silently make the remedy ~9.8s and revive the friction argument the design just
+  dismissed.
 
-**Accepted residual.** Two concurrent builders whose source changes between them can interleave renames so the
-bundle comes from the later build while the stamp comes from the earlier one. If the source is then reverted, the
-check reports fresh against a bundle built from different source. It requires concurrent rebuilds, a mid-build
-source edit, and a revert; it self-corrects at the next source change; and the outcome — running a complete bundle
-built from adjacent source — is milder than the warn-and-proceed behavior being removed. A single-writer lock
-eliminates it, and content-addressed bundle filenames eliminate it differently (see § Alternatives); neither is
-justified by a race that has not been observed. Revisit if it is.
-
-**Prerequisite.** `tsup.config.ts` currently hardcodes the output directory inside its `onSuccess` hook, so an
-overridden output directory would place the bundle in the temporary directory while the stamp and kernel schema
-artifact still landed in `dist/` — precisely the split this design depends on avoiding. The bundler's
-function form of `defineConfig` receives the CLI-derived overrides, including the output directory; the fix is to
-derive `onSuccess`'s paths from those rather than from a literal.
+The `pre-compact-seed` hook's repair command should move to the same fast script for the same reason.
 
 ## Alternatives
 
@@ -120,36 +112,23 @@ derive `onSuccess`'s paths from those rather than from a literal.
   and its boundary vaguer without changing the property that lets it drift.
 - **Invert to a safe-list** _(rejected)_. Enumerate the read-only surface and refuse everything else. This fixes
   the failure _direction_ — a forgotten entry becomes a loud refusal rather than silent execution — and the safe
-  set is intrinsically lower-churn than the dangerous one. Rejected anyway: it still requires auditing ~90
-  commands up front and maintaining the result forever, and rebuild-on-invoke deletes that work rather than
-  reusing it. Worth recording that if rebuild-on-invoke is ever backed out, the defensible axis for a safe-list is
-  **provably side-effect-free** (the `make -q` / `migrate --check` / `terraform validate` category), never
-  "this write is low-risk" — the latter is the shape no surveyed tool uses.
+  set is intrinsically lower-churn than the dangerous one. Rejected anyway: it requires auditing ~90 commands up
+  front and maintaining the result forever, where refusing wholesale requires no audit at all. Worth recording
+  that if a safe-list is ever revisited, its defensible axis is **provably side-effect-free** (the `make -q` /
+  `migrate --check` / `terraform validate` category), never "this write is low-risk" — the latter is the shape no
+  surveyed tool uses.
+- **Launcher plus rebuild-on-invoke** _(rejected — revisit trigger recorded)_. Move the entry point above the
+  bundle so a stale invocation rebuilds transparently instead of refusing. It is the nicer daily experience and it
+  would additionally make `npx arc` work on a fresh clone before any build. Rejected on cost and risk: it requires
+  settling where the launcher's freshness logic lives, how the rebuild's outputs publish atomically, how the `bin`
+  transition avoids a fail-open window across existing checkouts, and where the compaction-seed exception sits once
+  refusal moves out of the bundle — four open design questions, against a one-second remedy it would be saving.
+  **Revisit if** the guard is observed being worked around in practice, which is the premise the direction rested
+  on and which remains unobserved. Note that the cross-process publication half of that design overlaps
+  `e2e-build-coordination`, which already owns that boundary.
 - **In-process re-exec, no launcher** _(rejected)_. Keep the check in the bundle and spawn a replacement process
   after rebuilding. Its only advantage is leaving the package `bin` field untouched; it costs argv/stdio/exit-code/
   signal handling and a recursion guard, and it leaves the self-reference in place rather than escaping it.
-- **Refuse-only, no rebuild** _(not rejected — the fallback, and the proportionality baseline)_. Delete the
-  taxonomy, refuse whenever stale, keep the check in the existing hook. This satisfies the safety goal completely,
-  composes entirely with substrate that already exists, and is a net deletion. It is rejected as the _end state_
-  only because unbounded refusal during CLI work invites the guard being worked around, which is the failure mode
-  a safety guard can least afford. That argument is a prediction rather than an observation, and is the weakest
-  link in the case for the heavier design — see § Unknowns and Assumptions.
-
-On the narrower question of how a rebuild publishes its output:
-
-- **Lock plus in-place write** _(rejected)_. A single-writer lock does not by itself make an in-place write safe,
-  because a reader can still catch the bundle mid-write; the lock would have to cover the read side too, making it
-  a cross-process reader/writer lock. That is the shape proposed for the analogous cache-clean race in
-  `golang/go#31948` [[go31948]][go31948], and it is strictly more machinery than temp-and-rename, with stale-lock
-  recovery on top.
-- **Content-addressed bundle filenames** _(rejected, worth revisiting)_. Write `cli.<hash>.js` and have the stamp
-  name the current one; publication becomes a single rename of one small file, and the interleaving residual above
-  disappears entirely. Rejected because it breaks the fixed-path contract the test helpers rely on when they spawn
-  the bundle directly, and because retired bundles would need collecting. The option to revisit if the residual is
-  ever observed.
-- **Import from the temporary directory directly** _(rejected)_. Would remove the rebuilding process's own
-  exposure entirely, but the dev-check dependencies derive the package directory from the running bundle's
-  location, so importing from a temporary path breaks that derivation.
 
 ### Prior art
 
@@ -160,10 +139,12 @@ saved-plan checks, Alembic), no surveyed tool classifies per-operation safety ag
 runtime. The distinctions that do exist — `npm ci` versus `npm install`, `go build` versus `go mod tidy` — are
 coarse, fixed at design time, and attached to a command's declared purpose rather than to a risk judgment.
 
-The axis those tools actually use is whether the tool can fully remedy the staleness itself without external side
-effects: build systems and runners rebuild; migration, lockfile, and state-version guards refuse because their
-remedy touches state that is external and hard to reverse. Rebuilding a gitignored bundle from committed source
-sits unambiguously in the first category.
+The axis those tools use is whether the tool can fully remedy the staleness itself without external side effects:
+build systems and runners rebuild; migration, lockfile, and state-version guards refuse because their remedy
+touches state that is external and hard to reverse. Rebuilding a gitignored bundle from committed source sits in
+the first category — but every tool in that category is an outer runner distinct from the artifact it rebuilds
+(§ Why refuse rather than rebuild). The precedent supports transparent rebuild where a trusted outer core already
+exists; it does not price building one.
 
 Two contrasts are worth keeping. Rails hard-fails on pending migrations but only inside request-serving
 middleware, while Django warns and starts anyway — two frameworks reaching opposite wholesale defaults on an
@@ -171,45 +152,31 @@ identical problem, which is a caution against treating either default as obvious
 from timestamp-based to hash-based `.pyc` invalidation [[pep552]][pep552] was made for precisely the reason the
 content-hash stamp was added here.
 
+This survey is corroborative rather than load-bearing: it came from an external research pass that ran without a
+verification stage, and the rejections above each stand on the drift argument independently. Re-check any specific
+claim before a spec leans on it.
+
 ## Proportionality
 
-Running `assess-design-proportionality` over the candidate returned **`revise`** with two findings, both applied
-above:
+The design is now its own proportionality baseline: it is a net deletion plus one script and one message, and
+every heavier mechanism previously under consideration has been removed.
 
-- **`disproportionate-rigor` — the cross-process rebuild lock.** A lock guards a retryable, advisory path
-  (redundant CPU), while the destructive path is already fully closed by refusing. Its lifecycle cost is not
-  commensurate: stale-lock recovery, timeout tuning, liveness heuristics, and a cross-platform primitive choice
-  that is genuinely contested on WSL and network paths. Removed from the candidate. The concurrency question
-  reduces to atomic publication (§ Publication), and the worst case without a lock is a few wasted seconds of CPU.
-- **`speculative-capability` — the auto-rebuild escape-hatch environment variable.** The precedent for one is
-  real: tools that do work on invoke (Homebrew's auto-update, git's `gc --auto`) generate latency backlash and
-  need an opt-out. But no concrete requirement for it exists here yet — whether `arc` runs in CI or unattended
-  automation is unestablished. Deferred until a real call site needs it, rather than prepaid.
-
-The baseline the method measures against is refuse-only, recorded as an alternative above. Every mechanism beyond
-it buys ergonomics rather than safety, which is why the lock and the escape hatch could not justify their cost and
-why the remaining increment rests on the guard-erosion argument named below.
+An earlier candidate carried a cross-process rebuild lock and an auto-rebuild escape-hatch environment variable;
+`assess-design-proportionality` returned `revise` on both, as `disproportionate-rigor` and `speculative-capability`
+respectively. Both are moot under this direction — the rebuild path they attached to is gone. The adversarial pass
+that followed resolved the remaining increment the same way, in favor of the baseline.
 
 ## Unknowns and Assumptions
 
-- **Whether changing the `bin` target requires a reinstall in existing worktrees.** Direct tracing shows
-  `node_modules/.bin/arc` materialized as a symlink generated at install time, which implies a reinstall sweep
-  across worktrees. Research indicates `npm exec` may instead resolve the current manifest's `bin` at invocation
-  time for in-project use, which would make the transition free here and confine the concern to published-package
-  consumers. These disagree; verify directly once the launcher exists rather than assuming either.
-- **The guard-erosion premise is unvalidated.** The case for rebuilding rather than refusing rests on the claim
-  that unbounded refusal during CLI work would lead to the guard being bypassed. That is a prediction. If it
-  proves wrong, refuse-only is strictly simpler and the launcher is unnecessary.
-- **Assumed: adopters are unaffected.** The package ships no `src/`, so the check short-circuits before doing
-  anything on an installed copy. The launcher would still sit on every adopter invocation, so it must stay
-  trivial, dependency-free, and excluded from the bundle — otherwise it acquires the staleness problem it exists
-  to solve.
-- **Assumed: test helpers keep bypassing the launcher.** They spawn the bundle directly and must continue to, so
-  that a rebuild never perturbs the artifact under test.
-- **Two operational wrinkles, both minor.** A process killed mid-build leaves its temporary output directory
-  behind — gitignored litter, swept on a later run or simply ignored. And renaming can fail with a permissions
-  error on Windows when antivirus or the search indexer holds a transient handle on the target, a documented pain
-  in the npm ecosystem; it is only reachable for anyone running outside WSL.
+- **The guard-erosion premise is the revisit trigger, not an open question.** The case for transparent rebuild
+  rested on the claim that unbounded refusal during CLI work would lead to the guard being bypassed. That is a
+  prediction and remains unobserved. It does not block this direction; it is the condition under which the
+  launcher alternative is reconsidered.
+- **The entry point does not move**, so two things that would otherwise need protecting are unaffected by
+  construction: adopters (the package ships no `src/`, so the check short-circuits on an installed copy) and the
+  test helpers (they spawn `dist/cli.js` at its fixed path and continue to).
+- **Detection scope is bounded** as recorded in § Problem — the stamp hashes first-party `src/**/*.ts` only.
+  Widening it is a separate concern, out of scope here.
 
 ## Discharged
 
@@ -221,9 +188,13 @@ why the remaining increment rests on the guard-erosion argument named below.
 
 ## Scope
 
-Small — one file deleted, one small file added, localized changes to the build config, the package manifest, and
-the guard call site, plus tests. One work unit, one PR; the safety change and the rebuild path are two phases of
-one design, not two designs.
+Small. One file and its test deleted; the guard call site simplified to refuse-or-except; a fast build script added
+at the package and root levels; the refusal message reworded; the seed hook's repair command repointed at the fast
+script. `CONTRIBUTING.md` documents the enumerated critical set and the warn tier by name and needs rewriting to
+match. One work unit, one PR. `Class` is `Light`.
+
+Nothing in this work unit touches how build outputs publish. Cross-process build coordination — concurrent
+builders, atomic publication of `dist/` — belongs to `e2e-build-coordination`, which already owns that boundary.
 
 Evaluate in the dev-build and release-tooling domain, not as a work-routing fix. Distinct from
 `self-hosting-manifest-freshness` (install-state manifest hashes rather than dev-build freshness) and from
@@ -232,14 +203,17 @@ Evaluate in the dev-build and release-tooling domain, not as a work-routing fix.
 ## Next
 
 Formalize. `Class` is recorded as `Light` and still reads that way — the derivation is done, and the
-implementation surface is one file removed, one small file added, and localized edits to the build config,
-manifest, and guard call site.
+implementation surface is one file removed, one branch simplified, one script added, and text updates.
 
-Two items the spec must carry rather than leave to implementation: the rename ordering that makes the stamp the
-commit record, and the `onSuccess` output-directory prerequisite that ordering depends on.
+Three items the spec must carry rather than leave to implementation, because each is load-bearing and each looks
+like a detail:
+
+- The refusal message must name the fast build script, and that script must exist at the repository root.
+- The compaction-seed exception must keep emitting the stale-build message, because the `pre-compact-seed` hook
+  string-matches it to drive its own repair-and-retry.
+- `CONTRIBUTING.md`'s description of the guard must be rewritten, not merely trimmed — it documents the warn tier
+  and the enumerated command set as current behavior.
 
 ---
 
-[thompson]: https://www.cl.cam.ac.uk/teaching/2324/R209/Reflections-Trusting-Trust.pdf
 [pep552]: https://peps.python.org/pep-0552/
-[go31948]: https://github.com/golang/go/issues/31948
