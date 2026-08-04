@@ -283,8 +283,11 @@ function isAgentSnapshotShell(snapshot: AncestorProcessSnapshot, commandLine: st
   if (!/[\\/]shell-snapshots[\\/]snapshot-[^/]+\.sh$/u.test(snapshotPath)) return false;
   const evalIndex = commands.findIndex((words, index) => index > 0 && words[0] === "eval");
   if (evalIndex < 0) return false;
-  const setupCommands = commands.slice(1, evalIndex);
-  if (!setupCommands.every((words) => words[0] === "true" || words[0] === "shopt")) return false;
+  // Whatever the shell does between restoring its snapshot and evaluating the request is the
+  // harness's own prologue: alias cleanup, option resets, and whatever it adds next. Only the
+  // snapshot restore and the evaluated invocation identify the boundary, so the interleaving is
+  // deliberately unconstrained — matching it exactly would make session identity depend on a
+  // prologue that changes without notice, and an unrecognized boundary yields no anchor at all.
   const evalPayload = commands[evalIndex]?.[1];
   if (evalPayload === undefined) return false;
   const evaluatedCommands = parseShellCommandList(evalPayload);
