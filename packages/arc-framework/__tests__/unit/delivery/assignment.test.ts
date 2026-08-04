@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { DeliveryAssignmentsV1Schema } from "../../../src/lib/delivery/assignment.js";
+import {
+  DeliveryAssignmentsV1Schema,
+  isDeliveryAssignmentSuccessor,
+} from "../../../src/lib/delivery/assignment.js";
 import { deriveMemberAssuranceSubjectId } from "../../../src/lib/delivery/identity.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 
@@ -70,5 +73,30 @@ describe("delivery assignment record", () => {
       members: [{ ...value.members[0]!, assuranceSubjectId }],
       generationHighWater: [{ assuranceSubjectId, generation: 3 }],
     }).success).toBe(false);
+  });
+
+  it("requires every active member generation to advance when host authority changes", () => {
+    const current = DeliveryAssignmentsV1Schema.parse(assignment());
+    const rebound = DeliveryAssignmentsV1Schema.parse({
+      ...current,
+      host: {
+        adapterId: "gitlab",
+        providerBinding: { project: "andrewRCr/arc-framework" },
+      },
+    });
+    const advanced = DeliveryAssignmentsV1Schema.parse({
+      ...rebound,
+      members: rebound.members.map((member) => ({
+        ...member,
+        materializationGeneration: member.materializationGeneration + 1,
+      })),
+      generationHighWater: rebound.generationHighWater.map((mark) => ({
+        ...mark,
+        generation: mark.generation + 1,
+      })),
+    });
+
+    expect(isDeliveryAssignmentSuccessor(current, rebound)).toBe(false);
+    expect(isDeliveryAssignmentSuccessor(current, advanced)).toBe(true);
   });
 });

@@ -114,8 +114,12 @@ export const DeliveryAssignmentsV1Codec: DeliveryPayloadCodec<DeliveryAssignment
   planId: (value) => value.planId,
 };
 
-function materializationBinding(member: DeliveryMemberAssignmentV1): string {
+function materializationBinding(
+  member: DeliveryMemberAssignmentV1,
+  host: DeliveryAssignmentsV1["host"],
+): string {
   return canonicalize({
+    host,
     deliverableId: member.deliverableId,
     assuranceSubjectId: member.assuranceSubjectId,
     ref: member.ref,
@@ -147,7 +151,8 @@ export function isDeliveryAssignmentSuccessor(
     const previousMark = currentMarks.get(member.assuranceSubjectId);
     if (previousMark === undefined) continue;
     const previous = currentMembers.get(member.assuranceSubjectId);
-    if (previous === undefined || materializationBinding(previous) !== materializationBinding(member)) {
+    if (previous === undefined
+      || materializationBinding(previous, current.host) !== materializationBinding(member, proposed.host)) {
       if (member.materializationGeneration <= previousMark) return false;
     } else if (member.materializationGeneration !== previous.materializationGeneration) {
       return false;
