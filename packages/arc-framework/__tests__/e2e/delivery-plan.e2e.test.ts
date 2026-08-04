@@ -6,6 +6,12 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import {
+  ROLLING_FIELD_RUN,
+  SEVEN_MEMBER_FIELD_RUN,
+  adjacentFieldSeams,
+  type DeliveryFieldRun,
+} from "../fixtures/delivery-field-runs.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
 
@@ -145,6 +151,75 @@ describe("arc delivery", () => {
       value: { base, head },
     });
   });
+
+  it.each([SEVEN_MEMBER_FIELD_RUN, ROLLING_FIELD_RUN])(
+    "reconstructs the recorded $workUnitId plan shape from landed evidence through the built CLI",
+    async (run) => {
+      await installTaskFixture(repository);
+      await writeDesignInventory(repository);
+      await git(repository, ["checkout", "-b", "field-reconstruction"]);
+      const contributionIds: string[] = [];
+      for (const [index, member] of run.members.entries()) {
+        if (run.workUnitId === SEVEN_MEMBER_FIELD_RUN.workUnitId
+          && index === run.members.length - 1) {
+          await git(repository, ["checkout", "main"]);
+          await writeFile(join(repository, "ambient-base-advance.txt"), "base advance\n");
+          await git(repository, ["add", "--", "ambient-base-advance.txt"]);
+          await git(repository, ["commit", "-m", "advance reconstructed base"]);
+          await git(repository, ["checkout", "field-reconstruction"]);
+          await git(repository, ["merge", "--no-ff", "main", "-m", "absorb reconstructed base"]);
+        }
+        const evidencePath = `field-${String(index + 1).padStart(2, "0")}-${member.chunkKey}.txt`;
+        await writeFile(join(repository, evidencePath), [
+          `pull request: ${member.pullRequest}`,
+          `merge: ${member.mergeCommit}`,
+          `base: ${member.base}`,
+          `head: ${member.head}`,
+          "",
+        ].join("\n"));
+        await git(repository, ["add", "--", evidencePath]);
+        await git(repository, ["commit", "-m", `reconstruct ${member.chunkKey}`]);
+        contributionIds.push(await git(repository, ["rev-parse", "HEAD"]));
+      }
+
+      const author = await runArc([
+        "delivery", "plan", "from-branch",
+        "--design-inventory", "design-inventory.json",
+        "--base", "main",
+        "--head", "HEAD",
+        "--json",
+      ], repository);
+      expect(author.exitCode, author.stdout + author.stderr).toBe(0);
+      const common = await gitCommonDir(repository);
+      const authoring = join(common, "arc", "delivery", "authoring");
+      const mapName = (await readdir(authoring)).find((name) => name.endsWith(".md"));
+      expect(mapName).toBeDefined();
+      if (mapName === undefined) return;
+      const mapPath = join(authoring, mapName);
+      const map = await readFile(mapPath, "utf8");
+      if (run.workUnitId === SEVEN_MEMBER_FIELD_RUN.workUnitId) {
+        expect(map).toContain('"classification": "ambient-base-absorb"');
+      }
+      await fillSlots(mapPath, fieldSlots(run, contributionIds));
+      const compose = await runArc(["delivery", "compose", "--json"], repository);
+      expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
+
+      const planName = (await readdir(join(common, "arc", "delivery", "plans")))[0];
+      expect(planName).toBeDefined();
+      if (planName === undefined) return;
+      const plan = JSON.parse(await readFile(join(common, "arc", "delivery", "plans", planName), "utf8")) as {
+        members: { chunkKey: string; deliverableId: string; taskIds: string[] }[];
+        seams: { seamKey: string; ownerDeliverableId: string }[];
+      };
+      expect(plan.members.map((member) => member.chunkKey))
+        .toEqual(run.members.map((member) => member.chunkKey));
+      expect(plan.members.every((member) => member.taskIds.length === 0)).toBe(true);
+      for (const [index, seam] of adjacentFieldSeams(run).entries()) {
+        expect(plan.seams.find((candidate) => candidate.seamKey === seam.seamKey)?.ownerDeliverableId)
+          .toBe(plan.members[index + 1]?.deliverableId);
+      }
+    },
+  );
 
   it("authors, fills, composes, publishes, and renders a task-derived plan", async () => {
     await installTaskFixture(repository);
@@ -375,4 +450,30 @@ async function fillSlots(path: string, slots: unknown): Promise<void> {
   await writeFile(path, `${current.slice(0, from + start.length)}${JSON.stringify(slots, null, 2)}${
     current.slice(to)
   }`);
+}
+
+function fieldSlots(run: DeliveryFieldRun, contributionIds: readonly string[]) {
+  return {
+    projection: { kind: "stack-to-main" },
+    boundary: {
+      kind: "explicit",
+      segments: run.members.map((member, index) => {
+        const contributionId = contributionIds[index];
+        if (contributionId === undefined) throw new Error("expected contribution evidence");
+        return {
+          chunkKey: member.chunkKey,
+          sourceIds: [contributionId],
+        };
+      }),
+    },
+    members: run.members.map((member, index) => ({
+      status: "live",
+      chunkKey: member.chunkKey,
+      title: member.title,
+      contract: member.contract,
+      designElementIds: index === 0 ? ["detailed:deliverable-contract"] : [],
+      mainlineLandability: "independently-landable",
+    })),
+    seams: adjacentFieldSeams(run),
+  };
 }
