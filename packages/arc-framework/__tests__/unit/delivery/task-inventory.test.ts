@@ -167,4 +167,15 @@ describe("buildDeliveryTaskInventory", () => {
       reason: "verification-task-ambiguous",
     });
   });
+
+  it("refuses a verification parent that reuses an implementation task id", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind implementation intent.",
+    ]).replace("2.1 Verification", "1.1 Verification"));
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "task-list-malformed",
+    });
+  });
 });

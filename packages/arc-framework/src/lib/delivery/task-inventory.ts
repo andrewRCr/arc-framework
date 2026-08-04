@@ -76,12 +76,15 @@ export function buildDeliveryTaskInventory(content: string): DeliveryTaskInvento
     return { status: "refused", reason: "verification-phase-missing" };
   }
 
-  const verificationParents: TaskStructureItem[] = [];
-  for (const event of scan.events) {
-    if (event.type === "parent" && event.line > finalPhase.line) {
-      verificationParents.push(event.item);
-    }
+  const parents = scan.events.filter(
+    (event): event is Extract<typeof event, { type: "parent" }> => event.type === "parent",
+  );
+  if (new Set(parents.map((parent) => parent.item.id)).size !== parents.length) {
+    return { status: "refused", reason: "task-list-malformed" };
   }
+  const verificationParents: TaskStructureItem[] = parents
+    .filter((parent) => parent.line > finalPhase.line)
+    .map((parent) => parent.item);
   if (verificationParents.length !== 1) {
     return { status: "refused", reason: "verification-task-ambiguous" };
   }
@@ -91,11 +94,7 @@ export function buildDeliveryTaskInventory(content: string): DeliveryTaskInvento
   }
 
   const goalInventory = extractTaskGoalInventory(content);
-  const implementationParents = scan.events.filter(
-    (event): event is Extract<typeof event, { type: "parent" }> => (
-      event.type === "parent" && event.line < finalPhase.line
-    ),
-  );
+  const implementationParents = parents.filter((parent) => parent.line < finalPhase.line);
   if (implementationParents.some((parent) => {
     const goals = goalInventory.filter((entry) => entry.taskId === parent.item.id);
     return goals.length !== 1 || goals[0]?.goal === "";
