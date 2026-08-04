@@ -216,7 +216,7 @@ from.
           together. The assertion also pins that the `lock` group itself is not handoff-critical, which is
           what would silently be true if the key had landed on `merge`.
 
-### `[ ]` **2.5 Retire and retarget the clearance test surface**
+### `[x]` **2.5 Retire and retarget the clearance test surface**
 
 - _Goal:_ Every assertion that names the retired command, mode, or status is gone or repointed, so the suite
   certifies the new contract rather than the old one.
@@ -233,15 +233,13 @@ from.
           `hosts/github/merge-lock.test.ts` carry every typed action and every blocked reason, landed with
           2.1 and 2.2 rather than as a sweep afterwards.
 
-    - `[ ]` **2.5.b Rewrite the review-gate workflow flow coverage**
-        - The heaviest single excision — the file carries roughly thirty clearance references, including a case
-          asserting that clearance is not inherited across heads and that a stale unlock cannot clear its
-          replacement. That case has a direct successor under the new contract: a release does not carry across
-          a head change. Port the intent rather than deleting it.
-        - _Partially landed:_ the stale-unlock case and its fixture helper are gone, their intent ported to
-          the stale-head block on both transition verbs. The rest of the file's clearance references pin
-          `arc-clearance.yml`, whose subject is still live until Phase 4 retires it — excising them now would
-          drop coverage of a workflow that still runs. Carried to Phase 4.
+    - `[~]` **2.5.b Rewrite the review-gate workflow flow coverage** — deferred to Task 4.1.c
+        - The half whose subject this phase retired is done: the stale-unlock case and its fixture helper are
+          gone, their intent ported to the stale-head block both transition verbs now carry.
+        - The rest pins `arc-clearance.yml`, which still runs on every pull request until Phase 4 retires it —
+          excising those assertions here would drop coverage of a live workflow. Task 4.1.c already owns them
+          by name and decides per assertion whether each moves with the extracted gate or dies with the
+          dispatch producer, so the remainder belongs there rather than in a new task.
 
     - `[x]` **2.5.c Repoint the CLI-surface and schema-registration assertions**
         - The malformed-contract cases cover the three lock verbs, the review help text now asserts the
