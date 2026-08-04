@@ -530,7 +530,7 @@ _Design decisions:_ The entries are named by source rather than timing, so neith
 are sibling subcommands rather than one verb with a mode flag. Retrofit is first-class because it is the entry
 every delivery cut with field evidence actually used. Full rationale in `spec-delivery-plan-record.md` § 3.
 
-### `[ ]` **4.1 Author boundaries from a task plan (`from-tasks`)**
+### `[x]` **4.1 Author boundaries from a task plan (`from-tasks`)**
 
 - _Goal:_ An author drawing boundaries before implementation states them once, and phase alignment is available
   as a mode they select rather than a partition filled in on their behalf.
@@ -547,18 +547,17 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
           scanner-derived groups, while explicit segments retain their authored source sequence. Starter maps select
           neither arm, and cross-phase members require no additional field.
 
-    - `[ ]` **4.1.c Register `plan from-tasks` and close the loop end to end**
+    - `[x]` **4.1.c Register `plan from-tasks` and close the loop end to end**
 
         - _Goal:_ A plan authored from a real task list reaches a published record and a rendered section through
           the shipped commands, not through test harness calls.
 
-        - Build `test-first` (one behavior at a time):
-            - The subcommand registers and appears in the command-input inventory
-            - Missing or invalid `--design-inventory` input refuses before authoring state is written
-            - Emitting a map, filling its slots, and composing publishes a validating record
-            - The task list's delivery-plan section renders from the published record
-            - An uncovered implementation task refuses at composition, and the verification task refuses as a
-              member
+        - Registered the schema-owned subcommand and wired a built-CLI round trip from strict file input through
+          paired state, composition, canonical publication, task-list rendering, and cleanup. Invalid input,
+          uncovered contribution, and verification membership refuse before an invalid plan can publish.
+
+- _Outcome:_ Pre-implementation authoring now states boundaries once in a transient map, while the command path
+  derives every task/design fact and delegates the shared publish/render transaction to the authoring spine.
 
 ### `[ ]` **4.2 Partition a branch's first-parent contribution (`from-branch`)**
 
