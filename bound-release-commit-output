@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "bound-release-commit-output",
+  "claimId": "4fcf1180a8855d3eadb4d157d69d5111",
+  "createdAt": "2026-08-04T12:45:55.136Z",
+  "updatedAt": "2026-08-04T12:45:55.136Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Bound arc release commit output capture to the direct Git process lifetime and verify commit finalization before return.",
+  "branch": "chore/bound-release-commit-output",
+  "origin": "inbox",
+  "originEntry": "Bound `arc release commit` output capture to Git's process lifetime",
+  "originEntrySourceDigest": "sha256:a058d7c738f209b4e3d28249b2eaa0332db9ee3c8719d207e95ee231ac297e2c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
