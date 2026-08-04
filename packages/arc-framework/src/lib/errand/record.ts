@@ -30,10 +30,13 @@ import {
 } from "./identity-record.js";
 import {
   readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
   type IdentitySnapshotDiagnostic,
 } from "./identity-snapshot.js";
 
 import type { GitExec } from "../git/exec.js";
+import { uniqueRefToken } from "../git/ref-tree.js";
+import { gitFailureText, isGitProcessError } from "../git/process-error.js";
 import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
 /**
@@ -336,7 +339,7 @@ export type TransientInFlightRead =
       indexes: TransientInFlightIndexes;
       diagnostics: readonly IdentitySnapshotDiagnostic[];
     }
-  | { kind: "error"; stage: "tip" | "tree"; message: string };
+  | { kind: "error"; stage: "cleanup" | "fetch" | "tip" | "tree"; message: string };
 
 /**
  * Project a read into usable indexes plus whether they establish the whole claim set.
@@ -395,6 +398,52 @@ export async function readTransientInFlightIndexes(
   // unreadable one, so it stays distinct from a failed read of a real identity.
   if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
   const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity: io.identity });
+  return projectTransientSnapshot(snapshot);
+}
+
+/**
+ * Read discovery indexes from an isolated fetched identity snapshot.
+ *
+ * The configured local identity ref is never updated. An absent remote ref falls
+ * back to the local read so unborn identities retain their established behavior.
+ *
+ * @param io - Injected Git boundary, identity, and configured remote.
+ * @returns Remote-backed indexes, local absence, or a typed operational failure.
+ */
+export async function readFetchedTransientInFlightIndexes(
+  io: { exec: GitExec; identity: string | null; remote: string },
+): Promise<TransientInFlightRead> {
+  if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+  const sourceRef = errandsRef(io.identity);
+  const snapshotRef = `refs/arc/tmp/transient-discovery/${uniqueRefToken()}`;
+  const fetchArgs = ["fetch", io.remote, `+${sourceRef}:${snapshotRef}`];
+  try {
+    await io.exec("git", fetchArgs);
+  } catch (error) {
+    const absent = isGitProcessError(error) && error.expectedOutcome === "absent-remote-ref";
+    if (absent || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(gitFailureText(error))) {
+      return readTransientInFlightIndexes(io);
+    }
+    return { kind: "error", stage: "fetch", message: errorMessage(error) };
+  }
+
+  const snapshot = await readTransientIdentitySnapshotAtRef(
+    { exec: io.exec, identity: io.identity },
+    snapshotRef,
+  );
+  const outcome = projectTransientSnapshot(snapshot);
+  try {
+    await io.exec("git", ["update-ref", "-d", snapshotRef]);
+  } catch (error) {
+    if (outcome.kind === "error") return outcome;
+    return { kind: "error", stage: "cleanup", message: errorMessage(error) };
+  }
+  return outcome;
+}
+
+function projectTransientSnapshot(
+  snapshot: Awaited<ReturnType<typeof readTransientIdentitySnapshotAtRef>>,
+): TransientInFlightRead {
   if (snapshot.kind === "error") {
     return { kind: "error", stage: snapshot.stage, message: snapshot.message };
   }
@@ -418,6 +467,10 @@ export async function readTransientInFlightIndexes(
   }
   indexes.records = [...snapshot.records.values()];
   return { kind: "complete", indexes, diagnostics: snapshot.diagnostics };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**

@@ -115,6 +115,7 @@ import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-
 import {
   listErrandRecordsResult,
   projectTransientInFlightRead,
+  readFetchedTransientInFlightIndexes,
   readTransientInFlightIndexes,
   type ErrandRecord,
   type ListErrandRecordsResult,
@@ -587,9 +588,18 @@ export async function handleStatus(
     // empty when no identity resolved (no record ref exists).
     let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
     let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+    let discoveryTransientIndexesPromise: ReturnType<typeof readFetchedTransientInFlightIndexes> | undefined;
     const getTransientIndexes = () => {
       transientIndexesPromise ??= readTransientInFlightIndexes({ exec, identity });
       return transientIndexesPromise;
+    };
+    const getDiscoveryTransientIndexes = () => {
+      discoveryTransientIndexesPromise ??= readFetchedTransientInFlightIndexes({
+        exec,
+        identity,
+        remote: "origin",
+      });
+      return discoveryTransientIndexesPromise;
     };
     const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
@@ -612,7 +622,7 @@ export async function handleStatus(
         const teamMode = resolved.settings["team.mode"] === "true";
         const [recordResult, transientRead, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
-          getTransientIndexes(),
+          getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalLocusState(),
         ]);
@@ -877,7 +887,7 @@ export async function handleStatus(
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
         const [transientRead, locusState] = await Promise.all([
-          getTransientIndexes(),
+          input.includeDiscovery ? getDiscoveryTransientIndexes() : getTransientIndexes(),
           getOptionalLocusState(),
         ]);
         const transientState = projectTransientInFlightRead(transientRead);

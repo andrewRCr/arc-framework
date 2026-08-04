@@ -256,6 +256,23 @@ describe("arc locus mutation commands", () => {
     await git(repository, ["branch", "-D", errandBranch]);
     await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
 
+    const discovered = await runAnchored(["status", "--session-init", "--json"], repository);
+    expect(discovered.exitCode, discovered.stdout + discovered.stderr).toBe(0);
+    expect(JSON.parse(discovered.stdout.trim())).toMatchObject({
+      errandState: {
+        ok: true,
+        value: {
+          materializable: {
+            candidates: [{ slug: errand, claimId, branch: errandBranch, expectedHead }],
+          },
+        },
+      },
+    });
+    await expect(git(repository, ["rev-parse", "--verify", "refs/arc/user/test-user/errands"]))
+      .rejects.toThrow();
+    expect(await git(repository, ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/transient-discovery/"]))
+      .toBe("");
+
     const materialized = await runAnchored(["errand", "materialize", errand, "--json"], repository);
     expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
     const result = JSON.parse(materialized.stdout.trim()) as {
