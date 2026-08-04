@@ -3,9 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   MergeLockResolveRequestSchema,
   MergeLockTransitionRequestSchema,
+  holdMergeLock,
+  releaseMergeLock,
   resolveMergeLock,
+  type MergeLockPort,
   type MergeLockSetting,
+  type MergeLockTransition,
 } from "../../../../src/scripts/review-gate/merge-lock.js";
+import type { ReviewReadinessRequest } from "../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
 
@@ -155,5 +160,322 @@ describe("resolveMergeLock", () => {
     );
 
     expect(result).toMatchObject({ state: "blocked", payload: { reason: "config-unresolved" } });
+  });
+});
+
+function transitionRequest() {
+  return {
+    schemaVersion: 1 as const,
+    treeRoot: "/candidate",
+    target: TARGET,
+    vehicle: VEHICLE,
+  };
+}
+
+function readyEnvelope() {
+  return {
+    schemaVersion: 1 as const,
+    mode: "review-readiness" as const,
+    diagnostics: [],
+    state: "ready" as const,
+    nextAction: "none" as const,
+    payload: { target: TARGET, vehicle: VEHICLE },
+  };
+}
+
+function invalidEnvelope() {
+  const fact = {
+    code: "missing-artifact",
+    path: ".arc/active/meta-demo.md",
+    message: "missing",
+  };
+  return {
+    schemaVersion: 1 as const,
+    mode: "review-readiness" as const,
+    diagnostics: [fact],
+    state: "invalid" as const,
+    nextAction: "stop" as const,
+    payload: { target: TARGET, vehicle: VEHICLE, facts: [fact] },
+  };
+}
+
+interface FakeLockPort extends MergeLockPort {
+  transitions: MergeLockTransition[];
+  readinessRequests: ReviewReadinessRequest[];
+  repositoryReads: number;
+}
+
+function lockPort(overrides: Partial<MergeLockPort> = {}, locked = true): FakeLockPort {
+  const transitions: MergeLockTransition[] = [];
+  const readinessRequests: ReviewReadinessRequest[] = [];
+  const port: FakeLockPort = {
+    transitions,
+    readinessRequests,
+    repositoryReads: 0,
+    readMergeLock: async () => ({ state: "value", value: "draft" }),
+    resolveRepository: async () => {
+      port.repositoryReads += 1;
+      return { repository: "owner/repo", defaultBranch: "main" };
+    },
+    resolvePullRequest: async () => ({
+      repository: "owner/repo",
+      number: 42,
+      state: "open" as const,
+      headBranch: "feat/demo",
+      headSha: SHA,
+      locked,
+    }),
+    checkReadiness: async (request) => {
+      readinessRequests.push(request);
+      return readyEnvelope();
+    },
+    applyTransition: async (transition) => {
+      transitions.push(transition);
+    },
+    ...overrides,
+  };
+  return port;
+}
+
+describe("releaseMergeLock", () => {
+  it("releases a locked pull request at the exact head", async () => {
+    const port = lockPort();
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      mode: "merge-lock-release",
+      state: "released",
+      nextAction: "proceed",
+      payload: TARGET,
+    });
+    expect(port.transitions).toEqual([{
+      repository: "owner/repo",
+      pullRequest: 42,
+      transition: "release",
+    }]);
+  });
+
+  it("narrows the port payload before composing the readiness request", async () => {
+    const port = lockPort();
+
+    await releaseMergeLock(transitionRequest(), port);
+
+    expect(port.readinessRequests).toEqual([{
+      schemaVersion: 1,
+      treeRoot: "/candidate",
+      target: TARGET,
+      pullRequest: {
+        repository: "owner/repo",
+        number: 42,
+        state: "open",
+        headBranch: "feat/demo",
+        headSha: SHA,
+      },
+      vehicle: VEHICLE,
+    }]);
+  });
+
+  it("reports no lock on a pull request that is already unlocked", async () => {
+    const port = lockPort({}, false);
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "no-lock",
+      nextAction: "none",
+      payload: { ...TARGET, reason: "already-in-state" },
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it("blocks a lifecycle-unready candidate and carries its diagnostics", async () => {
+    const port = lockPort({ checkReadiness: async () => invalidEnvelope() });
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      payload: { ...TARGET, reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([{
+        code: "missing-artifact",
+        message: ".arc/active/meta-demo.md: missing",
+      }]),
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it("blocks a readiness result bound to a different exact target", async () => {
+    const port = lockPort({
+      checkReadiness: async () => ({
+        ...readyEnvelope(),
+        payload: { ...readyEnvelope().payload, target: { ...TARGET, headSha: "b".repeat(40) } },
+      }),
+    });
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "readiness-target-mismatch" }),
+      ]),
+    });
+    expect(port.transitions).toEqual([]);
+  });
+});
+
+describe("holdMergeLock", () => {
+  it("holds an unlocked pull request", async () => {
+    const port = lockPort({}, false);
+
+    const result = await holdMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      mode: "merge-lock-hold",
+      state: "held",
+      nextAction: "proceed",
+      payload: TARGET,
+    });
+    expect(port.transitions).toEqual([{
+      repository: "owner/repo",
+      pullRequest: 42,
+      transition: "hold",
+    }]);
+  });
+
+  it("reports no lock on a pull request that is already locked", async () => {
+    const port = lockPort();
+
+    const result = await holdMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "no-lock",
+      payload: { ...TARGET, reason: "already-in-state" },
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it("runs no readiness gate — an unready candidate still locks", async () => {
+    const port = lockPort({ checkReadiness: async () => invalidEnvelope() }, false);
+
+    const result = await holdMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({ state: "held", nextAction: "proceed" });
+    expect(port.readinessRequests).toEqual([]);
+    expect(port.transitions).toHaveLength(1);
+  });
+});
+
+describe("merge-lock transitions", () => {
+  it.each([
+    ["release", releaseMergeLock, true],
+    ["hold", holdMergeLock, false],
+  ] as const)("%s reports no lock without reaching the host when the lock is off", async (
+    _verb,
+    verb,
+    locked,
+  ) => {
+    const port = lockPort({ readMergeLock: async () => ({ state: "value", value: "none" }) }, locked);
+
+    const result = await verb(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "no-lock",
+      nextAction: "none",
+      payload: { ...TARGET, reason: "lock-disabled" },
+    });
+    expect(port.repositoryReads).toBe(0);
+    expect(port.transitions).toEqual([]);
+  });
+
+  it.each([
+    ["release", releaseMergeLock, true],
+    ["hold", holdMergeLock, false],
+  ] as const)("%s blocks a stale head without mutating the pull request", async (_verb, verb, locked) => {
+    const port = lockPort({
+      resolvePullRequest: async () => ({
+        repository: "owner/repo",
+        number: 42,
+        state: "open" as const,
+        headBranch: "feat/demo",
+        headSha: "b".repeat(40),
+        locked,
+      }),
+    }, locked);
+
+    const result = await verb(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      payload: { ...TARGET, reason: "stale-head" },
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it.each([
+    [
+      "unresolvable repository",
+      { resolveRepository: async () => { throw new Error("gh failed"); } },
+      "repository-unavailable",
+    ],
+    [
+      "repository mismatch",
+      { resolveRepository: async () => ({ repository: "owner/other", defaultBranch: "main" }) },
+      "repository-mismatch",
+    ],
+    [
+      "unresolvable pull request",
+      { resolvePullRequest: async () => { throw new Error("gh failed"); } },
+      "pull-request-unavailable",
+    ],
+    [
+      "pull-request number mismatch",
+      { resolvePullRequest: async () => ({
+        repository: "owner/repo",
+        number: 43,
+        state: "open" as const,
+        headBranch: "feat/demo",
+        headSha: SHA,
+        locked: true,
+      }) },
+      "pull-request-mismatch",
+    ],
+    [
+      "closed pull request",
+      { resolvePullRequest: async () => ({
+        repository: "owner/repo",
+        number: 42,
+        state: "closed" as const,
+        headBranch: "feat/demo",
+        headSha: SHA,
+        locked: true,
+      }) },
+      "pull-request-closed",
+    ],
+    [
+      "unreadable config",
+      { readMergeLock: async () => ({ state: "unreadable" as const }) },
+      "config-unresolved",
+    ],
+    [
+      "failed transition",
+      { applyTransition: async () => { throw new Error("gh failed"); } },
+      "transition-failed",
+    ],
+    [
+      "malformed readiness result",
+      { checkReadiness: async () => ({ state: "surprising" }) as never },
+      "readiness-failed",
+    ],
+  ] as const)("release blocks on %s", async (_case, overrides, reason) => {
+    const port = lockPort(overrides);
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({ state: "blocked", nextAction: "stop", payload: { reason } });
   });
 });

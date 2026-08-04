@@ -2,9 +2,9 @@
 
 import { z } from "zod";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
-import { ReviewTargetSchema } from "../readiness.js";
-import { ReviewCommandDiagnosticSchema } from "./review-command-envelope.js";
+import type { KernelRegistry } from "../../lib/kernel/index.js";
+import { ReviewCommandDiagnosticSchema } from "./core/review-command-envelope.js";
+import { ReviewTargetSchema } from "./readiness.js";
 
 export const MergeLockCommandModeSchema = z.enum([
   "merge-lock-resolve",

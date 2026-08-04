@@ -8,7 +8,7 @@ import {
   MergeLockReleaseEnvelopeSchema,
   MergeLockResolveEnvelopeSchema,
   registerMergeLockCommandEnvelopeSchemas,
-} from "../../../../src/scripts/review-gate/core/merge-lock-command-envelope.js";
+} from "../../../../src/scripts/review-gate/merge-lock-command-envelope.js";
 
 const SHA = "a".repeat(40);
 

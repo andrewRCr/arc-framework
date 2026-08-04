@@ -11,7 +11,7 @@ import { registerReviewOperationStateSchemas } from "./operation-state-schema.js
 import { registerLocalReviewSourceSchemas } from "./local-review-source.js";
 import { registerAdvisoryRecordSchemas } from "./advisory-records.js";
 import { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope.js";
-import { registerMergeLockCommandEnvelopeSchemas } from "./merge-lock-command-envelope.js";
+import { registerMergeLockCommandEnvelopeSchemas } from "../merge-lock-command-envelope.js";
 import { registerReviewChunkingCommandSchemas } from "./review-chunking-command-schema.js";
 import { registerFrontlineOutcomeSchema } from "../policy/frontline-outcome.js";
 import { registerLocalReviewPolicySchemas } from "../policy/local-review-policy.js";

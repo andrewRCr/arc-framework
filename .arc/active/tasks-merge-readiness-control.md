@@ -83,33 +83,10 @@ inspection, repository dispatch) is what dies. The command surface moves out of 
 the envelope registrations move with it while the modules stay under the review-gate tree they draw contracts
 from.
 
-### `[ ]` **2.1 Retarget the lock resolution module**
+### `[x]` **2.1 Retarget the lock resolution module**
 
 - _Goal:_ One module answers every lock question — how a pull request should open, and whether a hold or
   release applies to a live one — and performs the two transitions behind the exact-head preflight.
-
-- _Approach:_ The repository, pull-request, and stale-head guards and the readiness gate carry over unchanged
-  from the unlock orchestrator; `inspectWorkflow`, `dispatch`, and the clearance constants come out. What
-  replaces them is a config read and a live lock-state read.
-
-- _Context:_ Two config-reading precedents already exist under the review-gate tree and they disagree: the
-  chunking command takes an injected `readSettings()` collaborator, while local-prepare composition imports and
-  calls the shared reader directly. Follow the injected form — it matches how this orchestrator already takes
-  its collaborators, and it lets tests supply a fake rather than writing a config file to disk. Resolve against
-  the request's tree root, not a process cwd.
-
-- _Approach:_ The lock's read must **fail closed**, which neither precedent does. The shared reader is
-  deliberately fail-soft: an unreadable config becomes a warning and every key falls back to its default, and
-  enum validation covers only a short hand-maintained key list that will not include this one. Consumed that
-  way, an unreadable config would resolve `merge.lock` to `none` and silently disable the control. So this
-  boundary reads the key strictly — absent is the documented default, unreadable or out-of-domain is
-  `blocked / stop` — and that is a deliberate third pattern, not an oversight.
-
-- _Shape:_ The collaborator returns a **tri-state** — absent, a value, or unreadable — rather than the shared
-  reader's result. That result cannot express the distinction this depends on: an unreadable file and a missing
-  key both surface as a defaulted key, separable only by string-matching warning prose, so the control would
-  degrade silently if that text ever changed. Out-of-domain values need no help from the reader, which passes
-  unrecognized keys through untouched; the lock module rejects them itself.
 
     - `[x]` **2.1.a Request schemas for the three verbs**
         - `merge-lock.ts` opens with the request contracts: `MergeLockResolveRequestSchema` carries the tree root
@@ -129,19 +106,24 @@ from.
         - The collaborator's concrete reader is deferred to 2.4, where the handler composes its default
           dependencies; the contract and its fail-closed resolution live here.
 
-    - `[ ]` **2.1.c `hold` and `release` transitions**
+    - `[x]` **2.1.c `hold` and `release` transitions**
         - _Goal:_ A caller can invoke either unconditionally at its fire site and act only on what comes back.
 
-        - Build `test-first` (one behavior at a time):
-            - `release` on a locked pull request at the exact head returns `released / proceed`
-            - `release` on a pull request that is already unlocked returns `no-lock / none`
-            - `release` on a lifecycle-unready candidate returns `blocked / stop` carrying the readiness
-              diagnostics
-            - `hold` on an unlocked pull request returns `held / proceed`, and on an already-locked one
-              `no-lock / none`
-            - `hold` runs no readiness gate — an unready candidate still locks
-            - Either verb against a stale head returns `blocked / stop` without mutating the pull request
-            - Either verb under `merge.lock: none` returns `no-lock / none` without reaching the host
+        - One shared transition path runs both verbs, parameterized by the lock state each moves the pull
+          request into and by whether it gates on readiness. Each verb validates the result against its own
+          registered contract, so the two envelope families stay separable despite the shared body.
+        - The config read precedes every host call, so a disabled lock answers `no-lock / lock-disabled`
+          without touching the host at all. Reaching the requested state already is the other `no-lock`, and
+          only that distinction separates the two.
+        - The port's widened pull-request payload is narrowed back to the shared shape before the readiness
+          request is composed — parsing the wide shape into a strict schema that never declared `locked`
+          would have produced a control that always blocks and misreports why.
+
+- _Outcome:_ `merge-lock.ts` carries the guards, the readiness gate, and the exact-head preflight forward from
+  the unlock orchestrator; the workflow inspection, the repository dispatch, and the clearance constants have
+  no successor in it. The config read is the deliberate third precedent the design called for — injected like
+  the chunking command's, but strict where the shared reader is fail-soft, because a fail-soft read of this key
+  disables the control it guards. The host port it depends on is still the clearance one until 2.2.
 
 ### `[ ]` **2.2 Retarget the GitHub host port to draft-state transitions**
 
@@ -184,7 +166,9 @@ from.
     - `[x]` **2.3.a New envelope module with its own mode schema**
         - `merge-lock-command-envelope.ts` owns `merge-lock-resolve` / `-hold` / `-release`, their result
           envelopes, and the shared error envelope, registered into the review domain's registry as four
-          strict-current contracts.
+          strict-current contracts. It sits beside `merge-lock.ts` rather than under `core/`, which is held
+          host-agnostic by a corpus scan — the pull-request vocabulary these payloads carry is exactly what
+          that scan bans, and the retired unlock envelope sat outside `core/` for the same reason.
         - The blocked-reason enum keeps the repository / pull-request / stale-head / readiness reasons, drops
           the clearance-workflow ones, and adds `config-unresolved` (unreadable or out-of-domain) plus
           `transition-failed`, the successor to the retired dispatch failure that 2.2.b needs. `resolve`'s
