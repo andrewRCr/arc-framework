@@ -535,14 +535,11 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 - _Goal:_ An author drawing boundaries before implementation states them once, and phase alignment is available
   as a mode they select rather than a partition filled in on their behalf.
 
-    - `[ ]` **4.1.a Machine section from the task inventory and design inventory**
+    - `[x]` **4.1.a Machine section from the task inventory and design inventory**
 
-        - Both entries require `--design-inventory <json-path>` and validate that JSON through the strict shipped
-          `DesignInventoryInput` schema. Done when the parent-task inventory and every declared design element reach
-          the map with their digests, and the verification task is present but marked ineligible for membership.
-
-        - Preserve the canonical flat task inventory. Derive an authoring-only phase grouping directly from the task
-          scanner's ordered phase and parent events; never infer a phase from dotted task-id spelling.
+        - Prepared the starter pair only after strict design binding and canonical task extraction; the machine
+          facts preserve the flat inventory, derive phase groups from scanner events, and mark the verification
+          parent explicitly ineligible for membership.
 
     - `[ ]` **4.1.b Mechanical expansion of the alignment arm**
 
