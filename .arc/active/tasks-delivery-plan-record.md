@@ -422,7 +422,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Outcome:_ Composition now receives only a completely filled author-slot object whose immutable machine material
   still matches the CLI-owned snapshot; every un-authored or drifted state stops with a stable typed reason.
 
-### `[ ]` **3.3 Validate and publish through `arc delivery compose`**
+### `[x]` **3.3 Validate and publish through `arc delivery compose`**
 
 - _Goal:_ One composition verb serves both entries, so the part that must not fork does not fork.
 
@@ -447,13 +447,17 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
           contiguous member segments; retained authored-entry coverage refusals and enriched retrofit gaps with the
           nearest represented member in inventory order while admitting task-empty members.
 
-    - `[ ]` **3.3.b Uniqueness refinement at publication**
+    - `[x]` **3.3.b Uniqueness refinement at publication**
 
         - Build `test-first` (one behavior at a time):
             - Minting a second plan for a unit that already has one refuses
             - Replacement produces a new revision under the same `planId`, never a second plan
 
-    - `[ ]` **3.3.c Publish against the expected current plan digest**
+        - _Outcome:_ Composition now resolves existing plans through the shared rename authority, refuses a
+          different plan identity for the same unit, and constructs replacements as successors under the original
+          `planId` and exact predecessor digest.
+
+    - `[x]` **3.3.c Publish against the expected current plan digest**
 
         - Build `test-first` (one behavior at a time):
             - A first publication succeeds with no predecessor
@@ -465,6 +469,14 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
               idempotent
             - Cleanup deletes Markdown first and the canonical snapshot last; a failure between deletes leaves the
               snapshot and pinned candidate plan digest sufficient for retry
+
+        - _Outcome:_ Added the receipt-first composition sequence: construct and pin the candidate digest, publish
+          by expected-current CAS, render only after success, then delete Markdown before JSON. Stale and failed
+          publications leave rendering untouched; render and cleanup tears retry the same plan idempotently.
+
+- _Outcome:_ Both authoring entries can now feed one entry-neutral composer that proves the contribution partition
+  and coverage contract, enforces plan uniqueness, publishes by digest, renders only the published record, and
+  preserves enough authoring state to recover every post-receipt failure.
 
 ### `[x]` **3.4 Render the delivery-plan section into the task list**
 
