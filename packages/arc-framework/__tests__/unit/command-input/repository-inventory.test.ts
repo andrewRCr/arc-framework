@@ -89,6 +89,28 @@ describe("repository command-input inventory", () => {
         mutationBoundary: "errand abandon locus process-inspection boundary",
         subprocess: "close-stdin",
       }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-branch:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan abandon:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
     expect(inventory.entries.map((entry) => entry.identity)).toEqual(

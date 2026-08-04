@@ -90,6 +90,16 @@ export const deliveryCommandInputRegistrations = [
       "option.json": "json",
     },
   },
+  {
+    commandPath: "delivery compose",
+    schema: DeliveryComposeInputSchema,
+    schemaFields: { "option.json": "json" },
+  },
+  {
+    commandPath: "delivery plan abandon",
+    schema: DeliveryPlanAbandonInputSchema,
+    schemaFields: { "option.json": "json" },
+  },
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Machine-output policies owned by the delivery command family. */
@@ -99,7 +109,7 @@ export const deliveryCommandInputPolicyDeclarations = [
     aliases: [],
     sites: [
       declareCliOptionSite("design-inventory", {
-        acquisition: "parser-required",
+        acquisition: "handler-required",
         schemaOwnership: "owned",
         schemaField: "designInventory",
         cancellation: "not-applicable",
@@ -127,7 +137,7 @@ export const deliveryCommandInputPolicyDeclarations = [
     aliases: [],
     sites: [
       declareCliOptionSite("design-inventory", {
-        acquisition: "parser-required",
+        acquisition: "handler-required",
         schemaOwnership: "owned",
         schemaField: "designInventory",
         cancellation: "not-applicable",
@@ -188,7 +198,8 @@ function deliveryJsonPolicy(commandPath: string): CommandInputDeclaration {
     aliases: [],
     sites: [declareCliOptionSite("json", {
       acquisition: "machine-mode",
-      schemaOwnership: "none",
+      schemaOwnership: "owned",
+      schemaField: "json",
       cancellation: "not-applicable",
       automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
       mutationBoundary: "output selection",
@@ -278,6 +289,14 @@ export async function handleDeliveryPlanFromBranch(
     emit("delivery plan from-branch", parsed.data.json === true, context);
     return;
   }
+  const base = parsed.data.base ?? context.baseBranch.trim();
+  if (base === "") {
+    emit("delivery plan from-branch", parsed.data.json === true, {
+      status: "refused",
+      reason: "base-branch-unresolved",
+    });
+    return;
+  }
   const inputs = await readFromTasksInputs(
     context.cwd,
     context.activePath,
@@ -296,7 +315,7 @@ export async function handleDeliveryPlanFromBranch(
     taskListContent: inputs.taskListContent,
     designInventory: inputs.designInventory,
     exec: createRawGitExec(context.cwd),
-    base: parsed.data.base ?? context.baseBranch,
+    base,
     head: parsed.data.head ?? "HEAD",
   });
   if (prepared.status === "refused") {
@@ -441,7 +460,7 @@ export async function handleDeliveryPlanAbandon(
 ): Promise<void> {
   const parsed = DeliveryPlanAbandonInputSchema.safeParse(opts);
   if (!parsed.success) {
-    emit("delivery plan abandon", false, {
+    emit("delivery plan abandon", opts.json === true, {
       status: "refused",
       reason: "invalid-command-input",
     });
