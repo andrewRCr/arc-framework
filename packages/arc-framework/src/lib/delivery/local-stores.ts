@@ -57,6 +57,11 @@ function planRecordName(planId: string): string {
   return `${planId}.json`;
 }
 
+function normalizePlanId(planId: string): string | null {
+  const parsed = DeliveryPlanIdSchema.safeParse(planId);
+  return parsed.success ? parsed.data : null;
+}
+
 function serialize(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
@@ -133,12 +138,11 @@ async function readRevisionedRecord<T>(
   codec: DeliveryPayloadCodec<T>,
   planId: string,
 ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T> | null, RevisionStoreFailure>> {
-  if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-    return { status: "refused", reason: "identity-mismatch" };
-  }
-  const raw = await publisher.read(location, planRecordName(planId));
+  const addressedPlanId = normalizePlanId(planId);
+  if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+  const raw = await publisher.read(location, planRecordName(addressedPlanId));
   if (raw === null) return { status: "ok", value: null };
-  return decodeRevisionedRecord(raw, planId, semanticsVersion, codec);
+  return decodeRevisionedRecord(raw, addressedPlanId, semanticsVersion, codec);
 }
 
 async function publishRevisionedRecord<T>(
@@ -151,21 +155,20 @@ async function publishRevisionedRecord<T>(
   expectedRevision: number,
   isSuccessor?: (current: T, proposed: T) => boolean,
 ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>> {
-  if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-    return { status: "refused", reason: "identity-mismatch" };
-  }
+  const addressedPlanId = normalizePlanId(planId);
+  if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
   const proposed = codec.decode(value);
   if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
-  if (codec.planId(proposed.value) !== planId) {
+  if (codec.planId(proposed.value) !== addressedPlanId) {
     return { status: "refused", reason: "identity-mismatch" };
   }
   return publisher.update<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>>(
     location,
-    planRecordName(planId),
+    planRecordName(addressedPlanId),
     (raw) => {
       let current: DeliveryRevisionedRecord<T> | null = null;
       if (raw !== null) {
-        const decoded = decodeRevisionedRecord(raw, planId, semanticsVersion, codec);
+        const decoded = decodeRevisionedRecord(raw, addressedPlanId, semanticsVersion, codec);
         if (decoded.status === "refused") return { kind: "keep", result: decoded };
         current = decoded.value;
         if (canonicalize(current.value) === canonicalize(proposed.value)) {
@@ -182,7 +185,7 @@ async function publishRevisionedRecord<T>(
       const next: RevisionedEnvelope<T> = {
         schemaVersion: 1,
         semanticsVersion,
-        planId,
+        planId: addressedPlanId,
         revision: currentRevision + 1,
         value: proposed.value,
       };
@@ -205,12 +208,11 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
   async readCurrent(
     planId: string,
   ): Promise<DeliveryStoreResult<TPlan | null, DeliveryPlanStoreFailure>> {
-    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-      return { status: "refused", reason: "identity-mismatch" };
-    }
-    const raw = await this.publisher.read(PLAN_LOCATION, planRecordName(planId));
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    const raw = await this.publisher.read(PLAN_LOCATION, planRecordName(addressedPlanId));
     if (raw === null) return { status: "ok", value: null };
-    return decodeRecord(raw, planId, this.codec);
+    return decodeRecord(raw, addressedPlanId, this.codec);
   }
 
   async publishCurrent(
@@ -218,12 +220,11 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     plan: TPlan,
     expectedCurrentDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>> {
-    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-      return { status: "refused", reason: "identity-mismatch" };
-    }
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
     const proposed = this.codec.decode(plan);
     if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
-    if (this.codec.planId(proposed.value) !== planId) {
+    if (this.codec.planId(proposed.value) !== addressedPlanId) {
       return { status: "refused", reason: "identity-mismatch" };
     }
     const content = serialize(proposed.value);
@@ -231,7 +232,7 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     return this.publisher.update<DeliveryStoreResult<
       { readonly currentDigest: CanonicalDigest },
       DeliveryPlanStoreFailure
-    >>(PLAN_LOCATION, planRecordName(planId), (raw) => {
+    >>(PLAN_LOCATION, planRecordName(addressedPlanId), (raw) => {
       if (raw === content) {
         return { kind: "keep", result: { status: "ok", value: { currentDigest: proposedDigest } } };
       }
@@ -248,7 +249,7 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
           result: { status: "ok", value: { currentDigest: proposedDigest } },
         };
       }
-      const current = decodeRecord(raw, planId, this.codec);
+      const current = decodeRecord(raw, addressedPlanId, this.codec);
       if (current.status === "refused") return { kind: "keep", result: current };
       if (this.codec.digest(current.value) !== expectedCurrentDigest) {
         return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };

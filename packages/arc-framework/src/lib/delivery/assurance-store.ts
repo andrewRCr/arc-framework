@@ -27,6 +27,11 @@ function recordName(planId: string): string {
   return `${planId}.json`;
 }
 
+function normalizePlanId(planId: string): string | null {
+  const parsed = DeliveryPlanIdSchema.safeParse(planId);
+  return parsed.success ? parsed.data : null;
+}
+
 function serialize(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
@@ -146,12 +151,11 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
   async read(
     planId: string,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>> {
-    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-      return { status: "refused", reason: "identity-mismatch" };
-    }
-    const raw = await this.publisher.read(ASSURANCE_LOCATION, recordName(planId));
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    const raw = await this.publisher.read(ASSURANCE_LOCATION, recordName(addressedPlanId));
     if (raw === null) return { status: "ok", value: null };
-    return decodeAssuranceEnvelope(raw, planId, this.codec);
+    return decodeAssuranceEnvelope(raw, addressedPlanId, this.codec);
   }
 
   async append(
@@ -159,22 +163,21 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
     value: TAssurance,
     expectedTailDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChainEntry<TAssurance>, DeliveryAssuranceStoreFailure>> {
-    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-      return { status: "refused", reason: "identity-mismatch" };
-    }
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
     const proposed = this.codec.decode(value);
     if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
-    if (this.codec.planId(proposed.value) !== planId) {
+    if (this.codec.planId(proposed.value) !== addressedPlanId) {
       return { status: "refused", reason: "identity-mismatch" };
     }
     const proposedEntryDigest = assuranceEntryDigest(expectedTailDigest, proposed.value);
     return this.publisher.update<DeliveryStoreResult<
       DeliveryAssuranceChainEntry<TAssurance>,
       DeliveryAssuranceStoreFailure
-    >>(ASSURANCE_LOCATION, recordName(planId), (raw) => {
+    >>(ASSURANCE_LOCATION, recordName(addressedPlanId), (raw) => {
       let chain: DeliveryAssuranceChain<TAssurance> = { entries: [], tailDigest: null };
       if (raw !== null) {
-        const decoded = decodeAssuranceEnvelope(raw, planId, this.codec);
+        const decoded = decodeAssuranceEnvelope(raw, addressedPlanId, this.codec);
         if (decoded.status === "refused") return { kind: "keep", result: decoded };
         chain = decoded.value;
         const tail = chain.entries.at(-1);
@@ -198,7 +201,7 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
       };
       return {
         kind: "write",
-        content: serialize(assuranceEnvelope(planId, next)),
+        content: serialize(assuranceEnvelope(addressedPlanId, next)),
         result: { status: "ok", value: entry },
       };
     });
@@ -214,21 +217,20 @@ export class RepositoryDeliveryAssuranceStore<TAssurance> implements DeliveryAss
     planId: string,
     chain: DeliveryAssuranceChain<TAssurance>,
   ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance>, DeliveryAssuranceStoreFailure>> {
-    if (!DeliveryPlanIdSchema.safeParse(planId).success) {
-      return { status: "refused", reason: "identity-mismatch" };
-    }
-    const decoded = decodeAssuranceChain(chain, planId, this.codec);
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    const decoded = decodeAssuranceChain(chain, addressedPlanId, this.codec);
     if (decoded.status === "refused") return decoded;
     return this.publisher.update<DeliveryStoreResult<
       DeliveryAssuranceChain<TAssurance>,
       DeliveryAssuranceStoreFailure
-    >>(ASSURANCE_LOCATION, recordName(planId), (raw) => {
+    >>(ASSURANCE_LOCATION, recordName(addressedPlanId), (raw) => {
       if (raw !== null) {
         return { kind: "keep", result: { status: "refused", reason: "import-nonempty" } };
       }
       return {
         kind: "write",
-        content: serialize(assuranceEnvelope(planId, decoded.value)),
+        content: serialize(assuranceEnvelope(addressedPlanId, decoded.value)),
         result: decoded,
       };
     });

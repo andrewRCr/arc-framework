@@ -8,7 +8,7 @@ import { ParentTaskIdSchema } from "../task-list/scanner.js";
 /** Runtime authority for delivery-domain canonical digests. */
 export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 /** Minted stable identity for one delivery plan across all revisions. */
-export const DeliveryPlanIdSchema = z.uuid();
+export const DeliveryPlanIdSchema = z.uuid().overwrite((value) => value.toLowerCase());
 export type DeliveryPlanId = z.infer<typeof DeliveryPlanIdSchema>;
 /** Runtime authority for non-empty opaque delivery identifiers. */
 export const DeliveryOpaqueIdSchema = z.string().min(1);

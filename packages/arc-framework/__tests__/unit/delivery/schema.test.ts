@@ -4,6 +4,7 @@ import {
   DeliveryAssuranceSubjectIdPreimageSchema,
   DeliveryDeliverableIdPreimageSchema,
   DeliveryPlanAuthoringInputV1Schema,
+  DeliveryPlanIdSchema,
   DeliveryPlanMemberV1Schema,
   DeliveryPlanSeamV1Schema,
   DeliveryPlanV1Schema,
@@ -86,6 +87,11 @@ function validAuthoringInput(): Record<string, unknown> {
 }
 
 describe("DeliveryPlanV1Schema", () => {
+  it("canonicalizes UUID plan identities to lowercase", () => {
+    expect(DeliveryPlanIdSchema.parse("8DDF6705-7E3B-4A5B-9DB2-EF3AEF8B1A25"))
+      .toBe("8ddf6705-7e3b-4a5b-9db2-ef3aef8b1a25");
+  });
+
   it("refuses unknown delivery and execution fields instead of dropping them", () => {
     for (const forbidden of [
       "providerBinding",

@@ -210,6 +210,33 @@ describe("repository delivery record stores", () => {
     )).resolves.toEqual(refusal);
   });
 
+  it("canonicalizes valid UUID plan addresses before repository-common access", async () => {
+    const records = await stores();
+    const planId = ASSIGNMENT_PLAN_ID;
+    const uppercasePlanId = planId.toUpperCase();
+    const planned = plan(planId, "value");
+    const assigned = assignment(1);
+    const revisioned = { planId, body: "value" };
+
+    await expect(records.plans.publishCurrent(uppercasePlanId, planned, null))
+      .resolves.toMatchObject({ status: "ok" });
+    await expect(records.assignments.publish(uppercasePlanId, assigned, 0))
+      .resolves.toMatchObject({ status: "ok" });
+    await expect(records.observations.publish(uppercasePlanId, revisioned, 0))
+      .resolves.toMatchObject({ status: "ok" });
+    await expect(records.assurance.append(uppercasePlanId, revisioned, null))
+      .resolves.toMatchObject({ status: "ok" });
+
+    await expect(records.plans.readCurrent(uppercasePlanId))
+      .resolves.toEqual({ status: "ok", value: planned });
+    await expect(records.assignments.read(uppercasePlanId))
+      .resolves.toMatchObject({ status: "ok", value: { value: assigned } });
+    await expect(records.observations.read(uppercasePlanId))
+      .resolves.toMatchObject({ status: "ok", value: { value: revisioned } });
+    await expect(records.assurance.read(uppercasePlanId))
+      .resolves.toMatchObject({ status: "ok", value: { entries: [{ value: revisioned }] } });
+  });
+
   it("publishes a first plan and only accepts a successor naming the current digest", async () => {
     const records = await stores();
     const first = plan(PLAN_ID_1, "first");
