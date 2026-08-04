@@ -1280,6 +1280,15 @@ for the cohort record to absorb rather than being treated as wording.
    structure, so a hard task-partition refinement fails it; and both carry recorded seams, so a seam model that cannot express
    what they found fails it. Reconstruction exercises authoring and validation only, so it needs neither projection
    reducer and stays inside this member's boundary.
+
+   **Amendment (2026-08-04).** Recorded merge parents remain the immutable coordinate evidence, but the raw PR-head
+   histories are not uniformly replayable: seven contain base-merge steps whose purity strict branch inspection
+   cannot establish and must refuse rather than silently classify as ambient. The `a0e6d1533` case is confirmed to
+   contain authored conflict resolution. Each historical member therefore reconstructs
+   from its first parent to its landed merge result as one atomic net transition, with the merge/base/head triple
+   verified separately. The full seven- and 21-member plan shapes still round-trip through the real CLI, while a
+   synthetic proven-pure base absorb carries the contribution-only partition check.
+
 2. **A plan authored through `from-tasks` against a current task list and validated design inventory publishes and
    renders** its task-list projection, with an uncovered implementation task refused at composition and the
    verification task refused as a member.

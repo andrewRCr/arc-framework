@@ -114,6 +114,13 @@ into the base. This is the concrete case that forces the partition to run over w
 the first parent rather than over raw commits, and any implementation of the retrofit entry should use it as a test
 fixture rather than a hypothetical.
 
+**Field correction.** The recorded merge is not a pure ambient absorb: its merge tree contains an authored
+modify/delete conflict resolution and therefore does not match an automatic remerge of its parents. Strict branch
+inspection correctly refuses that historical raw head rather than erasing the merge-only delta. Reconstruction
+uses each landed merge result as one atomic transition from its recorded first parent, while separately verifying
+the immutable merge/base/head triple. A synthetic pure base absorb remains the fixture for contribution-only
+partitioning.
+
 **Attribution is sparse by design, not by accident.** A substantial minority of a branch's commits name no task at
 all — review-driven fixes above all — and the footer contract blesses `code review`, `maintenance`, and
 `incidental during …` alongside a task reference. A member whose range is mostly review fixes deriving no task ids

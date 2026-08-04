@@ -627,37 +627,37 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
           authoring facts. Library and built-CLI coverage prove those facts remain informative and do not block a
           cut from composing.
 
-### `[ ]` **4.5 Reconstruct both hand-run deliveries as authored plans**
+### `[x]` **4.5 Reconstruct both hand-run deliveries as authored plans**
 
 - _Goal:_ The two deliveries that were actually executed by hand round-trip through the retrofit entry, producing
   plans whose members carry the boundaries shipped and whose seams match the ones those runs recorded, with no
   fabricated task partition.
 
-- _Context:_ This is the falsifiable check the design is most at risk of failing. Both deliveries were authored
-  after implementation, so an entry serving only pre-implementation authoring fails outright; both cut along change
-  structure rather than task structure, so a hard task-partition refinement fails; both carry recorded seams, so
-  a seam model that cannot express what they found fails.
+- _Amendment:_ The parent triples remain immutable evidence, but seven raw PR-head histories contain base-merge
+  steps whose purity strict inspection cannot establish and correctly refuses. The `a0e6d1533` case is confirmed
+  to contain authored conflict resolution. Reconstruct each historical member as the atomic net transition from
+  its recorded first parent to its landed merge result, verify the merge/base/head triple separately, and retain a
+  synthetic proven-pure base absorb for the contribution-only partition criterion.
 
-    - `[ ]` **4.5.a Reconstruct the seven-slice cut**
+    - `[x]` **4.5.a Reconstruct the seven-slice cut**
 
-        - Its slice branches have been reaped, so base and head pairs come from the recorded merge parents, which
-          the criterion admits as equivalent evidence.
+        - Pinned all seven PR merge/base/head triples, replayed every landed result as an atomic net transition,
+          and reconstructed the plan shape without task membership.
 
-    - `[ ]` **4.5.b Reconstruct the completed rolling session-locus delivery**
+    - `[x]` **4.5.b Reconstruct the completed rolling session-locus delivery**
 
-        - Reconstruct the 21 landed rows from the durable ledger in `notes-session-locus-model.md`, using each
-          recorded merge commit's parents as immutable base/head evidence. The earlier thirteen-branch standing
-          stack was superseded and is not the fixture. Bespoke closeout PR #434 is terminal archival rather than a
-          plan member and stays outside the reconstruction.
+        - Pinned and replayed all 21 landed delivery/corrective rows from the durable ledger; the superseded standing
+          stack and bespoke closeout remain outside the plan fixture.
 
-    - `[ ]` **4.5.c Validate both reconstructions against the record's refinements**
+    - `[x]` **4.5.c Validate both reconstructions against the record's refinements**
 
-        - Build `test-first` (one behavior at a time):
-            - Each reconstruction validates without a fabricated task partition
-            - Recorded seams are expressible and their derived owners match the runs
-            - The slice containing an ambient base merge partitions over contribution alone
-            - Every fixture coordinate is reachable and names the recorded merge-parent pair
-            - Real CLI reconstruction runs in a temporary repository rather than only through injected libraries
+        - Added repository-history integration coverage for coordinate, landed-transition, strict-refusal, seam,
+          and closeout behavior plus real-CLI temporary-repository coverage for both complete plan shapes and a
+          proven-pure ambient absorb.
+
+- _Outcome:_ Both field deliveries now round-trip as validating `from-branch` plans with empty task membership and
+  later-member seam ownership. Historical mixed merges remain strict refusals instead of losing authored delta,
+  while landed-result replay and a synthetic pure absorb cover the two distinct evidence cases.
 
 ### `[ ]` **4.6 Surface delivery-plan candidacy at the design-stage boundary read**
 
@@ -1097,10 +1097,14 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
 
 ## Success Criteria
 
-- `[ ]` Both hand-run deliveries reconstruct through `from-branch` — the seven-slice cut and the 21-row rolling
+- `[x]` Both hand-run deliveries reconstruct through `from-branch` — the seven-slice cut and the 21-row rolling
   session-locus delivery each produce a validating plan whose members carry the boundaries actually shipped and
   whose seams match the recorded runs, with no fabricated task partition; bespoke session-locus closeout remains
   outside the plan
+
+  _Amendment:_ Historical members reconstruct from first parent to landed merge result as atomic net transitions;
+  recorded merge/base/head triples are verified separately because strict inspection correctly refuses unproved
+  base-merge purity in seven raw PR-head histories.
 
 - `[ ]` A `from-tasks` plan against a current task list and validated design inventory publishes and renders its
   task-list projection, with an uncovered implementation task refused at composition and the verification task
