@@ -38,8 +38,9 @@ clearance status is required by the classic surface only — the ruleset never c
 | Thread resolution      | no                             | **yes**                            |
 | Bypass                 | **admins permitted**           | **none** (`bypass_actors: []`)     |
 
-The ruleset covers every protection classic provides and is stricter on four rows, which is what makes retiring
-classic protection a coverage-preserving act rather than a reduction. `merge-ok` is documented in `ci.yml` as a
+Setting aside `arc-cleared`, retired in this same phase, the ruleset covers every protection classic provides and
+is stricter on four rows — which is what makes retiring classic protection a coverage-preserving act rather than a
+reduction. `merge-ok` is documented in `ci.yml` as a
 thin compatibility alias over the `ci-ok` roll-up. The ruleset is `enforcement: active` on `refs/heads/main`
 with no excluded refs.
 
@@ -54,8 +55,18 @@ reflects one point in time — re-read both surfaces before acting on it again.
 **Post-state (2026-08-04, verified after the deletion).** Classic protection returns `404 Branch not protected`;
 `main` still reports `protected: true`, and `repos/.../rules/branches/main` resolves all four ruleset rules
 (`deletion`, `pull_request`, `required_status_checks`, `non_fast_forward`) with `enforcement: active` and
-`bypass_actors: []`. Required checks on `main` are `merge-ok` alone. Restoring the classic surface means
-recreating every row of the table above by hand — the ruleset does not carry it and nothing else records it.
+`bypass_actors: []`. Required checks on `main` are `merge-ok` alone. The host-side hold that `arc-cleared` used to
+provide now comes from `merge.lock: draft` opening pull requests as drafts — a config setting, not a required
+check — while exact-head authorization and the integration interlock remain the merge authority. Restoring the
+classic surface means recreating every row of the table above by hand — the ruleset does not carry it and nothing
+else records it.
+
+**The table is a pre-retirement baseline, not a configuration to restore verbatim.** Its `Required checks` row
+names `arc-cleared`, and this work unit deleted that status's only producer. Requiring the context again without
+first restoring the producer makes every pull request permanently unsatisfiable — nothing will ever report the
+status, and no merge can proceed. Restore the producer first, or recreate the row without `arc-cleared`. The same
+hazard reads forward: a pull request already stuck waiting on clearance is fixed by merging this branch's base
+into it, never by re-adding the status.
 
 ## Auto-merge disarm semantics (source of D4's incompatibility claim)
 

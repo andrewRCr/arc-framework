@@ -51,10 +51,11 @@ untouched throughout.
    `arc-clearance.yml`) is digest-pinned historical audit input — retain untouched.
 6. **Installed script — check before removing:** `confirm-live-change-pair.sh` was originally scoped here as
    consumed only by the clearance workflow. `merge-readiness-control` falsifies that: the auto-merge lane's
-   extracted attestation gate still shells out to it, and that gate's context is a required base-branch check,
-   so removing the script would fail a required check on every planning-lane pull request. Confirm the live
-   consumer set before touching it; if the gate still uses it, the script and its unit test stay and only the
-   `LIVE_PAIR_SCRIPT` export question remains open.
+   extracted attestation gate still shells out to it on the planning arm, so removing the script would break that
+   gate's run. The gate's context is observational rather than required — `main` requires `merge-ok` alone — so the
+   breakage costs the attestation, not a blocked merge. Confirm the live consumer set before touching it; if the
+   gate still uses it, the script and its unit test stay and only the `LIVE_PAIR_SCRIPT` export question remains
+   open.
 7. **Recipe and manifests:** `init-recipe.json` drops the `arc-clearance.yml` template and the
    `setup-arc-clearance.md` entry — and the `confirm-live-change-pair.sh` entry only if item 6 clears it;
    `system/.internal/manifest.json` and the scripts `README.md` entries regenerate or excise with the file

@@ -332,6 +332,11 @@ lane action.
    gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
 
+   The release opens that window, so **every way out of it that is not armed auto-merge re-locks first** — a failed
+   config probe and a failed or refused arming alike. Invoke `arc merge lock hold -` for the same exact target,
+   dispatch on its typed action, then surface the originating failure rather than the hold in its place. Leaving the
+   lane on a released PR is the one outcome this sequence may not produce.
+
    **Reviewed-lane** — invoke `arc merge lock release -` for the exact approved target. On both lanes, follow only
    the verb's typed action: `released / proceed` continues; `no-lock / none` continues because no lock applies or
    the PR already holds that state; `blocked / stop` invalidates approval. Re-read the required checks on the

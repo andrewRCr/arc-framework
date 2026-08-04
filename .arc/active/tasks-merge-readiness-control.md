@@ -508,6 +508,9 @@ new-versus-old split.
       post until this branch is itself the base — a fixture pull request opened against the current `main` still
       draws that branch's retired clearance workflow. The required-check half was verified live: `main` requires
       `merge-ok` alone.
+    - **Deviation:** "every pull request" means every same-repository pull request. The workflow guards on
+      `head.repo.full_name == github.repository`, so fork pull requests are skipped by design — the reason
+      Task 4.1.a records for keeping the context observational.
 
 - `[x]` `arc merge lock resolve`, `arc merge lock hold`, and `arc merge lock release` exist with the specified
   typed actions, registered as `merge-lock-*` envelope modes, and covered per action and per blocked reason

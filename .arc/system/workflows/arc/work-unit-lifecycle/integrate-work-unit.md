@@ -541,6 +541,11 @@ else:
     <stop or return to the reconcile loop per the validated verdict>
 ```
 
+A merge command that returns nonzero is itself a non-merge exit, so it re-locks like any other. Re-read PR state
+first — the merge may have landed before the failure — and skip the hold when it reports merged. While it is still
+open, invoke `arc merge lock hold -` with the same target, vehicle, and tree root, dispatch on its typed action,
+then stop and report the merge's own failure. Nothing below this line runs on that path.
+
 **Skip the merge when the PR is already merged** — the resume path's PR-merged arm (Step 1) enters here with the
 merge already landed (attended elsewhere, or unattended on the auto-merge lane); proceed straight to `arc user
 close`.
