@@ -430,7 +430,7 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
   implementation task covered or surfaced as an advisory — and never well-chosenness, which belongs to the
   selected projection's eligibility test.
 
-    - `[ ]` **3.3.a Partition and coverage composition checks**
+    - `[x]` **3.3.a Partition and coverage composition checks**
 
         - The composer is entry-agnostic and validates a filled map, so these behaviors run against
           hand-constructed step sequences rather than the derivation `4.2` builds.
@@ -442,6 +442,10 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
             - The advisory names the task and the member whose coverage adjoins it in inventory order, leaving
               the call with the author
             - A member with an empty `taskIds` is admissible when every task is covered somewhere
+
+        - _Outcome:_ Added entry-neutral checks requiring contribution steps to occur exactly once in ordered,
+          contiguous member segments; retained authored-entry coverage refusals and enriched retrofit gaps with the
+          nearest represented member in inventory order while admitting task-empty members.
 
     - `[ ]` **3.3.b Uniqueness refinement at publication**
 
