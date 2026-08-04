@@ -180,25 +180,23 @@ from.
 - _Note:_ This task owns the result envelopes outright, including the round-trip coverage for them. Run it
   before 2.1's envelope-dependent work: the variants are keyed by mode literals this module defines.
 
-    - `[ ]` **2.3.a New envelope module with its own mode schema**
-        - Three modes, one per verb, matching the one-mode-per-command convention the review envelopes already
-          follow.
-        - Include the invalid-input, corrupt-state, and unexpected-failure error variants each mode needs.
-        - Own the payload shapes too, since they live on the envelope variants rather than the requests: keep
-          the blocked-reason enum exhaustive and closed, dropping the clearance-workflow reasons, keeping the
-          repository / pull-request / stale-head / readiness ones, and adding one for an unreadable or
-          out-of-domain config that every verb can hit. `resolve`'s payload cannot carry the repository,
-          pull-request, and head triple the other two share — there is no pull request yet.
-
-        - Build `test-first` (one behavior at a time):
-            - Each verb's result validates against its registered contract
-            - Every envelope variant round-trips through its schema unchanged
-            - A result carrying another verb's mode is rejected
-            - Each error variant validates under its own mode
+    - `[x]` **2.3.a New envelope module with its own mode schema**
+        - `merge-lock-command-envelope.ts` owns `merge-lock-resolve` / `-hold` / `-release`, their result
+          envelopes, and the shared error envelope, registered into the review domain's registry as four
+          strict-current contracts.
+        - The blocked-reason enum keeps the repository / pull-request / stale-head / readiness reasons, drops
+          the clearance-workflow ones, and adds `config-unresolved` (unreadable or out-of-domain) plus
+          `transition-failed`, the successor to the retired dispatch failure that 2.2.b needs. `resolve`'s
+          blocked payload carries the config reason alone — no pull request exists to name.
+        - A `no-lock` result names its cause (`lock-disabled` / `already-in-state`), preserving the retired
+          envelope's habit of saying why a verb was a no-op; only the first never reaches the host.
+        - The module builds its own variant helper rather than borrowing the review one, so a blocked result
+          can require at least one diagnostic the way the retired envelope did.
 
     - `[ ]` **2.3.b Excise the unlock registration from the review envelope module**
         - Drop the mode entry, the schema import, and the registry line together — a stale import is the
           failure mode here, and the type checker catches it only if all three go.
+        - _Sequencing:_ lands with 2.4, which retires the handler and command path that still emit the mode.
 
 ### `[ ]` **2.4 Wire the `arc merge lock` command group and handlers**
 
