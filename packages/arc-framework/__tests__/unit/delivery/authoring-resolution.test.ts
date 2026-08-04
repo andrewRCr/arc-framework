@@ -63,8 +63,13 @@ function store(records: readonly DeliveryAuthoringRecord[], refused = false): De
 
 function transitionSource(
   transitions: readonly ReachableReferenceTransition[],
+  expectedRef = "refs/heads/main",
 ): DeliveryRenameTransitionSource {
-  return { enumerate: async () => ({ status: "ok", value: transitions }) };
+  return {
+    enumerate: async (ref) => ref === expectedRef
+      ? { status: "ok", value: transitions }
+      : { status: "refused", reason: "substrate-unreachable" },
+  };
 }
 
 function resolve(input: {

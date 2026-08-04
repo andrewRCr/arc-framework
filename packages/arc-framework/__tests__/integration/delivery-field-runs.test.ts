@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { inspectDeliveryBranch } from "../../src/lib/delivery/from-branch.js";
@@ -17,8 +17,14 @@ import { execFileAsync } from "../helpers/integration.js";
 const RUNS = [SEVEN_MEMBER_FIELD_RUN, ROLLING_FIELD_RUN] as const;
 
 describe("recorded delivery field runs", () => {
+  let repository: string;
+
+  beforeAll(async () => {
+    repository = await repositoryRoot();
+    await requireCompleteFieldHistory(repository);
+  });
+
   it.each(RUNS)("binds every $workUnitId member to its recorded merge parents", async (run) => {
-    const repository = await repositoryRoot();
     for (const member of run.members) {
       const record = await execFileAsync("git", [
         "show", "-s", "--format=%H%n%P", member.mergeCommit,
@@ -34,18 +40,18 @@ describe("recorded delivery field runs", () => {
   });
 
   it.each(RUNS)("replays every $workUnitId landed result as one atomic transition", async (run) => {
-    const repository = await repositoryRoot();
-    const inspections = await Promise.all(run.members.map(async (member) => {
+    const inspections: { chunkKey: string; result: string | readonly string[] }[] = [];
+    for (const member of run.members) {
       const result = await inspectDeliveryBranch({
         exec: createRawGitExec(repository),
         base: member.base,
         head: member.mergeCommit,
       });
-      return {
+      inspections.push({
         chunkKey: member.chunkKey,
         result: result.status === "inspected" ? result.contributionStepIds : result.reason,
-      };
-    }));
+      });
+    }
     expect(inspections).toEqual(run.members.map((member) => ({
       chunkKey: member.chunkKey,
       result: [member.mergeCommit],
@@ -53,7 +59,6 @@ describe("recorded delivery field runs", () => {
   });
 
   it("preserves strict refusals when historical raw-head base merges cannot be proved pure", async () => {
-    const repository = await repositoryRoot();
     const cases = [
       [SEVEN_MEMBER_FIELD_RUN, "planning"],
       [SEVEN_MEMBER_FIELD_RUN, "result-plan"],
@@ -63,7 +68,8 @@ describe("recorded delivery field runs", () => {
       [SEVEN_MEMBER_FIELD_RUN, "legacy-retirement"],
       [ROLLING_FIELD_RUN, "session-wiring"],
     ] as const;
-    const inspections = await Promise.all(cases.map(async ([run, chunkKey]) => {
+    const inspections: { chunkKey: string; result: string }[] = [];
+    for (const [run, chunkKey] of cases) {
       const member = run.members.find((candidate) => candidate.chunkKey === chunkKey);
       if (member === undefined) throw new Error(`expected ${run.workUnitId}/${chunkKey}`);
       const result = await inspectDeliveryBranch({
@@ -71,11 +77,11 @@ describe("recorded delivery field runs", () => {
         base: member.base,
         head: member.head,
       });
-      return {
+      inspections.push({
         chunkKey: `${run.workUnitId}/${chunkKey}`,
         result: result.status === "inspected" ? "inspected" : result.reason,
-      };
-    }));
+      });
+    }
     expect(inspections).toEqual([
       { chunkKey: "decompose-transform-integrity/planning", result: "ambient-purity-unproven" },
       { chunkKey: "decompose-transform-integrity/result-plan", result: "ambient-purity-unproven" },
@@ -143,7 +149,6 @@ describe("recorded delivery field runs", () => {
   });
 
   it("refuses the recorded mixed base absorb rather than dropping its authored resolution", async () => {
-    const repository = await repositoryRoot();
     const member = SEVEN_MEMBER_FIELD_RUN.members.at(-1);
     if (member === undefined) throw new Error("expected final field member");
     const history = await execFileAsync("git", [
@@ -169,4 +174,25 @@ describe("recorded delivery field runs", () => {
 async function repositoryRoot(): Promise<string> {
   const result = await execFileAsync("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() });
   return result.stdout.trim();
+}
+
+async function requireCompleteFieldHistory(repository: string): Promise<void> {
+  const shallow = await execFileAsync("git", ["rev-parse", "--is-shallow-repository"], { cwd: repository });
+  if (shallow.stdout.trim() === "true") {
+    throw new Error("Recorded delivery field runs require a full checkout; configure fetch-depth: 0.");
+  }
+  for (const run of RUNS) {
+    const first = run.members[0];
+    const last = run.members.at(-1);
+    if (first === undefined || last === undefined) throw new Error(`Recorded field run ${run.workUnitId} is empty.`);
+    for (const oid of [first.base, last.mergeCommit]) {
+      try {
+        await execFileAsync("git", ["cat-file", "-e", `${oid}^{commit}`], { cwd: repository });
+      } catch {
+        throw new Error(
+          `Recorded delivery field-run object ${oid} is unavailable; configure fetch-depth: 0.`,
+        );
+      }
+    }
+  }
 }

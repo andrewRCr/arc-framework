@@ -38,7 +38,9 @@ describe("branch-derived delivery facts", () => {
     await git(repository, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "base advance"]);
     baseAdvance = await oid(repository, "HEAD");
     await git(repository, ["checkout", "feature"]);
-    await git(repository, ["merge", "--no-ff", "main", "-m", "absorb base"]);
+    await git(repository, [
+      "-c", "core.hooksPath=/dev/null", "merge", "--no-ff", "main", "-m", "absorb base",
+    ]);
     ambientMerge = await oid(repository, "HEAD");
     await commitFile(repository, "feature-two.txt", "two\n", "second contribution");
     head = await oid(repository, "HEAD");
@@ -68,6 +70,41 @@ describe("branch-derived delivery facts", () => {
     if (result.status !== "inspected") return;
     expect(result.steps[1]?.changeSet).toMatchObject({ changeSet: "known" });
     expect(result.steps[2]?.cumulativePaths).toEqual(["feature-one.txt", "feature-two.txt"]);
+  });
+
+  it("inspects only the selected first-parent range instead of materializing repository history", async () => {
+    const exec = createRawGitExec(repository);
+    const boundedExec: typeof exec = async (args, options) => {
+      if (args[0] === "rev-list" && args.length === 2) {
+        throw new Error("unbounded history traversal");
+      }
+      return exec(args, options);
+    };
+
+    await expect(inspectDeliveryBranch({
+      exec: boundedExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toMatchObject({
+      status: "inspected",
+      contributionStepIds: [firstContribution, head],
+    });
+  });
+
+  it("distinguishes an unsupported merge-tree capability from an impure ambient merge", async () => {
+    const exec = createRawGitExec(repository);
+    const unsupportedExec: typeof exec = async (args, options) => {
+      if (args[0] === "merge-tree" && args[1] === "--write-tree") {
+        throw new Error("unknown option: --write-tree");
+      }
+      return exec(args, options);
+    };
+
+    await expect(inspectDeliveryBranch({
+      exec: unsupportedExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toEqual({ status: "refused", reason: "merge-tree-write-tree-unsupported" });
   });
 
   it("uses an explicit historical base line instead of the moving configured base", async () => {

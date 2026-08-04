@@ -61,6 +61,7 @@ export type InspectDeliveryBranchRefusal = {
     | "divergence-boundary-missing"
     | "divergence-boundary-ambiguous"
     | "first-parent-history-malformed"
+    | "merge-tree-write-tree-unsupported"
     | "ambient-purity-unproven"
     | "change-facts-unknown";
 };
@@ -145,41 +146,33 @@ export async function inspectDeliveryBranch(input: {
 }): Promise<InspectedDeliveryBranch | InspectDeliveryBranchRefusal> {
   let base: string;
   let head: string;
-  let baseReachable: Set<string>;
-  let headReachable: Set<string>;
-  let firstParent: string[];
   try {
     [base, head] = await Promise.all([
       gitLine(input.exec, ["rev-parse", "--verify", `${input.base}^{commit}`]),
       gitLine(input.exec, ["rev-parse", "--verify", `${input.head}^{commit}`]),
     ]);
-    [baseReachable, headReachable, firstParent] = await Promise.all([
-      gitLines(input.exec, ["rev-list", base]).then((lines) => new Set(lines)),
-      gitLines(input.exec, ["rev-list", head]).then((lines) => new Set(lines)),
-      gitLines(input.exec, ["rev-list", "--first-parent", head]),
-    ]);
   } catch {
     return { status: "refused", reason: "git-coordinate-unresolved" };
   }
-  if (!headReachable.has(base)) return { status: "refused", reason: "base-not-ancestor" };
+  if (!await isAncestor(input.exec, base, head)) {
+    return { status: "refused", reason: "base-not-ancestor" };
+  }
 
-  const candidates = firstParent.flatMap((commit, index) => {
-    const predecessor = firstParent[index + 1];
-    return !baseReachable.has(commit) && predecessor !== undefined && baseReachable.has(predecessor)
-      ? [{ index, commit, predecessor }]
-      : [];
-  });
-  if (candidates.length === 0) {
+  let commits: string[];
+  try {
+    commits = await gitLines(input.exec, [
+      "rev-list", "--first-parent", "--reverse", head, "--not", base,
+    ]);
+  } catch {
+    return { status: "refused", reason: "first-parent-history-malformed" };
+  }
+  if (commits.length === 0) {
     return { status: "refused", reason: "divergence-boundary-missing" };
   }
-  if (candidates.length > 1) {
-    return { status: "refused", reason: "divergence-boundary-ambiguous" };
-  }
-  const boundary = candidates[0];
-  if (boundary === undefined) return { status: "refused", reason: "divergence-boundary-missing" };
-  const commits = firstParent.slice(0, boundary.index + 1).reverse();
-  const cumulative = new Set<string>();
+  const cumulativeSet = new Set<string>();
+  const cumulativePaths: string[] = [];
   const steps: DeliveryBranchStep[] = [];
+  const capabilities = { mergeTreeWriteTree: null as boolean | null };
 
   for (const commit of commits) {
     let parents: string[];
@@ -201,23 +194,29 @@ export async function inspectDeliveryBranch(input: {
     if (changeSet.changeSet === "unknown") {
       return { status: "refused", reason: "change-facts-unknown" };
     }
-    const classification = await classifyStep(input.exec, commit, parents, baseReachable);
-    if (classification === null) {
-      return { status: "refused", reason: "ambient-purity-unproven" };
-    }
-    if (classification === "contribution") {
-      for (const path of affectedPaths(changeSet.changes)) cumulative.add(path);
+    const classification = await classifyStep(input.exec, commit, parents, base, capabilities);
+    if (classification.status === "refused") return classification;
+    if (classification.value === "contribution") {
+      for (const path of affectedPaths(changeSet.changes)) {
+        if (cumulativeSet.has(path)) continue;
+        cumulativeSet.add(path);
+        insertCanonicalByteSorted(cumulativePaths, path);
+      }
     }
     steps.push({
       commit,
       predecessor,
       parents,
-      classification,
+      classification: classification.value,
       changeSet,
-      cumulativePaths: sortCanonicalBytes(cumulative),
+      cumulativePaths: [...cumulativePaths],
     });
   }
-  if (steps[0]?.predecessor !== boundary.predecessor) {
+  const boundary = steps[0];
+  if (boundary === undefined || !await isAncestor(input.exec, boundary.predecessor, base)) {
+    return { status: "refused", reason: "divergence-boundary-missing" };
+  }
+  if (boundary.commit !== commits[0]) {
     return { status: "refused", reason: "first-parent-history-malformed" };
   }
   return {
@@ -617,21 +616,53 @@ async function classifyStep(
   exec: RawGitExec,
   commit: string,
   parents: readonly string[],
-  baseReachable: ReadonlySet<string>,
-): Promise<DeliveryBranchStep["classification"] | null> {
-  if (parents.length === 1) return "contribution";
-  if (parents.length !== 2) return null;
+  base: string,
+  capabilities: { mergeTreeWriteTree: boolean | null },
+): Promise<
+  | { readonly status: "classified"; readonly value: DeliveryBranchStep["classification"] }
+  | { readonly status: "refused"; readonly reason: InspectDeliveryBranchRefusal["reason"] }
+> {
+  if (parents.length === 1) return { status: "classified", value: "contribution" };
+  if (parents.length !== 2) return { status: "refused", reason: "ambient-purity-unproven" };
   const secondParent = parents[1];
-  if (secondParent === undefined || !baseReachable.has(secondParent)) return "contribution";
+  if (secondParent === undefined || !await isAncestor(exec, secondParent, base)) {
+    return { status: "classified", value: "contribution" };
+  }
+  if (capabilities.mergeTreeWriteTree === null) {
+    capabilities.mergeTreeWriteTree = await supportsMergeTreeWriteTree(exec, parents[0] ?? "");
+  }
+  if (!capabilities.mergeTreeWriteTree) {
+    return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
+  }
   try {
     const [expectedTreeOutput, actualTree] = await Promise.all([
       gitLines(exec, ["merge-tree", "--write-tree", parents[0] ?? "", secondParent]),
       gitLine(exec, ["rev-parse", `${commit}^{tree}`]),
     ]);
     const expectedTree = expectedTreeOutput.find((line) => /^[0-9a-f]{40,64}$/u.test(line));
-    return expectedTree === actualTree ? "ambient-base-absorb" : null;
+    return expectedTree === actualTree
+      ? { status: "classified", value: "ambient-base-absorb" }
+      : { status: "refused", reason: "ambient-purity-unproven" };
   } catch {
-    return null;
+    return { status: "refused", reason: "ambient-purity-unproven" };
+  }
+}
+
+async function supportsMergeTreeWriteTree(exec: RawGitExec, commit: string): Promise<boolean> {
+  try {
+    const output = await gitLines(exec, ["merge-tree", "--write-tree", commit, commit]);
+    return output.some((line) => /^[0-9a-f]{40,64}$/u.test(line));
+  } catch {
+    return false;
+  }
+}
+
+async function isAncestor(exec: RawGitExec, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    await exec(["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -653,4 +684,16 @@ async function gitText(exec: RawGitExec, args: string[]): Promise<string> {
 
 function sortCanonicalBytes(values: Iterable<string>): string[] {
   return [...values].sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+}
+
+function insertCanonicalByteSorted(values: string[], value: string): void {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const candidate = values[middle];
+    if (candidate !== undefined && Buffer.from(candidate).compare(Buffer.from(value)) < 0) low = middle + 1;
+    else high = middle;
+  }
+  values.splice(low, 0, value);
 }
