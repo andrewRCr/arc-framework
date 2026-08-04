@@ -5,6 +5,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Lock a completed task's identifier against removal or rename**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` draft design.
+- _Concern:_ completion commits cite task IDs in `Context:` footers, but later renumbering can silently make that
+  durable history point at different work.
+- _Fold-in:_ add a pre-commit comparison against `HEAD` that forbids removing or renaming an ID already marked
+  complete, while leaving open tasks and untouched future phases freely restructurable. Coordinate the prior-state
+  read, revision-ID forms, and subtask granularity with the task-list convention.
+
 ### `[ ]` **Reconcile ownership after repository Markdown enforcement ships**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during

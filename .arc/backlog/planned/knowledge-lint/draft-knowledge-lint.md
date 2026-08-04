@@ -18,6 +18,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Detect planning claims that lack their required source grounding**
+
+- _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ claims about shipped behavior can arrive as inherited premises with no visible signal that they were
+  never checked, so the existing semantic rule does not fire until an expensive review notices the mismatch.
+- _Fold-in:_ consume `planning-iteration-mechanics`' source-pointer convention and enforce the mechanically
+  decidable absence/shape rules over eligible planning artifacts. Keep semantic truth judgment out of the linter.
+
 ### `[ ]` **Refresh the stale `user/README.md` template**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-07); captured

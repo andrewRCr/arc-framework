@@ -329,6 +329,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for non-executable numeric-third task markers at root level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "- `[ ]` **1.1.1 Child-shaped marker**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task checkbox marker appeared at root level",
+      },
+    });
+  });
+
   it("returns malformed for id-only checkbox bullets at root level", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
