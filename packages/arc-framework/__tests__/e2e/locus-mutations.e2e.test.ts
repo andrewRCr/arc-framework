@@ -272,8 +272,14 @@ describe("arc locus mutation commands", () => {
       .rejects.toThrow();
     expect(await git(repository, ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/transient-discovery/"]))
       .toBe("");
+    await git(repository, ["update-ref", `refs/heads/${errandBranch}`, expectedHead]);
 
-    const materialized = await runAnchored(["errand", "materialize", errand, "--json"], repository);
+    const materialized = await runAnchored([
+      "errand", "materialize", errand,
+      "--claim-id", claimId,
+      "--expected-head", expectedHead,
+      "--json",
+    ], repository);
     expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
     const result = JSON.parse(materialized.stdout.trim()) as {
       activeLocusPath: string;
@@ -291,6 +297,38 @@ describe("arc locus mutation commands", () => {
       createdFor: { kind: "errand", slug: errand, claimId },
       provisioning: "ready",
     });
+  });
+
+  it("refuses a materialize request pinned to a stale Errand generation", async () => {
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+    const errand = "stale-selected-errand";
+    const errandBranch = `chore/${errand}`;
+    const claimId = "d".repeat(32);
+    await git(repository, ["switch", "-c", errandBranch, "main"]);
+    const expectedHead = (await git(repository, ["rev-parse", "HEAD"])).trim();
+    await git(repository, ["push", "origin", errandBranch]);
+    await seedPausedErrandIdentity(repository, errand, claimId, expectedHead);
+    await git(repository, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", errandBranch]);
+    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
+
+    const materialized = await runAnchored([
+      "errand", "materialize", errand,
+      "--claim-id", "f".repeat(32),
+      "--expected-head", expectedHead,
+      "--json",
+    ], repository);
+
+    expect(materialized.exitCode).toBe(1);
+    expect(JSON.parse(materialized.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-materialize",
+      reason: "identity-conflict",
+    });
+    expect(await git(repository, ["branch", "--list", errandBranch])).toBe("");
+    expect(await checkoutForBranch(repository, errandBranch)).toBeNull();
   });
 
   it.each([

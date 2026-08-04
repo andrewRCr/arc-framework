@@ -551,6 +551,8 @@ errand
 errand
   .command("materialize <slug>")
   .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--claim-id <claim-id>", "Require the selected Errand claim generation")
+  .option("--expected-head <oid>", "Require the selected retained head")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

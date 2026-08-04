@@ -245,7 +245,9 @@ here; the arms below are the **signal-absent** path.
   than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a work unit, run
   `arc materialize <name>` (or `arc materialize <name> --here` when explicitly materializing in the current
   checkout), then `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an
-  Errand, run `arc errand materialize <slug> --json`. If the result is refused or reports an error, render its
+  Errand, run
+  `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
+  candidate's claim ID and expected head. If the result is refused or reports an error, render its
   diagnostic and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
   `identity.claimId`, and `identity.branch` exactly match the selected candidate, and it carries a non-null
   `activeLocusPath`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected

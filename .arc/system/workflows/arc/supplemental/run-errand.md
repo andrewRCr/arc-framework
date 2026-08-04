@@ -75,7 +75,8 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
    - **Resume mode:** consume the exact checkout and freshly attached lease selected by session-init. Do not invoke
      `arc errand open` again; residue recovery already ran `arc locus resolve <record-id> --action resume`, and a
      live role already ran `arc locus attach`. A remote-only eligible generation first runs
-     `arc errand materialize <slug> --json`; accept only its exact returned generation and path. A recorded head
+     `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
+     candidate's claim ID and expected head; accept only its exact returned generation and path. A recorded head
      that no longer matches the fetched remote or open change request refuses materialization. Open identities,
      legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
 

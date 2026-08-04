@@ -22,7 +22,9 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain(
         "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",
       );
-      expect(reference).toContain("arc errand materialize <slug> [--json]");
+      expect(reference).toContain(
+        "arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]",
+      );
       expect(reference).toContain(
         "arc errand leave <slug> --state <paused|awaiting-merge> [--json]",
       );
@@ -63,6 +65,9 @@ describe("locus methodology contracts", () => {
         "select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES",
       );
       expect(init).toContain("If the composite call itself fails, surface the failure and stop.");
+      expect(init).toContain(
+        "arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json",
+      );
       expect(init).not.toContain("Probe failure fallback");
       expect(init).not.toContain("`locusState.inFlightIdentities`");
 

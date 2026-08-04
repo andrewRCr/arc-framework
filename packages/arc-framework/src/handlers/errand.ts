@@ -71,6 +71,8 @@ import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runti
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
+  LocusGitOidSchema,
+  LocusTokenSchema,
   locusErrorCode,
   type LocusErrorStage,
   type LocusMutationErrorCode,
@@ -699,6 +701,10 @@ function emitErrandLinkFailure(
 
 /** Options for `arc errand materialize`. */
 export interface ErrandMaterializeOptions {
+  /** Require this exact remote identity generation. */
+  claimId?: string;
+  /** Require this exact retained branch head. */
+  expectedHead?: string;
   /** Emit the producer-validated mutation result without human decoration. */
   json?: boolean;
 }
@@ -706,8 +712,17 @@ export interface ErrandMaterializeOptions {
 /** Validated input for materializing an Errand. */
 export const ErrandMaterializeInputSchema = z.object({
   slug: SlugSchema,
+  claimId: LocusTokenSchema.optional(),
+  expectedHead: LocusGitOidSchema.optional(),
   json: z.boolean().optional(),
-}).strict();
+}).strict().superRefine((input, context) => {
+  if ((input.claimId === undefined) === (input.expectedHead === undefined)) return;
+  context.addIssue({
+    code: "custom",
+    path: input.claimId === undefined ? ["claimId"] : ["expectedHead"],
+    message: "--claim-id and --expected-head must be supplied together",
+  });
+});
 
 /** Materialize one exact remote-only ordinary-v3 Errand generation. */
 export async function handleErrandMaterialize(
@@ -760,11 +775,25 @@ export async function handleErrandMaterialize(
         return;
       }
       const expectedHead = record.state === "paused" ? record.savedHead : record.changeRequest.headSha;
+      if (parsed.data.claimId !== undefined
+        && (record.claimId !== parsed.data.claimId || expectedHead !== parsed.data.expectedHead)) {
+        emitMaterializeRefusal(
+          "identity-conflict",
+          `Identity '${parsed.data.slug}' changed from the selected Errand generation.`,
+          opts.json === true,
+        );
+        return;
+      }
+      const expectedResumeGeneration = {
+        claimId: parsed.data.claimId ?? record.claimId,
+        expectedHead: parsed.data.expectedHead ?? expectedHead,
+      };
       const prepared = await prepareMaterializedBranch({
         exec: io.exec,
         remote: "origin",
         branch: record.branch,
         expectedHead,
+        existingLocal: "accept-exact",
       });
       if (prepared.kind === "refused") {
         emitMaterializeRefusal(
@@ -796,6 +825,8 @@ export async function handleErrandMaterialize(
           protection: "full",
           isolation: "require-isolation",
           changeRequestReentry: "strict",
+          pausedHeadReentry: "exact",
+          expectedResumeGeneration,
           base: settings["branch.base"],
           createdAt: new Date().toISOString(),
           identity,
@@ -1516,7 +1547,12 @@ export const errandCommandInputRegistrations = [
   {
     commandPath: "errand materialize",
     schema: ErrandMaterializeInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.json": "json" },
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.claim-id": "claimId",
+      "option.expected-head": "expectedHead",
+      "option.json": "json",
+    },
   },
   {
     commandPath: "errand leave",
@@ -1560,7 +1596,6 @@ export const errandCommandInputPolicyDeclarations = [
   ...[
     "errand open",
     "errand link",
-    "errand materialize",
     "errand leave",
     "errand close",
     "errand abandon",
@@ -1575,6 +1610,47 @@ export const errandCommandInputPolicyDeclarations = [
       mutationBoundary: "output selection", subprocess: "none" as const,
     })],
   })),
+  {
+    commandPath: "errand materialize",
+    aliases: [],
+    sites: [
+      declareCliOptionSite("claim-id", {
+        acquisition: "optional",
+        schemaOwnership: "owned",
+        schemaField: "claimId",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "preserve-absent",
+          flags: ["--claim-id <claim-id>"],
+          acceptedSyntax: ["--claim-id <claim-id>"],
+        },
+        mutationBoundary: "errand materialize generation preflight",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("expected-head", {
+        acquisition: "optional",
+        schemaOwnership: "owned",
+        schemaField: "expectedHead",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "preserve-absent",
+          flags: ["--expected-head <oid>"],
+          acceptedSyntax: ["--expected-head <oid>"],
+        },
+        mutationBoundary: "errand materialize generation preflight",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("json", {
+        acquisition: "machine-mode",
+        schemaOwnership: "owned",
+        schemaField: "json",
+        cancellation: "not-applicable",
+        automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+        mutationBoundary: "output selection",
+        subprocess: "none",
+      }),
+    ],
+  },
   {
     commandPath: "errand leave",
     aliases: [],
