@@ -161,8 +161,8 @@ export async function attachLocusLease(options: {
     : { kind: "refused", reason: "lease-generation-mismatch" };
 }
 
-/** Replace one exact conclusively dead transient lease without changing its trusted role. */
-export async function resumeDeadTransientLease(options: {
+/** Replace one exact dead or operator-attested unknown transient lease without changing its trusted role. */
+export async function resumeTransientLease(options: {
   recordId: string;
   expectedLeaseId: string;
   sessionHomePath: string;
@@ -171,6 +171,7 @@ export async function resumeDeadTransientLease(options: {
   attachedAt: string;
   heartbeatAt: string;
   observedLiveness: ProcessLiveness;
+  confirmedNoLiveSession: boolean;
   io: LocusLeaseMutationIO;
 }): Promise<LocusLeaseMutationResult> {
   const existing = await options.io.read();
@@ -182,7 +183,9 @@ export async function resumeDeadTransientLease(options: {
     return { kind: "refused", reason: "lease-generation-mismatch" };
   }
   if (options.observedLiveness === "live") return { kind: "refused", reason: "lease-live" };
-  if (options.observedLiveness !== "dead") return { kind: "refused", reason: "lease-unknown" };
+  if (options.observedLiveness !== "dead" && !options.confirmedNoLiveSession) {
+    return { kind: "refused", reason: "lease-unknown" };
+  }
   if (existing.record.role.kind === "work-unit") return { kind: "refused", reason: "role-conflict" };
   const parsed = LocusRecordV1Schema.safeParse({
     ...existing.record,

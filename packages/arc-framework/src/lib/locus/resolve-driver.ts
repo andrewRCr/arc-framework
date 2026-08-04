@@ -1,4 +1,4 @@
-/** Subject-owned dispatch for resolving one exact dead transient locus generation. */
+/** Subject-owned dispatch for resolving one exact transient residue generation. */
 
 import { createLocusMutationResult } from "./mutation.js";
 import type { SelectedLocusGeneration } from "./selected-generation.js";
@@ -76,24 +76,29 @@ export async function resolveLocusGeneration(options: {
   if (row.kind === "duplicate-locus") return refusal("duplicate-locus", "Duplicate session locus authority cannot be resolved automatically.");
   if (row.checkoutPath === null) return refusal("checkout-missing", "The selected transient checkout is missing.");
   if (row.role === null || row.recordId === null) return refusal("record-malformed", "The selected transient role is incomplete.");
-  if (row.lease === null) return refusal("record-malformed", "The selected transient role has no dead lease generation.");
-  // Deadness is one proof of authority over a lease, not the only one. A lease this process holds
-  // itself, or one whose liveness no inspector can establish, is resolvable on operator attestation
-  // — scoped to an unresolvable subject or an explicit abandon, so it stays a residue exit rather
-  // than a way to take a claimable frame. A verifiably foreign live lease has no such path: the
-  // reader holds positive evidence of another session that no attestation contradicts.
+  if (row.lease === null) return refusal("record-malformed", "The selected transient role has no lease generation.");
+  // Deadness is one proof of authority over a lease, not the only one. An unknown lease may resume
+  // only after the operator attests that no live session holds it; exact generation, trust, residue,
+  // and cleanliness guards still apply. A verifiably foreign live lease has no such path: the reader
+  // holds positive evidence of another session that no attestation contradicts.
   if (row.lease.state === "live" && !row.lease.selfHeld) {
     return refusal("lease-live", "The selected transient lease is held by another live session.");
   }
-  if (row.lease.state === "live" || row.lease.state === "unknown") {
+  if (row.lease.state === "unknown" && !options.confirmedNoLiveSession) {
+    return refusal(
+      "lease-unknown",
+      "The selected transient lease has unknown liveness; confirm no live session holds it.",
+    );
+  }
+  if (row.lease.state === "live") {
     const scoped = options.action === "abandon"
       || locusRowAuthorityReasons(row).includes("subject-unresolved");
     if (!options.confirmedNoLiveSession || !scoped) {
       return refusal(
-        row.lease.state === "live" ? "lease-live" : "lease-unknown",
+        "lease-live",
         row.lease.selfHeld
           ? "This lease is yours; exit this process to release it, or confirm no live session holds it."
-          : "The selected transient lease has unknown liveness; confirm no live session holds it.",
+          : "The selected transient lease is held by another live session.",
       );
     }
   }
