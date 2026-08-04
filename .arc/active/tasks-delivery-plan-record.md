@@ -670,27 +670,15 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
           the existing distinct-deliverables or independently-reviewable-surfaces signal fired and otherwise emits
           nothing.
 
-### `[ ]` **4.7 Reconcile the shipped sizing doctrine with the delivery invariant**
+### `[x]` **4.7 Reconcile the shipped sizing doctrine with the delivery invariant**
 
 - _Goal:_ The shipped sizing guidance no longer contradicts the invariant that one work unit carries one delivery
   plan emitting at least one pull request.
 
-- _Context:_ The statement in scope is "a stack is a cohort's dependency-ordered delivery mode, not one work unit
-  spread across many branches," which appears at two loci — the sizing bullet in `strategy-work-organization.md`
-  and the matching sizing-heuristics bullet in `assess-cohort-fit.md`, each mirrored in the package source. The
-  cohort framing earlier in the same strategy already carries the caveat that how many pull requests a work unit
-  emits is a separate axis, and needs no change. Both surfaces ship, so the correction must remove the
-  contradiction without forward-pointing to an unshipped mechanism.
+    - `[x]` **4.7.a Correct the stack-versus-cohort statement at both loci**
 
-- _Note:_ Out of scope, and named in the design rather than corrected here: the same strategy's single-branch
-  doctrine states that a work unit is one branch merged to the base exactly once. That is a deeper doctrine
-  question than the sizing bullet, and it belongs to the work unit rewriting the discriminator.
-
-    - `[ ]` **4.7.a Correct the stack-versus-cohort statement at both loci**
-
-        - Edit the package source and let it sync; the rendered copies refuse a direct edit.
-
-        - Distinct concern from `4.6` despite sharing a file — separate review increment and commit.
+        - Recast both shipped sizing bullets around orthogonal identities: stacks order deliverables, cohorts group
+          sibling work units, and either a cohort or one work unit's delivery plan may carry dependency order.
 
 ### `[ ]` **4.8 Reconcile the shared cohort record with the settled substrate**
 
@@ -1129,7 +1117,7 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
 - `[ ]` The assurance port declares export and import, and the v1 adapter round-trips a chain through both
   without loss
 
-- `[ ]` The shipped sizing doctrine no longer contradicts the one-work-unit-one-delivery-plan invariant
+- `[x]` The shipped sizing doctrine no longer contradicts the one-work-unit-one-delivery-plan invariant
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
