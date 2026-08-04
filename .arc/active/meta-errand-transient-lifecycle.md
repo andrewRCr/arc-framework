@@ -1,8 +1,8 @@
 # Metadata: errand-transient-lifecycle
 
-| **State**  | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ---------- | --------- | --------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/errand-transient-lifecycle` | `Light`   | `P1`         |
+| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
+| --------- | --------- | --------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/errand-transient-lifecycle` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-errand-transient-lifecycle.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Drafted and ground-audited `tasks-errand-transient-lifecycle.md` (on disk, pending finalize)
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Port the leave composition and runtime (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — re-derive and port the leave composition/runtime against current main
 
 - **PR URL:** [none]
 - **Completed:** [none]
