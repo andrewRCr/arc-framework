@@ -61,6 +61,8 @@ import { readPrimarySafety } from "../lib/locus/primary-safety.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
+import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
+import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
 import {
   closeOrdinaryErrandAtRuntime,
   readCloseIdentityAtRuntime,
@@ -70,11 +72,12 @@ import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
   locusErrorCode,
+  type LocusErrorStage,
   type LocusMutationErrorCode,
   type LocusMutationResultV1,
 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema, type CanonicalDigest } from "../lib/kernel/index.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   clearErrandPartialPushMarker,
@@ -91,7 +94,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 type ErrandPushLabel = "Record" | "Record-link" | "Record-removal";
-type ErrandHandlerOperation = "errand-open" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
+type ErrandHandlerOperation = "errand-open" | "errand-materialize" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
 type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
 
 async function runErrandHandlerBoundary(
@@ -691,6 +694,166 @@ function emitErrandLinkFailure(
     operation: "errand-link",
     reason,
     recommendedPromptText: message,
+  }), json);
+}
+
+/** Options for `arc errand materialize`. */
+export interface ErrandMaterializeOptions {
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
+}
+
+/** Validated input for materializing an Errand. */
+export const ErrandMaterializeInputSchema = z.object({
+  slug: SlugSchema,
+  json: z.boolean().optional(),
+}).strict();
+
+/** Materialize one exact remote-only ordinary-v3 Errand generation. */
+export async function handleErrandMaterialize(
+  slug: string,
+  opts: ErrandMaterializeOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand materialize");
+  await runErrandHandlerBoundary(
+    "errand-materialize",
+    opts.json === true,
+    emitErrandOpenResult,
+    "Inspect the retained identity and local branch evidence before retrying.",
+    async () => {
+      const parsed = ErrandMaterializeInputSchema.safeParse({ slug, ...opts });
+      if (!parsed.success) {
+        emitMaterializeError("input", z.prettifyError(parsed.error), opts.json === true);
+        return;
+      }
+      const cwd = requireArcProjectRoot();
+      if (!cwd) return;
+      const { settings } = await readConfigSettings(cwd);
+      if (settings["branch.protection"] !== "full") {
+        emitMaterializeRefusal("full-protection-required", "Errand materialization requires full branch protection.", opts.json === true);
+        return;
+      }
+      const identity = await resolveIdentityWithPrompt(false);
+      if (!identity) {
+        emitMaterializeError("identity", "No identity resolved — set arc.identity before materializing.", opts.json === true);
+        return;
+      }
+      const io = createUserIOContext(context?.subprocess);
+      if (!io.execInput) {
+        emitMaterializeError("identity", "The stdin Git boundary is unavailable.", opts.json === true);
+        return;
+      }
+      const read = await transactTransientIdentities({ exec: io.exec, execInput: io.execInput, identity }, {
+        remote: "origin",
+        message: `arc: reconcile errand identity ${parsed.data.slug}`,
+        transform: (records) => ({ kind: "idempotent", value: records.get(parsed.data.slug) ?? null }),
+      });
+      if (read.kind !== "applied" && read.kind !== "idempotent") {
+        emitMaterializeError("identity", read.kind === "error" ? read.message : read.reason, opts.json === true);
+        return;
+      }
+      const record = read.value;
+      if (record?.version !== 3 || record.kind !== "errand" || record.purpose !== "errand"
+        || (record.state !== "paused" && record.state !== "awaiting-merge")) {
+        emitMaterializeRefusal("identity-conflict", `Identity '${parsed.data.slug}' is not an exact resumable ordinary v3 Errand.`, opts.json === true);
+        return;
+      }
+      const expectedHead = record.state === "paused" ? record.savedHead : record.changeRequest.headSha;
+      const prepared = await prepareMaterializedBranch({
+        exec: io.exec,
+        remote: "origin",
+        branch: record.branch,
+        expectedHead,
+      });
+      if (prepared.kind === "refused") {
+        emitMaterializeRefusal(
+          prepared.reason.includes("already exists") ? "identity-conflict" : "preservation-unproven",
+          prepared.reason,
+          opts.json === true,
+        );
+        return;
+      }
+      if (prepared.kind === "error") {
+        emitMaterializeError(prepared.stage, prepared.message, opts.json === true);
+        return;
+      }
+      try {
+        const primaryPath = await resolvePrimaryWorktreePath(io.exec);
+        if (primaryPath === null) throw new Error("Primary checkout is unavailable");
+        const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+          cwd,
+          identity: SlugSchema.parse(identity),
+          exec: io.exec,
+        })).identityGlobalRoot;
+        const result = await openOrdinaryErrandAtRuntime({
+          slug: parsed.data.slug,
+          inbox: record.originEntry === null ? null : {
+            title: record.originEntry,
+            sourceDigest: record.originEntrySourceDigest as CanonicalDigest,
+            executeBound: false,
+          },
+          protection: "full",
+          isolation: "require-isolation",
+          changeRequestReentry: "strict",
+          base: settings["branch.base"],
+          createdAt: new Date().toISOString(),
+          identity,
+          locationTemplate: settings["worktree.location_template"],
+          repo: basename(primaryPath),
+          leaseId: randomBytes(16).toString("hex"),
+          postCreateScript: settings["worktree.post_create"],
+          registeredHarnessDirs: settings["worktree.harness_dirs"],
+          identityGlobalUserDir,
+          exec: io.exec,
+          execInput: io.execInput,
+        });
+        const materialized = createLocusMutationResult({
+          ...result,
+          operation: "errand-materialize",
+          recommendedPromptText: result.outcome === "applied" || result.outcome === "idempotent"
+            ? `Errand materialized at ${result.activeLocusPath}; open a fresh session there to resume. ${result.recommendedPromptText}`
+            : result.recommendedPromptText,
+        });
+        if (materialized.outcome !== "applied" && materialized.outcome !== "idempotent" && prepared.created) {
+          await deleteExactLocalBranch(io.exec, prepared.localRef, expectedHead);
+        }
+        emitErrandOpenResult(materialized, opts.json === true);
+      } catch (error) {
+        if (prepared.created) await deleteExactLocalBranch(io.exec, prepared.localRef, expectedHead);
+        throw error;
+      }
+    },
+  );
+}
+
+async function deleteExactLocalBranch(
+  exec: ReturnType<typeof createGitExec>,
+  ref: string,
+  expectedHead: string,
+): Promise<void> {
+  await exec("git", ["update-ref", "-d", ref, expectedHead]).catch(() => undefined);
+}
+
+function emitMaterializeRefusal(
+  reason: "full-protection-required" | "identity-conflict" | "preservation-unproven",
+  message: string,
+  json: boolean,
+): void {
+  emitErrandOpenResult(createLocusMutationResult({
+    outcome: "refused",
+    operation: "errand-materialize",
+    reason,
+    recommendedPromptText: message,
+  }), json);
+}
+
+function emitMaterializeError(stage: LocusErrorStage, message: string, json: boolean): void {
+  emitErrandOpenResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-materialize",
+    error: { code: locusErrorCode("errand-materialize", stage), message },
+    recommendedPromptText: "Inspect the retained identity and local branch evidence before retrying.",
   }), json);
 }
 
@@ -1342,6 +1505,16 @@ export const errandCommandInputRegistrations = [
     },
   },
   {
+    commandPath: "errand materialize",
+    schema: ErrandMaterializeInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.json": "json" },
+  },
+  {
+    commandPath: "errand leave",
+    schema: ErrandLeaveInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.state": "state", "option.json": "json" },
+  },
+  {
     commandPath: "errand abandon",
     schema: ErrandAbandonInputSchema,
     schemaFields: { "operand.slug": "slug", "option.json": "json" },
@@ -1378,6 +1551,8 @@ export const errandCommandInputPolicyDeclarations = [
   ...[
     "errand open",
     "errand link",
+    "errand materialize",
+    "errand leave",
     "errand close",
     "errand abandon",
     "errand promote",
@@ -1391,6 +1566,19 @@ export const errandCommandInputPolicyDeclarations = [
       mutationBoundary: "output selection", subprocess: "none" as const,
     })],
   })),
+  {
+    commandPath: "errand leave",
+    aliases: [],
+    sites: [declareCliOptionSite("state", {
+      acquisition: "handler-required",
+      schemaOwnership: "owned",
+      schemaField: "state",
+      cancellation: "not-applicable",
+      automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--state <value>"] },
+      mutationBoundary: "errand leave input preflight",
+      subprocess: "none",
+    })],
+  },
   {
     commandPath: "errand open", aliases: [], sites: [1, 2].map((occurrence) => declareInteractionSite(
       { file: "lib/inbox-entry-operand.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence },

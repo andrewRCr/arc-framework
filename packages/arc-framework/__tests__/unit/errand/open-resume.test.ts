@@ -69,6 +69,15 @@ describe("ordinary Errand resume authorization", () => {
       });
   });
 
+  it("refuses a moved head under strict materialization re-entry", async () => {
+    await expect(authorizeOrdinaryErrandResume(
+      hostExec({ headRefOid: "b".repeat(40) }),
+      "main",
+      awaiting(),
+      "strict",
+    )).resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/changed-head/iu) });
+  });
+
   it("warns and proceeds when the host is unreachable", async () => {
     const exec: GitExec = async (command) => {
       if (command === "git") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
@@ -80,6 +89,15 @@ describe("ordinary Errand resume authorization", () => {
         authorization: { kind: "unreachable" },
         advisory: expect.stringMatching(/confirm.*still open/iu),
       });
+  });
+
+  it("refuses an unreachable host under strict materialization re-entry", async () => {
+    const exec: GitExec = async (command) => {
+      if (command === "git") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
+      throw new Error("host unavailable");
+    };
+    await expect(authorizeOrdinaryErrandResume(exec, "main", awaiting(), "strict"))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/unreachable/iu) });
   });
 
   it.each([

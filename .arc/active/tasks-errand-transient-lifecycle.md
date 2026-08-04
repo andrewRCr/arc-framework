@@ -70,7 +70,7 @@ _Purpose:_ Deliver the pickup half — bring a remote-only full-protection claim
 with ARC ownership provenance and a role record, accepting exactly the two left shapes and refusing everything
 else.
 
-### `[ ]` **2.1 Port the materialize-branch composition** (materialize decision; SC 4, 5)
+### `[x]` **2.1 Port the materialize-branch composition** (materialize decision; SC 4, 5)
 
 - _Goal:_ `arc errand materialize <slug>` accepts an identity-only `paused` claim at its `savedHead`, or an
   `awaiting-merge` claim at its `changeRequest.headSha` whose change request is verified still open, and refuses
@@ -84,17 +84,18 @@ else.
   behavior does not port unchanged: the carve accepts a descendant remote tip with an advisory, while this spec
   requires exact-head refusal, so adapt that branch and its inherited test explicitly.
 
-    - `[ ]` **2.1.a Port `lib/errand/materialize-branch.ts`** (139 lines at the tag)
-        - `prepareMaterializedBranch` prepares the exact branch and nothing more — fetch from `origin`, require
-          the fetched tip to equal `expectedHead` (refuse a missing, divergent, or descendant tip), and handle an
-          existing local ref; ownership provenance, the role record, and change-request verification arrive
-          through the open runtime the handler delegates to (2.2)
+    - `[x]` **2.1.a Port `lib/errand/materialize-branch.ts`** (139 lines at the tag)
+        - Ported exact branch preparation with strict fetched-tip equality, existing-local safeguards, and
+          temporary-ref cleanup.
 
-    - `[ ]` **2.1.b Verify the refusal set against the v3 identity schema on `main`**
-        - `identity-record.ts` state shapes (`savedHead` / `changeRequest` nullability per state) are the
-          acceptance oracle; partial protection has no remote branch and therefore no materialize path
+    - `[x]` **2.1.b Verify the refusal set against the v3 identity schema on `main`**
+        - Verified acceptance from strict v3 paused/awaiting-merge state shapes; open, incomplete, legacy, and
+          partial-protection claims remain outside the path.
 
-### `[ ]` **2.2 Wire the handler, CLI registration, and exports**
+- _Outcome:_ Branch preparation now fails closed unless the remote tip exactly equals the retained identity head;
+  descendant drift is no longer admitted as an advisory.
+
+### `[x]` **2.2 Wire the handler, CLI registration, and exports**
 
 - _Goal:_ `errand materialize <slug>` registers with `--json` and dispatches through `handleErrandMaterialize`,
   whose composition delivers the verb's guarantees: validate the exact resumable v3 shape → prepare the branch
@@ -104,7 +105,7 @@ else.
   `requested-work` host truth and refuses `changed-head` or `unreachable`; ordinary resume keeps its existing
   advisory policy unchanged. Exports land in `lib/errand/index.ts`, mirroring the Phase 1 wiring shape.
 
-### `[ ]` **2.3 Adapt the dedicated materialize unit and handler tests**
+### `[x]` **2.3 Adapt the dedicated materialize unit and handler tests**
 
 - _Goal:_ `__tests__/unit/errand/materialize-branch.test.ts` (81 lines at the tag) lands adapted and green,
   and the `describe("errand materialize result rendering")` block ports into the existing

@@ -47,6 +47,7 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly repo: string;
   readonly leaseId: string;
   readonly isolation?: "prefer-primary" | "require-isolation";
+  readonly changeRequestReentry?: "advisory" | "strict";
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
   readonly identityGlobalUserDir: string;
@@ -122,7 +123,12 @@ export async function openOrdinaryErrandAtRuntime(
           ? { kind: "refused" as const, reason: read.reason }
           : { kind: "error" as const, message: read.message };
       },
-      authorizeResume: (record) => authorizeOrdinaryErrandResume(options.exec, options.base, record),
+      authorizeResume: (record) => authorizeOrdinaryErrandResume(
+        options.exec,
+        options.base,
+        record,
+        options.changeRequestReentry,
+      ),
       recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, record),
       claim: async (record) => {
         const claimed = await transactTransientIdentities({
@@ -244,6 +250,7 @@ export async function authorizeOrdinaryErrandResume(
   exec: GitExec,
   base: string,
   record: OrdinaryErrandRecord,
+  changeRequestReentry: "advisory" | "strict" = "advisory",
 ): Promise<ResumeAuthorizationResult> {
   if (record.state === "paused") {
     const proof = await provePauseHead(exec, {
@@ -263,6 +270,10 @@ export async function authorizeOrdinaryErrandResume(
     }
     const lifecycle = await createGhChangeRequestLifecyclePort(exec).read(configured, record.changeRequest);
     const reentry = evaluateChangeRequestReentry(lifecycle, record.changeRequest);
+    if (changeRequestReentry === "strict" && reentry.kind === "authorized"
+      && lifecycle.kind !== "open" && lifecycle.kind !== "requested-work") {
+      return { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not an exact open change request.` };
+    }
     return reentry.kind === "authorized"
       ? { kind: "authorized", authorization: lifecycle, ...(reentry.advisory === undefined ? {} : { advisory: reentry.advisory }) }
       : reentry;

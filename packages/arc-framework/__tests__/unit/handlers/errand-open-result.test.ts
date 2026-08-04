@@ -38,6 +38,23 @@ describe("errand leave result rendering", () => {
   });
 });
 
+describe("errand materialize result rendering", () => {
+  it("preserves the validated materialize operation across JSON and human rendering", () => {
+    const result = createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-materialize",
+      reason: "preservation-unproven",
+      recommendedPromptText: "The remote head changed.",
+    });
+    expect(JSON.parse(formatErrandOpenResult(result, true).text)).toStrictEqual(result);
+    expect(formatErrandOpenResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [preservation-unproven]: The remote head changed.",
+      exitCode: 1,
+    });
+  });
+});
+
 describe("errand open result rendering", () => {
   it("renders JSON from the exact validated producer result", () => {
     const output = formatErrandOpenResult(refusal, true);

@@ -162,6 +162,12 @@ export {
 } from "./leave-runtime.js";
 
 export {
+  prepareMaterializedBranch,
+  type PrepareMaterializedBranchOptions,
+  type PrepareMaterializedBranchResult,
+} from "./materialize-branch.js";
+
+export {
   closeErrand,
   closeLegacyErrand,
   type CloseErrandParams,

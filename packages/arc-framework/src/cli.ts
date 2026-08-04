@@ -22,6 +22,7 @@ import {
   handleErrandCheck,
   handleErrandOpen,
   handleErrandLink,
+  handleErrandMaterialize,
   handleErrandLeave,
   handleErrandClose,
   handleErrandAbandon,
@@ -29,6 +30,7 @@ import {
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
+  type ErrandMaterializeOptions,
   type ErrandLeaveOptions,
   type ErrandCloseOptions,
   type ErrandAbandonOptions,
@@ -537,11 +539,22 @@ errand
 errand
   .command("leave <slug>")
   .description("Preserve an Errand tail and close its local occupancy")
-  .requiredOption("--state <state>", "Tail state: paused | awaiting-merge")
+  .addOption(new Option("--state <state>", "Tail state")
+    .choices(["paused", "awaiting-merge"])
+    .makeOptionMandatory())
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
+  ));
+
+errand
+  .command("materialize <slug>")
+  .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
   ));
 
 errand
