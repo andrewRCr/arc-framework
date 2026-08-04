@@ -111,16 +111,12 @@ from.
   degrade silently if that text ever changed. Out-of-domain values need no help from the reader, which passes
   unrecognized keys through untouched; the lock module rejects them itself.
 
-    - `[ ]` **2.1.a Request schemas for the three verbs**
-        - _Note:_ Requests only. The result envelopes belong to the envelope module in 2.3, which owns the mode
-          literals they are keyed by — today's clearance module defines both together, and splitting them is
-          deliberate. Sequence 2.3 before this subtask's envelope-dependent work.
-        - `resolve` carries the tree root alone: the pull request does not exist yet, and no vehicle-dependent
-          behavior survives the open-locked rule. `hold` and `release` take the full guarded target plus the
-          vehicle the readiness evaluation consumes.
-        - Build `test-first` (one behavior at a time):
-            - A `resolve` request carrying a target or vehicle is rejected as invalid input
-            - A `hold` or `release` request missing its target is rejected as invalid input
+    - `[x]` **2.1.a Request schemas for the three verbs**
+        - `merge-lock.ts` opens with the request contracts: `MergeLockResolveRequestSchema` carries the tree root
+          alone, and `MergeLockTransitionRequestSchema` carries the guarded target plus the vehicle. Two schemas
+          rather than three — `hold` and `release` take an identical shape, so a duplicated third strict object
+          would state the same contract twice; each verb's command registration names the shared one.
+        - Result envelopes stay out, per the 2.3 split.
 
     - `[ ]` **2.1.b Opening disposition for `resolve`**
         - _Goal:_ A workflow about to open a pull request learns how to open it without reading configuration
