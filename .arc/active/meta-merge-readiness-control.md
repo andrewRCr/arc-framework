@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — spec finalized (detailed RFC; adversarial loop converged at the Heavy cap)
+- **Last Completed:** generate-tasks — task list finalized; WU activated (3 adversarial passes, 27 findings folded)
 - **Next Task:** Task 1.1 — Register `merge.lock` in the config catalog (line ~12)
 - **Blockers:** [none]
 
