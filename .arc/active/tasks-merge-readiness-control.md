@@ -125,32 +125,28 @@ from.
   the chunking command's, but strict where the shared reader is fail-soft, because a fail-soft read of this key
   disables the control it guards. The host port it depends on is still the clearance one until 2.2.
 
-### `[ ]` **2.2 Retarget the GitHub host port to draft-state transitions**
+### `[x]` **2.2 Retarget the GitHub host port to draft-state transitions**
 
 - _Goal:_ The port reports live lock state and performs both transitions through `gh`, leaving no
   clearance-workflow surface behind it.
 
-- _Context:_ `resolveRepository` and `resolvePullRequest` stay as they are. `inspectWorkflow` and `dispatch`
-  are the clearance-specific pair, and both go.
+    - `[x]` **2.2.a Replace workflow inspection with a live lock-state read**
+        - `GhMergeLockPort.resolvePullRequest` returns the lock state alongside the fields it already read,
+          from the same call — the payload carried it all along. A payload with no readable lock state is
+          refused at the boundary rather than defaulted.
+        - The widening is the port's own return type; the shared live-pull-request schema is untouched, so
+          every hand-composed readiness request still validates.
 
-    - `[ ]` **2.2.a Replace workflow inspection with a live lock-state read**
-        - The pull-request read already in the port returns the lock state in the same payload, so no second
-          round trip is needed.
-        - _Note:_ Widen the **port's own** return type, not the shared live-pull-request schema. That schema is a
-          strict object embedded in the public readiness request, which is hand-composed from workflow prose and
-          from the merge-gate template the corpus retirement deliberately keeps — a new required field there
-          would break every hand-built request.
-        - The orchestrator then has to **narrow back**: it strict-parses the port's payload against the shared
-          schema today, and forwards that same object into the readiness request, which strict-parses it again.
-          Parse against the port-local shape, then narrow to the shared schema before composing that request.
-          Skipping this produces a control that always blocks, reporting a cause that is not the real one.
+    - `[x]` **2.2.b Replace repository dispatch with the transition calls**
+        - A release flips the pull request ready and a hold flips it back, both through the same `gh`
+          subcommand pair. The clearance dispatch and its payload builder have no successor.
+        - Config and readiness stay injected collaborators, as they were on the retired port, so the class
+          satisfies the whole lock boundary while owning only the host half of it.
+        - A failed transition is proven blocked through the real port composed with the release verb, not
+          only through a fake — the port raises, and the orchestrator is what converts it.
 
-    - `[ ]` **2.2.b Replace repository dispatch with the transition calls**
-
-        - Build `test-first` (one behavior at a time):
-            - The port reports a locked pull request as locked and an open one as unlocked
-            - A release issues the ready transition and a hold issues its inverse
-            - A failed transition surfaces as a blocked outcome rather than an exception escaping the port
+- _Outcome:_ Both clearance-specific methods are gone from the host surface. The two that survive are
+  unchanged, which is what let the exact-head preflight carry over without re-verification.
 
 ### `[ ]` **2.3 Stand up the `merge-lock` envelope family**
 
