@@ -112,6 +112,25 @@ describe("existing delivery plan resolution", () => {
     })).resolves.toEqual({ status: "indeterminate", reason: "ambiguous-subject" });
   });
 
+  it("honors retirement evidence after a rename reaches a reused slug", async () => {
+    const stored = plan("retired", "original-unit");
+
+    await expect(resolve({
+      plans: [stored],
+      transitions: [
+        { subject: "original-unit", outcome: { kind: "rename", targetSlug: "current-unit" } },
+        { subject: "current-unit", outcome: { kind: "rename", targetSlug: "later-unit" } },
+      ],
+    })).resolves.toEqual({ status: "no-match" });
+    await expect(resolve({
+      plans: [stored],
+      transitions: [
+        { subject: "original-unit", outcome: { kind: "rename", targetSlug: "current-unit" } },
+        { subject: "current-unit", outcome: { kind: "removed" } },
+      ],
+    })).resolves.toEqual({ status: "no-match" });
+  });
+
   it("preserves ambiguous, corrupt, and unreachable histories as indeterminate", async () => {
     await expect(resolve({
       plans: [plan("ambiguous", "old-unit")],
