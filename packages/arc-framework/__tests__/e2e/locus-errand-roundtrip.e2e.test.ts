@@ -51,7 +51,7 @@ async function createOpenChangeRequestHarness(): Promise<{ directory: string }> 
     executable,
     [
       "#!/bin/sh",
-      "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
+      "head=$(git rev-parse \"refs/remotes/origin/$ARC_TEST_BRANCH\") || exit 1",
       "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
       "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
       "printf '\"reviewDecision\":\"\"}]\\n'",

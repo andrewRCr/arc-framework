@@ -129,7 +129,7 @@ async function prepareFromSnapshot(
     };
   }
 
-  const createArgs = ["update-ref", localRef, options.expectedHead, "0".repeat(40)];
+  const createArgs = ["update-ref", localRef, options.expectedHead, "0".repeat(options.expectedHead.length)];
   try {
     await options.exec("git", createArgs);
   } catch (error) {
