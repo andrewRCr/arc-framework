@@ -49,7 +49,7 @@ export function findMaterializableErrands(
     .filter((entry) => entry.kind === "errand" && entry.remoteOnly)
     .map((entry) => entry.branch));
   const candidates = options.records.flatMap((record): MaterializableErrand[] => {
-    if (record.version !== 3 || record.kind !== "errand" || record.purpose !== "errand") return [];
+    if (record.kind !== "errand" || record.purpose !== "errand") return [];
     if (!remoteOnlyBranches.has(record.branch)) return [];
     const generation = record.state === "paused"
       ? { expectedHead: record.savedHead, state: record.state }

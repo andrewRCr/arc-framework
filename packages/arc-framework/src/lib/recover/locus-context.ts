@@ -39,14 +39,6 @@ export const RecoveryLocusFrameSchema = z.discriminatedUnion("kind", [
     sessionType: z.null(),
   }),
   RecoveryLocusFrameResolvedSchema,
-  z.strictObject({
-    kind: z.literal("legacy-errand"),
-    workflow: z.literal("run-errand"),
-    sessionType: z.enum(["planning", "execution", "integration"]),
-    slug: LocusOpaqueTextSchema,
-    branch: LocusOpaqueTextSchema,
-    returnBranch: LocusOpaqueTextSchema,
-  }),
 ]);
 
 export type RecoveryLocusFrame = z.infer<typeof RecoveryLocusFrameSchema>;

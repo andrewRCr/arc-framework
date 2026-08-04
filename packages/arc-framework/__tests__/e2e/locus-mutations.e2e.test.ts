@@ -3,7 +3,7 @@
 import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -279,6 +279,60 @@ describe("arc locus mutation commands", () => {
       createdFor: { kind: "errand", slug: errand, claimId },
       provisioning: "ready",
     });
+  });
+
+  it("preserves the prepared branch when failed provisioning leaves a linked checkout", async () => {
+    remote = await createBareRemote(repository);
+    const configPath = join(repository, ".arc", "system", "arc-config.yml");
+    const config = await readFile(configPath, "utf8");
+    await writeFile(
+      configPath,
+      config.replace('worktree.post_create: ""', "worktree.post_create: sh fail-materialize-setup.sh"),
+      "utf8",
+    );
+    await writeFile(
+      join(repository, "fail-materialize-setup.sh"),
+      "#!/bin/sh\ntouch provisioning-residue\nexit 1\n",
+      "utf8",
+    );
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "configure failing materialization setup"]);
+    await git(repository, ["push", "-u", "origin", "main"]);
+
+    const errand = "retained-materialization";
+    const errandBranch = `chore/${errand}`;
+    const claimId = "9".repeat(32);
+    await git(repository, ["switch", "-c", errandBranch, "main"]);
+    const expectedHead = (await git(repository, ["rev-parse", "HEAD"])).trim();
+    await git(repository, ["push", "origin", errandBranch]);
+    await seedPausedErrandIdentity(repository, errand, claimId, expectedHead);
+    await git(repository, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", errandBranch]);
+    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
+    linkedCheckout = join(
+      dirname(repository),
+      `${basename(repository)}.locus-errand-${errand}-${claimId}`,
+    );
+
+    const materialized = await runAnchored([
+      "errand", "materialize", errand,
+      "--claim-id", claimId,
+      "--expected-head", expectedHead,
+      "--json",
+    ], repository);
+
+    expect(materialized.exitCode).toBe(1);
+    expect(JSON.parse(materialized.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-materialize",
+      error: { code: "locus.errand-open.provision" },
+    });
+    expect((await git(repository, ["rev-parse", `refs/heads/${errandBranch}`])).trim()).toBe(expectedHead);
+    expect(await checkoutForBranch(repository, errandBranch)).toBe(linkedCheckout);
+    expect(JSON.parse(await git(repository, [
+      "cat-file", "-p", `refs/arc/user/test-user/errands:${errand}`,
+    ]))).toMatchObject({ claimId, state: "open" });
   });
 
   it("refuses a materialize request pinned to a stale Errand generation", async () => {

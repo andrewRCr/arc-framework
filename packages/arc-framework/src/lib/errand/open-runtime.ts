@@ -26,7 +26,8 @@ import {
 import type { TransientIdentityRecord } from "./identity-record.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import {
-  openOrdinaryErrand,
+  openOrdinaryErrandWithDisposition,
+  type OpenOrdinaryErrandExecution,
   type ResumeAuthorizationResult,
 } from "./open.js";
 import {
@@ -61,15 +62,30 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
 }
 
-/** Run the complete production ordinary-Errand open composition. */
+/**
+ * Run the complete production ordinary-Errand open composition.
+ * @param options - Runtime identity, topology, and provisioning inputs.
+ * @returns The public mutation result.
+ */
 export async function openOrdinaryErrandAtRuntime(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
+  return (await openOrdinaryErrandAtRuntimeWithDisposition(options)).result;
+}
+
+/**
+ * Run production ordinary-Errand open with internal rollback evidence for composing callers.
+ * @param options - Runtime identity, topology, and provisioning inputs.
+ * @returns The mutation result and whether failed provisioning retained recovery state.
+ */
+export async function openOrdinaryErrandAtRuntimeWithDisposition(
+  options: OpenOrdinaryErrandRuntimeOptions,
+): Promise<OpenOrdinaryErrandExecution> {
   const inspector = createPlatformProcessInspector();
   const ancestry = createPlatformProcessAncestryInspector();
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   let selectedAnchor: LocusAnchor | null = null;
-  return openOrdinaryErrand({
+  return openOrdinaryErrandWithDisposition({
     slug: options.slug,
     intent: options.intent,
     inbox: options.inbox,
@@ -229,7 +245,7 @@ function matchesExpectedResumeGeneration(
   record: TransientIdentityRecord | null,
   expected: { readonly claimId: string; readonly expectedHead: string },
 ): boolean {
-  if (record?.version !== 3 || record.kind !== "errand" || record.purpose !== "errand"
+  if (record === null || record.kind !== "errand" || record.purpose !== "errand"
     || record.claimId !== expected.claimId) return false;
   if (record.state === "paused") return record.savedHead === expected.expectedHead;
   return record.state === "awaiting-merge" && record.changeRequest.headSha === expected.expectedHead;

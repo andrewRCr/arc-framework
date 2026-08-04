@@ -56,16 +56,12 @@ describe("findMaterializableErrands", () => {
     ]);
   });
 
-  it("excludes open, legacy, malformed awaiting, local, and work-unit bases", () => {
-    const legacy = {
-      version: 2, slug: "legacy", origin: "description", intent: "legacy",
-      branch: "chore/legacy", createdAt: "2026-07-21T00:00:00.000Z",
-    } as unknown as TransientIdentityRecord;
+  it("excludes open, malformed awaiting, local, and work-unit bases", () => {
     const result = findMaterializableErrands({
-      entries: [errand(), errand({ branch: "chore/legacy" }), errand({
+      entries: [errand(), errand({
         slug: "local", branch: "chore/local", remoteOnly: false,
       }), wu()],
-      records: [paused({ state: "open", savedHead: null }), legacy, paused({
+      records: [paused({ state: "open", savedHead: null }), paused({
         state: "awaiting-merge", savedHead: null,
         changeRequest: {
           repositoryRef: "owner/repo", hostRef: "github", baseRef: "main",

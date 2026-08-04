@@ -142,7 +142,6 @@ function recoverProbes(locusState: LocusStateV1): SessionRecoverProbes {
   const planning = sessionType === "planning";
   return {
     locusState: async () => locusState,
-    legacyErrand: async () => null,
     worktree: async () => ({ state: "clean", ahead: 0, behind: 0, branch: "feat/demo" }),
     worktreeIdentity: async () => ({ kind: "linked", path: "/repo.demo" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),

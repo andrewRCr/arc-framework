@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { v3DecompositionEvidenceFixture } from "../fixtures/decompose-v3.js";
 import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
-import { writeErrandRecord } from "../../src/lib/errand/record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
+import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   ROADMAP_PATH,
@@ -189,17 +190,34 @@ describe("arc status --project", () => {
 
     await execFileAsync("git", ["checkout", "-b", "chore/ref-only-errand", "main"], { cwd: repo });
     await execFileAsync("git", ["push", "-u", "origin", "chore/ref-only-errand"], { cwd: repo });
-    await writeErrandRecord(
+    const identityWrite = await transactTransientIdentities(
       { exec: makeGitExec(repo), execInput: makeGitExecInput(repo), identity: "andrew" },
       {
-        version: 1,
-        slug: "ref-only-errand",
-        origin: "description",
-        intent: "verify project status ignores errand refs",
-        branch: "chore/ref-only-errand",
-        createdAt: "2026-07-09T00:00:00.000Z",
+        remote: null,
+        message: "seed ref-only-errand",
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, ["ref-only-errand", TransientIdentityRecordV3Schema.parse({
+            version: 3,
+            kind: "errand",
+            slug: "ref-only-errand",
+            claimId: "a".repeat(32),
+            purpose: "errand",
+            origin: "description",
+            originEntry: null,
+            intent: "verify project status ignores errand refs",
+            branch: "chore/ref-only-errand",
+            state: "open",
+            savedHead: null,
+            changeRequest: null,
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          })]]),
+          value: null,
+        }),
       },
     );
+    expect(identityWrite.kind).toBe("applied");
 
     await execFileAsync("git", ["checkout", "main"], { cwd: repo });
 

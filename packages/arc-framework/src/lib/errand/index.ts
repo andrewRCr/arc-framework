@@ -1,6 +1,6 @@
 /**
- * Errand domain — the errand record model, the orphan state-ref read/write
- * primitives, and the per-slug tree-merge backing the errand lifecycle.
+ * Errand domain — v3 transient identities, lifecycle operations, and the
+ * orphan state-ref merge backing identity synchronization.
  *
  * @module
  */
@@ -12,18 +12,12 @@ export {
 } from "./ref-tree.js";
 
 export {
-  serializeErrandRecord,
-  deserializeErrandRecord,
-  readErrandRecord,
-  listErrandRecords,
-  listErrandRecordsResult,
-  writeErrandRecord,
-  removeErrandRecord,
-  type ErrandRecord,
-  type ErrandOrigin,
-  type ListErrandRecordsResult,
-  ErrandRecordReadError,
-  type ErrandRecordReadFailure,
+  emptyTransientInFlightIndexes,
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
+  readFetchedTransientInFlightIndexes,
+  type TransientInFlightIndexes,
+  type TransientInFlightRead,
 } from "./record.js";
 
 export {
@@ -36,9 +30,6 @@ export {
   type TransientIdentityRecordV3,
   type TransientIdentityRecord,
   type TransientIdentityDecodeResult,
-  type TransientIdentityOperation,
-  LegacyIdentityOperationError,
-  assertTransientIdentityOperation,
 } from "./identity-record.js";
 
 export {
@@ -126,19 +117,13 @@ export {
 } from "./branch-type.js";
 
 export {
-  openErrand,
   openOrdinaryErrand,
-  type OpenErrandParams,
-  type OpenErrandResult,
   type OpenOrdinaryErrandDependencies,
   type OpenOrdinaryErrandOptions,
 } from "./open.js";
 
 export {
-  linkErrandToInbox,
   linkOrdinaryErrand,
-  type LinkErrandToInboxParams,
-  type LinkErrandToInboxResult,
   type LinkOrdinaryErrandDependencies,
   type LinkOrdinaryErrandOptions,
 } from "./link.js";
@@ -166,14 +151,6 @@ export {
   type PrepareMaterializedBranchOptions,
   type PrepareMaterializedBranchResult,
 } from "./materialize-branch.js";
-
-export {
-  closeErrand,
-  closeLegacyErrand,
-  type CloseErrandParams,
-  type CloseErrandResult,
-  type RemoteHeadCleanup,
-} from "./close.js";
 
 export {
   closeOrdinaryErrand,
