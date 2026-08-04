@@ -541,14 +541,11 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
           facts preserve the flat inventory, derive phase groups from scanner events, and mark the verification
           parent explicitly ineligible for membership.
 
-    - `[ ]` **4.1.b Mechanical expansion of the alignment arm**
+    - `[x]` **4.1.b Mechanical expansion of the alignment arm**
 
-        - Build `test-first` (one behavior at a time):
-            - The alignment arm expands to phase-aligned boundaries deterministically
-            - Phase alignment follows scanner events even when task ids do not encode their containing phase
-            - The explicit-boundaries arm passes authored boundaries through unchanged
-            - A member spanning an authored boundary is accepted without a justification field
-            - Neither arm arrives selected
+        - Resolved the selected arm into the entry-neutral composition projection: phase alignment zips members to
+          scanner-derived groups, while explicit segments retain their authored source sequence. Starter maps select
+          neither arm, and cross-phase members require no additional field.
 
     - `[ ]` **4.1.c Register `plan from-tasks` and close the loop end to end**
 
