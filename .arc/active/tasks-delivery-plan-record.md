@@ -610,30 +610,22 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 - _Outcome:_ Retrofit membership now reflects the full enforced footer grammar while remaining inventory-bound:
   sparse or stale history stays author-visible, and repeated evidence across delivery members is preserved.
 
-### `[ ]` **4.4 Report co-change structure and lifecycle-artifact touches**
+### `[x]` **4.4 Report co-change structure and lifecycle-artifact touches**
 
 - _Goal:_ An author drawing boundaries sees file-level co-change and which steps touch the unit's own lifecycle
   artifacts, with neither turned into a constraint.
 
-- _Rationale:_ Enforcing the lifecycle-artifact exclusion in a projection-neutral composer would leak a
-  projection concern into the substrate and invert the cohort's dependency direction — the requirement arises
-  only under stack topology and belongs to the member that owns it.
+    - `[x]` **4.4.a File-level co-change structure across contribution steps**
 
-    - `[ ]` **4.4.a File-level co-change structure across contribution steps**
+        - Added canonical unordered path-pair reports with byte-sorted contribution commit ids. The report derives
+          only from canonical contribution changes, including rename and copy endpoints; ambient absorbs add no
+          edges and no boundary recommendation is inferred.
 
-        - Emit canonical byte-sorted unordered path pairs, each carrying the byte-sorted contribution commit ids
-          in which the pair co-occurs.
+    - `[x]` **4.4.b Lifecycle-artifact touches reported and never enforced**
 
-        - Build `test-first` (one behavior at a time):
-            - Files changing together across contribution steps are reported as co-changing
-            - The report is derivable language-agnostically, proposing no boundary of its own
-            - Ambient absorbs contribute no co-change edges
-
-    - `[ ]` **4.4.b Lifecycle-artifact touches reported and never enforced**
-
-        - Build `test-first` (one behavior at a time):
-            - Steps touching the unit's own artifacts are reported
-            - A cut whose members touch them still composes successfully
+        - Reported contribution steps that touch the unit's metadata, design, notes, or task-list artifacts in the
+          authoring facts. Library and built-CLI coverage prove those facts remain informative and do not block a
+          cut from composing.
 
 ### `[ ]` **4.5 Reconstruct both hand-run deliveries as authored plans**
 
