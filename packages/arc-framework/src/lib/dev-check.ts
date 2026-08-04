@@ -4,10 +4,9 @@
  * In this repo, `npx arc` resolves through the workspace symlink to
  * `packages/arc-framework/dist/cli.js`. `dist/` is gitignored, so after a
  * `git pull` or local source edit, `dist/cli.js` can lag behind `src/`.
- * Handoff-critical commands (`arc sync`, `arc user save`, `arc user push`,
- * session-init / session-handoff status probes) cannot afford to run against
- * stale dist — their output drives cross-machine state and a stale build
- * silently produces wrong answers.
+ * No command can afford to run against stale dist: a stale build silently
+ * produces wrong answers, and the ones that drive cross-machine state write
+ * those answers down.
  *
  * Staleness is scoped to the bundle's real input graph, read from the esbuild
  * metafile tsup emits: only files that actually feed `dist/cli.js` count.
@@ -29,9 +28,8 @@
  * helper returns `{ kind: "skip" }` and the CLI proceeds as normal.
  *
  * The pure verdict function takes injected fs primitives so tests can pin
- * each shape without touching the real filesystem. Allowlist branching
- * (handoff-critical fail-fast vs warn-only) lives at the cli.ts preAction
- * boundary.
+ * each shape without touching the real filesystem. Refusal, and the single
+ * compaction-seed exception to it, live at the cli.ts preAction boundary.
  *
  * @module
  */
@@ -243,8 +241,8 @@ export function hashSourceInputs(files: string[], pkgDir: string): string {
 /**
  * Newest file (mtime + repo-relative path) among `files`, or `null` when none
  * are stattable. A file that vanished or is unreadable between enumeration and
- * stat is skipped — this guard runs before every handoff-critical command, so
- * it must degrade rather than crash on a transient filesystem gap.
+ * stat is skipped — this guard runs before every command, so it must degrade
+ * rather than crash on a transient filesystem gap.
  */
 function newestFile(files: string[], pkgDir: string): { mtimeMs: number; path: string } | null {
   let newest: { mtimeMs: number; path: string } | null = null;

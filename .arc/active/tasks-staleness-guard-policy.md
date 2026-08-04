@@ -77,55 +77,42 @@ the ground to re-read before reopening any of this rather than re-deriving it.
   `dist` case passed on arrival as a regression guard on the directory condition. `createDevCheckDeps` had no
   tests before this — the file covered the pure verdict function and the two hashing helpers alone.
 
-### `[ ]` **2.2 Refuse every command against a stale build**
+### `[x]` **2.2 Refuse every command against a stale build**
 
 - _Goal:_ A stale bundle runs nothing but the compaction-seed write, and names a one-second fix.
 
-    - `[ ]` **2.2.a Delete the risk taxonomy**
-        - Remove `handoff-critical.ts` and its unit test, and drop the call site's import of it.
-        - Bring the taxonomy's remaining descriptions to what the module then does — the docblock's allowlist
-          enumeration and its warn-branch sentence, the helper doc comment further down that speaks of running
-          before every handoff-critical command, and the unit-test header saying the branching is exercised
-          elsewhere. The docblock's discriminator sentence belongs to the task above. Otherwise the
-          classification survives in prose inside the one file the change centres on.
-        - The import and its only branch cannot be removed separately, so this lands as one compiling change
-          with the call-site rewrite below rather than as a step that stands alone.
-        - No command is classified by risk anywhere in the guard afterwards.
+    - `[x]` **2.2.a Delete the risk taxonomy**
+        - `handoff-critical.ts` and its unit test are gone, along with the call site's import. No command is
+          classified by risk anywhere in the guard.
+        - The prose the taxonomy left behind in `dev-check.ts` is corrected: the docblock's allowlist enumeration
+          and its warn-branch sentence, the `newestFile` comment about running before every handoff-critical
+          command, and the unit-test header that deferred the branching elsewhere.
 
-    - `[ ]` **2.2.b Refuse at the call site, with the seed write as the sole exception**
-        - The exemption is the seed option test relocated unchanged: a seed produced by stale logic is
-          revalidated when recovery reads it, and beats no seed. The option is declared on `status` alone, so it
-          needs no command-name test and stays one condition rather than a classification.
-        - Both messages name `build:fast`. The exempt path keeps the existing stale-build sentence the compaction
-          hook matches on; only its remedy clause changes, and the hook keys on the sentence, not the clause.
-        - Naming the full build in either message would silently make the remedy ten times more expensive.
+    - `[x]` **2.2.b Refuse at the call site, with the seed write as the sole exception**
+        - The exemption is one option test — `writeCompactionSeed` — read from the action command's own options,
+          not a command-name test. Everything else refuses with exit 1.
+        - Both messages name `build:fast`; the exempt path keeps the stale-build sentence verbatim, since the
+          compaction hook string-matches on the sentence rather than the remedy clause.
 
-    - `[ ]` **2.2.c Re-settle the tests the policy change invalidates**
-        - The config-validate integration test tolerates a warn line in stderr; those cases spawn the CLI from
-          source and stop seeing the guard entirely, so the tolerance becomes an assertion of clean stderr.
-        - One compaction-hook fake models the seed command refusing, which the exemption makes impossible, while
-          its sibling case already covers the shape the seed path actually produces. Keep it for what it does
-          cover — the hook cannot assume the seed command's exit code — and rewrite the fake and its name around
-          that failure rather than around a refusal the CLI can no longer emit.
-        - Realign the remaining fakes with the messages that then exist.
+    - `[x]` **2.2.c Re-settle the tests the policy change invalidates**
+        - `expectOnlyDevelopmentBuildWarning` became `expectCleanStderr` across seven call sites in the
+          config-validate integration test: those cases spawn the CLI from source, where the guard no longer runs
+          at all. Proven load-bearing by removing the built-bundle gate — all seven fail on the warn line.
+        - The compaction-hook fake that modeled a refusing seed command now models a stale seed command failing
+          at its own work, renamed to match. It still covers what it always covered — the hook keys on the
+          sentence, not the exit code — without asserting a refusal the CLI can no longer emit.
+        - Remaining fakes realigned to `build:fast`.
 
-    - `[ ]` **2.2.d Pin refusal and the exemption end to end**
-        - The call site is unreachable from a unit test — `cli.ts` parses and runs on import, which is why the
-          taxonomy was a separate module at all. Holding the exemption at the call site is the design, so the
-          coverage moves out rather than the code.
-        - Assemble a throwaway package layout — the built bundle copied into a scratch `dist`, a sibling `src`
-          holding a newer dummy source file, no stamp — so the mtime fallback reports stale without touching the
-          real output directory or racing a parallel run.
-        - Put that layout inside the package directory, not the system temp directory. The bundle leaves its
-          runtime dependencies external, and the loader resolves them by walking up from the bundle's own path,
-          so a copy anywhere else dies on a missing module before the guard runs at all.
-        - Give the fixture its own project root and run from it. The seed write resolves its destination by
-          walking up from the working directory, so an unconstrained one overwrites the developer's live
-          recovery seed.
-        - Both branches embed the same stale-build sentence, and an ordinary command exits non-zero in a bare
-          fixture for reasons of its own — so neither the sentence nor the exit code discriminates. Assert the
-          refusal clause itself for an ordinary command, and for the seed invocation assert that the clause is
-          absent and its envelope reaches standard output.
+    - `[x]` **2.2.d Pin refusal and the exemption end to end**
+        - `__tests__/e2e/stale-build-guard.e2e.test.ts` copies `dist/` into a scratch layout **inside the package
+          directory** — the bundle resolves its external runtime dependencies by walking up from its own path, so
+          a copy elsewhere dies on a missing module before the guard runs — drops the stamp and metafile to force
+          the mtime fallback, and adds a newer sibling source file.
+        - Each case runs from its own initialized ARC project root, since the seed write walks up from the
+          working directory and would otherwise overwrite the developer's live recovery seed.
+        - Asserts the refusal clause for an ordinary command and its absence, plus a parseable envelope on
+          standard output, for the seed invocation — the sentence and the exit code discriminate neither.
+        - Fail-first proven by exempting every command: the refusal case fails, the exemption case still passes.
 
 ### `[ ]` **2.3 Settle the integration tier's build prerequisite**
 

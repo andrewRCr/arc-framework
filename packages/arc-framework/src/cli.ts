@@ -13,7 +13,6 @@ import { Command, Option } from "commander";
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
-import { isHandoffCritical } from "./lib/handoff-critical.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { handleInit, type InitOptions } from "./handlers/init.js";
 import { handleJoin, type JoinOptions } from "./handlers/join.js";
@@ -1300,23 +1299,23 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     = `arc dev build is stale (${verdict.newestSrc} changed `
     + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
 
-  const critical = isHandoffCritical({
-    name: actionCommand.name(),
-    parentName: actionCommand.parent?.name(),
-    opts: actionCommand.opts(),
-  });
-  if (critical) {
-    const cmdPath = formatCommandPath(actionCommand);
+  // Sole exception: the compaction-seed write. A seed produced by stale logic
+  // is revalidated when recovery reads it, so it beats no seed. The option is
+  // declared on `status` alone, so this needs no command-name test.
+  const opts: Record<string, unknown> = actionCommand.opts();
+  if (opts.writeCompactionSeed === true) {
     process.stderr.write(
-      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
-      + "run `npm run build`, then retry.\n",
+      `warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`,
     );
-    process.exit(1);
+    return;
   }
 
+  const cmdPath = formatCommandPath(actionCommand);
   process.stderr.write(
-    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+    `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
+    + "run `npm run build:fast`, then retry.\n",
   );
+  process.exit(1);
 });
 
 function formatCommandPath(cmd: Command): string {
