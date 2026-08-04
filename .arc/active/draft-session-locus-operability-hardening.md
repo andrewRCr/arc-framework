@@ -1,322 +1,271 @@
 # Draft: session-locus-operability-hardening
 
-- **Origin:** [internal] — follows the repository-wide recovery stop caused by an Errand lease minted with an
-  unverifiable `/usr/bin/bash` process boundary on 2026-08-04. The immediate continuity repair is preserved by
-  commit `5c6dd5c74`.
-- **Purpose:** Give session-locus refusals a fault domain, so one degraded checkout stops only the commands it
-  actually bears on, and make a stopped state say which locus stopped it.
-- **State:** Draft — `maturing`. The containment spine is settled, the incident premise is resolved by
-  reproduction, and scope is closed. Every open item is mechanism or validation rather than fundamentals.
+- **Origin:** [internal] — follows the repository-wide recovery stop of 2026-08-04, whose immediate continuity
+  repair is preserved by commit `5c6dd5c74`. Re-derivation during planning found the incident to be drift from a
+  boundary the shipped design already specifies, not a gap in it.
+- **Purpose:** Restore the proportionality boundary `spec-session-locus-model` specifies — exactness budgeted by
+  consequence — and give it a mechanical representation, so the same drift cannot recur silently.
+- **State:** Draft — `maturing`. The direction is restoration rather than redesign; open items are mechanism and
+  one bounded spike.
 - **Created:** 2026-08-04
 
 ---
 
 ## Problem / Motivation
 
-The incident read as a design gap and is closer to a coupling defect. `deriveLocusReconciliation` already computes
-the relation the whole subsystem needs: `lib/locus/reconciliation.ts:331-355` accumulates the record IDs, checkout
-paths, and identity keys that a command's refusals may legitimately come from — built from the selected target,
-adoption candidates, derived internal actions, the primary, and `current` (active, parent, session home). Those are
-the relationships that make a degraded locus authoritative for a command.
+The session-locus model specifies where refusal belongs and where it does not. The implementation has moved away
+from that specification in two places, and the second move was made to compensate for the first.
 
-That accumulation is local `const`s inside one function. It is never named, never exported, and never reused, so
-every other aggregation over the roster re-decides the question by omission:
+**Deviation 1 — the read side stops globally.** `deriveRecovery` (`lib/locus/state.ts:131`) halts on
+`managed.some(row => row.lease?.state === "unknown")`: any managed row anywhere with an unknown lease stops
+recovery for every healthy work unit in the repository. Three sibling aggregations share the shape —
+`lib/locus/state.ts:147` (two unrelated residual transients anywhere produce `role-conflict`),
+`lib/locus/reconciliation.ts:367` (a `duplicate-locus` row anywhere, outside the relevance loop in the same
+function that built the relevance sets), and `lib/locus/reconciliation.ts:273,357` (`derivationStops` accumulates
+over every stale record and lock, then joins ahead of the filtered loop).
 
-- `lib/locus/state.ts:131` — `deriveRecovery` stops when **any** managed row anywhere carries an unknown lease. No
-  relevance test. This is the incident: one degraded checkout halts recovery for every healthy work unit.
-- `lib/locus/state.ts:147` — two unrelated residual transients anywhere produce a `role-conflict` stop, likewise
-  untested for relevance.
-- `lib/locus/reconciliation.ts:367` — a `duplicate-locus` row anywhere pushes a stop, sitting outside the relevance
-  loop in the same function that built the relevance sets.
-- `lib/locus/reconciliation.ts:273,357` — `derivationStops` accumulates `lease-unknown` / `lock-unknown` /
-  `record-malformed` over every stale record and lock in the repository, then joins `stopReasons` ahead of the
-  filtered loop. Reconciliation's own scoping has a hole.
+The relation these four need already exists. `reconciliation.ts:331-355` accumulates the record IDs, checkout
+paths, and identity keys a command's refusals may legitimately come from — selected target, adoption candidates,
+derived internal actions, primary, and `current` (active, parent, session home). It is local `const`s inside one
+function: never named, never exported, never reused. The concept was written once as an implementation detail
+rather than as an authority, so nothing carried it and nothing failed when the next aggregation skipped it.
 
-Four aggregation sites, one adequate predicate, zero sharing. The defect is not that the fault domain was never
-conceived; it is that it was written once as an implementation detail rather than as an authority, so nothing
-carried it and nothing could fail when a new aggregation skipped it.
+**Deviation 2 — the entry side refuses.** `5c6dd5c74` made `arc errand open` and `arc locus attach` refuse when
+the entering process anchor is unverifiable. It was an unblock under pressure — ARC had stopped cooperating,
+including compaction recovery — and it worked by preventing the mint of the leases poisoning the read side. Its
+cost is that ARC now hard-refuses at entry on identity recognition, which the specification forbids in
+terms (below), and which takes every unrecognized harness offline: an ordinary session on a harness outside the
+recognized set cannot open an errand or attach at all.
 
-A second incident, routed in from a sibling session, is the same amplifier reached by a different cause. A
-behind-base checkout read a valid v3 Errand identity through a legacy branch-local probe that accepted only v1/v2
-records and reported it as malformed, while the authoritative reader resolved the same identity correctly — and
-that degraded interpretation blocked unrelated healthy work. `beaf5b26f` fixed the concrete reader by removing the
-legacy identity readers, so what carries forward is the doctrine rather than the code: a stale reader must not
-mislabel a newer valid generation as corruption, and its confusion must not escape its own locus. Two incidents,
-unrelated causes, identical shape — the amplifier is the thing worth fixing.
+**The two are causally linked, which is what makes restoration coherent.** Deviation 2 exists only because
+deviation 1 made an unknown lease globally poisonous. Fixing the fault domain removes the pressure that produced
+the entry refusal, so the entry posture can return to its specified shape without inventing anything.
 
-The second half is diagnosability. `lib/locus/session-guidance.ts:102` composes the operator's entire view of a
+**A second incident, routed in from a sibling session, is the same amplifier by a different cause.** A
+behind-base checkout read a valid v3 Errand identity through a legacy branch-local probe accepting only v1/v2
+records and reported it malformed, while the authoritative reader resolved it correctly — and that degraded
+interpretation blocked unrelated healthy work. `beaf5b26f` fixed the concrete reader by removing the legacy
+identity readers, so what carries forward is doctrine: a stale reader must not mislabel a newer valid generation
+as corruption, and its confusion must not escape its own locus.
+
+**Diagnosability compounds both.** `lib/locus/session-guidance.ts:102` composes the operator's entire view of a
 stopped repository as `` `Session locus recovery is stopped (${recovery.reasons.join(", ")})` `` — a comma-joined
-list of bare reason strings. `LocusStopReason` is a plain string union, so a refusal carries no record, no checkout,
-and no path to the verb that would clear it. That is why the incident cost a day rather than a turn, and it is also
-the mechanical reason the four sites above cannot be filtered as they stand: there is nothing on a reason to test.
+list of bare enum members. `LocusStopReason` is a plain string union, so a refusal carries no record, no checkout,
+and no route to the verb that clears it. That is why the incident cost a day rather than a turn, and it is also
+the mechanical reason the four aggregations cannot be filtered as they stand: there is nothing on a reason to
+test.
+
+## The specified boundary
+
+Three independent sources agree, and nothing later supersedes them — `errand-transient-lifecycle`'s spec does not
+mention anchors, unverifiable state, or refusal posture at all.
+
+**`spec-session-locus-model` § D1**, on warm entry: an interactive shell, shared host, unrecognized selector, or
+unverifiable anchor gets a confirm-with-recommendation, _"never an identity-keyed refusal. Anchor recognition is
+lease metadata and advisory input only; it carries no permission semantics."_ The same section provides for
+recording an `unverifiable` anchor with unknown liveness when ancestry evidence is unavailable or ambiguous.
+
+**`spec-session-locus-model` § Proportionality boundary:** _"Exactness in this design is budgeted by consequence.
+Data-destroying paths — teardown, cleanup, abandonment, record reap — keep their full guard set… Routine operator
+paths — entry, resume, re-entry, drain continuation — use advisory or simple-conflict semantics and never
+hard-refuse on identity recognition."_
+
+**`adr-025`**, at methodology level: concurrency is governed by _"advisory conventions plus one hard append-only
+invariant — doctrine over mechanism,"_ with attention discipline expressed as _"conventions an operator applies by
+judgment — not field validations a tool enforces."_
+
+Safety is preserved by the same specification rather than in spite of it: _"A lease only vetoes cleanup. It cannot
+grant deletion, branch removal, ref mutation, or remote authority."_ An unverifiable lease vetoing cleanup errs in
+the conservative direction, and every destructive verb keeps its full guard set throughout.
+
+## Why it drifted, which is the part worth fixing
+
+The specified behavior was implemented and tested. `5c6dd5c74` deleted the test that encoded it — _"records
+unavailable ancestry as an unverifiable lease anchor and continues"_, a name that is nearly a quotation of D1 —
+and replaced it with its inverse.
+
+So the failure is not that nobody knew. It is that **the boundary had no mechanical representation**:
+
+- It lives in prose, in a spec now under `completed/`. Archived specs are not read during implementation.
+- Its only executable trace was a test named after a behavior. A test named after a behavior can be rewritten by
+  anyone unblocking themselves, and nothing in that edit announces that a specified invariant is being reversed.
+- Nothing derives the set of paths the boundary governs, so a new refusal site joins the routine set silently.
+
+That is the same disease as the hand-maintained enumerations elsewhere in this domain — the vendor-harness
+allowlist, and `lib/handoff-critical.ts`'s errand-mutator list, which drifts in both directions at once (it still
+guards `errand retire` after `lib/errand/retire.ts` was removed, while `leave`, `materialize`, and `abandon`
+shipped without ever entering it; verified against `origin/main`). The remedy shape is common: **derive the set,
+or fail closed when it is incomplete — never hand-maintain it, and never let prose be the only carrier.**
 
 ## Design center
 
-**One typed fault-domain authority, plus attribution on every refusal.** The two compose: attribution supplies the
-evidence a relation test needs, and the authority is the single place that test lives.
+Four parts. The first two restore the specified behavior; the second two keep it from drifting again.
 
-- **The authority (B).** Extract the `reconciliation.ts:331-355` accumulation into a named, typed fault domain
-  computed once per read and consumed by every stop aggregation. `lib/locus/stop-tier.ts` already demonstrates the
-  enforcement shape: an exhaustive `Record` over the reason vocabulary that fails to compile until a new member is
-  classified. The durable fix is the same trick applied to aggregation sites — a new site cannot compile until it
-  declares the domain it aggregates over. Naming the predicate fixes today's four sites; making it unskippable is
-  what keeps the fifth from repeating the defect.
-- **The attribution (C).** Every stop reason carries the locus it came from — a record ID and checkout path rather
-  than a bare enum member. This is a shape change on `LocusStopReason[]` across the published slots
-  (`current.reasons`, `primaryAvailability.reasons`, `recovery.reasons`, `reconciliation.reasons`) and on every
-  producer in the lib.
-- **Attribution has a second axis: the reader.** A stop reason answers _which locus_ and also _who says so_.
-  "I cannot parse these bytes" and "I am too old to parse this generation" are different facts with different
-  remedies, and only the second is cured by freshening the reader. `record-malformed` and `unsupported-version`
-  already exist as distinct members of the vocabulary, so the gap is producers choosing between them, not the
-  vocabulary itself — and every producer is already in scope for attribution.
+**1. One typed fault-domain authority, plus attribution on every refusal.** Extract the
+`reconciliation.ts:331-355` accumulation into a named, typed fault domain computed once per read and consumed by
+every stop aggregation. Attribution is its companion: every stop reason carries the locus it came from — a record
+ID and checkout path rather than a bare enum member — because a relation test needs something to test. This is a
+shape change on `LocusStopReason[]` across the published slots (`current.reasons`, `primaryAvailability.reasons`,
+`recovery.reasons`, `reconciliation.reasons`) and on every producer.
+
+Attribution carries a second axis: the **reader**. "I cannot parse these bytes" and "I am too old to parse this
+generation" are different facts with different remedies, and only the second is cured by freshening the reader.
+`record-malformed` and `unsupported-version` already exist as distinct members, so the gap is producers choosing
+between them.
 
 **The predicate reads in two directions, and both are load-bearing.** Containment — an unrelated degraded row must
-not stop me. Authority — an unrelated degraded row is not mine to act on either. Same set, opposite direction. The
-second is what keeps containment from opening a concurrency hole: the fix must not create a path by which a session
-acts on a locus it merely happens to be able to see. `stop-tier.ts`'s existing tier axis (who may act past a
-refusal) and this locus axis (whose refusal it is) stay orthogonal and compose; they are not merged.
+not stop me. Authority — an unrelated degraded row is not mine to act on either. The second is what keeps
+containment from opening a concurrency hole.
 
-**Self-healing horizon.** `heartbeatAt` is written at every mint, attach, and refresh (`lib/locus/mutation.ts:154`,
-`:197`, `:235`) and read by nothing — no consumer compares it to the present. A stranded unknown lease therefore
-never ages out and requires an operator verb forever. A staleness horizon closes that, but a horizon comparing a
-recorded timestamp against local `now` is a cross-machine clock dependency (see Q2).
+**2. Restore the entry posture.** Return `arc errand open` and `arc locus attach` to recording an unverifiable
+anchor and continuing with an advisory, per D1. Recover the prior implementation and its test from `5c6dd5c74^`
+rather than re-deriving them. This unblocks every harness at once — no allowlist, no declaration channel, no new
+mechanism — and it is safe only once part 1 lands, which fixes the sequencing.
+
+**3. Consequence-class declarations, and a conformance suite derived from them.** Every locus mutation site
+declares its consequence class (`routine` / `destructive`) as a required, typed property. The conformance suite
+derives the routine set from those declarations and asserts that none hard-refuses on identity recognition, and
+that destructive paths retain their guard set. A behavior can then only be reversed by editing a declaration that
+names the boundary — visible in review — rather than by renaming a test.
+
+**4. Relocate the boundary to where it fires.** The proportionality rule belongs on the surface implementers
+touch, not solely in an archived spec — the locus module's own doc surface, or a rules surface, per the
+place-constraints-where-their-operation-fires principle. Containment and conformance both fail to help a reader
+who never learns the rule exists.
 
 **Diagnosability follows from attribution.** With a locus on every reason, the guidance composer can name the
-degraded checkout, its subject, and the exact verb that clears it, instead of joining enum members. The composer is
-the only consumer of `reasons` in the codebase, so this is a contained rewrite.
+degraded checkout, its subject, and the verb that clears it. The composer is the only consumer of `reasons` in the
+codebase, so this is a contained rewrite.
 
 ## Forward-compat boundaries
 
-Ran the four sibling check-docs. `strategy-procedure-evolution.md` and `strategy-storage-evolution.md` fire hard;
-`strategy-knowledge-evolution.md` fires weakly but genuinely; `strategy-pm-composition-evolution.md` does not fire
-(no PM fields, no external authority). The constraints they impose are design boundaries, not commentary:
+`strategy-procedure-evolution` and `strategy-storage-evolution` fire hard; `strategy-knowledge-evolution` fires
+weakly but genuinely; `strategy-pm-composition-evolution` does not fire.
 
-- **The agent-facing dispatch surface does not grow.** Procedure-evolution Principle 1's anti-pattern is prose that
-  evaluates state. The tempting shape here is a session-init step reading "if the stop concerns an unrelated row,
-  proceed anyway" — that is the anti-pattern exactly. `recovery.kind` stays the agent's only dispatch input and
-  simply becomes correct. This is satisfied structurally rather than by discipline: `session-init.md` and
-  `probe-envelope.md` contain no reference to `reasons` at all, so the entire attribution change is invisible to
-  workflow prose.
-- **Net line pressure on `session-init.md` is neutral or negative.** Knowledge-evolution Principle 10 — session-init
-  is the largest always-loaded surface, and a correct fault domain should let the repository-wide stop path shrink
-  rather than gain a qualifier.
-- **Emitted text stays precomposed CLI-side** (procedure-evolution Principle 6), and any new surface fits the
-  existing step vocabulary — a non-gating advisory is a `note`, the residue path stays `fragment` + `offer`. If the
-  design wants an eighth step type, that is a signal the design is wrong. Fixture:
-  `draft-composable-workflows.md` D3.
-- **The predicate keys on record identity and checkout path, never on branch shape** (storage-evolution
-  Principle 5). The existing accumulation already honors this; the extracted authority carries it as a type
-  constraint rather than a convention.
-- **No new configuration axis** (storage-evolution Principle 9). Correct fault scope is a fact, not a preference;
-  a strictness knob would be an axis for something that has one right answer.
-- **Enforce, don't document** (knowledge-evolution Principle 1). "No attestation can take over a verifiably foreign
-  live lease" is enforced in `lib/locus/resolve-driver.ts` and stays there. An agent needs no prose for a rule it
-  structurally cannot violate.
-- **Published slots change in place.** `DEV-RULES.PROJECT` § Engineering Standards, pre-public-release posture: no
-  compatibility alias, no migration reader, no dual shape.
+- **The agent-facing dispatch surface does not grow.** The tempting shape is a session-init step reading "if the
+  stop concerns an unrelated row, proceed anyway" — that is prose evaluating state, the named anti-pattern.
+  `recovery.kind` stays the agent's only dispatch input and simply becomes correct. This is satisfied
+  structurally: `session-init.md` and `probe-envelope.md` contain no reference to `reasons`, so the whole
+  attribution change is invisible to workflow prose.
+- **Net line pressure on `session-init.md` is neutral or negative.** It is the largest always-loaded surface, and
+  a correct fault domain should let the repository-wide stop path shrink rather than gain a qualifier.
+- **Emitted text stays precomposed CLI-side**, and any new surface fits the existing step vocabulary — a
+  non-gating advisory is a `note`, the residue path stays `fragment` + `offer`. Wanting an eighth step type would
+  signal the design is wrong.
+- **The predicate keys on record identity and checkout path, never branch shape.**
+- **No new configuration axis.** Correct fault scope is a fact, not a preference; a strictness knob would be an
+  axis for something with one right answer.
+- **Enforce, don't document.** "No attestation can take over a verifiably foreign live lease" is enforced in
+  `lib/locus/resolve-driver.ts` and stays there.
+- **Published slots change in place** — pre-public-release posture: no compatibility alias, no migration reader.
 
 ## Scope
 
-**In:** the fault-domain authority and its enforcement mechanism; attribution on every stop reason and every
-producer, across both axes (which locus, and which reader); the four aggregation sites above; the staleness
-horizon; the guidance-composer rewrite that consumes attribution; session-identity recognition and its failure
-mode, including the harness-identity provider seam.
+**Minimal** (closes the incident): parts 1 and 2 — fault domain, attribution, entry-posture restoration.
 
-**Out:** cross-machine arbitration and backend storage evolution, unless Q2 cannot be settled without them.
+**Complete** (stops the recurrence): parts 3 and 4 additionally, plus the deviation audit and the fixtures below.
+Taken, because the recurrence is the actual complaint.
+
+**In:** the four aggregation sites; attribution across both axes; the guidance-composer rewrite; entry-posture
+restoration; consequence-class declarations and the derived conformance suite; boundary relocation; a systematic
+audit classifying every locus refusal site as routine or destructive against the boundary; a permanent
+unrecognized-harness fixture walking the full lifecycle; the degraded-anchor lifecycle spike below.
+
+**Out:** cross-machine arbitration and backend storage evolution. Harness recognition improvements beyond what
+already landed — once recognition carries no permission semantics, sharpening it is optional polish.
 
 ### Boundary with `locus-generation-binding`
 
-**This work owns where a stop reason comes from and whether it applies to you. `locus-generation-binding` owns what
-authority a mutation carries and who invokes it.**
+**This work owns where a stop reason comes from, whether it applies to you, and whether a routine path may refuse.
+`locus-generation-binding` owns what authority a mutation carries and who invokes it.**
 
-The `derivationStops` hole sits in the loops that derive `reap-stale-record` and `break-dead-lock` — the two actions
-that draft names as lacking an owning verb — so the sites are adjacent. They do not overlap: that work rewrites what
-the loops derive and who invokes the result; this work changes what their refusals carry. Attribution is what
-settles the boundary rather than the filter. A stop reason with no locus is exactly the shape this work exists to
-remove, so an unattributed producer cannot survive the change regardless of who owns the surrounding logic — the
-hole would be visible in the type.
-
-Two further reasons the split falls this way: `locus-generation-binding` is provisional, `P2`, `Light`, and depends
-on `claimed-sweep-verbs`, which has not landed — routing a live repository-wide-stop path there defers it behind an
-unlanded dependency and a grooming pass. And shipping "every aggregation filters through one authority" with a
-known unfiltered path is an incoherent deliverable a reviewer would find.
-
-The audit this work performs narrows accordingly: producers of **stop reasons**, not every lease producer. The
-broader continuity audit across attach, provisioning, promotion, and marker authority is
-`locus-generation-binding`'s.
+The `derivationStops` hole sits in the loops deriving `reap-stale-record` and `break-dead-lock` — the two actions
+that draft names as lacking an owning verb — so the sites are adjacent but do not overlap: that work rewrites what
+the loops derive and who invokes the result; this changes what their refusals carry. Attribution settles it: an
+unattributed producer cannot survive this change regardless of who owns the surrounding logic, because the hole
+would be visible in the type. `locus-generation-binding` is also provisional, `P2`, `Light`, and depends on
+`claimed-sweep-verbs`, which has not landed.
 
 ### Boundary with `staleness-guard-policy`
 
-That work owns which stale development commands may mutate state, and has already absorbed this omission — its
-inbound buffer carries the 2026-08-04 entry. Worth recording for it: `lib/handoff-critical.ts:38-62` is a
-default-allow allowlist, so `locus attach` / `resolve` / `release` and `errand materialize` / `leave` / `abandon`
-sit outside the hard-fail set today, and every future mutator will too. The enumeration gap is a symptom; the
-default is the defect.
+That work owns which stale development commands may mutate state; it has confirmed the split and scoped session
+identity out of its spec explicitly. If containing reader-version skew turns out to need base or source freshness
+policy rather than locus authority, route it there explicitly — noting its open capture on widening detection
+beyond first-party sources may be the better composition target than the guard policy itself.
 
 ## Resolved design questions (formerly open)
 
-**Q1 — Was ancestry ever the live defect? Yes, but not as the stub framed it. Settled by reproduction
-2026-08-04.** Against current source and a freshly built CLI, in an ordinary harness session, every `arc`
-invocation produces `Unrecognized process boundary: /usr/bin/bash` and refuses with `lease-unknown`. The
-`staleness-guard-policy` inbound entry's claim that this failed reproduction does not hold today.
+**Was ancestry the live defect? Yes, but not as first framed — settled by reproduction, 2026-08-04.** Against
+current source and a fresh build, every invocation in an ordinary session produced `Unrecognized process boundary:
+/usr/bin/bash`. The cause was neither ancestry inference nor the npm-to-`dash` chain — both behave correctly — but
+`isAgentSnapshotShell` requiring every command between the shell-snapshot `source` and the `eval` to be `true` or
+`shopt`, which a harness prologue's brace group violated. Fixed on `main`. The residual lesson is that recognition
+is coupled to vendor shell text, which the boundary above makes non-load-bearing rather than something to perfect.
 
-The cause is neither ancestry inference generally nor the npm-to-`dash` chain, both of which behave correctly —
-the `node` → `npm exec` → `dash -c` → `npx` wrappers are all recognized and skipped as intended. It is
-`isAgentSnapshotShell` (`lib/locus/process-inspector.ts:286-287`), which requires every command between the
-shell-snapshot `source` and the `eval` to be `true` or `shopt`. The harness's tool-shell preamble now carries a
-brace group between them — `{ \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1
-|| true` — whose tokens are outside that allowlist. Isolating the preamble against the real exported selector
-confirms the brace group is the sole discriminator: identical chains with it fail and without it resolve to
-`selector=claude`.
+**A staleness horizon is not available as designed, and the rejection still holds.** The spec rejects treating
+heartbeat age as dead-session evidence — _"A quiet but live session can have an old heartbeat… age may explain a
+prompt but cannot authorize removal"_ — with an explicit non-goal against making age a liveness or deletion
+signal. The precise line survives: age may inform an advisory, never expire a lease. The stranded-lease exit is
+operator attestation through `arc locus resolve`, which already exists.
 
-So the defect class is **external coupling, not inference**. Session identity depends on the byte-level shape of a
-vendor's shell prologue, versioned independently of ARC and under no contract. It will break again on any harness
-preamble change, in any of the three recognized harnesses.
-
-Three consequences for this work:
-
-- **Durable session capability, as the stub framed it, is not motivated by this evidence.** Ancestry walks fine.
-  The heaviest candidate item leaves scope, and `Class` does not ratchet on it. What replaces it is smaller and
-  differently shaped (Q5).
-- **Containment is vindicated as the spine.** The recognizer will break again; the property that makes that
-  survivable is that a broken recognizer costs one refusal on one command rather than a repository-wide stop.
-  This is the strongest available argument for the fault domain being this work's center.
-- **The condition is live now.** The `5c6dd5c74` guards sit on `arc errand open` and `arc locus attach`, which
-  refuse rather than mint an unverifiable lease — correct fail-closed behavior, and it means those paths do not
-  currently function in this environment. Remediation timing is a separate call from this design.
+**The harness-identity provider seam is dropped.** It was adopted while recognition was believed load-bearing.
+Under D1 it carries no permission semantics, so a provider registry solves a problem the boundary dissolves.
 
 ## Open questions
 
-**Q5 — What identifies a harness session, if not vendor preamble text?** Direction settled: **invert inference
-into declaration, behind one harness-identity provider**, and the seam is this work's to own. What remains open is
-mechanism — which declaration channel, and whether the hook timing holds (below) — not whether to build it.
+**Q1 — What is the consequence-class declaration's exact shape?** A required argument is weak (a call site can
+accept and ignore it). A branded type that makes a publishable refusal constructible only through the declaration
+is stronger. Whether the derived conformance suite enumerates sites from the type system, from the schema, or from
+a registry is unsettled, and it decides whether this leaves behind an authority or a fifth copy that happens to be
+shared today.
 
-Today ARC _infers_ session identity by reading a vendor's process text, so an unrecognized preamble means no
-identity at all. A `SessionStart`-class hook runs inside the harness's own context and can record the session
-authoritatively once, after which every `arc` invocation reads a recorded identity instead of re-deriving one. The
-surface already exists — `system/.internal/harness-hooks/` ships a session-start hook plus per-harness wiring for
-the harnesses the recognizer already names. Under declaration, a changed preamble means nothing, because nothing
-parses it.
+**Q2 — Does the full lifecycle survive a degraded anchor?** The deleted test covered only `openOrdinaryErrand`
+returning provisioned. Nobody has walked open → work → close → return → recovery with an unverifiable anchor, and
+a second blocker would hide exactly there. **Bounded spike:** locally revert the two refusal guards, walk the
+lifecycle in a scratch fixture, and record what else refuses. This worktree already produces unverifiable anchors,
+so the substrate is free. Run before committing to the restoration sequence.
 
-Full decoupling is not available and should not be claimed: identifying a harness requires knowing something
-about it. What is available is coupling to a harness's **contract** (a documented hook) rather than its
-**internals** (undocumented shell text) — hook contracts are versioned and announced; shell prologues are not.
+**Q3 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
+expressible, but a degraded sibling is advisory while a degraded current locus gates.
+`operational-advisory-registers` may own that vocabulary; check before minting a local one.
 
-**The provider seam is justified by fan-in, not aesthetics.** Harness knowledge is already spread across at least
-three surfaces that do not know about each other: the recognizer's hardcoded executable names and preamble shape
-in `lib/locus/process-inspector.ts`; the per-harness hook wiring under `system/.internal/harness-hooks/`; and the
-`ARC_HOOK_HARNESS` environment signal. Three consumers already exist, so knowledge-evolution Principle 6's
-extract-on-fan-in bar is met rather than anticipated — and that scatter is what let recognition drift out of step
-with the hook layer in the first place. One provider per harness declares what ARC needs (how its process is
-recognized, whether it can declare a session, what it writes), and a resolution order of **declared → recognized →
-unverifiable** replaces the current all-or-nothing walk.
-
-Design boundaries for that seam:
-
-- The registry is **internal and closed**, never a configuration axis (storage-evolution Principle 9). Projects do
-  not register harnesses.
-- A declared session-identity record is **machine-local, session-scoped, and never syncs** — operational state, not
-  machinery, and storage-agnostic per storage-evolution Principle 2. Being inherently same-machine, it also
-  reinforces Q2's horizon scoping rather than complicating it.
-- Any typed provider shape derives from the shared schema kernel rather than a hand-written second copy
-  (procedure-evolution Principle 4).
-- Scope stays the **identity** seam. Hook installation wiring stays where it lives; the provider becomes the one
-  place a harness is named, not a general harness-plugin architecture.
-- The inference walk survives as the **degraded** path for unhooked environments, and its failures are scoped by
-  the fault domain rather than global. Narrowing the preamble contract to the two load-bearing facts — a snapshot
-  `source` and an `eval` payload naming `arc` — is the cheap improvement to that path and may be all it needs.
-
-Unverified: whether a session-start hook fires early enough in every supported harness, and whether the recorded
-process is verifiable by later invocations the way the current anchor is. The mechanism looks right; it has not
-been tested.
-
-**Q6 — Is `unsupported-version` the right tier when the reader is the stale party?** It sits at `hard` in
-`lib/locus/stop-tier.ts`, which is correct when a record genuinely cannot be identified. A current record read by
-an out-of-date checkout is a different situation: the record is fine, the reader is behind, and the remedy is
-freshening the reader rather than operator attestation. Whether that stays `hard` with a fault-domain scope and a
-freshness remedy, or earns different treatment, is open. If containing it turns out to need base or source
-freshness policy rather than locus authority, it belongs to `staleness-guard-policy` — route explicitly rather
-than assume.
-
-**Q2 — Can the staleness horizon avoid a cross-machine clock dependency?** Storage-evolution tiers 2–3 put the
-record store on a shared remote, so a horizon comparing `heartbeatAt` to local `now` crosses machines. Candidate
-resolution, unvalidated: `verifyProcessAnchor` (`lib/locus/process-inspector.ts:161`) already returns `unknown` on
-an inspector-kind mismatch, which is a cross-machine signal available today with no clock involved. If a
-foreign-machine anchor classifies as **outside the fault domain** rather than as unknown-therefore-stop, then any
-time-based horizon is scoped to leases whose anchor names this machine's inspector namespace and never crosses a
-boundary. Attractive because it makes one mechanism serve both halves — test it rather than adopt it.
-
-**Q3 — What is the enforcement mechanism's exact shape?** The `stop-tier.ts` exhaustive-`Record` trick classifies a
-_vocabulary_; aggregation sites are _call sites_, which a `Record` does not enumerate. Whether the unskippable form
-is a required argument, a branded return type, a lint check, or something else is unsettled — and it decides whether
-this work leaves behind an authority or merely a fifth copy that happens to be shared today.
-
-**One failure mode underlies most of this work, and it constrains the answer.** Three defects in this domain are the
-same disease — a hand-maintained enumeration coupled to a surface that moves underneath it, where drift is silent
-because nothing fails when the list falls behind:
-
-- the fault-domain predicate, written once and shared by none across four aggregation sites;
-- the vendor shell-preamble allowlist, which encodes a prologue its author never agreed to hold still;
-- `lib/handoff-critical.ts`'s errand-mutator enumeration, which drifts in **both** directions at once — it still
-  guards `errand retire` after `lib/errand/retire.ts` was removed, while `leave`, `materialize`, and `abandon`
-  shipped without ever entering it. Verified against `origin/main`; surfaced by the `staleness-guard-policy`
-  session, which is inverting that default rather than extending the list.
-
-The remedy shape is therefore common across all three: **derive the set, or fail closed when it is incomplete —
-never hand-maintain it.** Q3's mechanism should be judged against that bar rather than against whether it fixes
-today's four sites, and the same bar applies to Q5's provider registry.
-
-**Q4 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
-expressible, but a degraded sibling is advisory while a degraded current locus gates. `operational-advisory-registers`
-may own that vocabulary; check before minting a local one.
+**Q4 — Is `unsupported-version` the right tier when the reader is the stale party?** It sits at `hard`, correct
+when a record cannot be identified. A current record read by an out-of-date checkout is different: the record is
+fine, the reader is behind, and the remedy is freshening the reader.
 
 ## Success conditions
 
-Revised from the stub. Conditions 3 and 4 below carried scope that is not this work's to prove — 3 restates
-`locus-generation-binding`'s contract, and 4 depends on Q1.
-
 1. Recovery of a healthy work-unit locus remains available when an unrelated checkout carries an unknown lease.
 2. The affected checkout still fails closed, and no operator confirmation can take over a verifiably foreign live
-   lease. The containment direction does not weaken the authority direction.
+   lease. Containment does not weaken the authority direction.
 3. Every stop reason reaching a published slot carries the locus it came from, and no producer can emit one that
    does not.
-4. A stopped repository names which checkout stopped it and the verb that clears it, without the operator reading
-   source.
-5. A stranded unknown lease on this machine resolves without an operator verb once its horizon passes, and a
-   foreign-machine lease is never aged out on local clock evidence.
-6. Multi-session fixtures prove fault containment and unchanged exclusivity together, across the primary and linked
-   worktrees: a healthy work unit beside unknown primary residue, affected-locus recovery, foreign-live refusal,
-   command-process replacement, and exact-generation races.
+4. A stopped repository names which checkout stopped it and the verb that clears it, without reading source.
+5. **ARC is fully operable from an unrecognized harness** — open, work, close, return, and recover, with advisory
+   surfacing and no identity-keyed refusal on any routine path.
+6. Every destructive path retains its full guard set, demonstrated rather than asserted.
+7. Reversing the entry posture again requires editing a declaration that names the boundary; renaming or
+   rewriting a test cannot do it.
+8. Multi-session fixtures prove fault containment and unchanged exclusivity together across the primary and linked
+   worktrees, including a harness the recognizer does not know.
 
 ## Continuity
 
-**Readiness:** `maturing`. Scope is closed; what remains is mechanism selection and validation.
+**Readiness:** `maturing`. Direction is restoration; scope is closed pending the Q2 spike's outcome.
 
 **Resolved this pass:**
 
-- The fault domain already exists as an unnamed accumulation in one consumer; the work is to make it an authority,
-  not to invent it.
-- Shape is B + C composed — typed authority for the verdict, attribution for the evidence.
-- The predicate reads in two directions, and the authority direction is what preserves exclusivity.
-- The staleness horizon is in scope, subject to Q2.
-- The `derivationStops` hole belongs here, settled on the attribution argument rather than the filter argument.
-- Boundaries with `locus-generation-binding` and `staleness-guard-policy` restated as above.
-- Check-doc constraints recorded as design boundaries.
-- Q1 settled by reproduction: ancestry inference is sound; the defect is a vendor-preamble allowlist in
-  `isAgentSnapshotShell`. Durable session capability leaves scope; recognition robustness (Q5) replaces it, and
-  `Class` does not ratchet.
-- The routed cross-branch version-skew incident is absorbed: same amplifier, different cause, corroborating the
-  spine. It adds the reader axis to attribution and opens Q6 on the `unsupported-version` tier.
-- Q5 has a leaning — declaration over inference, behind a harness-identity provider, justified by existing fan-in
-  across three surfaces rather than by anticipation.
-- The common failure mode is named: hand-maintained enumeration against a moving surface, with silent drift. It
-  sets the bar Q3's and Q5's mechanisms are judged against — derive or fail closed, never maintain by hand.
-- `staleness-guard-policy` confirmed the boundary and scoped session-identity recognition out of its spec
-  explicitly; the version-skew seam is to be routed there explicitly if Q6 needs freshness policy, though it may
-  compose better with that WU's open capture on widening detection beyond first-party sources.
+- The incident is drift from a specified boundary, not a gap in the design. Three sources concur, and nothing
+  later supersedes them.
+- The two deviations are causally linked: the entry refusal exists only because the read side stopped globally,
+  so fixing containment is what makes restoring entry safe. Sequencing follows.
+- The specified behavior was implemented and tested; `5c6dd5c74` deleted that test and inverted it. Restoration
+  recovers from `5c6dd5c74^` rather than re-deriving.
+- The durable problem is a boundary with no mechanical representation — prose in an archived spec, one
+  rewritable test, no derived set of governed paths. Parts 3 and 4 address that; containment alone does not.
+- The horizon and the provider seam are both withdrawn, each contradicted by the shipped design.
+- `Class` holds at `Heavy`: scope grew in breadth but the design is now composition and restoration rather than
+  invention.
 
-**Next:** Q3 — the enforcement mechanism's shape, which decides whether this leaves behind an authority or a fifth
-copy that happens to be shared, and which the provider registry is then held to as well. Then Q5's declaration
-channel and its hook-timing validation, Q2's horizon validation, and Q6's tier call. The stopgap for the live
-anchor breakage ran as its own increment outside this loop.
+**Next:** run the Q2 spike — it is the one input that could still change the sequence. Then Q1's declaration
+shape, which parts 3 and 4 both depend on. Q3 and Q4 are local calls that can settle at spec time.
