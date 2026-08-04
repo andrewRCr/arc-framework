@@ -431,10 +431,14 @@ new-versus-old split.
         - Do this before the work unit's own pull request needs to merge; the status has no producer from
           Phase 2 onward, so the requirement can never be satisfied again.
 
-### `[ ]` **4.2 Enable `merge.lock: draft` for this repository**
+### `[x]` **4.2 Enable `merge.lock: draft` for this repository**
 
 - _Goal:_ This repository runs the control it ships, so the work unit's own integration is the first live
   exercise of it.
+
+- _Outcome:_ `merge.lock: draft` in this instance's `arc-config.yml`; `arc config validate` passes and
+  `arc merge lock resolve -` returns `locked / open-locked` against the live tree. Verified by running the verb
+  rather than by reading the key back, since the strict read is the half that could fail silently.
 
 ### `[ ]` **4.3 Record ADR-031 and amend ADR-029**
 

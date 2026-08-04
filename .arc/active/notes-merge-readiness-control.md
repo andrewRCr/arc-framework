@@ -22,7 +22,7 @@ spec's D1 mechanism claims.
   page all checked; the old Team/Enterprise-only wording for private repos is gone.
 - Residual uncertainty applies to Free-plan private repos only, covered by `merge.lock: none`.
 
-## Base-branch enforcement surfaces (observed 2026-08-04)
+## Base-branch enforcement surfaces (re-read 2026-08-04, immediately before the classic retirement)
 
 Two surfaces are live on `main` simultaneously. The overlap is incidental rather than designed, and the
 clearance status is required by the classic surface only — the ruleset never carried it.
@@ -30,22 +30,26 @@ clearance status is required by the classic surface only — the ruleset never c
 | Protection             | Classic branch protection      | `main-protection` ruleset          |
 | ---------------------- | ------------------------------ | ---------------------------------- |
 | Required checks        | `merge-ok`, `arc-cleared`      | `merge-ok`                         |
+| Check producer pinned  | no (`app_id: null`)            | **yes** (`integration_id: 15368`)  |
 | Block deletion         | yes                            | yes                                |
 | Block force push       | yes                            | yes                                |
-| Require pull request   | yes                            | yes (0 approvals)                  |
+| Require pull request   | yes (0 approvals)              | yes (0 approvals)                  |
+| Allowed merge methods  | unconstrained                  | **`merge` only**                   |
 | Thread resolution      | no                             | **yes**                            |
 | Bypass                 | **admins permitted**           | **none** (`bypass_actors: []`)     |
 
-The ruleset covers every protection classic provides and is stricter on the last two rows, which is what makes
-retiring classic protection a coverage-preserving act rather than a reduction. `merge-ok` is documented in
-`ci.yml` as a thin compatibility alias over the `ci-ok` roll-up.
+The ruleset covers every protection classic provides and is stricter on four rows, which is what makes retiring
+classic protection a coverage-preserving act rather than a reduction. `merge-ok` is documented in `ci.yml` as a
+thin compatibility alias over the `ci-ok` roll-up. The ruleset is `enforcement: active` on `refs/heads/main`
+with no excluded refs.
 
 Classic protection also carried, all disabled: required signatures, linear history, block creations,
-conversation resolution, lock branch, fork syncing. Its required-reviews block was present with stale-review
-dismissal and code-owner review both off.
+conversation resolution, lock branch, fork syncing. Its required-reviews block was present with 0 required
+approvals and stale-review dismissal, code-owner review, and last-push approval all off.
 
 This table is the recovery baseline: branch protection is not versioned, so nothing in the change record shows
-what was removed. Re-read both surfaces before acting — this reflects one point in time.
+what was removed. Every row above was re-read from the live API rather than carried forward, and it still
+reflects one point in time — re-read both surfaces before acting on it again.
 
 ## Auto-merge disarm semantics (source of D4's incompatibility claim)
 
