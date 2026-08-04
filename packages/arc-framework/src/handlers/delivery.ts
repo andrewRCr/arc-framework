@@ -11,17 +11,24 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { DeliveryPlanComposer } from "../lib/delivery/compose.js";
+import {
+  DeliveryPlanComposer,
+  validateDeliveryCompositionCoverage,
+} from "../lib/delivery/compose.js";
 import type { BoundDesignInventory } from "../lib/delivery/design-inventory.js";
 import {
   prepareDeliveryFromBranchAuthoring,
   resolveDeliveryFromBranchProjection,
+  resolveDeliveryFromBranchSourceAdvisories,
 } from "../lib/delivery/from-branch.js";
 import {
   prepareDeliveryFromTasksAuthoring,
   resolveDeliveryFromTasksProjection,
 } from "../lib/delivery/from-tasks.js";
-import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import {
+  DeliveryPlanV1Codec,
+  validateDeliveryPlanRecord,
+} from "../lib/delivery/plan.js";
 import {
   DeliveryAuthoringManager,
   resolveExistingDeliveryAuthoringMap,
@@ -405,10 +412,48 @@ export async function handleDeliveryCompose(
       });
       return;
     }
+    const plan = validateDeliveryPlanRecord(current.value);
+    if (plan.status === "refused" || plan.plan.entry !== resolution.record.snapshot.source.entry) {
+      emit("delivery compose", parsed.data.json === true, {
+        status: "refused",
+        reason: "authoring-state-corrupt",
+      });
+      return;
+    }
+    const sourceAdvisories = resolution.record.snapshot.source.entry === "from-branch"
+      ? resolveDeliveryFromBranchSourceAdvisories(resolution.record.snapshot)
+      : { status: "resolved" as const, advisories: [] };
+    if (sourceAdvisories.status === "refused") {
+      emit("delivery compose", parsed.data.json === true, sourceAdvisories);
+      return;
+    }
+    const coverage = validateDeliveryCompositionCoverage({
+      entry: plan.plan.entry,
+      implementationTaskIds: plan.plan.tasks.implementation.map(({ taskId }) => taskId),
+      verificationTaskId: plan.plan.tasks.verificationTaskId,
+      members: plan.plan.members.map((member) => ({
+        chunkKey: member.chunkKey,
+        taskIds: member.taskIds,
+      })),
+    });
+    if (coverage.status === "refused") {
+      emit("delivery compose", parsed.data.json === true, {
+        status: "refused",
+        reason: "authoring-state-corrupt",
+      });
+      return;
+    }
     const cleanup = await context.authoringStore.deleteSnapshot(resolution.record.snapshot.mapId);
     emit("delivery compose", parsed.data.json === true, cleanup.status === "refused"
       ? cleanup
-      : { status: "ok", value: { planDigest: receipt, recoveredCleanup: true } });
+      : {
+        status: "ok",
+        value: {
+          planDigest: receipt,
+          recoveredCleanup: true,
+          advisories: [...sourceAdvisories.advisories, ...coverage.advisories],
+        },
+      });
     return;
   }
   const integrity = validateDeliveryAuthoringMap(

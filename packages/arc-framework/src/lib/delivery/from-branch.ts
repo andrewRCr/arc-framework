@@ -24,7 +24,11 @@ import {
   renderDeliveryAuthoringMap,
   type DeliveryAuthoringSlotsV1,
 } from "./authoring-map.js";
-import type { DeliveryCompositionProjection } from "./compose.js";
+import type {
+  DeliveryCompositionProjection,
+  DeliveryMalformedTaskReferenceAdvisory,
+  DeliveryUnresolvedTaskReferenceAdvisory,
+} from "./compose.js";
 import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
 import {
@@ -120,6 +124,52 @@ const DeliveryFromBranchSourceInputsSchema = z.strictObject({
   base: z.string().min(1),
   head: z.string().min(1),
 });
+
+type DeliveryFromBranchSource = {
+  readonly facts: z.infer<typeof DeliveryFromBranchFactsSchema>;
+  readonly sourceInputs: z.infer<typeof DeliveryFromBranchSourceInputsSchema>;
+};
+
+function resolveDeliveryFromBranchSource(
+  snapshot: DeliveryAuthoringSnapshotV1,
+): { readonly status: "resolved"; readonly value: DeliveryFromBranchSource } | {
+  readonly status: "refused";
+  readonly reason: "from-branch-facts-malformed";
+} {
+  if (snapshot.source.entry !== "from-branch") {
+    return { status: "refused", reason: "from-branch-facts-malformed" };
+  }
+  const facts = DeliveryFromBranchFactsSchema.safeParse(snapshot.source.facts);
+  const sourceInputs = DeliveryFromBranchSourceInputsSchema.safeParse(snapshot.source.inputs);
+  if (!facts.success || !sourceInputs.success
+    || !branchFactsMatchSnapshot(snapshot, facts.data, sourceInputs.data)) {
+    return { status: "refused", reason: "from-branch-facts-malformed" };
+  }
+  return { status: "resolved", value: { facts: facts.data, sourceInputs: sourceInputs.data } };
+}
+
+/**
+ * Recover the validated source advisories retained in a branch-derived authoring snapshot.
+ *
+ * @param snapshot - Machine-owned snapshot left after composition cleanup starts.
+ * @returns Validated source advisories or the ordinary malformed-facts refusal.
+ */
+export function resolveDeliveryFromBranchSourceAdvisories(
+  snapshot: DeliveryAuthoringSnapshotV1,
+): {
+  readonly status: "resolved";
+  readonly advisories: readonly (
+    DeliveryUnresolvedTaskReferenceAdvisory | DeliveryMalformedTaskReferenceAdvisory
+  )[];
+} | {
+  readonly status: "refused";
+  readonly reason: "from-branch-facts-malformed";
+} {
+  const source = resolveDeliveryFromBranchSource(snapshot);
+  return source.status === "refused"
+    ? source
+    : { status: "resolved", advisories: source.value.facts.advisories };
+}
 
 /** Inputs for one branch-derived authoring map. */
 export interface PrepareDeliveryFromBranchAuthoringInput {
@@ -332,15 +382,9 @@ export function resolveDeliveryFromBranchProjection(input: {
     | "boundary-member-mismatch"
     | "authoring-projection-invalid";
 } | { readonly status: "resolved"; readonly projection: DeliveryCompositionProjection } {
-  if (input.snapshot.source.entry !== "from-branch") {
-    return { status: "refused", reason: "from-branch-facts-malformed" };
-  }
-  const facts = DeliveryFromBranchFactsSchema.safeParse(input.snapshot.source.facts);
-  const sourceInputs = DeliveryFromBranchSourceInputsSchema.safeParse(input.snapshot.source.inputs);
-  if (!facts.success || !sourceInputs.success
-    || !branchFactsMatchSnapshot(input.snapshot, facts.data, sourceInputs.data)) {
-    return { status: "refused", reason: "from-branch-facts-malformed" };
-  }
+  const source = resolveDeliveryFromBranchSource(input.snapshot);
+  if (source.status === "refused") return source;
+  const { facts } = source.value;
   if (input.slots.boundary.kind !== "explicit") {
     return { status: "refused", reason: "branch-boundary-mode-invalid" };
   }
@@ -368,7 +412,7 @@ export function resolveDeliveryFromBranchProjection(input: {
       ...member,
       taskIds: taskIdsForSegment(
         segments[index]?.sourceIds ?? [],
-        facts.data.taskAttributions,
+        facts.taskAttributions,
         input.snapshot,
       ),
     })),
@@ -382,12 +426,12 @@ export function resolveDeliveryFromBranchProjection(input: {
     projection: {
       authoring: authoring.data,
       boundary: input.slots.boundary,
-      contributionStepIds: facts.data.contributionStepIds,
+      contributionStepIds: facts.contributionStepIds,
       memberContributionSteps: segments.map((segment) => ({
         chunkKey: segment.chunkKey,
         contributionStepIds: segment.sourceIds,
       })),
-      sourceAdvisories: facts.data.advisories,
+      sourceAdvisories: facts.advisories,
     },
   };
 }

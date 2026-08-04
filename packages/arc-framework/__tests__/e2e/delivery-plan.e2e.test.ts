@@ -88,7 +88,11 @@ describe("arc delivery", () => {
       "",
     ].join("\n"));
     await git(repository, ["add", "--", "contribution.txt", ".arc/active/meta-demo.md"]);
-    await git(repository, ["commit", "-m", "branch contribution"]);
+    await git(repository, ["commit", "-m", [
+      "branch contribution",
+      "",
+      "Context: tasks-demo.md (Task 9.9.a)",
+    ].join("\n")]);
     const head = await git(repository, ["rev-parse", "HEAD"]);
 
     const author = await runArc([
@@ -107,6 +111,10 @@ describe("arc delivery", () => {
     const mapName = (await readdir(authoring)).find((name) => name.endsWith(".md"));
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
+    const snapshotPath = join(authoring, mapName.replace(/\.md$/u, ".json"));
+    const recoverySnapshot = JSON.parse(await readFile(snapshotPath, "utf8")) as {
+      candidatePlanDigest: string | null;
+    };
     const map = await readFile(join(authoring, mapName), "utf8");
     expect(map).toContain('"entry": "from-branch"');
     expect(map).toContain('"classification": "contribution"');
@@ -131,10 +139,16 @@ describe("arc delivery", () => {
     });
     const compose = await runArc(["delivery", "compose", "--json"], repository);
     expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
-    expect(JSON.parse(compose.stdout)).toMatchObject({
+    const composition = JSON.parse(compose.stdout) as {
+      value: { advisories: unknown[] };
+    };
+    expect(composition).toMatchObject({
       status: "ok",
       value: {
-        advisories: [{ kind: "uncovered-implementation-task", taskId: "1.1" }],
+        advisories: [
+          { kind: "unresolved-task-reference", commit: head, taskId: "9.9.a" },
+          { kind: "uncovered-implementation-task", taskId: "1.1" },
+        ],
       },
     });
     const plans = join(common, "arc", "delivery", "plans");
@@ -146,6 +160,27 @@ describe("arc delivery", () => {
       planDigest: string;
       planRevision: number;
     };
+    await writeFile(snapshotPath, `${JSON.stringify({
+      ...recoverySnapshot,
+      candidatePlanDigest: initialPlan.planDigest,
+    })}\n`);
+    const recovered = await runArc(["delivery", "compose", "--json"], repository);
+    expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
+    const recovery = JSON.parse(recovered.stdout) as {
+      value: { advisories: unknown[] };
+    };
+    expect(recovery).toMatchObject({
+      status: "ok",
+      value: {
+        planDigest: initialPlan.planDigest,
+        recoveredCleanup: true,
+        advisories: [
+          { kind: "unresolved-task-reference", commit: head, taskId: "9.9.a" },
+          { kind: "uncovered-implementation-task", taskId: "1.1" },
+        ],
+      },
+    });
+    expect(recovery.value.advisories).toEqual(composition.value.advisories);
 
     const explicit = await runArc([
       "delivery", "plan", "from-branch",
