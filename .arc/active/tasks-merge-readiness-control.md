@@ -118,15 +118,16 @@ from.
           would state the same contract twice; each verb's command registration names the shared one.
         - Result envelopes stay out, per the 2.3 split.
 
-    - `[ ]` **2.1.b Opening disposition for `resolve`**
+    - `[x]` **2.1.b Opening disposition for `resolve`**
         - _Goal:_ A workflow about to open a pull request learns how to open it without reading configuration
           itself.
 
-        - Build `test-first` (one behavior at a time):
-            - `merge.lock: draft` resolves `locked / open-locked`
-            - `merge.lock: none` resolves `none / open-plain`
-            - An absent key resolves `none / open-plain` — the documented default, not an error
-            - An unreadable config resolves `blocked / stop` rather than defaulting either way
+        - `resolveMergeLock` reads the key through the injected tri-state collaborator, resolved against the
+          request's tree root. `draft` opens locked, `none` and an absent key open plain, and unreadable,
+          out-of-domain, or a throwing read all block — the three ways the control could otherwise be
+          disabled by silence.
+        - The collaborator's concrete reader is deferred to 2.4, where the handler composes its default
+          dependencies; the contract and its fail-closed resolution live here.
 
     - `[ ]` **2.1.c `hold` and `release` transitions**
         - _Goal:_ A caller can invoke either unconditionally at its fire site and act only on what comes back.
