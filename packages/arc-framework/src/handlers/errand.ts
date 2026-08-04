@@ -768,7 +768,7 @@ export async function handleErrandMaterialize(
       });
       if (prepared.kind === "refused") {
         emitMaterializeRefusal(
-          prepared.reason.includes("already exists") ? "identity-conflict" : "preservation-unproven",
+          prepared.code === "local-branch-exists" ? "identity-conflict" : "preservation-unproven",
           prepared.reason,
           opts.json === true,
         );

@@ -53,8 +53,29 @@ describe("prepareMaterializedBranch", () => {
       expectedHead: RECORDED_HEAD,
     });
 
-    expect(result).toMatchObject({ kind: "refused", reason: expect.stringMatching(/exact recorded head/iu) });
+    expect(result).toMatchObject({
+      kind: "refused",
+      code: "remote-head-mismatch",
+      reason: expect.stringMatching(/exact recorded head/iu),
+    });
     expect(boundary.createdBranch()).toBeNull();
+  });
+
+  it("preserves a remote-head refusal when temporary-ref cleanup also fails", async () => {
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "show-ref") throw Object.assign(new Error("missing"), { code: 1 });
+      if (args[0] === "fetch") return { stdout: "", stderr: "" };
+      if (args[0] === "rev-parse") return { stdout: `${REMOTE_HEAD}\n`, stderr: "" };
+      if (args[0] === "update-ref" && args[1] === "-d") throw new Error("cleanup unavailable");
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(prepareMaterializedBranch({
+      exec,
+      remote: "origin",
+      branch: "chore/fix-output",
+      expectedHead: RECORDED_HEAD,
+    })).resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/exact recorded head/iu) });
   });
 
   it("prepares the branch when the remote is the exact recorded head", async () => {

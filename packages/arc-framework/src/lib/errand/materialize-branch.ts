@@ -13,6 +13,13 @@ export interface PrepareMaterializedBranchOptions {
   readonly existingLocal?: "refuse" | "accept-exact";
 }
 
+/** Stable refusal classification independent of operator-facing prose. */
+export type MaterializedBranchRefusalCode =
+  | "local-branch-exists"
+  | "local-head-mismatch"
+  | "remote-branch-missing"
+  | "remote-head-mismatch";
+
 /** Observable outcome of exact-generation branch preparation. */
 export type PrepareMaterializedBranchResult =
   | {
@@ -22,7 +29,7 @@ export type PrepareMaterializedBranchResult =
       readonly remoteHead: string;
       readonly created: boolean;
     }
-  | { readonly kind: "refused"; readonly reason: string }
+  | { readonly kind: "refused"; readonly code: MaterializedBranchRefusalCode; readonly reason: string }
   | { readonly kind: "error"; readonly stage: MaterializedBranchStage; readonly message: string };
 
 /** The Git probe a preparation failure reached, named in the reported error code. */
@@ -42,7 +49,11 @@ export async function prepareMaterializedBranch(
   try {
     await options.exec("git", localCheck);
     if (options.existingLocal !== "accept-exact") {
-      return { kind: "refused", reason: `Local branch '${options.branch}' already exists.` };
+      return {
+        kind: "refused",
+        code: "local-branch-exists",
+        reason: `Local branch '${options.branch}' already exists.`,
+      };
     }
     const localHeadArgs = ["rev-parse", "--verify", `${localRef}^{commit}`];
     try {
@@ -55,7 +66,11 @@ export async function prepareMaterializedBranch(
             remoteHead: localHead,
             created: false,
           }
-        : { kind: "refused", reason: `Local branch '${options.branch}' moved from the recorded head.` };
+        : {
+            kind: "refused",
+            code: "local-head-mismatch",
+            reason: `Local branch '${options.branch}' moved from the recorded head.`,
+          };
     } catch (error) {
       return failure("local-head", normalizeGitRejection(error, { command: "git", args: localHeadArgs }));
     }
@@ -69,9 +84,8 @@ export async function prepareMaterializedBranch(
   try {
     await options.exec("git", ["update-ref", "-d", snapshotRef]);
   } catch (error) {
-    if (outcome.kind === "prepared") {
-      await options.exec("git", ["update-ref", "-d", localRef, options.expectedHead]).catch(() => undefined);
-    }
+    if (outcome.kind !== "prepared") return outcome;
+    await options.exec("git", ["update-ref", "-d", localRef, options.expectedHead]).catch(() => undefined);
     return failure("cleanup", normalizeGitRejection(error, {
       command: "git",
       args: ["update-ref", "-d", snapshotRef],
@@ -91,7 +105,11 @@ async function prepareFromSnapshot(
   } catch (error) {
     const normalized = normalizeGitRejection(error, { command: "git", args: fetchArgs });
     return normalized.expectedOutcome === "absent-remote-ref"
-      ? { kind: "refused", reason: `Remote branch '${options.branch}' does not exist.` }
+      ? {
+          kind: "refused",
+          code: "remote-branch-missing",
+          reason: `Remote branch '${options.branch}' does not exist.`,
+        }
       : failure("fetch", normalized);
   }
 
@@ -104,7 +122,11 @@ async function prepareFromSnapshot(
   }
 
   if (remoteHead !== options.expectedHead) {
-    return { kind: "refused", reason: "The remote branch moved from the exact recorded head." };
+    return {
+      kind: "refused",
+      code: "remote-head-mismatch",
+      reason: "The remote branch moved from the exact recorded head.",
+    };
   }
 
   const createArgs = ["update-ref", localRef, options.expectedHead, "0".repeat(40)];
