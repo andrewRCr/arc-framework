@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Promoted to planned priority after the stale-CLI bootstrap failure was reproduced as a
-  policy-authority gap rather than an npm-wrapper parser defect (2026-08-04).
+- **Last Completed:** Captured the design draft as formalization-ready — the per-command hard-fail taxonomy is
+  replaced by fail-safe detection, launcher-fronted rebuild, and stamp-last publication (2026-08-04).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
