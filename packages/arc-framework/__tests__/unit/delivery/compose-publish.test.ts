@@ -5,7 +5,10 @@ import {
   type DeliveryCompositionAuthoringStore,
   type DeliveryCompositionProjection,
 } from "../../../src/lib/delivery/compose.js";
-import { renderDeliveryAuthoringMap } from "../../../src/lib/delivery/authoring-map.js";
+import {
+  DeliveryAuthoringSlotsV1Schema,
+  renderDeliveryAuthoringMap,
+} from "../../../src/lib/delivery/authoring-map.js";
 import { createDeliveryAuthoringSnapshot } from "../../../src/lib/delivery/authoring-schema.js";
 import type {
   DeliveryAuthoringRecord,
@@ -81,10 +84,11 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       }],
       seams: [],
     }),
+    boundary: slots.boundary,
     contributionStepIds: ["step-1"],
     memberContributionSteps: [{ chunkKey: "only", contributionStepIds: ["step-1"] }],
   };
-  return { record, projection, taskInventory, designInventory };
+  return { record, projection, slots, taskInventory, designInventory };
 }
 
 class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
@@ -209,6 +213,29 @@ describe("delivery plan publication orchestration", () => {
     expect([...authoring.calls.slice(0, 1), ...plans.calls, ...renderer.calls, ...authoring.calls.slice(1)])
       .toEqual(["candidate", "publish", "render", "delete-markdown", "delete-snapshot"]);
     expect(authoring.record).toBeNull();
+  });
+
+  it("refuses a projection derived from a different authoring boundary", async () => {
+    const value = fixture();
+    const mismatchedProjection = {
+      ...value.projection,
+      boundary: DeliveryAuthoringSlotsV1Schema.parse({
+        ...value.slots,
+        boundary: {
+          kind: "explicit",
+          segments: [{ chunkKey: "only", sourceIds: ["step-1"] }],
+        },
+      }).boundary,
+    };
+
+    await expect(composer(
+      new MemoryAuthoringStore(value.record),
+      new MemoryPlanStore(),
+      new MemoryRenderer(),
+    ).compose({
+      ...input(value),
+      projection: mismatchedProjection,
+    })).resolves.toEqual({ status: "refused", reason: "authoring-projection-invalid" });
   });
 
   it("returns source advisories after successful publication", async () => {

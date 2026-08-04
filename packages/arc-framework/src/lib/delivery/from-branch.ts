@@ -89,11 +89,22 @@ const DeliveryFromBranchFactsSchema = z.strictObject({
     taskIds: z.array(z.string().min(1)),
     unresolvedTaskIds: z.array(z.string().min(1)),
   })),
-  advisories: z.array(z.strictObject({
-    kind: z.literal("unresolved-task-reference"),
+  malformedTaskReferences: z.array(z.strictObject({
     commit: z.string().min(1),
-    taskId: z.string().min(1),
+    reference: z.string().min(1),
   })),
+  advisories: z.array(z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("unresolved-task-reference"),
+      commit: z.string().min(1),
+      taskId: z.string().min(1),
+    }),
+    z.strictObject({
+      kind: z.literal("malformed-task-reference"),
+      commit: z.string().min(1),
+      reference: z.string().min(1),
+    }),
+  ])),
   coChangePairs: z.array(z.strictObject({
     paths: z.tuple([z.string().min(1), z.string().min(1)]),
     contributionStepIds: z.array(z.string().min(1)).min(1),
@@ -261,6 +272,7 @@ export async function prepareDeliveryFromBranchAuthoring(
   const facts = {
     ...inspection,
     taskAttributions: attribution.value.taskAttributions,
+    malformedTaskReferences: attribution.value.malformedTaskReferences,
     advisories: attribution.value.advisories,
     ...deriveBranchStructureReports(
       inspection.steps,
@@ -357,6 +369,7 @@ export function resolveDeliveryFromBranchProjection(input: {
     status: "resolved",
     projection: {
       authoring: authoring.data,
+      boundary: input.slots.boundary,
       contributionStepIds: facts.data.contributionStepIds,
       memberContributionSteps: segments.map((segment) => ({
         chunkKey: segment.chunkKey,
@@ -379,13 +392,22 @@ function branchFactsMatchSnapshot(
     .map((step) => step.commit);
   const attributionCommits = facts.taskAttributions.map((attribution) => attribution.commit);
   const attributionPositions = attributionCommits.map((commit) => contributionIds.indexOf(commit));
-  const expectedAdvisories = facts.taskAttributions.flatMap((attribution) => (
-    attribution.unresolvedTaskIds.map((taskId) => ({
-      kind: "unresolved-task-reference" as const,
-      commit: attribution.commit,
-      taskId,
-    }))
-  ));
+  const malformedCommits = facts.malformedTaskReferences.map((reference) => reference.commit);
+  const malformedPositions = malformedCommits.map((commit) => contributionIds.indexOf(commit));
+  const expectedAdvisories = [
+    ...facts.taskAttributions.flatMap((attribution) => (
+      attribution.unresolvedTaskIds.map((taskId) => ({
+        kind: "unresolved-task-reference" as const,
+        commit: attribution.commit,
+        taskId,
+      }))
+    )),
+    ...facts.malformedTaskReferences.map((reference) => ({
+      kind: "malformed-task-reference" as const,
+      commit: reference.commit,
+      reference: reference.reference,
+    })),
+  ].sort((left, right) => contributionIds.indexOf(left.commit) - contributionIds.indexOf(right.commit));
   const expectedReports = deriveBranchStructureReports(
     facts.steps,
     lifecycleArtifactBasenames(
@@ -398,6 +420,9 @@ function branchFactsMatchSnapshot(
     && attributionPositions.every((position, index) => position !== -1
       && (index === 0 || position > (attributionPositions[index - 1] ?? position)))
     && new Set(attributionCommits).size === attributionCommits.length
+    && malformedPositions.every((position, index) => position !== -1
+      && (index === 0 || position > (malformedPositions[index - 1] ?? position)))
+    && new Set(malformedCommits).size === malformedCommits.length
     && JSON.stringify(expectedAdvisories) === JSON.stringify(facts.advisories)
     && JSON.stringify(expectedReports.coChangePairs) === JSON.stringify(facts.coChangePairs)
     && JSON.stringify(expectedReports.lifecycleArtifactTouches)
@@ -493,11 +518,19 @@ async function deriveTaskAttributions(
       readonly taskIds: readonly string[];
       readonly unresolvedTaskIds: readonly string[];
     }[];
-    readonly advisories: readonly {
+    readonly malformedTaskReferences: readonly {
+      readonly commit: string;
+      readonly reference: string;
+    }[];
+    readonly advisories: readonly ({
       readonly kind: "unresolved-task-reference";
       readonly commit: string;
       readonly taskId: string;
-    }[];
+    } | {
+      readonly kind: "malformed-task-reference";
+      readonly commit: string;
+      readonly reference: string;
+    })[];
   };
 } | {
   readonly status: "refused";
@@ -514,11 +547,16 @@ async function deriveTaskAttributions(
     readonly taskIds: readonly string[];
     readonly unresolvedTaskIds: readonly string[];
   }[] = [];
-  const advisories: {
+  const malformedTaskReferences: { readonly commit: string; readonly reference: string }[] = [];
+  const advisories: ({
     readonly kind: "unresolved-task-reference";
     readonly commit: string;
     readonly taskId: string;
-  }[] = [];
+  } | {
+    readonly kind: "malformed-task-reference";
+    readonly commit: string;
+    readonly reference: string;
+  })[] = [];
   for (const commit of inspection.contributionStepIds) {
     let message: string;
     try {
@@ -532,7 +570,13 @@ async function deriveTaskAttributions(
     if (taskContext?.groups?.filename !== artifactBasename(taskListPath)) continue;
     const referenceValue = taskContext.groups.reference;
     const reference = referenceValue === undefined ? null : parseTaskReference(referenceValue);
-    if (reference === null) continue;
+    if (reference === null) {
+      if (referenceValue !== undefined) {
+        malformedTaskReferences.push({ commit, reference: referenceValue });
+        advisories.push({ kind: "malformed-task-reference", commit, reference: referenceValue });
+      }
+      continue;
+    }
     const referencedTaskIds = expandTaskReference(reference, orderedTaskIds);
     const resolution = resolveToParentInventory(referencedTaskIds, parentTaskIds);
     taskAttributions.push({ commit, referencedTaskIds, ...resolution });
@@ -542,7 +586,7 @@ async function deriveTaskAttributions(
       taskId,
     })));
   }
-  return { status: "ok", value: { taskAttributions, advisories } };
+  return { status: "ok", value: { taskAttributions, malformedTaskReferences, advisories } };
 }
 
 function artifactBasename(path: string): string {

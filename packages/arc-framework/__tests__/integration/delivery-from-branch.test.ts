@@ -202,6 +202,12 @@ describe("branch-derived delivery facts", () => {
       "Context: tasks-demo.md (Task 9.9.a)",
     ].join("\n"));
     const unresolved = await oid(repository, "HEAD");
+    await commitFile(repository, "malformed.txt", "malformed\n", [
+      "feat(test): retain a malformed task attribution",
+      "",
+      "Context: tasks-demo.md (Tasks 1.1.a through 1.1.b)",
+    ].join("\n"));
+    const malformed = await oid(repository, "HEAD");
     const prepared = await prepareDeliveryFromBranchAuthoring({
       mapId: "branch-map",
       planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
@@ -230,7 +236,18 @@ describe("branch-derived delivery facts", () => {
         { commit: secondAttributed, taskIds: ["1.1"], unresolvedTaskIds: [] },
         { commit: unresolved, taskIds: [], unresolvedTaskIds: ["9.9.a"] },
       ],
-      advisories: [{ kind: "unresolved-task-reference", commit: unresolved, taskId: "9.9.a" }],
+      malformedTaskReferences: [{
+        commit: malformed,
+        reference: "Tasks 1.1.a through 1.1.b",
+      }],
+      advisories: [
+        { kind: "unresolved-task-reference", commit: unresolved, taskId: "9.9.a" },
+        {
+          kind: "malformed-task-reference",
+          commit: malformed,
+          reference: "Tasks 1.1.a through 1.1.b",
+        },
+      ],
     });
     const contributionIds = prepared.inspection.contributionStepIds;
     const secondMemberStart = contributionIds.indexOf(secondAttributed);
@@ -263,6 +280,11 @@ describe("branch-derived delivery facts", () => {
         },
         sourceAdvisories: [
           { kind: "unresolved-task-reference", commit: unresolved, taskId: "9.9.a" },
+          {
+            kind: "malformed-task-reference",
+            commit: malformed,
+            reference: "Tasks 1.1.a through 1.1.b",
+          },
         ],
       },
     });

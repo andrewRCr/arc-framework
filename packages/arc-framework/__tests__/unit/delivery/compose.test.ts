@@ -34,6 +34,17 @@ describe("delivery composition checks", () => {
     });
   });
 
+  it("refuses contribution steps authored out of inventory order", () => {
+    expect(validateDeliveryContributionPartition({
+      contributionStepIds: ["a", "b"],
+      members: [{ chunkKey: "first", contributionStepIds: ["b", "a"] }],
+    })).toEqual({
+      status: "refused",
+      reason: "member-contribution-order-mismatch",
+      chunkKey: "first",
+    });
+  });
+
   it("refuses missing and unknown contribution steps", () => {
     expect(validateDeliveryContributionPartition({
       contributionStepIds: ["a", "b"],

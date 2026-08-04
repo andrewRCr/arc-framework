@@ -87,7 +87,11 @@ export function validateDeliveryContributionPartition(input: {
       }
       memberPositions.push(position);
     }
-    memberPositions.sort((left, right) => left - right);
+    if (memberPositions.some((position, index) => (
+      index > 0 && position <= (memberPositions[index - 1] ?? position)
+    ))) {
+      return { status: "refused", reason: "member-contribution-order-mismatch", chunkKey: member.chunkKey };
+    }
     if (memberPositions.some((position, index) => (
       index > 0 && position !== (memberPositions[index - 1] ?? position) + 1
     ))) {
@@ -122,10 +126,18 @@ export interface DeliveryUnresolvedTaskReferenceAdvisory {
   readonly taskId: string;
 }
 
+/** One historical attribution whose task-reference syntax cannot be interpreted. */
+export interface DeliveryMalformedTaskReferenceAdvisory {
+  readonly kind: "malformed-task-reference";
+  readonly commit: string;
+  readonly reference: string;
+}
+
 /** Advisory facts carried by entry derivation or task-coverage validation. */
 export type DeliveryCompositionAdvisory =
   | DeliveryCompositionCoverageAdvisory
-  | DeliveryUnresolvedTaskReferenceAdvisory;
+  | DeliveryUnresolvedTaskReferenceAdvisory
+  | DeliveryMalformedTaskReferenceAdvisory;
 
 /** Composition-time task coverage with an author-facing adjacent-member hint. */
 export type DeliveryCompositionCoverageResult =
@@ -181,9 +193,12 @@ function adjacentMemberForTask(
 /** Entry-produced record material and its authoring-time contribution partition. */
 export interface DeliveryCompositionProjection {
   readonly authoring: DeliveryPlanAuthoringInputV1;
+  readonly boundary: DeliveryAuthoringSlotsV1["boundary"];
   readonly contributionStepIds: readonly string[];
   readonly memberContributionSteps: readonly DeliveryContributionMember[];
-  readonly sourceAdvisories?: readonly DeliveryUnresolvedTaskReferenceAdvisory[];
+  readonly sourceAdvisories?: readonly (
+    DeliveryUnresolvedTaskReferenceAdvisory | DeliveryMalformedTaskReferenceAdvisory
+  )[];
 }
 
 /** Authoring mutations required by the stateful composition sequence. */
@@ -296,7 +311,7 @@ export class DeliveryPlanComposer {
     const integrity = validateDeliveryAuthoringMap(input.record.markdown, input.record.snapshot);
     if (integrity.status === "refused") return integrity;
     if (!projectionMatchesSlots(
-      input.projection.authoring,
+      input.projection,
       integrity.slots,
       input.record.snapshot.source.entry,
       input.currentWorkUnitId,
@@ -377,13 +392,15 @@ export class DeliveryPlanComposer {
 }
 
 function projectionMatchesSlots(
-  authoring: DeliveryPlanAuthoringInputV1,
+  projection: DeliveryCompositionProjection,
   slots: DeliveryAuthoringSlotsV1,
   entry: "from-tasks" | "from-branch",
   workUnitId: string,
 ): boolean {
+  const { authoring } = projection;
   const authoredSlots = {
     projection: authoring.projection,
+    boundary: projection.boundary,
     members: authoring.members.map((member) => ({
       status: member.status,
       chunkKey: member.chunkKey,
@@ -397,6 +414,7 @@ function projectionMatchesSlots(
   return authoring.entry === entry && authoring.workUnitId === workUnitId
     && canonicalize(authoredSlots) === canonicalize({
       projection: slots.projection,
+      boundary: slots.boundary,
       members: slots.members,
       seams: slots.seams,
     });

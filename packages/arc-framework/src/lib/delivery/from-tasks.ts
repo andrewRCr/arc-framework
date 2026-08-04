@@ -180,6 +180,7 @@ export function resolveDeliveryFromTasksProjection(_input: {
     status: "resolved",
     projection: {
       authoring: authoring.data,
+      boundary: input.slots.boundary,
       contributionStepIds: input.snapshot.tasks.implementation.map((task) => task.taskId),
       memberContributionSteps: segments.map((segment) => ({
         chunkKey: segment.chunkKey,
