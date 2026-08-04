@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-errand-transient-lifecycle.md`
-- **Task List:** [none]
+- **Task List:** `tasks-errand-transient-lifecycle.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Finalize — advisory adversarial pass (`Light`, one pass), then
-  `arc finalize generate-tasks --class Light` + ceremony commit bundling the task list
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
