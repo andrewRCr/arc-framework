@@ -29,7 +29,11 @@ import {
 import { validateDeliveryAuthoringMap } from "../lib/delivery/authoring-map.js";
 import { RepositoryDeliveryAuthoringStore } from "../lib/delivery/authoring-store.js";
 import { RepositoryDeliveryPlanStore } from "../lib/delivery/local-stores.js";
-import { GitDeliveryRenameTransitionSource } from "../lib/delivery/plan-resolution.js";
+import {
+  GitDeliveryRenameTransitionSource,
+  resolveExistingDeliveryPlan,
+} from "../lib/delivery/plan-resolution.js";
+import type { DeliveryPlanV1 } from "../lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { assertCanonicalDigest } from "../lib/kernel/index.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
@@ -239,11 +243,16 @@ export async function handleDeliveryPlanFromTasks(
     emit("delivery plan from-tasks", parsed.data.json === true, inputs);
     return;
   }
+  const planIdentity = await resolveAuthoringPlanIdentity(context);
+  if (planIdentity.status === "refused") {
+    emit("delivery plan from-tasks", parsed.data.json === true, planIdentity);
+    return;
+  }
   const prepared = prepareDeliveryFromTasksAuthoring({
     mapId: `map-${randomUUID()}`,
-    planId: randomUUID(),
+    planId: planIdentity.planId,
     workUnitId: context.workUnitId,
-    expectedCurrentPlanDigest: null,
+    expectedCurrentPlanDigest: planIdentity.expectedCurrentPlanDigest,
     taskListPath: inputs.taskListPath,
     taskListContent: inputs.taskListContent,
     designInventory: inputs.designInventory,
@@ -306,11 +315,16 @@ export async function handleDeliveryPlanFromBranch(
     emit("delivery plan from-branch", parsed.data.json === true, inputs);
     return;
   }
+  const planIdentity = await resolveAuthoringPlanIdentity(context);
+  if (planIdentity.status === "refused") {
+    emit("delivery plan from-branch", parsed.data.json === true, planIdentity);
+    return;
+  }
   const prepared = await prepareDeliveryFromBranchAuthoring({
     mapId: `map-${randomUUID()}`,
-    planId: randomUUID(),
+    planId: planIdentity.planId,
     workUnitId: context.workUnitId,
-    expectedCurrentPlanDigest: null,
+    expectedCurrentPlanDigest: planIdentity.expectedCurrentPlanDigest,
     taskListPath: inputs.taskListPath,
     taskListContent: inputs.taskListContent,
     designInventory: inputs.designInventory,
@@ -506,6 +520,36 @@ async function resolveDeliveryContext(interaction?: InteractionContext) {
     planStore: new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec),
     transitionSource: new GitDeliveryRenameTransitionSource(exec),
   };
+}
+
+async function resolveAuthoringPlanIdentity(
+  context: Extract<Awaited<ReturnType<typeof resolveDeliveryContext>>, { readonly status: "ok" }>,
+): Promise<{
+  readonly status: "ok";
+  readonly planId: string;
+  readonly expectedCurrentPlanDigest: string | null;
+} | { readonly status: "refused"; readonly reason: string }> {
+  const current = await resolveExistingDeliveryPlan<DeliveryPlanV1>({
+    planStore: context.planStore,
+    currentWorkUnitId: context.workUnitId,
+    planWorkUnitId: (plan) => plan.workUnitId,
+    authority: context.authority,
+    transitionSource: context.transitionSource,
+  });
+  if (current.status === "indeterminate") {
+    return { status: "refused", reason: current.reason };
+  }
+  return current.status === "match"
+    ? {
+      status: "ok",
+      planId: current.plan.planId,
+      expectedCurrentPlanDigest: current.plan.planDigest,
+    }
+    : {
+      status: "ok",
+      planId: randomUUID(),
+      expectedCurrentPlanDigest: null,
+    };
 }
 
 async function readFromTasksInputs(

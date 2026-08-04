@@ -137,6 +137,15 @@ describe("arc delivery", () => {
         advisories: [{ kind: "uncovered-implementation-task", taskId: "1.1" }],
       },
     });
+    const plans = join(common, "arc", "delivery", "plans");
+    const planName = (await readdir(plans))[0];
+    expect(planName).toBeDefined();
+    if (planName === undefined) return;
+    const initialPlan = JSON.parse(await readFile(join(plans, planName), "utf8")) as {
+      planId: string;
+      planDigest: string;
+      planRevision: number;
+    };
 
     const explicit = await runArc([
       "delivery", "plan", "from-branch",
@@ -149,6 +158,42 @@ describe("arc delivery", () => {
     expect(JSON.parse(explicit.stdout)).toMatchObject({
       status: "ok",
       value: { base, head },
+    });
+    const successorMap = (await readdir(authoring)).find((name) => name.endsWith(".md"));
+    expect(successorMap).toBeDefined();
+    if (successorMap === undefined) return;
+    const successorSnapshot = JSON.parse(
+      await readFile(join(authoring, successorMap.replace(/\.md$/u, ".json")), "utf8"),
+    ) as { planId: string; expectedCurrentPlanDigest: string | null };
+    expect(successorSnapshot).toMatchObject({
+      planId: initialPlan.planId,
+      expectedCurrentPlanDigest: initialPlan.planDigest,
+    });
+    await fillSlots(join(authoring, successorMap), {
+      projection: { kind: "wu-integration-target" },
+      boundary: {
+        kind: "explicit",
+        segments: [{ chunkKey: "branch", sourceIds: [head] }],
+      },
+      members: [{
+        status: "live",
+        chunkKey: "branch",
+        title: "Branch contribution",
+        contract: "Publish the inspected branch contribution",
+        designElementIds: ["detailed:deliverable-contract"],
+        mainlineLandability: "integration-only",
+      }],
+      seams: [],
+    });
+    const revise = await runArc(["delivery", "compose", "--json"], repository);
+    expect(revise.exitCode, revise.stdout + revise.stderr).toBe(0);
+    const revisedPlan = JSON.parse(await readFile(join(plans, planName), "utf8")) as {
+      planId: string;
+      planRevision: number;
+    };
+    expect(revisedPlan).toMatchObject({
+      planId: initialPlan.planId,
+      planRevision: initialPlan.planRevision + 1,
     });
   });
 
@@ -267,6 +312,55 @@ describe("arc delivery", () => {
     const tasks = await readFile(join(repository, ".arc", "active", "tasks-demo.md"), "utf8");
     expect(tasks).toContain("<!-- arc:delivery-plan:start -->");
     expect(tasks).toContain("| 1 | Implementation | `implementation` | `1.1`");
+
+    const plans = join(common, "arc", "delivery", "plans");
+    const planName = (await readdir(plans))[0];
+    expect(planName).toBeDefined();
+    if (planName === undefined) return;
+    const initialPlan = JSON.parse(await readFile(join(plans, planName), "utf8")) as {
+      planId: string;
+      planDigest: string;
+      planRevision: number;
+    };
+    const successor = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+    expect(successor.exitCode, successor.stdout + successor.stderr).toBe(0);
+    const successorMap = (await readdir(authoring)).find((name) => name.endsWith(".md"));
+    expect(successorMap).toBeDefined();
+    if (successorMap === undefined) return;
+    const successorSnapshot = JSON.parse(
+      await readFile(join(authoring, successorMap.replace(/\.md$/u, ".json")), "utf8"),
+    ) as { planId: string; expectedCurrentPlanDigest: string | null };
+    expect(successorSnapshot).toMatchObject({
+      planId: initialPlan.planId,
+      expectedCurrentPlanDigest: initialPlan.planDigest,
+    });
+    await fillSlots(join(authoring, successorMap), {
+      projection: { kind: "wu-integration-target" },
+      boundary: { kind: "phase-aligned" },
+      members: [{
+        status: "live",
+        chunkKey: "implementation",
+        title: "Implementation",
+        contract: "Publish the implementation contract",
+        designElementIds: ["detailed:deliverable-contract"],
+        mainlineLandability: "integration-only",
+      }],
+      seams: [],
+    });
+    const revise = await runArc(["delivery", "compose", "--json"], repository);
+    expect(revise.exitCode, revise.stdout + revise.stderr).toBe(0);
+    const revisedPlan = JSON.parse(await readFile(join(plans, planName), "utf8")) as {
+      planId: string;
+      planRevision: number;
+    };
+    expect(revisedPlan).toMatchObject({
+      planId: initialPlan.planId,
+      planRevision: initialPlan.planRevision + 1,
+    });
   });
 
   it("refuses uncovered implementation and verification membership at composition", async () => {
