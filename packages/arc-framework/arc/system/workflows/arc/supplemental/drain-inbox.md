@@ -192,8 +192,10 @@ routing write.
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
   off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
   plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3. A write touching a **foreign owner's** artifact is reviewed-lane
-  and ships on its own.
+  [run-errand][run-errand] § Ship step 3. Immediately before creating it, invoke `arc merge lock resolve -` with
+  the exact tree root and create on its typed action: `locked / open-locked` opens the PR locked, `none /
+  open-plain` opens it plain, and `blocked / stop` halts creation before any PR exists. A write touching a
+  **foreign owner's** artifact is reviewed-lane and ships on its own.
 
   > [!IMPORTANT]
   > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
@@ -204,7 +206,9 @@ routing write.
   `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
   follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure or malformed output
   stops. Foreign ownership or another confidently recognized review condition may still move a planning result to
-  reviewed without another permission stop, but never the reverse.
+  reviewed without another permission stop, but never the reverse. Immediately before arming, invoke
+  `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
+  locked PR. `released / proceed` and `no-lock / none` both continue; `blocked / stop` invalidates approval.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
   keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
 

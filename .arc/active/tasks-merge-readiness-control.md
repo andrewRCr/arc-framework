@@ -341,7 +341,7 @@ priced in the design, not an omission.
   the release their own landing mechanics require. The auto-merge lane's is structural — arming is impossible
   otherwise — so the lock costs it only the window between the two commands.
 
-### `[ ]` **3.3 Substitute the fire sites in `drain-inbox.md`**
+### `[x]` **3.3 Substitute the fire sites in `drain-inbox.md`**
 
 - _Goal:_ The inbox drain's auto-merge pull requests open locked and release before arming, so the one
   remaining lane with nothing human in the loop is covered like the errand grooming lane it mirrors.
@@ -350,13 +350,13 @@ priced in the design, not an omission.
   classification — the same shape as the errand grooming lane, and the same absence of a human at the merge.
   Leaving it unlocked while locking its twin would read as an oversight rather than a decision.
 
-- _Note:_ Every edit below lands in both the package source and this repository's instance.
+    - `[x]` **3.3.a Resolve before the grooming pull request is created**
+        - The lane has no literal `gh pr create` block to hang the call beside, so the dispatch rides the
+          PR-open sentence itself — the point where the workflow says the pull request is created.
 
-    - `[ ]` **3.3.a Resolve before the grooming pull request is created**
-        - Same three-way mapping as the other two lanes, including the `blocked / stop` halt.
-
-    - `[ ]` **3.3.b Release before auto-merge is armed**
-        - Structurally required, as on the errand lane: auto-merge cannot be armed on a locked pull request.
+    - `[x]` **3.3.b Release before auto-merge is armed**
+        - Placed after the lane classification and before arming, matching the errand grooming lane's
+          ordering, and naming that lane so the two read as one decision rather than a coincidence.
 
 ## **Phase 4:** Host-side cutover and decision record
 
