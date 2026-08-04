@@ -505,28 +505,19 @@ well-chosen. Full rationale in `spec-delivery-plan-record.md` § 3 and § 4.
 - _Outcome:_ Published delivery intent can now replace its informative task-list projection atomically while all
   surrounding bytes remain untouched and no reader treats the rendering as authority.
 
-### `[ ]` **3.5 Register the `arc delivery` command group**
+### `[x]` **3.5 Register the `arc delivery` command group**
 
 - _Goal:_ The verbs the design fixes exist as invocable commands with the project's own registration obligations
   met, rather than as library functions nothing reaches.
 
-- _Context:_ Command registration is wired in the CLI entry point and command logic lives in the handler layer,
-  which is also where each family exports its input-policy declarations and registrations for the command-input
-  composition root to aggregate. That root is not optional bookkeeping: a unit test asserts every command-schema
-  field appears in the authoritative inventory, so an unregistered command fails the suite rather than merely
-  being unreachable.
+    - `[x]` **3.5.a Stand up the group and register `compose` and `plan abandon`**
 
-- _Shape:_ `plan` and `compose` are sibling subcommands of one group, never one verb with a mode flag, so the
-  group is stood up once here and each entry registers its own subcommand in `4.1` and `4.2`.
+        - Registered the group and both verbs through the handler and input-policy composition surfaces; real-CLI
+          coverage proves typed JSON refusals, inventory completeness, idempotent abandonment, and torn-state
+          cleanup.
 
-    - `[ ]` **3.5.a Stand up the group and register `compose` and `plan abandon`**
-
-        - Build `test-first` (one behavior at a time):
-            - The group, `compose`, and `plan abandon` resolve from the CLI entry point
-            - Every registered path appears in the command-input inventory
-            - A machine-readable envelope is emitted when requested, with a distinguishable exit code on refusal
-            - A refusal carries the typed code from `3.2.a` rather than prose alone
-            - The abandon command removes the pair idempotently and can finish a prior partial cleanup
+- _Outcome:_ The authoring spine is reachable through one command family, with structured refusal behavior and a
+  recovery-safe cleanup path ready for both authoring entries to consume.
 
 ## **Phase 4:** The two authoring entries
 
