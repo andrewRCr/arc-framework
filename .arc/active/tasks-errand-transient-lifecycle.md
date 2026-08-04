@@ -167,38 +167,38 @@ docs treat a remote-only Errand identity as retained evidence and code-side docs
   identity matches remote-only branch evidence, carrying its exact claim, head, state, and origin context while
   retaining record-less legacy branches solely on advisory surfaces.
 
-### `[ ]` **4.2 Update package-source workflow templates and reference docs** (SC 5, 7)
+### `[x]` **4.2 Update package-source workflow templates and reference docs** (SC 5, 7)
 
 - _Goal:_ The package-source docs route pause, review-tail, and cross-machine pickup through `arc errand leave`
   and `arc errand materialize` — session-init's Materialize arm offers a remote-only Errand identity as a
   materialization candidate instead of retained evidence.
 
-- _Note:_ The origin templates carry inheritable wording — port and adapt rather than author fresh:
-  `run-errand.md` (leave/materialize arms), `session-init.template.md`, `session-handoff.template.md`,
-  `QUICK-REFERENCE.template.md` (command table).
+    - `[x]` **4.2.a Port and adapt the four workflow/reference docs** named above
+        - Routed pause, review-tail leave, exact cross-machine pickup, and partial-mode refusals through the
+          lifecycle verbs while retaining the current templates' structure and strict moved-head policy.
 
-    - `[ ]` **4.2.a Port and adapt the four workflow/reference docs** named above
+    - `[x]` **4.2.b Extend `locus-methodology-contracts.test.ts` with the same edit**
+        - Pinned the exact `arc errand leave` and `arc errand materialize` QUICK-REFERENCE signatures while
+          preserving the inventory-free command-surface contract.
 
-    - `[ ]` **4.2.b Extend `locus-methodology-contracts.test.ts` with the same edit** — its Errand lifecycle
-      signature block pins the exact QUICK-REFERENCE command lines, so the `arc errand leave` /
-      `arc errand materialize` expectations land together with the doc; `command-surface-documentation.test.ts`
-      is inventory-free by design and needs no edit — it must simply stay green
-
-### `[ ]` **4.3 Sync project `.arc/` copies**
+### `[x]` **4.3 Sync project `.arc/` copies**
 
 - _Goal:_ The self-hosted `.arc/` instance matches package source for every file 4.2 touched — edits flow
   package → project per the sync discipline, never `cp` back. Mirroring is manual per-file work verified by
   the `check-package-sync.sh` pre-commit check; the `.template.md` sources land in their rendered project
   counterparts (`session-init.template.md` → `session-init.md`).
 
-- **Additional Context:** `strategy-package-project-sync.md` § template-counterpart handling and the file
-  inventory
+- _Outcome:_ Applied each package edit independently to its rendered project counterpart, preserving
+  `session-init` condition rendering and QUICK-REFERENCE project customization.
 
-### `[ ]` **4.4 Reconcile code-side doc surfaces** (SC 5)
+### `[x]` **4.4 Reconcile code-side doc surfaces** (SC 5)
 
 - _Goal:_ No shipped module still documents the replaced flow — `materializable-errands.ts`'s module docstring
   (raw `git worktree add` + run-errand resume) updated to describe the verb path, and the `errand`
   command-group description in `cli.ts` updated to cover the grown verb set.
+
+- _Outcome:_ Code-side help now describes the full lifecycle surface, and materialization documentation binds
+  pickup to exact identity plus branch evidence rather than raw worktree mechanics.
 
 ## **Phase 5:** Verification
 

@@ -139,15 +139,17 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     Context: standalone (<kind>)
     ```
 
-3. **Preserve the exact Errand checkout** — push the checkpoint through the normal Errand path. Keep its role and
-   checkout intact; do not release its lease, remove its worktree, or return to the parent during handoff.
+3. **Preserve and leave the exact Errand** — push the checkpoint through the normal Errand path, then invoke
+   `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
+   the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
+   `restoredParent`. Refusal or error stops; never hand-build the sequence.
 
     - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
       (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
       actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
     From `checkoutPath`, push the selected branch. Set its upstream on the first push; otherwise use the existing
-    upstream. If the push fails, retain the local checkpoint and stop.
+    upstream. If the push fails, retain the local checkpoint and stop without invoking `arc errand leave`.
 
     ```bash
     git push -u origin <branch>   # first push
@@ -160,9 +162,9 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     arc status --session-handoff --json
     ```
 
-   Require `handoffLocus.ok === true`, `handoffLocus.value.kind === "leave-errand"`, and unchanged `slug`,
-   `claimId`, `recordId`, `leaseId`, and `checkoutPath`. Any mismatch stops.
-   Continue to [Confirm Handoff](#confirm-handoff), naming that checkout as the next-session entry.
+   Require the new `handoffLocus.value` to be `release-work-unit` for the exact `parentRecordId`, or
+   `between-work-units` when the Errand was cold. Any other result stops. Continue through the matching
+   WU or between-WUs path; do not end handoff at the transient.
 
 ## Between-WUs Handoff Path
 

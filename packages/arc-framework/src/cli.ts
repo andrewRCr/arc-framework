@@ -497,7 +497,7 @@ program
 
 const errand = program
   .command("errand")
-  .description("Errand operations. `open` launches an errand; `check` reports in-flight overlap.");
+  .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
 
 errand
   .command("check")
