@@ -138,12 +138,32 @@ new mechanism — and it is safe only once part 1 lands.
 
 The audit is part of this, not adjacent to it: the nine were found by sweep rather than by knowing where to look,
 so every locus and Errand refusal site is classified routine-or-destructive against the boundary and reconciled.
+Two of the nine are **dual** rather than routine — `locus resolve` and the shared partial-Errand settlement path
+each take a `close|resume` / `abandon` action and guard ahead of the branch. Their guards move inside the
+destructive arm rather than disappearing.
 
-**3. Consequence-class declarations, and a conformance suite derived from them.** Every locus mutation site
-declares its consequence class (`routine` / `destructive`) as a required, typed property. The conformance suite
-derives the routine set from those declarations and asserts that none hard-refuses on identity recognition, and
-that destructive paths retain their guard set. A behavior can then only be reversed by editing a declaration that
-names the boundary — visible in review — rather than by renaming a test.
+**This part carries a required ordering.** Seven sites compare a recorded lease anchor to the entering anchor with
+raw deep equality rather than the canonical self-test: `lib/locus/mutation.ts:136,227,424`,
+`lib/errand/promote-runtime.ts:634,647`, `lib/locus/command-runtime.ts:124`, and
+`lib/work-unit/rename-locus.ts:340`. Under the narrowed type they are sound. Under the widened one they are not:
+two different sessions that both failed ancestry with the same `reason` string compare equal, producing a false
+`self` — the asymmetric error the design singles out, because a false `self` releases a lease genuinely held by
+someone else and does not recover. Route all seven through `sameProcessAnchor` (which returns false unless both
+sides are process anchors) **before** widening any helper, and drop the entry guards last. The reverse order opens
+a concurrency hole while appearing to restore specified behavior.
+
+**3. The signature is the consequence-class declaration; a conformance suite derives from it.** No new vocabulary
+is needed, because the class is already encoded in the anchor type a helper demands: `LocusProcessAnchor` declares
+_destructive — verification required_, and `LocusAnchor` declares _routine — degrades on an unverifiable anchor_.
+That is what makes the nine refusals type-driven rather than nine independent policy calls: downstream helpers
+demand the narrowed type, so every entry point must narrow, and narrowing can only be expressed as a refusal.
+Correcting which helpers demand which retires the refusals as unnecessary rather than forbidding them.
+
+The class being derivable from the type also satisfies the derive-don't-hand-maintain bar by construction, and it
+explains the drift exactly: the class was always encoded, merely assigned wrongly, and nothing checked the
+assignment against the boundary. The missing piece is only the anti-drift carrier — a conformance suite asserting
+that every routine verb succeeds under an unverifiable anchor, with its target set **derived** rather than
+hand-listed, so a new verb arrives untested and fails instead of joining the routine set silently.
 
 **4. Relocate the boundary to where it fires.** The proportionality rule belongs on the surface implementers
 touch, not solely in an archived spec — the locus module's own doc surface, or a rules surface, per the
@@ -228,6 +248,16 @@ operator attestation through `arc locus resolve`, which already exists.
 **The harness-identity provider seam is dropped.** It was adopted while recognition was believed load-bearing.
 Under D1 it carries no permission semantics, so a provider registry solves a problem the boundary dissolves.
 
+**The consequence class needs no new declaration vocabulary — settled by inspection, 2026-08-04.** The persisted
+schema already admits an unverifiable anchor (`LocusLeaseV1.anchor` is the union), and the reader already accepts
+one as its entering anchor, routing every comparison through `sameProcessAnchor`, which fails closed unless both
+sides are process anchors. So neither storage nor the read path blocks the specified posture. What produces the
+refusals is the anchor type demanded by downstream runtime helpers, which means the class is already declared in
+the signature and merely assigned wrongly in places. The routine/destructive split follows the design's own list:
+teardown, cleanup, abandonment, and record reap keep verification; entry, resume, re-entry, and continuation do
+not. `abandon` therefore keeps its guards; `locus resolve` and the partial-Errand settlement path are dual and
+move theirs inside the destructive arm; the rest lose theirs.
+
 **The degraded-anchor lifecycle does not survive today, and the drift is systemic — settled by sweep,
 2026-08-04.** Reads are unaffected: a session-init probe orients cleanly under an unverifiable anchor. Every
 lifecycle verb refuses. Nine identity-keyed refusal sites exist, six of them predating the emergency, so
@@ -239,11 +269,11 @@ state.
 
 ## Open questions
 
-**Q1 — What is the consequence-class declaration's exact shape?** A required argument is weak (a call site can
-accept and ignore it). A branded type that makes a publishable refusal constructible only through the declaration
-is stronger. Whether the derived conformance suite enumerates sites from the type system, from the schema, or from
-a registry is unsettled, and it decides whether this leaves behind an authority or a fifth copy that happens to be
-shared today.
+**Q1 — How does the conformance suite derive its target set?** The declaration question is settled (the signature
+carries the class); this residual is how the anti-drift check finds what to check. Two candidates: enumerate verbs
+from the CLI command registry, or scan for functions demanding `LocusProcessAnchor` and assert each is reachable
+only from a destructive-classed verb. The second sits closer to the type-as-declaration result but likely needs a
+lint rule rather than a test. Whichever is chosen must not reintroduce a hand-maintained list.
 
 **Q2 — Does the guidance composer's new output need a register?** Attribution makes "healthy here, degraded there"
 expressible, but a degraded sibling is advisory while a degraded current locus gates.
@@ -292,6 +322,11 @@ can settle at spec time.
   them older than the emergency, plus a conformant in-tree reference to propagate. The audit moved from an
   additive nicety into the core of that part.
 
-**Next:** Q1's declaration shape, which parts 3 and 4 both depend on and which the nine-site sweep now gives a
-concrete target set. Q2 and Q3 are local calls that can settle at spec time. The draft is otherwise a suitable
-input for `create-spec`.
+- The declaration mechanism is the anchor type already in each helper's signature, so no vocabulary is minted.
+  The residual is only how the conformance check derives its target set.
+- Widening carries a safety precondition and therefore an ordering: seven raw anchor comparisons must route
+  through the canonical self-test before any helper widens, or an unverifiable caller can be mistaken for the
+  lease holder.
+
+**Next:** the draft is a suitable input for `create-spec`. Q1's derivation choice, Q2's register, and Q3's tier
+call are all local decisions that settle during spec authoring rather than blocking entry to it.
