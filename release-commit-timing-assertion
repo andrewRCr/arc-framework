@@ -3,20 +3,14 @@
   "slug": "release-commit-timing-assertion",
   "claimId": "ebf414cfcc802e108b3ab38b581234bc",
   "createdAt": "2026-08-04T18:51:25.023Z",
-  "updatedAt": "2026-08-04T18:59:42.644Z",
+  "updatedAt": "2026-08-04T19:05:34.289Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Harden the release commit hook-descendant timing regression against full-suite load",
   "branch": "chore/release-commit-timing-assertion",
   "origin": "description",
   "originEntry": null,
-  "state": "awaiting-merge",
+  "state": "open",
   "savedHead": null,
-  "changeRequest": {
-    "repositoryRef": "andrewRCr/arc-framework",
-    "hostRef": "github.com",
-    "baseRef": "main",
-    "headRef": "chore/release-commit-timing-assertion",
-    "headSha": "e19d8de8229f886abb2a86fe86201332d7775969"
-  }
+  "changeRequest": null
 }
