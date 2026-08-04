@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** Drafted and ground-audited `tasks-errand-transient-lifecycle.md` (on disk, pending finalize)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** generate-tasks Finalize — advisory adversarial pass (`Light`, one pass), then
+  `arc finalize generate-tasks --class Light` + ceremony commit bundling the task list
 
 - **PR URL:** [none]
 - **Completed:** [none]
