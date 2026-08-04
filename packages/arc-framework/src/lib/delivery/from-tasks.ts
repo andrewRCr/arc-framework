@@ -1,11 +1,18 @@
 /** Task-list entry preparation for delivery authoring. */
 
+import { z } from "zod";
+
 import {
   createDeliveryAuthoringSnapshot,
   type DeliveryAuthoringSnapshotV1,
 } from "./authoring-schema.js";
-import { renderDeliveryAuthoringMap } from "./authoring-map.js";
+import {
+  renderDeliveryAuthoringMap,
+  type DeliveryAuthoringSlotsV1,
+} from "./authoring-map.js";
+import type { DeliveryCompositionProjection } from "./compose.js";
 import { bindDesignInventory } from "./design-inventory.js";
+import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
 import { buildDeliveryTaskInventory, type DeliveryTaskInventory } from "./task-inventory.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 
@@ -35,6 +42,18 @@ export interface DeliveryFromTasksFacts {
     readonly eligibleForMembership: boolean;
   }[];
 }
+
+const DeliveryFromTasksFactsSchema = z.strictObject({
+  phaseGroups: z.array(z.strictObject({
+    phaseId: z.string().min(1),
+    title: z.string().min(1),
+    taskIds: z.array(z.string().min(1)).min(1),
+  })),
+  membershipEligibility: z.array(z.strictObject({
+    taskId: z.string().min(1),
+    eligibleForMembership: z.boolean(),
+  })),
+});
 
 /** Result of preparing transient task-list authoring state. */
 export type PrepareDeliveryFromTasksAuthoringResult =
@@ -95,6 +114,86 @@ export function prepareDeliveryFromTasksAuthoring(
   } catch {
     return { status: "refused", reason: "invalid-authoring-identity" };
   }
+}
+
+/** Resolve authored task boundaries into the entry-neutral composition projection. */
+export function resolveDeliveryFromTasksProjection(_input: {
+  readonly snapshot: DeliveryAuthoringSnapshotV1;
+  readonly slots: DeliveryAuthoringSlotsV1;
+}): {
+  readonly status: "refused";
+  readonly reason:
+    | "from-tasks-facts-malformed"
+    | "boundary-member-mismatch"
+    | "authoring-projection-invalid";
+}
+  | { readonly status: "resolved"; readonly projection: DeliveryCompositionProjection } {
+  const input = _input;
+  if (input.snapshot.source.entry !== "from-tasks") {
+    return { status: "refused", reason: "from-tasks-facts-malformed" };
+  }
+  const facts = DeliveryFromTasksFactsSchema.safeParse(input.snapshot.source.facts);
+  if (!facts.success || !eligibilityMatchesSnapshot(input.snapshot, facts.data)) {
+    return { status: "refused", reason: "from-tasks-facts-malformed" };
+  }
+  const segments = input.slots.boundary.kind === "phase-aligned"
+    ? facts.data.phaseGroups.map((phase, index) => ({
+      chunkKey: input.slots.members[index]?.chunkKey ?? "",
+      sourceIds: phase.taskIds,
+    }))
+    : input.slots.boundary.segments;
+  if (segments.length !== input.slots.members.length
+    || segments.some((segment, index) => segment.chunkKey !== input.slots.members[index]?.chunkKey)) {
+    return { status: "refused", reason: "boundary-member-mismatch" };
+  }
+
+  const authoring = DeliveryPlanAuthoringInputV1Schema.safeParse({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-plan/v1",
+    workUnitId: input.snapshot.originalWorkUnitId,
+    design: {
+      artifacts: input.snapshot.design.artifacts.map(({ artifactId }) => ({ artifactId })),
+      elements: input.snapshot.design.elements.map(({ elementId }) => ({ elementId })),
+    },
+    tasks: {
+      implementation: input.snapshot.tasks.implementation.map(({ taskId }) => ({ taskId })),
+      verificationTaskId: input.snapshot.tasks.verificationTaskId,
+    },
+    entry: "from-tasks",
+    projection: input.slots.projection,
+    members: input.slots.members.map((member, index) => ({
+      ...member,
+      taskIds: segments[index]?.sourceIds ?? [],
+    })),
+    seams: input.slots.seams,
+  });
+  if (!authoring.success) {
+    return { status: "refused", reason: "authoring-projection-invalid" };
+  }
+  return {
+    status: "resolved",
+    projection: {
+      authoring: authoring.data,
+      contributionStepIds: input.snapshot.tasks.implementation.map((task) => task.taskId),
+      memberContributionSteps: segments.map((segment) => ({
+        chunkKey: segment.chunkKey,
+        contributionStepIds: segment.sourceIds,
+      })),
+    },
+  };
+}
+
+function eligibilityMatchesSnapshot(
+  snapshot: DeliveryAuthoringSnapshotV1,
+  facts: z.infer<typeof DeliveryFromTasksFactsSchema>,
+): boolean {
+  return JSON.stringify(facts.membershipEligibility) === JSON.stringify([
+    ...snapshot.tasks.implementation.map((task) => ({
+      taskId: task.taskId,
+      eligibleForMembership: true,
+    })),
+    { taskId: snapshot.tasks.verificationTaskId, eligibleForMembership: false },
+  ]);
 }
 
 function deriveFromTasksFacts(
