@@ -468,39 +468,65 @@ new-versus-old split.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, the three ARC contract checks, TypeScript lint, shell lint, both type checks,
+  full test suite (9592 passed, 1 skipped), and build — all passed. The `config-validate` integration flake
+  recorded in the prior handoff did not recur.
+- _Success criteria:_ 10 criteria, all met; 3 carry deviation notes. The draft-first lock was exercised live on a
+  throwaway fixture pull request rather than deferred to integration: draft state refused `gh pr merge`,
+  `gh pr merge --admin`, the REST merge endpoint, and auto-merge arming, then merged only on the exact approved
+  head after release, and re-locked on `gh pr ready --undo`. Host-side teardown was confirmed against the live
+  API — classic protection returns 404 and the ruleset requires `merge-ok` alone. The renamed lane context and
+  this work unit's own integration pull request remain read-verified, since `pull_request_target` resolves
+  workflows from the base branch.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A work-unit integration PR on this repository is unmergeable by any single accidental act — UI click,
+- `[x]` A work-unit integration PR on this repository is unmergeable by any single accidental act — UI click,
   `gh pr merge`, `gh pr merge --admin` — from open through review, triage, and composition, until the
   authorized terminal sequence releases the lock and exact-head merges it
+    - **Deviation:** exercised live against a throwaway fixture pull request rather than this work unit's own
+      integration pull request, which does not exist until integration. Draft state refused `gh pr merge`,
+      `gh pr merge --admin`, the REST merge endpoint (HTTP 405), and auto-merge arming — `--admin` refused
+      identically, confirming the mechanism is not admin-bypassable. Releasing then merging on a mismatched head
+      refused; on the exact head it merged; `gh pr ready --undo` re-locked and refusal resumed. The fixture
+      targeted its own base branch, so `main` was never a merge target. The fire site that opens the pull request
+      locked is covered by the workflow-contract test rather than this exercise.
 
-- `[ ]` No `arc-cleared` producer or enforcement point survives: `grep -riE "arc.cleared|arc.clearance"` over
+- `[x]` No `arc-cleared` producer or enforcement point survives: `grep -riE "arc.cleared|arc.clearance"` over
   `packages/arc-framework/src/` and `.github/workflows/` returns nothing, and no base-branch enforcement surface
   requires the context — `__tests__/` and `.github/CODEOWNERS` are the corpus retirement's and stay out of scope
 
-- `[ ]` The lane-classification gate still runs on every pull request under its renamed context, posts a
+- `[x]` The lane-classification gate still runs on every pull request under its renamed context, posts a
   terminal state on both classifier arms, and records its verdict and live-pair result; no required-check list
   gained an entry
+    - **Deviation:** the renamed context was verified by reading `arc-lane-attestation.yml` rather than observed
+      live. `pull_request_target` runs workflows from the pull request's base branch, so the renamed gate cannot
+      post until this branch is itself the base — a fixture pull request opened against the current `main` still
+      draws that branch's retired clearance workflow. The required-check half was verified live: `main` requires
+      `merge-ok` alone.
 
-- `[ ]` `arc merge lock resolve`, `arc merge lock hold`, and `arc merge lock release` exist with the specified
+- `[x]` `arc merge lock resolve`, `arc merge lock hold`, and `arc merge lock release` exist with the specified
   typed actions, registered as `merge-lock-*` envelope modes, and covered per action and per blocked reason
 
-- `[ ]` `merge.lock` is exposed by `arc config status`, accepted by `arc config validate`, and present in the
+- `[x]` `merge.lock` is exposed by `arc config status`, accepted by `arc config validate`, and present in the
   shipped `arc-config.yml` template
 
-- `[ ]` Every fire site in `integrate-work-unit.md`, `run-errand.md`, and `drain-inbox.md` invokes a lock verb
+- `[x]` Every fire site in `integrate-work-unit.md`, `run-errand.md`, and `drain-inbox.md` invokes a lock verb
   and dispatches on its returned action; no workflow prose reads `merge.lock`, classifies a lane, or reads
   pull-request lock state
 
-- `[ ]` ADR-031 exists and ADR-029 carries the dated Tier-2 amendment
+- `[x]` ADR-031 exists and ADR-029 carries the dated Tier-2 amendment
 
-- `[ ]` This repository has no `arc-clearance.yml` workflow, no `arc-cleared` required status on any
+- `[x]` This repository has no `arc-clearance.yml` workflow, no `arc-cleared` required status on any
   base-branch enforcement surface, `merge.lock: draft` set, and `main` protected by the ruleset alone
+    - **Deviation:** the workflow deletion is complete in this change set but reaches `main` only at merge, so
+      until then `main`'s surviving copy posts an inert pending `arc-cleared` on pull requests opened against it.
+      Nothing requires the context, so it blocks no merge.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

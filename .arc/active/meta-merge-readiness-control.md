@@ -18,8 +18,7 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~471)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — load `verify-work-unit.md` and verify the work unit against its success
-  criteria; this WU's own PR is the first to run the draft-first lifecycle end to end
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
