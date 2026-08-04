@@ -382,6 +382,50 @@ describe("branch-derived delivery facts", () => {
     expect(prepared.snapshot.source.facts).toMatchObject({ taskAttributions: [], advisories: [] });
   });
 
+  it("ignores valid non-reference footers for the selected task list", async () => {
+    const contexts = [
+      "planning",
+      "maintenance",
+      "code review",
+      "incidental during review cleanup",
+    ];
+    for (const [index, context] of contexts.entries()) {
+      await commitFile(repository, `non-reference-${index}.txt`, `${context}\n`, [
+        `chore(test): record ${context}`,
+        "",
+        `Context: tasks-demo.md (${context})`,
+      ].join("\n"));
+    }
+
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.snapshot.source.facts).toMatchObject({
+      taskAttributions: [],
+      malformedTaskReferences: [],
+      advisories: [],
+    });
+  });
+
   it("refuses branch facts whose pinned coordinates differ from the source inputs", async () => {
     const prepared = await prepareDeliveryFromBranchAuthoring({
       mapId: "branch-map",

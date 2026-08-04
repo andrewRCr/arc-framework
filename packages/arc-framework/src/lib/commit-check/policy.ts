@@ -2,7 +2,7 @@
 
 import type { CommitCheckFinding, CommitCheckPolicy, CommitCheckConfigurationKey } from "./types.js";
 import type { ParsedCommitMessage, ParsedCommitLine } from "./parser.js";
-import { parseTaskReference } from "./task-reference.js";
+import { isTaskNonReferenceContext, parseTaskReference } from "./task-reference.js";
 
 const CONVENTIONAL_TYPES = new Set([
   "feat",
@@ -198,7 +198,6 @@ export function validateSubjectAndBody(
   return findings;
 }
 
-const TASK_NONREFERENCE_PATTERN = /^(?:incidental during \S(?:.*\S)?|planning|maintenance|code review)$/u;
 const TASK_FOOTER_PATTERN = /^(tasks-[A-Za-z0-9-]+\.md) \((.+)\)$/;
 const DESIGN_FOOTER_PATTERN = /^((?:draft|spec)-[A-Za-z0-9-]+\.md) \((planning|code review)\)$/;
 const META_FOOTER_PATTERN =
@@ -220,7 +219,7 @@ function classifyFooter(value: string): FooterClassification {
     const filename = taskMatch[1] ?? "";
     return {
       valid: parseTaskReference(taskMatch[2] ?? "") !== null
-        || TASK_NONREFERENCE_PATTERN.test(taskMatch[2] ?? ""),
+        || isTaskNonReferenceContext(taskMatch[2] ?? ""),
       artifact: { family: "tasks", filename },
       contribution: false,
       suggestions: [

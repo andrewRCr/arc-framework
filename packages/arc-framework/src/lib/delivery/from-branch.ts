@@ -11,6 +11,7 @@ import {
 import { ChangeSetSchema } from "../change-facts.schema.js";
 import { parseCommitMessage } from "../commit-check/parser.js";
 import {
+  isTaskNonReferenceContext,
   parseTaskReference,
   type ParsedTaskReference,
   type ParsedTaskReferenceItem,
@@ -630,7 +631,7 @@ async function deriveTaskAttributions(
     const referenceValue = taskContext.groups.reference;
     const reference = referenceValue === undefined ? null : parseTaskReference(referenceValue);
     if (reference === null) {
-      if (referenceValue !== undefined) {
+      if (referenceValue !== undefined && !isTaskNonReferenceContext(referenceValue)) {
         malformedTaskReferences.push({ commit, reference: referenceValue });
         advisories.push({ kind: "malformed-task-reference", commit, reference: referenceValue });
       }

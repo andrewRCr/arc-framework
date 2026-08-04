@@ -28,6 +28,17 @@ const RANGE_PATTERN = new RegExp(
   `^(?<start>${TASK_ID_SOURCE})-(?<end>[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)$`,
   "u",
 );
+const NON_REFERENCE_PATTERN = /^(?:incidental during \S(?:.*\S)?|planning|maintenance|code review)$/u;
+
+/**
+ * Whether a task-list Context value is valid metadata without a task attribution.
+ *
+ * @param value - Parenthetical content from a task-list Context footer
+ * @returns True when policy admits the value without a task reference
+ */
+export function isTaskNonReferenceContext(value: string): boolean {
+  return NON_REFERENCE_PATTERN.test(value);
+}
 
 /** Parse one task-reference expression without applying repository semantics. */
 export function parseTaskReference(value: string): ParsedTaskReference | null {
