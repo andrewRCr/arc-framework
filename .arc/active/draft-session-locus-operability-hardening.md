@@ -103,18 +103,36 @@ This part needs no attribution. All four aggregations are row predicates evaluat
 `derivationStops` is ordering — the relevance sets consume `internalActions` produced by those same loops — which
 is a hoist, not a type change.
 
+**One decision inside this part is open: scope the stop without scoping the offer.** `state.ts:144-150` builds
+`transientResidue` once and uses it twice — for the `role-conflict` stop at `:147` and for the residue **offer**
+at `:148-150`. Scoping the whole filter would suppress recovery of exactly the residue the offer exists to find:
+a full-protection Errand that crashes in a spawned worktree, with a cold session then booting in the primary,
+yields a relevance set of the primary row alone and so `recovery: none` where today it offers resume/abandon.
+That regresses this draft's own no-dead-ends condition. The relation must therefore bound which degraded rows may
+**stop** a command without bounding which residue may be **surfaced** — the two have opposite failure directions.
+
+The relation is also thinner in production than the reconciliation accumulation suggests: `reader.ts:111-119`
+passes `adoptionCandidates: []` and no `selected`, and `deriveRecovery` receives no command target at all, so the
+live inputs reduce to internal actions, the primary row, and `current`. What the relation means for a read with no
+target is unspecified and must be settled rather than inherited.
+
 **2. What a session persists when it cannot prove its identity — open, and this work's centre.** See Q1.
 
-**3. Attribution and diagnosability — separable, and costed honestly.** Carrying the originating locus on every
-stop reason is what lets the guidance composer name the degraded checkout and the verb that clears it, and what
-makes "no producer may emit an unattributed reason" enforceable. It is **not** a prerequisite for part 1, and its
-cost is not contained: stop reasons are consumed by value identity across `lib/locus/allocator.ts:82,151,152,284`
-(an exhaustive switch over reason values, fed by three published slots), `lib/locus/resolve-driver.ts:58` (Set
-membership), `lib/locus/trusted-row.ts:98,132,156` (Set, keyed Record, and schema-order sorting),
-`lib/locus/state.ts:233-239` and `lib/locus/reconciliation.ts:436-455` (rank sorting and dedup), plus a second
-emitted-text consumer at `lib/locus/command-runtime.ts:477`. There is also a fifth reason-carrying surface the
-earlier scope list omitted: `LocusRowAuthority.reasons`. Attribution is worth buying on its own merits or not at
-all; it must not ride part 1 as a claimed prerequisite.
+**3. Diagnosability — solved in the composer, not by attribution.** Threading an originating locus through
+`LocusStopReason` was proposed to let the guidance composer name the degraded checkout and the clearing verb. The
+composer can already do both. `lib/locus/roster.ts:188` promotes every per-row diagnostic — including
+`lease-unknown` (`roster.ts:447`) — into the envelope-level diagnostics; `lib/locus/session-guidance.ts:59-61`
+already renders each as `` `{code} at {source.kind} '{source.key}': {message}` ``; and `renderRecovery`
+(`session-guidance.ts:88-101`) already joins `recovery.recordId` back to the roster and names
+`--confirm-no-live-session` as the clearing verb. What remains is a stop-arm row join and a reason-to-verb map,
+both local to one file.
+
+Attribution is therefore **dropped**. Its cost was not contained — stop reasons are consumed by value identity
+across `lib/locus/allocator.ts:82,151,152,284`, `lib/locus/resolve-driver.ts:58`,
+`lib/locus/trusted-row.ts:98,132,156`, `lib/locus/stop-tier.ts:29` (the exhaustive tier `Record`),
+`lib/locus/state.ts:233-239`, and `lib/locus/reconciliation.ts:436-455`, plus text consumers at
+`session-guidance.ts:67,80,102,109` and `command-runtime.ts:477` — and it buys a payoff a local composer change
+already reaches. Revisit only if a consumer emerges that the composer genuinely cannot serve.
 
 **4. Give the boundary a mechanical representation.** Whatever Q1 settles, the resolved posture needs to survive
 contact with the next person unblocking themselves under pressure. Prose in a spec under `completed/` did not: the
@@ -147,8 +165,8 @@ exit paths; the audit classifying every locus and Errand refusal site against th
 conformance carrier; boundary relocation; a permanent fixture covering a session whose anchor cannot be verified.
 
 **Out:** cross-machine arbitration and backend storage evolution. Harness-recognition improvements beyond what
-landed — recognition sharpness is not what decides operability. Attribution is **conditionally in**, on its own
-justification rather than as part 1's prerequisite.
+landed — recognition sharpness is not what decides operability. Stop-reason attribution, whose payoff the guidance
+composer already reaches locally.
 
 ### Boundary with `locus-generation-binding`
 
@@ -179,27 +197,40 @@ The specification discriminates the same way for WU entry: unverifiable caller p
 "live or unknown existing occupancy still refuses." So the common case must not prompt, and the question is only
 what it writes.
 
-- **(a) Mint the lease anyway.** Direct, but the design objects that it creates "an ownership token that no later
-  operation could verify or release."
-- **(b) Leaseless transient role.** Mirror the WU rule: the role carries occupancy, the lease stays optional.
-  Obligations are larger than they first appear — frame derivation, residue classification, teardown's occupancy
-  veto (`teardown-occupancy.ts` returns `clear` on a null lease), **and all three exit paths**, which refuse a
-  leaseless role today. It also trades away automatic abandoned-errand detection, since "transient role, no lease"
-  stops being unambiguous. Partly recoverable by an age-explains-a-prompt triage surface, which is the one use of
-  heartbeat age the design permits.
-- **(c) Role plus a non-ownership occupancy marker** — a third state that vetoes cleanup without asserting
-  ownership.
-- **(d) Keep the lease; bind exits to the capability rather than the identity.** The design's objection to (a)
-  splits: an unverifiable lease genuinely cannot be _verified_, but it may be _releasable_, because the session
-  that minted it holds its `leaseId` and no foreign session does. Exits currently prove ownership by anchor
-  equality (`mutation.ts:227`, `:424`) rather than by the token the holder presents. Binding them to the token
-  would keep every exit working and would dissolve the false-`self` hazard rather than routing around it.
+**The ballot is the lease state and frame, not the storage shape.** An earlier framing of this question offered
+four storage options and missed the gate that decides all of them. Frame and current-locus derivation key on
+`lease.state === "live"`: `resolveCurrent` (`state.ts:325-328`) tests liveness **first**, before trust, and
+`baseFrame` (`state.ts:308,313`) returns `residue` for any lease that is null or non-live. An unverifiable anchor
+yields `unknown` liveness (`evidence.ts:308`), so every option that leaves a lease reading `unknown` produces a
+row that is never `current` and always `residue` — and `deriveRecovery` (`state.ts:131`) then stops on the
+session's **own** row, which no containment relation can scope away because that row is relevant by construction.
 
-**What decides it.** Which option keeps all three exits operable; whether cleanup's occupancy veto can key on
-something other than lease liveness; and whether the exit binding is this unit's to change or
-`locus-generation-binding`'s. Option (d) appears smallest against those tests and fixes a hazard rather than
-avoiding one, but it has not been validated and no option should be adopted on this draft's current evidence
-alone.
+So the settle-able decision is: **what lease state and frame does a role receive when its anchor cannot be
+verified?** Candidates:
+
+- a fourth frame value distinguishing "occupied, liveness unprovable" from `residue`;
+- a `self-asserted` lease state, ranking between `live` and `unknown`;
+- admitting `unknown` as `current` when the entering anchor structurally matches the recorded one;
+- a role-only `current` that does not consult lease liveness at all.
+
+The storage question follows from that answer rather than preceding it. **(a) mint the lease anyway**,
+**(b) leaseless transient role**, and **(c) role plus a non-ownership occupancy marker** remain live, but each is
+only evaluable once the frame disposition is fixed. Option (b) additionally owes frame derivation, residue
+classification, teardown's occupancy veto (`teardown-occupancy.ts` returns `clear` on a null lease), and all three
+exit paths, which refuse a leaseless role today; it also trades away automatic abandoned-errand detection, partly
+recoverable through an age-explains-a-prompt triage surface.
+
+**A fourth option is withdrawn, its premise refuted.** Binding exits to the `leaseId` as a capability rather than
+to anchor identity assumed only the minting session holds that token. It is published: `rowLease` in
+`lib/locus/schema/state.ts` carries `leaseId` on every roster row, and `arc status --session-init --json` emits it
+for every lease. The token is an identifier, not a secret, so binding a destructive path to it would replace half
+of a two-factor ownership proof with a value any reader can obtain — contradicting this draft's own conditions on
+foreign-lease takeover and destructive guard sets.
+
+**What decides the remaining ballot.** Which disposition keeps all three exits operable; whether cleanup's
+occupancy veto can key on something other than lease liveness; whether the choice changes the generation token an
+exit binds to, which is `locus-generation-binding`'s subject; and whether it can be expressed without a new
+configuration axis. No option should be adopted on this draft's current evidence alone.
 
 ## Other open questions
 
@@ -245,7 +276,8 @@ attribution was their mechanical prerequisite was wrong.
    can complete or abandon its work through an in-model exit, without hand-editing the record store.
 4. The common case does not prompt. A caller whose anchor is unverifiable, acting on a demonstrably free target,
    proceeds without an attestation that carries no information.
-5. A stopped repository names which checkout stopped it and the verb that clears it, without reading source.
+5. A stopped repository names which checkout stopped it and the verb that clears it, without reading source —
+   composed from the roster the guidance composer already holds, not by reshaping the stop-reason vocabulary.
 6. Every destructive path retains its full guard set, demonstrated rather than asserted.
 7. The resolved posture has a mechanical carrier whose target set is derived, so reversing it requires an edit
    that names the boundary rather than a rewritten test.
@@ -270,10 +302,19 @@ attribution was their mechanical prerequisite was wrong.
 - The site count is ten plus one degradation, not nine, and they are not uniformly unconditional.
 - The false-`self` hazard is genuine at two of seven comparisons, not all seven.
 
-**Adversarial review:** pass one run at the readiness boundary (`Class: Heavy`, cap 2). Seven findings — two
-`blocker`, three `major`, two `minor` — all verified against source and confirmed; none manufactured. Both
-blockers landed on the same premise: that the target posture was already specified and merely reversed. Their
-disposition is this rewrite, which withdraws that premise and reopens the question it had masked.
+**Adversarial review:** both passes run at the readiness boundary (`Class: Heavy`, cap 2 — the loop is exhausted).
+Pass one returned seven findings (two `blocker`, three `major`, two `minor`); pass two returned six (three
+`blocker`, one `major`, two `minor`). Every finding across both passes was verified against source and confirmed;
+none was manufactured. Pass one withdrew the restoration thesis. Pass two found that the replacement question was
+posed at the wrong altitude, that the option this draft steered toward rested on a refuted premise, and that the
+part declared settled still contained an open decision. Both dispositions are recorded above.
 
-**Next:** settle Q1 — it gates spec authoring, and nothing downstream is stable without it. Q2 and Q3 remain
-local calls; Q4 folds into whichever Q1 option is chosen.
+The passes converged rather than churned: each located the question more precisely than the last, and the work
+shrank at each step — attribution dropped, one storage option refuted, containment reduced to a single
+stop-versus-offer decision. The cap is now reached with the reframed Q1 live, so the loop stops here by the
+method's own rule and the question goes to the stage interlock rather than a third pass.
+
+**Next:** settle Q1's frame-disposition ballot. It gates spec authoring and nothing downstream is stable without
+it. Approach it from fresh context — two passes have shown this draft's accumulated framing to be the thing most
+likely to mislead. Containment's stop-versus-offer split is the second decision; Q2 and Q3 remain local calls;
+Q4 folds into whichever disposition Q1 selects.
