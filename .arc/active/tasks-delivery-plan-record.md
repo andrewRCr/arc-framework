@@ -732,6 +732,26 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
 
         - Distinct concern from `4.6` despite sharing a file — separate review increment and commit.
 
+### `[ ]` **4.8 Reconcile the shared cohort record with the settled substrate**
+
+- _Goal:_ Sibling work units reading the shared cohort coordination inherit the delivery contracts and field status
+  this member actually establishes, without changing conclusions that remain valid on independent grounds.
+
+- _Context:_ Three statements in `cohort-chunked-delivery.md` predate the settled substrate. Segment refinement is
+  still the authoring default, but not because every task occurs in exactly one member or because task order induces
+  member order: retrofit coverage is at-least-once and member order rides the member array. Refs and change-request
+  handles are assignment decisions rather than observations in `DeliveryState`. The field-evidence status also
+  predates completion of the rolling session-locus delivery and still describes three of thirteen slices in flight.
+
+    - `[ ]` **4.8.a Correct the inherited premises and completed field status**
+
+        - Preserve the segment-refinement conclusion and its landability argument while removing the retired
+          exclusivity and task-order premises.
+        - Place refs and change-request handles in the shared assignment record, leaving exact observed base, head,
+          tree, and membership facts in `DeliveryState`.
+        - Record the completed 21-row rolling session-locus delivery before bespoke closeout rather than the
+          superseded thirteen-branch standing stack.
+
 ## **Phase 5:** Plan revisions, binding, and amendment
 
 _Purpose:_ Sort what may still change once a plan acquires its first externally visible dependency, so routine
