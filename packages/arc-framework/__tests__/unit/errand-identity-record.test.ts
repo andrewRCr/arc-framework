@@ -1,4 +1,4 @@
-/** Backward-compatible transient identity record schema coverage. */
+/** Strict v3 transient identity record schema coverage. */
 
 import { describe, expect, it } from "vitest";
 
@@ -56,6 +56,13 @@ function legacy(overrides: Record<string, unknown> = {}): Record<string, unknown
 }
 
 describe("v3 transient identity records", () => {
+  it.each([1, 2] as const)("rejects retired v%d identity records", (version) => {
+    expect(deserializeTransientIdentityRecord(
+      JSON.stringify(legacy({ version })),
+      "legacy",
+    )).toEqual({ kind: "unknown-version", version });
+  });
+
   it("round-trips every ordinary Errand lifecycle arm", () => {
     const values = [
       ordinary(),
@@ -149,71 +156,7 @@ describe("v3 transient identity records", () => {
   });
 });
 
-describe("legacy identity records", () => {
-  it("accepts a non-empty legacy slug outside the current slug vocabulary", () => {
-    const record = legacy({ slug: "Legacy Slug" });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "Legacy Slug"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts a legacy branch beyond the current opaque-text limit", () => {
-    const record = legacy({ branch: "b".repeat(4_097) });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts a non-empty legacy timestamp outside the current timestamp vocabulary", () => {
-    const record = legacy({ createdAt: "launch-time-unknown" });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts legacy intent beyond the current write limit", () => {
-    const record = legacy({ intent: "i".repeat(4_097) });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts a legacy return branch beyond the current opaque-text limit", () => {
-    const record = legacy({ returnBranch: "r".repeat(4_097) });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts a legacy inbox back-pointer beyond the current opaque-text limit", () => {
-    const record = legacy({ origin: "inbox", originEntry: "e".repeat(4_097) });
-    expect(deserializeTransientIdentityRecord(JSON.stringify(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("accepts and strips fields ignored by the legacy decoder", () => {
-    expect(deserializeTransientIdentityRecord(
-      JSON.stringify(legacy({ ignoredLegacyField: true })),
-      "legacy",
-    )).toEqual({ kind: "valid", record: legacy() });
-  });
-
-  it.each([1, 2] as const)("retains close-only v%d records", (version) => {
-    const record = TransientIdentityRecordSchema.parse({
-      version,
-      slug: "legacy",
-      origin: "description",
-      intent: "Close legacy",
-      branch: "chore/legacy",
-      createdAt: timestamp,
-      ...(version === 2 ? { returnBranch: "feat/parent" } : {}),
-    });
-    expect(deserializeTransientIdentityRecord(serializeTransientIdentityRecord(record), "legacy"))
-      .toEqual({ kind: "valid", record });
-  });
-
-  it("retains the version-one return-branch prohibition", () => {
-    expect(deserializeTransientIdentityRecord(
-      JSON.stringify(legacy({ version: 1, returnBranch: "main" })),
-      "legacy",
-    )).toMatchObject({ kind: "malformed" });
-  });
-
+describe("invalid identity records", () => {
   it("distinguishes malformed and unknown versions", () => {
     expect(deserializeTransientIdentityRecord("{bad", "x")).toMatchObject({ kind: "malformed" });
     expect(deserializeTransientIdentityRecord(JSON.stringify({ version: 99 }), "x"))

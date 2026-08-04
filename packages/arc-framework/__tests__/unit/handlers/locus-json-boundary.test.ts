@@ -34,7 +34,7 @@ vi.mock("../../../src/lib/errand/abandon-runtime.js", () => ({
   abandonOrdinaryErrandAtRuntime: (...args: unknown[]) => mocks.abandonOrdinaryErrandAtRuntime(...args),
 }));
 
-import { handleErrandOpen } from "../../../src/handlers/errand.js";
+import { handleErrandLeave, handleErrandOpen } from "../../../src/handlers/errand.js";
 import { handleLocusAttach, handleLocusRelease, handleLocusResolve } from "../../../src/handlers/locus.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 import type { LocusMutationResultV1 } from "../../../src/lib/locus/schema/index.js";
@@ -131,6 +131,30 @@ describe("mutation handler JSON boundaries", () => {
       outcome: "error",
       operation: "errand-open",
       error: { message: "user surfaces unavailable" },
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses Errand leave before mutation when the configured base is blank", async () => {
+    mocks.readConfigSettings.mockResolvedValueOnce({
+      settings: {
+        "branch.base": "   ",
+        "branch.protection": "full",
+        "worktree.location_template": "../{repo}-{branch}",
+        "worktree.post_create": "",
+        "worktree.harness_dirs": "",
+      },
+      warnings: [],
+    });
+
+    await handleErrandLeave("typed-setup", { state: "paused", json: true });
+
+    const lines = jsonLines();
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? "")).toMatchObject({
+      outcome: "error",
+      operation: "errand-leave",
+      error: { code: "locus.errand-leave.config" },
     });
     expect(process.exitCode).toBe(1);
   });

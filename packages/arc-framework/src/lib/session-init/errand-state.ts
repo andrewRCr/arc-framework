@@ -1,9 +1,8 @@
 /**
  * Errand-state composer for session-init.
  *
- * The I/O boundary around the pure errand helpers. Identity is record-backed:
- * the injected errand records form a branch→slug index that resolves each
- * errand's slug (a record-less branch degrades to the branch-derived slug).
+ * The I/O boundary around the pure errand helpers. Exact v3 identities provide
+ * both branch classification and materialization authority.
  * Presence and merge status stay oracle-backed. It detects a resumable current
  * branch (cheap, always), and — when discovery is on — classifies the oracle's
  * in-flight errand entries and selects the remote-only ones as materialize
@@ -24,7 +23,7 @@
 import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-flight-derivation.js";
 import { isLandedInBase } from "../git/branch-containment.js";
-import type { ErrandRecord } from "../errand/record.js";
+import type { TransientIdentityRecord } from "../errand/identity-record.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
@@ -49,7 +48,7 @@ export interface ErrandStateResult {
   resume: ErrandResumeResult;
   /** Orient-only advisory over the oracle's in-flight `chore/` errands. */
   inFlight: InFlightErrandSweepResult;
-  /** Remote-only `chore/` errands that can be materialized locally. */
+  /** Exact ordinary-v3 tails that can be materialized locally. */
   materializable: MaterializableErrandsResult;
   /** Branch/record residue surfaced for advisory cleanup. */
   residue: InFlightResidue[];
@@ -60,7 +59,6 @@ export interface ErrandStateResult {
   /** Locus-owned transient identities in their fixed action order. */
   identities?: LocusStateV1["inFlightIdentities"];
 }
-
 export interface RunErrandStateOptions {
   exec: GitExec;
   currentBranch: string | null;
@@ -79,12 +77,12 @@ export interface RunErrandStateOptions {
   oracleWarnings?: readonly string[];
   /** Complete locus projection used to surface identity tails. */
   locusState?: LocusStateV1 | null;
-  /**
-   * Errand records (identity-scoped) — the identity oracle for resume and
-   * discovery. Empty when identity is absent or the errand ref is unborn; a
-   * record-less errand branch then degrades to its branch-derived slug.
-   */
-  records: readonly ErrandRecord[];
+  /** Exact v3 identities used for branch classification and materialization. */
+  records: readonly TransientIdentityRecord[];
+  /** Whether the transient identity snapshot was decoded completely. */
+  recordsComplete: boolean;
+  /** Live remote tips keyed by branch short-name. */
+  remoteTips: ReadonlyMap<string, string>;
   /** Integration base branch short-name, e.g. `main`. */
   baseBranch: string;
   /** Whole-day threshold for classifying in-progress branches as stale. */
@@ -105,7 +103,8 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   const oracleWarnings = [...(options.oracleWarnings ?? [])];
   const residue = [...(options.residue ?? [])];
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
-  const slugByBranch = new Map(options.records.map((record) => [record.branch, record.slug]));
+  const slugByBranch = new Map(options.records.flatMap((record) =>
+    record.branch === null ? [] : [[record.branch, record.slug] as const]));
   const identities = options.locusState?.inFlightIdentities;
 
   const resume = detectErrandResume({
@@ -127,7 +126,11 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     );
   }
 
-  const materializable = findMaterializableErrands({ entries: options.entries, slugByBranch });
+  const materializable = findMaterializableErrands({
+    entries: options.entries,
+    records: options.recordsComplete ? options.records : [],
+    remoteTips: options.remoteTips,
+  });
   const errands = options.entries.filter(
     (entry): entry is InFlightErrand => entry.kind === "errand",
   );

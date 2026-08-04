@@ -113,9 +113,9 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import type { GitExec } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
-  listErrandRecordsResult,
-  type ErrandRecord,
-  type ListErrandRecordsResult,
+  projectTransientInFlightRead,
+  readFetchedTransientInFlightIndexes,
+  readTransientInFlightIndexes,
 } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
@@ -357,17 +357,12 @@ export async function handleStatus(
   if (slug !== undefined) {
     // Slug→state query: a subject-keyed read over the lifecycle-complete index.
     // The index walk binds real I/O; the resolution stays a pure lib projection.
-    // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
+    // Transient identities still feed the oracle so recorded Errand
     // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
     const { identity } = await readIdentityPointers(exec);
-    // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
-    // (not degraded). Degraded `complete: false` is only for a failed read.
-    const recordResult: ListErrandRecordsResult = identity === null
-      ? { records: [], complete: true, warnings: [] }
-      : await listErrandRecordsResult({ exec, identity });
-    const errandSlugByBranch = new Map(
-      recordResult.records.map((record) => [record.branch, record.slug]),
+    const transient = projectTransientInFlightRead(
+      await readTransientInFlightIndexes({ exec, identity }),
     );
     const composed = await resolveComposedLifecycleIndex({
       cwd,
@@ -380,8 +375,8 @@ export async function handleStatus(
         decompositionClaimCwd: cwd,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
-        errandSlugByBranch,
-        errandRecordsComplete: recordResult.complete,
+        errandSlugByBranch: transient.indexes.slugByBranch,
+        errandRecordsComplete: transient.complete,
       },
     });
     const query = resolveSlugQuery(composed.index, slug);
@@ -577,24 +572,28 @@ export async function handleStatus(
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
+      remoteTips: Map<string, string>;
       reachable: boolean;
     }> | undefined;
-    // Errand records — the errand-identity oracle, shared by the in-flight
-    // derivation (errand-vs-WU classification) and the errand-state probe
-    // (resume + discovery). Identity-scoped and local, so read once and reused;
-    // empty when no identity resolved (no record ref exists).
-    let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
-    const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
-      errandRecordsPromise ??= identity === null
-        ? Promise.resolve({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec, identity });
-      return errandRecordsPromise;
+    let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+    let discoveryTransientIndexesPromise: ReturnType<typeof readFetchedTransientInFlightIndexes> | undefined;
+    const getTransientIndexes = () => {
+      transientIndexesPromise ??= readTransientInFlightIndexes({ exec, identity });
+      return transientIndexesPromise;
     };
-    const getErrandRecords = async (): Promise<ErrandRecord[]> => (await getErrandRecordsResult()).records;
+    const getDiscoveryTransientIndexes = () => {
+      discoveryTransientIndexesPromise ??= readFetchedTransientInFlightIndexes({
+        exec,
+        identity,
+        remote: "origin",
+      });
+      return discoveryTransientIndexesPromise;
+    };
     const getOracle = (): Promise<{
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
+      remoteTips: Map<string, string>;
       reachable: boolean;
     }> => {
       oraclePromise ??= (async () => {
@@ -603,13 +602,13 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs, locusState] = await Promise.all([
-          getErrandRecordsResult(),
+        const [transientRead, parkedSlugs, locusState] = await Promise.all([
+          getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalLocusState(),
         ]);
-        const records = recordResult.records;
-        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
+        const transient = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transient.indexes;
         const result = await deriveInFlight({
           exec,
           decompositionClaimCwd: cwd,
@@ -617,20 +616,31 @@ export async function handleStatus(
           baseBranch: resolved.settings["branch.base"],
           identity,
           teamMode,
-          errandSlugByBranch,
-          errandRecordsComplete: recordResult.complete,
+          errandSlugByBranch: transientIndexes.slugByBranch,
+          expectedTransientByBranch: transientIndexes.expectedByBranch,
+          errandRecordsComplete: transient.complete,
           parkedSlugs,
           locusState,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
         if (!result.reachable) {
-          return { entries: [], residue: result.residue, warnings: result.warnings, reachable: false };
+          return {
+            entries: [],
+            residue: result.residue,
+            warnings: result.warnings,
+            remoteTips: new Map(),
+            reachable: false,
+          };
         }
         return {
           entries: result.entries,
           residue: result.residue,
           warnings: result.warnings,
+          remoteTips: new Map(Object.entries(result.liveRefs).flatMap(([ref, tip]) => {
+            const prefix = "origin/";
+            return ref.startsWith(prefix) ? [[ref.slice(prefix.length), tip]] : [];
+          })),
           reachable: result.reachable,
         };
       })();
@@ -824,16 +834,19 @@ export async function handleStatus(
           resolvedSettingsP,
           getOptionalLocusState(),
         ]);
-        // Record-carrying errand branches are excluded — the errand surfaces
-        // (resume, close replay) own their cleanup. With no resolved identity
-        // the records are unreadable, so pass `null` and the sweep declines
-        // rather than offering deletes that could orphan a record.
-        const errandRecords = identity === null ? null : await getErrandRecords();
+        // Identity-carrying transient branches are excluded because their own
+        // lifecycle surfaces own cleanup. An incomplete identity basis declines
+        // the sweep rather than offering deletes that could orphan a claim.
+        const transient = identity === null
+          ? null
+          : projectTransientInFlightRead(await getTransientIndexes());
         return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
           errandBranches:
-            errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
+            transient === null || !transient.complete
+              ? null
+              : new Set(transient.indexes.slugByBranch.keys()),
           exec,
           locusState,
         });
@@ -858,18 +871,21 @@ export async function handleStatus(
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
-        // Errand records are the identity oracle for resume + discovery (shared
-        // with the in-flight derivation); empty when no identity resolved.
-        const recordResult = await getErrandRecordsResult();
-        const records = recordResult.records;
-        const locusState = await getOptionalLocusState();
+        const [transientRead, locusState] = await Promise.all([
+          input.includeDiscovery ? getDiscoveryTransientIndexes() : getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
+        const transientState = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
-        let oracleWarnings: string[] = [...recordResult.warnings];
+        let remoteTips = new Map<string, string>();
+        let oracleWarnings: string[] = transientState.degraded === null ? [] : [transientState.degraded];
         if (input.includeDiscovery) {
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
           residue = oracle.residue;
+          remoteTips = oracle.remoteTips;
           oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
         }
         return runErrandState({
@@ -880,7 +896,9 @@ export async function handleStatus(
           entries,
           residue,
           oracleWarnings,
-          records,
+          records: transientIndexes.records,
+          recordsComplete: transientState.complete,
+          remoteTips,
           locusState,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
@@ -1026,15 +1044,11 @@ export async function handleStatus(
       return;
     }
     const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const [parkedSlugs, recordResult] = await Promise.all([
+    const [parkedSlugs, transientRead] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-      identity === null
-        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec, identity }),
+      readTransientInFlightIndexes({ exec, identity }),
     ]);
-    const errandSlugByBranch = new Map(
-      recordResult.records.map((record) => [record.branch, record.slug]),
-    );
+    const transient = projectTransientInFlightRead(transientRead);
     const input = await resolveProjectReadinessViewInput({
       cwd,
       fs: lifecycleFs,
@@ -1044,8 +1058,8 @@ export async function handleStatus(
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
-        errandSlugByBranch,
-        errandRecordsComplete: recordResult.complete,
+        errandSlugByBranch: transient.indexes.slugByBranch,
+        errandRecordsComplete: transient.complete,
       },
     });
     const result = composeProjectReadinessViewResult({

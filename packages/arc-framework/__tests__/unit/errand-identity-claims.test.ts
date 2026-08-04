@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   TransientIdentityRecordV3Schema,
-  TransientIdentityRecordSchema,
   groomClaimTransform,
   groomAwaitMergeTransform,
   groomResumeTransform,
@@ -131,15 +130,11 @@ describe("groom identity claims", () => {
 
   it("refuses incompatible occupancy", () => {
     const candidate = groom();
-    const legacy = TransientIdentityRecordSchema.parse({
-      version: 2,
+    const occupied = housekeep({
       slug: candidate.slug,
-      origin: "description",
-      intent: "legacy",
       branch: candidate.branch,
-      createdAt,
     });
-    expect(groomClaimTransform(candidate)(new Map([[candidate.slug, legacy]])))
+    expect(groomClaimTransform(candidate)(new Map([[candidate.slug, occupied]])))
       .toMatchObject({ kind: "refused", reason: expect.stringContaining("occupied") });
   });
 

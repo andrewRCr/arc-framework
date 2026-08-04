@@ -34,6 +34,25 @@ function awaiting(): OrdinaryErrandRecord {
   }) as OrdinaryErrandRecord;
 }
 
+function paused(): OrdinaryErrandRecord {
+  return TransientIdentityRecordV3Schema.parse({
+    version: 3,
+    slug: "fix-output",
+    claimId: "c".repeat(32),
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: "fix output",
+    branch: "chore/fix-output",
+    origin: "description",
+    originEntry: null,
+    state: "paused",
+    savedHead: HEAD,
+    changeRequest: null,
+  }) as OrdinaryErrandRecord;
+}
+
 function hostExec(overrides: Record<string, unknown> = {}): GitExec {
   return async (command) => command === "git"
     ? { stdout: "git@github.com:owner/repo.git\n", stderr: "" }
@@ -52,6 +71,40 @@ function hostExec(overrides: Record<string, unknown> = {}): GitExec {
 }
 
 describe("ordinary Errand resume authorization", () => {
+  it("refuses a descendant paused remote tip under strict materialization re-entry", async () => {
+    const movedHead = "b".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "check-ref-format" || args[0] === "fetch" || args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-parse") {
+        return { stdout: `${args[3]?.includes("refs/heads/") === true ? HEAD : movedHead}\n`, stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(authorizeOrdinaryErrandResume(exec, "main", paused(), "advisory", "exact"))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/exact remote head/iu) });
+  });
+
+  it("retains ancestry-based authorization for ordinary paused re-entry", async () => {
+    const movedHead = "b".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "check-ref-format" || args[0] === "fetch" || args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-parse") {
+        return { stdout: `${args[3]?.includes("refs/heads/") === true ? HEAD : movedHead}\n`, stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(authorizeOrdinaryErrandResume(exec, "main", paused()))
+      .resolves.toMatchObject({ kind: "authorized", authorization: { remoteBranchTip: movedHead } });
+  });
+
   it.each([
     ["requested work", {}, "requested-work"],
     ["ordinary open review", { reviewDecision: "" }, "open"],
@@ -69,6 +122,15 @@ describe("ordinary Errand resume authorization", () => {
       });
   });
 
+  it("refuses a moved head under strict materialization re-entry", async () => {
+    await expect(authorizeOrdinaryErrandResume(
+      hostExec({ headRefOid: "b".repeat(40) }),
+      "main",
+      awaiting(),
+      "strict",
+    )).resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/changed-head/iu) });
+  });
+
   it("warns and proceeds when the host is unreachable", async () => {
     const exec: GitExec = async (command) => {
       if (command === "git") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
@@ -80,6 +142,15 @@ describe("ordinary Errand resume authorization", () => {
         authorization: { kind: "unreachable" },
         advisory: expect.stringMatching(/confirm.*still open/iu),
       });
+  });
+
+  it("refuses an unreachable host under strict materialization re-entry", async () => {
+    const exec: GitExec = async (command) => {
+      if (command === "git") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
+      throw new Error("host unavailable");
+    };
+    await expect(authorizeOrdinaryErrandResume(exec, "main", awaiting(), "strict"))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/unreachable/iu) });
   });
 
   it.each([

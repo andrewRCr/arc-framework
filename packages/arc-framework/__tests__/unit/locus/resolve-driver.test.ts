@@ -208,7 +208,7 @@ describe("operator attestation over a lease no inspector can retire", () => {
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ confirmedNoLiveSession: true }));
   });
 
-  it("refuses attested resume when lease liveness is unknown", async () => {
+  it("resumes an exact unknown lease only after operator attestation", async () => {
     const run = vi.fn(async () => createLocusMutationResult({
       outcome: "applied", operation: "errand-abandon", allocation: null,
       recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
@@ -220,8 +220,10 @@ describe("operator attestation over a lease no inspector can retire", () => {
       confirmedNoLiveSession: true, dependencies: { run },
     });
 
-    expect(result).toMatchObject({ outcome: "refused", reason: "lease-unknown" });
-    expect(run).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ outcome: "applied" });
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      subject: "errand", action: "resume", confirmedNoLiveSession: true,
+    }));
   });
 
   it("never lets the attestation stand in for the other guards", async () => {
