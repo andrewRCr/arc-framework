@@ -23,8 +23,15 @@ gap inevitable.
 The enumeration is also **under-inclusive against a fresh build today**. It covers seventeen command paths
 against roughly ninety leaf commands. Durable-state mutators currently outside it include `integrate`, `archive`,
 `teardown`, `decompose`, `materialize`, `init`, `join`, `stub`, `set-stage`, `finalize`, `repoint-design`, `park`,
-`resume`, `promote`, `demote`, and `rename`, plus `user load` / `pull` and `locus attach` / `resolve`. Closing
-that by hand would mean auditing the whole command surface and re-auditing it forever.
+`resume`, `promote`, `demote`, and `rename`, plus `user load` / `pull`, `locus attach` / `release` / `resolve`,
+and `errand leave` / `materialize` / `abandon`. Closing that by hand would mean auditing the whole command
+surface and re-auditing it forever.
+
+The drift runs in **both** directions at once, which is what makes hand-maintenance untenable rather than merely
+tedious. The allowlist guards `errand retire` — a command whose implementation no longer exists — while the three
+real errand mutators above sit outside it. All three shipped after the allowlist's last revision, and none was
+added to it; the entry that outlived its command was not removed either. The gap this work exists to close opened
+again while the work was being planned.
 
 Two properties of the surrounding system make a strict policy affordable now:
 
@@ -110,6 +117,10 @@ Two properties of the surrounding system make a strict policy affordable now:
   defensible axis is **provably side-effect-free** (the `make -q` / `migrate --check` / `terraform validate`
   category) — never "this write is low-risk," which is the risk-judgment shape this work exists to delete and
   which no surveyed tool uses.
+- **No session-identity recognition.** A stale bundle's authority to run an unrecognized mutator and a defect in
+  how a session's process ancestry is recognized are independent concerns, and neither subsumes the other: fixing
+  this policy would not have prevented an unverifiable-anchor incident caused by the latter, and fixing that
+  recognizer would not close this default-allow gap. `session-locus-operability-hardening` owns the recognizer.
 - **No adopter-facing change.** This is self-hosting dev tooling.
 
 ## Consequences & Risks
