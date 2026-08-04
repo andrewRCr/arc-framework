@@ -38,8 +38,9 @@ authorization and the unlocked window is momentary.
    terminal sequence in solo flow, and to the review handoff in team flow (the D5 coverage boundary).
 2. The control requires zero host-side setup — no workflow, no required check, no ruleset — so enabling it is a
    config edit against machinery the CLI already ships.
-3. All `arc-cleared` machinery is retired from the corpus — setup workflow, template, CI workflow, ruleset
-   check, and the required-status mechanism inside the CLI's unlock path; historical records exempt.
+3. The `arc-cleared` **mechanism** stops existing: the required-status producer inside the CLI's unlock path,
+   this repository's CI workflow, and its ruleset check. The documentation surface that describes it retires in
+   the dependent follow-on (D6a).
 4. Exact-head merge authorization survives unchanged as an independent invariant, regardless of which host
    control is selected.
 5. ARC's platform-agnostic posture is preserved: the control is a config axis with a `none` degenerate mode,
@@ -59,6 +60,8 @@ authorization and the unlocked window is momentary.
   units (§ Cross-cutting → Coordination).
 - Closing the team-flow post-approval, pre-authorization residual — deliberately narrowed versus `arc-cleared`
   and bound by the exact-head invariant plus explicit merge authorization (§ Proposed Design D5).
+- Retiring the `arc-cleared` documentation surface — deferred whole to `clearance-corpus-retirement`
+  (§ Proposed Design D6a), which depends on this work unit.
 
 ## Proposed Design
 
@@ -110,61 +113,65 @@ already used (`arc review unlock -` → `dispatched / await-clearance`). No work
 `merge.lock`, lane membership, or PR draft state; the CLI computes the disposition and the workflow follows
 only the returned action.
 
-**The verb pair.** `resolve` names the transition; `apply` performs it. The split exists because the earliest
-fire site precedes the pull request — there is nothing to act on at `draft-open`, so the verb must answer "how
-is this opened" rather than mutate anything.
+**Three verbs, named for the transition.** Which transition a site performs is fixed by the site itself —
+triage can only lock, the ready flip can only release, escalation can only lock — so the verb name carries
+that information rather than a parameter. One call per site, and each invocation says what it does when read
+in isolation. `resolve` covers the one site that is genuinely a query: the pre-open call, where no pull
+request exists to act on.
 
 ```text
-arc review lock resolve -
-  input:  treeRoot, vehicle, phase (open | ready | triage | escalation), target (omitted at `open`)
-  action: draft / open-draft · none / open-plain · release / apply · re-lock / apply
-          · none / none · blocked / stop
+arc merge lock resolve -
+  input:  treeRoot, vehicle
+  action: locked / open-locked · none / open-plain · blocked / stop
 
-arc review lock apply -
-  input:  treeRoot, target, vehicle, the action returned by resolve
-  action: released / proceed · relocked / proceed · blocked / stop
+arc merge lock hold -
+  input:  treeRoot, target, vehicle
+  action: held / proceed · no-lock / none · blocked / stop
+
+arc merge lock release -
+  input:  treeRoot, target, vehicle
+  action: released / proceed · no-lock / none · blocked / stop
 ```
 
-`phase` is the workflow's own position, fixed by where the step sits — not a judgment the agent makes. It
-bounds `resolve` so a fire site cannot be answered with another site's transition. Everything else `resolve`
-reads itself: `merge.lock`, the vehicle's lane, live PR draft state, open findings, and lifecycle readiness.
+Each verb reads the rest itself: `merge.lock`, the vehicle's lane, live PR draft state, open findings, and
+lifecycle readiness. `no-lock / none` is the ordinary answer under `merge.lock: none`, on a non-lock-bearing
+lane, or when the pull request already holds the requested state — so a workflow calls unconditionally and
+dispatches, never testing whether the call applies.
 
 **The fire sites:**
 
-- **draft-open** — immediately before `gh pr create`, on both lanes. `resolve` at `phase: open` returns
-  `draft / open-draft` for a lock-bearing lane under `merge.lock: draft` — work-unit integration PRs, and
+- **draft-open** — `resolve`, immediately before `gh pr create`, on both lanes. It returns
+  `locked / open-locked` for a lock-bearing lane under `merge.lock: draft` — work-unit integration PRs, and
   Errand PRs expecting a routed review — and `none / open-plain` otherwise, which is how create-and-land
-  grooming PRs (the auto-merge lane) stay non-draft without the workflow classifying the lane itself. The action
+  grooming PRs (the auto-merge lane) stay unlocked without the workflow classifying the lane itself. The action
   selects whether `--draft` is passed; nothing else about the creation call changes.
 - **provenance-update** — the PR-body provenance update (review passes run, finding counts, triage identity)
-  lands **before** the ready flip, so a human reviewer opens onto a complete "what has been done" view. Prose
+  lands **before** the release, so a human reviewer opens onto a complete "what has been done" view. Prose
   ordering only; no verb call.
-- **ready-flip** — the flip always rides an existing gate, never floats free. `resolve` at `phase: ready` then
-  `apply`, at the site the retired unlock invocation already occupies. In solo flow that is the terminal
-  sequence inside explicit merge authorization (D4). Where the change instead goes to a human — the errand
-  reviewed-lane's hand-off for owner review, and team flow at the agentic-triage-complete boundary riding the
-  triage disposition approval — the same pair fires at the same site, and the flip is the review handoff.
-- **re-lock** — `resolve` at `phase: triage` returns `re-lock / apply` when review surfaces findings after a
-  flip.
-- **re-lock-on-escalation** — the lane classifier reruns immediately before the auto-merge lane arms, and
-  `planning → reviewed` escalation is one-way: a PR that opened non-draft on the grooming lane and escalates
-  must convert. `resolve` at `phase: escalation` returns `re-lock / apply` on that reroute, before the escalated
-  change re-enters the reviewed path.
+- **ready-flip** — `release`, at the site the retired unlock invocation already occupies. The release always
+  rides an existing gate, never floats free. In solo flow that gate is explicit merge authorization, and the
+  release opens the terminal sequence (D4). Where the change instead goes to a human — the errand reviewed
+  lane's hand-off for owner review, and team flow at the agentic-triage-complete boundary riding the triage
+  disposition approval — the same verb fires at the same site, and the release is the review handoff.
+- **re-lock** — `hold`, when review surfaces findings after a release.
+- **re-lock-on-escalation** — `hold`, where the lane classifier reruns immediately before the auto-merge lane
+  arms. `planning → reviewed` escalation is one-way, and a PR that opened unlocked on the grooming lane must
+  convert on that reroute, before the escalated change re-enters the reviewed path.
 
-`apply` retains the exact-head preflight the clearance verb carried — authenticated repository match, PR open
-and matching, and the requested SHA equal to the live head — plus the lifecycle-readiness gate on `release`.
-A `re-lock` needs no readiness gate: locking is always safe.
+`hold` and `release` retain the exact-head preflight the clearance verb carried — authenticated repository
+match, PR open and matching, and the requested SHA equal to the live head — and `release` additionally retains
+the lifecycle-readiness gate. `hold` needs no readiness gate: locking is always safe.
 
-Beyond this contract and D6.4's minimal substitution, concrete-mechanics edits to `integrate-work-unit.md` /
+Beyond this contract and D6's minimal substitution, concrete-mechanics edits to `integrate-work-unit.md` /
 `run-errand.md` sequence against their owning restructure work units.
 
 ### D4. Terminal sequence — auto-merge never composed
 
 Native auto-merge survives new pushes from write-permission actors, and `--match-head-commit` guards arming
 time, not merge time — structurally incompatible with exact-head authorization. The work-unit integration lane
-therefore never arms auto-merge: the terminal sequence is `arc review lock resolve -` → `arc review lock apply -`
-→ immediate direct `gh pr merge --match-head-commit <authorized-sha>`, keeping the unlocked window to seconds
-and exact-head-guarded throughout. `apply`'s own preflight re-checks the live head, so a race between the flip
+therefore never arms auto-merge: the terminal sequence is `arc merge lock release -` → immediate direct
+`gh pr merge --match-head-commit <authorized-sha>`, keeping the unlocked window to seconds and
+exact-head-guarded throughout. `release`'s own preflight re-checks the live head, so a race between the release
 and the merge is caught by the verb rather than only by the merge flag. Auto-merge remains the grooming lane's
 tool, governed by its classifier gate.
 
@@ -183,82 +190,82 @@ tool, governed by its classifier gate.
   independent lapses (a mis-opened PR **and** an accidental merge act) where `arc-cleared` bounded it to one.
   Accepted per the accidental threat model; no detection machinery is added.
 
-### D6. Retirement footprint — docs and workflows
+### D6. Workflow footprint — fire-site substitution
 
-Package source and `.arc/` copies both, per the package-project sync rule. Historical records
-(`completed/**`) untouched throughout.
+Package source and `.arc/` copies both, per the package-project sync rule.
 
-1. **Retire outright:** `setup-arc-clearance.md`; the `arc-clearance.yml` merge-gate template; the
-   `merge-gate/README.md` coverage of both.
-2. **Retain, excise references:** `setup-merge-gate.md` — the auto-merge lane survives unchanged; only its two
-   `arc-cleared` cross-references go. The merge-gate `CODEOWNERS` template comment naming the required
-   `arc-cleared` context (and this repo's `.github/CODEOWNERS` copy) reword.
-3. **Replace the offer:** `01_verify-and-configure.md` clearance offer becomes the `merge.lock` opt-in.
-4. **Fire-site substitution (minimal):** in `run-errand.md` / `integrate-work-unit.md`, the `arc review unlock -`
-   invocation and its typed-action dispatch are replaced by the D3 resolve/apply pair and its actions, and a
-   resolve call is added immediately before each `gh pr create`. Enough that no live surface references retired
-   machinery and every fire site is covered, no more; concrete mechanics sequence to the owning restructure work
-   units per § Cross-cutting → Coordination.
-5. **Doctrine and overview rewords:** `strategy-work-organization.md` (auto-merge lane doctrine's clearance
-   mentions); `TECHNICAL-OVERVIEW.md` (§ Self-Hosting Review Gate and § Infrastructure — Merge gating describe
-   `arc-cleared` in present tense); plus three loci that assert "only a configured required host-side check
-   structurally enforces merge safety" without naming `arc-cleared` — `AGENT-BRIEF.ARC.md` (an `[invariant]`),
-   `strategy-session-operations.md` § Review enforcement boundary, and `standard-review.md`. Reword constraint:
-   do not equate the two families — a required check is repo-configured and fail-closed, draft state is a
-   per-PR structural lock whose installation is procedural — and the "never infer merge safety from
-   agent-layer discipline" caution must survive.
-6. **Historical records (retain, no relitigation):** `analysis-arc-clearance-activation.md` retains as
-   historical record, banner-marked as retired machinery; the coupling-audit corpus manifest
-   (`packages/arc-framework/audits/coupling-blast-radius/manifest.json`, which lists the deleted
-   `arc-clearance.yml`) is digest-pinned historical audit input — retain untouched.
-7. **Manifests:** `system/.internal/manifest.json` and the scripts `README.md` entries regenerate/excise with
-   the file removals.
-8. **Coordination note (not this WU's edit surface):** backlog stubs referencing `arc-cleared`
-   (`recovery-hardening`, the `review-protocol-alignment` and `decompose-transform-integrity` cohorts)
-   re-ground at their own grooming.
-9. **False positives (retain untouched):** `session-recover.md` ("clearance" in the generic sense),
-   `close-occupancy.ts` (errand-occupancy clearance), and the lane classifier's "planning clearance" surfaces
-   (`cli.ts` classify description, `change-facts.ts`).
+**Fire-site substitution (minimal):** in `run-errand.md` / `integrate-work-unit.md`, the `arc review unlock -`
+invocation and its typed-action dispatch are replaced by the matching D3 verb and its actions, and a `resolve`
+call is added immediately before each `gh pr create`. Enough that every fire site is covered, no more; concrete
+mechanics sequence to the owning restructure work units per § Cross-cutting → Coordination.
+
+**False positives (retain untouched):** `session-recover.md` ("clearance" in the generic sense),
+`close-occupancy.ts` (errand-occupancy clearance), and the lane classifier's "planning clearance" surfaces
+(`cli.ts` classify description, `change-facts.ts`).
+
+### D6a. Corpus retirement — deferred to `clearance-corpus-retirement`
+
+The `arc-cleared` **documentation** surface retires in a dependent follow-on work unit, not here: the setup
+workflow and merge-gate template, the retained merge-gate surfaces' cross-references, the initial-setup
+clearance offer, the doctrine and overview rewords, the historical-record banner, and the recipe and manifest
+entries that track those files. The full inventory, the reword constraint, and the retain-untouched list live in
+that work unit's own design.
+
+**The split is by review burden, not by concern.** A single change set ran past this project's pull-request size
+target; the mechanism half carries essentially all of the review burden, while the corpus half is largely
+whole-file deletion and prose. The seam is forced rather than chosen: the `arc-cleared` required status is
+produced by the repository dispatch inside the retired unlock path, so **removing that dispatch and dropping the
+required check must land together** (D7.6) or every pull request blocks on a context no producer will ever post.
+That welds the CLI retirement to the host cutover and leaves the documentation surface as the only separable
+half.
+
+**Interim state between the two merges:** `setup-arc-clearance.md` documents an install path whose producer is
+gone, and the initial-setup offer still names it. Untidy, not broken — and invisible to projects installing ARC,
+since `merge.lock` defaults to `none` and the clearance setup was always opt-in.
 
 ### D7. Retirement footprint — CLI and this repo's install
 
-The unlock path is **retargeted, not deleted** — the clearance verb already occupies the fire site, preflight
-shape, and envelope slot the lock verbs need, so composing onto it costs less than a parallel surface and keeps
-one command family at the change-request boundary. What dies is the required-status mechanism inside it.
+The unlock path is **retargeted, not deleted** — the clearance verb already occupies the fire site, carries the
+exact-head preflight and readiness gate the lock verbs need, and holds the host port they extend, so composing
+onto it costs far less than a parallel surface. What dies is the required-status mechanism inside it. The
+command surface itself moves: the verbs leave the `review` namespace for `merge lock`, taking their envelope
+registrations with them.
 
-1. **Retargeted:** `src/scripts/review-gate/unlock.ts` → the lock module — `ReviewUnlockRequest` /
-   `ReviewUnlockEnvelope` become the resolve and apply request/envelope pair, the repository / PR / exact-head
-   preflight and the readiness gate carry over unchanged, and `merge.lock` plus lane and draft-state resolution
-   replace the workflow-inspection step. `src/scripts/review-gate/hosts/github/unlock.ts` → the host port:
+1. **Retargeted:** `src/scripts/review-gate/unlock.ts` → the merge-lock module — `ReviewUnlockRequest` /
+   `ReviewUnlockEnvelope` become the three request/envelope shapes, the repository / PR / exact-head preflight and
+   the readiness gate carry over unchanged, and `merge.lock` plus lane and draft-state resolution replace the
+   workflow-inspection step. `src/scripts/review-gate/hosts/github/unlock.ts` → the host port:
    `resolveRepository` / `resolvePullRequest` stay, `inspectWorkflow` and `dispatch` are replaced by a draft-state
-   read and `gh pr ready` / `gh pr ready --undo`. `src/cli.ts` — the `unlock` subcommand becomes the
-   `lock resolve` / `lock apply` pair under `review`. `src/handlers/review.ts` — the unlock handler becomes the
-   two lock handlers. `src/scripts/review-gate/core/review-command-envelope.ts` — the `review-unlock` mode entry
-   and `review-unlock-envelope` registration become `review-lock-resolve` / `review-lock-apply` and their two
-   registrations, one mode per command per the existing convention. `src/lib/handoff-critical.ts` — the
-   `review`/`unlock` rule rekeys to the lock verbs, with its module comment and the matching
-   `handoff-critical.test.ts` assertion.
-2. **Wholly removed:** the `CLEARANCE_WORKFLOW_PATH` constant, the `arc-clearance` dispatch event type, and
-   `ReviewUnlockDispatchPayload` with its port method; the `clearance-status-history.json` fixture;
-   `confirm-live-change-pair.sh` (consumed only by the clearance workflow) with its unit test and
-   README/manifest entries; the dangling `LIVE_PAIR_SCRIPT` export in `__tests__/helpers/run-script.ts` (its sole
-   consumer is the removed unit test; the rest of the helper stays).
-3. **Test updates:** the unlock unit tests (`unlock.test.ts`, `hosts/github/unlock.test.ts`) retarget to the two
+   read and `gh pr ready` / `gh pr ready --undo`. `src/cli.ts` — the `unlock` subcommand under `review` is removed
+   and an `arc merge lock` group with `resolve` / `hold` / `release` is added. `src/handlers/review.ts` — the
+   unlock handler becomes the three lock handlers. `src/lib/handoff-critical.ts` — the `review`/`unlock` rule
+   rekeys to the merge-lock verbs, with its module comment and the matching `handoff-critical.test.ts` assertion.
+   Both modules stay under the review-gate tree: they consume its target, vehicle, and readiness contracts, and
+   the CLI namespace is a surface decision independent of module path.
+2. **New envelope family:** `review-command-envelope.ts` drops the `review-unlock` mode entry, the
+   `ReviewUnlockEnvelopeSchema` import, and the `review-unlock-envelope` registration. A `merge-lock` envelope
+   module supplies its own mode schema (`merge-lock-resolve` / `merge-lock-hold` / `merge-lock-release`), the
+   three result envelopes, and the matching error variants, registered into the same kernel registry. The command
+   family moves rather than reusing the review slot, so the `ReviewCommandMode` enum keeps naming only review
+   commands.
+3. **Wholly removed:** the `CLEARANCE_WORKFLOW_PATH` constant, the `arc-clearance` dispatch event type, and
+   `ReviewUnlockDispatchPayload` with its port method; the `clearance-status-history.json` fixture.
+4. **Test updates:** the unlock unit tests (`unlock.test.ts`, `hosts/github/unlock.test.ts`) retarget to the three
    verbs, covering each typed action and each blocked reason; `review-gate-workflows.test.ts` lock/unlock flow
-   coverage rewrites onto the resolve/apply sequence (the largest single change); `review-cli-surfaces.test.ts`,
+   coverage rewrites onto the new verbs (the largest single change); `review-cli-surfaces.test.ts`,
    `review-schema-registration.test.ts`, `kernel/schema-generation.test.ts`, and `schema-artifact.e2e.test.ts`
-   `review-unlock` references retarget to the two new modes; the `handleReviewUnlock` import and describe block in
-   `unit/handlers/review.test.ts` retarget; `review-driver-lifecycle.test.ts` assertion that
-   `integrate-work-unit.md` contains `arc review unlock` updates with the D6.4 substitution;
-   `pr-open-extensions.test.ts` assertions on TECHNICAL-OVERVIEW's `arc-cleared` sentence and on the doctrine
-   sentence "Only a configured required host-side check structurally enforces merge safety" update with the D6.5
-   rewords; `init.e2e.test.ts` absence assertion (verify it still holds after removals).
-
-4. **Recipe:** `init-recipe.json` drops the `arc-clearance.yml` template, the `setup-arc-clearance.md` entry, and
-   the `confirm-live-change-pair.sh` entry.
-5. **This repo's host-side teardown (dogfooding install):** delete `.github/workflows/arc-clearance.yml`; drop
+   `review-unlock` references retarget to the three new modes; the `handleReviewUnlock` import and describe block
+   in `unit/handlers/review.test.ts` retarget; `review-driver-lifecycle.test.ts` assertion that
+   `integrate-work-unit.md` contains `arc review unlock` updates with the D6 substitution.
+5. **Not here (follow-on):** the installed `confirm-live-change-pair.sh` and its test, the `LIVE_PAIR_SCRIPT`
+   helper export, the `init-recipe.json` and manifest entries, and the `pr-open-extensions.test.ts` /
+   `init.e2e.test.ts` assertions all track files the corpus retirement removes — they land with it (D6a), not
+   here. This repository's own rendered clearance workflow is the exception below, because the required check
+   cannot outlive the dispatch.
+6. **This repo's host-side teardown (dogfooding install):** delete `.github/workflows/arc-clearance.yml`; drop
    the `arc-cleared` required check from the base-branch ruleset (host-side act); set `merge.lock: draft` in
-   this repo's `arc-config.yml`.
+   this repo's `arc-config.yml`. The first two are welded to item 3's dispatch removal — with the producer gone
+   and the context still required, no pull request can merge.
 
 Renames land in place under the pre-public-release posture — no compatibility aliases, no deprecated
 `review unlock` shim (`DEV-RULES.PROJECT` § Engineering Standards).
@@ -273,17 +280,29 @@ Renames land in place under the pre-public-release posture — no compatibility 
 
 ### D9. Command surface naming
 
-- **Namespace `review`.** The lock's semantic is review-readiness of the change request — GitHub and GitLab
-  both define draft as not ready for review, and in team flow the ready flip _is_ the review handoff (D3). It
-  also keeps the verbs beside the rest of the change-request surface the workflow is already invoking at every
-  fire site.
-- **Not `arc merge lock`.** A merge-namespaced verb reads as merge authority, which ARC withholds: the
-  integration-interlock is the sole merge authority and the merge itself stays a direct `gh pr merge` (D4).
-- **Noun `lock`, not `draft`.** `draft` is one host's mechanic — GitLab uses Draft, Gitea / Forgejo a WIP title
-  prefix — and naming the verb after it would bake a host into the contract the portability posture keeps
-  abstract. `lock` also shares vocabulary with the `merge.lock` key.
-- **Not `unlock`.** The retired name covers one of three transitions and carries the required-status model in
-  it; the resolve/apply pair covers open, release, and re-lock symmetrically.
+The test applied: which name stays true on every platform, in team and solo flow, with the config on or off,
+and on both lanes?
+
+- **Namespace `merge`.** Every host mechanism blocks the merge specifically — draft on GitHub and GitLab, the
+  WIP title prefix on Gitea / Forgejo. Both flows prevent the same act. Under `merge.lock: none` the verb
+  reports no lock on the merge, which is still an accurate question to have asked. It is also the vocabulary
+  ARC config already uses for this domain (`merge.lock`, `merge.strategy`), so key and command say one word for
+  one concept. That a merge-namespaced verb might read as merge authority is a concern about a bare `arc merge`
+  verb, which this adds none of: every invocation is `arc merge lock <verb>` and none of them merges anything —
+  the integration-interlock remains the sole merge authority and `gh pr merge` remains the act (D4).
+- **Not `review`.** True only in team flow and only in the host's framing. The solo release has no review
+  meaning at all; it makes the change mergeable, nothing more.
+- **Not `integration`.** It collides with ARC's own `Integrating` state, which _is_ the window the lock is held
+  through — so it would name the phase rather than the blocked act, and describe a work unit as unable to do
+  the thing it is currently doing. `arc integrate` also already exists, and is separately recorded as misnamed
+  for naming a phase's content rather than a scheduling act.
+- **Noun `lock`, not `draft`.** `draft` is one host's mechanic, and naming the verb after it would bake a host
+  into the contract the portability posture keeps abstract. `gate` is already overloaded here (review gate,
+  merge gate, quality gates).
+- **Verbs name the transition.** `hold` / `release` read the same whether the host implements the lock as draft
+  state or a title prefix, and `hold` is the established idiom for this control. The retired `unlock` named one
+  of the transitions and carried the required-status model in it; a `resolve` / `apply` pair was worse still —
+  `apply` would have performed the release while reading as its opposite.
 
 ## Alternatives & Rationale
 
@@ -299,8 +318,8 @@ Renames land in place under the pre-public-release posture — no compatibility 
   accidental-merge residue this work unit exists to close. Remains the `none` degenerate mode.
 - **Workflow prose reads `merge.lock` directly** (no verbs — the cheapest build): rejected. It would replace a
   typed verb with config-evaluating prose, downgrading the one surface in this area that is already typed, and
-  it puts lane classification and PR-state reads into markdown where nothing can check them. The verb pair costs
-  one additional envelope mode over the retired one and buys a contract the test suite covers.
+  it puts lane classification and PR-state reads into markdown where nothing can check them. The verbs cost two
+  additional envelope modes over the retired one and buy a contract the test suite covers.
 
 No third native mechanism exists to evaluate: GitHub offers no label-based or manual per-PR merge gate, and
 "lock branch" is a whole-branch read-only control, not a per-PR lock.
@@ -315,19 +334,22 @@ No third native mechanism exists to evaluate: GitHub offers no label-based or ma
   comparison. Bitbucket draft behavior unverified. No host adapters built; host verbs stay behind their
   existing seam.
 - **Testing:** the retargeted verbs carry unit coverage per typed action and per blocked reason, and the
-  review-gate workflow test rewrites onto the resolve/apply sequence; the remaining removals ride the existing
+  review-gate workflow test rewrites onto the new verbs; the remaining removals ride the existing
   three-tier suite. Each phase repairs the assertions its own change breaks, so CI stays green at every boundary
   (the classifier-driven graph and `ci-ok` roll-up are untouched). Quality gates per `DEV-RULES.PROJECT` — the
   mixed Markdown + code change runs everything.
 - **Migration / rollout:** pre-public-release posture — remove, don't migrate; no compatibility aliases or
-  migration readers. Adopter-facing surfaces never advertised `arc-cleared` beyond the setup workflow being
-  replaced, and `merge.lock` defaults `none`, so no adopter action exists to migrate.
+  migration readers. Adopter-facing surfaces never advertised `arc-cleared` beyond the setup workflow, which
+  survives this work unit and retires in the follow-on, and `merge.lock` defaults `none`, so no adopter action
+  exists to migrate.
 - **Coordination:** the review architecture is under active repair by a mostly-paused cohort (the `review-*`
   units and `integration-boundary-accuracy`), and `integrate-work-unit` / `run-errand` are being restructured
   (`delivery-plan-record` active; `errand-transient-lifecycle` next). This WU delivers the verb contract and the
-  minimal substitution at its fire sites (D6.4); any concrete-mechanics edits to those two workflows beyond that
-  substitution sequence against the owning restructure work units. The verb pair is what makes the substitution
-  safe to land mid-restructure: a restructure moves a fire site without renegotiating what fires there.
+  minimal substitution at its fire sites (D6); any concrete-mechanics edits to those two workflows beyond that
+  substitution sequence against the owning restructure work units. The verbs are what make the substitution safe
+  to land mid-restructure: a restructure moves a fire site without renegotiating what fires there. The same
+  holds against `wu-lifecycle-state-model`, which reshapes the `State` axis and the planning-side verbs but
+  mints no stored state here and leaves the `merge.*` vocabulary untouched.
 
 ## Success Criteria
 
@@ -336,17 +358,17 @@ No third native mechanism exists to evaluate: GitHub offers no label-based or ma
    until the authorized terminal sequence flips ready and exact-head merges it. Team flow: the same holds to
    the review handoff; required-approvals cover the human-review window, with the recorded post-approval
    residual. Both scope to PRs opened through ARC lifecycle lanes (the draft-open touchpoint).
-2. `grep -riE "arc.cleared|arc.clearance"` over the corpus returns only historical records (`completed/**`,
-   the banner-marked analysis record, the digest-pinned coupling-audit manifest), ADR text, backlog planning
-   artifacts that re-ground at their own grooming (D6.8), and this work unit's own active artifacts (archived
-   at integration) — no live workflow, template, CI, ruleset, or CLI surface.
+2. No `arc-cleared` **producer or enforcement point** survives: `grep -riE "arc.cleared|arc.clearance"` over
+   `packages/arc-framework/src/`, `packages/arc-framework/__tests__/`, and `.github/` returns nothing, and the
+   base-branch ruleset requires no such context. The documentation surface still names it until the follow-on
+   lands (D6a).
 3. All quality gates green: Markdown lint, ARC contract checks, both type checks, full test suite, build; CI
    green on the integration PR.
-4. `arc review lock resolve` and `arc review lock apply` exist with the D3 typed actions, registered as
-   envelope modes and covered per action and per blocked reason; `merge.lock` is registered in the config
-   catalog — exposed by `arc config status`, accepted by `arc config validate`, present in the shipped
-   template. Verified by reading the shipped surfaces and running the verbs, not by restructure-WU edits
-   landing.
+4. `arc merge lock resolve`, `arc merge lock hold`, and `arc merge lock release` exist with the D3 typed
+   actions, registered as `merge-lock-*` envelope modes and covered per action and per blocked reason;
+   `merge.lock` is registered in the config catalog — exposed by `arc config status`, accepted by
+   `arc config validate`, present in the shipped template. Verified by reading the shipped surfaces and running
+   the verbs, not by restructure-WU edits landing.
 5. Each D3 fire site in `integrate-work-unit.md` and `run-errand.md` invokes a lock verb and dispatches on its
    returned action; no workflow prose reads or compares `merge.lock`, classifies a lane, or reads PR draft
    state.
@@ -356,6 +378,6 @@ No third native mechanism exists to evaluate: GitHub offers no label-based or ma
 
 ## Open Questions
 
-None blocking. The exact wording of the three doctrine-loci rewords (D6.5) settles at implementation inside
-the recorded constraint; the Free-plan private-repo draft-availability residual is accepted and covered by
-`merge.lock: none`.
+None blocking. The Free-plan private-repo draft-availability residual is accepted and covered by
+`merge.lock: none`. The doctrine-loci rewords and their constraint moved out with the corpus retirement (D6a)
+and are that work unit's open question, not this one's.
