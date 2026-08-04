@@ -115,6 +115,18 @@ export interface DeliveryCompositionCoverageAdvisory {
   readonly adjacentMemberChunkKey: string | null;
 }
 
+/** One historical attribution that no longer resolves into the current task inventory. */
+export interface DeliveryUnresolvedTaskReferenceAdvisory {
+  readonly kind: "unresolved-task-reference";
+  readonly commit: string;
+  readonly taskId: string;
+}
+
+/** Advisory facts carried by entry derivation or task-coverage validation. */
+export type DeliveryCompositionAdvisory =
+  | DeliveryCompositionCoverageAdvisory
+  | DeliveryUnresolvedTaskReferenceAdvisory;
+
 /** Composition-time task coverage with an author-facing adjacent-member hint. */
 export type DeliveryCompositionCoverageResult =
   | { readonly status: "valid"; readonly advisories: readonly DeliveryCompositionCoverageAdvisory[] }
@@ -171,6 +183,7 @@ export interface DeliveryCompositionProjection {
   readonly authoring: DeliveryPlanAuthoringInputV1;
   readonly contributionStepIds: readonly string[];
   readonly memberContributionSteps: readonly DeliveryContributionMember[];
+  readonly sourceAdvisories?: readonly DeliveryUnresolvedTaskReferenceAdvisory[];
 }
 
 /** Authoring mutations required by the stateful composition sequence. */
@@ -209,7 +222,7 @@ export type DeliveryPlanComposeResult =
   | {
     readonly status: "composed";
     readonly plan: DeliveryPlanV1;
-    readonly advisories: readonly DeliveryCompositionCoverageAdvisory[];
+    readonly advisories: readonly DeliveryCompositionAdvisory[];
   }
   | {
     readonly status: "refused";
@@ -273,7 +286,11 @@ export class DeliveryPlanComposer {
       const cleanup = await this.dependencies.authoringStore.deleteSnapshot(input.record.snapshot.mapId);
       return cleanup.status === "refused"
         ? cleanup
-        : { status: "composed", plan: validation.plan, advisories: [] };
+        : {
+          status: "composed",
+          plan: validation.plan,
+          advisories: input.projection.sourceAdvisories ?? [],
+        };
     }
 
     const integrity = validateDeliveryAuthoringMap(input.record.markdown, input.record.snapshot);
@@ -351,7 +368,11 @@ export class DeliveryPlanComposer {
       input.record.snapshot.mapId,
     );
     if (snapshotCleanup.status === "refused") return snapshotCleanup;
-    return { status: "composed", plan: candidate, advisories: coverage.advisories };
+    return {
+      status: "composed",
+      plan: candidate,
+      advisories: [...(input.projection.sourceAdvisories ?? []), ...coverage.advisories],
+    };
   }
 }
 

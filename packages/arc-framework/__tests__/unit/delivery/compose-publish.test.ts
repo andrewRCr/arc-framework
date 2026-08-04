@@ -211,6 +211,21 @@ describe("delivery plan publication orchestration", () => {
     expect(authoring.record).toBeNull();
   });
 
+  it("returns source advisories after successful publication", async () => {
+    const value = fixture();
+    const advisory = {
+      kind: "unresolved-task-reference" as const,
+      commit: "0123456789abcdef0123456789abcdef01234567",
+      taskId: "9.9.a",
+    };
+    const authoring = new MemoryAuthoringStore(value.record);
+
+    await expect(composer(authoring, new MemoryPlanStore(), new MemoryRenderer()).compose({
+      ...input(value),
+      projection: { ...value.projection, sourceAdvisories: [advisory] },
+    })).resolves.toMatchObject({ status: "composed", advisories: [advisory] });
+  });
+
   it("refuses a second plan for the unit but permits a successor under the same plan id", async () => {
     const firstValue = fixture();
     const firstAuthoring = new MemoryAuthoringStore(firstValue.record);
@@ -290,6 +305,12 @@ describe("delivery plan publication orchestration", () => {
 
   it("leaves a matching JSON receipt when final cleanup fails and completes it on retry", async () => {
     const value = fixture();
+    const advisory = {
+      kind: "unresolved-task-reference" as const,
+      commit: "0123456789abcdef0123456789abcdef01234567",
+      taskId: "9.9.a",
+    };
+    value.projection = { ...value.projection, sourceAdvisories: [advisory] };
     const authoring = new MemoryAuthoringStore(value.record);
     authoring.failSnapshotDelete = true;
     const plans = new MemoryPlanStore();
@@ -304,7 +325,7 @@ describe("delivery plan publication orchestration", () => {
     await expect(composer(authoring, plans, renderer).compose({
       ...input(value),
       record: authoring.record,
-    })).resolves.toMatchObject({ status: "composed" });
+    })).resolves.toMatchObject({ status: "composed", advisories: [advisory] });
     expect(authoring.record).toBeNull();
   });
 });

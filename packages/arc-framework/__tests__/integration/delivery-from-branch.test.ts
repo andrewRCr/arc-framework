@@ -3,7 +3,12 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { inspectDeliveryBranch } from "../../src/lib/delivery/from-branch.js";
+import {
+  inspectDeliveryBranch,
+  prepareDeliveryFromBranchAuthoring,
+  resolveDeliveryFromBranchProjection,
+} from "../../src/lib/delivery/from-branch.js";
+import { DeliveryAuthoringSlotsV1Schema } from "../../src/lib/delivery/authoring-map.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import {
   cleanupTempDir,
@@ -137,7 +142,186 @@ describe("branch-derived delivery facts", () => {
     expect(result.steps.at(-1)?.cumulativePaths).toContain(previousPath);
     expect(result.steps.at(-1)?.cumulativePaths).toContain(nextPath);
   });
+
+  it("normalizes attributed ranges upward and preserves at-least-once membership", async () => {
+    await commitFile(repository, "attributed-one.txt", "one\n", [
+      "feat(test): attribute a task range",
+      "",
+      "Context: tasks-demo.md (Tasks 1.1.a-b, 1.R)",
+    ].join("\n"));
+    const firstAttributed = await oid(repository, "HEAD");
+    await commitFile(repository, "attributed-two.txt", "two\n", [
+      "feat(test): repeat one parent attribution",
+      "",
+      "Context: tasks-demo.md (Task 1.1.a)",
+    ].join("\n"));
+    const secondAttributed = await oid(repository, "HEAD");
+    await commitFile(repository, "unresolved.txt", "missing\n", [
+      "feat(test): retain a stale task attribution",
+      "",
+      "Context: tasks-demo.md (Task 9.9.a)",
+    ].join("\n"));
+    const unresolved = await oid(repository, "HEAD");
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.snapshot.source.facts).toMatchObject({
+      taskAttributions: [
+        { commit: firstAttributed, taskIds: ["1.1", "1.R"], unresolvedTaskIds: [] },
+        { commit: secondAttributed, taskIds: ["1.1"], unresolvedTaskIds: [] },
+        { commit: unresolved, taskIds: [], unresolvedTaskIds: ["9.9.a"] },
+      ],
+      advisories: [{ kind: "unresolved-task-reference", commit: unresolved, taskId: "9.9.a" }],
+    });
+    const contributionIds = prepared.inspection.contributionStepIds;
+    const secondMemberStart = contributionIds.indexOf(secondAttributed);
+    const projection = resolveDeliveryFromBranchProjection({
+      snapshot: prepared.snapshot,
+      slots: DeliveryAuthoringSlotsV1Schema.parse({
+        projection: { kind: "wu-integration-target" },
+        boundary: {
+          kind: "explicit",
+          segments: [
+            { chunkKey: "first", sourceIds: contributionIds.slice(0, secondMemberStart) },
+            { chunkKey: "second", sourceIds: contributionIds.slice(secondMemberStart) },
+          ],
+        },
+        members: [
+          memberSlot("first"),
+          memberSlot("second"),
+        ],
+        seams: [],
+      }),
+    });
+    expect(projection).toMatchObject({
+      status: "resolved",
+      projection: {
+        authoring: {
+          members: [
+            { chunkKey: "first", taskIds: ["1.1", "1.R"] },
+            { chunkKey: "second", taskIds: ["1.1"] },
+          ],
+        },
+        sourceAdvisories: [
+          { kind: "unresolved-task-reference", commit: unresolved, taskId: "9.9.a" },
+        ],
+      },
+    });
+  });
+
+  it("refuses when a contribution commit message cannot be inspected", async () => {
+    const exec = createRawGitExec(repository);
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: async (args, options) => {
+        if (args[0] === "show") throw new Error("message unavailable");
+        return exec(args, options);
+      },
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared).toEqual({ status: "refused", reason: "commit-attribution-unreadable" });
+  });
+
+  it("ignores task references attributed to a different task list", async () => {
+    await commitFile(repository, "other-work.txt", "other\n", [
+      "feat(test): attribute another work unit",
+      "",
+      "Context: tasks-other.md (Task 1.1.a)",
+    ].join("\n"));
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.snapshot.source.facts).toMatchObject({ taskAttributions: [], advisories: [] });
+  });
 });
+
+function memberSlot(chunkKey: string) {
+  return {
+    status: "live" as const,
+    chunkKey,
+    title: `${chunkKey} member`,
+    contract: `Publish the ${chunkKey} contribution`,
+    designElementIds: [],
+    mainlineLandability: "integration-only" as const,
+  };
+}
+
+function taskListFixture(): string {
+  return [
+    "# Task List: Demo",
+    "",
+    "## **Phase 1:** Implementation",
+    "",
+    "### `[ ]` **1.1 Implement the contract**",
+    "",
+    "- _Goal:_ Implement the contract.",
+    "",
+    "    - `[ ]` **1.1.a First part**",
+    "    - `[ ]` **1.1.b Second part**",
+    "",
+    "### `[ ]` **1.R Revise the contract**",
+    "",
+    "- _Goal:_ Revise the contract.",
+    "",
+    "## **Phase 2:** Verification",
+    "",
+    "### `[ ]` **2.1 Verify the work unit**",
+    "",
+  ].join("\n");
+}
 
 async function git(repository: string, args: string[]): Promise<void> {
   await execFileAsync("git", args, { cwd: repository });

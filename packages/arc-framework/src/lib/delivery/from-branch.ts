@@ -9,6 +9,13 @@ import {
   type RawGitExec,
 } from "../change-facts.js";
 import { ChangeSetSchema } from "../change-facts.schema.js";
+import { parseCommitMessage } from "../commit-check/parser.js";
+import {
+  parseTaskReference,
+  type ParsedTaskReference,
+  type ParsedTaskReferenceItem,
+} from "../commit-check/task-reference.js";
+import { scanTaskListStructure } from "../task-list/scanner.js";
 import {
   createDeliveryAuthoringSnapshot,
   type DeliveryAuthoringSnapshotV1,
@@ -20,7 +27,10 @@ import {
 import type { DeliveryCompositionProjection } from "./compose.js";
 import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
-import { buildDeliveryTaskInventory } from "./task-inventory.js";
+import {
+  buildDeliveryTaskInventory,
+  type DeliveryTaskInventory,
+} from "./task-inventory.js";
 
 /** One exact first-parent transition and its contribution classification. */
 export interface DeliveryBranchStep {
@@ -72,6 +82,17 @@ const DeliveryFromBranchFactsSchema = z.strictObject({
     cumulativePaths: z.array(z.string().min(1)),
   })).min(1),
   contributionStepIds: z.array(z.string().min(1)).min(1),
+  taskAttributions: z.array(z.strictObject({
+    commit: z.string().min(1),
+    referencedTaskIds: z.array(z.string().min(1)).min(1),
+    taskIds: z.array(z.string().min(1)),
+    unresolvedTaskIds: z.array(z.string().min(1)),
+  })),
+  advisories: z.array(z.strictObject({
+    kind: z.literal("unresolved-task-reference"),
+    commit: z.string().min(1),
+    taskId: z.string().min(1),
+  })),
 });
 
 /** Inputs for one branch-derived authoring map. */
@@ -104,6 +125,7 @@ export type PrepareDeliveryFromBranchAuthoringResult =
       | "verification-phase-missing"
       | "verification-task-ambiguous"
       | "invalid-authoring-identity"
+      | "commit-attribution-unreadable"
       | InspectDeliveryBranchRefusal["reason"];
   };
 
@@ -221,6 +243,19 @@ export async function prepareDeliveryFromBranchAuthoring(
     head: input.head,
   });
   if (inspection.status === "refused") return inspection;
+  const attribution = await deriveTaskAttributions(
+    input.exec,
+    inspection,
+    input.taskListPath,
+    input.taskListContent,
+    tasks.inventory,
+  );
+  if (attribution.status === "refused") return attribution;
+  const facts = {
+    ...inspection,
+    taskAttributions: attribution.value.taskAttributions,
+    advisories: attribution.value.advisories,
+  };
 
   try {
     const snapshot = createDeliveryAuthoringSnapshot({
@@ -237,7 +272,7 @@ export async function prepareDeliveryFromBranchAuthoring(
           base: inspection.base,
           head: inspection.head,
         },
-        facts: inspection,
+        facts,
         identitySequence: inspection.steps.map((step) => step.commit),
       },
     });
@@ -294,7 +329,14 @@ export function resolveDeliveryFromBranchProjection(input: {
     },
     entry: "from-branch",
     projection: input.slots.projection,
-    members: input.slots.members.map((member) => ({ ...member, taskIds: [] })),
+    members: input.slots.members.map((member, index) => ({
+      ...member,
+      taskIds: taskIdsForSegment(
+        segments[index]?.sourceIds ?? [],
+        facts.data.taskAttributions,
+        input.snapshot,
+      ),
+    })),
     seams: input.slots.seams,
   });
   if (!authoring.success) {
@@ -309,6 +351,7 @@ export function resolveDeliveryFromBranchProjection(input: {
         chunkKey: segment.chunkKey,
         contributionStepIds: segment.sourceIds,
       })),
+      sourceAdvisories: facts.data.advisories,
     },
   };
 }
@@ -323,10 +366,159 @@ function branchFactsMatchSnapshot(
   const contributionIds = facts.steps
     .filter((step) => step.classification === "contribution")
     .map((step) => step.commit);
+  const attributionCommits = facts.taskAttributions.map((attribution) => attribution.commit);
+  const attributionPositions = attributionCommits.map((commit) => contributionIds.indexOf(commit));
+  const expectedAdvisories = facts.taskAttributions.flatMap((attribution) => (
+    attribution.unresolvedTaskIds.map((taskId) => ({
+      kind: "unresolved-task-reference" as const,
+      commit: attribution.commit,
+      taskId,
+    }))
+  ));
   return JSON.stringify(stepIds) === JSON.stringify(snapshot.source.identitySequence)
     && JSON.stringify(contributionIds) === JSON.stringify(facts.contributionStepIds)
+    && attributionPositions.every((position, index) => position !== -1
+      && (index === 0 || position > (attributionPositions[index - 1] ?? position)))
+    && new Set(attributionCommits).size === attributionCommits.length
+    && JSON.stringify(expectedAdvisories) === JSON.stringify(facts.advisories)
     && first.predecessor === facts.originalDivergence.predecessor
     && first.commit === facts.originalDivergence.commit;
+}
+
+const TASK_CONTEXT_PATTERN = /^(?<filename>tasks-[A-Za-z0-9-]+\.md) \((?<reference>.+)\)$/u;
+
+async function deriveTaskAttributions(
+  exec: RawGitExec,
+  inspection: InspectedDeliveryBranch,
+  taskListPath: string,
+  taskListContent: string,
+  inventory: DeliveryTaskInventory,
+): Promise<{
+  readonly status: "ok";
+  readonly value: {
+    readonly taskAttributions: readonly {
+      readonly commit: string;
+      readonly referencedTaskIds: readonly string[];
+      readonly taskIds: readonly string[];
+      readonly unresolvedTaskIds: readonly string[];
+    }[];
+    readonly advisories: readonly {
+      readonly kind: "unresolved-task-reference";
+      readonly commit: string;
+      readonly taskId: string;
+    }[];
+  };
+} | {
+  readonly status: "refused";
+  readonly reason: "commit-attribution-unreadable";
+}> {
+  const orderedTaskIds = taskListIds(taskListContent);
+  const parentTaskIds = [
+    ...inventory.implementation.map((task) => task.taskId),
+    inventory.verificationTaskId,
+  ];
+  const taskAttributions: {
+    readonly commit: string;
+    readonly referencedTaskIds: readonly string[];
+    readonly taskIds: readonly string[];
+    readonly unresolvedTaskIds: readonly string[];
+  }[] = [];
+  const advisories: {
+    readonly kind: "unresolved-task-reference";
+    readonly commit: string;
+    readonly taskId: string;
+  }[] = [];
+  for (const commit of inspection.contributionStepIds) {
+    let message: string;
+    try {
+      message = await gitText(exec, ["show", "-s", "--format=%B", commit]);
+    } catch {
+      return { status: "refused", reason: "commit-attribution-unreadable" };
+    }
+    const trailer = parseCommitMessage(message).contextTrailer;
+    if (trailer?.key !== "Context") continue;
+    const taskContext = TASK_CONTEXT_PATTERN.exec(trailer.value);
+    if (taskContext?.groups?.filename !== artifactBasename(taskListPath)) continue;
+    const referenceValue = taskContext.groups.reference;
+    const reference = referenceValue === undefined ? null : parseTaskReference(referenceValue);
+    if (reference === null) continue;
+    const referencedTaskIds = expandTaskReference(reference, orderedTaskIds);
+    const resolution = resolveToParentInventory(referencedTaskIds, parentTaskIds);
+    taskAttributions.push({ commit, referencedTaskIds, ...resolution });
+    advisories.push(...resolution.unresolvedTaskIds.map((taskId) => ({
+      kind: "unresolved-task-reference" as const,
+      commit,
+      taskId,
+    })));
+  }
+  return { status: "ok", value: { taskAttributions, advisories } };
+}
+
+function artifactBasename(path: string): string {
+  return path.split(/[\\/]/u).at(-1) ?? path;
+}
+
+function taskListIds(content: string): string[] {
+  const scan = scanTaskListStructure(content);
+  if (scan.status === "malformed") return [];
+  return scan.events.flatMap((event) => (
+    event.type === "parent" || event.type === "subtask" ? [event.item.id] : []
+  ));
+}
+
+function expandTaskReference(
+  reference: ParsedTaskReference,
+  orderedTaskIds: readonly string[],
+): string[] {
+  const expanded = reference.items.flatMap((item) => expandTaskReferenceItem(item, orderedTaskIds));
+  return [...new Set(expanded)];
+}
+
+function expandTaskReferenceItem(
+  item: ParsedTaskReferenceItem,
+  orderedTaskIds: readonly string[],
+): string[] {
+  if (item.kind === "single") return [item.taskId];
+  const start = orderedTaskIds.indexOf(item.startTaskId);
+  const end = orderedTaskIds.indexOf(item.endTaskId);
+  return start !== -1 && end >= start
+    ? orderedTaskIds.slice(start, end + 1)
+    : [item.startTaskId, item.endTaskId];
+}
+
+function resolveToParentInventory(
+  taskIds: readonly string[],
+  parentTaskIds: readonly string[],
+): { readonly taskIds: readonly string[]; readonly unresolvedTaskIds: readonly string[] } {
+  const parents = new Set(parentTaskIds);
+  const resolved: string[] = [];
+  const unresolved: string[] = [];
+  for (const taskId of taskIds) {
+    let candidate = taskId;
+    while (!parents.has(candidate) && candidate.includes(".")) {
+      candidate = candidate.slice(0, candidate.lastIndexOf("."));
+    }
+    if (parents.has(candidate)) resolved.push(candidate);
+    else unresolved.push(taskId);
+  }
+  return {
+    taskIds: [...new Set(resolved)],
+    unresolvedTaskIds: [...new Set(unresolved)],
+  };
+}
+
+function taskIdsForSegment(
+  commitIds: readonly string[],
+  attributions: z.infer<typeof DeliveryFromBranchFactsSchema>["taskAttributions"],
+  snapshot: DeliveryAuthoringSnapshotV1,
+): string[] {
+  const represented = new Set(attributions
+    .filter((attribution) => commitIds.includes(attribution.commit))
+    .flatMap((attribution) => attribution.taskIds));
+  return [
+    ...snapshot.tasks.implementation.map((task) => task.taskId),
+    snapshot.tasks.verificationTaskId,
+  ].filter((taskId) => represented.has(taskId));
 }
 
 async function classifyStep(
@@ -360,6 +552,11 @@ async function gitLine(exec: RawGitExec, args: string[]): Promise<string> {
 async function gitLines(exec: RawGitExec, args: string[]): Promise<string[]> {
   const { stdout } = await exec(args);
   return new TextDecoder("utf-8", { fatal: true }).decode(stdout).trim().split(/\r?\n/u).filter(Boolean);
+}
+
+async function gitText(exec: RawGitExec, args: string[]): Promise<string> {
+  const { stdout } = await exec(args);
+  return new TextDecoder("utf-8", { fatal: true }).decode(stdout);
 }
 
 function sortCanonicalBytes(values: Iterable<string>): string[] {
