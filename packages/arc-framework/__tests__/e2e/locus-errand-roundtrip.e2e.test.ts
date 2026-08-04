@@ -1,7 +1,7 @@
-/** Real CLI promotion from an ordinary Errand into its work-unit session home. */
+/** Real CLI ordinary-Errand lifecycle and promotion coverage. */
 
 import { execFile } from "node:child_process";
-import { chmod, copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -44,6 +44,40 @@ async function createCodexHarness(): Promise<{ directory: string; executable: st
   return { directory, executable };
 }
 
+async function createOpenChangeRequestHarness(): Promise<{ directory: string }> {
+  const directory = await mkdtemp(join(tmpdir(), "arc-locus-roundtrip-gh-"));
+  const executable = join(directory, "gh");
+  await writeFile(
+    executable,
+    [
+      "#!/bin/sh",
+      "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
+      "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+      "printf '\"reviewDecision\":\"\"}]\\n'",
+    ].join("\n"),
+  );
+  await chmod(executable, 0o755);
+  return { directory };
+}
+
+async function readMaterializedMarker(checkoutPath: string): Promise<unknown> {
+  return JSON.parse(await readFile(
+    join(checkoutPath, ".arc", "system", ".internal", "worktree-marker.json"),
+    "utf8",
+  ));
+}
+
+async function readLocusRecord(repository: string, recordId: string): Promise<unknown> {
+  const root = join(repository, ".arc", "user", "test-user", ".internal", "loci");
+  for (const name of await readdir(root)) {
+    if (!name.endsWith(".json")) continue;
+    const record = JSON.parse(await readFile(join(root, name), "utf8")) as { recordId?: string };
+    if (record.recordId === recordId) return record;
+  }
+  throw new Error(`Could not find locus record ${recordId}`);
+}
+
 describe("ordinary Errand promotion", () => {
   let repository: string;
 
@@ -60,24 +94,84 @@ describe("ordinary Errand promotion", () => {
     await cleanupTempDir(repository);
   });
 
-  it("resumes an awaiting-merge tail from an ordinary open change request", async () => {
+  it("materializes the exact awaiting-merge tail produced by leave", async () => {
     const remote = await createBareRemote(repository);
     const harness = await createCodexHarness();
-    const hostHarness = await mkdtemp(join(tmpdir(), "arc-locus-roundtrip-gh-"));
-    const fakeGh = join(hostHarness, "gh");
+    const hostHarness = await createOpenChangeRequestHarness();
     const slug = "review-roundtrip";
     const errandBranch = `chore/${slug}`;
-    await writeFile(
-      fakeGh,
-      [
-        "#!/bin/sh",
-        "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
-        "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
-        "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
-        "printf '\"reviewDecision\":\"\"}]\\n'",
-      ].join("\n"),
-    );
-    await chmod(fakeGh, 0o755);
+    try {
+      const hostUrl = "https://github.com/owner/repo.git";
+      await git(repository, ["remote", "set-url", "origin", hostUrl]);
+      await git(repository, ["config", `url.${pathToFileURL(remote).href}.insteadOf`, hostUrl]);
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        {
+          command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
+        { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
+        { command: ["git", "branch", "-D", errandBranch], cwd: repository },
+        { command: ["git", "update-ref", "-d", "refs/arc/user/test-user/errands"], cwd: repository },
+        { args: ["errand", "materialize", slug, "--json"], cwd: repository },
+      ], repository, {
+        timeout: 90_000,
+        anchorShellPath: harness.executable,
+        env: {
+          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
+          ARC_TEST_BRANCH: errandBranch,
+        },
+      });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      const [opened, left, materialized] = sequence.results as [
+        Record<string, unknown>,
+        Record<string, unknown>,
+        Record<string, unknown>,
+      ];
+      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
+      expect(left).toMatchObject({
+        outcome: "applied",
+        operation: "errand-leave",
+        identity: { state: "awaiting-merge" },
+      });
+      expect(materialized).toMatchObject({
+        outcome: "applied",
+        operation: "errand-materialize",
+        allocation: { kind: "spawned" },
+        identity: { state: "open", changeRequest: null },
+      });
+      const result = materialized as {
+        activeLocusPath: string;
+        recordId: string;
+        identity: { claimId: string };
+      };
+      expect(await readMaterializedMarker(result.activeLocusPath)).toMatchObject({
+        spawnedByArc: true,
+        createdFor: { kind: "errand", slug, claimId: result.identity.claimId },
+        provisioning: "ready",
+      });
+      expect(await readLocusRecord(repository, result.recordId)).toMatchObject({
+        checkoutPath: result.activeLocusPath,
+        role: {
+          kind: "errand",
+          subject: { kind: "errand", key: slug, claimId: result.identity.claimId },
+        },
+      });
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harness.directory);
+      await removeGitBackedDir(hostHarness.directory);
+    }
+  });
+
+  it("resumes an awaiting-merge tail through open without durable plan artifacts", async () => {
+    const remote = await createBareRemote(repository);
+    const harness = await createCodexHarness();
+    const hostHarness = await createOpenChangeRequestHarness();
+    const slug = "direct-resume";
+    const errandBranch = `chore/${slug}`;
     try {
       const hostUrl = "https://github.com/owner/repo.git";
       await git(repository, ["remote", "set-url", "origin", hostUrl]);
@@ -95,28 +189,26 @@ describe("ordinary Errand promotion", () => {
         timeout: 90_000,
         anchorShellPath: harness.executable,
         env: {
-          PATH: `${hostHarness}:${process.env.PATH ?? ""}`,
+          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
           ARC_TEST_BRANCH: errandBranch,
         },
       });
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
-      const [opened, left, resumed] = [sequence.results[0], sequence.results[1], sequence.results[2]] as Record<string, unknown>[];
-      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
-      expect(left).toMatchObject({
-        outcome: "applied",
-        operation: "errand-leave",
-        identity: { state: "awaiting-merge" },
-      });
-      expect(resumed).toMatchObject({
-        outcome: "applied",
-        operation: "errand-open",
-        identity: { state: "open", changeRequest: null },
-      });
+      expect(sequence.results).toMatchObject([
+        { outcome: "applied", operation: "errand-open", identity: { state: "open" } },
+        { outcome: "applied", operation: "errand-leave", identity: { state: "awaiting-merge" } },
+        { outcome: "applied", operation: "errand-open", identity: { state: "open", changeRequest: null } },
+      ]);
+      await expect(readFile(join(repository, ".arc", "active", `meta-${slug}.md`))).rejects.toThrow();
+      await expect(readFile(join(repository, ".arc", "active", `tasks-${slug}.md`))).rejects.toThrow();
+      await expect(readFile(
+        join(repository, ".arc", "user", "test-user", slug, "SESSION-NOTES.md"),
+      )).rejects.toThrow();
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
-      await removeGitBackedDir(hostHarness);
+      await removeGitBackedDir(hostHarness.directory);
     }
   });
 

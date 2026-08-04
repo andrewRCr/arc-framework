@@ -11,7 +11,6 @@ const HEAD = "a".repeat(40);
 const errand = (over: Partial<InFlightErrand> = {}): InFlightErrand => ({
   kind: "errand", slug: "fix-typo", branch: "chore/fix-typo", remoteOnly: true, ...over,
 });
-
 const wu = (): InFlightWorkUnit => ({
   kind: "work-unit", name: "feature-x", branch: "feat/feature-x", state: "Active",
   remoteOnly: true, dependsOn: [],
@@ -84,4 +83,3 @@ describe("findMaterializableErrands", () => {
     expect(result.candidates.map((candidate) => candidate.slug)).toEqual(["a", "z"]);
   });
 });
-

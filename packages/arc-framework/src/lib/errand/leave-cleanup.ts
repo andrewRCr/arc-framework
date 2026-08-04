@@ -12,7 +12,6 @@ export interface LeaveOccupancyTarget {
   readonly leaseId: string;
   readonly allocation: "primary" | "spawned";
 }
-
 export interface CloseLeaveOccupancyDependencies {
   acquireLock(target: LeaveOccupancyTarget): Promise<LockedLocusGenerationAcquisition>;
   /** Null once the checkout no longer holds the Errand; else why it could not be preserved. */
@@ -70,4 +69,3 @@ export async function closeLeaveOccupancy(
     await acquired.release();
   }
 }
-

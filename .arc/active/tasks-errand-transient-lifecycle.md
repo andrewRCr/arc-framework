@@ -202,34 +202,41 @@ docs treat a remote-only Errand identity as retained evidence and code-side docs
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 Markdown, ARC contract, TypeScript, and shell lint; source and test type checks; 9,477
+  tests; and the package build all passed.
+
+- _Success criteria:_ All 9 criteria met. Adversarial verification added composed leave-to-materialize and
+  direct-open resume proofs, including exact marker/role provenance and durable-plan artifact absence, and aligned
+  the identity-backed probe contract.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc errand leave --state paused` succeeds only with the WIP head committed, pushed, and proven an
+- `[x]` `arc errand leave --state paused` succeeds only with the WIP head committed, pushed, and proven an
   ancestor of the fetched remote tip; `--state awaiting-merge` only with change-request coordinates matching
   both configured and observed host state; neither departure retires identity
 
-- `[ ]` A left Errand resumes through the base deliverable's open driver into a newly allocated locus, returning
+- `[x]` A left Errand resumes through the base deliverable's open driver into a newly allocated locus, returning
   identity state to `open` — no resume command is added
 
-- `[ ]` Leaving creates no WU meta, task list, or SESSION-NOTES, and no unleased transient role is reclassified
+- `[x]` Leaving creates no WU meta, task list, or SESSION-NOTES, and no unleased transient role is reclassified
   as normal waiting
 
-- `[ ]` `arc errand materialize` accepts only an exact paused v3 identity at `savedHead` or an awaiting-merge
+- `[x]` `arc errand materialize` accepts only an exact paused v3 identity at `savedHead` or an awaiting-merge
   identity at `changeRequest.headSha` with its change request verified still open; it refuses `open` identities,
   branch-derived legacy candidates, changed or missing remote heads, and incomplete snapshots
 
-- `[ ]` Materialization writes ARC ownership provenance and a role record, and no shipped doc or code surface
+- `[x]` Materialization writes ARC ownership provenance and a role record, and no shipped doc or code surface
   still describes a raw materialization path that can create a markerless ARC-owned worktree
 
-- `[ ]` Owned end-to-end coverage asserts materialize success and failed-open rollback against real v3 Errands,
+- `[x]` Owned end-to-end coverage asserts materialize success and failed-open rollback against real v3 Errands,
   with no seeded legacy-record reliance for this path
 
-- `[ ]` Package-source and self-hosted workflow copies stay synchronized
+- `[x]` Package-source and self-hosted workflow copies stay synchronized
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

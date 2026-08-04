@@ -37,7 +37,6 @@ export interface LeaveOrdinaryErrandDependencies {
   persist(transition: LeaveTransition): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>>;
   cleanup(record: OrdinaryErrandRecord): Promise<LeaveCleanupResult>;
 }
-
 export interface LeaveOrdinaryErrandOptions {
   slug: string;
   state: "paused" | "awaiting-merge";
@@ -163,4 +162,3 @@ function leaveError(code: LocusMutationErrorCode, message: string): LocusMutatio
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-

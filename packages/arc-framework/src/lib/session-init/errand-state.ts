@@ -61,7 +61,6 @@ export interface ErrandStateResult {
   /** Locus-owned transient identities in their fixed action order. */
   identities?: LocusStateV1["inFlightIdentities"];
 }
-
 export interface RunErrandStateOptions {
   exec: GitExec;
   currentBranch: string | null;
@@ -270,4 +269,3 @@ async function readErrandTimestamps(exec: GitExec): Promise<ErrandTimestamps> {
   }
   return { local, remote, warnings: [] };
 }
-
