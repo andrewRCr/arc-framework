@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Finalized the task list and activated the work unit for implementation
-- **Next Task:** Task 1.1 — Port the leave composition and runtime (line ~20)
+- **Last Completed:** Phase 4 complete — replaced legacy discovery and flipped the workflow surface
+- **Next Task:** Task 5.1 — Complete verification (line ~205)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — assess test-first applicability, then port `lib/errand/leave.ts`
+- **Next Action:** verify-work-unit Step 1 — run Tier 3 quality gates
 
 - **PR URL:** [none]
 - **Completed:** [none]
