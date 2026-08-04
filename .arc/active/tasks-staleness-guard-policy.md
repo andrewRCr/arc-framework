@@ -16,40 +16,39 @@ script would not run on Windows without a new dependency. Deriving rather than r
 keeps the metafile, the content-hash stamp, and the kernel schema artifact from silently dropping out of the fast
 path. `notes-staleness-guard-policy.md` records the directions weighed and rejected on the way here.
 
-### `[ ]` **1.1 Add the runtime-only build path**
+### `[x]` **1.1 Add the runtime-only build path**
 
 - _Goal:_ One command regenerates every artifact the freshness check and the end-to-end setup read, at a small
   fraction of the full build's cost.
 
-- _Context:_ The full build spends most of its wall clock on a declaration emit nothing consumes — the package
-  declares no `types`, `main`, or `exports` entry, and the CLI loads only the bundle.
+    - `[x]` **1.1.a Derive `tsup.fast.config.ts` from the base config**
+        - `tsup.config.ts` now names its options `baseOptions` and default-exports `defineConfig(baseOptions)`;
+          the derived config spreads that export and sets `dts: false`. The named export is what makes the
+          derivation type-safe — `defineConfig` returns a union that would need a cast to spread.
+        - The metafile emit, the output clean, and the success hook that writes the kernel schema artifact and
+          the content-hash stamp all inherit by reference rather than restatement.
 
-    - `[ ]` **1.1.a Derive `tsup.fast.config.ts` from the base config**
-        - It imports `tsup.config.ts` and overrides declaration emit alone.
-        - Everything else inherits unchanged: the metafile emit, the output clean, and the success hook that
-          writes the kernel schema artifact and the content-hash stamp.
-        - The output clean drops any declarations a prior full build left, since tsup protects them only while
-          declaration emit is on. Nothing in the repository reads them.
+    - `[x]` **1.1.b Expose `build:fast` at the package and the repository root**
+        - The package script is `tsup --config tsup.fast.config.ts`; the root delegates to the workspace the way
+          `build` already does.
 
-    - `[ ]` **1.1.b Expose `build:fast` at the package and the repository root**
-        - The package script runs tsup against the derived config; the root script delegates to the workspace the
-          way `build` already does.
-        - The root is where development invocation happens, so a package-only script would leave the remedy
-          unreachable from where it is needed.
+    - `[x]` **1.1.c Pin the regeneration contract**
+        - `__tests__/unit/build-config.test.ts` asserts the derived options keep `metafile` and `clean` on, carry
+          the base success hook **by identity** (a restated hook is free to drift), and diverge from the base in
+          `dts` alone — the last assertion catches a silently dropped key rather than only the three named ones.
+        - Fail-first proven by replacing the derived config with a restated one: all four assertions fail.
 
-    - `[ ]` **1.1.c Pin the regeneration contract**
-        - Assert the derived config still emits the metafile, still cleans, and still carries the base success
-          hook — the three properties that make the stamp describe the bundle actually built.
-        - Without a regenerated metafile the stamp is computed over an outdated input graph, so a newly bundled
-          source file is invisible to both sides of the comparison and edits to it read fresh.
+    - `[x]` **1.1.d Confirm the first fast run against a stale tree**
+        - Against an edited `src/lib/dev-check.ts` the guard read stale; one `npm run build:fast` from the root
+          regenerated the bundle, `metafile-esm.json`, `dev-build-stamp.json`, and `schemas/kernel.json`, and the
+          verdict returned to fresh.
+        - Observed cost on the authoring machine: **1.03s** against the full build's **12.9s**, of which 12.4s is
+          the declaration emit. Wall-clock through npm is 3.0s against 13.9s — a ~2s workspace overhead common to
+          both, which is why the tsup-internal figures are the honest pair.
 
-    - `[ ]` **1.1.d Confirm the first fast run against a stale tree**
-        - The run leaves the bundle, the esbuild metafile, the content-hash stamp, and the kernel schema
-          artifact behind, and turns the freshness verdict fresh.
-        - Record the observed cost against the full build — the pair the affordability argument rests on, and
-          what the quick reference later carries.
-        - The contract assertion above proves the config's shape; this proves the path actually emits, which is
-          what the refusal in the next phase depends on.
+- _Outcome:_ The full build's declaration emit is 96% of its cost and produces a 13-byte `dist/cli.d.ts` — the
+  measured confirmation that nothing consumes it, and what makes the remedy affordable enough for Phase 2's
+  refusal to land on the commit path.
 
 ## **Phase 2:** Unconditional refusal against the built bundle
 

@@ -1,4 +1,4 @@
-import { defineConfig } from "tsup";
+import { defineConfig, type Options } from "tsup";
 import { resolve } from "node:path";
 
 import { writeDevBuildStamp } from "./src/lib/dev-check.js";
@@ -7,7 +7,11 @@ import { createKernelRegistry } from "./src/lib/kernel/index.js";
 import { writeKernelSchemaArtifact } from "./src/lib/kernel/schema/generate.js";
 import { registerReviewDomainSchemas } from "./src/scripts/review-gate/core/register-review-schemas.js";
 
-export default defineConfig({
+/**
+ * Shared build options. The runtime-only build in `tsup.fast.config.ts` derives from these rather
+ * than restating them, so anything added here reaches both build paths.
+ */
+export const baseOptions = {
   entry: ["src/cli.ts"],
   format: ["esm"],
   target: "node24",
@@ -33,4 +37,6 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
-});
+} satisfies Options;
+
+export default defineConfig(baseOptions);

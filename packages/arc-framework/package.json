@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:fast": "tsup --config tsup.fast.config.ts",
     "benchmark:session-envelope": "npm run build && tsx __tests__/benchmarks/session-envelope-validation.ts",
     "inventory:command-inputs": "tsx src/scripts/render-command-input-inventory.ts",
     "test": "vitest run",

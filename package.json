@@ -21,6 +21,7 @@
     "audit:tables": "tsx packages/arc-framework/src/scripts/audit-tables.ts",
     "audit:emphasis": "tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
     "build": "npm run build -w packages/arc-framework",
+    "build:fast": "npm run build:fast -w packages/arc-framework",
     "benchmark:session-envelope": "npm run benchmark:session-envelope -w packages/arc-framework",
     "inventory:command-inputs": "npm exec -w packages/arc-framework -- tsx src/scripts/render-command-input-inventory.ts",
     "test": "npm run test -w packages/arc-framework",
