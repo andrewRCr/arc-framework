@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "rerun-decompose-classification-inventory-2026-08-04",
+  "claimId": "20f6aeccc2768b0ca6bb311845390b82",
+  "createdAt": "2026-08-04T15:18:47.933Z",
+  "updatedAt": "2026-08-04T15:18:47.933Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "rerun-decompose-classification-inventory-2026-08-04",
+  "branch": "chore/rerun-decompose-classification-inventory-2026-08-04",
+  "origin": "inbox",
+  "originEntry": "Re-run `decompose-work-unit`'s classification inventory once its transformation settles",
+  "originEntrySourceDigest": "sha256:a7edfaf11e4d41755ebc43054e36ce29a3f016e2310c12392cf69760f892b9ae",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
