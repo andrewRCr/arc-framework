@@ -85,4 +85,29 @@ describe("repository delivery authoring store", () => {
       reason: "authoring-state-corrupt",
     });
   });
+
+  it("enumerates snapshots and abandons complete or partial pairs idempotently", async () => {
+    const records = await authoringStore();
+    const proposed = snapshot();
+    await records.store.create({ snapshot: proposed, markdown: "# Map\n" });
+
+    await expect(records.store.enumerate()).resolves.toEqual({
+      status: "ok",
+      value: [{ snapshot: proposed, markdown: "# Map\n" }],
+    });
+    await unlink(join(records.commonDir, "arc", "delivery", "authoring", "authoring-map.md"));
+    await expect(records.store.enumerate()).resolves.toEqual({
+      status: "ok",
+      value: [{ snapshot: proposed, markdown: null }],
+    });
+    await expect(records.store.abandon("authoring-map")).resolves.toEqual({
+      status: "ok",
+      value: { removed: true },
+    });
+    await expect(records.store.abandon("authoring-map")).resolves.toEqual({
+      status: "ok",
+      value: { removed: false },
+    });
+    await expect(records.store.enumerate()).resolves.toEqual({ status: "ok", value: [] });
+  });
 });
