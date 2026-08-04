@@ -895,27 +895,12 @@ describe("openOrdinaryErrand", () => {
     });
   });
 
-  it("records unavailable ancestry as an unverifiable lease anchor and continues", async () => {
+  it("refuses an unverifiable anchor before reading or mutating state", async () => {
     const claim = vi.fn();
     const readState = vi.fn();
-    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => {
-      if (options.anchor.kind !== "unverifiable" || options.anchor.reason !== "permission denied") {
-        throw new Error("expected the unverifiable entering anchor");
-      }
-      return {
-        kind: "provisioned" as const,
-        receipt: {
-          disposition: "applied" as const,
-          allocation: "primary" as const,
-          checkoutPath: "/repo",
-          branch: { name: null, created: false, head: "b".repeat(40), base: null },
-          worktree: { path: "/repo", created: false, head: "b".repeat(40) },
-          marker: null,
-          record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
-          leaseToken: LEASE_ID,
-        },
-      };
-    });
+    const readIdentity = vi.fn();
+    const rollbackClaim = vi.fn();
+    const provision = vi.fn();
     const result = await openOrdinaryErrand({
       slug: "blocked-anchor",
       protection: "partial",
@@ -931,17 +916,24 @@ describe("openOrdinaryErrand", () => {
           readState();
           return state({ kind: "free", checkoutPath: "/repo" });
         },
-        readIdentity: async () => ({ kind: "ready", record: null }),
+        readIdentity,
         claim,
-        rollbackClaim: vi.fn(),
+        rollbackClaim,
         provision,
       },
     });
 
-    expect(result).toMatchObject({ outcome: "applied", operation: "errand-open" });
-    expect(readState).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      outcome: "refused",
+      operation: "errand-open",
+      reason: "lease-unknown",
+      recommendedPromptText: expect.stringContaining("permission denied"),
+    });
+    expect(readState).not.toHaveBeenCalled();
+    expect(readIdentity).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
-    expect(provision).toHaveBeenCalledOnce();
+    expect(rollbackClaim).not.toHaveBeenCalled();
+    expect(provision).not.toHaveBeenCalled();
   });
 
   it("keeps legacy identity conflicts close-only without provisioning a new locus", async () => {

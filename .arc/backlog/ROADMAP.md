@@ -38,6 +38,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
 | delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
+| recurring-errand-pr-resolution     | P1       | andrew | —          | —                             |
 | roadmap-tooling                    | P1       | andrew | —          | —                             |
 | wu-lifecycle-state-model           | P1       | andrew | —          | —                             |
 | composable-workflows               | P2       | andrew | —          | agent-context-optimization    |
