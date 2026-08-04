@@ -37,6 +37,7 @@ import {
 import type { GitExec } from "../git/exec.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import { gitFailureText, isGitProcessError } from "../git/process-error.js";
+import { isRemoteUnavailableError } from "../user-sync/index.js";
 import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
 /**
@@ -420,8 +421,10 @@ export async function readFetchedTransientInFlightIndexes(
   try {
     await io.exec("git", fetchArgs);
   } catch (error) {
+    const detail = gitFailureText(error);
     const absent = isGitProcessError(error) && error.expectedOutcome === "absent-remote-ref";
-    if (absent || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(gitFailureText(error))) {
+    if (absent || isRemoteUnavailableError(detail)
+      || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(detail)) {
       return readTransientInFlightIndexes(io);
     }
     return { kind: "error", stage: "fetch", message: errorMessage(error) };

@@ -87,6 +87,10 @@ export interface RunErrandStateOptions {
   records: readonly ErrandRecord[];
   /** Exact current-generation identities used by materialization projections. */
   transientRecords?: readonly TransientIdentityRecord[];
+  /** Whether the transient identity snapshot was decoded completely. */
+  transientRecordsComplete: boolean;
+  /** Live remote tips keyed by branch short-name. */
+  remoteTips: ReadonlyMap<string, string>;
   /** Integration base branch short-name, e.g. `main`. */
   baseBranch: string;
   /** Whole-day threshold for classifying in-progress branches as stale. */
@@ -131,7 +135,8 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
 
   const materializable = findMaterializableErrands({
     entries: options.entries,
-    records: options.transientRecords ?? [],
+    records: options.transientRecordsComplete ? (options.transientRecords ?? []) : [],
+    remoteTips: options.remoteTips,
   });
   const errands = options.entries.filter(
     (entry): entry is InFlightErrand => entry.kind === "errand",

@@ -580,6 +580,7 @@ export async function handleStatus(
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
+      remoteTips: Map<string, string>;
       reachable: boolean;
     }> | undefined;
     // Errand records — the errand-identity oracle, shared by the in-flight
@@ -612,6 +613,7 @@ export async function handleStatus(
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
+      remoteTips: Map<string, string>;
       reachable: boolean;
     }> => {
       oraclePromise ??= (async () => {
@@ -649,12 +651,22 @@ export async function handleStatus(
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
         if (!result.reachable) {
-          return { entries: [], residue: result.residue, warnings: result.warnings, reachable: false };
+          return {
+            entries: [],
+            residue: result.residue,
+            warnings: result.warnings,
+            remoteTips: new Map(),
+            reachable: false,
+          };
         }
         return {
           entries: result.entries,
           residue: result.residue,
           warnings: result.warnings,
+          remoteTips: new Map(Object.entries(result.liveRefs).flatMap(([ref, tip]) => {
+            const prefix = "origin/";
+            return ref.startsWith(prefix) ? [[ref.slice(prefix.length), tip]] : [];
+          })),
           reachable: result.reachable,
         };
       })();
@@ -894,6 +906,7 @@ export async function handleStatus(
         const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
+        let remoteTips = new Map<string, string>();
         let oracleWarnings: string[] = [
           ...recordResult.warnings,
           ...(transientState.degraded === null ? [] : [transientState.degraded]),
@@ -902,6 +915,7 @@ export async function handleStatus(
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
           residue = oracle.residue;
+          remoteTips = oracle.remoteTips;
           oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
         }
         return runErrandState({
@@ -914,6 +928,8 @@ export async function handleStatus(
           oracleWarnings,
           records,
           transientRecords: transientIndexes.records,
+          transientRecordsComplete: transientState.complete,
+          remoteTips,
           locusState,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,

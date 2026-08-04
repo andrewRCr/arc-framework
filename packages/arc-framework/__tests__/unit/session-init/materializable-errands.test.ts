@@ -38,6 +38,10 @@ describe("findMaterializableErrands", () => {
     const result = findMaterializableErrands({
       entries: [errand(), errand({ slug: "review", branch: "chore/review" })],
       records: [paused(), awaiting],
+      remoteTips: new Map([
+        ["chore/fix-typo", HEAD],
+        ["chore/review", "b".repeat(40)],
+      ]),
     });
 
     expect(result.candidates).toEqual([
@@ -68,6 +72,7 @@ describe("findMaterializableErrands", () => {
           headRef: "chore/other", headSha: HEAD,
         },
       })],
+      remoteTips: new Map([["chore/fix-typo", HEAD]]),
     });
 
     expect(result.candidates).toEqual([]);
@@ -78,8 +83,22 @@ describe("findMaterializableErrands", () => {
       entries: [errand({ slug: "recordless", branch: "chore/recordless" }),
         errand({ slug: "z", branch: "chore/z" }), errand({ slug: "a", branch: "chore/a" })],
       records: [paused({ slug: "z", branch: "chore/z" }), paused({ slug: "a", branch: "chore/a" })],
+      remoteTips: new Map([
+        ["chore/z", HEAD],
+        ["chore/a", HEAD],
+      ]),
     });
 
     expect(result.candidates.map((candidate) => candidate.slug)).toEqual(["a", "z"]);
+  });
+
+  it("excludes an identity whose expected head differs from the live remote tip", () => {
+    const result = findMaterializableErrands({
+      entries: [errand()],
+      records: [paused()],
+      remoteTips: new Map([["chore/fix-typo", "b".repeat(40)]]),
+    });
+
+    expect(result.candidates).toEqual([]);
   });
 });

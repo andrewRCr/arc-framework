@@ -124,7 +124,8 @@ describe("runErrandState", () => {
     });
     const result = await runErrandState({
       exec: buildExec(), currentBranch: "main", hasBackingMeta: false, includeDiscovery: false,
-      entries: null, records: [], baseBranch: "main", staleThresholdDays: 1, nudge: nudge(false), locusState,
+      entries: null, records: [], remoteTips: new Map(), transientRecordsComplete: true,
+      baseBranch: "main", staleThresholdDays: 1, nudge: nudge(false), locusState,
     });
 
     expect(result.identities).toEqual([{ identity, actions: ["resume", "abandon"] }]);
@@ -140,6 +141,8 @@ describe("runErrandState", () => {
       includeDiscovery: false,
       entries: null,
       records: [record({ slug: "extract-helper", branch: "refactor/extract-helper" })],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -164,6 +167,8 @@ describe("runErrandState", () => {
       entries: null,
       oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
       records: [],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -188,6 +193,8 @@ describe("runErrandState", () => {
       includeDiscovery: false,
       entries: null,
       records: [],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -206,6 +213,8 @@ describe("runErrandState", () => {
       includeDiscovery: false,
       entries: null,
       records: [record({ slug: "promoted", branch: "chore/promoted" })],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -241,6 +250,8 @@ describe("runErrandState", () => {
       includeDiscovery: true,
       entries,
       records: [],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -272,6 +283,8 @@ describe("runErrandState", () => {
       entries,
       records: [record({ slug: "record-slug", branch: "fix/typo" })],
       transientRecords: [paused({ slug: "record-slug", branch: "fix/typo" })],
+      remoteTips: new Map([["fix/typo", "a".repeat(40)]]),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -311,6 +324,8 @@ describe("runErrandState", () => {
       entries,
       records: [],
       transientRecords: [paused({ slug: "remote-a", branch: "chore/remote-a" })],
+      remoteTips: new Map([["chore/remote-a", "a".repeat(40)]]),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -347,6 +362,8 @@ describe("runErrandState", () => {
         }),
       ],
       records: [record({ slug: "local-unpushed", branch: "chore/local-unpushed" })],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -384,6 +401,8 @@ describe("runErrandState", () => {
       residue,
       oracleWarnings: ["Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`."],
       records: [],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -413,6 +432,8 @@ describe("runErrandState", () => {
       entries: [wu()],
       oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
       records: [],
+      remoteTips: new Map(),
+      transientRecordsComplete: true,
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -425,5 +446,27 @@ describe("runErrandState", () => {
       "Unable to list git worktrees; local checkout status is degraded.",
     ]);
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("suppresses materialization when the transient identity snapshot is incomplete", async () => {
+    const result = await runErrandState({
+      exec: buildExec({ refs: `refs/remotes/origin/chore/fix-typo\t${RECENT}` }),
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      entries: [errand()],
+      records: [],
+      transientRecords: [paused()],
+      remoteTips: new Map([["chore/fix-typo", "a".repeat(40)]]),
+      transientRecordsComplete: false,
+      oracleWarnings: ["Transient identity discovery is incomplete."],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+    });
+
+    expect(result.materializable.candidates).toEqual([]);
+    expect(result.warnings).toContain("Transient identity discovery is incomplete.");
   });
 });

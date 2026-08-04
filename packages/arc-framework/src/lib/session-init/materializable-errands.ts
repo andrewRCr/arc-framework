@@ -27,6 +27,8 @@ export interface FindMaterializableErrandsOptions {
   entries: readonly InFlightEntry[];
   /** Complete identity records whose exact generation authorizes resume. */
   records: readonly TransientIdentityRecord[];
+  /** Live remote tips keyed by branch short-name. */
+  remoteTips: ReadonlyMap<string, string>;
 }
 
 export interface MaterializableErrandsResult {
@@ -49,27 +51,20 @@ export function findMaterializableErrands(
   const candidates = options.records.flatMap((record): MaterializableErrand[] => {
     if (record.version !== 3 || record.kind !== "errand" || record.purpose !== "errand") return [];
     if (!remoteOnlyBranches.has(record.branch)) return [];
-    if (record.state === "paused") {
-      return [{
-        slug: record.slug,
-        claimId: record.claimId,
-        branch: record.branch,
-        expectedHead: record.savedHead,
-        state: record.state,
-        originEntry: record.originEntry,
-      }];
-    }
-    if (record.state === "awaiting-merge" && record.changeRequest.headRef === record.branch) {
-      return [{
-        slug: record.slug,
-        claimId: record.claimId,
-        branch: record.branch,
-        expectedHead: record.changeRequest.headSha,
-        state: record.state,
-        originEntry: record.originEntry,
-      }];
-    }
-    return [];
+    const generation = record.state === "paused"
+      ? { expectedHead: record.savedHead, state: record.state }
+      : record.state === "awaiting-merge" && record.changeRequest.headRef === record.branch
+        ? { expectedHead: record.changeRequest.headSha, state: record.state }
+        : null;
+    if (generation === null || options.remoteTips.get(record.branch) !== generation.expectedHead) return [];
+    return [{
+      slug: record.slug,
+      claimId: record.claimId,
+      branch: record.branch,
+      expectedHead: generation.expectedHead,
+      state: generation.state,
+      originEntry: record.originEntry,
+    }];
   });
   return { candidates: candidates.sort((left, right) => left.slug.localeCompare(right.slug)) };
 }
