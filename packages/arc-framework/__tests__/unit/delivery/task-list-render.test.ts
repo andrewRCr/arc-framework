@@ -112,13 +112,16 @@ describe("delivery task-list projection", () => {
   it("replaces only the existing sentinel range on a successor render", () => {
     const first = replaceDeliveryPlanSection(starter, plan());
     if (first.status !== "rendered") throw new Error("expected first render");
+    expect(first.content).toContain("- **Plan Revision:** `1`");
     const prefixed = `UNTOUCHED PREFIX\n${first.content}UNTOUCHED SUFFIX`;
-    const second = replaceDeliveryPlanSection(prefixed, plan({ shared: true }));
+    const second = replaceDeliveryPlanSection(prefixed, plan({ shared: true, landed: true }));
     expect(second.status).toBe("rendered");
     if (second.status !== "rendered") throw new Error("expected successor render");
     expect(second.content.startsWith("UNTOUCHED PREFIX\n# Tasks")).toBe(true);
     expect(second.content.endsWith("UNTOUCHED SUFFIX")).toBe(true);
     expect(second.content).toContain("`1.1` (shared)");
+    expect(second.content).toContain("- **Plan Revision:** `2`");
+    expect(second.content).not.toContain("- **Plan Revision:** `1`");
   });
 
   it("refuses absent, duplicate, reversed, and partial replacement loci", () => {
@@ -144,6 +147,15 @@ describe("delivery task-list projection", () => {
 
   it("renders shared tasks, landed values, named seams, and stack landability", () => {
     const section = renderDeliveryPlanSection(plan({ shared: true, landed: true }));
+    expect(section).toContain([
+      "## Delivery Plan",
+      "",
+      "- **Plan Revision:** `2`",
+      `- **Plan Digest:** \`${digest("plan")}\``,
+      "- **Projection:** `stack-to-main`",
+      "",
+      "| # | Member | Chunk key | Tasks | Design elements | Status | Landability |",
+    ].join("\n"));
     expect(section).toContain("| Landability |");
     expect(section).toContain("`1.1` (shared)");
     expect(section).toContain("landed (as of landing)");
@@ -158,6 +170,7 @@ describe("delivery task-list projection", () => {
       oneMember: true,
     }));
     expect(section).toContain("| # | Member | Chunk key | Tasks | Design elements | Status |");
+    expect(section).toContain("- **Projection:** `wu-integration-target`");
     expect(section).not.toContain("Landability");
     expect(section).toContain("| 1 | First member | `first` |");
     expect(section).toContain("_None._");
