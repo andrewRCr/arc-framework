@@ -84,7 +84,7 @@ commit.custom_pattern:
 #   "^#[0-9]+ .+"                                 — GitHub issue
 commit.context_pattern:
 
-# --- Merge Strategy ---
+# --- Merge ---
 
 # How branches are integrated into the base branch.
 #   merge  - Merge commits preserve branch topology (default, most traceable)
@@ -92,6 +92,14 @@ commit.context_pattern:
 #   squash - Single commit per branch (traceability shifts to PR descriptions)
 # See strategy-configurability-architecture.md § Settings with behavioral implications.
 merge.strategy: merge
+
+# Whether pull requests are held unmergeable until the work is cleared to land.
+#   draft - Pull requests open as drafts and stay unmergeable until they are released, so no one
+#           can land the work early — including you. Costs a release step before every merge, and
+#           review automation that skips drafts does not run until that release.
+#   none  - No host-side hold (default). Interlocks and harness permissions are the only guard.
+# See strategy-configurability-architecture.md § Settings with behavioral implications.
+merge.lock: none
 
 # --- Hooks ---
 
