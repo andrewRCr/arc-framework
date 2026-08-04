@@ -129,9 +129,9 @@ export type DeliveryPlanValidationResult =
 /** Persisted canonical-plan codec with predecessor-aware publication validation. */
 export const DeliveryPlanV1Codec: DeliveryPlanPayloadCodec<DeliveryPlanV1> = {
   decode: (value) => {
-    const parsed = DeliveryPlanV1Schema.safeParse(value);
-    return parsed.success
-      ? { status: "decoded", value: parsed.data }
+    const validation = validateDeliveryPlanRecord(value);
+    return validation.status === "valid"
+      ? { status: "decoded", value: validation.plan }
       : { status: "refused" };
   },
   planId: (value) => value.planId,
@@ -300,16 +300,12 @@ export function deriveDeliveryPlanDigest(
 }
 
 /**
- * Revalidate every whole-record refinement available from a plan and its predecessor.
+ * Revalidate every self-contained whole-record refinement available from a persisted plan.
  *
  * @param value - Candidate delivery-plan record
- * @param predecessor - Validated preceding revision, or `null` for revision one
  * @returns Parsed record with advisories or typed refinement issues
  */
-export function validateDeliveryPlanRevision(
-  value: unknown,
-  predecessor: DeliveryPlanV1 | null,
-): DeliveryPlanValidationResult {
+export function validateDeliveryPlanRecord(value: unknown): DeliveryPlanValidationResult {
   const parsed = DeliveryPlanV1Schema.safeParse(value);
   if (!parsed.success) {
     return { status: "refused", issues: [{ code: "structural-invalid" }] };
@@ -330,12 +326,11 @@ export function validateDeliveryPlanRevision(
   collectSeamIssues(plan, issues);
   collectProjectionIssues(plan, issues);
   collectMemberFingerprintIssues(plan, issues);
-  collectDiscriminantIssues(plan, predecessor, issues);
-  collectLineageIssues(plan, predecessor, issues);
+  collectDiscriminantIssues(plan, issues);
 
   const taskCoverage = validateDeliveryTaskCoverage({
     entry: plan.entry,
-    predecessorEntry: predecessor?.entry ?? null,
+    predecessorEntry: null,
     implementationTaskIds: plan.tasks.implementation.map((task) => task.taskId),
     verificationTaskId: plan.tasks.verificationTaskId,
     memberTaskIds: plan.members.map((member) => member.taskIds),
@@ -373,6 +368,36 @@ export function validateDeliveryPlanRevision(
 
   if (issues.length > 0) return { status: "refused", issues };
   return { status: "valid", plan, advisories };
+}
+
+/**
+ * Revalidate a plan's self-contained refinements and its exact predecessor transition.
+ *
+ * @param value - Candidate delivery-plan record
+ * @param predecessor - Validated preceding revision, or `null` for revision one
+ * @returns Parsed record with advisories or typed refinement issues
+ */
+export function validateDeliveryPlanRevision(
+  value: unknown,
+  predecessor: DeliveryPlanV1 | null,
+): DeliveryPlanValidationResult {
+  const record = validateDeliveryPlanRecord(value);
+  const parsed = DeliveryPlanV1Schema.safeParse(value);
+  if (!parsed.success) return record;
+  const plan = parsed.data;
+
+  const issues: DeliveryPlanIssue[] = record.status === "refused" ? [...record.issues] : [];
+  if (predecessor !== null) {
+    collectDiscriminantTransitionIssues(plan, predecessor, issues);
+    if (plan.entry !== predecessor.entry) {
+      issues.push({ code: "entry-changed" });
+    }
+  }
+  collectLineageIssues(plan, predecessor, issues);
+
+  if (issues.length > 0) return { status: "refused", issues };
+  if (record.status === "refused") return record;
+  return record;
 }
 
 function collectUniquenessIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): void {
@@ -538,7 +563,6 @@ function collectMemberFingerprintIssues(plan: DeliveryPlanV1, issues: DeliveryPl
 
 function collectDiscriminantIssues(
   plan: DeliveryPlanV1,
-  predecessor: DeliveryPlanV1 | null,
   issues: DeliveryPlanIssue[],
 ): void {
   let sawLive = false;
@@ -549,8 +573,13 @@ function collectDiscriminantIssues(
       issues.push({ code: "landed-prefix-invalid", path: ["members", index, "status"] });
     }
   }
-  if (predecessor === null) return;
+}
 
+function collectDiscriminantTransitionIssues(
+  plan: DeliveryPlanV1,
+  predecessor: DeliveryPlanV1,
+  issues: DeliveryPlanIssue[],
+): void {
   const predecessorLandedCount = leadingLandedCount(predecessor.members);
   const currentLandedCount = leadingLandedCount(plan.members);
   for (let index = 0; index < predecessorLandedCount; index += 1) {

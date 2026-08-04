@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { bindDesignInventory } from "../../../src/lib/delivery/design-inventory.js";
 import {
   constructDeliveryPlanRevision,
+  DeliveryPlanV1Codec,
   deriveDeliveryPlanDigest,
   validateDeliveryPlanRevision,
 } from "../../../src/lib/delivery/plan.js";
@@ -194,6 +195,13 @@ describe("constructDeliveryPlanRevision", () => {
 });
 
 describe("validateDeliveryPlanRevision", () => {
+  it("refuses a persisted plan whose self-contained refinements fail", () => {
+    const corrupted = structuredClone(constructedPlan());
+    corrupted.planDigest = canonicalDigest({ wrong: "persisted-digest" });
+
+    expect(DeliveryPlanV1Codec.decode(corrupted)).toEqual({ status: "refused" });
+  });
+
   it("refuses a non-canonical set-like ordering", () => {
     const authoring = authoringInput();
     authoring.members[0]!.taskIds = ["1.2", "1.1"];
