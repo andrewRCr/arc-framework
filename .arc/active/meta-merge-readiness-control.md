@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — task list finalized; WU activated (3 adversarial passes, 27 findings folded)
-- **Next Task:** Task 1.1 — Register `merge.lock` in the config catalog (line ~12)
+- **Last Completed:** Phase 1 (Tasks 1.1–1.3) — `merge.lock` registered, shipped in both config copies, classified
+- **Next Task:** Task 2.1 — Retarget the lock resolution module (line ~86)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — register the config-catalog entry, then its validate-order entry
+- **Next Action:** Begin Task 2.1 — retarget the unlock orchestrator into the merge-lock module
 
 - **PR URL:** [none]
 - **Completed:** [none]
