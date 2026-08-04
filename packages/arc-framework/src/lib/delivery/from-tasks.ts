@@ -125,6 +125,7 @@ export function resolveDeliveryFromTasksProjection(_input: {
   readonly reason:
     | "from-tasks-facts-malformed"
     | "boundary-member-mismatch"
+    | "verification-task-ineligible"
     | "authoring-projection-invalid";
 }
   | { readonly status: "resolved"; readonly projection: DeliveryCompositionProjection } {
@@ -142,6 +143,11 @@ export function resolveDeliveryFromTasksProjection(_input: {
       sourceIds: phase.taskIds,
     }))
     : input.slots.boundary.segments;
+  if (segments.some((segment) => (
+    segment.sourceIds.includes(input.snapshot.tasks.verificationTaskId)
+  ))) {
+    return { status: "refused", reason: "verification-task-ineligible" };
+  }
   if (segments.length !== input.slots.members.length
     || segments.some((segment, index) => segment.chunkKey !== input.slots.members[index]?.chunkKey)) {
     return { status: "refused", reason: "boundary-member-mismatch" };

@@ -190,6 +190,24 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     });
   });
 
+  it("refuses the verification parent as an explicit member source", () => {
+    const result = prepare();
+    expect(result.status).toBe("prepared");
+    if (result.status !== "prepared") return;
+    expect(resolveDeliveryFromTasksProjection({
+      snapshot: result.snapshot,
+      slots: {
+        projection: { kind: "wu-integration-target" },
+        boundary: {
+          kind: "explicit",
+          segments: [{ chunkKey: SlugSchema.parse("verification"), sourceIds: ["7.9"] }],
+        },
+        members: [member("verification")],
+        seams: [],
+      },
+    })).toEqual({ status: "refused", reason: "verification-task-ineligible" });
+  });
+
   it("refuses malformed design input without producing authoring material", () => {
     expect(prepareDeliveryFromTasksAuthoring({
       mapId: "authoring-map",

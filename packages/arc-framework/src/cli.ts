@@ -43,8 +43,10 @@ import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import {
   handleDeliveryCompose,
   handleDeliveryPlanAbandon,
+  handleDeliveryPlanFromTasks,
   type DeliveryComposeOptions,
   type DeliveryPlanAbandonOptions,
+  type DeliveryPlanFromTasksOptions,
 } from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
@@ -642,6 +644,16 @@ delivery
 const deliveryPlan = delivery
   .command("plan")
   .description("Create or abandon transient delivery-plan authoring state");
+
+deliveryPlan
+  .command("from-tasks")
+  .description("Create a delivery authoring map from the active task list")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+  ));
 
 deliveryPlan
   .command("abandon")
