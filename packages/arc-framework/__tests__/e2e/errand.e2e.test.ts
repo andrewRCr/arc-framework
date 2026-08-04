@@ -46,35 +46,6 @@ async function gitWithInput(cwd: string, args: string[], input: string): Promise
   });
 }
 
-interface LegacyErrandFixture {
-  slug: string;
-  type: "chore" | "fix";
-  intent?: string;
-  originEntry?: string;
-}
-
-/** Seed the close-only v2 generation without retaining a public v2-producing command path. */
-async function seedLegacyErrand(cwd: string, fixture: LegacyErrandFixture): Promise<void> {
-  const returnBranch = (await git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
-  const branch = `${fixture.type}/${fixture.slug}`;
-  await git(cwd, ["switch", "-c", branch, "main"]);
-  const record = {
-    version: 2,
-    slug: fixture.slug,
-    origin: fixture.originEntry === undefined ? "description" : "inbox",
-    intent: fixture.intent ?? fixture.slug,
-    branch,
-    createdAt: "2026-07-21T00:00:00.000Z",
-    ...(fixture.originEntry === undefined ? {} : { originEntry: fixture.originEntry }),
-    ...(returnBranch === branch ? {} : { returnBranch }),
-  };
-  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record, null, 2)}\n`))
-    .trim();
-  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${fixture.slug}\n`)).trim();
-  const commit = (await git(cwd, ["commit-tree", tree, "-m", `seed legacy errand ${fixture.slug}`])).trim();
-  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
-}
-
 /** Seed one exact v3 awaiting tail for command-boundary refusal coverage. */
 async function seedAwaitingV3Errand(cwd: string, slug: string): Promise<void> {
   const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
@@ -278,6 +249,84 @@ describe("arc errand check", () => {
     // `reachable` reflects the oracle's remote read; the sandbox repo has no
     // reachable remote, so the no-overlap result carries `reachable: false`.
     expect(JSON.parse(result.stdout.trim())).toEqual({ overlaps: [], warnings: [], reachable: false });
+  });
+});
+
+describe("arc errand JSON topology failures", () => {
+  it.each([
+    {
+      operation: "errand-leave",
+      args: ["errand", "leave", "anything", "--state", "paused", "--json"],
+      code: "locus.errand-leave.topology",
+    },
+    {
+      operation: "errand-materialize",
+      args: ["errand", "materialize", "anything", "--json"],
+      code: "locus.errand-materialize.topology",
+    },
+  ])("emits a $operation error envelope outside an ARC project", async ({ operation, args, code }) => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-outside-project-"));
+    try {
+      const result = await runArc(args, outsideProject);
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout.trim())).toMatchObject({
+        outcome: "error",
+        operation,
+        error: { code },
+      });
+    } finally {
+      await cleanupTempDir(outsideProject);
+    }
+  });
+});
+
+describe("arc errand leave", () => {
+  let repository: string;
+
+  beforeEach(async () => {
+    repository = await createTempRepo();
+    const initialized = await runArc(["init", "--yes", "--name", "test-project"], repository);
+    expect(initialized.exitCode).toBe(0);
+    await git(repository, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(repository);
+  });
+
+  it("refuses partial mode through the shared JSON result", async () => {
+    const result = await runArc([
+      "errand", "leave", "anything", "--state", "paused", "--json",
+    ], repository);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-leave",
+      reason: "full-protection-required",
+    });
+  });
+
+  it("refuses a blank base before attempting to leave", async () => {
+    await setFullProtection(repository);
+    const configPath = join(repository, ".arc", "system", "arc-config.yml");
+    const config = await readFile(configPath, "utf-8");
+    const updated = config.replace("branch.base: main", "branch.base: '   '");
+    expect(updated).not.toBe(config);
+    await writeFile(configPath, updated, "utf-8");
+
+    const result = await runArc([
+      "errand", "leave", "anything", "--state", "paused", "--json",
+    ], repository);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-leave",
+      error: { code: "locus.errand-leave.config" },
+    });
+    expect(result.stderr).toBe("");
   });
 });
 
@@ -495,67 +544,6 @@ describe("arc errand close", () => {
         activeLocusPath: null,
       });
     } finally {
-      await cleanupTempDir(remoteDir);
-    }
-  });
-
-  it("reaps the branch, removes the record, and hops back to base", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "tidy", type: "chore" });
-    expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("chore/tidy");
-
-    const result = await runArc(["errand", "close", "tidy"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
-    // The branch is reaped and the session is back on the base.
-    expect(await git(tmpDir, ["branch", "--list", "chore/tidy"])).toBe("");
-    expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
-    // The identity record is gone from the orphan state-ref.
-    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:tidy"])).rejects.toThrow();
-  });
-
-  it("force-closes a remote-only legacy Errand from a fresh clone", async () => {
-    const remoteDir = `${tmpDir}-remote-only.git`;
-    const freshDir = `${tmpDir}-fresh`;
-    await setFullProtection(tmpDir);
-    await git(tmpDir, ["add", "-A"]);
-    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
-    await git(tmpDir, ["remote", "add", "origin", remoteDir]);
-    await git(tmpDir, ["push", "-u", "origin", "main"]);
-    await seedLegacyErrand(tmpDir, { slug: "remote-only", type: "chore" });
-    await git(tmpDir, [
-      "push",
-      "origin",
-      "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands",
-    ]);
-
-    try {
-      await execFileAsync("git", ["clone", remoteDir, freshDir]);
-      await git(freshDir, ["config", "arc.identity", "test-user"]);
-      await git(freshDir, ["config", "user.name", "ARC E2E"]);
-      await git(freshDir, ["config", "user.email", "arc-e2e@example.invalid"]);
-      await expect(
-        git(freshDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:remote-only"]),
-      ).rejects.toThrow();
-
-      const result = await runArc(["errand", "close", "remote-only", "--force", "--json"], freshDir);
-
-      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(JSON.parse(result.stdout.trim())).toMatchObject({
-        outcome: "applied",
-        operation: "errand-close",
-      });
-      await git(freshDir, [
-        "fetch",
-        "origin",
-        "+refs/arc/user/test-user/errands:refs/arc/tmp/remote-only-close-check",
-      ]);
-      await expect(
-        git(freshDir, ["cat-file", "-p", "refs/arc/tmp/remote-only-close-check:remote-only"]),
-      ).rejects.toThrow();
-    } finally {
-      await cleanupTempDir(freshDir);
       await cleanupTempDir(remoteDir);
     }
   });
@@ -1157,79 +1145,12 @@ describe("arc errand close", () => {
     }
   });
 
-  it("restores the pre-open branch when main is held by the primary worktree", async () => {
-    const linkedDir = `${tmpDir}-linked`;
-    const remoteDir = `${tmpDir}-legacy-remote.git`;
-    const harnessDir = await mkdtemp(join(tmpdir(), "arc-legacy-codex-"));
-    const harness = join(harnessDir, "codex");
-    await copyFile("/bin/bash", harness);
-    await chmod(harness, 0o755);
-    await setFullProtection(tmpDir);
-    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
-    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    await execFileAsync("git", ["init", "--bare", remoteDir]);
-    await git(tmpDir, ["remote", "add", "origin", remoteDir]);
-    await git(tmpDir, ["push", "-u", "origin", "main"]);
-    await git(tmpDir, ["branch", "feat/active-wu"]);
-    await git(tmpDir, ["worktree", "add", linkedDir, "feat/active-wu"]);
-
-    try {
-      await seedLegacyErrand(linkedDir, { slug: "linked-fix", type: "fix" });
-      await git(linkedDir, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
-      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
-      const record = await git(
-        linkedDir,
-        ["cat-file", "-p", "refs/arc/user/test-user/errands:linked-fix"],
-      );
-      expect(record).toContain('"returnBranch": "feat/active-wu"');
-
-      await mkdir(join(linkedDir, ".arc", "system", "extensions"), { recursive: true });
-      const displaced = await runArcAnchoredSequence([
-        ["errand", "open", "linked-fix", "--json"],
-      ], linkedDir, { anchorShellPath: harness });
-      expect(displaced.exitCode).toBe(1);
-      expect(displaced.results[0], JSON.stringify(displaced.results[0])).toMatchObject({
-        outcome: "refused",
-        operation: "errand-open",
-        reason: "identity-conflict",
-      });
-      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
-
-      const close = await runArc(["errand", "close", "linked-fix"], linkedDir);
-
-      expect(close.exitCode).toBe(0);
-      expect(await git(linkedDir, ["branch", "--list", "fix/linked-fix"])).toBe("");
-      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/active-wu");
-      expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
-    } finally {
-      await git(tmpDir, ["worktree", "remove", "--force", linkedDir]);
-      await cleanupTempDir(harnessDir);
-      await cleanupTempDir(remoteDir);
-    }
-  });
-
   it("is a clean no-op when no record exists for the slug", async () => {
     await setFullProtection(tmpDir);
 
     const result = await runArc(["errand", "close", "never-opened"], tmpDir);
 
     expect(result.exitCode).toBe(0);
-  });
-
-  it("refuses an unsafe branch but reaps it with --force", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "wip", type: "fix" });
-    // A commit ahead of base, never pushed — not provably preserved.
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "wip"]);
-    await git(tmpDir, ["switch", "main"]);
-
-    const refused = await runArc(["errand", "close", "wip"], tmpDir);
-    expect(refused.exitCode).toBe(1);
-    expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toContain("fix/wip");
-
-    const forced = await runArc(["errand", "close", "wip", "--force"], tmpDir);
-    expect(forced.exitCode).toBe(0);
-    expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
   });
 
   it("returns one JSON refusal when --force targets a v3 tail", async () => {
@@ -1275,23 +1196,6 @@ describe("arc errand close", () => {
     } finally {
       await cleanupTempDir(ghDir);
     }
-  });
-
-  it("force-closes when the local branch was already deleted", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "host-deleted", type: "chore" });
-    await git(tmpDir, ["switch", "main"]);
-    await git(tmpDir, ["update-ref", "-d", "refs/heads/chore/host-deleted"]);
-
-    const refused = await runArc(["errand", "close", "host-deleted"], tmpDir);
-    expect(refused.exitCode).toBe(1);
-    expect(refused.stdout + refused.stderr).toContain("--force");
-
-    const forced = await runArc(["errand", "close", "host-deleted", "--force"], tmpDir);
-    expect(forced.exitCode).toBe(0);
-    await expect(
-      git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:host-deleted"]),
-    ).rejects.toThrow();
   });
 
   it("drops the originating capture at close when opened with --from-inbox (the producer→drain leg)", async () => {
@@ -1371,68 +1275,6 @@ describe("arc errand close", () => {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
     }
-  });
-
-  it("leaves unrelated inbox captures untouched (a description errand drops nothing)", async () => {
-    await setFullProtection(tmpDir);
-    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
-    const inboxPath = join(inboxDir, "USER-INBOX.md");
-    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Keep me**\n\n- _Observation:_ unrelated.\n\n---\n";
-    await mkdir(inboxDir, { recursive: true });
-    await writeFile(inboxPath, inbox, "utf-8");
-
-    await seedLegacyErrand(tmpDir, { slug: "tidy", type: "chore" });
-    const result = await runArc(["errand", "close", "tidy"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
-    expect(await readFile(inboxPath, "utf-8")).toContain("**Keep me**");
-  });
-
-  it("refuses a late link on a legacy record and leaves the capture unbound", async () => {
-    await setFullProtection(tmpDir);
-    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
-    const inboxPath = join(inboxDir, "USER-INBOX.md");
-    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Link me**\n\n- _Observation:_ adopt later.\n\n---\n";
-    await mkdir(inboxDir, { recursive: true });
-    await writeFile(inboxPath, inbox, "utf-8");
-
-    await seedLegacyErrand(tmpDir, { slug: "late-adopt", type: "chore" });
-    const link = await runArc([
-      "errand", "link", "late-adopt", "--from-inbox", "Link me", "--json",
-    ], tmpDir);
-    expect(link.exitCode).toBe(1);
-    expect(JSON.parse(link.stdout.trim())).toMatchObject({
-      outcome: "refused",
-      operation: "errand-link",
-      reason: "identity-conflict",
-    });
-    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:late-adopt"]);
-    expect(record).toContain('"origin": "description"');
-    expect(record).not.toContain('"originEntry"');
-
-    const close = await runArc(["errand", "close", "late-adopt"], tmpDir);
-    expect(close.exitCode).toBe(0);
-    expect(await readFile(inboxPath, "utf-8")).toContain("**Link me**");
-  });
-
-  it("safely refuses a Markdown-bearing link operand for a legacy record", async () => {
-    await setFullProtection(tmpDir);
-    const title = "Link `arc errand` after $(capture)";
-    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
-    const inboxPath = join(inboxDir, "USER-INBOX.md");
-    const operandPath = join(tmpDir, "link-entry-title.txt");
-    const inbox = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Observation:_ link safely.\n\n---\n`;
-    await mkdir(inboxDir, { recursive: true });
-    await writeFile(inboxPath, inbox, "utf-8");
-    await writeFile(operandPath, `${title}\n`, "utf-8");
-
-    await seedLegacyErrand(tmpDir, { slug: "safe-link", type: "chore" });
-    const link = await runArc([
-      "errand", "link", "safe-link", "--inbox-entry-file", operandPath,
-    ], tmpDir);
-    expect(link.exitCode).toBe(1);
-    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:safe-link"]);
-    expect(record).not.toContain(`"originEntry": ${JSON.stringify(title)}`);
   });
 
   it("returns pure JSON errors for missing and malformed inbox link evidence", async () => {
@@ -1630,18 +1472,14 @@ describe("arc errand promote", () => {
 
   it("requires --floor — the crossed floor is the agent's judgment", async () => {
     await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
 
     const result = await runArc(["errand", "promote", "growing", "--name", "growth"], tmpDir);
 
     expect(result.exitCode).toBe(1);
-    // No rename happened — the errand branch survives for a retry.
-    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
   });
 
   it("returns one typed JSON error when --floor is missing", async () => {
     await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
 
     const result = await runArc(["errand", "promote", "growing", "--name", "growth", "--json"], tmpDir);
 
@@ -1654,78 +1492,5 @@ describe("arc errand promote", () => {
       operation: "errand-promote",
       error: { code: "locus.errand-promote.input" },
     });
-    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
-  });
-
-  it("refuses a derivation promotion for a legacy record before mutation", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
-
-    const result = await runArc(
-      ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation"],
-      tmpDir,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(await git(tmpDir, ["branch", "--list", "plan/growth-feature"])).toBe("");
-    expect(await git(tmpDir, ["branch", "--list", "feat/growth-feature"])).toBe("");
-    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
-    expect(await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"]))
-      .toContain('"version": 2');
-    await expect(readFile(join(tmpDir, ".arc", "active", "meta-growth-feature.md"), "utf-8")).rejects.toThrow();
-  });
-
-  it("refuses a scale promotion for a legacy record before mutation", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "sweeping", type: "chore" });
-
-    const result = await runArc(
-      ["errand", "promote", "sweeping", "--name", "sweep-unit", "--type", "refactor", "--floor", "scale"],
-      tmpDir,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(await git(tmpDir, ["branch", "--list", "chore/sweeping"])).toContain("chore/sweeping");
-    await expect(readFile(join(tmpDir, ".arc", "active", "meta-sweep-unit.md"), "utf-8")).rejects.toThrow();
-  });
-
-  it("keeps a Work Unit capture when legacy link and promotion refuse", async () => {
-    await setFullProtection(tmpDir);
-    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
-    const inboxPath = join(inboxDir, "USER-INBOX.md");
-    const inbox = "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Promote me**\n\n- _Observation:_ crossed a floor.\n\n---\n";
-    await mkdir(inboxDir, { recursive: true });
-    await writeFile(inboxPath, inbox, "utf-8");
-    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
-
-    const link = await runArc(
-      ["errand", "link", "growing", "--from-inbox", "Promote me", "--json"],
-      tmpDir,
-    );
-    expect(link.exitCode).toBe(1);
-    expect(JSON.parse(link.stdout.trim())).toMatchObject({
-      outcome: "refused",
-      operation: "errand-link",
-      reason: "identity-conflict",
-      recommendedPromptText: "Identity 'growing' is not a current ordinary Errand.",
-    });
-    const harness = await createCodexHarness();
-    try {
-      const promote = await runArcAnchoredSequence([
-        ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation",
-          "--json"],
-      ], tmpDir, { anchorShellPath: harness.executable });
-
-      expect(promote.exitCode).toBe(1);
-      expect(promote.results[0]).toMatchObject({
-        outcome: "refused",
-        operation: "errand-promote",
-        reason: "promotion-source-invalid",
-        recommendedPromptText: "Identity 'growing' is not a live ordinary v3 Errand.",
-      });
-    } finally {
-      await cleanupTempDir(harness.directory);
-    }
-    expect(await readFile(inboxPath, "utf-8")).toContain("**Promote me**");
   });
 });

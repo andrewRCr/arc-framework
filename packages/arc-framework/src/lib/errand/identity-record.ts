@@ -1,4 +1,4 @@
-/** Strict backward-compatible identity records for Errands and grooming claims. */
+/** Strict v3 identity records for Errands and grooming claims. */
 
 import { randomBytes } from "node:crypto";
 
@@ -15,27 +15,6 @@ import {
   LocusTokenSchema,
   type LocusIdentityV1,
 } from "../locus/schema/index.js";
-
-const LegacyNonEmptyStringSchema = z.string().min(1);
-const LegacyBaseShape = {
-  slug: LegacyNonEmptyStringSchema,
-  origin: z.enum(["description", "inbox"]),
-  intent: z.string(),
-  branch: LegacyNonEmptyStringSchema,
-  createdAt: LegacyNonEmptyStringSchema,
-};
-const LegacyV1Schema = z.object({
-  version: z.literal(1),
-  ...LegacyBaseShape,
-  originEntry: LegacyNonEmptyStringSchema.optional(),
-  returnBranch: z.never().optional(),
-}).superRefine(validateLegacyOrigin);
-const LegacyV2Schema = z.object({
-  version: z.literal(2),
-  ...LegacyBaseShape,
-  originEntry: LegacyNonEmptyStringSchema.optional(),
-  returnBranch: LegacyNonEmptyStringSchema.optional(),
-}).superRefine(validateLegacyOrigin);
 
 const V3CommonShape = {
   version: z.literal(3),
@@ -143,58 +122,11 @@ export const TransientIdentityRecordV3Schema = z.union([
   ...groomSchemas,
 ]);
 
-/** Strict runtime authority for close-only legacy plus current identity records. */
-export const TransientIdentityRecordSchema = z.union([
-  LegacyV1Schema,
-  LegacyV2Schema,
-  TransientIdentityRecordV3Schema,
-]);
+/** Sole runtime authority for transient identity records. */
+export const TransientIdentityRecordSchema = TransientIdentityRecordV3Schema;
 
 export type TransientIdentityRecordV3 = z.infer<typeof TransientIdentityRecordV3Schema>;
 export type TransientIdentityRecord = z.infer<typeof TransientIdentityRecordSchema>;
-
-/** State-changing verbs that can encounter a transient identity record. */
-export type TransientIdentityOperation =
-  | "read"
-  | "open"
-  | "link"
-  | "leave"
-  | "resume"
-  | "promote"
-  | "retire"
-  | "abandon"
-  | "close";
-
-/** Typed refusal when a legacy generation reaches a non-close mutation. */
-export class LegacyIdentityOperationError extends Error {
-  readonly operation: Exclude<TransientIdentityOperation, "close" | "read">;
-  readonly record: Extract<TransientIdentityRecord, { version: 1 | 2 }>;
-
-  constructor(
-    operation: Exclude<TransientIdentityOperation, "close" | "read">,
-    record: Extract<TransientIdentityRecord, { version: 1 | 2 }>,
-  ) {
-    super(`Legacy identity '${record.slug}' is close-only; cannot ${operation}`);
-    this.name = "LegacyIdentityOperationError";
-    this.operation = operation;
-    this.record = record;
-  }
-}
-
-/**
- * Enforce the bounded compatibility policy before a state-changing operation.
- *
- * @param record - Valid identity record at the requested key.
- * @param operation - Mutation the caller intends to perform.
- */
-export function assertTransientIdentityOperation(
-  record: TransientIdentityRecord,
-  operation: TransientIdentityOperation,
-): void {
-  if (record.version !== 3 && operation !== "close" && operation !== "read") {
-    throw new LegacyIdentityOperationError(operation, record);
-  }
-}
 
 /** Mint an immutable 128-bit claim generation. */
 export function mintClaimId(): string {
@@ -223,7 +155,7 @@ export function deserializeTransientIdentityRecord(
   } catch (error) {
     return { kind: "malformed", message: error instanceof Error ? error.message : "Invalid JSON" };
   }
-  if (isRecord(value) && value.version !== 1 && value.version !== 2 && value.version !== 3) {
+  if (isRecord(value) && value.version !== 3) {
     return { kind: "unknown-version", version: value.version };
   }
   const parsed = TransientIdentityRecordSchema.safeParse(value);
@@ -279,18 +211,6 @@ export function projectLocusIdentity(record: TransientIdentityRecordV3): LocusId
     savedHead: record.savedHead,
     changeRequest: record.changeRequest,
   });
-}
-
-function validateLegacyOrigin(
-  value: { origin: "description" | "inbox"; originEntry?: string },
-  context: z.RefinementCtx,
-): void {
-  if (value.origin === "inbox" && value.originEntry === undefined) {
-    context.addIssue({ code: "custom", path: ["originEntry"], message: "Inbox origin requires entry" });
-  }
-  if (value.origin === "description" && value.originEntry !== undefined) {
-    context.addIssue({ code: "custom", path: ["originEntry"], message: "Description origin rejects entry" });
-  }
 }
 
 function validateOrdinaryNamespace(

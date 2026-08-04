@@ -3,7 +3,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  TransientIdentityRecordSchema,
   TransientIdentityRecordV3Schema,
 } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
@@ -166,7 +165,7 @@ describe("promoteOrdinaryErrand", () => {
     expect(failed).toMatchObject({ outcome: "error", operation: "errand-promote" });
   });
 
-  it("refuses partial protection, legacy identity, and non-open v3 tails before frame mutation", async () => {
+  it("refuses partial protection and non-open v3 tails before frame mutation", async () => {
     const value = record();
     const replaceFrame = vi.fn();
     const dependencies = {
@@ -192,23 +191,6 @@ describe("promoteOrdinaryErrand", () => {
     });
     expect(tail).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
 
-    const legacy = TransientIdentityRecordSchema.parse({
-      version: 2,
-      slug: "growing",
-      origin: "description",
-      intent: "growing",
-      branch: "chore/growing",
-      createdAt: "2026-07-21T00:00:00.000Z",
-    });
-    const legacyResult = await promoteOrdinaryErrand({
-      slug: value.slug,
-      name: "growth",
-      type: "feat",
-      floor: "scale",
-      protection: "full",
-      dependencies: { ...dependencies, readIdentity: async () => ({ kind: "ready", record: legacy }) },
-    });
-    expect(legacyResult).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
     expect(replaceFrame).not.toHaveBeenCalled();
   });
 });

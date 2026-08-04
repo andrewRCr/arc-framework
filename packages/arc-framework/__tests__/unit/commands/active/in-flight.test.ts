@@ -44,6 +44,22 @@ function makeExec(opts: {
   const metas = opts.metas ?? {};
   const errandRecords = opts.errandRecords ?? [];
   const DUMMY_SHA = "0".repeat(40);
+  const errandBlob = (record: { slug: string; branch: string }): string => JSON.stringify({
+    version: 3,
+    kind: "errand",
+    slug: record.slug,
+    claimId: "a".repeat(32),
+    purpose: "errand",
+    origin: "description",
+    originEntry: null,
+    intent: record.slug,
+    branch: record.branch,
+    state: "open",
+    savedHead: null,
+    changeRequest: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
       return {
@@ -59,6 +75,10 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "rev-parse") {
+      if (errandRecords.length === 0) throw new Error("Needed a single revision");
+      return { stdout: `${DUMMY_SHA}\n`, stderr: "" };
+    }
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
@@ -67,24 +87,17 @@ function makeExec(opts: {
       return { stdout: paths.join("\n"), stderr: "" };
     }
     if (args[0] === "ls-tree") {
-      return { stdout: errandRecords.map((r) => `100644 blob ${DUMMY_SHA}\t${r.slug}`).join("\n"), stderr: "" };
-    }
-    if (args[0] === "cat-file") {
-      const target = args[2] ?? "";
-      const slug = target.slice(target.lastIndexOf(":") + 1);
-      const rec = errandRecords.find((r) => r.slug === slug);
-      if (rec === undefined) throw new Error(`fatal: not found ${target}`);
       return {
-        stdout: JSON.stringify({
-          version: 1,
-          slug: rec.slug,
-          origin: "description",
-          intent: rec.slug,
-          branch: rec.branch,
-          createdAt: "2026-01-01T00:00:00.000Z",
-        }),
+        stdout: errandRecords
+          .map((record) => `100644 blob ${DUMMY_SHA} ${Buffer.byteLength(errandBlob(record))}\t${record.slug}\0`)
+          .join(""),
         stderr: "",
       };
+    }
+    if (args[0] === "cat-file") {
+      const rec = errandRecords[0];
+      if (rec === undefined) throw new Error(`fatal: not found ${args[2] ?? ""}`);
+      return { stdout: errandBlob(rec), stderr: "" };
     }
     if (args[0] === "show") {
       const target = args[1] ?? "";
