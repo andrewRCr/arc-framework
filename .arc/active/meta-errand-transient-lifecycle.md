@@ -1,8 +1,8 @@
 # Metadata: errand-transient-lifecycle
 
-| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
-| --------- | --------- | --------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/errand-transient-lifecycle` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
+| ------------- | --------- | --------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/errand-transient-lifecycle` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4 complete — replaced legacy discovery and flipped the workflow surface
-- **Next Task:** Task 5.1 — Complete verification (line ~205)
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
