@@ -456,9 +456,9 @@ the sizing standard the `assess-cohort-fit` method consumes:
   `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_ — review defect
   detection craters past a few hundred LOC per increment. Tightly-coupled work designed as a whole stays one WU
   even when large; the per-task review grain carries quality.
-- **Stack vs. cohort:** a **stack** orders deliverables by dependency; a **cohort** groups sibling WUs. A cohort may
-  order its members, and one WU's delivery plan may order several deliverables — delivery topology does not decide
-  the concern boundary.
+- **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** — dependency-ordered WUs, each its
+  own branch, merged in order; independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
+  dependency-ordered delivery mode, not one WU spread across many branches.
 
 ---
 
