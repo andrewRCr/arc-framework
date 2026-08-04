@@ -35,28 +35,6 @@ function sectionBetween(content: string, start: string, end?: string): string {
   return content.slice(startIndex, endIndex);
 }
 
-interface ClearanceStatusFixture {
-  context: string;
-  previousHead: string;
-  replacementHead: string;
-  statuses: Array<{
-    context: string;
-    sha: string;
-    state: "success";
-  }>;
-}
-
-function hasClearanceSuccess(
-  fixture: ClearanceStatusFixture,
-  sha: string,
-): boolean {
-  return fixture.statuses.some(
-    (status) => status.context === fixture.context
-      && status.sha === sha
-      && status.state === "success",
-  );
-}
-
 describe("trusted review-gate workflows", () => {
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
@@ -718,22 +696,6 @@ describe("trusted review-gate workflows", () => {
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
     expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
     expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
-  });
-
-  it("does not inherit clearance across heads or let a stale unlock clear its replacement", async () => {
-    const fixture = JSON.parse(await readRepositoryFile(
-      "packages/arc-framework/__tests__/fixtures/review-gate/clearance-status-history.json",
-    )) as ClearanceStatusFixture;
-    expect(hasClearanceSuccess(fixture, fixture.previousHead)).toBe(true);
-    expect(hasClearanceSuccess(fixture, fixture.replacementHead)).toBe(false);
-
-    expect(fixture.previousHead).not.toBe(fixture.replacementHead);
-    const statusesAfterStaleUnlock = [...fixture.statuses, {
-      context: fixture.context,
-      sha: fixture.previousHead,
-      state: "success" as const,
-    }];
-    expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
 
   it("publishes planning clearance only from trusted pull-request-target code", async () => {

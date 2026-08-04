@@ -93,7 +93,6 @@ describe("production schema artifact", () => {
       "review-suspension-state",
       "review-target",
       "review-target-id-preimage",
-      "review-unlock-envelope",
       "severity-gating-policy",
       "slug",
       "standard-review-contract",

@@ -148,7 +148,7 @@ from.
 - _Outcome:_ Both clearance-specific methods are gone from the host surface. The two that survive are
   unchanged, which is what let the exact-head preflight carry over without re-verification.
 
-### `[ ]` **2.3 Stand up the `merge-lock` envelope family**
+### `[x]` **2.3 Stand up the `merge-lock` envelope family**
 
 - _Goal:_ The three verbs' results validate as registered kernel contracts, and the review command mode enum no
   longer names a lock command.
@@ -174,12 +174,12 @@ from.
         - The module builds its own variant helper rather than borrowing the review one, so a blocked result
           can require at least one diagnostic the way the retired envelope did.
 
-    - `[ ]` **2.3.b Excise the unlock registration from the review envelope module**
-        - Drop the mode entry, the schema import, and the registry line together — a stale import is the
-          failure mode here, and the type checker catches it only if all three go.
-        - _Sequencing:_ lands with 2.4, which retires the handler and command path that still emit the mode.
+    - `[x]` **2.3.b Excise the unlock registration from the review envelope module**
+        - Mode entry, schema import, and registry line dropped together, landed with 2.4 alongside the
+          handler and command path that still emitted the mode. `ReviewCommandMode` names only review
+          commands again, and the retired orchestrator and host port are deleted.
 
-### `[ ]` **2.4 Wire the `arc merge lock` command group and handlers**
+### `[x]` **2.4 Wire the `arc merge lock` command group and handlers**
 
 - _Goal:_ `arc merge lock <verb> -` accepts a versioned JSON request on stdin and emits exactly one envelope
   per invocation, matching how every sibling review verb is invoked.
@@ -190,38 +190,31 @@ from.
   generic over request and result schemas, so widening the mode is smaller than a second helper and avoids two
   divergent emit paths.
 
-    - `[ ]` **2.4.a Generify the shared handler helper and add the three lock handlers**
-        - Keep them in the existing review handler module: the modules stay under the review-gate tree for the
-          same reason 2.1 gives, and the registrations that module exports are already wired into the
-          composition root. The command namespace moving does not move the code.
+    - `[x]` **2.4.a Generify the shared handler helper and add the three lock handlers**
+        - The shared helper now takes a mode union spanning both families and an error envelope selected per
+          call, defaulting to the review family's. One emit path still serves every verb.
+        - The three handlers live in the existing review handler module, and the two transitions share one
+          internal delegation differing only by mode, result schema, and verb. `readMergeLockSetting` — the
+          strict tri-state reader the 2.1 contract deferred to here — composes into the default port beside
+          the readiness evaluator.
 
-    - `[ ]` **2.4.b `arc merge` command group with the `lock` subgroup**
-        - Register `merge` as a new top-level group whose only child is `lock`; no bare `merge` verb exists,
-          and none should be added here.
+    - `[x]` **2.4.b `arc merge` command group with the `lock` subgroup**
+        - `merge` is a group with `lock` as its only child and no bare verb of its own; the three verbs hang
+          off `lock` and each takes the same JSON request operand. `arc review unlock` no longer resolves.
 
-        - Build `test-first` (one behavior at a time):
-            - Each verb is reachable and accepts `-` for stdin
-            - `arc review unlock` no longer resolves
-
-    - `[ ]` **2.4.c Declare the three commands in the command-input registry**
+    - `[x]` **2.4.c Declare the three commands in the command-input registry**
         - _Goal:_ The repository's command-input inventory reconciles, rather than failing on three
           undeclared operand sites.
-        - Every live operand must carry a matching registration; an inventory test scans the real source tree
-          and asserts the counts line up exactly. Each of the three verbs needs one.
-        - The stdin side is **group-level, not per-verb**: the review family declares a single `explicit-stdin`
-          interaction site at its group path, shared by all fourteen of its verbs, with one matching row in the
-          no-input matrix. The matrix rows and the declared interaction paths are asserted as an exact set, so
-          three declarations would need three matrix rows and three real-process cases. Because 2.4.a keeps the
-          handlers in the existing module reusing its stdin reader, decide which command path owns the
-          declaration and add exactly one row for it.
-        - Follow the existing review-command registrations — same shape, already composed into the composition
-          root.
+        - Three operand registrations, same shape as the review family's and composed through the same export.
+        - No new interaction declaration and no new matrix row: the inventory keys interaction ownership by
+          **source site**, not by command path, and the one `process.stdin` site the lock verbs reuse is
+          already declared under `review`. Declaring it a second time is what the inventory rejects, so the
+          "one row for it" the plan anticipated resolves to the row that already exists.
 
-    - `[ ]` **2.4.d Rekey the handoff-critical rule to the lock verbs**
-        - The rule keys on the **immediate** parent, which for `arc merge lock <verb>` is `lock`, not `merge` —
-          the nested-group precedent beside it keys on `hosted`, itself a child of `review`. Keying on `merge`
-          would silently never match and degrade the guard from refuse to warn.
-        - The rule, its module comment, and the matching assertion move together.
+    - `[x]` **2.4.d Rekey the handoff-critical rule to the lock verbs**
+        - Keyed on `lock`, the immediate parent, with the rule, its module comment, and the assertion moving
+          together. The assertion also pins that the `lock` group itself is not handoff-critical, which is
+          what would silently be true if the key had landed on `merge`.
 
 ### `[ ]` **2.5 Retire and retarget the clearance test surface**
 
@@ -235,22 +228,32 @@ from.
 - _Note:_ Two assertions look in scope and are not: the ones pinning the technical-overview sentence and the
   decompose-workflow absence track documentation the corpus retirement removes, and they move with it.
 
-    - `[ ]` **2.5.a Retarget the unlock unit tests onto the three verbs**
-        - Cover each typed action and each blocked reason, including the new config-unreadable reason.
+    - `[x]` **2.5.a Retarget the unlock unit tests onto the three verbs**
+        - The unlock orchestrator and host-port tests are gone with their subjects; `merge-lock.test.ts` and
+          `hosts/github/merge-lock.test.ts` carry every typed action and every blocked reason, landed with
+          2.1 and 2.2 rather than as a sweep afterwards.
 
     - `[ ]` **2.5.b Rewrite the review-gate workflow flow coverage**
         - The heaviest single excision — the file carries roughly thirty clearance references, including a case
           asserting that clearance is not inherited across heads and that a stale unlock cannot clear its
           replacement. That case has a direct successor under the new contract: a release does not carry across
           a head change. Port the intent rather than deleting it.
+        - _Partially landed:_ the stale-unlock case and its fixture helper are gone, their intent ported to
+          the stale-head block on both transition verbs. The rest of the file's clearance references pin
+          `arc-clearance.yml`, whose subject is still live until Phase 4 retires it — excising them now would
+          drop coverage of a workflow that still runs. Carried to Phase 4.
 
-    - `[ ]` **2.5.c Repoint the CLI-surface and schema-registration assertions**
-        - The review help-text and command-path assertions, the schema-registration mapping, and two exhaustive
-          sorted envelope-ID lists all name the retired mode; the ID lists are order-sensitive.
+    - `[x]` **2.5.c Repoint the CLI-surface and schema-registration assertions**
+        - The malformed-contract cases cover the three lock verbs, the review help text now asserts the
+          retired verb's absence, and a new case proves `arc review unlock` does not resolve. The
+          registration mapping and both sorted ID lists carry the four merge-lock contracts and no longer
+          carry the retired one.
 
-    - `[ ]` **2.5.d Retarget the review handler tests and drop the clearance fixture**
-        - The handler import and describe block move to the lock handlers; the clearance status-history fixture
-          has no consumer once they do.
+    - `[x]` **2.5.d Retarget the review handler tests and drop the clearance fixture**
+        - The describe block became three: the opening disposition, the two transitions, and a case proving
+          each verb emits its **own** error envelope rather than the review family's — the thing
+          parameterizing the emit path could have gotten wrong. The fixture is deleted along with its last
+          consumer.
 
 ## **Phase 3:** Fire-site substitution
 

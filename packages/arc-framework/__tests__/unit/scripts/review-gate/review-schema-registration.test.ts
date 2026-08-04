@@ -92,7 +92,6 @@ const reviewIdentities = [
   "review-suspension-state",
   "review-target",
   "review-target-id-preimage",
-  "review-unlock-envelope",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];
