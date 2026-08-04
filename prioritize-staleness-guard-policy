@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "prioritize-staleness-guard-policy",
+  "claimId": "08a655935240aef83b9958872b12b1f8",
+  "createdAt": "2026-08-04T14:42:28.361Z",
+  "updatedAt": "2026-08-04T14:42:28.361Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Publish the approved routing and priority update under a unique change-request branch identity.",
+  "branch": "chore/prioritize-staleness-guard-policy",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
