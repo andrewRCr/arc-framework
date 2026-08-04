@@ -61,6 +61,23 @@ async function createOpenChangeRequestHarness(): Promise<{ directory: string }> 
   return { directory };
 }
 
+async function createForkOnlyChangeRequestHarness(): Promise<{ directory: string }> {
+  const directory = await mkdtemp(join(tmpdir(), "arc-locus-fork-only-gh-"));
+  const executable = join(directory, "gh");
+  await writeFile(
+    executable,
+    [
+      "#!/bin/sh",
+      "head=$(git rev-parse HEAD) || exit 1",
+      "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+      "printf '\"reviewDecision\":\"\"}]\\n'",
+    ].join("\n"),
+  );
+  await chmod(executable, 0o755);
+  return { directory };
+}
+
 async function readMaterializedMarker(checkoutPath: string): Promise<unknown> {
   return JSON.parse(await readFile(
     join(checkoutPath, ".arc", "system", ".internal", "worktree-marker.json"),
@@ -159,6 +176,51 @@ describe("ordinary Errand promotion", () => {
           subject: { kind: "errand", key: slug, claimId: result.identity.claimId },
         },
       });
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harness.directory);
+      await removeGitBackedDir(hostHarness.directory);
+    }
+  });
+
+  it("refuses an awaiting-merge tail whose head is not preserved on origin", async () => {
+    const remote = await createBareRemote(repository);
+    const harness = await createCodexHarness();
+    const hostHarness = await createForkOnlyChangeRequestHarness();
+    const slug = "fork-only-review";
+    const errandBranch = `chore/${slug}`;
+    try {
+      const hostUrl = "https://github.com/owner/repo.git";
+      await git(repository, ["remote", "set-url", "origin", hostUrl]);
+      await git(repository, ["config", `url.${pathToFileURL(remote).href}.insteadOf`, hostUrl]);
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        {
+          command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare fork-only work"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
+      ], repository, {
+        timeout: 90_000,
+        anchorShellPath: harness.executable,
+        env: {
+          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
+          ARC_TEST_BRANCH: errandBranch,
+        },
+      });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(1);
+      expect(sequence.results).toMatchObject([
+        { outcome: "applied", operation: "errand-open", identity: { state: "open" } },
+        { outcome: "refused", operation: "errand-leave", reason: "preservation-unproven" },
+      ]);
+      const opened = sequence.results[0] as { activeLocusPath: string; recordId: string };
+      expect(await readLocusRecord(repository, opened.recordId)).toMatchObject({
+        checkoutPath: opened.activeLocusPath,
+        role: { subject: { kind: "errand", key: slug } },
+      });
+      expect(JSON.parse(await git(repository, ["show", `refs/arc/user/test-user/errands:${slug}`])))
+        .toMatchObject({ state: "open", branch: errandBranch });
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);

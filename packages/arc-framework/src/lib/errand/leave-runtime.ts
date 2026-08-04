@@ -109,6 +109,10 @@ async function authorizePause(
 ): Promise<LeaveAuthorization> {
   const target = exactOccupancy(state, record);
   if (target.kind !== "found") return target.result;
+  const occupancyEstablishedAt = target.row.lease?.attachedAt;
+  if (occupancyEstablishedAt === undefined) {
+    return { kind: "refused", reason: "record-malformed", message: "Errand occupancy lease is incomplete." };
+  }
   const clean = await cleanExactHead(options.exec, target.row.checkoutPath, record.branch);
   if (clean.kind !== "ready") return clean.result;
   const proof = await provePauseHead(options.exec, {
@@ -124,6 +128,7 @@ async function authorizePause(
   }
   return {
     kind: "authorized",
+    occupancyEstablishedAt,
     transition: {
       kind: "pause",
       previous: record,
@@ -141,8 +146,23 @@ async function authorizeAwaitingMerge(
 ): Promise<LeaveAuthorization> {
   const target = exactOccupancy(state, record);
   if (target.kind !== "found") return target.result;
+  const occupancyEstablishedAt = target.row.lease?.attachedAt;
+  if (occupancyEstablishedAt === undefined) {
+    return { kind: "refused", reason: "record-malformed", message: "Errand occupancy lease is incomplete." };
+  }
   const clean = await cleanExactHead(options.exec, target.row.checkoutPath, record.branch);
   if (clean.kind !== "ready") return clean.result;
+  const proof = await provePauseHead(options.exec, {
+    remote: "origin",
+    branch: record.branch,
+    savedHead: clean.head,
+  });
+  if (proof.kind === "refused") {
+    return { kind: "refused", reason: "preservation-unproven", message: proof.reason };
+  }
+  if (proof.kind === "error") {
+    return { kind: "error", code: `locus.errand-leave.${proof.stage}`, message: proof.message };
+  }
   const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, clean.head);
   if (observed.kind !== "observed") {
     return {
@@ -153,6 +173,7 @@ async function authorizeAwaitingMerge(
   }
   return {
     kind: "authorized",
+    occupancyEstablishedAt,
     transition: {
       kind: "await-merge",
       previous: record,

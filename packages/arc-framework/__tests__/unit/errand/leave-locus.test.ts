@@ -36,6 +36,7 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
+          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -96,6 +97,7 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
+          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -117,6 +119,51 @@ describe("leaveOrdinaryErrand", () => {
     expect(cleanup).not.toHaveBeenCalled();
   });
 
+  it("refuses leave authorization from a stale open occupancy generation", async () => {
+    const resumed = { ...record, updatedAt: "2026-07-18T00:02:00.000Z" };
+    const persist = vi.fn().mockResolvedValue({
+      kind: "applied",
+      value: { ...resumed, state: "paused", savedHead: "a".repeat(40) },
+      tip: "c".repeat(40),
+    });
+    const cleanup = vi.fn().mockResolvedValue({
+      kind: "applied",
+      allocation: { kind: "spawned", checkoutPath: "/repo-locus" },
+      recordId: `sha256:${"d".repeat(64)}`,
+      restoredParent: null,
+    });
+    const result = await leaveOrdinaryErrand({
+      slug: resumed.slug,
+      state: "paused",
+      protection: "full",
+      updatedAt: "2026-07-18T00:03:00.000Z",
+      dependencies: {
+        readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: resumed, tip: "b".repeat(40) }),
+        authorize: vi.fn().mockResolvedValue({
+          kind: "authorized",
+          occupancyEstablishedAt: record.updatedAt,
+          transition: {
+            kind: "pause",
+            previous: resumed,
+            savedHead: "a".repeat(40),
+            evidence: {
+              terminalHead: "a".repeat(40),
+              remoteBranchTip: "a".repeat(40),
+              savedHeadIsAncestor: true,
+            } as PauseHeadEvidence,
+            updatedAt: "2026-07-18T00:03:00.000Z",
+          },
+        }),
+        persist,
+        cleanup,
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
+    expect(persist).not.toHaveBeenCalled();
+    expect(cleanup).not.toHaveBeenCalled();
+  });
+
   it("retains the persisted tail when exact local role cleanup refuses", async () => {
     const paused = { ...record, state: "paused" as const, savedHead: "a".repeat(40),
       updatedAt: "2026-07-18T00:01:00.000Z" };
@@ -129,6 +176,7 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
+          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -229,6 +277,7 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
+          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "await-merge",
             previous: record,
