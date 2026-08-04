@@ -314,7 +314,7 @@ export class DeliveryPlanComposer {
       input.projection,
       integrity.slots,
       input.record.snapshot.source.entry,
-      input.currentWorkUnitId,
+      input.record.snapshot.originalWorkUnitId,
     )) {
       return { status: "refused", reason: "authoring-projection-invalid" };
     }
@@ -395,7 +395,7 @@ function projectionMatchesSlots(
   projection: DeliveryCompositionProjection,
   slots: DeliveryAuthoringSlotsV1,
   entry: "from-tasks" | "from-branch",
-  workUnitId: string,
+  originalWorkUnitId: string,
 ): boolean {
   const { authoring } = projection;
   const authoredSlots = {
@@ -411,7 +411,7 @@ function projectionMatchesSlots(
     })),
     seams: authoring.seams,
   };
-  return authoring.entry === entry && authoring.workUnitId === workUnitId
+  return authoring.entry === entry && authoring.workUnitId === originalWorkUnitId
     && canonicalize(authoredSlots) === canonicalize({
       projection: slots.projection,
       boundary: slots.boundary,

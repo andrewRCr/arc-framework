@@ -238,6 +238,22 @@ describe("delivery plan publication orchestration", () => {
     })).resolves.toEqual({ status: "refused", reason: "authoring-projection-invalid" });
   });
 
+  it("composes a rename-resolved map under its original authored identity", async () => {
+    const value = fixture();
+
+    await expect(composer(
+      new MemoryAuthoringStore(value.record),
+      new MemoryPlanStore(),
+      new MemoryRenderer(),
+    ).compose({
+      ...input(value),
+      currentWorkUnitId: "renamed-delivery-plan-record",
+    })).resolves.toMatchObject({
+      status: "composed",
+      plan: { workUnitId: "delivery-plan-record" },
+    });
+  });
+
   it("returns source advisories after successful publication", async () => {
     const value = fixture();
     const advisory = {
