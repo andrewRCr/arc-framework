@@ -110,4 +110,33 @@ describe("repository delivery authoring store", () => {
     });
     await expect(records.store.enumerate()).resolves.toEqual({ status: "ok", value: [] });
   });
+
+  it("records a candidate receipt and exposes Markdown-first cleanup as separate steps", async () => {
+    const records = await authoringStore();
+    const proposed = snapshot();
+    const candidatePlanDigest = canonicalDigest({ plan: "candidate" });
+    await records.store.create({ snapshot: proposed, markdown: "# Map\n" });
+
+    const receipt = await records.store.recordCandidate(
+      proposed.mapId,
+      proposed,
+      candidatePlanDigest,
+    );
+    expect(receipt).toMatchObject({
+      status: "ok",
+      value: { candidatePlanDigest },
+    });
+    await expect(records.store.deleteMarkdown(proposed.mapId)).resolves.toEqual({
+      status: "ok",
+      value: { removed: true },
+    });
+    await expect(records.store.enumerate()).resolves.toMatchObject({
+      status: "ok",
+      value: [{ snapshot: { candidatePlanDigest }, markdown: null }],
+    });
+    await expect(records.store.deleteSnapshot(proposed.mapId)).resolves.toEqual({
+      status: "ok",
+      value: { removed: true },
+    });
+  });
 });

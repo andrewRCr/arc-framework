@@ -26,7 +26,8 @@ export type DeliveryAuthoringStoreFailure =
   | "authoring-state-exists"
   | "authoring-state-corrupt"
   | "identity-mismatch"
-  | "record-malformed";
+  | "record-malformed"
+  | "version-conflict";
 
 /** Result of one paired authoring-state operation. */
 export type DeliveryAuthoringStoreResult<T> =
@@ -38,6 +39,17 @@ export interface DeliveryAuthoringStore {
   create(pair: DeliveryAuthoringPair): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>>;
   enumerate(): Promise<DeliveryAuthoringStoreResult<readonly DeliveryAuthoringRecord[]>>;
   abandon(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
+}
+
+/** Mutations used by composition's receipt-first, JSON-last publication sequence. */
+export interface DeliveryAuthoringCompositionStore {
+  recordCandidate(
+    mapId: string,
+    expected: DeliveryAuthoringSnapshotV1,
+    candidatePlanDigest: string,
+  ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>>;
+  deleteMarkdown(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
+  deleteSnapshot(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
 }
 
 function recordNames(mapId: string): { readonly json: string; readonly markdown: string } {
@@ -58,7 +70,7 @@ function decodeSnapshot(raw: string, mapId: string): DeliveryAuthoringStoreResul
 }
 
 /** Namespace-locked adapter preserving the JSON/Markdown pair as one logical record. */
-export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore {
+export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore, DeliveryAuthoringCompositionStore {
   constructor(private readonly publisher: GitCommonStateTransactionPublisher) {}
 
   async create(pair: DeliveryAuthoringPair): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringPair>> {
@@ -167,6 +179,80 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore 
             { recordName: names.markdown, kind: "delete" },
             { recordName: names.json, kind: "delete" },
           ],
+          result: { status: "ok", value: { removed } },
+        };
+      },
+    );
+  }
+
+  async recordCandidate(
+    mapId: string,
+    expected: DeliveryAuthoringSnapshotV1,
+    candidatePlanDigest: string,
+  ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>> {
+    const parsedMapId = SlugSchema.safeParse(mapId);
+    if (!parsedMapId.success || expected.mapId !== parsedMapId.data) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+    const names = recordNames(parsedMapId.data);
+    return this.publisher.transact<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>>(
+      AUTHORING_LOCATION,
+      [names.json],
+      (current) => {
+        const raw = current.get(names.json) ?? null;
+        if (raw === null) {
+          return { mutations: [], result: { status: "refused", reason: "version-conflict" } };
+        }
+        const decoded = decodeSnapshot(raw, parsedMapId.data);
+        if (decoded.status === "refused") return { mutations: [], result: decoded };
+        if (canonicalize(decoded.value) !== canonicalize(expected)) {
+          return { mutations: [], result: { status: "refused", reason: "version-conflict" } };
+        }
+        const next = DeliveryAuthoringSnapshotV1Schema.safeParse({
+          ...decoded.value,
+          candidatePlanDigest,
+        });
+        if (!next.success) {
+          return { mutations: [], result: { status: "refused", reason: "record-malformed" } };
+        }
+        return {
+          mutations: [{
+            recordName: names.json,
+            kind: "write",
+            content: `${canonicalize(next.data)}\n`,
+          }],
+          result: { status: "ok", value: next.data },
+        };
+      },
+    );
+  }
+
+  async deleteMarkdown(
+    mapId: string,
+  ): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {
+    return this.deleteRecord(mapId, "markdown");
+  }
+
+  async deleteSnapshot(
+    mapId: string,
+  ): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {
+    return this.deleteRecord(mapId, "json");
+  }
+
+  private async deleteRecord(
+    mapId: string,
+    kind: "json" | "markdown",
+  ): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {
+    const parsedMapId = SlugSchema.safeParse(mapId);
+    if (!parsedMapId.success) return { status: "refused", reason: "identity-mismatch" };
+    const name = recordNames(parsedMapId.data)[kind];
+    return this.publisher.transact<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>(
+      AUTHORING_LOCATION,
+      [name],
+      (current) => {
+        const removed = current.get(name) !== null;
+        return {
+          mutations: [{ recordName: name, kind: "delete" }],
           result: { status: "ok", value: { removed } },
         };
       },
