@@ -13,10 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Finalized `spec-staleness-guard-policy.md` at the `outline` form — the per-command
-  hard-fail taxonomy is replaced by unconditional refusal against the built bundle, with a fast runtime-only
-  rebuild as the remedy; the launcher and rebuild-on-invoke direction is rejected with recorded revisit triggers
-  (2026-08-04).
+- **Last Completed:** Generated `tasks-staleness-guard-policy.md` — 3 substantive phases, 8 parent tasks, folded
+  through two adversarial passes — and activated the work unit onto `fix/staleness-guard-policy` (2026-08-04).
 - **Next Task:** Task 1.1 — Add the runtime-only build path (line ~19)
 - **Blockers:** [none]
 
