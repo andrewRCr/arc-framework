@@ -8,7 +8,7 @@ import {
   type FrontlineOutcomeRecord,
 } from "../../core/advisory-records.js";
 import type { FrontlineOutcomeStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const OUTCOME_STORE_SEMANTICS = "frontline-outcome-store/v1" as const;
@@ -64,7 +64,7 @@ export class LocalFrontlineOutcomeStore implements FrontlineOutcomeStore {
     outcomeRef: string | null;
   }> {
     const name = recordName(operationId);
-    const raw = await this.publisher.read("outcomes", name);
+    const raw = await this.publisher.read({ root: "review-gate", namespace: "outcomes" }, name);
     if (raw === null) return { version: 0, record: null, outcomeRef: null };
     const stored = parseRecord(raw, operationId);
     return {
@@ -80,14 +80,14 @@ export class LocalFrontlineOutcomeStore implements FrontlineOutcomeStore {
   ): Promise<{ version: number; outcomeRef: string }> {
     const canonicalRecord = FrontlineOutcomeRecordSchema.parse(record);
     const name = recordName(canonicalRecord.operationId);
-    return this.publisher.update("outcomes", name, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "outcomes" }, name, (raw) => {
       if (raw !== null) {
         const current = parseRecord(raw, canonicalRecord.operationId);
         if (canonicalize(current.record) !== canonicalize(canonicalRecord)) {
           throw new LocalFrontlineOutcomeStoreError("conflicting-replay");
         }
         return {
-          content: null,
+          kind: "keep",
           result: {
             version: current.version,
             outcomeRef: outcomeRef(name, current.version),
@@ -103,6 +103,7 @@ export class LocalFrontlineOutcomeStore implements FrontlineOutcomeStore {
         record: canonicalRecord,
       });
       return {
+        kind: "write",
         content: `${JSON.stringify(stored)}\n`,
         result: {
           version: stored.version,

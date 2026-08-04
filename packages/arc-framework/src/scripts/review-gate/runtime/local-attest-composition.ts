@@ -1,8 +1,8 @@
 /** Production adapters for the local review attestation command. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import {
-  RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
   withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";

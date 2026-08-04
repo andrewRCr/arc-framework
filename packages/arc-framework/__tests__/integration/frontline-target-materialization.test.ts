@@ -10,6 +10,8 @@ import {
 } from "../../src/scripts/review-gate/hosts/local/frontline-materialization.js";
 import {
   RepositoryGitCommonStatePublisher,
+} from "../../src/lib/git-common-state.js";
+import {
   resolveRepositoryIdentity,
 } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
