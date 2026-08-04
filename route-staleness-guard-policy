@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-staleness-guard-policy",
+  "claimId": "db15705bf2d7e1c911c57b8c5d1cdd8a",
+  "createdAt": "2026-08-04T14:07:48.532Z",
+  "updatedAt": "2026-08-04T14:07:48.532Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the stale CLI bootstrap finding into its existing work unit and elevate the committed concern.",
+  "branch": "chore/route-staleness-guard-policy",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
