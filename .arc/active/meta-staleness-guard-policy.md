@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Promoted to planned priority after the stale-CLI bootstrap failure was reproduced as a
   policy-authority gap rather than an npm-wrapper parser defect (2026-08-04).
 - **Next Task:** [none]
