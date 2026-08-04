@@ -60,6 +60,7 @@ import { readLocusState } from "../lib/locus/reader.js";
 import { readPrimarySafety } from "../lib/locus/primary-safety.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
+import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import {
   closeOrdinaryErrandAtRuntime,
   readCloseIdentityAtRuntime,
@@ -90,7 +91,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 type ErrandPushLabel = "Record" | "Record-link" | "Record-removal";
-type ErrandHandlerOperation = "errand-open" | "errand-close" | "errand-abandon" | "errand-promote";
+type ErrandHandlerOperation = "errand-open" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
 type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
 
 async function runErrandHandlerBoundary(
@@ -690,6 +691,107 @@ function emitErrandLinkFailure(
     operation: "errand-link",
     reason,
     recommendedPromptText: message,
+  }), json);
+}
+
+/** Options for the `arc errand leave` subcommand. */
+export interface ErrandLeaveOptions {
+  /** Durable identity tail to retain after local occupancy closes. */
+  state: string;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
+}
+
+/** Validated input for leaving an Errand. */
+export const ErrandLeaveInputSchema = z.object({
+  slug: SlugSchema,
+  state: z.enum(["paused", "awaiting-merge"]),
+  json: z.boolean().optional(),
+}).strict();
+
+/** Preserve an exact Errand head or change request, then close its local occupancy. */
+export async function handleErrandLeave(
+  slug: string,
+  opts: ErrandLeaveOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand leave");
+  const parsed = ErrandLeaveInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    emitErrandLeaveFailure("locus.errand-leave.input", z.prettifyError(parsed.error), opts.json === true);
+    return;
+  }
+  await runErrandHandlerBoundary(
+    "errand-leave",
+    opts.json === true,
+    emitErrandLeaveResult,
+    "Inspect the preserved identity tail and local session locus residue before retrying.",
+    async () => {
+      const cwd = requireArcProjectRoot();
+      if (!cwd) return;
+      const { settings } = await readConfigSettings(cwd);
+      const protection = settings["branch.protection"];
+      if (protection !== "full" && protection !== "partial") {
+        emitErrandLeaveFailure("locus.errand-leave.config", `Unsupported branch.protection value '${protection}'.`, opts.json === true);
+        return;
+      }
+      const identity = await resolveIdentityWithPrompt(false);
+      if (!identity) {
+        emitErrandLeaveFailure("locus.errand-leave.identity", "No identity resolved — set arc.identity before leaving an Errand.", opts.json === true);
+        return;
+      }
+      const io = createUserIOContext(context?.subprocess);
+      if (!io.execInput) {
+        emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
+        return;
+      }
+      const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+        cwd,
+        identity: SlugSchema.parse(identity),
+        exec: io.exec,
+      })).identityGlobalRoot;
+      const result = await leaveOrdinaryErrandAtRuntime({
+        slug: parsed.data.slug,
+        state: parsed.data.state,
+        protection,
+        base: settings["branch.base"],
+        updatedAt: new Date().toISOString(),
+        identity,
+        identityGlobalUserDir,
+        postCreateScript: settings["worktree.post_create"],
+        registeredHarnessDirs: settings["worktree.harness_dirs"],
+        exec: io.exec,
+        execInput: io.execInput,
+      });
+      emitErrandLeaveResult(result, opts.json === true);
+    },
+  );
+}
+
+export function formatErrandLeaveResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandLeaveResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandLeaveResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
+    p.outro("Done.");
+  }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitErrandLeaveFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
+  emitErrandLeaveResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-leave",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
   }), json);
 }
 

@@ -17,21 +17,20 @@ modules' substrate import surface is signature-stable on current `main` (`locus/
 drift in the locus record store and close path rather than API reshaping — each ported file is still re-derived
 against `main`, honoring the leave/close ordering contract as the base now implements it.
 
-### `[ ]` **1.1 Port the leave composition and runtime** (leave + per-state-proof decisions; SC 1, 3)
+### `[x]` **1.1 Port the leave composition and runtime** (leave + per-state-proof decisions; SC 1, 3)
 
 - _Goal:_ `arc errand leave <slug> --state paused|awaiting-merge` persists the departing state and its exact
   head, then closes the local locus — primary returned to base or spawned worktree torn down — without retiring
   identity; local work that completes while cleanup fails surfaces as recoverable residue, never rewritten.
 
-    - `[ ]` **1.1.a Port `lib/errand/leave.ts`** (165 lines at the tag)
-        - Recoverable leave composition: read identity → authorize → persist transition → cleanup, with
-          refusal/error vocabulary from `locus/schema`
+    - `[x]` **1.1.a Port `lib/errand/leave.ts`** (165 lines at the tag)
+        - Ported the recoverable read → authorize → persist → cleanup composition with current locus result
+          vocabulary.
 
-    - `[ ]` **1.1.b Port `lib/errand/leave-cleanup.ts`** (72 lines at the tag)
-        - `closeLeaveOccupancy` — the occupancy-close half of the leave/close ordering contract; consumes
-          `leave.ts` result types and `locked-generation.ts`
+    - `[x]` **1.1.b Port `lib/errand/leave-cleanup.ts`** (72 lines at the tag)
+        - Ported exact-generation validation, checkout preservation, and role-pop sequencing under the locus lock.
 
-    - `[ ]` **1.1.c Port `lib/errand/leave-runtime.ts`** (491 lines at the tag), re-derived against the current
+    - `[x]` **1.1.c Port `lib/errand/leave-runtime.ts`** (491 lines at the tag), re-derived against the current
       substrate
         - Per-state proof before the locus closes: `paused` requires the WIP head committed and pushed —
           `savedHead` equals the terminal branch head and is a proven ancestor of the fetched remote tip
@@ -44,20 +43,21 @@ against `main`, honoring the leave/close ordering contract as the base now imple
           it in `change-request-lifecycle.ts` (where `close-runtime.ts` imports it) — drop the local definition
           and import from the new home; do not land a duplicate export on that seam
 
-    - `[ ]` **1.1.d Confirm transition arms compose without edits**
-        - `identity-transitions.ts` already carries the `pause` / `await-merge` arms and their refusal
-          vocabulary; this task consumes them unchanged (spec scope boundary: producer, not owner)
+    - `[x]` **1.1.d Confirm transition arms compose without edits**
+        - Confirmed the existing `pause` / `await-merge` transforms compose unchanged with the leave producer.
 
-### `[ ]` **1.2 Wire the handler, CLI registration, and exports**
+- _Outcome:_ Leave now proves and persists the exact paused or awaiting-merge identity tail before closing its
+  exact local occupancy, while reusing the centralized change-request observer on current `main`.
+
+### `[x]` **1.2 Wire the handler, CLI registration, and exports**
 
 - _Goal:_ The verb is reachable: `errand leave <slug>` registers with required `--state <paused|awaiting-merge>`
   and `--json`, dispatches through `handleErrandLeave`, and the leave modules export through `lib/errand/index.ts`.
 
-- _Note:_ `handlers/errand.ts` drifted heavily since the carve — port the origin handler's shape onto the
-  current handler conventions rather than diffing it in. Refusal messaging records a departure and never
-  suggests promotion (`arc errand promote` owns that judgment).
+- _Outcome:_ Added validated `errand leave` handler wiring, required state selection, CLI registration, and
+  barrel exports without introducing promotion judgment.
 
-### `[ ]` **1.3 Adapt the dedicated leave unit tests**
+### `[x]` **1.3 Adapt the dedicated leave unit tests**
 
 - _Goal:_ The ported leave surface carries its inherited proof — `__tests__/unit/errand/leave-locus.test.ts`
   (260 lines at the tag) lands adapted to the current substrate, and the

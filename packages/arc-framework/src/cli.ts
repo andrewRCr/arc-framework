@@ -22,12 +22,14 @@ import {
   handleErrandCheck,
   handleErrandOpen,
   handleErrandLink,
+  handleErrandLeave,
   handleErrandClose,
   handleErrandAbandon,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
+  type ErrandLeaveOptions,
   type ErrandCloseOptions,
   type ErrandAbandonOptions,
   type ErrandPromoteOptions,
@@ -530,6 +532,16 @@ errand
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+  ));
+
+errand
+  .command("leave <slug>")
+  .description("Preserve an Errand tail and close its local occupancy")
+  .requiredOption("--state <state>", "Tail state: paused | awaiting-merge")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
   ));
 
 errand
