@@ -162,10 +162,11 @@ at 27.4k insertions across 146 files with its implementation phases only partly 
 
 Both blocked work units therefore run their cut manually, and those runs become this work unit's missing input:
 
-- `session-locus-model` has already authored a thirteen-slice stack-to-`main` cut in its own task list. The cut
-  follows the module import graph — acyclic across 72 new modules — into concern-coherent slices; each branch
-  targets its predecessor and the host retargets to the base as each merges; the seam inventory and ordering proof
-  are recorded alongside. That is this contract's stack projection, executed by hand and in full.
+- `session-locus-model` completed a rolling stack-to-`main` delivery of 21 delivery and corrective members before
+  bespoke closeout. It began from a thirteen-slice module-graph cut, then added a planning baseline,
+  control-isolation bridge, split slice, and corrective members as field conditions demanded. Each successor cut
+  from the landed base; the seam inventory and ordering proof remain recorded alongside. That is this contract's
+  stack projection, executed by hand and in full.
 - `decompose-transform-integrity` cuts along task-scoped commit ranges at a completed phase boundary, before further
   implementation interleaves the ranges. Its measured candidate stack is uneven — planning plus the first phase at
   roughly 16.2k changed lines over 20 commits, the second at 6.9k over 11, the third at 11.5k over 15 — and carving
@@ -220,16 +221,14 @@ the base once. Two host facts also condition the comparison and belong in the ad
 the plan: whether the host permits a merge method that preserves commit identity across the series, and whether its
 required checks bind to the exact head such that a retarget without a head change can carry a stale verdict.
 
-**Field-evidence status (2026-07-30).** `decompose-transform-integrity` shipped its full stack — seven delivery
-slices plus the terminal merge — so its half of the input is complete and reconstruction-only from here.
-`session-locus-model` has landed three of thirteen slices and remains in flight. Against the four harvest points
-above: the rewrite cascade and the mid-series base-advance cost are both answered, the second measured from the
-bystander side as well as the cutting side; the seam-owner derivation can be checked now against
-`session-locus-model`'s up-front seam inventory, which does not depend on its slices landing; and the
-manual-procedure judgment points accrue per slice and have already repeated. Formalization therefore does not wait
-on the remaining ten slices. What would still change the design is a structurally new event rather than another
-instance — a rewrite cascade that breaks plan-ordered membership, a stack abandoned mid-series, or a host merge
-method that silently breaks commit identity. Those are a watch list, not a gate.
+**Field-evidence status (2026-08-04).** `decompose-transform-integrity` shipped seven delivery slices plus its
+terminal merge, and `session-locus-model` shipped 21 rolling delivery and corrective members before bespoke
+closeout. Both inputs are complete and reconstruction-only. The runs answer all four harvest points: plan-ordered
+membership survived the rewrite cascade; mid-series base advancement carried measurable cutting and bystander
+cost; seam ownership matched successor-held boundaries; and the manual procedure repeated the same judgment
+points across members. What would still change the design is a structurally new event rather than another instance
+— a rewrite cascade that breaks plan-ordered membership, a stack abandoned mid-series, or a host merge method that
+silently breaks commit identity. Those are a watch list, not a gate.
 
 **Bystander cost is a distinct axis.** The harvest points above are all cutting-WU cost. A partially-landed stack
 also imposes a cost on every concurrent work unit that merges the base, and none of it is visible from the cutting
@@ -288,13 +287,13 @@ worktree-scoped, developer-scoped, or every unit — which governs what active w
 stacked or not. State the constraint here and let the storage and local-mode design satisfy it: **a delivery member
 must not perturb another work unit's session resolution.**
 
-**Session position mid-delivery — recorded, but not resolvable, and not yet handoff-safe.** The delivery ref itself
-is durable: the state contract already carries one plan-ordered entry per deliverable with its ref and
-change-request handles, its last exact base / head / tree observation, and the owning repository and work-unit
-identity, held in a store with version-checked publication rather than as a tracked tree file. That is the right
-shape and it survives the storage tier change untouched. Three things it does not yet supply:
+**Session position mid-delivery — recorded, but not resolvable, and not yet handoff-safe.** The delivery binding is
+durable: the assignment record carries each deliverable's ref and change-request handles plus its owning repository
+and work-unit identity, while the observation record carries the last exact base / head / tree / membership facts.
+Both publish with version checks outside the tracked change set. That is the right shape and it survives the storage
+tier change untouched. Three things it does not yet supply:
 
-- **The reverse lookup.** The record maps a plan to its members and their refs; a session occupying a member ref
+- **The reverse lookup.** The binding maps a plan to its members and their refs; a session occupying a member ref
   needs the inverse — this head resolves to which plan, which member, which parent unit — and needs it _before_ it
   knows which plan to read. No query or index is specified for that direction. Note this is a lookup in an
   authoritative binding, not an inference from branch naming, so it does not reintroduce the identity coupling the
@@ -340,11 +339,11 @@ earlier review confer authority on a later slice. This is the sharpest open inpu
 decides whether review admission is a member of the first cohort or a hard predecessor to it.
 
 **Settled — segment refinement is the authoring default, never an invariant.** `plan-segmentation` models a task
-plan as ordered segments, each carrying a mode that states what its boundary closes on. Because every
-implementation leaf occurs in exactly one member in task-inventory order, membership is induced by task order, so
-segmentation is an input to delivery authoring rather than a competing annotation. The question is whether a member
-must lie within one segment — only promoted chunks carry delivery identity, so this is a constraint on members, not
-on review-only partitions.
+plan as ordered segments, each carrying a mode that states what its boundary closes on. Task-derived authoring may
+mechanically refine those segments, while retrofit membership remains at-least-once and member order comes from the
+authored member array rather than task order. Segmentation is therefore an input to delivery authoring, not a
+competing annotation. The question is whether a member must lie within one segment — only promoted chunks carry
+delivery identity, so this is a constraint on members, not on review-only partitions.
 
 It must not be an invariant, and the first hand-run is what decides it. A horizontal substrate segment followed by
 a vertical slice segment is exactly the shape whose seam sometimes has to be spanned for a member to leave the base
