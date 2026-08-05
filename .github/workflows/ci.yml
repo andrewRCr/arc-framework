@@ -7,7 +7,16 @@ on:
     branches: [main]
     # labeled/unlabeled re-run classify so adding/removing `ci-defer-heavy`
     # updates the merge signal without an artificial push.
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    #
+    # `ready_for_review` is deliberately absent. Draft pull requests already run
+    # this workflow on `opened` and `synchronize`, so the flip re-tests a head
+    # that is already green and changes no content. Under `merge.lock: draft`
+    # every merge performs that flip, so listening to it would put the required
+    # check back in flight at the moment the merge needs it — the release cannot
+    # complete until a run it caused finishes. Projects that gate CI behind
+    # non-draft status need the opposite choice and must not adopt this one
+    # unchanged.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       run_portability_pair:
@@ -28,11 +37,15 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded work within the same event/ref lane. Push and pull_request
-# runs do not cancel each other; duplicate push runs skip downstream jobs after
-# classification when an open PR already owns the same branch head.
+# Cancel superseded work for the same ref. The group deliberately omits the
+# event name: a label toggle and a push against one pull request are the same
+# lane of work, and keying on the event let them run concurrently, paying twice
+# to test one head. Push and pull_request runs still never cancel each other,
+# because a branch ref and a pull-request merge ref are different groups.
+# Duplicate push runs skip downstream jobs after classification when an open PR
+# already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -328,6 +341,7 @@ jobs:
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
+        fetch-depth: 0
         persist-credentials: false
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:

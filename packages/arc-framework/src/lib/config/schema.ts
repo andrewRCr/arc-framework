@@ -219,6 +219,7 @@ export const ARC_CONFIG_FIELDS = [
   stringField("commit.custom_pattern", PatternSourceSchema, "", "unset", "pattern"),
   stringField("commit.context_pattern", PatternSourceSchema, "", "unset", "pattern"),
   enumField("merge.strategy", ["merge", "rebase", "squash"], "merge"),
+  enumField("merge.lock", ["draft", "none"], "none"),
   enumField("hooks.pre_commit", ["enabled", "disabled"], "enabled"),
   enumField("hooks.commit_msg", ["enabled", "disabled"], "enabled"),
   enumField("hooks.pre_push", ["enabled", "disabled"], "enabled"),
