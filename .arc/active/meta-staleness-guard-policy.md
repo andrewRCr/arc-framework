@@ -18,8 +18,7 @@
 - **Next Task:** Task 3.1 — Point the compaction repair at the fast script (line ~139)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — retarget the repo-local Codex hook's repair command in `.codex/hooks.json`
-  at `build:fast`
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

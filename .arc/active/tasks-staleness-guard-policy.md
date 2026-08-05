@@ -191,40 +191,62 @@ it then is.
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 run whole — markdown lint, the three ARC contract checks, code lint, shell lint, both
+  type checks, the full suite at 9,564 passed / 1 skipped, build verification, and change review. All passed.
+
+- _Success criteria:_ 13 criteria, all met. Refusal was re-confirmed live against a stale bundle for the
+  commit-message validator and every quick-read the spec named (`log standalone`, `health`, `diff`, `status`) —
+  each exits 1 with the refusal rather than warning. Observed cost pair, warm and same-session: `build:fast`
+  1.10s against `build` 10.65s.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` No risk-based classification of commands remains in the guard, and `handoff-critical.ts` and its unit
+- `[x]` No risk-based classification of commands remains in the guard, and `handoff-critical.ts` and its unit
   test are gone
+    - Both files deleted; no surviving reference to either under `src/` or `__tests__/`.
 
-- `[ ]` A stale build refuses every command reaching the guard, including read-only quick-reads and the
+- `[x]` A stale build refuses every command reaching the guard, including read-only quick-reads and the
   commit-message validator the repository's own hook execs
+    - Re-confirmed live against a stale bundle: `check commit-msg`, `log standalone`, `health`, `diff`, and
+      `status` each exit 1 with the refusal. The only `warn:` path left in the guard is the seed exemption below.
 
-- `[ ]` Invoking the CLI from source rather than the built bundle produces no staleness verdict at all
+- `[x]` Invoking the CLI from source rather than the built bundle produces no staleness verdict at all
+    - `isBuiltBundleEntry` gates the check; the config-validate integration cases that spawn from source assert
+      clean stderr.
 
-- `[ ]` The compaction-seed write is the sole exception: it proceeds against a stale build and still emits the
+- `[x]` The compaction-seed write is the sole exception: it proceeds against a stale build and still emits the
   stale-build message
+    - Pinned end to end, and independently re-demonstrated at Task 3.1: the compaction hook drove its repair off
+      that message, which it could only match if the message still emits.
 
-- `[ ]` `build:fast` exists at both the package and the repository root and costs a small fraction of the full
+- `[x]` `build:fast` exists at both the package and the repository root and costs a small fraction of the full
   build — record the observed pair
+    - Observed warm, same session: **1.10s** against **10.65s** wall clock — a tenth of the full build.
 
-- `[ ]` Running that script against a stale tree turns the verdict fresh and leaves the output directory carrying
+- `[x]` Running that script against a stale tree turns the verdict fresh and leaves the output directory carrying
   a regenerated content-hash stamp, metafile, and kernel schema artifact
+    - All four of `cli.js`, `dev-build-stamp.json`, `metafile-esm.json`, and `schemas/kernel.json` carry the fast
+      run's timestamp, and the verdict returns fresh.
 
-- `[ ]` A check fails if the fast path stops regenerating the metafile while still writing the stamp
+- `[x]` A check fails if the fast path stops regenerating the metafile while still writing the stamp
+    - `build-config.test.ts` asserts `metafile` on the derived options directly, and separately that they diverge
+      from the base in `dts` alone — so a silently dropped key fails too.
 
-- `[ ]` The refusal message and the repository's hook configuration both name `build:fast`
+- `[x]` The refusal message and the repository's hook configuration both name `build:fast`
 
-- `[ ]` The quick reference and linked-worktree provisioning reach `build:fast` rather than the full build, with
+- `[x]` The quick reference and linked-worktree provisioning reach `build:fast` rather than the full build, with
   no packaged or adopter-facing surface changed
+    - The packaged quick-reference template carries no building section or build reference, and the provisioning
+      script has no packaged counterpart.
 
-- `[ ]` The compaction-seed repair-and-retry path still works end to end against a stale build
+- `[x]` The compaction-seed repair-and-retry path still works end to end against a stale build
 
-- `[ ]` `CONTRIBUTING.md` describes the guard as it then is — no warn tier, no enumerated command set
+- `[x]` `CONTRIBUTING.md` describes the guard as it then is — no warn tier, no enumerated command set
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
