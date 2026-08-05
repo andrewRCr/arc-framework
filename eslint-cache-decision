@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "eslint-cache-decision",
+  "claimId": "ee7446cd094d766191e52f7ef1b5d43e",
+  "createdAt": "2026-08-05T00:30:33.456Z",
+  "updatedAt": "2026-08-05T00:30:33.456Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Decide whether the pre-commit TypeScript lint should carry eslint --cache",
+  "branch": "chore/eslint-cache-decision",
+  "origin": "inbox",
+  "originEntry": "Decide whether the pre-commit TypeScript lint should carry `eslint --cache`",
+  "originEntrySourceDigest": "sha256:4d707255ea50a0240230ba2606a2732435c2a866f22bcfc686f818b3a8ad5cab",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
