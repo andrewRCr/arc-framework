@@ -44,6 +44,16 @@ import {
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import {
+  handleDeliveryCompose,
+  handleDeliveryPlanAbandon,
+  handleDeliveryPlanFromBranch,
+  handleDeliveryPlanFromTasks,
+  type DeliveryComposeOptions,
+  type DeliveryPlanAbandonOptions,
+  type DeliveryPlanFromBranchOptions,
+  type DeliveryPlanFromTasksOptions,
+} from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -647,6 +657,54 @@ plan
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+  ));
+
+const delivery = program
+  .command("delivery")
+  .description("Author, compose, and manage delivery plans");
+
+delivery
+  .command("compose")
+  .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--json", "Emit the typed composition result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryComposeOptions) => handleDeliveryCompose(opts, context),
+  ));
+
+const deliveryPlan = delivery
+  .command("plan")
+  .description("Create or abandon transient delivery-plan authoring state");
+
+deliveryPlan
+  .command("from-tasks")
+  .description("Create a delivery authoring map from the active task list")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+  ));
+
+deliveryPlan
+  .command("from-branch")
+  .description("Create a delivery authoring map from a branch contribution")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--base <commit-ish>", "Selected base line (defaults to the configured base)")
+  .option("--head <commit-ish>", "Branch head (defaults to HEAD)")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromBranchOptions) => handleDeliveryPlanFromBranch(opts, context),
+  ));
+
+deliveryPlan
+  .command("abandon")
+  .description("Delete the outstanding authoring map idempotently")
+  .option("--json", "Emit the typed abandonment result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
   ));
 
 // --- Lifecycle ---

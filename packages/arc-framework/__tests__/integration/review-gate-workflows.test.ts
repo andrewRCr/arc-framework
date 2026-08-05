@@ -92,6 +92,22 @@ describe("trusted review-gate workflows", () => {
     expect(classifierIndex).toBeGreaterThan(setupNodeIndex);
   });
 
+  it("gives recorded integration field runs complete repository history", async () => {
+    const workflow = await read("ci.yml");
+    const integrationSteps = jobValue(workflow, "integration").steps;
+    expect(Array.isArray(integrationSteps)).toBe(true);
+
+    const checkout = (integrationSteps as Array<Record<string, unknown>>).find(
+      (step) => typeof step.uses === "string" && step.uses.startsWith("actions/checkout@"),
+    );
+    expect(checkout).toMatchObject({
+      with: {
+        "fetch-depth": 0,
+        "persist-credentials": false,
+      },
+    });
+  });
+
   it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
     const workflow = await read("ci.yml");
     const portability = jobValue(workflow, "portability");

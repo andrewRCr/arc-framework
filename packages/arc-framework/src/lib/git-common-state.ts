@@ -65,6 +65,34 @@ export interface GitCommonStatePublisher {
   snapshot(location: GitCommonStateLocation): Promise<readonly GitCommonStateSnapshotEntry[]>;
 }
 
+/** One mutation inside a namespace-locked multi-record transaction. */
+export type GitCommonStateTransactionMutation =
+  | { readonly recordName: string; readonly kind: "write"; readonly content: string }
+  | { readonly recordName: string; readonly kind: "delete" };
+
+/** Result and mutations selected while all named records are read under one namespace lock. */
+export interface GitCommonStateTransaction<T> {
+  readonly mutations: readonly GitCommonStateTransactionMutation[];
+  readonly result: T;
+}
+
+/** Publisher extension for state whose integrity spans more than one record. */
+export interface GitCommonStateTransactionPublisher extends GitCommonStatePublisher {
+  transact<T>(
+    location: GitCommonStateLocation,
+    recordNames: readonly string[],
+    transaction: (
+      current: ReadonlyMap<string, string | null>,
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T>;
+  transactSnapshot<T>(
+    location: GitCommonStateLocation,
+    transaction: (
+      current: readonly GitCommonStateSnapshotEntry[],
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T>;
+}
+
 function parseAddress(location: unknown, recordName: string): GitCommonStateLocation {
   const parsed = GitCommonStateLocationSchema.parse(location);
   const extension = parsed.root === "delivery" && parsed.namespace === "authoring"
@@ -153,6 +181,98 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
           await this.removeFile(join(root, recordName));
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      }
+      return next.result;
+    } finally {
+      await releaseAdvisoryLock(lock);
+    }
+  }
+
+  async transact<T>(
+    location: GitCommonStateLocation,
+    recordNames: readonly string[],
+    transaction: (
+      current: ReadonlyMap<string, string | null>,
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T> {
+    const address = GitCommonStateLocationSchema.parse(location);
+    if (recordNames.length === 0 || new Set(recordNames).size !== recordNames.length) {
+      throw new Error("Git common state transaction names must be non-empty and distinct");
+    }
+    for (const recordName of recordNames) parseAddress(address, recordName);
+
+    const root = await this.namespaceRoot(address);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
+    try {
+      const current = new Map<string, string | null>();
+      for (const recordName of recordNames) {
+        try {
+          current.set(recordName, await readFile(join(root, recordName), "utf8"));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          current.set(recordName, null);
+        }
+      }
+
+      const next = await transaction(current);
+      const mutated = new Set<string>();
+      for (const mutation of next.mutations) {
+        if (!current.has(mutation.recordName) || mutated.has(mutation.recordName)) {
+          throw new Error("Git common state transaction mutated an undeclared or duplicate record");
+        }
+        mutated.add(mutation.recordName);
+        if (mutation.kind === "write") {
+          await this.writeFile(join(root, mutation.recordName), mutation.content);
+        } else {
+          try {
+            await this.removeFile(join(root, mutation.recordName));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+        }
+      }
+      return next.result;
+    } finally {
+      await releaseAdvisoryLock(lock);
+    }
+  }
+
+  async transactSnapshot<T>(
+    location: GitCommonStateLocation,
+    transaction: (
+      current: readonly GitCommonStateSnapshotEntry[],
+    ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
+  ): Promise<T> {
+    const address = GitCommonStateLocationSchema.parse(location);
+    const root = await this.namespaceRoot(address);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
+    try {
+      const directoryEntries = (await readdir(root, { withFileTypes: true }))
+        .filter((entry) => !entry.name.startsWith("."));
+      const current = await Promise.all(directoryEntries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
+        entry.isFile()
+          ? { name: entry.name, kind: "file", content: await readFile(join(root, entry.name), "utf8") }
+          : { name: entry.name, kind: "other" }
+      )));
+      const next = await transaction(current);
+      const mutated = new Set<string>();
+      for (const mutation of next.mutations) {
+        parseAddress(address, mutation.recordName);
+        if (mutated.has(mutation.recordName)) {
+          throw new Error("Git common state transaction mutated a duplicate record");
+        }
+        mutated.add(mutation.recordName);
+        if (mutation.kind === "write") {
+          await this.writeFile(join(root, mutation.recordName), mutation.content);
+        } else {
+          try {
+            await this.removeFile(join(root, mutation.recordName));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
         }
       }
       return next.result;
