@@ -7,10 +7,9 @@
 - **Purpose:** Contain locus faults to the loci they belong to, and settle what an ARC session persists — by
   retiring the durable record-and-lease substrate and deriving checkout roles from the state that already carries
   them, rather than by hardening the substrate.
-- **State:** Draft — `maturing`, re-founded, at the readiness boundary. The direction, retention set, deletion
-  inventory, sibling boundaries, all four derivation-spec shapes, and the three mechanism successors are
-  settled and recorded in ADR-033; what remains is the delivery cut (OQ3, a spec-time call) and the readiness
-  assessment.
+- **State:** Draft — `formalization-ready`, re-founded, adversarially reviewed. The direction, retention set,
+  deletion inventory, sibling boundaries, all four derivation-spec shapes, and the mechanism successors are
+  settled and recorded in ADR-033; the delivery cut (OQ3) rides to spec time by design.
 - **Created:** 2026-08-04 · **Re-scoped:** 2026-08-05
 
 ---
@@ -150,12 +149,15 @@ transients from work units; only the blast radius assessed did, and the census r
 ### 4. Ending a claim requires confirmation, not proof
 
 The prior draft's Q4 settlement, generalized into the replacement for every self-held gate: **keeping work alive
-proceeds; ending it confirms.** Exits that release, close, abandon, or remove — for any role — route through
-operator confirmation scoped to the named subject, because identity proof is exactly what a sandboxed session
-cannot supply and the operator can. The confirmation carries information (which subject, what evidence, what will
-be destroyed); it is not the always-granted click-through Q1 rejected, because it guards only terminal acts and is
-paid once per exit. Concurrency protection for the one durable multi-writer surface stays where it already is: the
-identity ref's version-checked transaction refuses a raced write.
+proceeds; ending it confirms.** An exit that releases, closes, abandons, or removes — for any role — routes
+through operator confirmation scoped to the named subject **when it cannot establish authority from its own
+checkout**, because identity proof is exactly what a sandboxed session cannot supply and the operator can. An exit
+standing in the subject's own checkout is self-authorizing: cwd identity is strictly stronger than the `selfHeld`
+read it replaces, so the common case does not prompt. The confirmation carries information (which subject, what
+evidence, what will be destroyed); it is not the always-granted click-through Q1 rejected, because it guards only
+the foreign arm of a terminal act and is paid once per exit. Concurrency protection for the one durable
+multi-writer surface stays where it already is: the identity ref's version-checked transaction refuses a raced
+write.
 
 ### 5. The advisory surfaces inherit the diet
 
@@ -178,11 +180,22 @@ per-behavior shapes below. Each behavior's spec section states its failure polic
 derivation inputs that cannot be read degrade toward the non-destructive reading, and no derivation failure
 anywhere authorizes cleanup.
 
+**Two surfaces the traces did not reach**, found by the 2026-08-05 adversarial pass and carried here so the spec
+traces them rather than inheriting the omission: the **cleanup sweeps** (stale-worktree and orphan-branch), whose
+occupancy veto is lease-derived and sits on destructive offers — the disposition is in § Deletion inventory and
+§ What this costs — and **`arc rename`**, whose record-lock rekey sequences a physical `git worktree move` and
+carries the only path rebase in the system. Both are consumers of the retiring substrate on paths the
+four behaviors above do not cover; neither changes the direction, and both resolve subtractively.
+
 ### The unified transient-occupancy marker
 
 Two independently-found gaps are the same gap. The partial-protection errand's only durable state is the record
-row (no identity arm, no marker — markers exist only on spawned worktrees, and marker _absence_ is today the
-primary's proof of freedom). And the warm primary-occupancy errand (full protection, free primary, parent WU in a
+row (no identity arm, no marker — markers exist only on spawned worktrees). Today the primary's proof of freedom
+is _record_ absence, not marker absence: the roster emits `free-primary` for a checkout no record claims, and a
+present marker is merely required to agree rather than being disqualifying. Marker-absence-as-proof is therefore
+a **new rule this design introduces**, not a re-key of an existing one — stated plainly because the difference is
+invisible in the polarity sentence below and a spec author would otherwise inherit it as a rename. And the warm
+primary-occupancy errand (full protection, free primary, parent WU in a
 linked worktree) also writes no marker, so a marker-carried parent link would strand exactly that case — the
 handoff trace's carrier verdict.
 
@@ -193,9 +206,15 @@ fields: `parentCheckoutPath` (the warm leave/return link) and, for the partial-e
 binding the record row used to carry. This is the OQ2 settlement, and the carrier argument is structural rather
 than preferential: the parent link is a machine-local absolute path, the identity ref is synced state — a
 machine-local path does not belong on a record that leaves the machine — and the traces established the link's
-required lifetime is exactly the occupancy's, which is the marker's lifetime by construction. On the primary the
-exit verbs remove the marker where they restore the base; a crashed session leaves a stale marker, which is the
-staleness-advisory case with confirmation-gated cleanup, not a new residue class. Costs, named: the close path's
+required lifetime is exactly the occupancy's, which is the marker's lifetime by construction. Lifetime is not path
+stability, though: `arc rename` moves a checkout _within_ an occupancy, and today's carrier has an explicit rebase
+(`rename-locus.ts` rewrites the lease's `sessionHomePath`) that a marker field does not inherit — rebasing a
+sibling's marker would take a cross-checkout sweep, machinery this design will not add. Settled by failure
+direction instead: a parent path that no longer resolves degrades warm return to _parent not found, return to
+base_, per the standing rule that a derivation input which cannot be read degrades toward the non-destructive
+reading. On the primary the exit verbs remove the marker where they restore the base, and promote removes it where
+it does not (§ Behavior 2); a crashed session leaves a stale marker, which is the staleness-advisory case with
+confirmation-gated cleanup, not a new residue class. Costs, named: the close path's
 marker-absence checks re-key to the single polarity, and the two-source parent cross-check (`parentCheckoutPath`
 vs `sessionHomePath`) collapses to one source — it discriminated one refusal shape, accepted under the
 single-operator posture.
@@ -217,7 +236,7 @@ unique capability — it is today the only caller that can pass `confirmedNoLive
 CLI hardwires `false` — moves to the errand verbs themselves as the Design-center-4 confirmation flag; the
 plumbing already exists.
 
-### Behavior 2 — errand exits (traced; four spec items remain)
+### Behavior 2 — errand exits (traced; mechanical spec items remain)
 
 Most of close/abandon/leave already runs on surviving sources, verbatim: the idempotent terminal-replay
 property, the identity state-machine refusals, branch-preservation proofs, the `hasExactInFlightIdentity` gates,
@@ -232,15 +251,31 @@ transaction, with the narrowed residual accepted under the single-operator postu
 named so it is not folded into "leases": close's roster-wide `HEAD.lock` receipts (keyed `{slug, claimId}`,
 swept on identity read) are durable local state that survives unchanged. Promote is the one exit that does not
 release its checkout — it rewrites the role in place — and the spec must model it as a conversion, not an exit.
-Two successors settled 2026-08-05 (maintainer's call, recommendation-confirmed): the marker conversion gains a
-`promotedFrom {slug, claimId}` field — promote keeps the idempotent terminal replay every other exit has, for
-one field's cost on a marker the conversion already rewrites — and promote's two-phase inbox-capture staging
-relocates to the same converted marker (same lifetime, same write). `leave`'s occupancy-generation binding
-(`lease.attachedAt === identity.updatedAt`) is deliberately removed rather than replaced: it guarded
-within-claim re-attachment, a state that no longer exists once attach is deleted, and the marker↔identity
-`claimId` match remains the generation binding. What the spec still authors mechanically: the reshaped
-exit-result vocabulary (`recordId`/`leaseId`/`sessionHomePath` fields and `run-errand.md`'s consumption of
-them).
+`leave`'s occupancy-generation binding (`lease.attachedAt === identity.updatedAt`) is deliberately removed rather
+than replaced: it guarded within-claim re-attachment, a state that no longer exists once attach is deleted, and
+the marker↔identity `claimId` match remains the generation binding. What the spec still authors mechanically: the
+reshaped exit-result vocabulary (`recordId`/`leaseId`/`sessionHomePath` fields and `run-errand.md`'s consumption
+of them).
+
+Promote's carrier question re-opened and re-settled 2026-08-05 after the adversarial pass: the two successors
+recorded earlier that day — `promotedFrom {slug, claimId}` on the converted marker, and relocating the two-phase
+inbox-capture staging to that same marker — are **retired as unnecessary rather than replaced**. Both assumed the
+marker is the only surviving carrier, and both broke on the primary, where promote converts an occupancy it never
+releases and no verb removes the marker (only spawn rollback does). Three pieces of state ride the conversion
+today, all on the record role being deleted: `promotionSource` (idempotent replay) and `originEntry` +
+`originEntrySourceDigest` (phase one of the inbox settlement, whose phase two clears the capture's
+`execute-bound` mark). They relocate to **the identity record's own lifecycle, with removal as the commit**:
+promote does not remove the identity record until the inbox settlement succeeds, so the record's existing origin
+fields _are_ the staging and its removal _is_ the terminal transition. This adds no state, no field, and no
+schema change — the ordinary identity schema carries exactly `open` / `paused` / `awaiting-merge` and no terminal
+state, because terminal exits already work by record removal, so promote simply behaves like every other exit.
+The marker consequently carries no promotion field at all: on the primary promote **removes** the transient
+marker; on a spawned worktree it converts, preserving spawn provenance (`spawnedByArc`, `spawningIdentity`,
+`createdAt`) and dropping the transient-only `parentCheckoutPath` and `originEntry`. The asymmetry is principled
+rather than ad hoc — the marker does two jobs, transient-occupancy claim and spawn provenance; promote ends the
+first, and only a spawned checkout has the second. Residual for the spec: ordering, so an `open` identity record
+coexisting with a work-unit meta at one checkout during the settlement window cannot confuse the marker/meta
+derivation.
 
 ### Behavior 3 — handoff (settled shape)
 
@@ -289,7 +324,18 @@ Removed with the substrate (the spec turns this inventory into an exact file/sym
   session-init prose that dispatches on unreachable states;
 - `classifyLeaseAuthority`, previously retained as a building block for a design that no longer needs it;
 - the `arc locus attach` / `release` / `resolve` verbs (the read-only roster view survives), the handoff plan's
-  `leaseId` payload and its `arc locus release` emission, and session-init's attach-and-re-probe arm;
+  `leaseId` payload and its `arc locus release` emission, and session-init's attach-and-re-probe arm — plus the
+  second attach surface the first trace missed: `arc reconcile --attach-session` and its `attachSession`
+  plumbing, whose entire body mints the role and attaches the lease;
+- the lease-derived occupancy veto over the cleanup sweeps — `locusOccupancyAtPath` and the `locusState`
+  parameter whose in-tree invariant exists so no caller reaches a removable decision without it. Its two sibling
+  helpers (`locusOwnsBranch`, `locusWorkUnitAtPath`) are **not** deletions: both re-key onto the derived roster,
+  since a checkout's marker and meta answer branch ownership and work-unit identity directly;
+- `rename-locus.ts` in full — the record-lock rekey transaction that today also sequences the physical
+  `git worktree move` and rebases the lease's `sessionHomePath`. The spec states the disposition of its five
+  refusal reasons rather than letting them lapse: two are lease-derived and leave with leases; `roster-changed`,
+  `generation-changed`, and `role-conflict` are guards on the move, whose successor is the marker generation
+  check the move already performs;
 - the handoff/recovery self-consistency asserts that compare two projections of one read (generation-freshness,
   session-home tautologies, the duplicate-record guard);
 - dead code the traces surfaced: `close --force` (refused unconditionally for v3 yet still a declared CLI option,
@@ -313,6 +359,12 @@ and regenerated, no aliases, no migration readers; published envelope slots chan
 - **An ordinary session is still not silent when this ships.** The non-locus advisory majority is untouched;
   `operational-advisory-registers` owns it. Unchanged from the prior draft, restated so the re-scope does not
   silently claim it.
+- **The cleanup sweeps lose their occupancy veto.** The stale-worktree and orphan-branch sweeps today suppress a
+  removal offer when a live lease occupies the checkout, and fall back to manual when occupancy cannot be
+  verified. That veto is lease-derived end to end, so it has no successor and needs none: the offers are advisory
+  and confirmation-gated, `git worktree remove` refuses a dirty tree on its own, and the surviving predicates
+  (shipped, clean, exact head, merged, marker match) are the guard set that actually protects the operation.
+  Named here rather than left to evaporate silently, which is how it would otherwise go.
 - **The seed loses its same-checkout session discrimination.** The compaction hint can no longer distinguish two
   sessions at one checkout with one role (§ Behavior 4). Accepted deliberately — the guarded case is
   operator-scheduled, and harness session-keyed recovery markers cover it.
@@ -377,14 +429,17 @@ layer exist") — the two questions this draft's audit history answered in oppos
 ## Success conditions
 
 1. An unrelated checkout's state — degraded, stale, mid-lifecycle, or absent — cannot stop a session's entry,
-   recovery, or exit. Demonstrated structurally: the paths those operations read contain no repository-wide
-   aggregation.
+   recovery, or exit. Demonstrated structurally: entry and discovery still read the roster and every checkout's
+   marker and meta, but no repository-wide read can produce a **stop** — the stop-producing derivations
+   (`current`, `recovery`, `reconciliation`, and every `lease-*` gate) are exactly the ones deleted, and a
+   degraded sibling degrades to a row diagnostic rather than a refusal.
 2. A session that cannot prove its process identity is fully operable: enter, work, hand off, recover, and exit
    through in-model verbs, with no state to hand-edit. The common case does not prompt.
 3. Correct lifecycle completion reads as success. Shipping, parking, archiving, and husk removal produce no
    corruption-vocabulary diagnostics and no orphaned durable state — there is no durable state to orphan.
 4. Every destructive path retains its full git-fact guard set, demonstrated rather than asserted, and every
-   claim-ending exit routes through subject-scoped operator confirmation.
+   claim-ending exit that cannot establish authority from its own checkout routes through subject-scoped
+   operator confirmation.
 5. Role derivation is specified per consumer and keys on marker + meta + identity ref, with branch as
    corroboration only; every derivation failure degrades toward the non-destructive reading. Fixtures cover: a
    shipped subject (retired), a parked subject, a mid-transient warm parent, a marker/meta disagreement, an
@@ -392,9 +447,10 @@ layer exist") — the two questions this draft's audit history answered in oppos
    free primary from a linked-worktree parent.
 6. Handoff and compaction recovery resolve their frames from the session's own checkout derivation, covering the
    warm-transient parent case, and recovery completes while any other checkout carries arbitrary state.
-7. The deletion is complete: no caller-less exports, no unreachable workflow prose, no unread envelope fields
-   remain from the retired substrate — verified mechanically (dead-export sweep + envelope-consumer trace), not
-   by assertion.
+7. The deletion is complete: no caller-less exports, no unreachable workflow prose, no unread envelope fields,
+   and no declared CLI option whose body deleted remain from the retired substrate — verified mechanically
+   (dead-export sweep + envelope-consumer trace + a declared-option-carries-a-body check, which neither of the
+   first two instruments can catch), not by assertion.
 8. The locus-triggered advisory sections satisfy the two doctrinal cuts, and net line pressure on
    `session-init.md` is negative.
 9. The retention boundary has a mechanical carrier: the derivation sources are enumerated in one typed surface,
@@ -404,8 +460,10 @@ layer exist") — the two questions this draft's audit history answered in oppos
 
 OQ1 (the four derivation traces), OQ2 (the parent-link carrier — settled by the unified transient-occupancy
 marker), OQ4 (the fate of `arc locus` — read-only roster survives, mutation verbs delete), and the three
-mechanism successors OQ5–OQ7 (seed discrimination accepted as a named cost; marker `promotedFrom`; `leave`
-binding deliberately removed) all resolved 2026-08-05; their content lives in § The derivation specs. Remaining:
+mechanism successors OQ5–OQ7 (seed discrimination accepted as a named cost; promote's carrier; `leave`
+binding deliberately removed) all resolved 2026-08-05; their content lives in § The derivation specs. OQ6
+re-opened and re-settled the same day after the adversarial pass — `promotedFrom` and staging-on-marker retired
+in favor of removal-as-commit on the identity record (§ Behavior 2). Remaining:
 
 - **OQ3 — delivery shape.** A removal this size still does not land as one review surface. Candidate cut, now
   informed by the traces: the unified marker + derivation reader + probe reshape first (additive), verb
@@ -414,12 +472,12 @@ binding deliberately removed) all resolved 2026-08-05; their content lives in §
 
 ## Continuity
 
-**Readiness: `maturing`, at the boundary.** The direction, retention set, deletion inventory, boundaries, and
+**Readiness: `formalization-ready`.** The direction, retention set, deletion inventory, boundaries, and
 forward-compat posture were settled with the maintainer 2026-08-05; the four derivation traces ran the same day,
-their shapes are folded into § The derivation specs, the three mechanism successors were settled on maintainer
-confirmation the same session, and ADR-033 records the retirement decision (with ADR-032 annotated forward).
-What separates this draft from formalization-ready is OQ3 — deliberately a spec-time call — and the readiness
-assessment itself. No open question touches the direction.
+their shapes are folded into § The derivation specs, the mechanism successors were settled on maintainer
+confirmation the same session, and ADR-033 records the retirement decision (with ADR-032 annotated forward). One
+adversarial pass then ran against the derivation-consumer coverage and closed (below). OQ3 rides to spec time by
+design. No open question touches the direction.
 
 **Traced 2026-08-05 — the four behaviors, consumer-first.** Three instrumented traces enumerated every
 record/lease read across session-init/probe, the errand exit verbs, handoff, and compaction recovery, with the
@@ -431,6 +489,19 @@ be self-consistency asserts between projections of one read, which drop without 
 information loss anywhere in the retirement was isolated to the seed's `leaseId` discrimination (OQ5). The
 confirmation mechanism Design center 4 needs already exists in-tree (`--confirm-no-live-session`) and is merely
 unreachable from the errand verbs — the change is plumbing, not invention.
+
+**Adversarial pass, 2026-08-05 — one pass, aimed at derivation-consumer coverage, closed.** Its rubric carried an
+explicit anti-accretion constraint: a finding proposing new machinery had to name the failure it prevents, ground
+it in a code path, and show no surviving surface already covers it. Six findings, all verified against source by
+the primary, all disposed subtractively; every load-bearing source-claim the draft carries forward from the
+vanished traces was independently re-verified and held. What it changed: the exit-confirmation rule was stated
+three incompatible ways and diverged from ADR-033 (now the ADR's conditional form, so the common case does not
+prompt); the sweeps' lease-derived occupancy veto and `arc rename`'s rekey were untraced consumers (now
+inventoried with their costs named); SC1 asserted a structural property the code cannot supply (now the narrower
+stop-scope claim it actually has); and promote's carrier re-settled onto the identity record. One finding was
+narrowed on verification — `locusOwnsBranch` and `locusWorkUnitAtPath` re-key onto the derived roster rather than
+dying with the store, so only the veto is a genuine loss. The two retired successors are the pass's clearest
+result: the pressure ran toward _less_ state, not a replacement mechanism.
 
 **What the re-founding superseded, named so nothing is lost silently:** the four-deliverable hardening shape
 (R/A/B/C) and its three seams; the named containment relation and the stop-versus-proposal split; the
