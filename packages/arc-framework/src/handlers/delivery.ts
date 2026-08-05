@@ -11,10 +11,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import {
-  DeliveryPlanComposer,
-  validateDeliveryCompositionCoverage,
-} from "../lib/delivery/compose.js";
+import { DeliveryPlanComposer } from "../lib/delivery/compose.js";
 import type { BoundDesignInventory } from "../lib/delivery/design-inventory.js";
 import {
   prepareDeliveryFromBranchAuthoring,
@@ -26,24 +23,31 @@ import {
   revalidateDeliveryFromTasksPhaseFacts,
   resolveDeliveryFromTasksProjection,
 } from "../lib/delivery/from-tasks.js";
-import {
-  DeliveryPlanV1Codec,
-  validateDeliveryPlanRecord,
-} from "../lib/delivery/plan.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   DeliveryAuthoringManager,
   resolveExistingDeliveryAuthoringMap,
 } from "../lib/delivery/authoring-resolution.js";
 import { validateDeliveryAuthoringMap } from "../lib/delivery/authoring-map.js";
 import { RepositoryDeliveryAuthoringStore } from "../lib/delivery/authoring-store.js";
-import { RepositoryDeliveryPlanStore } from "../lib/delivery/local-stores.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../lib/delivery/local-stores.js";
 import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "../lib/delivery/plan-resolution.js";
-import type { DeliveryPlanV1 } from "../lib/delivery/schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  type DeliveryPlanV1,
+} from "../lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { assertCanonicalDigest, canonicalize } from "../lib/kernel/index.js";
+import {
+  assertCanonicalDigest,
+  canonicalize,
+  type CanonicalDigest,
+} from "../lib/kernel/index.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -63,7 +67,10 @@ const DeliveryPlanFromBranchInputSchema = z.strictObject({
   head: z.string().trim().min(1).optional(),
   json: z.boolean().optional(),
 });
-const DeliveryComposeInputSchema = z.strictObject({ json: z.boolean().optional() });
+const DeliveryComposeInputSchema = z.strictObject({
+  landedPrefix: z.string().trim().min(1).optional(),
+  json: z.boolean().optional(),
+});
 const DeliveryPlanAbandonInputSchema = z.strictObject({ json: z.boolean().optional() });
 const FromTasksSourceInputsSchema = z.strictObject({ taskListPath: z.string().min(1) });
 const FromBranchSourceInputsSchema = z.strictObject({
@@ -82,7 +89,10 @@ export interface DeliveryPlanFromBranchOptions {
   readonly head?: string;
   readonly json?: boolean;
 }
-export interface DeliveryComposeOptions { readonly json?: boolean }
+export interface DeliveryComposeOptions {
+  readonly landedPrefix?: string;
+  readonly json?: boolean;
+}
 export interface DeliveryPlanAbandonOptions { readonly json?: boolean }
 
 /** Command-input schema owned by the value-taking task-list authoring command. */
@@ -108,7 +118,10 @@ export const deliveryCommandInputRegistrations = [
   {
     commandPath: "delivery compose",
     schema: DeliveryComposeInputSchema,
-    schemaFields: { "option.json": "json" },
+    schemaFields: {
+      "option.landed-prefix": "landedPrefix",
+      "option.json": "json",
+    },
   },
   {
     commandPath: "delivery plan abandon",
@@ -203,7 +216,34 @@ export const deliveryCommandInputPolicyDeclarations = [
       }),
     ],
   },
-  deliveryJsonPolicy("delivery compose"),
+  {
+    commandPath: "delivery compose",
+    aliases: [],
+    sites: [
+      declareCliOptionSite("landed-prefix", {
+        acquisition: "required-evidence",
+        schemaOwnership: "owned",
+        schemaField: "landedPrefix",
+        cancellation: "stop",
+        automation: {
+          noInput: "require-explicit",
+          flags: ["--landed-prefix <json>"],
+          acceptedSyntax: ["--landed-prefix '<json-array>'"],
+        },
+        mutationBoundary: "bound delivery-plan amendment classification",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("json", {
+        acquisition: "machine-mode",
+        schemaOwnership: "owned",
+        schemaField: "json",
+        cancellation: "not-applicable",
+        automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+        mutationBoundary: "output selection",
+        subprocess: "none",
+      }),
+    ],
+  },
   deliveryJsonPolicy("delivery plan abandon"),
 ] as const satisfies readonly CommandInputDeclaration[];
 
@@ -225,7 +265,11 @@ function deliveryJsonPolicy(commandPath: string): CommandInputDeclaration {
 
 type DeliveryCommandResult =
   | { readonly status: "ok"; readonly value: unknown }
-  | { readonly status: "refused"; readonly reason: string };
+  | { readonly status: "refused"; readonly reason: string }
+  | {
+    readonly status: "replacement-required";
+    readonly affectedDeliverableIds: readonly CanonicalDigest[];
+  };
 
 /** Build and persist one task-list-derived starter map after all file input validates. */
 export async function handleDeliveryPlanFromTasks(
@@ -381,6 +425,14 @@ export async function handleDeliveryCompose(
     });
     return;
   }
+  const landedDeliverableIds = parseLandedPrefixOption(parsed.data.landedPrefix);
+  if (landedDeliverableIds === "invalid") {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    return;
+  }
   const context = await resolveDeliveryContext(interaction);
   if (context.status === "refused") {
     emit("delivery compose", parsed.data.json === true, context);
@@ -406,26 +458,32 @@ export async function handleDeliveryCompose(
     });
     return;
   }
+  const sourceInputs = resolution.record.snapshot.source.entry === "from-tasks"
+    ? FromTasksSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs)
+    : FromBranchSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs);
+  if (!sourceInputs.success) {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "authoring-state-corrupt",
+    });
+    return;
+  }
+  const taskListPath = resolveRepositoryPath(context.cwd, sourceInputs.data.taskListPath);
+  if (taskListPath === null) {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "task-list-path-invalid",
+    });
+    return;
+  }
+  const composer = new DeliveryPlanComposer({
+    authoringStore: context.authoringStore,
+    planStore: context.planStore,
+    stateStore: context.stateStore,
+    renderer: new RepositoryDeliveryTaskListRenderer(context.cwd, taskListPath),
+    transitionSource: context.transitionSource,
+  });
   if (resolution.record.markdown === null) {
-    const receipt = resolution.record.snapshot.candidatePlanDigest;
-    const projectionReceipt = resolution.record.snapshot.candidateProjectionDigest;
-    const current = await context.planStore.readCurrent(resolution.record.snapshot.planId);
-    if (receipt === null || projectionReceipt === null
-      || current.status === "refused" || current.value?.planDigest !== receipt) {
-      emit("delivery compose", parsed.data.json === true, {
-        status: "refused",
-        reason: "authoring-state-corrupt",
-      });
-      return;
-    }
-    const plan = validateDeliveryPlanRecord(current.value);
-    if (plan.status === "refused" || plan.plan.entry !== resolution.record.snapshot.source.entry) {
-      emit("delivery compose", parsed.data.json === true, {
-        status: "refused",
-        reason: "authoring-state-corrupt",
-      });
-      return;
-    }
     const sourceAdvisories = resolution.record.snapshot.source.entry === "from-branch"
       ? resolveDeliveryFromBranchSourceAdvisories(resolution.record.snapshot)
       : { status: "resolved" as const, advisories: [] };
@@ -433,31 +491,20 @@ export async function handleDeliveryCompose(
       emit("delivery compose", parsed.data.json === true, sourceAdvisories);
       return;
     }
-    const coverage = validateDeliveryCompositionCoverage({
-      entry: plan.plan.entry,
-      implementationTaskIds: plan.plan.tasks.implementation.map(({ taskId }) => taskId),
-      verificationTaskId: plan.plan.tasks.verificationTaskId,
-      members: plan.plan.members.map((member) => ({
-        chunkKey: member.chunkKey,
-        taskIds: member.taskIds,
-      })),
+    const recovery = await composer.recover({
+      record: resolution.record,
+      currentWorkUnitId: context.workUnitId,
+      authority: context.authority,
+      sourceAdvisories: sourceAdvisories.advisories,
     });
-    if (coverage.status === "refused") {
-      emit("delivery compose", parsed.data.json === true, {
-        status: "refused",
-        reason: "authoring-state-corrupt",
-      });
-      return;
-    }
-    const cleanup = await context.authoringStore.deleteSnapshot(resolution.record.snapshot.mapId);
-    emit("delivery compose", parsed.data.json === true, cleanup.status === "refused"
-      ? cleanup
+    emit("delivery compose", parsed.data.json === true, recovery.status !== "composed"
+      ? recovery
       : {
         status: "ok",
         value: {
-          planDigest: receipt,
+          planDigest: recovery.plan.planDigest,
           recoveredCleanup: true,
-          advisories: [...sourceAdvisories.advisories, ...coverage.advisories],
+          advisories: recovery.advisories,
         },
       });
     return;
@@ -481,24 +528,6 @@ export async function handleDeliveryCompose(
     });
   if (projection.status === "refused") {
     emit("delivery compose", parsed.data.json === true, projection);
-    return;
-  }
-  const sourceInputs = resolution.record.snapshot.source.entry === "from-tasks"
-    ? FromTasksSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs)
-    : FromBranchSourceInputsSchema.safeParse(resolution.record.snapshot.source.inputs);
-  if (!sourceInputs.success) {
-    emit("delivery compose", parsed.data.json === true, {
-      status: "refused",
-      reason: "authoring-state-corrupt",
-    });
-    return;
-  }
-  const taskListPath = resolveRepositoryPath(context.cwd, sourceInputs.data.taskListPath);
-  if (taskListPath === null) {
-    emit("delivery compose", parsed.data.json === true, {
-      status: "refused",
-      reason: "task-list-path-invalid",
-    });
     return;
   }
   let taskListContent: string;
@@ -536,12 +565,6 @@ export async function handleDeliveryCompose(
       return;
     }
   }
-  const composer = new DeliveryPlanComposer({
-    authoringStore: context.authoringStore,
-    planStore: context.planStore,
-    renderer: new RepositoryDeliveryTaskListRenderer(context.cwd, taskListPath),
-    transitionSource: context.transitionSource,
-  });
   const composition = await composer.compose({
     record: resolution.record,
     currentWorkUnitId: context.workUnitId,
@@ -549,8 +572,9 @@ export async function handleDeliveryCompose(
     projection: projection.projection,
     taskInventory: currentTaskInventory.inventory,
     designInventory: designInventoryFromSnapshot(resolution.record.snapshot.design),
+    landedDeliverableIds,
   });
-  emit("delivery compose", parsed.data.json === true, composition.status === "refused"
+  emit("delivery compose", parsed.data.json === true, composition.status !== "composed"
     ? composition
     : {
       status: "ok",
@@ -612,8 +636,24 @@ async function resolveDeliveryContext(interaction?: InteractionContext) {
     authority,
     authoringStore: new RepositoryDeliveryAuthoringStore(publisher),
     planStore: new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec),
+    stateStore: new RepositoryDeliveryStateStore(publisher),
     transitionSource: new GitDeliveryRenameTransitionSource(exec),
   };
+}
+
+function parseLandedPrefixOption(value: string | undefined): readonly CanonicalDigest[] | null | "invalid" {
+  if (value === undefined) return null;
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(value);
+  } catch {
+    return "invalid";
+  }
+  const parsed = z.array(DeliveryCanonicalDigestSchema).safeParse(decoded);
+  return parsed.success ? parsed.data.map((deliverableId) => {
+    assertCanonicalDigest(deliverableId);
+    return deliverableId;
+  }) : "invalid";
 }
 
 async function resolveAuthoringPlanIdentity(
@@ -731,8 +771,12 @@ function emit(command: string, json: boolean, result: DeliveryCommandResult): vo
     process.stdout.write(`${JSON.stringify({ schemaVersion: 1, command, ...result })}\n`);
   } else if (result.status === "ok") {
     process.stdout.write(`${command}: ok\n`);
+  } else if (result.status === "replacement-required") {
+    process.stderr.write(
+      `${command} requires replacement: ${result.affectedDeliverableIds.join(", ")}\n`,
+    );
   } else {
     process.stderr.write(`${command} refused: ${result.reason}\n`);
   }
-  if (result.status === "refused") process.exitCode = 1;
+  if (result.status !== "ok") process.exitCode = 1;
 }

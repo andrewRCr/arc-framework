@@ -137,3 +137,66 @@ export function constructInitialDeliveryState(
   if (!parsedState.success) return { status: "refused", reason: "binding-invalid" };
   return { status: "constructed", state: parsedState.data };
 }
+
+/** Closed failures while carrying accepted mutable bindings onto a successor plan. */
+export type RebindDeliveryStateFailure =
+  | "state-invalid"
+  | "plan-invalid"
+  | "plan-identity-mismatch"
+  | "subject-mismatch"
+  | "operation-active"
+  | "bound-member-missing";
+
+/** Result of projecting preserved current bindings into one accepted successor plan. */
+export type RebindDeliveryStateResult =
+  | { readonly status: "rebound"; readonly state: DeliveryStateV1 }
+  | { readonly status: "refused"; readonly reason: RebindDeliveryStateFailure };
+
+/**
+ * Rebind current mutable state to a classified successor without copying intent into state.
+ *
+ * @param state - Exact receipt-pinned state value to carry forward.
+ * @param candidate - Accepted successor plan that becomes the new binding authority.
+ * @returns Candidate-ordered state with existing bindings preserved by deliverable identity.
+ */
+export function rebindDeliveryStateToPlan(
+  state: unknown,
+  candidate: DeliveryPlanV1,
+): RebindDeliveryStateResult {
+  const parsedState = DeliveryStateV1Schema.safeParse(state);
+  if (!parsedState.success) return { status: "refused", reason: "state-invalid" };
+  if (validateDeliveryPlanRecord(candidate).status === "refused") {
+    return { status: "refused", reason: "plan-invalid" };
+  }
+  if (parsedState.data.planId !== candidate.planId) {
+    return { status: "refused", reason: "plan-identity-mismatch" };
+  }
+  if (parsedState.data.workUnitId !== candidate.workUnitId) {
+    return { status: "refused", reason: "subject-mismatch" };
+  }
+  if (parsedState.data.activeOperation !== null) {
+    return { status: "refused", reason: "operation-active" };
+  }
+
+  const candidateIds = new Set(candidate.members.map((member) => member.deliverableId));
+  if (parsedState.data.members.some((member) => !candidateIds.has(member.deliverableId)
+    && (member.ref !== null || member.changeRequest !== null || member.coordinates !== null))) {
+    return { status: "refused", reason: "bound-member-missing" };
+  }
+  const currentMembers = new Map(parsedState.data.members.map((member) => [member.deliverableId, member]));
+  const rebound = DeliveryStateV1Schema.safeParse({
+    ...parsedState.data,
+    boundPlan: {
+      planRevision: candidate.planRevision,
+      planDigest: candidate.planDigest,
+    },
+    members: candidate.members.map((member) => currentMembers.get(member.deliverableId) ?? {
+      deliverableId: member.deliverableId,
+      ref: null,
+      changeRequest: null,
+      coordinates: null,
+    }),
+  });
+  if (!rebound.success) return { status: "refused", reason: "state-invalid" };
+  return { status: "rebound", state: rebound.data };
+}

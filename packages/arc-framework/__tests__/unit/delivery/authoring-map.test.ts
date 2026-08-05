@@ -61,9 +61,15 @@ describe("delivery authoring map", () => {
     const proposed = snapshot();
     const markdown = renderDeliveryAuthoringMap(proposed);
     const parsed = parseDeliveryAuthoringMap(markdown);
-    const { candidatePlanDigest, candidateProjectionDigest, ...expectedMachine } = proposed;
+    const {
+      candidatePlanDigest,
+      candidateProjectionDigest,
+      candidateOutcome,
+      ...expectedMachine
+    } = proposed;
     void candidatePlanDigest;
     void candidateProjectionDigest;
+    void candidateOutcome;
 
     expect(parsed.status).toBe("parsed");
     if (parsed.status !== "parsed") throw new Error("expected parsed map");

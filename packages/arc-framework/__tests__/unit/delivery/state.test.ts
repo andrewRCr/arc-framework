@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
 } from "../../../src/lib/delivery/schema.js";
 import {
   constructInitialDeliveryState,
   DeliveryStateV1Codec,
+  rebindDeliveryStateToPlan,
   validateDeliveryStateAgainstPlan,
 } from "../../../src/lib/delivery/state.js";
+import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
 
@@ -155,5 +158,39 @@ describe("delivery state binding and plan coherence", () => {
       ...initial.state,
       members: [...initial.state.members].reverse(),
     }, current)).toEqual({ status: "refused", reason: "member-sequence-mismatch" });
+  });
+
+  it("rebinds preserved member coordinates to an accepted successor revision", () => {
+    const current = deliveryPlanFixture();
+    const initial = constructInitialDeliveryState(current, {
+      kind: "pushed-ref",
+      deliverableId: current.members[0]!.deliverableId,
+      ref: "refs/heads/delivery-first",
+      coordinates: { base: head, head, tree },
+    });
+    if (initial.status !== "constructed") throw new Error("fixture state must construct");
+    const preimage = {
+      ...current,
+      planRevision: 2,
+      previousPlanDigest: current.planDigest,
+    };
+    const successor = DeliveryPlanV1Schema.parse({
+      ...preimage,
+      planDigest: deriveDeliveryPlanDigest(preimage),
+    });
+
+    const rebound = rebindDeliveryStateToPlan(initial.state, successor);
+    expect(rebound).toMatchObject({
+      status: "rebound",
+      state: {
+        boundPlan: { planRevision: 2, planDigest: successor.planDigest },
+        members: [{
+          deliverableId: current.members[0]!.deliverableId,
+          ref: "refs/heads/delivery-first",
+        }, { deliverableId: current.members[1]!.deliverableId, ref: null }],
+      },
+    });
+    if (rebound.status !== "rebound") return;
+    expect(validateDeliveryStateAgainstPlan(rebound.state, successor).status).toBe("valid");
   });
 });

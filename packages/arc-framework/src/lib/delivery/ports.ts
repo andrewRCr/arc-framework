@@ -39,30 +39,6 @@ export type DeliveryStateStoreFailure =
   | "ambiguous-match"
   | "namespace-corrupt";
 
-/** Closed failures admitted by assignment storage and reverse lookup. */
-export type DeliveryAssignmentStoreFailure =
-  | "record-malformed"
-  | "identity-mismatch"
-  | "version-conflict"
-  | "ambiguous-match"
-  | "namespace-corrupt";
-
-/** Closed failures admitted by the regenerable observation port. */
-export type DeliveryObservationStoreFailure =
-  | "record-malformed"
-  | "identity-mismatch"
-  | "version-conflict"
-  | "namespace-corrupt";
-
-/** Closed failures admitted by append-only assurance storage. */
-export type DeliveryAssuranceStoreFailure =
-  | "record-malformed"
-  | "identity-mismatch"
-  | "predecessor-conflict"
-  | "chain-invalid"
-  | "import-nonempty"
-  | "namespace-corrupt";
-
 /** One mutable delivery-record snapshot and its compare-and-swap revision. */
 export interface DeliveryRevisionedRecord<T> {
   readonly revision: number;
@@ -80,33 +56,12 @@ export interface DeliveryOwningUnitPointer {
   readonly planId: string;
 }
 
-/** One authoritative assignment match for a member checkout. */
-export interface DeliveryMemberResolution<TAssignment> {
-  readonly planId: string;
-  readonly deliverableId: CanonicalDigest;
-  readonly workUnitId: string;
-  readonly assignment: TAssignment;
-}
-
 /** One authoritative state match for a member checkout. */
 export interface DeliveryStateMemberResolution<TState> {
   readonly planId: string;
   readonly deliverableId: CanonicalDigest;
   readonly workUnitId: string;
   readonly state: TState;
-}
-
-/** One predecessor-chained assurance entry. */
-export interface DeliveryAssuranceChainEntry<TAssurance> {
-  readonly predecessorDigest: CanonicalDigest | null;
-  readonly entryDigest: CanonicalDigest;
-  readonly value: TAssurance;
-}
-
-/** Complete verified assurance history for one plan. */
-export interface DeliveryAssuranceChain<TAssurance> {
-  readonly entries: readonly DeliveryAssuranceChainEntry<TAssurance>[];
-  readonly tailDigest: CanonicalDigest | null;
 }
 
 /** Immutable-current plan storage with digest-checked replacement and canonical enumeration. */
@@ -136,51 +91,4 @@ export interface DeliveryStateStore<TState> {
     readonly selector: DeliveryMemberSelector;
     readonly owningUnit?: DeliveryOwningUnitPointer;
   }): Promise<DeliveryStoreResult<DeliveryStateMemberResolution<TState> | null, DeliveryStateStoreFailure>>;
-}
-
-/** Revision-checked assignment storage and authoritative member reverse lookup. */
-export interface DeliveryAssignmentStore<TAssignment> {
-  read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment> | null, DeliveryAssignmentStoreFailure>>;
-  publish(
-    planId: string,
-    value: TAssignment,
-    expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment>, DeliveryAssignmentStoreFailure>>;
-  resolveMember(input: {
-    readonly selector: DeliveryMemberSelector;
-    readonly owningUnit?: DeliveryOwningUnitPointer;
-  }): Promise<DeliveryStoreResult<DeliveryMemberResolution<TAssignment> | null, DeliveryAssignmentStoreFailure>>;
-}
-
-/** Revision-checked storage for regenerable host observations. */
-export interface DeliveryObservationStore<TObservation> {
-  read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation> | null, DeliveryObservationStoreFailure>>;
-  publish(
-    planId: string,
-    value: TObservation,
-    expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation>, DeliveryObservationStoreFailure>>;
-}
-
-/** Append-only assurance storage with complete-chain carry-over. */
-export interface DeliveryAssuranceStore<TAssurance> {
-  read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>>;
-  append(
-    planId: string,
-    value: TAssurance,
-    expectedTailDigest: CanonicalDigest | null,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChainEntry<TAssurance>, DeliveryAssuranceStoreFailure>>;
-  exportChain(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>>;
-  importChain(
-    planId: string,
-    chain: DeliveryAssuranceChain<TAssurance>,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance>, DeliveryAssuranceStoreFailure>>;
 }

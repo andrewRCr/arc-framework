@@ -7,9 +7,17 @@ import {
   type CanonicalDigest,
 } from "../kernel/index.js";
 import {
+  classifyDeliveryPlanAmendment,
+  type DeliveryPlanAmendmentRefusalReason,
+} from "./amendment.js";
+import {
   validateDeliveryAuthoringMap,
   type DeliveryAuthoringSlotsV1,
 } from "./authoring-map.js";
+import type {
+  DeliveryAuthoringCandidateOutcomeV1,
+  DeliveryAuthoringSnapshotV1,
+} from "./authoring-schema.js";
 import type {
   DeliveryAuthoringCompositionStore as AuthoringCompositionStorePort,
   DeliveryAuthoringRecord,
@@ -31,8 +39,23 @@ import {
   type DeliveryRenameEvidenceAuthority,
   type DeliveryRenameTransitionSource,
 } from "./plan-resolution.js";
-import type { DeliveryPlanStore, DeliveryPlanStoreFailure } from "./ports.js";
-import type { DeliveryPlanAuthoringInputV1, DeliveryPlanV1 } from "./schema.js";
+import type {
+  DeliveryPlanStore,
+  DeliveryPlanStoreFailure,
+  DeliveryStateStore,
+  DeliveryStateStoreFailure,
+} from "./ports.js";
+import type {
+  DeliveryPlanAuthoringInputV1,
+  DeliveryPlanV1,
+  DeliveryStateV1,
+} from "./schema.js";
+import {
+  rebindDeliveryStateToPlan,
+  validateDeliveryStateAgainstPlan,
+  type RebindDeliveryStateFailure,
+  type DeliveryStatePlanCoherenceFailure,
+} from "./state.js";
 import type { DeliveryTaskInventory } from "./task-inventory.js";
 import type {
   DeliveryTaskListRenderer,
@@ -229,10 +252,16 @@ export type DeliveryPlanComposeReason =
   | RendererReason
   | DeliveryAuthoringStoreFailure
   | DeliveryPlanStoreFailure
+  | DeliveryStateStoreFailure
+  | DeliveryPlanAmendmentRefusalReason
+  | DeliveryStatePlanCoherenceFailure
+  | RebindDeliveryStateFailure
   | "authoring-projection-invalid"
   | "coverage-refused"
+  | "landed-facts-required"
   | "plan-already-exists"
   | "plan-construction-refused"
+  | "operation-active"
   | "ambiguous-subject"
   | "reachability-unestablished"
   | "substrate-unreachable";
@@ -250,14 +279,25 @@ export type DeliveryPlanComposeResult =
     readonly issues?: readonly DeliveryPlanIssue[] | readonly DeliveryTaskCoverageIssue[];
     readonly stepId?: string;
     readonly chunkKey?: string;
+  }
+  | {
+    readonly status: "replacement-required";
+    readonly affectedDeliverableIds: readonly CanonicalDigest[];
   };
 
 /** Dependencies whose ordering is the composition transaction contract. */
 export interface DeliveryPlanComposerDependencies {
   readonly authoringStore: AuthoringCompositionStorePort;
   readonly planStore: DeliveryPlanStore<DeliveryPlanV1>;
+  readonly stateStore: DeliveryStateStore<DeliveryStateV1>;
   readonly renderer: DeliveryTaskListRenderer;
   readonly transitionSource: DeliveryRenameTransitionSource;
+}
+
+interface DeliveryCandidateReceipt {
+  readonly candidatePlanDigest: CanonicalDigest;
+  readonly candidateProjectionDigest: CanonicalDigest;
+  readonly candidateOutcome: DeliveryAuthoringCandidateOutcomeV1;
 }
 
 /** Validate, publish, render, and clean one authored map in a retry-safe order. */
@@ -271,6 +311,7 @@ export class DeliveryPlanComposer {
     readonly projection: DeliveryCompositionProjection;
     readonly taskInventory: DeliveryTaskInventory;
     readonly designInventory: BoundDesignInventory;
+    readonly landedDeliverableIds: readonly CanonicalDigest[] | null;
   }): Promise<DeliveryPlanComposeResult> {
     const uniqueness = await resolveExistingDeliveryPlan({
       planStore: this.dependencies.planStore,
@@ -290,29 +331,18 @@ export class DeliveryPlanComposer {
     const currentResult = await this.dependencies.planStore.readCurrent(input.record.snapshot.planId);
     if (currentResult.status === "refused") return currentResult;
     const current = currentResult.value;
+    const stateResult = await this.dependencies.stateStore.read(input.record.snapshot.planId);
+    if (stateResult.status === "refused") return stateResult;
+    const currentState = stateResult.value;
+    if (current === null && currentState !== null) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
     if (uniqueness.status === "no-match" && current !== null) {
       return { status: "refused", reason: "plan-already-exists" };
     }
 
     if (input.record.markdown === null) {
-      if (input.record.snapshot.candidatePlanDigest === null
-        || input.record.snapshot.candidateProjectionDigest === null
-        || current === null
-        || input.record.snapshot.candidatePlanDigest !== current.planDigest) {
-        return { status: "refused", reason: "authoring-state-corrupt" };
-      }
-      const validation = validateDeliveryPlanRecord(current);
-      if (validation.status === "refused") {
-        return { status: "refused", reason: "plan-construction-refused", issues: validation.issues };
-      }
-      const cleanup = await this.dependencies.authoringStore.deleteSnapshot(input.record.snapshot.mapId);
-      return cleanup.status === "refused"
-        ? cleanup
-        : {
-          status: "composed",
-          plan: validation.plan,
-          advisories: input.projection.sourceAdvisories ?? [],
-        };
+      return { status: "refused", reason: "authoring-state-corrupt" };
     }
 
     const integrity = validateDeliveryAuthoringMap(input.record.markdown, input.record.snapshot);
@@ -343,20 +373,19 @@ export class DeliveryPlanComposer {
       return { status: "refused", reason: "coverage-refused", issues: coverage.issues };
     }
     const candidateProjectionDigest = canonicalDigest(input.projection.authoring);
-    const hasCandidatePlan = input.record.snapshot.candidatePlanDigest !== null;
-    const hasCandidateProjection = input.record.snapshot.candidateProjectionDigest !== null;
-    if (hasCandidatePlan !== hasCandidateProjection) {
+    const receipt = readCandidateReceipt(input.record.snapshot);
+    if (receipt === "corrupt") {
       return { status: "refused", reason: "authoring-state-corrupt" };
     }
 
     let candidate: DeliveryPlanV1;
-    if (current !== null && input.record.snapshot.candidatePlanDigest === current.planDigest) {
-      if (input.record.snapshot.candidateProjectionDigest !== candidateProjectionDigest) {
+    const expectedDigest = asCanonicalDigestOrNull(input.record.snapshot.expectedCurrentPlanDigest);
+    if (receipt !== null && current !== null && receipt.candidatePlanDigest === current.planDigest) {
+      if (receipt.candidateProjectionDigest !== candidateProjectionDigest) {
         return { status: "refused", reason: "authoring-state-corrupt" };
       }
       candidate = current;
     } else {
-      const expectedDigest = asCanonicalDigestOrNull(input.record.snapshot.expectedCurrentPlanDigest);
       if ((current?.planDigest ?? null) !== expectedDigest) {
         return { status: "refused", reason: "version-conflict" };
       }
@@ -371,30 +400,188 @@ export class DeliveryPlanComposer {
         return { status: "refused", reason: "plan-construction-refused", issues: construction.issues };
       }
       candidate = construction.plan;
-      if (input.record.snapshot.candidatePlanDigest !== null
-        && input.record.snapshot.candidatePlanDigest !== candidate.planDigest) {
+      if (receipt !== null && receipt.candidatePlanDigest !== candidate.planDigest) {
         return { status: "refused", reason: "authoring-state-corrupt" };
       }
-      if (input.record.snapshot.candidateProjectionDigest !== null
-        && input.record.snapshot.candidateProjectionDigest !== candidateProjectionDigest) {
+      if (receipt !== null && receipt.candidateProjectionDigest !== candidateProjectionDigest) {
         return { status: "refused", reason: "authoring-state-corrupt" };
       }
-      const receipt = await this.dependencies.authoringStore.recordCandidate(
-        input.record.snapshot.mapId,
-        input.record.snapshot,
-        candidate.planDigest,
-        candidateProjectionDigest,
-      );
-      if (receipt.status === "refused") return receipt;
-      const publication = await this.dependencies.planStore.publishCurrent(
-        candidate.planId,
-        candidate,
-        expectedDigest,
-      );
-      if (publication.status === "refused") return publication;
     }
 
-    const rendered = await this.dependencies.renderer.render(candidate);
+    const advisories = [...(input.projection.sourceAdvisories ?? []), ...coverage.advisories];
+    if (receipt !== null) {
+      return this.completeCandidate({
+        record: input.record,
+        candidate,
+        receipt,
+        advisories,
+      });
+    }
+
+    let candidateOutcome: DeliveryAuthoringCandidateOutcomeV1 = {
+      outcome: "accepted",
+      stateBinding: null,
+    };
+    if (current !== null && currentState !== null) {
+        if (input.landedDeliverableIds === null) {
+          return { status: "refused", reason: "landed-facts-required" };
+        }
+        const coherence = validateDeliveryStateAgainstPlan(currentState.value, current);
+        if (coherence.status === "refused") {
+          return { status: "refused", reason: coherence.reason };
+        }
+        if (coherence.state.activeOperation !== null) {
+          return { status: "refused", reason: "operation-active" };
+        }
+        const amendment = classifyDeliveryPlanAmendment({
+          current,
+          proposed: candidate,
+          boundDeliverableIds: coherence.state.members
+            .filter((member) => (
+              member.ref !== null || member.changeRequest !== null || member.coordinates !== null
+            ))
+            .map((member) => asCanonicalDigest(member.deliverableId)),
+          landedDeliverableIds: input.landedDeliverableIds,
+        });
+        if (amendment.status !== "accepted") return amendment;
+        candidateOutcome = {
+          outcome: "accepted",
+          stateBinding: {
+            stateRevision: currentState.revision,
+            oldBoundPlanDigest: asCanonicalDigest(current.planDigest),
+          },
+        };
+    }
+
+    const recorded = await this.dependencies.authoringStore.recordCandidate(
+      input.record.snapshot.mapId,
+      input.record.snapshot,
+      candidate.planDigest,
+      candidateProjectionDigest,
+      candidateOutcome,
+    );
+    if (recorded.status === "refused") return recorded;
+    return this.completeCandidate({
+      record: { ...input.record, snapshot: recorded.value },
+      candidate,
+      receipt: {
+        candidatePlanDigest: asCanonicalDigest(candidate.planDigest),
+        candidateProjectionDigest,
+        candidateOutcome,
+      },
+      advisories,
+    });
+  }
+
+  /** Resume a receipt-pinned candidate after Markdown cleanup has already started. */
+  async recover(input: {
+    readonly record: DeliveryAuthoringRecord;
+    readonly currentWorkUnitId: string;
+    readonly authority: DeliveryRenameEvidenceAuthority;
+    readonly sourceAdvisories: readonly DeliveryCompositionAdvisory[];
+  }): Promise<DeliveryPlanComposeResult> {
+    if (input.record.markdown !== null) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const uniqueness = await resolveExistingDeliveryPlan({
+      planStore: this.dependencies.planStore,
+      currentWorkUnitId: input.currentWorkUnitId,
+      planWorkUnitId: (plan) => plan.workUnitId,
+      authority: input.authority,
+      transitionSource: this.dependencies.transitionSource,
+    });
+    if (uniqueness.status === "indeterminate") {
+      return { status: "refused", reason: uniqueness.reason };
+    }
+    if (uniqueness.status === "match"
+      && uniqueness.plan.planId !== input.record.snapshot.planId) {
+      return { status: "refused", reason: "plan-already-exists" };
+    }
+    const currentResult = await this.dependencies.planStore.readCurrent(input.record.snapshot.planId);
+    if (currentResult.status === "refused") return currentResult;
+    const receipt = readCandidateReceipt(input.record.snapshot);
+    if (receipt === null || receipt === "corrupt" || currentResult.value === null
+      || currentResult.value.planDigest !== receipt.candidatePlanDigest) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const validation = validateDeliveryPlanRecord(currentResult.value);
+    if (validation.status === "refused"
+      || validation.plan.entry !== input.record.snapshot.source.entry
+      || validation.plan.workUnitId !== input.record.snapshot.originalWorkUnitId) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const coverage = validateDeliveryCompositionCoverage({
+      entry: validation.plan.entry,
+      implementationTaskIds: validation.plan.tasks.implementation.map(({ taskId }) => taskId),
+      verificationTaskId: validation.plan.tasks.verificationTaskId,
+      members: validation.plan.members.map((member) => ({
+        chunkKey: member.chunkKey,
+        taskIds: member.taskIds,
+      })),
+    });
+    if (coverage.status === "refused") {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    return this.completeCandidate({
+      record: input.record,
+      candidate: validation.plan,
+      receipt,
+      advisories: [...input.sourceAdvisories, ...coverage.advisories],
+    });
+  }
+
+  private async completeCandidate(input: {
+    readonly record: DeliveryAuthoringRecord;
+    readonly candidate: DeliveryPlanV1;
+    readonly receipt: DeliveryCandidateReceipt;
+    readonly advisories: readonly DeliveryCompositionAdvisory[];
+  }): Promise<DeliveryPlanComposeResult> {
+    const expectedDigest = asCanonicalDigestOrNull(input.record.snapshot.expectedCurrentPlanDigest);
+    const stateBinding = input.receipt.candidateOutcome.stateBinding;
+    if (stateBinding !== null && stateBinding.oldBoundPlanDigest !== expectedDigest) {
+      return { status: "refused", reason: "authoring-state-corrupt" };
+    }
+    const publication = await this.dependencies.planStore.publishCurrent(
+      input.candidate.planId,
+      input.candidate,
+      stateBinding === null ? expectedDigest : asCanonicalDigest(stateBinding.oldBoundPlanDigest),
+    );
+    if (publication.status === "refused") return publication;
+
+    const stateResult = await this.dependencies.stateStore.read(input.candidate.planId);
+    if (stateResult.status === "refused") return stateResult;
+    if (stateBinding === null) {
+      if (stateResult.value !== null) return { status: "refused", reason: "version-conflict" };
+    } else {
+      const currentState = stateResult.value;
+      if (currentState === null) return { status: "refused", reason: "version-conflict" };
+      if (currentState.revision === stateBinding.stateRevision
+        && currentState.value.boundPlan.planDigest === stateBinding.oldBoundPlanDigest) {
+        const rebound = rebindDeliveryStateToPlan(currentState.value, input.candidate);
+        if (rebound.status === "refused") return rebound;
+        const published = await this.dependencies.stateStore.publish(
+          input.candidate.planId,
+          rebound.state,
+          stateBinding.stateRevision,
+        );
+        if (published.status === "refused") return published;
+        if (published.value.revision !== stateBinding.stateRevision + 1
+          || canonicalize(published.value.value) !== canonicalize(rebound.state)) {
+          return { status: "refused", reason: "version-conflict" };
+        }
+      } else if (currentState.revision === stateBinding.stateRevision + 1
+        && currentState.value.boundPlan.planDigest === input.candidate.planDigest) {
+        const rebound = rebindDeliveryStateToPlan(currentState.value, input.candidate);
+        if (rebound.status === "refused") return rebound;
+        if (canonicalize(rebound.state) !== canonicalize(currentState.value)) {
+          return { status: "refused", reason: "version-conflict" };
+        }
+      } else {
+        return { status: "refused", reason: "version-conflict" };
+      }
+    }
+
+    const rendered = await this.dependencies.renderer.render(input.candidate);
     if (rendered.status === "refused") return rendered;
     const markdownCleanup = await this.dependencies.authoringStore.deleteMarkdown(
       input.record.snapshot.mapId,
@@ -406,10 +593,31 @@ export class DeliveryPlanComposer {
     if (snapshotCleanup.status === "refused") return snapshotCleanup;
     return {
       status: "composed",
-      plan: candidate,
-      advisories: [...(input.projection.sourceAdvisories ?? []), ...coverage.advisories],
+      plan: input.candidate,
+      advisories: input.advisories,
     };
   }
+}
+
+function readCandidateReceipt(
+  snapshot: DeliveryAuthoringSnapshotV1,
+): DeliveryCandidateReceipt | null | "corrupt" {
+  const { candidatePlanDigest, candidateProjectionDigest, candidateOutcome } = snapshot;
+  if (candidatePlanDigest === null
+    && candidateProjectionDigest === null
+    && candidateOutcome === null) {
+    return null;
+  }
+  if (candidatePlanDigest === null
+    || candidateProjectionDigest === null
+    || candidateOutcome === null) {
+    return "corrupt";
+  }
+  return {
+    candidatePlanDigest: asCanonicalDigest(candidatePlanDigest),
+    candidateProjectionDigest: asCanonicalDigest(candidateProjectionDigest),
+    candidateOutcome,
+  };
 }
 
 function projectionMatchesSlots(
@@ -442,6 +650,11 @@ function projectionMatchesSlots(
 
 function asCanonicalDigestOrNull(value: string | null): CanonicalDigest | null {
   if (value === null) return null;
+  assertCanonicalDigest(value);
+  return value;
+}
+
+function asCanonicalDigest(value: string): CanonicalDigest {
   assertCanonicalDigest(value);
   return value;
 }

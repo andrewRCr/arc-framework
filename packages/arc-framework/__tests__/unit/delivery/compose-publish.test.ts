@@ -9,12 +9,19 @@ import {
   DeliveryAuthoringSlotsV1Schema,
   renderDeliveryAuthoringMap,
 } from "../../../src/lib/delivery/authoring-map.js";
-import { createDeliveryAuthoringSnapshot } from "../../../src/lib/delivery/authoring-schema.js";
+import {
+  createDeliveryAuthoringSnapshot,
+  type DeliveryAuthoringCandidateOutcomeV1,
+} from "../../../src/lib/delivery/authoring-schema.js";
 import type {
   DeliveryAuthoringRecord,
   DeliveryAuthoringStoreResult,
 } from "../../../src/lib/delivery/authoring-store.js";
-import type { DeliveryPlanStore } from "../../../src/lib/delivery/ports.js";
+import type {
+  DeliveryPlanStore,
+  DeliveryRevisionedRecord,
+  DeliveryStateStore,
+} from "../../../src/lib/delivery/ports.js";
 import type { DeliveryTaskListRenderer } from "../../../src/lib/delivery/task-list-render.js";
 import {
   canonicalDigest,
@@ -24,7 +31,12 @@ import {
 import {
   DeliveryPlanAuthoringInputV1Schema,
   type DeliveryPlanV1,
+  type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
+import {
+  constructInitialDeliveryState,
+  validateDeliveryStateAgainstPlan,
+} from "../../../src/lib/delivery/state.js";
 
 const PLAN_ID = "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1";
 const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
@@ -96,17 +108,24 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
 
 class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
   readonly calls: string[] = [];
+  failMarkdownDelete = false;
   failSnapshotDelete = false;
+  failSnapshotDeleteAfterMutation = false;
 
-  constructor(public record: DeliveryAuthoringRecord | null) {}
+  constructor(
+    public record: DeliveryAuthoringRecord | null,
+    private readonly events: string[] = [],
+  ) {}
 
   async recordCandidate(
     mapId: string,
     expected: DeliveryAuthoringRecord["snapshot"],
     candidatePlanDigest: CanonicalDigest,
     candidateProjectionDigest: CanonicalDigest,
+    candidateOutcome: DeliveryAuthoringCandidateOutcomeV1,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringRecord["snapshot"]>> {
     this.calls.push("candidate");
+    this.events.push("candidate");
     if (this.record === null || this.record.snapshot.mapId !== mapId
       || canonicalize(this.record.snapshot) !== canonicalize(expected)) {
       return { status: "refused", reason: "version-conflict" };
@@ -117,6 +136,7 @@ class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
         ...this.record.snapshot,
         candidatePlanDigest,
         candidateProjectionDigest,
+        candidateOutcome,
       },
     };
     return { status: "ok", value: this.record.snapshot };
@@ -124,6 +144,8 @@ class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
 
   async deleteMarkdown(): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {
     this.calls.push("delete-markdown");
+    this.events.push("delete-markdown");
+    if (this.failMarkdownDelete) return { status: "refused", reason: "version-conflict" };
     if (this.record === null) return { status: "ok", value: { removed: false } };
     const removed = this.record.markdown !== null;
     this.record = { ...this.record, markdown: null };
@@ -132,9 +154,13 @@ class MemoryAuthoringStore implements DeliveryCompositionAuthoringStore {
 
   async deleteSnapshot(): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {
     this.calls.push("delete-snapshot");
+    this.events.push("delete-snapshot");
     if (this.failSnapshotDelete) return { status: "refused", reason: "version-conflict" };
     const removed = this.record !== null;
     this.record = null;
+    if (this.failSnapshotDeleteAfterMutation) {
+      return { status: "refused", reason: "version-conflict" };
+    }
     return { status: "ok", value: { removed } };
   }
 }
@@ -143,7 +169,10 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
   readonly calls: string[] = [];
   refusePublication = false;
 
-  constructor(public current: DeliveryPlanV1 | null = null) {}
+  constructor(
+    public current: DeliveryPlanV1 | null = null,
+    private readonly events: string[] = [],
+  ) {}
 
   async readCurrent(planId: string) {
     return this.current === null || this.current.planId === planId
@@ -161,6 +190,7 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     expectedCurrentDigest: CanonicalDigest | null,
   ) {
     this.calls.push("publish");
+    this.events.push("publish");
     if (this.refusePublication) return { status: "refused" as const, reason: "version-conflict" as const };
     if (this.current?.planDigest === plan.planDigest) {
       return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
@@ -173,12 +203,58 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
   }
 }
 
+class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
+  readonly calls: string[] = [];
+  refusePublication = false;
+
+  constructor(
+    public current: DeliveryRevisionedRecord<DeliveryStateV1> | null = null,
+    private readonly events: string[] = [],
+  ) {}
+
+  async read(planId: string) {
+    return this.current === null || this.current.value.planId === planId
+      ? { status: "ok" as const, value: this.current }
+      : { status: "ok" as const, value: null };
+  }
+
+  async publish(
+    planId: string,
+    value: DeliveryStateV1,
+    expectedRevision: number,
+  ) {
+    this.calls.push("publish-state");
+    this.events.push("publish-state");
+    if (this.refusePublication) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    if (value.planId !== planId) {
+      return { status: "refused" as const, reason: "identity-mismatch" as const };
+    }
+    if (this.current !== null && canonicalize(this.current.value) === canonicalize(value)) {
+      return { status: "ok" as const, value: this.current };
+    }
+    if ((this.current?.revision ?? 0) !== expectedRevision) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = { revision: expectedRevision + 1, value };
+    return { status: "ok" as const, value: this.current };
+  }
+
+  async resolveMember() {
+    return { status: "ok" as const, value: null };
+  }
+}
+
 class MemoryRenderer implements DeliveryTaskListRenderer {
   readonly calls: string[] = [];
   fail = false;
 
+  constructor(private readonly events: string[] = []) {}
+
   async render() {
     this.calls.push("render");
+    this.events.push("render");
     return this.fail
       ? { status: "refused" as const, reason: "task-list-unreadable" as const }
       : { status: "rendered" as const, content: "rendered" };
@@ -189,16 +265,23 @@ function composer(
   authoringStore: MemoryAuthoringStore,
   planStore: MemoryPlanStore,
   renderer: MemoryRenderer,
+  stateStore = new MemoryStateStore(),
 ) {
   return new DeliveryPlanComposer({
     authoringStore,
     planStore,
+    stateStore,
     renderer,
     transitionSource: { enumerate: async () => ({ status: "ok", value: [] }) },
   });
 }
 
-function input(value = fixture()) {
+function input(value: {
+  readonly record: DeliveryAuthoringRecord;
+  readonly projection: DeliveryCompositionProjection;
+  readonly taskInventory: ReturnType<typeof fixture>["taskInventory"];
+  readonly designInventory: ReturnType<typeof fixture>["designInventory"];
+} = fixture()) {
   return {
     record: value.record,
     currentWorkUnitId: "delivery-plan-record",
@@ -206,20 +289,59 @@ function input(value = fixture()) {
     projection: value.projection,
     taskInventory: value.taskInventory,
     designInventory: value.designInventory,
+    landedDeliverableIds: [],
   };
+}
+
+function amendedFixture(
+  current: DeliveryPlanV1,
+  memberPatch: Partial<DeliveryCompositionProjection["authoring"]["members"][number]>,
+) {
+  const value = fixture(current.planDigest as CanonicalDigest);
+  const slots = DeliveryAuthoringSlotsV1Schema.parse({
+    ...value.slots,
+    members: value.slots.members.map((member) => ({ ...member, ...memberPatch })),
+  });
+  const projection: DeliveryCompositionProjection = {
+    ...value.projection,
+    authoring: {
+      ...value.projection.authoring,
+      members: value.projection.authoring.members.map((member) => ({ ...member, ...memberPatch })),
+    },
+  };
+  return {
+    ...value,
+    slots,
+    projection,
+    record: {
+      snapshot: value.record.snapshot,
+      markdown: renderDeliveryAuthoringMap(value.record.snapshot, slots),
+    },
+  };
+}
+
+function boundState(plan: DeliveryPlanV1): DeliveryRevisionedRecord<DeliveryStateV1> {
+  const bound = constructInitialDeliveryState(plan, {
+    kind: "pushed-ref",
+    deliverableId: plan.members[0]!.deliverableId,
+    ref: "refs/heads/member-only",
+    coordinates: { base: "a".repeat(40), head: "b".repeat(40), tree: "c".repeat(40) },
+  });
+  if (bound.status !== "constructed") throw new Error("fixture state must bind");
+  return { revision: 1, value: bound.state };
 }
 
 describe("delivery plan publication orchestration", () => {
   it("records the candidate, publishes, renders, and cleans Markdown before JSON", async () => {
     const value = fixture();
-    const authoring = new MemoryAuthoringStore(value.record);
-    const plans = new MemoryPlanStore();
-    const renderer = new MemoryRenderer();
+    const events: string[] = [];
+    const authoring = new MemoryAuthoringStore(value.record, events);
+    const plans = new MemoryPlanStore(null, events);
+    const renderer = new MemoryRenderer(events);
 
     await expect(composer(authoring, plans, renderer).compose(input(value)))
       .resolves.toMatchObject({ status: "composed", advisories: [] });
-    expect([...authoring.calls.slice(0, 1), ...plans.calls, ...renderer.calls, ...authoring.calls.slice(1)])
-      .toEqual(["candidate", "publish", "render", "delete-markdown", "delete-snapshot"]);
+    expect(events).toEqual(["candidate", "publish", "render", "delete-markdown", "delete-snapshot"]);
     expect(authoring.record).toBeNull();
   });
 
@@ -307,6 +429,112 @@ describe("delivery plan publication orchestration", () => {
       });
   });
 
+  it("returns exact replacement members without mutating a bound authoring pair", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+
+    const successor = amendedFixture(first, { contract: "Replace the published contract" });
+    const authoring = new MemoryAuthoringStore(successor.record);
+    const states = new MemoryStateStore(boundState(first));
+    const renderer = new MemoryRenderer();
+    await expect(composer(authoring, plans, renderer, states).compose(input(successor))).resolves.toEqual({
+      status: "replacement-required",
+      affectedDeliverableIds: [first.members[0]!.deliverableId],
+    });
+    expect(authoring.record).toEqual(successor.record);
+    expect(authoring.calls).toEqual([]);
+    expect(renderer.calls).toEqual([]);
+    expect(plans.current).toEqual(first);
+  });
+
+  it("surfaces a closed refusal without mutation when landed intent changes", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+
+    const successor = amendedFixture(first, { contract: "Rewrite landed intent" });
+    const authoring = new MemoryAuthoringStore(successor.record);
+    const states = new MemoryStateStore(boundState(first));
+    const renderer = new MemoryRenderer();
+    await expect(composer(authoring, plans, renderer, states).compose({
+      ...input(successor),
+      landedDeliverableIds: [first.members[0]!.deliverableId as CanonicalDigest],
+    })).resolves.toEqual({ status: "refused", reason: "landed-member-changed" });
+    expect(authoring.calls).toEqual([]);
+    expect(renderer.calls).toEqual([]);
+    expect(plans.current).toEqual(first);
+  });
+
+  it("publishes an accepted bound successor before rebinding state and rendering", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+
+    const successor = amendedFixture(first, {});
+    const events: string[] = [];
+    const authoring = new MemoryAuthoringStore(successor.record, events);
+    const states = new MemoryStateStore(boundState(first), events);
+    const renderer = new MemoryRenderer(events);
+    const boundPlans = new MemoryPlanStore(first, events);
+    await expect(composer(authoring, boundPlans, renderer, states).compose(input(successor)))
+      .resolves.toMatchObject({ status: "composed", plan: { planRevision: 2 } });
+    expect(events).toEqual([
+      "candidate",
+      "publish",
+      "publish-state",
+      "render",
+      "delete-markdown",
+      "delete-snapshot",
+    ]);
+    expect(states.current).toMatchObject({
+      revision: 2,
+      value: {
+        boundPlan: { planRevision: 2, planDigest: boundPlans.current?.planDigest },
+        members: [{ ref: "refs/heads/member-only" }],
+      },
+    });
+  });
+
+  it("requires fresh landed facts before classifying a bound successor", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+    const successor = amendedFixture(first, {});
+
+    await expect(composer(
+      new MemoryAuthoringStore(successor.record),
+      plans,
+      new MemoryRenderer(),
+      new MemoryStateStore(boundState(first)),
+    ).compose({ ...input(successor), landedDeliverableIds: null }))
+      .resolves.toEqual({ status: "refused", reason: "landed-facts-required" });
+  });
+
   it("leaves the task list untouched and the pair retryable on publication refusal", async () => {
     const value = fixture();
     const authoring = new MemoryAuthoringStore(value.record);
@@ -318,6 +546,138 @@ describe("delivery plan publication orchestration", () => {
     expect(renderer.calls).toEqual([]);
     expect(authoring.record?.markdown).not.toBeNull();
     expect(authoring.record?.snapshot.candidatePlanDigest).not.toBeNull();
+
+    plans.refusePublication = false;
+    if (authoring.record === null) throw new Error("expected retryable candidate receipt");
+    await expect(composer(authoring, plans, renderer).compose({
+      ...input(value),
+      record: authoring.record,
+    })).resolves.toMatchObject({ status: "composed", plan: { planRevision: 1 } });
+  });
+
+  it("blocks the publication gap and retries state rebind from the pinned revision", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+    const successor = amendedFixture(first, {});
+    const authoring = new MemoryAuthoringStore(successor.record);
+    const states = new MemoryStateStore(boundState(first));
+    states.refusePublication = true;
+
+    await expect(composer(authoring, plans, new MemoryRenderer(), states).compose(input(successor)))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    const published = plans.current;
+    if (published === null || states.current === null) throw new Error("expected publication gap");
+    expect(published.planRevision).toBe(2);
+    expect(validateDeliveryStateAgainstPlan(states.current.value, published))
+      .toEqual({ status: "refused", reason: "bound-plan-mismatch" });
+
+    states.refusePublication = false;
+    if (authoring.record === null) throw new Error("expected retryable candidate receipt");
+    await expect(composer(authoring, plans, new MemoryRenderer(), states).compose({
+      ...input(successor),
+      record: authoring.record,
+    })).resolves.toMatchObject({ status: "composed", plan: { planRevision: 2 } });
+    expect(states.current.revision).toBe(2);
+  });
+
+  it("refuses when the receipt-pinned state revision changes before rebind", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+    const successor = amendedFixture(first, {});
+    const authoring = new MemoryAuthoringStore(successor.record);
+    const states = new MemoryStateStore(boundState(first));
+    plans.refusePublication = true;
+    await expect(composer(authoring, plans, new MemoryRenderer(), states).compose(input(successor)))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    if (states.current === null) throw new Error("expected bound state");
+    states.current = {
+      revision: states.current.revision + 1,
+      value: {
+        ...states.current.value,
+        target: { ref: "refs/heads/changed", coordinates: null },
+      },
+    };
+
+    plans.refusePublication = false;
+    if (authoring.record === null) throw new Error("expected candidate receipt");
+    await expect(composer(authoring, plans, new MemoryRenderer(), states).compose({
+      ...input(successor),
+      record: authoring.record,
+    })).resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    expect(authoring.record.markdown).not.toBeNull();
+  });
+
+  it("retries from an already rebound state after rendering is interrupted", async () => {
+    const firstValue = fixture();
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+    const successor = amendedFixture(first, {});
+    const authoring = new MemoryAuthoringStore(successor.record);
+    const states = new MemoryStateStore(boundState(first));
+    const renderer = new MemoryRenderer();
+    renderer.fail = true;
+
+    await expect(composer(authoring, plans, renderer, states).compose(input(successor)))
+      .resolves.toEqual({ status: "refused", reason: "task-list-unreadable" });
+    expect(states.current?.revision).toBe(2);
+    renderer.fail = false;
+    if (authoring.record === null) throw new Error("expected retryable candidate receipt");
+    await expect(composer(authoring, plans, renderer, states).compose({
+      ...input(successor),
+      record: authoring.record,
+    })).resolves.toMatchObject({ status: "composed", plan: { planRevision: 2 } });
+    expect(states.current?.revision).toBe(2);
+  });
+
+  it("retries cleanup after rendering without publishing another state revision", async () => {
+    const value = fixture();
+    const authoring = new MemoryAuthoringStore(value.record);
+    authoring.failMarkdownDelete = true;
+    const plans = new MemoryPlanStore();
+    const renderer = new MemoryRenderer();
+
+    await expect(composer(authoring, plans, renderer).compose(input(value)))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    expect(renderer.calls).toEqual(["render"]);
+    authoring.failMarkdownDelete = false;
+    if (authoring.record === null) throw new Error("expected retryable candidate receipt");
+    await expect(composer(authoring, plans, renderer).compose({
+      ...input(value),
+      record: authoring.record,
+    })).resolves.toMatchObject({ status: "composed" });
+    expect(renderer.calls).toEqual(["render", "render"]);
+  });
+
+  it("leaves a complete terminal state when interruption follows snapshot deletion", async () => {
+    const value = fixture();
+    const authoring = new MemoryAuthoringStore(value.record);
+    authoring.failSnapshotDeleteAfterMutation = true;
+    const plans = new MemoryPlanStore();
+
+    await expect(composer(authoring, plans, new MemoryRenderer()).compose(input(value)))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    expect(authoring.record).toBeNull();
+    expect(plans.current).toMatchObject({ planRevision: 1 });
   });
 
   it("refuses a stale expected current digest before recording a candidate", async () => {
@@ -351,7 +711,7 @@ describe("delivery plan publication orchestration", () => {
       ...input(value),
       record: authoring.record,
     })).resolves.toMatchObject({ status: "composed", plan: { planRevision: 1 } });
-    expect(plans.calls).toEqual(["publish"]);
+    expect(plans.calls).toEqual(["publish", "publish"]);
   });
 
   it("refuses authoring edits after the candidate has been published", async () => {
@@ -413,9 +773,11 @@ describe("delivery plan publication orchestration", () => {
 
     authoring.failSnapshotDelete = false;
     if (authoring.record === null) throw new Error("expected cleanup receipt");
-    await expect(composer(authoring, plans, renderer).compose({
-      ...input(value),
+    await expect(composer(authoring, plans, renderer).recover({
       record: authoring.record,
+      currentWorkUnitId: "delivery-plan-record",
+      authority: { status: "established", ref: "refs/heads/main" },
+      sourceAdvisories: [advisory],
     })).resolves.toMatchObject({ status: "composed", advisories: [advisory] });
     expect(authoring.record).toBeNull();
   });

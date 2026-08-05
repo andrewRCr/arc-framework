@@ -115,6 +115,7 @@ describe("arc delivery", () => {
     const recoverySnapshot = JSON.parse(await readFile(snapshotPath, "utf8")) as {
       candidatePlanDigest: string | null;
       candidateProjectionDigest: string | null;
+      candidateOutcome: { outcome: "accepted"; stateBinding: null } | null;
     };
     const map = await readFile(join(authoring, mapName), "utf8");
     expect(map).toContain('"entry": "from-branch"');
@@ -164,6 +165,7 @@ describe("arc delivery", () => {
       ...recoverySnapshot,
       candidatePlanDigest: initialPlan.planDigest,
       candidateProjectionDigest: DIGEST,
+      candidateOutcome: { outcome: "accepted", stateBinding: null },
     })}\n`);
     const recovered = await runArc(["delivery", "compose", "--json"], repository);
     expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
@@ -582,6 +584,7 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: null,
       candidatePlanDigest: null,
       candidateProjectionDigest: null,
+      candidateOutcome: null,
       design: { artifacts: [{ artifactId: "spec.md", revisionDigest: DIGEST }], elements: [] },
       tasks: {
         inventoryDigest: DIGEST,
