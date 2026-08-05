@@ -178,6 +178,7 @@ describe("repository delivery authoring store", () => {
     const proposed = snapshot();
     const candidatePlanDigest = canonicalDigest({ plan: "candidate" });
     const candidateProjectionDigest = canonicalDigest({ projection: "candidate" });
+    const candidateOutcome = { outcome: "accepted" as const, stateBinding: null };
     await records.store.create({ snapshot: proposed, markdown: "# Map\n" });
 
     const receipt = await records.store.recordCandidate(
@@ -185,10 +186,11 @@ describe("repository delivery authoring store", () => {
       proposed,
       candidatePlanDigest,
       candidateProjectionDigest,
+      candidateOutcome,
     );
     expect(receipt).toMatchObject({
       status: "ok",
-      value: { candidatePlanDigest, candidateProjectionDigest },
+      value: { candidatePlanDigest, candidateProjectionDigest, candidateOutcome },
     });
     await expect(records.store.deleteMarkdown(proposed.mapId)).resolves.toEqual({
       status: "ok",
@@ -196,7 +198,10 @@ describe("repository delivery authoring store", () => {
     });
     await expect(records.store.enumerate()).resolves.toMatchObject({
       status: "ok",
-      value: [{ snapshot: { candidatePlanDigest, candidateProjectionDigest }, markdown: null }],
+      value: [{
+        snapshot: { candidatePlanDigest, candidateProjectionDigest, candidateOutcome },
+        markdown: null,
+      }],
     });
     await expect(records.store.deleteSnapshot(proposed.mapId)).resolves.toEqual({
       status: "ok",

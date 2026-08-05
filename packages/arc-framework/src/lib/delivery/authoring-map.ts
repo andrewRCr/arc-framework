@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { canonicalize, SlugSchema } from "../kernel/index.js";
 import {
-  DeliveryAuthoringSnapshotV1Schema,
+  DeliveryAuthoringMachineV1Schema,
   type DeliveryAuthoringSnapshotV1,
 } from "./authoring-schema.js";
 import { DeliveryOpaqueIdSchema } from "./schema.js";
@@ -30,7 +30,6 @@ const BoundarySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 const MemberSlotSchema = z.strictObject({
-  status: z.enum(["live", "landed"]),
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
@@ -55,7 +54,6 @@ export const DeliveryAuthoringSlotsV1Schema = z.strictObject({
 export type DeliveryAuthoringSlotsV1 = z.infer<typeof DeliveryAuthoringSlotsV1Schema>;
 
 const LooseMemberSlotSchema = z.strictObject({
-  status: MemberSlotSchema.shape.status.nullable(),
   chunkKey: MemberSlotSchema.shape.chunkKey.nullable(),
   title: MemberSlotSchema.shape.title.nullable(),
   contract: MemberSlotSchema.shape.contract.nullable(),
@@ -76,10 +74,6 @@ const LooseSlotsSchema = z.strictObject({
   seams: z.array(LooseSeamSlotSchema).nullable(),
 });
 
-const DeliveryAuthoringMachineV1Schema = DeliveryAuthoringSnapshotV1Schema.omit({
-  candidatePlanDigest: true,
-  candidateProjectionDigest: true,
-});
 type DeliveryAuthoringMachineV1 = z.infer<typeof DeliveryAuthoringMachineV1Schema>;
 
 /** Parsed map before the machine and slot material is checked against its snapshot. */
@@ -100,9 +94,10 @@ export type ValidateDeliveryAuthoringMapResult =
   };
 
 function machineMaterial(snapshot: DeliveryAuthoringSnapshotV1): DeliveryAuthoringMachineV1 {
-  const { candidatePlanDigest, candidateProjectionDigest, ...machine } = snapshot;
+  const { candidatePlanDigest, candidateProjectionDigest, candidateOutcome, ...machine } = snapshot;
   void candidatePlanDigest;
   void candidateProjectionDigest;
+  void candidateOutcome;
   return DeliveryAuthoringMachineV1Schema.parse(machine);
 }
 

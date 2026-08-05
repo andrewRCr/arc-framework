@@ -31,28 +31,12 @@ export type DeliveryPlanStoreFailure =
   | "version-conflict"
   | "namespace-corrupt";
 
-/** Closed failures admitted by assignment storage and reverse lookup. */
-export type DeliveryAssignmentStoreFailure =
+/** Closed failures admitted by delivery-state storage and reverse lookup. */
+export type DeliveryStateStoreFailure =
   | "record-malformed"
   | "identity-mismatch"
   | "version-conflict"
   | "ambiguous-match"
-  | "namespace-corrupt";
-
-/** Closed failures admitted by the regenerable observation port. */
-export type DeliveryObservationStoreFailure =
-  | "record-malformed"
-  | "identity-mismatch"
-  | "version-conflict"
-  | "namespace-corrupt";
-
-/** Closed failures admitted by append-only assurance storage. */
-export type DeliveryAssuranceStoreFailure =
-  | "record-malformed"
-  | "identity-mismatch"
-  | "predecessor-conflict"
-  | "chain-invalid"
-  | "import-nonempty"
   | "namespace-corrupt";
 
 /** One mutable delivery-record snapshot and its compare-and-swap revision. */
@@ -61,36 +45,23 @@ export interface DeliveryRevisionedRecord<T> {
   readonly value: T;
 }
 
-/** Exact member-checkout selector used by authoritative assignment lookup. */
+/** Exact member-checkout selector used by authoritative delivery lookup. */
 export type DeliveryMemberSelector =
   | { readonly kind: "head"; readonly objectId: string }
   | { readonly kind: "ref"; readonly ref: string; readonly observedHeadObjectId: string };
 
-/** Optional direct candidate pointer; it narrows lookup but proves no identity. */
+/** Optional ownership hint validated against, but never used to restrict, global lookup. */
 export interface DeliveryOwningUnitPointer {
   readonly workUnitId: string;
   readonly planId: string;
 }
 
-/** One authoritative assignment match for a member checkout. */
-export interface DeliveryMemberResolution<TAssignment> {
+/** One authoritative state match for a member checkout. */
+export interface DeliveryStateMemberResolution<TState> {
   readonly planId: string;
   readonly deliverableId: CanonicalDigest;
   readonly workUnitId: string;
-  readonly assignment: TAssignment;
-}
-
-/** One predecessor-chained assurance entry. */
-export interface DeliveryAssuranceChainEntry<TAssurance> {
-  readonly predecessorDigest: CanonicalDigest | null;
-  readonly entryDigest: CanonicalDigest;
-  readonly value: TAssurance;
-}
-
-/** Complete verified assurance history for one plan. */
-export interface DeliveryAssuranceChain<TAssurance> {
-  readonly entries: readonly DeliveryAssuranceChainEntry<TAssurance>[];
-  readonly tailDigest: CanonicalDigest | null;
+  readonly state: TState;
 }
 
 /** Immutable-current plan storage with digest-checked replacement and canonical enumeration. */
@@ -106,49 +77,18 @@ export interface DeliveryPlanStore<TPlan> {
   enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>>;
 }
 
-/** Revision-checked assignment storage and authoritative member reverse lookup. */
-export interface DeliveryAssignmentStore<TAssignment> {
+/** Revision-checked delivery-state storage and authoritative member reverse lookup. */
+export interface DeliveryStateStore<TState> {
   read(
     planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment> | null, DeliveryAssignmentStoreFailure>>;
+  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TState> | null, DeliveryStateStoreFailure>>;
   publish(
     planId: string,
-    value: TAssignment,
+    value: TState,
     expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TAssignment>, DeliveryAssignmentStoreFailure>>;
+  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TState>, DeliveryStateStoreFailure>>;
   resolveMember(input: {
     readonly selector: DeliveryMemberSelector;
     readonly owningUnit?: DeliveryOwningUnitPointer;
-  }): Promise<DeliveryStoreResult<DeliveryMemberResolution<TAssignment> | null, DeliveryAssignmentStoreFailure>>;
-}
-
-/** Revision-checked storage for regenerable host observations. */
-export interface DeliveryObservationStore<TObservation> {
-  read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation> | null, DeliveryObservationStoreFailure>>;
-  publish(
-    planId: string,
-    value: TObservation,
-    expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation>, DeliveryObservationStoreFailure>>;
-}
-
-/** Append-only assurance storage with complete-chain carry-over. */
-export interface DeliveryAssuranceStore<TAssurance> {
-  read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>>;
-  append(
-    planId: string,
-    value: TAssurance,
-    expectedTailDigest: CanonicalDigest | null,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChainEntry<TAssurance>, DeliveryAssuranceStoreFailure>>;
-  exportChain(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance> | null, DeliveryAssuranceStoreFailure>>;
-  importChain(
-    planId: string,
-    chain: DeliveryAssuranceChain<TAssurance>,
-  ): Promise<DeliveryStoreResult<DeliveryAssuranceChain<TAssurance>, DeliveryAssuranceStoreFailure>>;
+  }): Promise<DeliveryStoreResult<DeliveryStateMemberResolution<TState> | null, DeliveryStateStoreFailure>>;
 }

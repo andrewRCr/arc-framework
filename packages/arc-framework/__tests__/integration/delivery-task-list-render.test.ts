@@ -37,7 +37,6 @@ function plan() {
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
     members: [{
-      status: "live",
       chunkKey: "only",
       title: "Only member",
       contract: "Publish the contract",
@@ -45,7 +44,6 @@ function plan() {
       designElementIds: [],
       mainlineLandability: "integration-only",
       deliverableId,
-      assuranceSubjectId: canonicalDigest({ assurance: 1 }),
       semanticFingerprint: canonicalDigest({ fingerprint: 1 }),
     }],
     seams: [],

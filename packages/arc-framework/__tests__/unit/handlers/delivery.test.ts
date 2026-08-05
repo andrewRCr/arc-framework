@@ -2,7 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeliveryPlanAbandonOptions } from "../../../src/handlers/delivery.js";
+import type {
+  DeliveryPlanAbandonOptions,
+} from "../../../src/handlers/delivery.js";
 
 const mocks = vi.hoisted(() => ({
   readConfigSettings: vi.fn(),
@@ -20,6 +22,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 const {
+  handleDeliveryCompose,
   handleDeliveryPlanAbandon,
   handleDeliveryPlanFromBranch,
 } = await import("../../../src/handlers/delivery.js");
@@ -84,6 +87,19 @@ describe("delivery handler JSON boundaries", () => {
       reason: "base-branch-unresolved",
     });
     expect(stderr).toBe("");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses malformed landed-prefix evidence before repository resolution", async () => {
+    await handleDeliveryCompose({ landedPrefix: "not-json", json: true });
+
+    expect(JSON.parse(stdout)).toMatchObject({
+      schemaVersion: 1,
+      command: "delivery compose",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    expect(mocks.resolveActiveWu).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

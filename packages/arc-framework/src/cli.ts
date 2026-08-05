@@ -665,6 +665,7 @@ const delivery = program
 delivery
   .command("compose")
   .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--landed-prefix <json>", "Fresh plan-ordered landed deliverable ID JSON array")
   .option("--json", "Emit the typed composition result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
