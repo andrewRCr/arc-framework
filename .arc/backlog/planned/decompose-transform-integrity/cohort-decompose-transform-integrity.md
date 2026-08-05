@@ -19,15 +19,23 @@ Transform receipts govern individual cuts; they do not replace cohort coordinati
 
 ```text
 decompose-transform-integrity (shipped core)
-├── decompose-base-mobility ─────────┐
-├── decompose-extraction             ├── ready after the core
-├── decompose-durable-consumers ─────┘
-├── decompose-planning-lane ◀────────── after base mobility
-└── decompose-core-hardening ────────── independently deliverable post-core members
+├── decompose-base-mobility ──────────── shipped
+├── decompose-planning-lane ──────────── shipped
+└── decompose-transition-record ──────── replaces the receipt spine
+    ├── decompose-extraction
+    ├── decompose-durable-consumers
+    └── decompose-core-hardening ─────── finalization members only
 ```
 
-Base mobility, extraction, durable consumers, and the hardening members are independently ready after the shipped
-core. Planning-lane admission remains reviewed and disabled until base mobility lands.
+The core, base mobility, and planning-lane admission have shipped. `decompose-transition-record` replaces the
+sealed receipt with a lean record carrying the authored dependency-edge intent, and retires the apparatus that
+accumulated around the heavier shape — including the planning-lane exception, whose sole function is to restore a
+lane classification the receipt's own storage location removes.
+
+Members whose scope is measured against the receipt hold on that replacement: extraction, durable consumers, and
+the two finalization hardening members. Conservation coverage, authoring expressiveness, and preflight scaling
+stay independently deliverable. `decomposition-doctrine` holds outside the cohort for the same reason — doctrine
+cannot codify against machinery whose shape is unsettled.
 
 Current readiness is derived from member metas and `Depends On`, not from this orientation view.
 
@@ -41,8 +49,12 @@ Current readiness is derived from member metas and `Depends On`, not from this o
 - `decompose-extraction` reuses the core inventory, allocation, profile, topology, and exact-base result substrate
   without importing retirement evidence. Its surviving origin remains the durable anchor and it creates no
   extraction receipt.
-- `decompose-planning-lane` consumes canonical v3 validation plus base mobility to grant an optional host-side
-  exception. Until it lands and is explicitly installed, decomposition remains reviewed.
+- `decompose-planning-lane` grants an optional host-side exception for one canonical decomposition receipt. The
+  exception is a passthrough to the ordinary planning classifier whenever no receipt is present, so it becomes
+  unnecessary once the record no longer displaces a decomposition out of that classifier.
+- `decompose-transition-record` owns the durable record of what became of a retired origin: transition kind,
+  successors, and the authored disposition of each incoming dependency edge. It is the sole authority every
+  consumer of retirement history reads, and it holds no transaction, preparation, or sealing evidence.
 - `decompose-durable-consumers` consumes finalized v3 transition authority without changing authoring,
   finalization, or landing semantics.
 - `decompose-core-hardening` consumes the same shipped core and closes real-cut gaps without folding optional
@@ -93,6 +105,17 @@ decomposition receipt.
 
 _Consumes:_ core v3 validation and base-mobility exact-ref/descendant-base proof.
 
+### `decompose-transition-record`
+
+_Exposes:_ the lean transition record — origin, transition kind, successors, and the authored disposition of each
+incoming dependency edge, keyed by dependent slug. It carries the one fact about a decomposition that git cannot
+reconstruct, and retires the sealed receipt spine, its record validator, the transient claim and candidate-discard
+machinery, the launch-readiness and publication cluster, and the planning-lane exception.
+
+_Consumes:_ the core cut map's authored allocation and incoming-edge dispositions. It takes no preparation,
+sealing, or transaction authority, and converts the existing receipts rather than clearing them — their authored
+dispositions are past human decisions and are not regenerable.
+
 ### `decompose-durable-consumers`
 
 _Exposes:_ bounded receipt enumeration, narrow historical narrative reconciliation, and live-ancestry-safe remote
@@ -108,5 +131,9 @@ stranded states an interrupted transform leaves behind.
 
 _Consumes:_ the transient-claim binding, candidate branch, and registered path as identity; it takes no receipt,
 anchor, or transition authority, and decides nothing about the semantic cut.
+
+Its scope is the stranded states the candidate and claim model produces, so it stands or falls with that model.
+Confirm its remaining scope against its own draft once `decompose-transition-record` settles which of those states
+still exist.
 
 ---

@@ -1,24 +1,23 @@
-# Metadata: delivery-stack-topology
+# Metadata: decompose-transition-record
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** `chunked-delivery`
-- **Depends On:** `delivery-integration-target`, `delivery-plan-record`
+- **Cohort:** `decompose-transform-integrity`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-delivery-stack-topology.md`
+- **Design:** `draft-decompose-transition-record.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
-- **Decomposition Receipt:** `sha256:5fd33761ecb25ba0d76532a67fbbd11310a15288889555103b2558510fb3335a`
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** —
 
 - **PR URL:** [none]
 - **Completed:** [none]
