@@ -24,8 +24,6 @@ import {
   type SeamScheduleResult,
 } from "./fingerprint.js";
 import {
-  deriveMemberAssuranceSubjectId,
-  deriveSeamAssuranceSubjectId,
   deriveUniqueDeliverableIds,
   resolveDeliveryPlanId,
 } from "./identity.js";
@@ -45,7 +43,6 @@ interface AssembledDeliveryPlanSeam {
   readonly incidentDeliverableIds: readonly CanonicalDigest[];
   readonly ownerDeliverableId: CanonicalDigest;
   readonly designElementIds: readonly string[];
-  readonly assuranceSubjectId: CanonicalDigest;
   readonly semanticFingerprint: CanonicalDigest;
 }
 
@@ -79,7 +76,6 @@ export type DeliveryPlanIssueCode =
   | "duplicate-member-chunk-key"
   | "duplicate-deliverable-id"
   | "duplicate-seam-key"
-  | "duplicate-assurance-subject-id"
   | "duplicate-member-task-id"
   | "duplicate-member-design-element-id"
   | "duplicate-seam-design-element-id"
@@ -92,11 +88,10 @@ export type DeliveryPlanIssueCode =
   | "stack-member-count"
   | "stack-member-not-landable"
   | "member-fingerprint-mismatch"
-  | "landed-prefix-invalid"
-  | "landed-member-mismatch"
-  | "landed-conversion-mismatch"
   | "first-revision-lineage-mismatch"
   | "plan-id-lineage-mismatch"
+  | "project-id-lineage-mismatch"
+  | "work-unit-id-lineage-mismatch"
   | "plan-revision-lineage-mismatch"
   | "predecessor-digest-mismatch"
   | DeliveryTaskCoverageIssue["kind"]
@@ -197,7 +192,6 @@ export function constructDeliveryPlanRevision(
       incidentDeliverableIds: schedule.incidentDeliverableIds,
       ownerDeliverableId: schedule.ownerDeliverableId,
       designElementIds: sortByCanonicalBytes(authoredSeam.designElementIds),
-      assuranceSubjectId: deriveSeamAssuranceSubjectId(planId, authoredSeam.seamKey),
       semanticFingerprint: deriveSeamSemanticFingerprint({
         title: authoredSeam.title,
         acceptance: authoredSeam.acceptance,
@@ -228,11 +222,7 @@ export function constructDeliveryPlanRevision(
           semanticFingerprint: seam.semanticFingerprint,
         })),
     });
-    const predecessorMember = input.predecessor?.members.find((candidate) => (
-      candidate.deliverableId === deliverableId
-    ));
     return {
-      status: member.status,
       chunkKey: member.chunkKey,
       deliverableId,
       title: member.title,
@@ -240,10 +230,7 @@ export function constructDeliveryPlanRevision(
       taskIds,
       designElementIds,
       mainlineLandability: member.mainlineLandability,
-      assuranceSubjectId: deriveMemberAssuranceSubjectId(planId, deliverableId),
-      semanticFingerprint: member.status === "landed" && predecessorMember !== undefined
-        ? predecessorMember.semanticFingerprint
-        : semanticFingerprint,
+      semanticFingerprint,
     };
   });
 
@@ -326,7 +313,6 @@ export function validateDeliveryPlanRecord(value: unknown): DeliveryPlanValidati
   collectSeamIssues(plan, issues);
   collectProjectionIssues(plan, issues);
   collectMemberFingerprintIssues(plan, issues);
-  collectDiscriminantIssues(plan, issues);
 
   const taskCoverage = validateDeliveryTaskCoverage({
     entry: plan.entry,
@@ -388,7 +374,6 @@ export function validateDeliveryPlanRevision(
 
   const issues: DeliveryPlanIssue[] = record.status === "refused" ? [...record.issues] : [];
   if (predecessor !== null) {
-    collectDiscriminantTransitionIssues(plan, predecessor, issues);
     if (plan.entry !== predecessor.entry) {
       issues.push({ code: "entry-changed" });
     }
@@ -413,10 +398,6 @@ function collectUniquenessIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue
   collectDuplicateIssue(plan.members.map((member) => member.chunkKey), "duplicate-member-chunk-key", issues);
   collectDuplicateIssue(plan.members.map((member) => member.deliverableId), "duplicate-deliverable-id", issues);
   collectDuplicateIssue(plan.seams.map((seam) => seam.seamKey), "duplicate-seam-key", issues);
-  collectDuplicateIssue([
-    ...plan.members.map((member) => member.assuranceSubjectId),
-    ...plan.seams.map((seam) => seam.assuranceSubjectId),
-  ], "duplicate-assurance-subject-id", issues);
   for (const [index, member] of plan.members.entries()) {
     collectDuplicateIssue(member.taskIds, "duplicate-member-task-id", issues, ["members", index, "taskIds"]);
     collectDuplicateIssue(
@@ -474,14 +455,6 @@ function collectIdentityIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]
     if (deliverableId !== member.deliverableId) {
       issues.push({ code: "identity-mismatch", path: ["members", index, "deliverableId"] });
     }
-    if (deriveMemberAssuranceSubjectId(plan.planId, member.deliverableId) !== member.assuranceSubjectId) {
-      issues.push({ code: "identity-mismatch", path: ["members", index, "assuranceSubjectId"] });
-    }
-  }
-  for (const [index, seam] of plan.seams.entries()) {
-    if (deriveSeamAssuranceSubjectId(plan.planId, seam.seamKey) !== seam.assuranceSubjectId) {
-      issues.push({ code: "identity-mismatch", path: ["seams", index, "assuranceSubjectId"] });
-    }
   }
 }
 
@@ -529,7 +502,6 @@ function collectMemberFingerprintIssues(plan: DeliveryPlanV1, issues: DeliveryPl
   const taskById = new Map(plan.tasks.implementation.map((task) => [task.taskId, task]));
   const designById = new Map(plan.design.elements.map((element) => [element.elementId, element]));
   for (const [index, member] of plan.members.entries()) {
-    if (member.status === "landed") continue;
     const expected = deriveMemberSemanticFingerprint({
       title: member.title,
       contract: member.contract,
@@ -561,64 +533,6 @@ function collectMemberFingerprintIssues(plan: DeliveryPlanV1, issues: DeliveryPl
   }
 }
 
-function collectDiscriminantIssues(
-  plan: DeliveryPlanV1,
-  issues: DeliveryPlanIssue[],
-): void {
-  let sawLive = false;
-  for (const [index, member] of plan.members.entries()) {
-    if (member.status === "live") {
-      sawLive = true;
-    } else if (sawLive) {
-      issues.push({ code: "landed-prefix-invalid", path: ["members", index, "status"] });
-    }
-  }
-}
-
-function collectDiscriminantTransitionIssues(
-  plan: DeliveryPlanV1,
-  predecessor: DeliveryPlanV1,
-  issues: DeliveryPlanIssue[],
-): void {
-  const predecessorLandedCount = leadingLandedCount(predecessor.members);
-  const currentLandedCount = leadingLandedCount(plan.members);
-  for (let index = 0; index < predecessorLandedCount; index += 1) {
-    const previousMember = predecessor.members[index];
-    const currentMember = plan.members[index];
-    if (previousMember === undefined
-      || currentMember === undefined
-      || canonicalize(currentMember) !== canonicalize(previousMember)) {
-      issues.push({ code: "landed-member-mismatch", path: ["members", index] });
-    }
-  }
-  if (currentLandedCount < predecessorLandedCount) {
-    issues.push({ code: "landed-member-mismatch", path: ["members"] });
-    return;
-  }
-  if (currentLandedCount > predecessorLandedCount + 1) {
-    issues.push({ code: "landed-conversion-mismatch", path: ["members"] });
-    return;
-  }
-  if (currentLandedCount === predecessorLandedCount + 1) {
-    const previousMember = predecessor.members[predecessorLandedCount];
-    const currentMember = plan.members[predecessorLandedCount];
-    if (previousMember === undefined
-      || previousMember.status !== "live"
-      || currentMember === undefined
-      || canonicalize(currentMember) !== canonicalize({ ...previousMember, status: "landed" })) {
-      issues.push({
-        code: "landed-conversion-mismatch",
-        path: ["members", predecessorLandedCount],
-      });
-    }
-  }
-}
-
-function leadingLandedCount(members: readonly DeliveryPlanMemberV1[]): number {
-  const firstLive = members.findIndex((member) => member.status === "live");
-  return firstLive === -1 ? members.length : firstLive;
-}
-
 function collectLineageIssues(
   plan: DeliveryPlanV1,
   predecessor: DeliveryPlanV1 | null,
@@ -635,6 +549,12 @@ function collectLineageIssues(
   }
   if (plan.planId !== predecessor.planId) {
     issues.push({ code: "plan-id-lineage-mismatch", path: ["planId"] });
+  }
+  if (plan.projectId !== predecessor.projectId) {
+    issues.push({ code: "project-id-lineage-mismatch", path: ["projectId"] });
+  }
+  if (plan.workUnitId !== predecessor.workUnitId) {
+    issues.push({ code: "work-unit-id-lineage-mismatch", path: ["workUnitId"] });
   }
   if (plan.planRevision !== predecessor.planRevision + 1) {
     issues.push({ code: "plan-revision-lineage-mismatch", path: ["planRevision"] });

@@ -20,7 +20,7 @@ import {
   classifyDecompositionPlanningLane,
   type DecompositionPlanningLaneResult,
 } from "./decomposition-planning-lane.js";
-import { parseV3DecomposeReceipt } from "./decompose-v3-receipt.js";
+import { parseRetirementRecord } from "./retirement-receipt-codec.js";
 import { validateBoundDescendantBaseLanding } from "./validate-descendant-base-landing.js";
 import { validateFinalizedV3Decomposition } from "./validate-v3-decomposition.js";
 
@@ -67,8 +67,11 @@ export async function classifyGitDecompositionPlanningLane(
       } catch {
         return { status: "unreadable" };
       }
-      const receipt = parseV3DecomposeReceipt(text);
-      return receipt === null ? { status: "malformed" } : { status: "read", receipt };
+      const record = parseRetirementRecord(text);
+      if (record === null) return { status: "malformed" };
+      return record.kind === "v3-decomposition"
+        ? { status: "read", receipt: record.receipt }
+        : { status: "not-decomposition" };
     },
     assemble: async (receipt, candidateHead) =>
       await assembleGitFinalizedV3DecompositionFacts(receipt, candidateHead, assembler),

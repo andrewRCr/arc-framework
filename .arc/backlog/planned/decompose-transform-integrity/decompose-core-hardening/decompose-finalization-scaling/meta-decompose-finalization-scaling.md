@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity/decompose-core-hardening`
-- **Depends On:** [none]
+- **Depends On:** `decompose-transition-record`
 
 - **Origin:** [internal]
 - **Design:** `draft-decompose-finalization-scaling.md`
@@ -17,7 +17,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Hold until `decompose-transition-record` settles; re-measure at its closeout before designing
+  — the retired projection work may carry most of the recorded cost, and this member may retire without
+  implementing.
 
 - **PR URL:** [none]
 - **Completed:** [none]

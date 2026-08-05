@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Re-scope before starting: the meta-edit gap is defined by the sealed projection
+  `decompose-transition-record` retires, while the locator gap survives regardless.
 
 - **PR URL:** [none]
 - **Completed:** [none]

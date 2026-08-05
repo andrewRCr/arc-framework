@@ -29,9 +29,22 @@ decompose-transform-integrity (shipped core)
 └── decompose-authoring-expressiveness
 ```
 
-The members are independently deliverable. Safety and operability findings should land before performance or
-authoring work when they touch the same core surface; dependency edges belong in member metas if implementation
-grounding reveals a hard order.
+The members are independently deliverable, with one ordering constraint recorded in member metas: finalization
+diagnostics and finalization scaling both measure themselves against the finalization pipeline that
+`decompose-transition-record` reshapes, so they hold on that work unit. Optimizing or diagnosing a surface whose
+shape is unsettled prices the wrong thing. At that closeout each held member is re-scoped, and retirement without
+implementation is an ordinary disposition: scaling re-measures first, since much of its recorded cost sits in the
+projection work being retired, while the refusal-remedy scope of diagnostics survives any reshape and should be
+revisited first.
+
+Conservation coverage and preflight scaling carry no such edge. Authoring expressiveness carries no recorded edge
+either, but half its drafted scope — post-cut meta edits refused because the sealed projection and receipt do not
+include them — is defined by machinery the transition record retires; re-scope its draft against the surviving
+finalization surfaces before starting it. The locator gap survives regardless.
+
+Beyond that, safety and operability findings should land before performance or authoring work when they touch the
+same core surface; further dependency edges belong in member metas if implementation grounding reveals a hard
+order.
 
 ### Shared contracts
 
@@ -50,6 +63,9 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
 
 ### Cross-cohort
 
+- `decompose-transition-record` replaces the sealed receipt with a lean record of authored transition intent and
+  retires the apparatus built around the heavier shape. Members consuming receipt, preparation, or finalization
+  evidence should confirm which of those surfaces survive before designing against them.
 - `decomposition-doctrine` owns when and at what maturity a cut is valid, including dependency-contract
   revalidation and scale-overrun prevention. This subcohort owns the transform after that decision.
 - `delivery-intent-integrity` owns the general requirement that a delivered operation be exercised against a
@@ -59,9 +75,11 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
 
 ### Closeout criteria
 
-The subcohort closes when every member has shipped and a representative real cut demonstrates preserved complete
-artifact-group content, bounded preflight and finalization cost, actionable refusals, and an authored cut map that
-can express intended destination structure and external dependencies without post-publication repair.
+The subcohort closes when every member has either shipped or been retired against a recorded disposition, and a
+representative real cut demonstrates the properties its shipped members own — preserved complete artifact-group
+content, bounded preflight and finalization cost, actionable refusals, and an expressive authored cut map —
+without post-publication repair. A retired member's property is recorded as out of scope with the retirement
+rather than demonstrated.
 
 ## Members
 
@@ -70,6 +88,13 @@ can express intended destination structure and external dependencies without pos
 _Exposes:_ a retirement-aligned conservation boundary for every origin artifact whose content would be removed.
 
 _Consumes:_ core inventory, allocation, retirement-delta, and receipt evidence.
+
+Conservation proof carries more weight than its current draft assumes: once transaction verification is no longer
+duplicating git's own record, this boundary is the only remaining net under a content-preserving split. Size the
+member against that role rather than against the drafted scope. The refusal-baseline alternative proceeds
+independently; the explicit-disposal-record alternative would carry an authored disposition in transition
+evidence, so coordinate that arm with `decompose-transition-record`'s record schema before adopting it — the lean
+record is the surface such a disposition would live on, and it is unsealed, so declining now costs nothing later.
 
 ### `decompose-finalization-diagnostics`
 

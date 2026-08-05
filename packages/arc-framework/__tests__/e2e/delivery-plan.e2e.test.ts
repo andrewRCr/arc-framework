@@ -36,8 +36,18 @@ describe("arc delivery", () => {
     const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
     expect(branchHelp).toMatchObject({ exitCode: 0 });
     expect(branchHelp.stdout).toContain("--base <commit-ish>");
-    await expect(runArc(["delivery", "compose", "--help"], repository))
-      .resolves.toMatchObject({ exitCode: 0 });
+    const composeHelp = await runArc(["delivery", "compose", "--help"], repository);
+    expect(composeHelp).toMatchObject({ exitCode: 0 });
+    expect(composeHelp.stdout).toContain("--landed-prefix <json>");
+    const malformedPrefix = await runArc([
+      "delivery", "compose", "--landed-prefix", "not-json", "--json",
+    ], repository);
+    expect(malformedPrefix.exitCode).toBe(1);
+    expect(JSON.parse(malformedPrefix.stdout)).toMatchObject({
+      command: "delivery compose",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
   });
@@ -115,6 +125,7 @@ describe("arc delivery", () => {
     const recoverySnapshot = JSON.parse(await readFile(snapshotPath, "utf8")) as {
       candidatePlanDigest: string | null;
       candidateProjectionDigest: string | null;
+      candidateOutcome: { outcome: "accepted"; stateBinding: null } | null;
     };
     const map = await readFile(join(authoring, mapName), "utf8");
     expect(map).toContain('"entry": "from-branch"');
@@ -129,7 +140,6 @@ describe("arc delivery", () => {
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
       },
       members: [{
-        status: "live",
         chunkKey: "branch",
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
@@ -165,6 +175,7 @@ describe("arc delivery", () => {
       ...recoverySnapshot,
       candidatePlanDigest: initialPlan.planDigest,
       candidateProjectionDigest: DIGEST,
+      candidateOutcome: { outcome: "accepted", stateBinding: null },
     })}\n`);
     const recovered = await runArc(["delivery", "compose", "--json"], repository);
     expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
@@ -213,7 +224,6 @@ describe("arc delivery", () => {
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
       },
       members: [{
-        status: "live",
         chunkKey: "branch",
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
@@ -283,6 +293,12 @@ describe("arc delivery", () => {
         expect(map).toContain('"classification": "ambient-base-absorb"');
       }
       await fillSlots(mapPath, fieldSlots(run, contributionIds));
+      const filledMap = await readFile(mapPath, "utf8");
+      const authorSlots = filledMap.slice(
+        filledMap.indexOf("<!-- arc:delivery-authoring-slots:start -->"),
+        filledMap.indexOf("<!-- arc:delivery-authoring-slots:end -->"),
+      );
+      expect(authorSlots).not.toMatch(/"status"\s*:/u);
       const compose = await runArc(["delivery", "compose", "--json"], repository);
       expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
 
@@ -326,7 +342,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -349,6 +364,11 @@ describe("arc delivery", () => {
     const tasks = await readFile(join(repository, ".arc", "active", "tasks-demo.md"), "utf8");
     expect(tasks).toContain("<!-- arc:delivery-plan:start -->");
     expect(tasks).toContain("| 1 | Implementation | `implementation` | `1.1`");
+    const renderedPlan = tasks.slice(
+      tasks.indexOf("<!-- arc:delivery-plan:start -->"),
+      tasks.indexOf("<!-- arc:delivery-plan:end -->") + "<!-- arc:delivery-plan:end -->".length,
+    );
+    expect(renderedPlan).not.toContain("Status");
 
     const plans = join(common, "arc", "delivery", "plans");
     const planName = (await readdir(plans))[0];
@@ -379,7 +399,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -419,7 +438,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -477,14 +495,12 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
         mainlineLandability: "integration-only",
       }, {
-        status: "live",
         chunkKey: "companion",
         title: "Companion",
         contract: "Publish the companion contract",
@@ -526,7 +542,6 @@ describe("arc delivery", () => {
     const baseSlots = {
       projection: { kind: "wu-integration-target" },
       members: [{
-        status: "live",
         chunkKey: "partial",
         title: "Partial member",
         contract: "Publish part of the implementation",
@@ -590,6 +605,7 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: null,
       candidatePlanDigest: null,
       candidateProjectionDigest: null,
+      candidateOutcome: null,
       design: { artifacts: [{ artifactId: "spec.md", revisionDigest: DIGEST }], elements: [] },
       tasks: {
         inventoryDigest: DIGEST,
@@ -708,7 +724,6 @@ function fieldSlots(run: DeliveryFieldRun, contributionIds: readonly string[]) {
       }),
     },
     members: run.members.map((member, index) => ({
-      status: "live",
       chunkKey: member.chunkKey,
       title: member.title,
       contract: member.contract,

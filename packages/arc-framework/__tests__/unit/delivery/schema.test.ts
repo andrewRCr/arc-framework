@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DeliveryAssuranceSubjectIdPreimageSchema,
   DeliveryDeliverableIdPreimageSchema,
   DeliveryPlanAuthoringInputV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanMemberV1Schema,
   DeliveryPlanSeamV1Schema,
   DeliveryPlanV1Schema,
-  LandedDeliveryPlanMemberV1Schema,
-  LiveDeliveryPlanMemberV1Schema,
+  DeliveryStateV1Schema,
   resolveAuthoredSeamIncidence,
   registerDeliveryDomainSchemas,
   validateDeliveryPlanAuthoringInputV1,
@@ -42,7 +40,6 @@ function validPlan(): Record<string, unknown> {
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
     members: [{
-      status: "live",
       chunkKey: "record-substrate",
       deliverableId: digest,
       title: "Record substrate",
@@ -50,7 +47,6 @@ function validPlan(): Record<string, unknown> {
       taskIds: ["1.1"],
       designElementIds: [],
       mainlineLandability: "independently-landable",
-      assuranceSubjectId: digest,
       semanticFingerprint: digest,
     }],
     seams: [],
@@ -74,7 +70,6 @@ function validAuthoringInput(): Record<string, unknown> {
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
     members: [{
-      status: "live",
       chunkKey: "record-substrate",
       title: "Record substrate",
       contract: "Publish the canonical record.",
@@ -112,22 +107,37 @@ describe("DeliveryPlanV1Schema", () => {
     expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
   });
 
-  it("permits landed members only after the first plan revision", () => {
-    const firstRevision = validPlan();
-    const [firstMember] = firstRevision.members as Array<Record<string, unknown>>;
-    firstMember!.status = "landed";
-    expect(DeliveryPlanV1Schema.safeParse(firstRevision).success).toBe(false);
+  it("refuses removed provider-position and assurance-subject fields", () => {
+    expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
 
-    const laterRevision = validPlan();
-    laterRevision.planRevision = 2;
-    laterRevision.previousPlanDigest = digest;
-    const [laterMember] = laterRevision.members as Array<Record<string, unknown>>;
-    laterMember!.status = "landed";
-    expect(DeliveryPlanV1Schema.safeParse(laterRevision).success).toBe(true);
+    for (const [target, field] of [
+      ["member", "status"],
+      ["member", "assuranceSubjectId"],
+      ["seam", "assuranceSubjectId"],
+    ] as const) {
+      const plan = validPlan();
+      if (target === "member") {
+        const [member] = plan.members as Array<Record<string, unknown>>;
+        member![field] = field === "status" ? "landed" : digest;
+      } else {
+        plan.seams = [{
+          seamKey: "schema-publication",
+          title: "Schema publication",
+          acceptance: "The production artifact exposes the delivery family.",
+          incidentDeliverableIds: [digest, `sha256:${"b".repeat(64)}`],
+          ownerDeliverableId: `sha256:${"b".repeat(64)}`,
+          designElementIds: [],
+          semanticFingerprint: digest,
+          [field]: digest,
+        }];
+      }
+      expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    }
 
-    expect(LiveDeliveryPlanMemberV1Schema.safeParse(laterMember).success).toBe(false);
-    laterMember!.status = "live";
-    expect(LandedDeliveryPlanMemberV1Schema.safeParse(laterMember).success).toBe(false);
+    const input = validAuthoringInput();
+    const [member] = input.members as Array<Record<string, unknown>>;
+    member!.status = "live";
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
   });
 
   it("requires every seam to name at least two distinct incident deliverables", () => {
@@ -139,7 +149,6 @@ describe("DeliveryPlanV1Schema", () => {
       incidentDeliverableIds: [digest, digest],
       ownerDeliverableId: digest,
       designElementIds: [],
-      assuranceSubjectId: digest,
       semanticFingerprint: digest,
     }];
     expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
@@ -214,7 +223,6 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       [["tasks", "inventoryDigest"], digest],
       [["tasks", "implementation", 0, "semanticDigest"], digest],
       [["members", 0, "deliverableId"], digest],
-      [["members", 0, "assuranceSubjectId"], digest],
       [["members", 0, "semanticFingerprint"], digest],
     ];
 
@@ -244,7 +252,6 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       designElementIds: [],
       incidentDeliverableIds: [digest, `sha256:${"b".repeat(64)}`],
       ownerDeliverableId: digest,
-      assuranceSubjectId: digest,
       semanticFingerprint: digest,
     }];
 
@@ -254,7 +261,6 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       for (const field of [
         "incidentDeliverableIds",
         "ownerDeliverableId",
-        "assuranceSubjectId",
         "semanticFingerprint",
       ]) {
         expect(result.error.message).toContain(field);
@@ -262,11 +268,9 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
     }
   });
 
-  it("restricts first authoring to live members and accepts a validated predecessor later", () => {
+  it("uses the same intent-only member shape for first and successor authoring", () => {
     const input = validAuthoringInput();
-    const [member] = input.members as Array<Record<string, unknown>>;
-    member!.status = "landed";
-    expect(validateDeliveryPlanAuthoringInputV1(input, null).success).toBe(false);
+    expect(validateDeliveryPlanAuthoringInputV1(input, null).success).toBe(true);
 
     const priorRevision = DeliveryPlanV1Schema.parse(validPlan());
     expect(validateDeliveryPlanAuthoringInputV1(input, priorRevision).success).toBe(true);
@@ -318,22 +322,6 @@ describe("delivery schema registration", () => {
       chunkKey: "record-substrate",
     }).success).toBe(false);
 
-    expect(DeliveryAssuranceSubjectIdPreimageSchema.safeParse({
-      domain: "arc.delivery.assurance-subject-id/v1",
-      schemaVersion: 1,
-      semanticsVersion: "delivery-plan/v1",
-      subjectKind: "member",
-      planId,
-      deliverableId: digest,
-    }).success).toBe(true);
-    expect(DeliveryAssuranceSubjectIdPreimageSchema.safeParse({
-      domain: "arc.delivery.assurance-subject-id/v1",
-      schemaVersion: 1,
-      semanticsVersion: "delivery-plan/v1",
-      subjectKind: "seam",
-      planId,
-      seamKey: "schema-publication",
-    }).success).toBe(true);
   });
 
   it("registers every record and identity preimage once under stable identities", () => {
@@ -345,8 +333,8 @@ describe("delivery schema registration", () => {
       ["delivery-plan-member", DeliveryPlanMemberV1Schema],
       ["delivery-plan-seam", DeliveryPlanSeamV1Schema],
       ["delivery-plan-authoring-input", DeliveryPlanAuthoringInputV1Schema],
+      ["delivery-state", DeliveryStateV1Schema],
       ["delivery-deliverable-id-preimage", DeliveryDeliverableIdPreimageSchema],
-      ["delivery-assurance-subject-id-preimage", DeliveryAssuranceSubjectIdPreimageSchema],
     ] as const;
     for (const [id, schema] of expected) {
       expect(registry.get(id)).toBe(schema);

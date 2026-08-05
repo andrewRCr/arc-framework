@@ -9,6 +9,21 @@ as `arc status --session-init --json`). It does **not** apply to content under
 templates) — that content ships to adopters who install the CLI globally and invoke
 it as bare `arc ...`.
 
+## Codex sandbox: silently degraded session-init probe
+
+Under Codex `workspace-write`, the session-init probe (`npx arc status --session-init --json`) may degrade
+silently: the sandbox denies writes to the shared `.git` (always the case in a linked worktree), the probe's
+fetch-based checks fail locally, and the worktree, base-distance, base-branch-sync, and user-reference slots
+report `remote-unavailable` even though the remote is healthy. The probe exits zero, so the harness's
+escalation review never fires on its own.
+
+If those slots read `remote-unavailable`, check reachability with `git ls-remote --exit-code origin HEAD`.
+When that succeeds, rerun the identical probe with escalated permissions instead of proceeding on degraded
+state — the escalated rerun returns real state. If networking is genuinely denied, continue local-safe;
+degraded slots are advisory at orientation.
+
+Retire this section when `remote-access-contract` ships (it removes the probe's git-metadata writes).
+
 ## Review guidelines
 
 > _These guidelines govern **requested hosted code reviews** via the review gate (for example, a hosted Codex

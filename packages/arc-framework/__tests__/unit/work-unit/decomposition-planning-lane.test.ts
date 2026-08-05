@@ -121,6 +121,14 @@ describe("decomposition planning lane", () => {
     expect(deps.validateLanding).not.toHaveBeenCalled();
   });
 
+  it("reviews a namespace record that is not a decomposition receipt", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+
+    await expect(classifyDecompositionPlanningLane(changeSet, BASE, HEAD, dependencies(receipt, {
+      readReceipt: vi.fn(async () => ({ status: "not-decomposition" as const })),
+    }))).resolves.toEqual({ outcome: "reviewed" });
+  });
+
   it("maps unreadable evidence to reviewed and content disagreement to invalid", async () => {
     const { changeSet, receipt } = exactChangeSet();
     const receiptPath = changeSet.changes.at(-1)!.path;

@@ -60,8 +60,8 @@ export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
     [member.deliverableId, index + 1] as const
   )));
   const headings = stack
-    ? ["#", "Member", "Chunk key", "Tasks", "Design elements", "Status", "Landability"]
-    : ["#", "Member", "Chunk key", "Tasks", "Design elements", "Status"];
+    ? ["#", "Member", "Chunk key", "Tasks", "Design elements", "Landability"]
+    : ["#", "Member", "Chunk key", "Tasks", "Design elements"];
   const divider = headings.map(() => "---");
   const memberRows = plan.members.map((member, index) => {
     const tasks = member.taskIds.length === 0
@@ -75,7 +75,6 @@ export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
       `\`${member.chunkKey}\``,
       tasks,
       displayList(member.designElementIds, true),
-      member.status === "landed" ? "landed (as of landing)" : "live",
     ];
     if (stack) cells.push(`\`${member.mainlineLandability}\``);
     return `| ${cells.join(" | ")} |`;

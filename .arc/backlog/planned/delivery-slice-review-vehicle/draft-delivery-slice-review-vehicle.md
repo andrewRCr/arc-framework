@@ -4,6 +4,10 @@
   `decompose-transform-integrity` delivery 01 integration.
 - **Purpose:** Represent a delivery slice as a typed, parent-bound review vehicle so an independently landable
   member can earn exact-head clearance without pretending to be a work unit or Errand.
+- **Position:** On the `chunked-delivery` cohort's v1 critical path — `delivery-stack-topology` depends on this work
+  unit for delivery-member review admission, and this work unit owns that admission surface. Depends on
+  `delivery-plan-record` for authoritative plan and member identity, and on `merge-readiness-control` settling how a
+  member earns and retains exact-head merge readiness.
 
 ---
 
