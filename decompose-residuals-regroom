@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "decompose-residuals-regroom",
+  "claimId": "5ec12b902d50cd9bbe34fa3afb6a684b",
+  "createdAt": "2026-08-05T20:58:12.355Z",
+  "updatedAt": "2026-08-05T20:58:12.355Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Re-groom the decomposition residual set against the transition-record reset: record expected member dispositions and a retire-without-implementing closeout arm in the cohort docs, add a hardening-admission boundary, fix missing/stale member meta edges and fields, and refresh personal steering surfaces",
+  "branch": "chore/decompose-residuals-regroom",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
