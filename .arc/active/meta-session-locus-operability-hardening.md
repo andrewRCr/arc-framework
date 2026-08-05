@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-session-locus-operability-hardening.md`
+- **Design:** `spec-session-locus-operability-hardening.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design closed — adversarial pass converged at one of two passes, six findings verified
   and disposed subtractively, draft `formalization-ready`
 - **Next Task:** [none]

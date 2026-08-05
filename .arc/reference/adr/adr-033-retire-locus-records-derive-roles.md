@@ -58,8 +58,11 @@ We will retire the durable locus record store and leases entirely, and derive ch
   exists to block.
 - **Every transient occupancy writes the ownership marker, the primary included.** One polarity: the free
   primary is clean + on base + marker absent. The marker carries the transient's subject and claim, the
-  warm-return parent checkout path, the partial-errand origin entry, and — on promotion — a `promotedFrom`
-  field. Machine-local paths live on machine-local state; the synced identity ref carries none.
+  warm-return parent checkout path, and the partial-errand origin entry. It carries no promotion state.
+  Machine-local paths live on machine-local state; the synced identity ref carries none.
+- **Promotion provenance lives on the promoted WU meta.** An immutable optional `Promotion Receipt` binds the WU to
+  the exact originating Errand slug and claim ID. It is committed before settlement and becomes lost-response
+  replay authority after identity removal; ordinary WUs omit it.
 - **No role mints a lease, and no path consults process liveness.** Occupancy questions resolve from git and
   marker facts; a claim-ending exit (close, abandon, remove) that cannot establish authority from its own
   checkout routes to subject-scoped operator confirmation. Keeping work alive proceeds; ending it confirms.
@@ -70,13 +73,20 @@ We will retire the durable locus record store and leases entirely, and derive ch
   ownership markers, staged provisioning receipts, and teardown's full git-fact guard set. Each has traced
   consumers the retirement never touches.
 
+**Decision refinement (2026-08-05):** A later promote-path consumer trace settles the promotion and parent carriers
+more precisely. `Promotion Receipt` remains ARC-only execution provenance rather than an external-PM field. The
+existing identity record remains until inbox settlement succeeds; its removal commits the terminal transition. A
+primary transient marker is removed, while a spawned marker converts to WU ownership and preserves only spawn
+provenance. Every transient occupancy, including the physical primary, writes the machine-local marker, so
+`parentCheckoutPath` never enters the synced identity ref.
+
 ## Consequences
 
 ### Positive
 
-- **Faults cannot travel.** A degraded, stale, or mid-lifecycle checkout has no global record through which to
-  stop unrelated work — the class of repository-wide outage that motivated the hardening plan is structurally
-  unexpressible.
+- **Checkout faults cannot travel.** A degraded, stale, or mid-lifecycle checkout has no global record through which
+  to stop unrelated work. The retained shared identity ref may still fail an identity mutation closed when its
+  complete authoritative basis is malformed or conflicting.
 - **Correct lifecycle completion reads as success.** No record outlives its subject, so shipping and parking
   produce no corruption diagnostics and nothing to clean by hand.
 - **Sandboxed harnesses are first-class.** No path asks a question a sandboxed reader cannot answer.
@@ -95,9 +105,11 @@ We will retire the durable locus record store and leases entirely, and derive ch
 
 - **Branch-shape creep.** The derivation must stay keyed on marker + meta; a future convenience that infers a
   role from a branch name re-acquires the pre-model failure class. The retirement work carries a mechanical
-  boundary (an enumerated typed derivation-source surface) against this.
-- **One CAS surface remains load-bearing.** The identity ref's transaction is now the sole multi-writer
-  discipline; its refuse-on-unreadable posture must not be relaxed.
+  boundary: authority-only inputs exclude branch/HEAD, a separate corroborator can only preserve or unresolve an
+  already-derived subject, and invariance tests hold authority facts constant across branch/HEAD variation.
+- **One CAS surface remains load-bearing.** The identity ref's transaction is now the sole multi-writer discipline;
+  its refuse-on-unreadable posture must not be relaxed. A provisional `identity-conflict-recovery` stub records a
+  possible lossless operator resolver, to be promoted only if practical evidence shows it earns commitment.
 - **If positive liveness is ever wanted**, the portable mechanism remains the one [ADR-032] records: an advisory
   file lock held open by the session and kernel-released on exit — never a recorded PID, and never a durable
   record store. Reaching for either re-acquires every finding above.
