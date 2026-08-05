@@ -1,8 +1,8 @@
 # Metadata: decompose-extraction
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ---------- | --------- | --------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/decompose-extraction` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** `decompose-transform-integrity`
