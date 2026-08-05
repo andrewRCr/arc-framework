@@ -30,7 +30,6 @@ const BoundarySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 const MemberSlotSchema = z.strictObject({
-  status: z.enum(["live", "landed"]),
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
@@ -55,7 +54,6 @@ export const DeliveryAuthoringSlotsV1Schema = z.strictObject({
 export type DeliveryAuthoringSlotsV1 = z.infer<typeof DeliveryAuthoringSlotsV1Schema>;
 
 const LooseMemberSlotSchema = z.strictObject({
-  status: MemberSlotSchema.shape.status.nullable(),
   chunkKey: MemberSlotSchema.shape.chunkKey.nullable(),
   title: MemberSlotSchema.shape.title.nullable(),
   contract: MemberSlotSchema.shape.contract.nullable(),

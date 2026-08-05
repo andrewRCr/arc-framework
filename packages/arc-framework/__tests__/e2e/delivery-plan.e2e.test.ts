@@ -129,7 +129,6 @@ describe("arc delivery", () => {
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
       },
       members: [{
-        status: "live",
         chunkKey: "branch",
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
@@ -213,7 +212,6 @@ describe("arc delivery", () => {
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
       },
       members: [{
-        status: "live",
         chunkKey: "branch",
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
@@ -326,7 +324,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -379,7 +376,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -419,7 +415,6 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
@@ -477,14 +472,12 @@ describe("arc delivery", () => {
       projection: { kind: "wu-integration-target" },
       boundary: { kind: "phase-aligned" },
       members: [{
-        status: "live",
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
         mainlineLandability: "integration-only",
       }, {
-        status: "live",
         chunkKey: "companion",
         title: "Companion",
         contract: "Publish the companion contract",
@@ -526,7 +519,6 @@ describe("arc delivery", () => {
     const baseSlots = {
       projection: { kind: "wu-integration-target" },
       members: [{
-        status: "live",
         chunkKey: "partial",
         title: "Partial member",
         contract: "Publish part of the implementation",
@@ -708,7 +700,6 @@ function fieldSlots(run: DeliveryFieldRun, contributionIds: readonly string[]) {
       }),
     },
     members: run.members.map((member, index) => ({
-      status: "live",
       chunkKey: member.chunkKey,
       title: member.title,
       contract: member.contract,

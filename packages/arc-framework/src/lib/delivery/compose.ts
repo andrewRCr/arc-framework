@@ -423,7 +423,6 @@ function projectionMatchesSlots(
     projection: authoring.projection,
     boundary: projection.boundary,
     members: authoring.members.map((member) => ({
-      status: member.status,
       chunkKey: member.chunkKey,
       title: member.title,
       contract: member.contract,

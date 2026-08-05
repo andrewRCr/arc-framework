@@ -47,7 +47,6 @@ const filledSlots = {
   projection: { kind: "stack-to-main" },
   boundary: { kind: "phase-aligned" },
   members: [{
-    status: "live",
     chunkKey: "first",
     title: "First member",
     contract: "Publish the first contract",

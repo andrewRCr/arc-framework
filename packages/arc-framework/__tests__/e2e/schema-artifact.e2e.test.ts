@@ -20,7 +20,6 @@ describe("production schema artifact", () => {
       "canonical-change-set",
       "change-path-fact",
       "change-path-set",
-      "delivery-assurance-subject-id-preimage",
       "delivery-deliverable-id-preimage",
       "delivery-plan",
       "delivery-plan-authoring-input",

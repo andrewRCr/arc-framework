@@ -27,7 +27,6 @@ function priorRevision(workUnitId = "delivery-plan-record") {
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
     members: [{
-      status: "live",
       chunkKey: "record-substrate",
       title: "Record substrate",
       contract: "Provide the canonical delivery record substrate.",
@@ -35,7 +34,6 @@ function priorRevision(workUnitId = "delivery-plan-record") {
       designElementIds: [],
       mainlineLandability: "integration-only",
       deliverableId: digest,
-      assuranceSubjectId: digest,
       semanticFingerprint: digest,
     }],
     seams: [],

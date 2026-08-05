@@ -19,13 +19,11 @@ function digest(label: string) {
 function plan(options: {
   readonly projection?: "stack-to-main" | "wu-integration-target";
   readonly shared?: boolean;
-  readonly landed?: boolean;
   readonly oneMember?: boolean;
 } = {}): DeliveryPlanV1 {
   const firstId = digest("first-id");
   const secondId = digest("second-id");
   const members = [{
-    status: options.landed === true ? "landed" as const : "live" as const,
     chunkKey: "first",
     title: "First member",
     contract: "Publish the first contract",
@@ -33,10 +31,8 @@ function plan(options: {
     designElementIds: ["requirements:first"],
     mainlineLandability: "independently-landable" as const,
     deliverableId: firstId,
-    assuranceSubjectId: digest("first-assurance"),
     semanticFingerprint: digest("first-fingerprint"),
   }, ...options.oneMember === true ? [] : [{
-    status: "live" as const,
     chunkKey: "second",
     title: "Second | member",
     contract: "Publish the second contract",
@@ -44,7 +40,6 @@ function plan(options: {
     designElementIds: [],
     mainlineLandability: "independently-landable" as const,
     deliverableId: secondId,
-    assuranceSubjectId: digest("second-assurance"),
     semanticFingerprint: digest("second-fingerprint"),
   }]];
   return DeliveryPlanV1Schema.parse({
@@ -52,8 +47,8 @@ function plan(options: {
     semanticsVersion: "delivery-plan/v1",
     workUnitId: "delivery-plan-record",
     planId: PLAN_ID,
-    planRevision: options.landed === true ? 2 : 1,
-    previousPlanDigest: options.landed === true ? digest("previous-plan") : null,
+    planRevision: 1,
+    previousPlanDigest: null,
     design: {
       artifacts: [{ artifactId: "spec.md", revisionDigest: digest("spec") }],
       elements: [{ elementId: "requirements:first", semanticDigest: digest("element") }],
@@ -76,7 +71,6 @@ function plan(options: {
       incidentDeliverableIds: [firstId, secondId],
       ownerDeliverableId: secondId,
       designElementIds: [],
-      assuranceSubjectId: digest("seam-assurance"),
       semanticFingerprint: digest("seam-fingerprint"),
     }],
     planDigest: digest("plan"),
@@ -114,7 +108,10 @@ describe("delivery task-list projection", () => {
     if (first.status !== "rendered") throw new Error("expected first render");
     expect(first.content).toContain("- **Plan Revision:** `1`");
     const prefixed = `UNTOUCHED PREFIX\n${first.content}UNTOUCHED SUFFIX`;
-    const second = replaceDeliveryPlanSection(prefixed, plan({ shared: true, landed: true }));
+    const secondPlan = structuredClone(plan({ shared: true }));
+    secondPlan.planRevision = 2;
+    secondPlan.previousPlanDigest = digest("previous-plan");
+    const second = replaceDeliveryPlanSection(prefixed, secondPlan);
     expect(second.status).toBe("rendered");
     if (second.status !== "rendered") throw new Error("expected successor render");
     expect(second.content.startsWith("UNTOUCHED PREFIX\n# Tasks")).toBe(true);
@@ -145,8 +142,11 @@ describe("delivery task-list projection", () => {
       .toEqual({ status: "refused", reason: "replacement-locus-malformed" });
   });
 
-  it("renders shared tasks, landed values, named seams, and stack landability", () => {
-    const section = renderDeliveryPlanSection(plan({ shared: true, landed: true }));
+  it("renders shared tasks, named seams, and stack landability without provider position", () => {
+    const renderedPlan = structuredClone(plan({ shared: true }));
+    renderedPlan.planRevision = 2;
+    renderedPlan.previousPlanDigest = digest("previous-plan");
+    const section = renderDeliveryPlanSection(renderedPlan);
     expect(section).toContain([
       "## Delivery Plan",
       "",
@@ -154,11 +154,12 @@ describe("delivery task-list projection", () => {
       `- **Plan Digest:** \`${digest("plan")}\``,
       "- **Projection:** `stack-to-main`",
       "",
-      "| # | Member | Chunk key | Tasks | Design elements | Status | Landability |",
+      "| # | Member | Chunk key | Tasks | Design elements | Landability |",
     ].join("\n"));
     expect(section).toContain("| Landability |");
     expect(section).toContain("`1.1` (shared)");
-    expect(section).toContain("landed (as of landing)");
+    expect(section).not.toContain("Status");
+    expect(section).not.toContain("landed (as of landing)");
     expect(section).toContain("Second \\| member");
     expect(section).toContain("Both \\| sides agree");
     expect(section).toContain("| Cross-member contract | 1, 2 | 2 |");
@@ -169,7 +170,8 @@ describe("delivery task-list projection", () => {
       projection: "wu-integration-target",
       oneMember: true,
     }));
-    expect(section).toContain("| # | Member | Chunk key | Tasks | Design elements | Status |");
+    expect(section).toContain("| # | Member | Chunk key | Tasks | Design elements |");
+    expect(section).not.toContain("Status");
     expect(section).toContain("- **Projection:** `wu-integration-target`");
     expect(section).not.toContain("Landability");
     expect(section).toContain("| 1 | First member | `first` |");

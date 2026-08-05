@@ -58,7 +58,6 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
     projection: { kind: "wu-integration-target" as const },
     boundary: { kind: "phase-aligned" as const },
     members: [{
-      status: "live" as const,
       chunkKey: "only",
       title: "Only member",
       contract: "Publish the contract",
