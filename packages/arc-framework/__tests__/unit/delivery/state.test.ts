@@ -84,10 +84,11 @@ describe("DeliveryStateV1Schema", () => {
 describe("delivery state binding and plan coherence", () => {
   it("constructs the complete ordered state from a pushed ref or opened change request", () => {
     const current = deliveryPlanFixture();
-    const [firstId, secondId] = current.members.map((member) => member.deliverableId);
+    const firstMemberId = current.members[0]!.deliverableId;
+    const secondMemberId = current.members[1]!.deliverableId;
     const pushed = constructInitialDeliveryState(current, {
       kind: "pushed-ref",
-      deliverableId: firstId,
+      deliverableId: firstMemberId,
       ref: "refs/heads/delivery-first",
       coordinates: { base: head, head, tree },
     });
@@ -97,7 +98,10 @@ describe("delivery state binding and plan coherence", () => {
         planId: current.planId,
         workUnitId: current.workUnitId,
         boundPlan: { planRevision: 1, planDigest: current.planDigest },
-        members: [{ deliverableId: firstId, ref: "refs/heads/delivery-first" }, { deliverableId: secondId }],
+        members: [
+          { deliverableId: firstMemberId, ref: "refs/heads/delivery-first" },
+          { deliverableId: secondMemberId },
+        ],
         activeOperation: null,
       },
     });
@@ -110,14 +114,14 @@ describe("delivery state binding and plan coherence", () => {
 
     const opened = constructInitialDeliveryState(current, {
       kind: "opened-change-request",
-      deliverableId: secondId,
+      deliverableId: secondMemberId,
       changeRequest: { providerId: "github", changeRequestId: "456" },
     });
     expect(opened).toMatchObject({
       status: "constructed",
       state: {
-        members: [{ deliverableId: firstId }, {
-          deliverableId: secondId,
+        members: [{ deliverableId: firstMemberId }, {
+          deliverableId: secondMemberId,
           changeRequest: { providerId: "github", changeRequestId: "456" },
         }],
       },
