@@ -1,123 +1,113 @@
-# Draft: delivery-stack-topology — the stack-to-base projection and its host adapters
+# Draft: delivery-stack-topology — guarded ordered delivery to the protected base
 
-- **Cohort:** `chunked-delivery` — see `cohort-chunked-delivery.md` for the shared canonical model,
-  the problem framing, the field evidence the design rests on, and the cut that produced this member.
-- **Purpose:** Own the stack-to-base reducer, the stack-eligibility test, the GitHub reference
-  delivery-host adapter, and the lifecycle-artifact exclusion with its non-regression criteria.
-- **Position:** the cohort's last member. It depends on `delivery-plan-record` and
-  `delivery-integration-target`, and externally on `session-locus-model` for mid-delivery session
-  position and on a typed delivery-slice review vehicle for exact-head clearance. Four independent
-  constraints land on this member and none on the integration-target one; that asymmetry is the cut.
+- **Cohort:** `chunked-delivery` — `cohort-chunked-delivery.md` owns the shared v1 lifecycle, robustness floor,
+  non-goals, and hardening-admission boundary.
+- **Purpose:** Execute a human-authored stack to the protected base while preserving exact member order, member-sized
+  review and authorization, lifecycle-artifact isolation, and resumability from the owning work-unit control locus.
+- **Position:** Depends on `delivery-plan-record` and `delivery-integration-target`. It reuses their state and operation
+  boundaries and adds only stack-specific eligibility, ref topology, landing, and review-vehicle behavior.
 
 ---
 
-## Inbound Buffer — Pending Integration
+## Goals
 
-> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+- Validate that every planned member can leave the protected base green and semantically coherent before external
+  binding.
+- Materialize an ordered member-ref and pull-request chain without treating provider stack metadata or branch names as
+  authority.
+- Land one exact member at a time through existing review and integration authorization.
+- Reconcile the remaining suffix after each landing without rewriting the owning work-unit control branch.
+- Keep active lifecycle artifacts out of every non-final member and preserve ordinary session resolution for unrelated
+  work.
+- Resume from `DeliveryState` and the retained control locus after interruption.
 
-### `[ ]` **Cover retained-control closeout in the stack lifecycle-artifact contract**
+## Stack eligibility
 
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during the
-  `session-locus-model` hand-run stack closeout.
-- _Concern:_ the terminal stack member must atomically replace the planned-on-base generation with the completed
-  generation while a retained control checkout owns the active artifacts, without producing an abandonment
-  receipt, a ROADMAP repair, or an unresolved durable locus.
-- _Fold-in:_ extend the topology contract and interruption matrix through retained-control transfer or the core
-  terminal-frame capability; keep generic recovery semantics outside this member.
+The author supplies member boundaries. Before the first pushed ref or opened change request binds the plan, construct
+and test disposable candidate heads for those boundaries:
 
-### `[ ]` **Validate an authored stack cut before it becomes externally binding**
+- each member must pass the relevant gates at its own head;
+- each intermediate tree must expose a semantically coherent supported surface; and
+- any compatibility cap or temporary dormant surface must be understood as real stack cost, not generated
+  automatically.
 
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` draft design from the `session-locus-model` field run.
-- _Concern:_ a retrofit author can otherwise commit to a cut before learning that independently green member heads
-  are semantically incoherent or require costly compatibility caps.
-- _Fold-in:_ make stack eligibility admit a non-binding dry run over author-drawn boundaries: construct and test
-  candidate heads, evaluate semantic landability and compatibility cost, then discard them before any pushed ref
-  or change request binds the plan. Do not derive cuts language-agnostically.
+An independently green but semantically incomplete member is not stack eligible. Use the integration-target
+projection when the concern cannot leave the protected base coherent in increments. Do not introduce mixed topology
+segments or split the concern into sibling work units merely to obtain incremental landing.
 
-## Stack-to-`main` projection and delivery-host adapters
+## Projection lifecycle
 
-**Stack-to-`main` reducer.** The lowest unmerged member directly targets the current stack base; each higher member
-directly targets its predecessor's ref. The whole remaining suffix may be materialized, but every observation must
-prove that exact linear order and one final target.
+1. **Materialize the chain.** The lowest unlanded member targets the current protected base; each higher member targets
+   its predecessor ref. Bind every exact ref and pull request in `DeliveryState`, while the work-unit control branch
+   remains the authoring surface.
+2. **Review the next member.** Extend the existing review vehicle boundary only enough to bind the plan, member,
+   owning work unit, exact base, and exact head. Existing review routing and clearance remain authoritative.
+3. **Reserve and reobserve.** Reserve a single-member landing with the expected plan revision, state version, base,
+   member head/tree, and predecessor relation. Reobserve Git, host, checks, and review immediately before mutation.
+4. **Authorize and land once.** Every member landing reaches the existing integration interlock for its exact head.
+   V1 invokes one ordinary merge; approval never reaches a later member.
+5. **Reobserve and reconcile.** Record the exact landed base and current suffix coordinates with a version-checked
+   write. If the host rewrites or retargets descendants, rebind their current refs and review targets through existing
+   applicability rules before another landing.
+6. **Close out from the control locus.** The final member incorporates the attended lifecycle/archive tail according
+   to the normal work-unit closeout contract. Verify that no unplanned contribution rode the final landing, complete
+   ordinary work-unit verification, and leave no active lifecycle artifact on the protected base.
 
-- Editing or rebasing `Dj` advances the generation of `Dj … Dn`; the rewritten suffix is not ready again until each
-  current target's checks and review qualification settle.
-- Every landing set is an exact prefix `{D(k+1) … Dj}` from the lowest unmerged member. Three closed adapter
-  capabilities preserve one core rule:
-    - `single` lands only `D(k+1)` and is the complete generic Git / PR fallback;
-    - `atomic-prefix` lands the authorized prefix all-or-none; and
-    - `ordered-prefix` may land only a leading subprefix before a reported failure, as with a merge queue.
-- The generic adapter never simulates `atomic-prefix` by looping several merges under one operation. An
-  `ordered-prefix` result records the exact landed subprefix; descendants remain unlanded and no member outside the
-  authorized prefix may move.
-- Any partial landing retargets / rebases the remaining suffix onto the new base. Reconciliation advances those
-  generations and blocks another landing until their current checks and review qualification settle.
+The generic sequential path is the whole v1 projection. A host-native stack API may later improve presentation or
+batching, but it is not required for correctness or initial completion.
 
-Every stack landing touches `main`, so each exact landing request reaches an integration interlock. Authorization of
-an `ordered-prefix` operation permits only the named prefix and its documented leading-subprefix failure outcome; it
-never grants authority over later members.
+## Ref and session boundaries
 
-**GitHub reference delivery-host adapter.** GitHub Stacked PRs is concrete enough in public preview to serve as the
-first delivery-host adapter: official public documentation defines final-target rules / CI, focused per-layer diffs,
-linear stack requirements, cascading rebase, partial and atomic merge-down, merge-queue behavior, REST stack
-resources, read-only GraphQL membership, webhooks, and the public `github/gh-stack` extension. The ARC core defines
-provider-neutral delivery capabilities and proofs; a GitHub adapter maps those semantics when preview access is
-available, while ordinary Git / PR orchestration remains a complete fallback. Preview API / CLI details never enter
-the canonical plan or acquire review-source authority.
+- Delivery refs are projections owned by the plan, not work-unit branches or independent lifecycle loci.
+- Authoring and review-driven fixes land on the retained work-unit control branch, then rematerialize the affected
+  suffix. Member refs are not durable authoring surfaces.
+- Reverse lookup from repository plus member ref resolves the owning plan, member, and work unit through shared state.
+  Branch naming is only presentation.
+- Mid-delivery handoff resumes the owning work unit at its control locus and active operation. V1 does not require a
+  separate session-locus record per member.
 
-As of 2026-07-30 the feature entered **public preview**, rolling out to all repositories, and two recorded facts
-changed. The stack REST resources are now public at `/repos/{owner}/{repo}/stacks` — list, read, create from an
-ordered bottom-to-top pull-request array, append, and unstack — replacing the earlier internal endpoints; every
-pull-request resource carries a `stack` object with membership, one-based position, size, and base ref / sha, and
-the same object is delivered on `pull_request` webhook events, so the adapter can observe rather than poll. And
-`gh stack merge` is now implemented, so automated prefix merge no longer necessarily routes through the host UI.
-Auto-merge and merge-queue support remain incomplete and are rolling out separately, so the prepare-bind-hand-off
-path above stays the safe default until a capability probe proves otherwise.
+## Lifecycle-artifact exclusion
 
-Three constraints follow, and none is a direction change. A create or append carries **at least two and at most one
-hundred** pull requests, so a single-member plan cannot be expressed as a stack at all and the projection reducer
-must degenerate it to an ordinary pull request rather than emitting a one-member stack. All three merge methods are
-permitted, which sharpens rather than settles the identity question: the capability contract must **select** a
-method that preserves commit identity, not merely confirm that stacking is allowed, and the selection can be taken
-away at runtime because merge queues override it. Finally, `stack.position` and `stack.size` are a second ordering
-authority over membership the plan already owns — an observation to reconcile, never a source of truth, under the
-existing rule that no control-bearing verdict trusts copied provider status.
+Every non-final member excludes the owning work unit's active metadata, spec, task list, notes, roadmap projection, and
+other lifecycle records supplied by the storage layer. The rule is expressed over owned records, not a permanent path
+blocklist, so it becomes vacuous when those records materialize outside the code repository.
 
-Sources disagree on atomicity: the release note and the extension both describe merging a chosen pull request and
-every unmerged layer below it as one all-or-nothing operation, while the feature documentation states merging is
-not fully atomic and must proceed bottom-up. No resolution is needed — the three closed adapter capabilities
-already span both readings, with `atomic-prefix` and `ordered-prefix` covering the disagreement and `single` as the
-complete fallback. Probe the capability; never infer it from the marketing surface.
+The final attended closeout publishes only the lifecycle result the existing work-unit integration contract requires.
+Delivery does not add per-member artifact flags, holdback state, or a second archive mechanism.
 
-**Interim constraint — append-only merge versus automatic rebase.** ARC currently forbids rebasing a pushed branch,
-because user notes are SHA-keyed and rewriting published commits orphans them from the ancestor walk that loads
-them. GitHub stacking rebases every higher member automatically as each lower one lands, which is exactly the
-forbidden operation. The two do not actually collide, and the reason is the boundary already settled above:
-delivery refs are materialized projections of the plan, not work-unit branches. Authoring happens on the work-unit
-branch, which is never rebased and where the notes live; the host rewrites projections, and tree-exactness rather
-than commit identity is what the terminal proof requires.
+## Robustness floor
 
-One real exposure survives that argument. A review-driven fix authored **directly on a member ref** attaches notes
-to a commit the next landing will rewrite, and the state contract does contemplate editing a member in place
-(editing or rebasing a member advances its generation and every generation above it). For the interim, the stack
-projection should therefore treat member refs as **write-through projections rather than authoring surfaces** —
-land the fix on the work-unit branch and re-materialize — and say so, rather than relying on the discipline going
-unstated. Where that cannot hold, the cost is orphaned note reachability, recoverable from the notes ref by hand
-but not automatically.
+- The next landable member is derived from plan order plus current state, never selected from provider ordering.
+- Exact pre/post coordinates guard every mutation; ambiguous movement refuses.
+- A crash may reconcile a recognized landing result through the single active operation.
+- Host rewrites invalidate only the affected current coordinates and review applicability. They do not create plan
+  generations, assurance generations, or immutable observation history.
+- No member lands until its current checks, existing review obligation, predecessor relation, and exact-head
+  integration authorization settle.
+- A partially landed stack leaves the protected base valid and does not expose active work-unit artifacts.
 
-This constraint retires on its own when operational state stops being SHA-keyed, so it earns a recorded rule and no
-machinery. It is also the fourth independent reason the stack projection sequences after the integration-target
-one: that projection merges the base in append-only and never rebases a member, so the conflict never arises there.
+## Explicit non-goals
 
-**Stack-eligibility test** (gates only the stack projection, never chunking): a deliverable can land independently
-to `main` iff it leaves the tree **green + semantically consistent** on its own.
+This member does not add:
 
-- **Additive / layered / vertical** work → stack-eligible (most feature work; the additive parts of a mixed unit).
-- **Atomic consistency sweep with no consistency-preserving intermediate** → not stack-eligible; it still _chunks_
-  for review, it just merges once. A doc verb-rename is the clean example: no "both names coexist" intermediate, so
-  it cannot land half-renamed on `main` — but its review surface can still be carved into tractable pieces.
-- **Mixed work unit** → always chunk for review; choose the integration-target projection when the complete concern
-  cannot land safely in increments. Do not introduce mixed projection segments or split the concern into sibling
-  work units merely to obtain incremental landing.
+- automatic stack discovery, boundary derivation, compatibility-cap generation, or semantic landability inference;
+- provider-native stack creation, webhooks, atomic-prefix, ordered-prefix, merge-queue, or batch-merge support in v1;
+- a general delivery-host capability registry or parity across provider previews;
+- per-member work-unit identities, session loci, metadata records, or authoring branches;
+- review groups, seam receipts, terminal assurance, or receipt projection across rewritten pull requests;
+- commit-history preservation across delivery refs when exact tree/contribution comparison suffices;
+- autonomous abandoned-stack rollback or cleanup of every possible partial provider outcome; or
+- topology changes, reactive insertion modes, or live-to-landed plan conversion after binding.
+
+## Hardening boundary
+
+The cohort's hardening-admission rule applies. A new provider capability, recovery state, identity, or proof record must
+address a demonstrated failure in the sequential stack lifecycle. Native-host convenience and theoretical support for
+larger batch operations are follow-up scope.
+
+## Open implementation details
+
+- Exact naming and namespace of delivery refs.
+- The narrow review-vehicle extension's existing schema locus.
+- The repository operation used to establish exact member contribution after a provider rewrite.
+- The attended final-tail composition point shared with current work-unit integration.

@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
-- **Depends On:** `delivery-integration-target`, `delivery-plan-record`, `session-locus-model`
+- **Depends On:** `delivery-integration-target`, `delivery-plan-record`
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-stack-topology.md`
