@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "planning-lane-receipt-kinds",
+  "claimId": "33c4a8ee2270a663119bcc5614c8ffae",
+  "createdAt": "2026-08-05T16:10:27.469Z",
+  "updatedAt": "2026-08-05T16:10:27.469Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "The decomposition planning lane rejects any retirement-namespace record that is not a canonical v3 decomposition receipt, so a park-planning receipt makes arc park produce a commit the lane check fails; return the conservative reviewed verdict instead of erroring",
+  "branch": "chore/planning-lane-receipt-kinds",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
