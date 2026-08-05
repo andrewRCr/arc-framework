@@ -15,7 +15,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                           | Priority | Owner  | Depends on | Cohort                    |
 | ---------- | ----------------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Active`   | delivery-plan-record                | P1       | andrew | —          | chunked-delivery          |
 | `Planning` | review-signal-convergence           | P1       | andrew | —          | review-protocol-alignment |
 | `Planning` | decomposition-doctrine              | P1       | andrew | —          | —                         |
 | `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                         |
@@ -29,6 +28,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                          | Priority | Owner  | Depends on | Cohort                        |
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
+| delivery-integration-target        | P1       | andrew | —          | chunked-delivery              |
 | decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-transition-record        | P1       | andrew | —          | decompose-transform-integrity |
@@ -105,7 +105,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                          | Priority | Owner  | Depends on                                                  | Cohort                        |
 | ---------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
-| delivery-integration-target        | P1       | andrew | delivery-plan-record                                        | chunked-delivery              |
+| delivery-stack-topology            | P1       | andrew | delivery-integration-target                                 | chunked-delivery              |
 | decompose-finalization-diagnostics | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
 | decompose-finalization-scaling     | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
 | review-source-authority            | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
@@ -121,11 +121,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                 | Priority | Owner  | Depends on                                        | Cohort                    |
-| ------------------------- | -------- | ------ | ------------------------------------------------- | ------------------------- |
-| delivery-stack-topology   | P1       | andrew | delivery-integration-target, delivery-plan-record | chunked-delivery          |
-| review-activity-contracts | P1       | andrew | review-source-authority                           | review-protocol-alignment |
-| wu5-public-release        | P3       | andrew | docs-content-sweep                                | release-readiness         |
+| Work unit                 | Priority | Owner  | Depends on              | Cohort                    |
+| ------------------------- | -------- | ------ | ----------------------- | ------------------------- |
+| review-activity-contracts | P1       | andrew | review-source-authority | review-protocol-alignment |
+| wu5-public-release        | P3       | andrew | docs-content-sweep      | release-readiness         |
 
 ### Depth 3
 

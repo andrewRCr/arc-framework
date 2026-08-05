@@ -32,27 +32,11 @@ const AuthoredDeliveryPlanMemberShape = {
 const DeliveryPlanMemberShape = {
   ...AuthoredDeliveryPlanMemberShape,
   deliverableId: DeliveryCanonicalDigestSchema,
-  assuranceSubjectId: DeliveryCanonicalDigestSchema,
   semanticFingerprint: DeliveryCanonicalDigestSchema,
 };
 
-/** A delivery member whose semantic fingerprint remains derivable. */
-export const LiveDeliveryPlanMemberV1Schema = z.strictObject({
-  status: z.literal("live"),
-  ...DeliveryPlanMemberShape,
-});
-
-/** A landed delivery member carrying its frozen semantic fingerprint. */
-export const LandedDeliveryPlanMemberV1Schema = z.strictObject({
-  status: z.literal("landed"),
-  ...DeliveryPlanMemberShape,
-});
-
-/** Canonical tagged delivery-member schema. */
-export const DeliveryPlanMemberV1Schema = z.discriminatedUnion("status", [
-  LiveDeliveryPlanMemberV1Schema,
-  LandedDeliveryPlanMemberV1Schema,
-]);
+/** Canonical intent-only delivery-member schema. */
+export const DeliveryPlanMemberV1Schema = z.strictObject(DeliveryPlanMemberShape);
 export type DeliveryPlanMemberV1 = z.infer<typeof DeliveryPlanMemberV1Schema>;
 
 /** Canonical cross-member seam schema. */
@@ -66,7 +50,6 @@ export const DeliveryPlanSeamV1Schema = z.strictObject({
   ),
   ownerDeliverableId: DeliveryCanonicalDigestSchema,
   designElementIds: z.array(DeliveryOpaqueIdSchema),
-  assuranceSubjectId: DeliveryCanonicalDigestSchema,
   semanticFingerprint: DeliveryCanonicalDigestSchema,
 });
 export type DeliveryPlanSeamV1 = z.infer<typeof DeliveryPlanSeamV1Schema>;
@@ -106,17 +89,6 @@ export const DeliveryPlanV1Schema = z.strictObject({
   members: z.array(DeliveryPlanMemberV1Schema).min(1),
   seams: z.array(DeliveryPlanSeamV1Schema),
   planDigest: DeliveryCanonicalDigestSchema,
-}).superRefine((plan, context) => {
-  if (plan.planRevision !== 1) return;
-  for (const [index, member] of plan.members.entries()) {
-    if (member.status === "landed") {
-      context.addIssue({
-        code: "custom",
-        message: "first-revision members must be live",
-        path: ["members", index, "status"],
-      });
-    }
-  }
 });
 export type DeliveryPlanV1 = z.infer<typeof DeliveryPlanV1Schema>;
 
@@ -139,10 +111,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     z.strictObject({ kind: z.literal("wu-integration-target") }),
     z.strictObject({ kind: z.literal("stack-to-main") }),
   ]),
-  members: z.array(z.discriminatedUnion("status", [
-    z.strictObject({ status: z.literal("live"), ...AuthoredDeliveryPlanMemberShape }),
-    z.strictObject({ status: z.literal("landed"), ...AuthoredDeliveryPlanMemberShape }),
-  ])).min(1),
+  members: z.array(z.strictObject(AuthoredDeliveryPlanMemberShape)).min(1),
   seams: z.array(z.strictObject({
     seamKey: SlugSchema,
     title: NonEmptyTextSchema,
@@ -169,19 +138,93 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
 });
 export type DeliveryPlanAuthoringInputV1 = z.infer<typeof DeliveryPlanAuthoringInputV1Schema>;
 
-const FirstDeliveryPlanAuthoringInputV1Schema = DeliveryPlanAuthoringInputV1Schema.superRefine(
-  (input, context) => {
-    for (const [index, member] of input.members.entries()) {
-      if (member.status === "landed") {
-        context.addIssue({
-          code: "custom",
-          message: "first-revision members must be live",
-          path: ["members", index, "status"],
-        });
-      }
-    }
-  },
-);
+const PositiveSafeIntegerSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+
+/** Exact destination objects observed for one selected target ref. */
+export const DeliveryTargetCoordinatesV1Schema = z.strictObject({
+  head: DeliveryGitObjectIdSchema,
+  tree: DeliveryGitObjectIdSchema,
+});
+export type DeliveryTargetCoordinatesV1 = z.infer<typeof DeliveryTargetCoordinatesV1Schema>;
+
+/** Exact source objects observed for one selected member ref. */
+export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
+  base: DeliveryGitObjectIdSchema,
+  head: DeliveryGitObjectIdSchema,
+  tree: DeliveryGitObjectIdSchema,
+});
+export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
+
+/** One provider-owned change-request handle bound to a delivery member. */
+export const DeliveryChangeRequestV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+});
+export type DeliveryChangeRequestV1 = z.infer<typeof DeliveryChangeRequestV1Schema>;
+
+const DeliveryOperationMemberSnapshotV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema.nullable(),
+  coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
+});
+
+/** Generic exact positions used before and after one external mutation. */
+export const DeliveryOperationSnapshotV1Schema = z.strictObject({
+  target: z.strictObject({
+    ref: DeliveryOpaqueIdSchema,
+    coordinates: DeliveryTargetCoordinatesV1Schema.nullable(),
+  }).nullable(),
+  members: z.array(DeliveryOperationMemberSnapshotV1Schema).refine(
+    (members) => new Set(members.map((member) => member.deliverableId)).size === members.length,
+    "operation snapshot members must be distinct",
+  ),
+});
+export type DeliveryOperationSnapshotV1 = z.infer<typeof DeliveryOperationSnapshotV1Schema>;
+
+/** One crash-recoverable reservation for an external delivery mutation. */
+export const DeliveryActiveOperationV1Schema = z.strictObject({
+  operationId: DeliveryOpaqueIdSchema,
+  kind: z.enum(["materialize", "publish", "rewrite", "land", "teardown"]),
+  affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "affected deliverables must be distinct",
+  ),
+  stateRevision: PositiveSafeIntegerSchema,
+  boundPlanDigest: DeliveryCanonicalDigestSchema,
+  before: DeliveryOperationSnapshotV1Schema,
+  requested: DeliveryOperationSnapshotV1Schema,
+});
+export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;
+
+const DeliveryStateMemberV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema.nullable(),
+  changeRequest: DeliveryChangeRequestV1Schema.nullable(),
+  coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
+});
+
+/** Mutable delivery execution state persisted separately from authored plan intent. */
+export const DeliveryStateV1Schema = z.strictObject({
+  schemaVersion: z.literal(1),
+  semanticsVersion: z.literal("delivery-state/v1"),
+  planId: DeliveryPlanIdSchema,
+  workUnitId: SlugSchema,
+  boundPlan: z.strictObject({
+    planRevision: PositiveSafeIntegerSchema,
+    planDigest: DeliveryCanonicalDigestSchema,
+  }),
+  target: z.strictObject({
+    ref: DeliveryOpaqueIdSchema,
+    coordinates: DeliveryTargetCoordinatesV1Schema.nullable(),
+  }).nullable(),
+  members: z.array(DeliveryStateMemberV1Schema).min(1).refine(
+    (members) => new Set(members.map((member) => member.deliverableId)).size === members.length,
+    "state members must be distinct",
+  ),
+  activeOperation: DeliveryActiveOperationV1Schema.nullable(),
+});
+export type DeliveryStateV1 = z.infer<typeof DeliveryStateV1Schema>;
 
 /**
  * Validate authored input against the presence or absence of a prior plan revision.
@@ -194,9 +237,8 @@ export function validateDeliveryPlanAuthoringInputV1(
   value: unknown,
   priorRevision: DeliveryPlanV1 | null,
 ): ReturnType<typeof DeliveryPlanAuthoringInputV1Schema.safeParse> {
-  return (priorRevision === null
-    ? FirstDeliveryPlanAuthoringInputV1Schema
-    : DeliveryPlanAuthoringInputV1Schema).safeParse(value);
+  void priorRevision;
+  return DeliveryPlanAuthoringInputV1Schema.safeParse(value);
 }
 
 /** Seam incidence resolved from authored chunk keys to derived deliverable identities. */
@@ -234,29 +276,6 @@ export const DeliveryDeliverableIdPreimageSchema = z.strictObject({
 }).readonly();
 export type DeliveryDeliverableIdPreimage = z.infer<typeof DeliveryDeliverableIdPreimageSchema>;
 
-/** Domain-separated preimage for member and seam assurance subjects. */
-export const DeliveryAssuranceSubjectIdPreimageSchema = z.discriminatedUnion("subjectKind", [
-  z.strictObject({
-    domain: z.literal("arc.delivery.assurance-subject-id/v1"),
-    schemaVersion: z.literal(1),
-    semanticsVersion: z.literal("delivery-plan/v1"),
-    subjectKind: z.literal("member"),
-    planId: DeliveryPlanIdSchema,
-  deliverableId: DeliveryCanonicalDigestSchema,
-  }),
-  z.strictObject({
-    domain: z.literal("arc.delivery.assurance-subject-id/v1"),
-    schemaVersion: z.literal(1),
-    semanticsVersion: z.literal("delivery-plan/v1"),
-    subjectKind: z.literal("seam"),
-    planId: DeliveryPlanIdSchema,
-    seamKey: SlugSchema,
-  }),
-]).readonly();
-export type DeliveryAssuranceSubjectIdPreimage = z.infer<
-  typeof DeliveryAssuranceSubjectIdPreimageSchema
->;
-
 /** Compose every delivery-domain schema into a caller-owned registry. */
 export function registerDeliveryDomainSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(DeliveryPlanV1Schema, {
@@ -279,13 +298,13 @@ export function registerDeliveryDomainSchemas(registry: KernelRegistry): KernelR
     version: 1,
     migrationPosture: "strict-current",
   });
-  registry.register(DeliveryDeliverableIdPreimageSchema, {
-    id: "delivery-deliverable-id-preimage",
+  registry.register(DeliveryStateV1Schema, {
+    id: "delivery-state",
     version: 1,
     migrationPosture: "strict-current",
   });
-  registry.register(DeliveryAssuranceSubjectIdPreimageSchema, {
-    id: "delivery-assurance-subject-id-preimage",
+  registry.register(DeliveryDeliverableIdPreimageSchema, {
+    id: "delivery-deliverable-id-preimage",
     version: 1,
     migrationPosture: "strict-current",
   });

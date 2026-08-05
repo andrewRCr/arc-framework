@@ -12,7 +12,7 @@ import {
   type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -33,7 +33,6 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
     projection: { kind: "wu-integration-target" },
     members: [
       {
-        status: "live",
         chunkKey: "first",
         title: "First member",
         contract: "Publish the first contract.",
@@ -42,7 +41,6 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         mainlineLandability: "independently-landable",
       },
       {
-        status: "live",
         chunkKey: "second",
         title: "Second member",
         contract: "Publish the second contract.",
@@ -170,16 +168,6 @@ describe("constructDeliveryPlanRevision", () => {
     });
   });
 
-  it("refuses a landed member in the first revision", () => {
-    const authoring = authoringInput();
-    authoring.members[0]!.status = "landed";
-
-    expect(constructDeliveryPlanRevision(constructionInput({ authoring }))).toEqual({
-      status: "refused",
-      issues: [{ code: "structural-invalid" }],
-    });
-  });
-
   it("carries retrofit coverage gaps as advisories", () => {
     const authoring = authoringInput();
     authoring.entry = "from-branch";
@@ -285,21 +273,19 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(notLandable), "stack-member-not-landable");
   });
 
-  it("re-derives live member fingerprints", () => {
+  it("re-derives member fingerprints", () => {
     const plan = structuredClone(constructedPlan());
     plan.members[0]!.semanticFingerprint = canonicalDigest({ wrong: "fingerprint" });
 
     expectIssue(redigest(plan), "member-fingerprint-mismatch");
   });
 
-  it("carries a landed fingerprint without re-deriving moved inventory semantics", () => {
+  it("re-derives member fingerprints from current inventory semantics", () => {
     const first = constructedPlan();
-    const authoring = authoringInput();
-    authoring.members[0]!.status = "landed";
-    const next = constructionInput({ authoring, predecessor: first });
+    const next = constructionInput({ predecessor: first });
     const implementation = next.taskInventory.implementation.map((task) => (
       task.taskId === "1.1"
-        ? { ...task, semanticDigest: canonicalDigest({ goal: "Moved after landing" }) }
+        ? { ...task, semanticDigest: canonicalDigest({ goal: "Current first-member semantics" }) }
         : task
     ));
     const result = constructDeliveryPlanRevision({
@@ -313,46 +299,69 @@ describe("validateDeliveryPlanRevision", () => {
 
     expect(result.status).toBe("constructed");
     if (result.status !== "constructed") return;
-    expect(result.plan.members[0]!.status).toBe("landed");
-    expect(result.plan.members[0]!.semanticFingerprint).toBe(first.members[0]!.semanticFingerprint);
+    expect(result.plan.members[0]!.semanticFingerprint).not.toBe(first.members[0]!.semanticFingerprint);
+    expect(result.plan.members[1]!.semanticFingerprint).toBe(first.members[1]!.semanticFingerprint);
   });
 
-  it("requires a converting landed member to equal its live predecessor modulo status", () => {
-    const first = constructedPlan();
-    const authoring = authoringInput();
-    authoring.members[0]!.status = "landed";
-    authoring.members[0]!.contract = "Changed while converting.";
+  it("re-derives seam and incident-member fingerprints from current seam semantics", () => {
+    const firstAuthoring = DeliveryPlanAuthoringInputV1Schema.parse({
+      ...authoringInput(),
+      seams: [{
+        seamKey: "shared-contract",
+        title: "Shared contract",
+        acceptance: "Both members preserve the first shared contract.",
+        incidentChunkKeys: ["first", "second"],
+        designElementIds: [],
+      }],
+    });
+    const first = constructedPlan(firstAuthoring);
+    const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
+      ...authoringInput(),
+      seams: [{
+        ...firstAuthoring.seams[0]!,
+        acceptance: "Both members preserve the current shared contract.",
+      }],
+    });
 
     const result = constructDeliveryPlanRevision(constructionInput({
       authoring,
       predecessor: first,
     }));
-    expect(result.status).toBe("refused");
-    if (result.status !== "refused") return;
-    expect(result.issues.map((issue) => issue.code)).toContain("landed-conversion-mismatch");
+    expect(result.status).toBe("constructed");
+    if (result.status !== "constructed") return;
+    expect(result.plan.seams[0]!.semanticFingerprint).not.toBe(first.seams[0]!.semanticFingerprint);
+    expect(result.plan.members.map((member) => member.semanticFingerprint)).not.toEqual(
+      first.members.map((member) => member.semanticFingerprint),
+    );
   });
 
-  it("keeps an already frozen member byte-identical", () => {
-    const first = constructedPlan();
-    const conversionAuthoring = authoringInput();
-    conversionAuthoring.members[0]!.status = "landed";
-    const secondResult = constructDeliveryPlanRevision(constructionInput({
-      authoring: conversionAuthoring,
+  it("moves the plan digest but not semantic fingerprints for presentation-only title changes", () => {
+    const initialAuthoring = DeliveryPlanAuthoringInputV1Schema.parse({
+      ...authoringInput(),
+      seams: [{
+        seamKey: "shared-contract",
+        title: "Shared contract",
+        acceptance: "Both members preserve the shared contract.",
+        incidentChunkKeys: ["first", "second"],
+        designElementIds: [],
+      }],
+    });
+    const first = constructedPlan(initialAuthoring);
+    const changedAuthoring = structuredClone(initialAuthoring);
+    changedAuthoring.members[0]!.title = "Retitled first member";
+    changedAuthoring.seams[0]!.title = "Retitled shared contract";
+
+    const result = constructDeliveryPlanRevision(constructionInput({
+      authoring: changedAuthoring,
       predecessor: first,
     }));
-    expect(secondResult.status).toBe("constructed");
-    if (secondResult.status !== "constructed") return;
-
-    const changedAuthoring = authoringInput();
-    changedAuthoring.members[0]!.status = "landed";
-    changedAuthoring.members[0]!.title = "Changed after freezing";
-    const thirdResult = constructDeliveryPlanRevision(constructionInput({
-      authoring: changedAuthoring,
-      predecessor: secondResult.plan,
-    }));
-    expect(thirdResult.status).toBe("refused");
-    if (thirdResult.status !== "refused") return;
-    expect(thirdResult.issues.map((issue) => issue.code)).toContain("landed-member-mismatch");
+    expect(result.status).toBe("constructed");
+    if (result.status !== "constructed") return;
+    expect(result.plan.planDigest).not.toBe(first.planDigest);
+    expect(result.plan.members.map((member) => member.semanticFingerprint)).toEqual(
+      first.members.map((member) => member.semanticFingerprint),
+    );
+    expect(result.plan.seams[0]!.semanticFingerprint).toBe(first.seams[0]!.semanticFingerprint);
   });
 
   it("constructs revision one with no predecessor digest", () => {
@@ -372,7 +381,7 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(plan), "first-revision-lineage-mismatch");
   });
 
-  it("requires exact predecessor identity, revision, and digest lineage", () => {
+  it("requires exact predecessor identity, authored context, revision, and digest lineage", () => {
     const first = constructedPlan();
     const secondResult = constructDeliveryPlanRevision(constructionInput({ predecessor: first }));
     expect(secondResult.status).toBe("constructed");
@@ -386,6 +395,18 @@ describe("validateDeliveryPlanRevision", () => {
     const wrongIdentity = structuredClone(secondResult.plan);
     wrongIdentity.planId = "123e4567-e89b-42d3-a456-426614174001";
     expectIssueAgainst(redigest(wrongIdentity), first, "plan-id-lineage-mismatch");
+
+    const wrongProject = structuredClone(secondResult.plan);
+    wrongProject.projectId = "clone-local://different-project";
+    expectIssueAgainst(redigest(wrongProject), first, "project-id-lineage-mismatch");
+
+    const wrongWorkUnit = structuredClone(secondResult.plan);
+    wrongWorkUnit.workUnitId = SlugSchema.parse("different-work-unit");
+    expectIssueAgainst(redigest(wrongWorkUnit), first, "work-unit-id-lineage-mismatch");
+
+    const wrongEntry = structuredClone(secondResult.plan);
+    wrongEntry.entry = "from-branch";
+    expectIssueAgainst(redigest(wrongEntry), first, "entry-changed");
 
     const skippedRevision = structuredClone(secondResult.plan);
     skippedRevision.planRevision = 3;
@@ -405,13 +426,9 @@ describe("validateDeliveryPlanRevision", () => {
     expect(withProject.projectId).toBe("clone-local://remote-shaped value");
     expect(validateDeliveryPlanRevision(withProject, null).status).toBe("valid");
     expect(withProject.planId).toBe(withoutProject.planId);
-    expect(withProject.members.map((member) => ({
-      deliverableId: member.deliverableId,
-      assuranceSubjectId: member.assuranceSubjectId,
-    }))).toEqual(withoutProject.members.map((member) => ({
-      deliverableId: member.deliverableId,
-      assuranceSubjectId: member.assuranceSubjectId,
-    })));
+    expect(withProject.members.map((member) => member.deliverableId)).toEqual(
+      withoutProject.members.map((member) => member.deliverableId),
+    );
   });
 });
 

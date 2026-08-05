@@ -29,9 +29,16 @@ export type DecompositionPlanningLaneResult =
   | { outcome: "planning" | "reviewed" }
   | { outcome: "invalid-retirement"; locus: string };
 
-/** Receipt-read boundary preserving malformed-content vs unavailable-object evidence. */
+/**
+ * Receipt-read boundary preserving malformed-content vs unavailable-object evidence.
+ *
+ * The retirement namespace holds more than decomposition receipts — a park writes a retained-receipt
+ * record there too. `not-decomposition` keeps an authentic record of another kind distinct from
+ * corruption, because only the latter is evidence of a broken retirement.
+ */
 export type PlanningLaneReceiptRead =
   | { status: "read"; receipt: V3DecomposeReceipt }
+  | { status: "not-decomposition" }
   | { status: "malformed" }
   | { status: "unreadable" };
 
@@ -104,6 +111,7 @@ export async function classifyDecompositionPlanningLane(
   }
   const read = await dependencies.readReceipt(head, receiptChange.path);
   if (read.status === "unreadable") return { outcome: "reviewed" };
+  if (read.status === "not-decomposition") return { outcome: "reviewed" };
   if (read.status === "malformed") {
     return { outcome: "invalid-retirement", locus: receiptChange.path };
   }
