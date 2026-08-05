@@ -200,6 +200,41 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("walks the agent tool shell across an unmatched prologue between the snapshot and the eval", async () => {
+    const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh 2>/dev/null || true"
+      + " && shopt -u extglob 2>/dev/null || true"
+      + " && { \\builtin unalias -- 'unsetenv'; \\builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true"
+      + " && eval 'npx arc status --session-init --json' < /dev/null && pwd -P >| /tmp/claude-cwd";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/usr/bin/bash", toolShell) }],
+      [10, {
+        kind: "present",
+        snapshot: snapshot(10, 1, "/home/dev/.local/share/claude/versions/2.1.217", "claude"),
+      }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "claude",
+    });
+  });
+
+  it("matches the eval carrying the arc invocation rather than the first eval", async () => {
+    const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh 2>/dev/null || true"
+      + " && eval 'export HARNESS_PROLOGUE=1'"
+      + " && eval 'npx arc status --session-init --json' < /dev/null";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/usr/bin/bash", toolShell) }],
+      [10, {
+        kind: "present",
+        snapshot: snapshot(10, 1, "/home/dev/.local/share/claude/versions/2.1.217", "claude"),
+      }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "claude",
+    });
+  });
+
   it("uses the exact shell operand when snapshot and working paths contain spaces", async () => {
     const command = "source '/home/dev/ARC Project/.claude/shell-snapshots/snapshot-bash-1.sh'"
       + " 2>/dev/null || true && eval 'cd \"/home/dev/ARC Project\" && npx arc status' < /dev/null";
