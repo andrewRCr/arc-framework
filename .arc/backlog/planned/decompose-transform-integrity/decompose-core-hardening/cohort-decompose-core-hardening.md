@@ -29,9 +29,15 @@ decompose-transform-integrity (shipped core)
 └── decompose-authoring-expressiveness
 ```
 
-The members are independently deliverable. Safety and operability findings should land before performance or
-authoring work when they touch the same core surface; dependency edges belong in member metas if implementation
-grounding reveals a hard order.
+The members are independently deliverable, with one ordering constraint recorded in member metas: finalization
+diagnostics and finalization scaling both measure themselves against the finalization pipeline that
+`decompose-transition-record` reshapes, so they hold on that work unit. Optimizing or diagnosing a surface whose
+shape is unsettled prices the wrong thing. Conservation coverage, preflight scaling, and authoring expressiveness
+carry no such edge.
+
+Beyond that, safety and operability findings should land before performance or authoring work when they touch the
+same core surface; further dependency edges belong in member metas if implementation grounding reveals a hard
+order.
 
 ### Shared contracts
 
@@ -50,6 +56,9 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
 
 ### Cross-cohort
 
+- `decompose-transition-record` replaces the sealed receipt with a lean record of authored transition intent and
+  retires the apparatus built around the heavier shape. Members consuming receipt, preparation, or finalization
+  evidence should confirm which of those surfaces survive before designing against them.
 - `decomposition-doctrine` owns when and at what maturity a cut is valid, including dependency-contract
   revalidation and scale-overrun prevention. This subcohort owns the transform after that decision.
 - `delivery-intent-integrity` owns the general requirement that a delivered operation be exercised against a
@@ -70,6 +79,10 @@ can express intended destination structure and external dependencies without pos
 _Exposes:_ a retirement-aligned conservation boundary for every origin artifact whose content would be removed.
 
 _Consumes:_ core inventory, allocation, retirement-delta, and receipt evidence.
+
+Conservation proof carries more weight than its current draft assumes: once transaction verification is no longer
+duplicating git's own record, this boundary is the only remaining net under a content-preserving split. Size the
+member against that role rather than against the drafted scope.
 
 ### `decompose-finalization-diagnostics`
 

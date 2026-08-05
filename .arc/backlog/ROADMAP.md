@@ -31,9 +31,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
 | decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
+| decompose-transition-record        | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
-| decompose-finalization-diagnostics | P1       | andrew | —          | decompose-core-hardening      |
-| decompose-finalization-scaling     | P1       | andrew | —          | decompose-core-hardening      |
 | claimed-sweep-verbs                | P1       | andrew | —          | —                             |
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
 | delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
@@ -46,7 +45,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                  | P2       | andrew | —          | approval-flow-refinement      |
 | check-id-stabilization             | P2       | andrew | —          | architecture-remediation      |
 | cli-substrate-complete-migration   | P2       | andrew | —          | cli-substrate-adoption        |
-| decompose-durable-consumers        | P2       | andrew | —          | decompose-transform-integrity |
 | decompose-authoring-expressiveness | P2       | andrew | —          | decompose-core-hardening      |
 | decompose-preflight-scaling        | P2       | andrew | —          | decompose-core-hardening      |
 | method-conventions                 | P2       | andrew | —          | doc-conventions               |
@@ -105,18 +103,21 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                     |
-| --------------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
-| delivery-integration-target       | P1       | andrew | delivery-plan-record                                        | chunked-delivery           |
-| review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
-| unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
-| review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                          |
-| documentation-surface-routing     | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
-| instruction-optimization          | P3       | andrew | composable-workflows                                        | agent-context-optimization |
-| workflow-template-loads           | P3       | andrew | composable-workflows                                        | principle-anchored-core    |
-| docs-content-sweep                | P3       | andrew | docs-site-refresh                                           | release-readiness          |
-| comprehension-preservation        | P3       | andrew | execution-delegation-doctrine                               | —                          |
-| local-mode                        | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                          |
+| Work unit                          | Priority | Owner  | Depends on                                                  | Cohort                        |
+| ---------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
+| delivery-integration-target        | P1       | andrew | delivery-plan-record                                        | chunked-delivery              |
+| decompose-finalization-diagnostics | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
+| decompose-finalization-scaling     | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
+| review-source-authority            | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
+| unit-scoped-review                 | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
+| decompose-durable-consumers        | P2       | andrew | decompose-transition-record                                 | decompose-transform-integrity |
+| review-orchestration-right-sizing  | P2       | andrew | retrospective-right-sizing                                  | —                             |
+| documentation-surface-routing      | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |
+| instruction-optimization           | P3       | andrew | composable-workflows                                        | agent-context-optimization    |
+| workflow-template-loads            | P3       | andrew | composable-workflows                                        | principle-anchored-core       |
+| docs-content-sweep                 | P3       | andrew | docs-site-refresh                                           | release-readiness             |
+| comprehension-preservation         | P3       | andrew | execution-delegation-doctrine                               | —                             |
+| local-mode                         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                             |
 
 ### Depth 2
 
