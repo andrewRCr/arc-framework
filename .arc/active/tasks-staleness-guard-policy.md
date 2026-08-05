@@ -136,31 +136,27 @@ the ground to re-read before reopening any of this rather than re-deriving it.
 _Purpose:_ Point the surfaces a developer reaches for a working bundle at `build:fast`, and describe the guard as
 it then is.
 
-### `[ ]` **3.1 Point the compaction repair at the fast script**
+### `[x]` **3.1 Point the compaction repair at the fast script**
 
 - _Goal:_ The compaction seed's repair-and-retry costs a second rather than ten, and still recovers end to end
   against a stale build.
 
-- _Context:_ The repair command is configured in this repository's own hook file. The shipped hook reads it from
-  the environment and disables the retry when it is unset, so nothing that ships changes.
+    - `[x]` **3.1.a Retarget the configured repair command at `build:fast`**
+        - `.codex/hooks.json`'s `ARC_HOOK_STALE_BUILD_COMMAND` now reads `npm run build:fast`. The packaged Codex
+          fragment sets no build command at all — it reads one from the environment — so nothing ships.
 
-- _Note:_ Nothing tests that hook file, so the retarget lands unpinned and the confirmation below is the only
-  check that the wiring is right.
+    - `[x]` **3.1.b Confirm the repair-and-retry path end to end against a stale build**
+        - Drove `pre-compact-seed.mjs` directly against a genuinely stale bundle — a content edit to
+          `src/lib/dev-check.ts`, with the guard confirmed refusing first — from an `arc init`-ed project root in a
+          scratch directory, harness variable set to `codex-cli`.
+        - The seed command had to name the built bundle by absolute path rather than `npx arc`, which resolves
+          nothing from an unrelated root, and the repair command carried its own `cd` back to the repository.
+        - All four legs held: the seed write proceeded under refusal, the fast build ran (the bundle's mtime
+          advanced mid-hook), the retry reported fresh, and a `fallback: false` session-scoped recovery marker
+          landed beside the seed under the isolated root. The live recovery seed was untouched.
 
-    - `[ ]` **3.1.a Retarget the configured repair command at `build:fast`**
-
-    - `[ ]` **3.1.b Confirm the repair-and-retry path end to end against a stale build**
-        - A compaction event can't be forced on demand, so drive the seed script directly with the harness and
-          repair-command environment variables set, against a genuinely stale tree — the shape the hook's own
-          tests use with fakes, run here against the real script and the real CLI.
-        - Run it against an isolated project root. The script takes the working directory as its own, and both
-          the seed and the recovery marker land under that root's user directory — from the repository root
-          this overwrites the live recovery seed and mints a marker the session's own hooks will act on for a
-          week.
-        - The script spawns the repair in that same working directory, so give the repair command an explicit
-          directory of its own; otherwise it has no manifest to resolve and the leg under test never runs.
-        - The seed write proceeds, the repair runs, the retry reports fresh, and a non-fallback recovery marker
-          lands.
+- _Outcome:_ The retarget lands entirely in a gitignored file, so this record is the only durable evidence that the
+  repair command is pointed at the one-second script — and the confirmation above the only check of it.
 
 ### `[ ]` **3.2 Rewrite the contributing guide's guard description**
 
