@@ -13,8 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec finalized — detailed RFC approved, draft retired, and planning advanced to
-  `generate-tasks`
+- **Last Completed:** Planning finalized and work unit activated — implementation begins at Task 1.1
 - **Next Task:** Task 1.1 — Define authority-only role derivation and topology corroboration
 - **Blockers:** [none]
 
