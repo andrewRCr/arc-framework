@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Proportionality audit (no cuts), Q6 settled carrying Q5, and ADR-032 authored
+- **Last Completed:** Q2–Q4 settled, the reversal given a mechanism and a four-deliverable shape, pass four run
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Settle the advisory budget's discriminator, Q2's register, and the narrowed Q3, then
-  re-assess draft readiness for create-spec
+- **Next Action:** Settle Q7 — what carries the session-home link and the parent-suspension signal once the
+  transient lease is gone — then Q8–Q10, the B-before-R ordering, and the mechanical advisory-census re-derivation
 
 - **PR URL:** [none]
 - **Completed:** [none]
