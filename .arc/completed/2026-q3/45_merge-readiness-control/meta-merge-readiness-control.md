@@ -32,11 +32,16 @@ the host's own draft state. The control needs no workflow, required check, or br
 is a configuration edit against machinery the CLI already ships, and it refuses every merge path — web interface,
 command line, and API alike — including an administrator override.
 
-- **Added:** A `merge.lock` setting (`draft` or `none`, defaulting to `none`) and three commands that resolve how a
-  pull request should open and move a live one between held and released, each answering with a typed action its
-  caller follows rather than a status to interpret.
-- **Changed:** The work-unit, errand, and inbox-drain lifecycles open pull requests held when the setting is
-  enabled, and release only at the authorized final step, against the exact approved commit.
+### Added
+
+- A `merge.lock` setting (`draft` or `none`, defaulting to `none`) that decides whether pull requests open held.
+- Three commands that resolve how a pull request should open and move a live one between held and released, each
+  answering with a typed action its caller follows rather than a status to interpret.
+
+### Changed
+
+- The work-unit, errand, and inbox-drain lifecycles open pull requests held when the setting is enabled, and
+  release only at the authorized final step, against the exact approved commit.
 
 ## Completion Notes
 
