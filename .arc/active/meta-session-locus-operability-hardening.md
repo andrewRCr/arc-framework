@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Q1 settled by withdrawing its premise — Errands stop detecting session liveness
+- **Last Completed:** Proportionality audit (no cuts), Q6 settled carrying Q5, and ADR-032 authored
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the proportionality audit over its named candidate set, then re-derive scope from what
-  survives; author the reversal ADR before spec authoring
+- **Next Action:** Settle the advisory budget's discriminator, Q2's register, and the narrowed Q3, then
+  re-assess draft readiness for create-spec
 
 - **PR URL:** [none]
 - **Completed:** [none]
