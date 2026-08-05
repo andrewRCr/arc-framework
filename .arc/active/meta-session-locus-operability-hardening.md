@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design closed — adversarial pass converged at one of two passes, six findings verified
-  and disposed subtractively, draft `formalization-ready`
+- **Last Completed:** create-spec finalized — detailed RFC approved, draft retired, and planning advanced to
+  `generate-tasks`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
