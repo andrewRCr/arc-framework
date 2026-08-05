@@ -1,8 +1,8 @@
 # Metadata: Staleness-Guard Hard-Fail Policy
 
-| **State** | **Owner** | **Branch**                   | **Class** | **Priority** |
-| --------- | --------- | ---------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/staleness-guard-policy` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/staleness-guard-policy` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phases 1 and 2 — the runtime-only `build:fast` path, then unconditional refusal against a
-  stale bundle with the compaction-seed write as its sole exception (Tasks 1.1, 2.1–2.3).
-- **Next Task:** Task 3.1 — Point the compaction repair at the fast script (line ~139)
+- **Last Completed:** Phase 4 — verification: Tier 3 gates green and all 13 success criteria met (Task 4.1)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
