@@ -400,6 +400,53 @@ describe("arc delivery", () => {
     });
   });
 
+  it("refuses composition when the task inventory changed after authoring", async () => {
+    await installTaskFixture(repository);
+    await writeDesignInventory(repository);
+    const author = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+    expect(author.exitCode, author.stdout + author.stderr).toBe(0);
+
+    const common = await gitCommonDir(repository);
+    const authoring = join(common, "arc", "delivery", "authoring");
+    const mapName = (await readdir(authoring)).find((name) => name.endsWith(".md"));
+    expect(mapName).toBeDefined();
+    if (mapName === undefined) return;
+    await fillSlots(join(authoring, mapName), {
+      projection: { kind: "wu-integration-target" },
+      boundary: { kind: "phase-aligned" },
+      members: [{
+        status: "live",
+        chunkKey: "implementation",
+        title: "Implementation",
+        contract: "Publish the implementation contract",
+        designElementIds: ["detailed:deliverable-contract"],
+        mainlineLandability: "integration-only",
+      }],
+      seams: [],
+    });
+    const authoringFiles = (await readdir(authoring)).sort();
+    const taskListPath = join(repository, ".arc", "active", "tasks-demo.md");
+    const changedTasks = (await readFile(taskListPath, "utf8"))
+      .replace("Implement the delivery contract.", "Implement the revised delivery contract.");
+    await writeFile(taskListPath, changedTasks);
+
+    const compose = await runArc(["delivery", "compose", "--json"], repository);
+    expect(compose.exitCode).toBe(1);
+    expect(JSON.parse(compose.stdout)).toMatchObject({
+      command: "delivery compose",
+      status: "refused",
+      reason: "task-inventory-drift",
+    });
+    await expect(readdir(authoring)).resolves.toEqual(authoringFiles);
+    await expect(readdir(join(common, "arc", "delivery", "plans"))).resolves.toEqual([]);
+    expect(await readFile(taskListPath, "utf8")).toBe(changedTasks);
+    expect(changedTasks).not.toContain("<!-- arc:delivery-plan:start -->");
+  });
+
   it("refuses uncovered implementation and verification membership at composition", async () => {
     await installTaskFixture(repository, true);
     await writeDesignInventory(repository);

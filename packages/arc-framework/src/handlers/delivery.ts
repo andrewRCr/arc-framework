@@ -42,10 +42,13 @@ import {
 } from "../lib/delivery/plan-resolution.js";
 import type { DeliveryPlanV1 } from "../lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { assertCanonicalDigest } from "../lib/kernel/index.js";
+import { assertCanonicalDigest, canonicalize } from "../lib/kernel/index.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
-import type { DeliveryTaskInventory } from "../lib/delivery/task-inventory.js";
+import {
+  buildDeliveryTaskInventory,
+  type DeliveryTaskInventory,
+} from "../lib/delivery/task-inventory.js";
 import { RepositoryDeliveryTaskListRenderer } from "../lib/delivery/task-list-render.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -489,10 +492,41 @@ export async function handleDeliveryCompose(
     });
     return;
   }
+  const taskListPath = resolveRepositoryPath(context.cwd, sourceInputs.data.taskListPath);
+  if (taskListPath === null) {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "task-list-path-invalid",
+    });
+    return;
+  }
+  let taskListContent: string;
+  try {
+    taskListContent = await readFile(resolve(context.cwd, taskListPath), "utf8");
+  } catch {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "task-list-unreadable",
+    });
+    return;
+  }
+  const currentTaskInventory = buildDeliveryTaskInventory(taskListContent);
+  if (currentTaskInventory.status === "refused") {
+    emit("delivery compose", parsed.data.json === true, currentTaskInventory);
+    return;
+  }
+  const authoredTaskInventory = taskInventoryFromSnapshot(resolution.record.snapshot.tasks);
+  if (canonicalize(currentTaskInventory.inventory) !== canonicalize(authoredTaskInventory)) {
+    emit("delivery compose", parsed.data.json === true, {
+      status: "refused",
+      reason: "task-inventory-drift",
+    });
+    return;
+  }
   const composer = new DeliveryPlanComposer({
     authoringStore: context.authoringStore,
     planStore: context.planStore,
-    renderer: new RepositoryDeliveryTaskListRenderer(context.cwd, sourceInputs.data.taskListPath),
+    renderer: new RepositoryDeliveryTaskListRenderer(context.cwd, taskListPath),
     transitionSource: context.transitionSource,
   });
   const composition = await composer.compose({
@@ -500,7 +534,7 @@ export async function handleDeliveryCompose(
     currentWorkUnitId: context.workUnitId,
     authority: context.authority,
     projection: projection.projection,
-    taskInventory: taskInventoryFromSnapshot(resolution.record.snapshot.tasks),
+    taskInventory: currentTaskInventory.inventory,
     designInventory: designInventoryFromSnapshot(resolution.record.snapshot.design),
   });
   emit("delivery compose", parsed.data.json === true, composition.status === "refused"
