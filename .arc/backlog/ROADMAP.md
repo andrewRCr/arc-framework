@@ -13,17 +13,16 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                           | Priority | Owner  | Depends on | Cohort                        |
-| ---------- | ----------------------------------- | -------- | ------ | ---------- | ----------------------------- |
-| `Active`   | delivery-plan-record                | P1       | andrew | —          | chunked-delivery              |
-| `Planning` | decompose-extraction                | P1       | andrew | —          | decompose-transform-integrity |
-| `Planning` | review-signal-convergence           | P1       | andrew | —          | review-protocol-alignment     |
-| `Planning` | decomposition-doctrine              | P1       | andrew | —          | —                             |
-| `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                             |
-| `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                             |
-| `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                             |
-| `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                             |
-| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                             |
+| State      | Work unit                           | Priority | Owner  | Depends on | Cohort                    |
+| ---------- | ----------------------------------- | -------- | ------ | ---------- | ------------------------- |
+| `Active`   | delivery-plan-record                | P1       | andrew | —          | chunked-delivery          |
+| `Planning` | review-signal-convergence           | P1       | andrew | —          | review-protocol-alignment |
+| `Planning` | decomposition-doctrine              | P1       | andrew | —          | —                         |
+| `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                         |
+| `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                         |
+| `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                         |
+| `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                         |
+| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                         |
 
 ## Ready
 
@@ -31,6 +30,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
 | decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
+| decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
 | decompose-finalization-diagnostics | P1       | andrew | —          | decompose-core-hardening      |
 | decompose-finalization-scaling     | P1       | andrew | —          | decompose-core-hardening      |
