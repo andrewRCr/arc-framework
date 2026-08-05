@@ -13,41 +13,32 @@ eventual record derives from.
 _Projection:_ stack-to-`main`. Every member is independently landable and reaches the protected base at member
 size, so no pull request in the repository carries the whole contribution.
 
-| # | Member                             | Chunk key             | Phases | Design elements | Predecessor        |
-|---|------------------------------------|-----------------------|--------|-----------------|--------------------|
-| 1 | Record and storage substrate       | `record-substrate`    | 1-2    | § 1, § 2, § 6   | —                  |
-| 2 | Authoring entries and projection   | `authoring`           | 3-4    | § 3, § 4        | `record-substrate` |
-| 3 | Revisions, binding, and amendment  | `revisions`           | 5      | § 7             | `authoring`        |
-| 4 | State, reducer, and terminal proof | `execution-substrate` | 6-7    | § 5, § 8, § 9   | `revisions`        |
+| # | Member                           | Chunk key          | Phases | Design elements | Predecessor        |
+|---|----------------------------------|--------------------|--------|-----------------|--------------------|
+| 1 | Record and storage substrate     | `record-substrate` | 1-2    | § 1, § 2        | —                  |
+| 2 | Authoring entries and projection | `authoring`        | 3-4    | § 3, § 4        | `record-substrate` |
+| 3 | Amendment and guarded state      | `guarded-state`    | 5-7    | § 5, § 6, § 7   | `authoring`        |
 
 **Named seams** — cross-member contracts no single member's review covers:
 
-| Seam                   | Incident | Owner | Acceptance                                                              |
-|------------------------|----------|-------|-------------------------------------------------------------------------|
-| Refusal parity         | 1, 2     | 2     | Composition adds only the partition check; no refinement re-implemented |
-| Discriminant authority | 1, 4     | 4     | Record checks the discriminant against itself; reducer against the host |
-| Rebind obligation      | 3, 4     | 4     | Every revision-producing event blocks transition until state rebinds    |
-| Generation authority   | 1, 4     | 4     | No generation reissues against a subject a verdict already answered for |
-| State record identity  | 1, 4     | 4     | The observations store member 1 provisions is member 4's state record   |
+| Seam                | Incident | Owner | Acceptance                                                                   |
+|---------------------|----------|-------|------------------------------------------------------------------------------|
+| Refusal parity      | 1, 2     | 2     | Composition adds only the partition check; no refinement is reimplemented    |
+| Substrate reduction | 1, 3     | 3     | Plan storage remains; unused assignment, observation, and assurance go away  |
+| Rebind obligation   | 1, 3     | 3     | A plan ahead of its bound state blocks every operation until state rebinds   |
+| Lookup continuity   | 1, 3     | 3     | Exact reverse lookup moves to state without weakening ambiguity checks       |
 
 _Per-member procedure_ — stated once, applied to every member.
 
-**Open with a grounding audit scoped to that member's phases, before writing anything.** Re-verify every file,
-symbol, and interface those tasks name against the tree as it then stands — which includes whatever the delivered
-predecessors changed, so this doubles as the reground against them. Three generation-time review passes did not
-converge: each attacked the whole artifact and each found roughly ten real defects in a different region of it,
-several of them substrate claims that earlier passes had read straight past. A member is a quarter of that
-surface with the implementer present to act on what turns up, which is the better bounded pass. Treat the tasks
-as claims about the codebase, not as settled fact.
+Phases 1 through 4 completed under the original cut. Before Task 5.1 began, the operator authorized the reduced v1
+design in `spec-delivery-plan-record.md`; the original remaining tasks are preserved below as superseded and the new
+tasks are the implementation authority.
 
-Then cut from the `main` containing the predecessor; retarget to `main` as the predecessor lands. Close with a
-Tier 3 run at the exact head before opening the pull request. **Members 1 through 3 exclude this work unit's own
-lifecycle artifacts**, and member 4's implementation-review head excludes them too — metadata, spec, notes, and
-this task list stay out of the series while implementation review is in flight, so no concurrent work unit's
-session resolution is perturbed. After member 4's implementation candidate settles, append the lifecycle artifacts
-and same-slug archival as a documentation-only terminal tail on that same pull request during one attended closeout
-window; this is not a fifth member. The cost is that a member reviewer cannot see which tasks the member closes;
-the table above is the substitute. Topology, ordering rationale, and the manual runbook live in
+Open member 3 with a full grounding audit over the amended Phases 5 through 7. Cut it from the `main` containing the
+first two members. Its implementation head excludes this work unit's metadata, spec, notes, and task list. After the
+implementation candidate settles, append those lifecycle artifacts and same-slug archival as a documentation-only
+tail on the same terminal pull request. Use the repository's ordinary checks, exact-head pull request, and ARC merge
+lock; no separate delivery proof or custom review ledger belongs to this plan. Rationale and the manual runbook live in
 `notes-delivery-plan-record.md` § Delivery topology and sequence.
 
 ---
@@ -693,365 +684,367 @@ every delivery cut with field evidence actually used. Full rationale in `spec-de
         - Updated field status to both completed hand runs, including the 21-row rolling session-locus delivery
           before bespoke closeout.
 
-## **Phase 5:** Plan revisions, binding, and amendment
+## **Phase 5:** Intent-only revisions and amendment
 
-_Purpose:_ Sort what may still change once a plan acquires its first externally visible dependency, so routine
-discovered work is absorbed without ceremony, shipped work cannot be re-described, and re-cutting the unlanded
-suffix carries its crossing obligations forward rather than dropping them.
+_Purpose:_ Remove provider position and assurance mechanics from the plan, then classify amendments against explicit
+binding and freshly observed landed-prefix facts.
 
-_Design decisions:_ The record validates only what it can see from its own contents and its validated
-predecessor; whether an assertion matches the world is always the reducer's question. Freezing rather than
-re-deriving a landed member is what lets the spec be amended after the first landing. Full rationale in
-`spec-delivery-plan-record.md` § 7.
+_Design decisions:_ The original Phase 5 was superseded before implementation by the proportional v1 amendment in
+`spec-delivery-plan-record.md`. Its task and Goal text remain below as the audit trail; Tasks 5.5 and 5.6 are the
+current work.
 
-_Shape:_ Every task here is a pure function over two plan revisions plus supplied binding and landed-prefix
-facts. It never reads live state and never observes the host, so its behaviors run against hand-constructed
-inputs. The obligations it emits — that state rebinds, that a generation advances, that the advisory reaches the
-terminal proof — are discharged by the reducer and the proof in the following phases; this phase is what makes
-them derivable, not what enforces them.
-
-### `[ ]` **5.1 Determine when a plan becomes bound**
+### `[~]` **5.1 Determine when a plan becomes bound**
 
 - _Goal:_ Binding follows external dependency, so authoring iterations and locally-built candidate heads cost
   nothing.
 
-- _Rationale:_ Keying binding to a lifecycle transition would make a plan authored during implementation born
-  bound, foreclosing the retrofit entry. Keying it to local ref construction would bind a plan merely for
-  building candidates to test — the proving step a retrofit author should be free to run and discard.
+    - `[~]` **5.1.a Bind on the first pushed member ref or opened change request**
 
-    - `[ ]` **5.1.a Bind on the first pushed member ref or opened change request**
+        - Superseded as a standalone task; binding now enters the single-state contract in Task 5.6.
 
-        - Build `test-first` (one behavior at a time):
-            - An unbound plan admits a new revision with no reconcile reached
-            - A locally-built candidate head does not bind
-            - A pushed member ref binds
-            - An opened change request binds
-            - Lifecycle state does not enter the determination
+- _Outcome:_ Superseded before implementation when binding became state existence rather than plan state.
 
-### `[ ]` **5.2 Sort a proposed revision into absorb, refuse, or replacement**
+### `[~]` **5.2 Sort a proposed revision into absorb, refuse, or replacement**
 
 - _Goal:_ Each outcome matches what is physically possible at that point in the series, so discovered work is not
   punished and shipped work cannot be re-described.
 
-- _Shape:_ Addition, move, and departure are distinguished by comparing the whole-plan task-to-member relation
-  across the two revisions, which is always available because revisions are whole records.
+    - `[~]` **5.2.a Classify metadata amendment ahead of the three arms**
 
-    - `[ ]` **5.2.a Classify metadata amendment ahead of the three arms**
+        - Superseded by one three-outcome classifier in Task 5.6.
 
-        - Build `test-first` (one behavior at a time):
-            - A revision differing only in work-unit metadata classifies as metadata amendment
-            - The classification carries no generation advance and no review-target invalidation, unlike absorb
-            - It is reported as rebind-obliging, the same as every other revision-producing event
-            - A stored `workUnitId` differing from the unit's current slug emits a typed advisory and leaves the
-              record valid
+    - `[~]` **5.2.b The absorb arm**
 
-    - `[ ]` **5.2.b The absorb arm**
+        - Superseded by the `accepted` outcome in Task 5.6.
 
-        - Build `test-first` (one behavior at a time):
-            - A coverage addition to a bound unlanded member absorbs
-            - A task whose covering member set grows is an addition
-            - A task whose covering set shifts is a move and does not absorb
-            - A task whose covering set empties is a departure and does not absorb
-            - Adding a subtask inside an existing parent proposes no revision at all
+    - `[~]` **5.2.c The refuse arm**
 
-    - `[ ]` **5.2.c The refuse arm**
+        - Superseded by the `refused` outcome in Task 5.6.
 
-        - Build `test-first` (one behavior at a time):
-            - Removing, reordering, or altering a landed member refuses
-            - A topology change after the first landing refuses
-            - Renaming a bound member's `chunkKey` refuses as an identity change
-            - Renaming a bound seam's `seamKey` refuses on identical grounds
-            - A seam all of whose incident members have landed refuses alteration
+    - `[~]` **5.2.d The replacement arm**
 
-    - `[ ]` **5.2.d The replacement arm**
+        - Superseded by the `replacement-required` outcome in Task 5.6.
 
-        - Build `test-first` (one behavior at a time):
-            - Re-cutting the bound-unlanded suffix produces a replacement
-            - The landed prefix carries forward byte-identically
-            - The replacement lineage references its predecessor explicitly
-            - Splitting an oversized member is free while unbound and a replacement once bound
+    - `[~]` **5.2.e Reactive insertion**
 
-    - `[ ]` **5.2.e Reactive insertion**
+        - Superseded; v1 does not persist or classify amendment causes separately from their mechanical outcome.
 
-        - _Goal:_ A member the plan never anticipated is admitted as its own amendment cause rather than read as
-          authoring drift, without adding a record surface to carry it.
+- _Outcome:_ Superseded before implementation to remove metadata and reactive-insertion arms and generation effects.
 
-        - _Rationale:_ The cause originates outside the plan's intent — a landed member blocks work in another
-          work unit and the remedy must ship before the series continues — but mechanically it is an ordinary
-          forward amendment. Classifying it where amendments are already sorted keeps that distinction legible; a
-          discriminant on the record would put a schema field in an earlier member to carry a fact only the sort
-          reads.
-
-        - Build `test-first` (one behavior at a time):
-            - An unanticipated member appended to the unbound suffix classifies as reactive insertion
-            - Landed positions are unchanged and the unbound suffix relabels under the new revision
-            - It is distinguishable from ordinary forward amendment in what the sort reports
-
-### `[ ]` **5.3 Freeze a landed member through the conversion revision**
+### `[~]` **5.3 Freeze a landed member through the conversion revision**
 
 - _Goal:_ A landed member's values stop moving for reasons outside itself, so amending the spec after the first
   landing is possible and re-cutting the suffix does not fire refuse.
 
-- _Rationale:_ A member's fingerprint reaches design-element digests and incident-seam fingerprints, both of
-  which move externally. Under re-derivation a landed member's fingerprint would move although its contribution
-  is fixed in the tree.
+    - `[~]` **5.3.a Conversion as a distinct, obligatory event**
 
-    - `[ ]` **5.3.a Conversion as a distinct, obligatory event**
+        - Superseded; provider position no longer enters the immutable plan.
 
-        - Build `test-first` (one behavior at a time):
-            - The first revision authored after a landing writes that member in `landed` form
-            - Conversion is the only event permitted to change a member's bytes on the landed side
-            - A replacement wanted at the same time is refused until conversion publishes first
+    - `[~]` **5.3.b Byte-identity against the first frozen form**
 
-    - `[ ]` **5.3.b Byte-identity against the first frozen form**
+        - Superseded; landed semantics are protected by amendment classification against fresh host facts.
 
-        - Build `test-first` (one behavior at a time):
-            - Comparison targets the first frozen form, not the live predecessor
-            - A replacement altering an already-frozen member fails byte-identity immediately
+- _Outcome:_ Superseded before implementation; current fingerprints rederive and no frozen member form exists.
 
-### `[ ]` **5.4 Carry crossing-seam obligations and emit the design-drift advisory**
+### `[~]` **5.4 Carry crossing-seam obligations and emit the design-drift advisory**
 
 - _Goal:_ Re-cutting the unlanded suffix cannot orphan a seam's acceptance, and drift on shipped work surfaces as
   an adjusting entry rather than a validity failure.
 
-    - `[ ]` **5.4.a Seams spanning the landed boundary**
+    - `[~]` **5.4.a Seams spanning the landed boundary**
 
-        - Build `test-first` (one behavior at a time):
-            - A replacement must still carry a seam with the same acceptance and landed-side incident
-            - Dropping that obligation refuses
-            - The re-cut itself is not refused, since the landed side is unchanged either way
+        - Superseded as written; Task 5.6 retains the seam-preservation invariant without a conversion revision.
 
-    - `[ ]` **5.4.b Design drift on landed work as a typed advisory**
+    - `[~]` **5.4.b Design drift on landed work as a typed advisory**
 
-        - Build `test-first` (one behavior at a time):
-            - A landed member whose referenced design element has since been amended emits the advisory
-            - The advisory does not refuse the revision
-            - It is emitted as a typed value the reconcile and terminal-proof callers render, never as an ambient
-              session surface
+        - Superseded; v1 creates no durable historical design-drift surface.
 
-## **Phase 6:** Delivery state and the shared transition reducer
+- _Outcome:_ Superseded before implementation; only the crossing-seam safety invariant remains.
 
-_Purpose:_ Hold the exact facts a position derives from, order the single live operation against the host so a
-crash leaves it replayable rather than ambiguous, and admit a transition only when the plan, the adapter, the
-checks, the review verdicts, and the plan's own frozen prefix all agree.
+### `[ ]` **5.5 Make the canonical plan intent-only**
 
-_Design decisions:_ The state record stores facts rather than a second agenda — aggregate labels are derived
-verdicts, never independently writable. The decision-bearing publish is the durable commit point because it is
-the only part re-observation cannot rebuild. Full rationale in `spec-delivery-plan-record.md` § 5 and § 8.
+- _Goal:_ A plan revision describes current delivery intent without copying provider position or minting identities
+  that no v1 consumer addresses.
 
-### `[ ]` **6.1 Hold delivery state as transition-bearing facts**
+    - `[ ]` **5.5.a Collapse member and seam schemas**
+
+        - Remove `live` / `landed`, `assuranceSubjectId`, and the assurance-subject preimage while retaining stable
+          `deliverableId`, current semantic fingerprints, strict registration, and revision lineage.
+        - Update the exact schema-family, generated-schema, build, and artifact expectations in the same increment;
+          do not leave their removal for the end-to-end task.
+        - Build `test-first` around strict rejection of the removed fields and revalidation of current intent.
+
+    - `[ ]` **5.5.b Simplify construction and revision validation**
+
+        - Re-derive every member and seam fingerprint on every revision, remove frozen-prefix and conversion logic,
+          and keep plan validation independent of host or state access.
+        - Build `test-first` around identity stability, digest movement, and exact predecessor lineage.
+
+    - `[ ]` **5.5.c Reconcile authoring and the task-list projection**
+
+        - Remove authored status and landed-history rendering from maps, composition, fixtures, and CLI output while
+          preserving the two authoring entries and idempotent publication sequence.
+
+### `[ ]` **5.6 Classify binding and amendment from explicit facts**
+
+- _Goal:_ Post-binding changes receive the smallest safe outcome from immutable revisions plus current external facts,
+  without a fourth cause taxonomy or historical advisory stream.
+
+    - `[ ]` **5.6.a Define binding and classifier inputs**
+
+        - Treat state existence as binding, triggered only by the first pushed member ref or opened change request;
+          local candidate construction remains unbound.
+        - Accept exact bound deliverable ids and a freshly observed plan-ordered landed prefix as caller-supplied facts.
+
+    - `[ ]` **5.6.b Return `accepted`, `replacement-required`, or `refused`**
+
+        - Accept presentation changes anywhere, additive coverage on non-landed members, and structurally valid
+          unbound-suffix changes.
+        - Require replacement for moved or removed existing coverage and contract, landability, incidence, order, or
+          identity changes affecting a bound unlanded member; refuse the corresponding landed-member changes.
+        - Build `test-first` around those cases and projection changes before and after landing.
+
+    - `[ ]` **5.6.c Preserve crossing-seam obligations**
+
+        - Refuse removal of a landed-side incident or changed acceptance across the landed boundary while allowing the
+          unlanded side to re-cut through `replacement-required`.
+
+## **Phase 6:** One delivery state and guarded operations
+
+_Purpose:_ Replace the unused multi-record substrate with one version-checked state, exact reverse lookup, and one
+operation reservation that later topology executors can reconcile after interruption.
+
+_Design decisions:_ The original Phase 6 split decisions from observations and introduced review-generation plumbing.
+It was superseded before implementation. Current state stores only selected bindings, latest exact coordinates, and one
+active operation; provider status and review authority are reobserved.
+
+### `[~]` **6.1 Hold delivery state as transition-bearing facts**
 
 - _Goal:_ Current position, predecessor consumption, and terminal readiness all derive from what the record
   holds, and nothing control-bearing is trusted from a copied provider status.
 
-- _Shape:_ Decisions are deliberately absent — each deliverable's refs and change-request handles, its
-  materialization generation and review routing, the terminal target's refs, and the adapter choice all live in
-  the assignment record. State reads them; it does not own them.
+    - `[~]` **6.1.a State record and its plan binding**
 
-    - `[ ]` **6.1.a State record and its plan binding**
+        - Superseded by the reduced state in Task 6.5.
 
-        - This is the observations record whose namespace and publication discipline `2.3` provisions; define its
-          contents here rather than standing up a second store.
+    - `[~]` **6.1.b The single active-operation slot**
 
-        - Build `test-first` (one behavior at a time):
-            - State binds an exact `planId`, revision, and digest
-            - The projection discriminant is carried from the bound revision, not authored
-            - One plan-ordered entry exists per deliverable
+        - Superseded as written by the smaller reservation in Task 6.6.
 
-    - `[ ]` **6.1.b The single active-operation slot**
+    - `[~]` **6.1.c Declare the verdict-request port**
 
-        - Build `test-first` (one behavior at a time):
-            - A second operation refuses while one is outstanding
-            - A land operation additionally carries its immutable landing-intent identity
-            - Review operations do not nest inside the slot
+        - Superseded; delivery no longer requests or stores review verdict identities.
 
-    - `[ ]` **6.1.c Declare the verdict-request port**
+- _Outcome:_ Superseded before implementation when assignment and observation records collapsed into one state.
 
-        - _Goal:_ Asking the review system for a verdict at an exact subject and generation is expressed once, so
-          the three consumers downstream share one shape rather than each inventing one.
-
-        - _Note:_ The exact question and answer shape is a seam owned by the cohort member holding qualification
-          and is not settled here. A narrow port — subject identity and generation in, a carried verdict identity
-          or nothing out — is what admissibility, the landing intent, and the terminal proof all need, and is
-          replaceable wholesale when that member lands.
-
-        - Clone-stability of a carried verdict identity is an obligation on the eventual identity, contributed to
-          the member that owns qualification — not a predicate this port checks. The same reasoning `1.5.e`
-          applies to project identity applies here: no single clone can verify it.
-
-        - Build `test-first` (one behavior at a time):
-            - The port carries subject identity and generation and returns a verdict identity or nothing
-            - Delivery records the identity and evaluates no condition of the verdict
-            - A returned identity is stored opaquely, with no property asserted against it
-
-### `[ ]` **6.2 Order one host operation against its stores**
+### `[~]` **6.2 Order one host operation against its stores**
 
 - _Goal:_ A crash leaves the operation either replayable or already durably recorded, never ambiguous about
   whether the decision was made.
 
-- _Rationale:_ No atomic write spans the decision-bearing and observation stores, so the order is the contract.
-  The decision-bearing publish is the durable commit point: a crash after it loses only observations that
-  re-observation reconstructs, while a crash before it leaves the operation replayable.
+    - `[~]` **6.2.a Reserve, invoke, observe, publish decisions, record observations, clear**
 
-    - `[ ]` **6.2.a Reserve, invoke, observe, publish decisions, record observations, clear**
+        - Superseded by a single-state reserve, reobserve, mutate, reobserve, and clear sequence.
 
-        - Build `test-first` (one behavior at a time):
-            - The reservation precedes the adapter invocation
-            - Decision-bearing publication precedes observation recording
-            - A crash before the decision publish leaves the operation replayable
-            - A crash after it leaves observations reconstructible by re-observation
+    - `[~]` **6.2.b Retry, reconcile, and blocked outcomes**
 
-    - `[ ]` **6.2.b Retry, reconcile, and blocked outcomes**
+        - Superseded as written; the exact applied, not-applied, and ambiguous cases remain in Task 6.6.
 
-        - Build `test-first` (one behavior at a time):
-            - Retry acquires the same operation identity and reconciles before replay
-            - An already-applied exact result is adopted rather than reissued
-            - Reconciliation clears only when the host proves exact application or non-application
-            - An ambiguous or partially applied outcome stays blocked for explicit remedy
+- _Outcome:_ Superseded before implementation because no cross-store commit order remains.
 
-### `[ ]` **6.3 Derive the landed prefix and admit a transition**
+### `[~]` **6.3 Derive the landed prefix and admit a transition**
 
 - _Goal:_ A requested transition is admitted only when every control-bearing fact currently agrees, and a false
   landing assertion in the plan is caught at the only layer that observes the host.
 
-    - `[ ]` **6.3.a Derive `landedPrefix` and `firstUnlanded` from host observations**
+    - `[~]` **6.3.a Derive `landedPrefix` and `firstUnlanded` from host observations**
 
-        - Build `test-first` (one behavior at a time):
-            - Both derive from current observations and neither is writable state
-            - Aggregate labels are derived verdicts rather than stored values
+        - Superseded as written; the derived-position behavior remains in Task 6.7.
 
-    - `[ ]` **6.3.b The six admissibility conditions**
+    - `[~]` **6.3.b The six admissibility conditions**
 
-        - _Note:_ The landing-intent condition is exercised in `7.1`, where the intent record is defined; the
-          admissibility path here reaches it through the same port `6.1.c` declares. Everything else is checked
-          in place.
+        - Superseded; v1 has no plan discriminant, generation, verdict-request port, or terminal landing intent.
 
-        - Build `test-first` (one behavior at a time):
-            - State not binding the current plan revision is inadmissible
-            - A missing or extra member proven by the adapter is inadmissible
-            - A landing request not beginning at `firstUnlanded`, or not contiguous, is inadmissible
-            - A member without green required checks or a clearing verdict at its exact generation is
-              inadmissible, and so is an assigned seam without one
-            - A stack-selected member lacking the plan's landability judgment is inadmissible
-            - A plan whose `landed`-discriminated prefix disagrees with the host-derived prefix is inadmissible
-            - A replacement revision is inadmissible until its superseded bound-unlanded suffix is torn down —
-              refs removed and change requests closed — which the plan cannot see and `5.2.d` cannot check
-            - The expected project is proven whenever the plan carries one
+- _Outcome:_ Superseded before implementation in favor of executor-supplied current facts and narrow guard results.
 
-### `[ ]` **6.4 Reconcile drift without remapping deliverables**
+### `[~]` **6.4 Reconcile drift without remapping deliverables**
 
 - _Goal:_ A changed base, head, or membership forces reconciliation rather than passing through as close enough,
   and no review evidence is silently discarded.
 
-    - `[ ]` **6.4.a Reconcile before any further readiness verdict**
+    - `[~]` **6.4.a Reconcile before any further readiness verdict**
 
-        - Build `test-first` (one behavior at a time):
-            - Deliverable identity is preserved across reconciliation
-            - Affected materialization generations advance
-            - New review targets derive from the changed heads
-            - A readiness verdict is withheld until checks and applicability settle
-            - After mutation, only the requested exact result or a contracted partial result is accepted
+        - Superseded as written; exact-coordinate reconciliation remains without generations or copied review evidence.
 
-## **Phase 7:** The assurance chain and the terminal proof
+- _Outcome:_ Superseded before implementation; Task 6.6 carries the smaller exact-result contract.
 
-_Purpose:_ Turn a completed series into evidence that survives the machine it was produced on — an exact contract
-before each mutation, an immutable fact after it, and a terminal record proving the ordered landings compose the
-planned membership with no delta the plan does not account for.
+### `[ ]` **6.5 Replace four delivery stores with plan plus state**
 
-_Design decisions:_ Precondition evidence, human authorization, and the observed host result are different facts
-and must not collapse into one terminal record. The intent is held locally while live and reaches the store only
-by the observation that fulfils it — publishing it separately would put a second durable point on a merge's
-critical path and orphan an intent for every aborted land. Full rationale in `spec-delivery-plan-record.md` § 9.
+- _Goal:_ Delivery persists exactly the authored plan and one current mutable state, with stale writers refusing and
+  member lookup working from any linked checkout.
 
-### `[ ]` **7.1 Bind an immutable landing intent**
+    - `[ ]` **6.5.a Define `DeliveryStateV1` and its codec**
+
+        - Bind the plan's original authored subject, exact revision and digest, plan-ordered deliverable ids, optional
+          target refs, member refs, change requests, one destination head/tree set, one source base/head/tree set per
+          member, and either one active operation or none.
+        - Reject copied provider status, review verdicts, generations, and extra fields at the runtime boundary.
+        - Register the state schema `strict-current` and update exact schema-family, generated-schema, build, and
+          artifact expectations in this increment.
+        - Add a pure plan-coherence validator for subject, revision, digest, member identity, and member order; keep the
+          structural codec and store plan-agnostic.
+
+    - `[ ]` **6.5.b Publish state by expected revision**
+
+        - Add one storage-agnostic state port and one repository-common `state` adapter with nullable read, idempotent
+          same-value publication, version conflict, identity checks, and corrupt-namespace refusal.
+
+    - `[ ]` **6.5.c Move exact reverse lookup to state**
+
+        - Resolve an exact ref plus the head in its sole coordinate set, or an unambiguous exact head, to plan, the
+          stored original work-unit subject, and deliverable; validate but never trust an optional owning-unit pointer.
+        - Reuse the authenticated rename resolver when a caller needs the current work-unit slug.
+
+### `[ ]` **6.6 Guard and reconcile one active operation**
+
+- _Goal:_ An interrupted external mutation is either safely retryable, exactly adoptable, or explicitly blocked, with
+  no competing operation and no historical evidence ledger.
+
+    - `[ ]` **6.6.a Reserve one exact operation**
+
+        - Build `test-first` around stale state, stale plan binding, a second reservation, unknown deliverables, and
+          exact source and destination coordinates for each supported operation kind.
+        - Accept a caller-minted opaque operation id; the one-slot invariant supplies all uniqueness v1 needs.
+
+    - `[ ]` **6.6.b Compare fresh pre- and post-mutation facts**
+
+        - Return ready only when reobserved coordinates equal the reservation and accept only the exact requested
+          result after mutation; every partial result remains blocked.
+
+    - `[ ]` **6.6.c Reconcile interruption**
+
+        - Adopt an exact already-applied result, permit retry after exact non-application, and leave partial, extra,
+          reordered, or otherwise ambiguous movement blocked for explicit remedy.
+
+### `[ ]` **6.7 Derive current delivery position**
+
+- _Goal:_ Callers receive current plan position and refusal reasons from fresh facts without writable aggregate status
+  or a terminal proof record.
+
+    - `[ ]` **6.7.a Derive prefix and suffix labels**
+
+        - Derive `landedPrefix`, `firstUnlanded`, and bound suffix from plan order, state bindings, and supplied host
+          facts; reject missing, duplicate, reordered, or foreign members.
+
+    - `[ ]` **6.7.b Block stale or ambiguous readiness**
+
+        - Refuse when state binds a different plan revision, exact coordinates moved, an operation is unresolved, or
+          the selected member lacks the plan's relevant landability assertion.
+        - Leave checks, review settlement, provider capability, and final integration authority to their owners.
+
+## **Phase 7:** Reduced-contract integration
+
+_Purpose:_ Wire authoring and state together, remove the unused assurance-era substrate, and prove the reduced contract
+against both historical authoring entries and linked-worktree recovery.
+
+_Design decisions:_ The original terminal-proof phase was superseded before implementation. Current closeout derives
+readiness and uses ordinary work-unit verification; it emits no delivery-owned evidence chain.
+
+### `[~]` **7.1 Bind an immutable landing intent**
 
 - _Goal:_ Every control-bearing fact a landing depends on is fixed before the interlock, and any change to one of
   them invalidates the intent rather than being absorbed.
 
-- _Note:_ The interlock receives a derived, exception-filtered readiness projection of the record. Human approval
-  remains the sole merge authority and is not turned into a delivery receipt.
+    - `[~]` **7.1.a The pre-mutation contract**
 
-    - `[ ]` **7.1.a The pre-mutation contract**
+        - Superseded by the active-operation reservation in Task 6.6.
 
-        - Build `test-first` (one behavior at a time):
-            - The intent binds repository, state, plan, projection, operation, and adapter identities
-            - It binds the exact destination ref with its observed pre-landing head and tree
-            - It binds the requested contiguous prefix with each deliverable id and generation, and the exact
-              source base, head, and tree used for each
-            - It binds any terminal-only delta target with its review qualification and applicability proof
-            - It binds required-check observations and the verdict returned for every member and assigned seam
-            - It enumerates one expected result for `single` and `atomic-prefix`, or the ordered allowed
-              leading-subprefix results for `ordered-prefix`
-            - The terminal intent binds the verification anchor to the aggregate contribution digest
+    - `[~]` **7.1.b Re-observation immediately before mutation**
 
-    - `[ ]` **7.1.b Re-observation immediately before mutation**
+        - Superseded as a standalone proof step; immediate reobservation remains part of the guarded operation.
 
-        - Build `test-first` (one behavior at a time):
-            - The command re-observes every control-bearing fact and requires the same intent digest
-            - A changed state, base, head, membership, capability, check, review, or contribution invalidates the
-              intent and refires the interlock
+- _Outcome:_ Superseded before implementation; v1 keeps a resumable reservation, not a second immutable intent.
 
-### `[ ]` **7.2 Emit an immutable landing observation**
+### `[~]` **7.2 Emit an immutable landing observation**
 
 - _Goal:_ An interrupted or uncontracted land contributes nothing to the chain, so position is re-derived from
   host observations rather than from an interrupted operation's paperwork.
 
-    - `[ ]` **7.2.a The post-mutation fact**
+    - `[~]` **7.2.a The post-mutation fact**
 
-        - Build `test-first` (one behavior at a time):
-            - The observation embeds or content-addresses the intent it fulfilled, so one append carries both
-            - It binds before and after destination heads and trees, actual mode and outcome, landed member ids
-              and generations, and the contribution-manifest digest
-            - A result equal to the intent's exact result is accepted
-            - A result equal to an enumerated leading subprefix is accepted
-            - An ambiguous, extra, reordered, or otherwise uncontracted mutation emits no successful observation
-              and leaves the operation blocked
+        - Superseded; state records only current exact coordinates after successful reconciliation.
 
-### `[ ]` **7.3 Prove membership and tree-exactness**
+- _Outcome:_ Superseded before implementation; Git and the host retain history and delivery keeps current state.
+
+### `[~]` **7.3 Prove membership and tree-exactness**
 
 - _Goal:_ The ordered landings are shown to compose the planned membership exactly, with the trees carrying no
   work-unit-owned delta the plan does not account for.
 
-- _Shape:_ This is one half of a co-owned proof. Delivery binds and carries review-owned verdict identities and
-  never defines what makes them admissible.
+    - `[~]` **7.3.a The five terminal verifications**
 
-    - `[ ]` **7.3.a The five terminal verifications**
+        - Superseded as a terminal record; exact membership and tree checks remain derived closeout inputs.
 
-        - Contribution-versus-ambient-absorb classification is the same cut `4.2.b` draws at authoring time, and
-          the two layers must describe one partition — compose that classification rather than reimplementing it.
+    - `[~]` **7.3.b Verdict identities recorded, never evaluated**
 
-        - Build `test-first` (one behavior at a time):
-            - Landing member sets are disjoint, ordered, contiguous, and cover the plan exactly once
-            - Every observed tree transition equals the named generations' contribution with no extra
-              work-unit-owned delta
-            - An unrelated base advance between operations is a legitimate new base and is absent from the chain
-            - The terminal-delta subject carries an exact empty-delta proof, or is recorded as non-empty for the
-              qualification half to answer for
-            - Each observation matches its immutable intent and an exact result that reached the interlock
-            - The final operation result and destination tree equal the expected result
+        - Superseded; review evidence remains entirely review-owned.
 
-    - `[ ]` **7.3.b Verdict identities recorded, never evaluated**
+- _Outcome:_ Superseded before implementation; ordinary verification consumes current exact facts without a chain.
 
-        - Requests run through the port `6.1.c` declares; this task covers only the terminal reducer's use of it.
-
-        - Build `test-first` (one behavior at a time):
-            - Every member, seam, and non-empty terminal delta the chain names is asked for a verdict at its
-              exact subject and generation
-            - Each returned identity is recorded in the chain
-            - A named subject returning no verdict blocks the proof rather than being recorded as cleared
-
-### `[ ]` **7.4 Emit the terminal contribution chain**
+### `[~]` **7.4 Emit the terminal contribution chain**
 
 - _Goal:_ A terminal record exists only in proven form, and its name and contents make clear it authorizes
   nothing.
 
-    - `[ ]` **7.4.a The proven-form-only record**
+    - `[~]` **7.4.a The proven-form-only record**
 
-        - Build `test-first` (one behavior at a time):
-            - The record is emitted only when membership and tree-exactness both hold
-            - Incomplete and stale cases remain typed reducer verdicts rather than persistent failure records
-            - It asserts no claim about the work unit being complete
-            - It cannot authorize a merge retroactively or stand in for a required host-side check
+        - Superseded; v1 emits no terminal delivery record.
+
+- _Outcome:_ Superseded before implementation by derived closeout plus ordinary work-unit verification.
+
+### `[ ]` **7.5 Integrate bound amendment with state**
+
+- _Goal:_ Composition publishes only a safe plan revision and cannot leave a stale bound state eligible for another
+  operation.
+
+    - `[ ]` **7.5.a Route composition through binding and amendment classification**
+
+        - Publish freely when no state exists; after binding, return the classifier outcome before mutation and keep
+          the authoring pair for `replacement-required` or `refused`.
+
+    - `[ ]` **7.5.b Publish accepted plan then rebind state**
+
+        - Preserve the existing candidate receipt, then publish plan, rebind state when present, render the task-list
+          projection, delete Markdown, and delete the canonical snapshot in that exact order.
+        - Use plan-digest and state-revision compare-and-swap, make retry idempotent after each durable step, and block
+          all operations while the plan and state bindings disagree.
+        - Build failure-injection coverage for interruption after candidate receipt, plan publication, state rebind,
+          render, and each cleanup deletion.
+
+    - `[ ]` **7.5.c Retire obsolete delivery contracts**
+
+        - Remove assignment, observation, and assurance schemas, stores, namespaces, exports, and dedicated tests;
+          move only reverse lookup and current bindings into state.
+
+### `[ ]` **7.6 Prove the reduced contract end to end**
+
+- _Goal:_ Both authoring entries and the new state lifecycle work from real repository coordinates, while removed
+  proof-system surfaces cannot leak back through fixtures or public exports.
+
+    - `[ ]` **7.6.a Re-run both field reconstructions**
+
+        - Preserve the seven-member and rolling-session fixtures, including strict ambient-merge refusal, under the
+          intent-only record.
+
+    - `[ ]` **7.6.b Exercise linked-checkout state and crash cases**
+
+        - Prove repository-common visibility, exact reverse lookup, stale-write refusal, already-applied adoption,
+          not-applied retry, and ambiguous-result blocking.
+
+    - `[ ]` **7.6.c Close CLI, build, and artifact coverage**
+
+        - Update handler and E2E coverage, confirm the already-updated registry, build, and emitted artifacts expose only
+          the reduced schema family, and run the complete Phase 5 through 7 gate set before member cut.
 
 ## **Phase 8:** Verification
 
@@ -1074,18 +1067,28 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
   task-list projection, with an uncovered implementation task refused at composition and the verification task
   refused as a member
 
-- `[ ]` A member's `deliverableId` is unchanged across an amendment that alters titles, adds coverage, and
+- `[~]` A member's `deliverableId` is unchanged across an amendment that alters titles, adds coverage, and
   relabels positions; renaming a `chunkKey` on a bound member is refused
 
-- `[ ]` The three reconcile outcomes sort correctly against a bound plan — coverage addition absorbs, coverage
+  _Superseded:_ Position labels were removed from the immutable plan; the replacement criteria below retain identity
+  stability and bound-member protection without that field.
+
+- `[~]` The three reconcile outcomes sort correctly against a bound plan — coverage addition absorbs, coverage
   move refuses, altering a frozen member fails byte-identity, and re-cutting the bound-unlanded suffix produces a
   replacement whose landed prefix is byte-identical and whose crossing seams retain their acceptance statements
 
-- `[ ]` A conversion revision validates when the converting member equals its predecessor's payload modulo the
+  _Superseded:_ The amended classifier uses `accepted`, `replacement-required`, and `refused`; no frozen plan member
+  or byte-identical landed prefix exists.
+
+- `[~]` A conversion revision validates when the converting member equals its predecessor's payload modulo the
   discriminant, and is refused when it does not
 
-- `[ ]` Tearing down a member and re-authoring the same `chunkKey` yields a generation strictly greater than any
+  _Superseded:_ Provider position no longer enters the plan, so no conversion revision is emitted.
+
+- `[~]` Tearing down a member and re-authoring the same `chunkKey` yields a generation strictly greater than any
   previously issued for that subject
+
+  _Superseded:_ V1 has no assurance subject or materialization generation.
 
 - `[ ]` The starter map refuses an unfilled slot, a machine section differing from its CLI-owned canonical
   snapshot, and a reordered identity sequence, each with its typed code; no boundary slot arrives pre-filled; and
@@ -1094,21 +1097,55 @@ critical path and orphan an intent for every aborted land. Full rationale in `sp
 - `[ ]` After `arc rename`, authoring resolves the existing plan through the recorded rename rather than minting
   a second one; `planId` and every dependent identity are unchanged; and a chained rename resolves transitively
 
-- `[ ]` A plan whose `landed`-discriminated prefix disagrees with the host-derived `landedPrefix` is refused at
+- `[~]` A plan whose `landed`-discriminated prefix disagrees with the host-derived `landedPrefix` is refused at
   admissibility, and a cut whose range contains an ambient base merge partitions over contribution alone, with
   the merge carrying no membership; a base merge whose merge-only delta cannot be proved empty refuses
+
+  _Superseded:_ The plan-discriminant half was removed. The contribution-partition half is retained as a separate
+  criterion below.
 
 - `[ ]` Position resolves from a member checkout via the reverse-lookup query, in a checkout carrying none of the
   work unit's artifacts, without reading identity from any ref name
 
-- `[ ]` No delivery record is writable into a work unit's change set, and every mutating write refuses a stale
+- `[~]` No delivery record is writable into a work unit's change set, and every mutating write refuses a stale
   expected plan digest, assignment revision, observation revision, or assurance predecessor digest as applicable
 
-- `[ ]` A terminal contribution chain is emitted only when membership and tree-exactness both hold, and it
+  _Superseded:_ Assignment, observation, and assurance stores were removed; the replacement criterion covers the plan
+  and single state tokens.
+
+- `[~]` A terminal contribution chain is emitted only when membership and tree-exactness both hold, and it
   records review-owned verdict identities without evaluating their conditions
 
-- `[ ]` The assurance port declares export and import, and the v1 adapter round-trips a chain through both
+  _Superseded:_ Closeout derives current exactness and uses ordinary work-unit verification without a delivery chain.
+
+- `[~]` The assurance port declares export and import, and the v1 adapter round-trips a chain through both
   without loss
+
+  _Superseded:_ V1 has no assurance store or transport contract.
+
+- `[ ]` The canonical plan and authoring input reject `live` / `landed`, assurance-subject, generation,
+  review-routing, and terminal-proof fields while preserving current fingerprint and lineage validation
+
+- `[ ]` `planId` and each surviving `deliverableId` remain stable across accepted title and coverage amendments;
+  changing a bound or landed member receives `replacement-required` or `refused` according to current host facts
+
+- `[ ]` Binding begins only with the first pushed member ref or opened change request, and the amendment classifier
+  returns only `accepted`, `replacement-required`, or `refused` while preserving crossing-seam acceptance
+
+- `[ ]` A cut containing a proven ambient base merge partitions over contribution alone, while a base merge whose
+  merge-only delta cannot be proved empty refuses
+
+- `[ ]` No delivery record is writable into a work unit's change set; plan publication refuses a stale expected digest,
+  and the single state store refuses a stale expected revision
+
+- `[ ]` One `DeliveryStateV1` binds exact member refs and change requests, supports unambiguous reverse lookup, and
+  permits at most one active operation without separate assignment, observation, or assurance records
+
+- `[ ]` Operation recovery adopts an exact already-applied result, permits retry after exact non-application, and
+  blocks partial, extra, reordered, or otherwise ambiguous movement
+
+- `[ ]` Current position and closeout readiness derive from current plan, state, Git, host, check, and review inputs;
+  no terminal delivery-proof record is emitted
 
 - `[x]` The shipped sizing doctrine no longer contradicts the one-work-unit-one-delivery-plan invariant
 
