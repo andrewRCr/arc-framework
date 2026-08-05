@@ -13,30 +13,32 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                           | Priority | Owner  | Depends on | Cohort                        |
-| ---------- | ----------------------------------- | -------- | ------ | ---------- | ----------------------------- |
-| `Active`   | delivery-plan-record                | P1       | andrew | —          | chunked-delivery              |
-| `Planning` | decompose-extraction                | P1       | andrew | —          | decompose-transform-integrity |
-| `Planning` | review-signal-convergence           | P1       | andrew | —          | review-protocol-alignment     |
-| `Planning` | decomposition-doctrine              | P1       | andrew | —          | —                             |
-| `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                             |
-| `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                             |
-| `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                             |
-| `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                             |
-| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                             |
+| State      | Work unit                           | Priority | Owner  | Depends on           | Cohort                        |
+| ---------- | ----------------------------------- | -------- | ------ | -------------------- | ----------------------------- |
+| `Planning` | decompose-transition-record         | P1       | andrew | —                    | decompose-transform-integrity |
+| `Planning` | review-signal-convergence           | P1       | andrew | —                    | review-protocol-alignment     |
+| `Planning` | decomposition-doctrine              | P1       | andrew | —                    | —                             |
+| `Planning` | delivery-slice-review-vehicle       | P1       | andrew | delivery-plan-record | —                             |
+| `Planning` | integration-boundary-accuracy       | P1       | andrew | —                    | —                             |
+| `Planning` | remote-access-contract              | P1       | andrew | —                    | —                             |
+| `Planning` | review-checkout-lifecycle           | P1       | andrew | —                    | —                             |
+| `Active`   | session-locus-operability-hardening | P1       | andrew | —                    | —                             |
+| `Planning` | stub-mint-to-launch                 | P1       | andrew | —                    | —                             |
+| `Planning` | clearance-corpus-retirement         | P2       | andrew | —                    | —                             |
 
 ## Ready
 
 | Work unit                          | Priority | Owner  | Depends on | Cohort                        |
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
+| delivery-plan-record               | P1       | andrew | —          | chunked-delivery              |
 | decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
+| decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
 | decompose-finalization-diagnostics | P1       | andrew | —          | decompose-core-hardening      |
 | decompose-finalization-scaling     | P1       | andrew | —          | decompose-core-hardening      |
 | claimed-sweep-verbs                | P1       | andrew | —          | —                             |
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
-| delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
 | recurring-errand-pr-resolution     | P1       | andrew | —          | —                             |
 | roadmap-tooling                    | P1       | andrew | —          | —                             |
