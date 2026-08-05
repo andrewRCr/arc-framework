@@ -25,6 +25,7 @@ describe("production schema artifact", () => {
       "delivery-plan-authoring-input",
       "delivery-plan-member",
       "delivery-plan-seam",
+      "delivery-state",
       "disposition-approval",
       "disposition-report-item",
       "disposition-set",

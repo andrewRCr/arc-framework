@@ -138,6 +138,94 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
 });
 export type DeliveryPlanAuthoringInputV1 = z.infer<typeof DeliveryPlanAuthoringInputV1Schema>;
 
+const PositiveSafeIntegerSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+
+/** Exact destination objects observed for one selected target ref. */
+export const DeliveryTargetCoordinatesV1Schema = z.strictObject({
+  head: DeliveryGitObjectIdSchema,
+  tree: DeliveryGitObjectIdSchema,
+});
+export type DeliveryTargetCoordinatesV1 = z.infer<typeof DeliveryTargetCoordinatesV1Schema>;
+
+/** Exact source objects observed for one selected member ref. */
+export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
+  base: DeliveryGitObjectIdSchema,
+  head: DeliveryGitObjectIdSchema,
+  tree: DeliveryGitObjectIdSchema,
+});
+export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
+
+/** One provider-owned change-request handle bound to a delivery member. */
+export const DeliveryChangeRequestV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+});
+export type DeliveryChangeRequestV1 = z.infer<typeof DeliveryChangeRequestV1Schema>;
+
+const DeliveryOperationMemberSnapshotV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema.nullable(),
+  coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
+});
+
+/** Generic exact positions used before and after one external mutation. */
+export const DeliveryOperationSnapshotV1Schema = z.strictObject({
+  target: z.strictObject({
+    ref: DeliveryOpaqueIdSchema,
+    coordinates: DeliveryTargetCoordinatesV1Schema.nullable(),
+  }).nullable(),
+  members: z.array(DeliveryOperationMemberSnapshotV1Schema).refine(
+    (members) => new Set(members.map((member) => member.deliverableId)).size === members.length,
+    "operation snapshot members must be distinct",
+  ),
+});
+export type DeliveryOperationSnapshotV1 = z.infer<typeof DeliveryOperationSnapshotV1Schema>;
+
+/** One crash-recoverable reservation for an external delivery mutation. */
+export const DeliveryActiveOperationV1Schema = z.strictObject({
+  operationId: DeliveryOpaqueIdSchema,
+  kind: z.enum(["materialize", "publish", "rewrite", "land", "teardown"]),
+  affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "affected deliverables must be distinct",
+  ),
+  stateRevision: PositiveSafeIntegerSchema,
+  boundPlanDigest: DeliveryCanonicalDigestSchema,
+  before: DeliveryOperationSnapshotV1Schema,
+  requested: DeliveryOperationSnapshotV1Schema,
+});
+export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;
+
+const DeliveryStateMemberV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema.nullable(),
+  changeRequest: DeliveryChangeRequestV1Schema.nullable(),
+  coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
+});
+
+/** Mutable delivery execution state persisted separately from authored plan intent. */
+export const DeliveryStateV1Schema = z.strictObject({
+  schemaVersion: z.literal(1),
+  semanticsVersion: z.literal("delivery-state/v1"),
+  planId: DeliveryPlanIdSchema,
+  workUnitId: SlugSchema,
+  boundPlan: z.strictObject({
+    planRevision: PositiveSafeIntegerSchema,
+    planDigest: DeliveryCanonicalDigestSchema,
+  }),
+  target: z.strictObject({
+    ref: DeliveryOpaqueIdSchema,
+    coordinates: DeliveryTargetCoordinatesV1Schema.nullable(),
+  }).nullable(),
+  members: z.array(DeliveryStateMemberV1Schema).min(1).refine(
+    (members) => new Set(members.map((member) => member.deliverableId)).size === members.length,
+    "state members must be distinct",
+  ),
+  activeOperation: DeliveryActiveOperationV1Schema.nullable(),
+});
+export type DeliveryStateV1 = z.infer<typeof DeliveryStateV1Schema>;
+
 /**
  * Validate authored input against the presence or absence of a prior plan revision.
  *
@@ -207,6 +295,11 @@ export function registerDeliveryDomainSchemas(registry: KernelRegistry): KernelR
   });
   registry.register(DeliveryPlanAuthoringInputV1Schema, {
     id: "delivery-plan-authoring-input",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DeliveryStateV1Schema, {
+    id: "delivery-state",
     version: 1,
     migrationPosture: "strict-current",
   });

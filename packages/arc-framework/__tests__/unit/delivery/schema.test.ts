@@ -7,6 +7,7 @@ import {
   DeliveryPlanMemberV1Schema,
   DeliveryPlanSeamV1Schema,
   DeliveryPlanV1Schema,
+  DeliveryStateV1Schema,
   resolveAuthoredSeamIncidence,
   registerDeliveryDomainSchemas,
   validateDeliveryPlanAuthoringInputV1,
@@ -332,6 +333,7 @@ describe("delivery schema registration", () => {
       ["delivery-plan-member", DeliveryPlanMemberV1Schema],
       ["delivery-plan-seam", DeliveryPlanSeamV1Schema],
       ["delivery-plan-authoring-input", DeliveryPlanAuthoringInputV1Schema],
+      ["delivery-state", DeliveryStateV1Schema],
       ["delivery-deliverable-id-preimage", DeliveryDeliverableIdPreimageSchema],
     ] as const;
     for (const [id, schema] of expected) {

@@ -1,0 +1,222 @@
+import { describe, expect, it } from "vitest";
+
+import { bindDesignInventory } from "../../../src/lib/delivery/design-inventory.js";
+import { constructDeliveryPlanRevision } from "../../../src/lib/delivery/plan.js";
+import {
+  DeliveryPlanAuthoringInputV1Schema,
+  DeliveryStateV1Schema,
+  type DeliveryPlanV1,
+} from "../../../src/lib/delivery/schema.js";
+import {
+  constructInitialDeliveryState,
+  DeliveryStateV1Codec,
+  validateDeliveryStateAgainstPlan,
+} from "../../../src/lib/delivery/state.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+
+const planId = "123e4567-e89b-42d3-a456-426614174000";
+const firstId = canonicalDigest({ member: "first" });
+const head = "a".repeat(40);
+const tree = "b".repeat(40);
+
+function state(): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    semanticsVersion: "delivery-state/v1",
+    planId,
+    workUnitId: "delivery-plan-record",
+    boundPlan: {
+      planRevision: 1,
+      planDigest: canonicalDigest({ plan: 1 }),
+    },
+    target: {
+      ref: "refs/heads/delivery-target",
+      coordinates: { head, tree },
+    },
+    members: [{
+      deliverableId: firstId,
+      ref: "refs/heads/delivery-first",
+      changeRequest: { providerId: "github", changeRequestId: "123" },
+      coordinates: { base: head, head, tree },
+    }],
+    activeOperation: {
+      operationId: "opaque-operation",
+      kind: "publish",
+      affectedDeliverableIds: [firstId],
+      stateRevision: 1,
+      boundPlanDigest: canonicalDigest({ plan: 1 }),
+      before: {
+        target: null,
+        members: [{ deliverableId: firstId, ref: null, coordinates: null }],
+      },
+      requested: {
+        target: null,
+        members: [{
+          deliverableId: firstId,
+          ref: "refs/heads/delivery-first",
+          coordinates: { base: head, head, tree },
+        }],
+      },
+    },
+  };
+}
+
+function plan(): DeliveryPlanV1 {
+  const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-plan/v1",
+    workUnitId: "delivery-plan-record",
+    design: {
+      artifacts: [{ artifactId: "spec-delivery-plan-record.md" }],
+      elements: [{ elementId: "detailed:state-contract" }],
+    },
+    tasks: {
+      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }],
+      verificationTaskId: "2.1",
+    },
+    entry: "from-tasks",
+    projection: { kind: "wu-integration-target" },
+    members: [{
+      chunkKey: "first",
+      title: "First member",
+      contract: "Publish the first contract.",
+      taskIds: ["1.1"],
+      designElementIds: ["detailed:state-contract"],
+      mainlineLandability: "integration-only",
+    }, {
+      chunkKey: "second",
+      title: "Second member",
+      contract: "Publish the second contract.",
+      taskIds: ["1.2"],
+      designElementIds: [],
+      mainlineLandability: "integration-only",
+    }],
+    seams: [],
+  });
+  const design = bindDesignInventory({
+    artifacts: [{
+      artifactId: "spec-delivery-plan-record.md",
+      revisionDigest: canonicalDigest({ source: "spec" }),
+      form: "detailed",
+      elements: [{ elementId: "state-contract", semanticDigest: canonicalDigest({ contract: "state" }) }],
+    }],
+  });
+  if (design.status !== "bound") throw new Error("fixture design inventory must bind");
+  const implementation = [
+    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: "First" }) },
+    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: "Second" }) },
+  ];
+  const result = constructDeliveryPlanRevision({
+    authoring,
+    taskInventory: {
+      inventoryDigest: canonicalDigest(implementation),
+      implementation,
+      verificationTaskId: "2.1",
+    },
+    designInventory: design.inventory,
+    predecessor: null,
+    mintPlanId: () => planId,
+  });
+  if (result.status !== "constructed") throw new Error("fixture plan must construct");
+  return result.plan;
+}
+
+describe("DeliveryStateV1Schema", () => {
+  it("accepts exact current coordinates and rejects copied authority or history fields", () => {
+    expect(DeliveryStateV1Schema.safeParse(state()).success).toBe(true);
+    for (const field of ["providerStatus", "reviewVerdict", "generation"] as const) {
+      expect(DeliveryStateV1Schema.safeParse({ ...state(), [field]: "copied" }).success).toBe(false);
+    }
+  });
+
+  it("allows a later teardown state whose external bindings are all absent", () => {
+    const tornDown = state();
+    tornDown.target = null;
+    tornDown.activeOperation = null;
+    const [member] = tornDown.members as Array<Record<string, unknown>>;
+    member!.ref = null;
+    member!.changeRequest = null;
+    member!.coordinates = null;
+    expect(DeliveryStateV1Schema.safeParse(tornDown).success).toBe(true);
+  });
+});
+
+describe("delivery state binding and plan coherence", () => {
+  it("constructs the complete ordered state from a pushed ref or opened change request", () => {
+    const current = plan();
+    const [firstId, secondId] = current.members.map((member) => member.deliverableId);
+    const pushed = constructInitialDeliveryState(current, {
+      kind: "pushed-ref",
+      deliverableId: firstId,
+      ref: "refs/heads/delivery-first",
+      coordinates: { base: head, head, tree },
+    });
+    expect(pushed).toMatchObject({
+      status: "constructed",
+      state: {
+        planId: current.planId,
+        workUnitId: current.workUnitId,
+        boundPlan: { planRevision: 1, planDigest: current.planDigest },
+        members: [{ deliverableId: firstId, ref: "refs/heads/delivery-first" }, { deliverableId: secondId }],
+        activeOperation: null,
+      },
+    });
+    if (pushed.status !== "constructed") return;
+    expect(DeliveryStateV1Codec.decode(pushed.state)).toEqual({ status: "decoded", value: pushed.state });
+    expect(validateDeliveryStateAgainstPlan(pushed.state, current)).toEqual({
+      status: "valid",
+      state: pushed.state,
+    });
+
+    const opened = constructInitialDeliveryState(current, {
+      kind: "opened-change-request",
+      deliverableId: secondId,
+      changeRequest: { providerId: "github", changeRequestId: "456" },
+    });
+    expect(opened).toMatchObject({
+      status: "constructed",
+      state: {
+        members: [{ deliverableId: firstId }, {
+          deliverableId: secondId,
+          changeRequest: { providerId: "github", changeRequestId: "456" },
+        }],
+      },
+    });
+  });
+
+  it("refuses missing or unknown initial binding evidence", () => {
+    const current = plan();
+    expect(constructInitialDeliveryState(current, null)).toEqual({
+      status: "refused",
+      reason: "binding-invalid",
+    });
+    expect(constructInitialDeliveryState(current, {
+      kind: "pushed-ref",
+      deliverableId: canonicalDigest({ member: "unknown" }),
+      ref: "refs/heads/unknown",
+      coordinates: { base: head, head, tree },
+    })).toEqual({ status: "refused", reason: "unknown-deliverable" });
+  });
+
+  it("distinguishes subject, binding, and member-sequence incoherence", () => {
+    const current = plan();
+    const initial = constructInitialDeliveryState(current, {
+      kind: "pushed-ref",
+      deliverableId: current.members[0]!.deliverableId,
+      ref: "refs/heads/delivery-first",
+      coordinates: { base: head, head, tree },
+    });
+    if (initial.status !== "constructed") throw new Error("fixture state must construct");
+
+    expect(validateDeliveryStateAgainstPlan({ ...initial.state, workUnitId: "another-unit" }, current))
+      .toEqual({ status: "refused", reason: "subject-mismatch" });
+    expect(validateDeliveryStateAgainstPlan({
+      ...initial.state,
+      boundPlan: { ...initial.state.boundPlan, planRevision: 2 },
+    }, current)).toEqual({ status: "refused", reason: "bound-plan-mismatch" });
+    expect(validateDeliveryStateAgainstPlan({
+      ...initial.state,
+      members: [...initial.state.members].reverse(),
+    }, current)).toEqual({ status: "refused", reason: "member-sequence-mismatch" });
+  });
+});
