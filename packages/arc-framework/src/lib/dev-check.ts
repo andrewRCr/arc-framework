@@ -76,7 +76,9 @@ export type DevCheckResult =
 export interface DevCheckDeps {
   /**
    * Resolve the newest src/**\/*.ts file (mtime + repo-relative path), or
-   * `null` when `src/` does not exist (published-install case).
+   * `null` when either half of the dev-mode discriminator fails: the running
+   * entry is not the built bundle (source-run case), or `src/` does not exist
+   * (published-install case).
    */
   newestSrc: () => { mtimeMs: number; path: string } | null;
   /**
@@ -141,8 +143,8 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
  * Build production-mode dependencies for the running `dist/cli.js` location.
  *
  * Resolves the bundle input graph, `dist/cli.js` mtime, and the content-hash
- * stamp. Returns `null` for `newestSrc` when `src/` is absent (the dev-mode
- * discriminator).
+ * stamp. Returns `null` for `newestSrc` when either half of the dev-mode
+ * discriminator fails — the entry is not the built bundle, or `src/` is absent.
  */
 export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
   const distDir = dirname(cliJsPath);

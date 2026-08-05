@@ -274,8 +274,8 @@ additional full-suite gates.
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
 > `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
-> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses every command against
-> a stale one, and `npm run build:fast` refreshes it in about a second. This guidance applies only
+> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
+> and `npm run build:fast` refreshes it in about a second. This guidance applies only
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
 

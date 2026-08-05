@@ -26,12 +26,13 @@ npm run build
 ## Development Workflow
 
 After pulling self-hosting changes or making local source edits, rebuild before invoking the
-CLI. Its dev-mode check refuses to run against a stale build: every command exits 1 with a
-stderr error naming the fix, since a stale bundle silently produces wrong answers. Rebuild with
+CLI. Its dev-mode check refuses to run against a stale build: commands exit 1 with a stderr
+error naming the fix, since a stale bundle silently produces wrong answers. Rebuild with
 `npm run build:fast` — a runtime-only build that takes about a second — and retry.
 
-There is no warning tier and no exempt set of commands, so read-only commands refuse too. The
-sole exception is the compaction-seed write, which proceeds so that a recovery seed still lands.
+There is no warning tier and no allowlist of safe commands, so read-only commands refuse too.
+The one exception is not a command at all: the compaction-seed write is an option on `status`,
+and it proceeds so that a recovery seed still lands.
 The repository's `commit-msg` hook runs through the CLI as well, so a stale build blocks
 committing until you rebuild — editing source and then committing is the ordinary way to meet
 the check.
