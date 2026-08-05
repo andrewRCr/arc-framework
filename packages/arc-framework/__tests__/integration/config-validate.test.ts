@@ -53,10 +53,10 @@ function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
   };
 }
 
-function expectOnlyDevelopmentBuildWarning(stderr: string): void {
-  expect(stderr).toMatch(
-    /^(?:|warn: arc dev build is stale \(.+\)\. Run `npm run build` before relying on output\.\n)$/u,
-  );
+// These cases spawn the CLI from source, where the staleness guard does not run
+// at all — so any stderr at all is a real diagnostic worth failing on.
+function expectCleanStderr(stderr: string): void {
+  expect(stderr).toBe("");
 }
 
 afterEach(() => {
@@ -77,7 +77,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("PASS  Config file exists: .arc/system/arc-config.yml");
     expect(result.stdout).toContain("PASS  branch.protection: full");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("resolves a relative explicit path outside an ARC root and preserves its token", () => {
@@ -90,7 +90,7 @@ describe("arc config validate", () => {
     expect(result.stdout).toContain("PASS  Config file exists: selected.yml");
     expect(result.stdout).toContain("WARN  Unknown key: 'unknown.setting'");
     expect(result.stdout).not.toContain(join(root, "selected.yml"));
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("preserves a whitespace-bearing explicit path token exactly", () => {
@@ -103,7 +103,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("PASS  branch.protection: full");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("accepts an absolute explicit path and propagates validation errors", () => {
@@ -116,7 +116,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("ERROR branch.protection: 'impossible' is not valid");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 });
 
@@ -142,8 +142,8 @@ describe("configuration compatibility corpus — process boundaries", () => {
       for (const line of fixture.expected.validator.lineIncludes) {
         expect(direct.stdout).toContain(line);
       }
-      expectOnlyDevelopmentBuildWarning(direct.stderr);
-      expectOnlyDevelopmentBuildWarning(launcher.stderr);
+      expectCleanStderr(direct.stderr);
+      expectCleanStderr(launcher.stderr);
     }, 15_000);
   }
 

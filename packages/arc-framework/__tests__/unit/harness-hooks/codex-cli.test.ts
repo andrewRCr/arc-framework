@@ -396,7 +396,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(clear?.commandWindows).toContain("|| exit /b 0");
   });
 
-  it("retries the PreCompact seed write after an explicitly configured stale-build repair", () => {
+  it("repairs and retries when a stale seed command exits non-zero", () => {
     withTempArcProject((root) => {
       const statePath = join(root, "build-state.json");
       const fakeArcPath = join(root, "fake-arc.mjs");
@@ -406,7 +406,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "import { readFileSync } from 'node:fs';",
         `const state = JSON.parse(readFileSync(${JSON.stringify(statePath)}, 'utf8'));`,
         "if (state.built !== true) {",
-        "  console.error('error: arc dev build is stale (src/lib/recover/audit.ts changed 1s ago; dist/cli.js built 1h ago). Refusing `arc status` against stale dist; run `npm run build`, then retry.');",
+        // The seed write is exempt from refusal, so a stale run reaches its own
+        // work and can still fail there. The hook keys on the sentence, not on
+        // the exit code, and must not assume the exemption implies success.
+        "  console.error('warn: arc dev build is stale (src/lib/recover/audit.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
+        "  console.error('error: failed to write compaction seed');",
         "  process.exit(1);",
         "}",
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
@@ -449,7 +453,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "state.calls += 1;",
         "writeFileSync(statePath, JSON.stringify(state));",
         "if (state.built !== true) {",
-        "  console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        "  console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
         "}",
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
           identity: { identity: "andrew" },
@@ -487,7 +491,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const fakeArcPath = writeSuccessFakeArc(root);
       const fakeBuildPath = join(root, "fake-build.mjs");
       writeFileSync(fakeArcPath, [
-        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
         readFileSync(fakeArcPath, "utf8"),
       ].join("\n"));
       writeFileSync(fakeBuildPath, "process.exit(1);\n");
@@ -513,7 +517,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const fakeArcPath = writeSuccessFakeArc(root);
       const fakeBuildPath = join(root, "fake-build.mjs");
       writeFileSync(fakeArcPath, [
-        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build` before relying on output.');",
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
         readFileSync(fakeArcPath, "utf8"),
       ].join("\n"));
       writeFileSync(fakeBuildPath, "process.exit(0);\n");
