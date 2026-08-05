@@ -22,6 +22,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                         |
 | `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                         |
 | `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                         |
+| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                         |
 
 ## Ready
 
@@ -50,7 +51,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-preflight-scaling        | P2       | andrew | —          | decompose-core-hardening      |
 | method-conventions                 | P2       | andrew | —          | doc-conventions               |
 | naming-conventions                 | P2       | andrew | —          | doc-conventions               |
-| clearance-corpus-retirement        | P2       | andrew | —          | —                             |
 | cross-wu-coordination              | P2       | andrew | —          | —                             |
 | execution-delegation-doctrine      | P2       | andrew | —          | —                             |
 | frictionless-capture               | P2       | andrew | —          | —                             |
