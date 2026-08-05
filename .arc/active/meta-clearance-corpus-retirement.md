@@ -1,23 +1,23 @@
 # Metadata: clearance-corpus-retirement
 
-| **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/clearance-corpus-retirement` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch**                          | **Class** | **Priority** |
+| --------- | --------- | ----------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `chore/clearance-corpus-retirement` | `Light`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `merge-readiness-control`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-clearance-corpus-retirement.md`
 - **Task List:** `tasks-clearance-corpus-retirement.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Delete setup workflow and merge-gate clearance template
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Delete setup workflow and merge-gate clearance template
 
 - **PR URL:** [none]
 - **Completed:** [none]

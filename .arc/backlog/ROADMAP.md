@@ -22,9 +22,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                             |
 | `Planning` | remote-access-contract              | P1       | andrew | —          | —                             |
 | `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                             |
-| `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                             |
+| `Active`   | session-locus-operability-hardening | P1       | andrew | —          | —                             |
 | `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                             |
-| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                             |
+| `Active`   | clearance-corpus-retirement         | P2       | andrew | —          | —                             |
 
 ## Ready
 
