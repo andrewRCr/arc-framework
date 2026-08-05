@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — task plan finalized at `high` depth, cut into four delivery members, activated
-- **Next Task:** Task 1.1 — Register the delivery schema family (line ~64)
+- **Last Completed:** Phase 4 — authoring entries and projection delivered through member 2
+- **Next Task:** Task 5.1 — Determine when a plan becomes bound (line ~713)
 - **Blockers:** [none]
 
-- **Next Action:** Run the member 1 grounding audit over Phases 1-2, then begin Task 1.1
+- **Next Action:** Reconcile the control checkout with `main`, audit member 3 against Phase 5, cut it from `main`,
+  then begin Task 5.1
 
 - **PR URL:** [none]
 - **Completed:** [none]
