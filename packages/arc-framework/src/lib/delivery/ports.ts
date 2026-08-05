@@ -31,6 +31,14 @@ export type DeliveryPlanStoreFailure =
   | "version-conflict"
   | "namespace-corrupt";
 
+/** Closed failures admitted by delivery-state storage and reverse lookup. */
+export type DeliveryStateStoreFailure =
+  | "record-malformed"
+  | "identity-mismatch"
+  | "version-conflict"
+  | "ambiguous-match"
+  | "namespace-corrupt";
+
 /** Closed failures admitted by assignment storage and reverse lookup. */
 export type DeliveryAssignmentStoreFailure =
   | "record-malformed"
@@ -61,12 +69,12 @@ export interface DeliveryRevisionedRecord<T> {
   readonly value: T;
 }
 
-/** Exact member-checkout selector used by authoritative assignment lookup. */
+/** Exact member-checkout selector used by authoritative delivery lookup. */
 export type DeliveryMemberSelector =
   | { readonly kind: "head"; readonly objectId: string }
   | { readonly kind: "ref"; readonly ref: string; readonly observedHeadObjectId: string };
 
-/** Optional direct candidate pointer; it narrows lookup but proves no identity. */
+/** Optional ownership hint validated against, but never used to restrict, global lookup. */
 export interface DeliveryOwningUnitPointer {
   readonly workUnitId: string;
   readonly planId: string;
@@ -78,6 +86,14 @@ export interface DeliveryMemberResolution<TAssignment> {
   readonly deliverableId: CanonicalDigest;
   readonly workUnitId: string;
   readonly assignment: TAssignment;
+}
+
+/** One authoritative state match for a member checkout. */
+export interface DeliveryStateMemberResolution<TState> {
+  readonly planId: string;
+  readonly deliverableId: CanonicalDigest;
+  readonly workUnitId: string;
+  readonly state: TState;
 }
 
 /** One predecessor-chained assurance entry. */
@@ -104,6 +120,22 @@ export interface DeliveryPlanStore<TPlan> {
     expectedCurrentDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>>;
   enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>>;
+}
+
+/** Revision-checked delivery-state storage and authoritative member reverse lookup. */
+export interface DeliveryStateStore<TState> {
+  read(
+    planId: string,
+  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TState> | null, DeliveryStateStoreFailure>>;
+  publish(
+    planId: string,
+    value: TState,
+    expectedRevision: number,
+  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TState>, DeliveryStateStoreFailure>>;
+  resolveMember(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }): Promise<DeliveryStoreResult<DeliveryStateMemberResolution<TState> | null, DeliveryStateStoreFailure>>;
 }
 
 /** Revision-checked assignment storage and authoritative member reverse lookup. */

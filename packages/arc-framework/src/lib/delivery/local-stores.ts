@@ -1,7 +1,12 @@
-/** Git-common-directory adapters for current delivery plan, assignment, and observation records. */
+/** Git-common-directory adapters for delivery plan and mutable execution records. */
 
 import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
-import { canonicalize, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
+import {
+  canonicalize,
+  SlugSchema,
+  sortByCanonicalBytes,
+  type CanonicalDigest,
+} from "../kernel/index.js";
 import {
   DeliveryAssignmentsV1Codec,
   isDeliveryAssignmentSuccessor,
@@ -20,15 +25,45 @@ import type {
   DeliveryPlanStore,
   DeliveryPlanStoreFailure,
   DeliveryRevisionedRecord,
+  DeliveryStateMemberResolution,
+  DeliveryStateStore,
+  DeliveryStateStoreFailure,
   DeliveryStoreResult,
 } from "./ports.js";
-import { DeliveryPlanIdSchema } from "./schema.js";
+import { DeliveryPlanIdSchema, type DeliveryStateV1 } from "./schema.js";
+import { DeliveryStateV1Codec } from "./state.js";
 
 const PLAN_LOCATION = { root: "delivery", namespace: "plans" } as const;
+const STATE_LOCATION = { root: "delivery", namespace: "state" } as const;
 const ASSIGNMENT_LOCATION = { root: "delivery", namespace: "assignments" } as const;
 const OBSERVATION_LOCATION = { root: "delivery", namespace: "observations" } as const;
 const ASSIGNMENT_SEMANTICS = "delivery-assignment-store/v1";
 const OBSERVATION_SEMANTICS = "delivery-observation-store/v1";
+const STATE_SEMANTICS = "delivery-state-store/v1";
+
+function stateMemberMatches(
+  member: DeliveryStateV1["members"][number],
+  selector: DeliveryMemberSelector,
+): boolean {
+  if (member.coordinates === null) return false;
+  if (selector.kind === "head") return member.coordinates.head === selector.objectId;
+  return member.ref === selector.ref
+    && member.coordinates.head === selector.observedHeadObjectId;
+}
+
+function matchingStateMembers(
+  state: DeliveryStateV1,
+  selector: DeliveryMemberSelector,
+): readonly DeliveryStateMemberResolution<DeliveryStateV1>[] {
+  return state.members
+    .filter((member) => stateMemberMatches(member, selector))
+    .map((member) => ({
+      planId: state.planId,
+      deliverableId: member.deliverableId as CanonicalDigest,
+      workUnitId: state.workUnitId,
+      state,
+    }));
+}
 
 function memberMatches(
   member: DeliveryAssignmentsV1["members"][number],
@@ -288,6 +323,87 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
         return plan === undefined ? [] : [plan];
       }),
     };
+  }
+}
+
+/** Repository-common revision-checked delivery-state adapter. */
+export class RepositoryDeliveryStateStore implements DeliveryStateStore<DeliveryStateV1> {
+  constructor(private readonly publisher: GitCommonStatePublisher) {}
+
+  async read(
+    planId: string,
+  ): Promise<DeliveryStoreResult<
+    DeliveryRevisionedRecord<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  >> {
+    return readRevisionedRecord(
+      this.publisher,
+      STATE_LOCATION,
+      STATE_SEMANTICS,
+      DeliveryStateV1Codec,
+      planId,
+    );
+  }
+
+  async publish(
+    planId: string,
+    value: DeliveryStateV1,
+    expectedRevision: number,
+  ): Promise<DeliveryStoreResult<
+    DeliveryRevisionedRecord<DeliveryStateV1>,
+    DeliveryStateStoreFailure
+  >> {
+    return publishRevisionedRecord(
+      this.publisher,
+      STATE_LOCATION,
+      STATE_SEMANTICS,
+      DeliveryStateV1Codec,
+      planId,
+      value,
+      expectedRevision,
+    );
+  }
+
+  async resolveMember(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }): Promise<DeliveryStoreResult<
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  >> {
+    if (input.owningUnit !== undefined
+      && (normalizePlanId(input.owningUnit.planId) === null
+        || !SlugSchema.safeParse(input.owningUnit.workUnitId).success)) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+
+    const entries = await this.publisher.snapshot(STATE_LOCATION);
+    const matches: DeliveryStateMemberResolution<DeliveryStateV1>[] = [];
+    for (const entry of entries) {
+      const rawPlanId = entry.name.endsWith(".json")
+        ? entry.name.slice(0, -".json".length)
+        : "";
+      const parsedPlanId = DeliveryPlanIdSchema.safeParse(rawPlanId);
+      if (entry.kind !== "file" || !parsedPlanId.success || parsedPlanId.data !== rawPlanId) {
+        return { status: "refused", reason: "namespace-corrupt" };
+      }
+      const candidate = decodeRevisionedRecord(
+        entry.content,
+        rawPlanId,
+        STATE_SEMANTICS,
+        DeliveryStateV1Codec,
+      );
+      if (candidate.status === "refused") return candidate;
+      matches.push(...matchingStateMembers(candidate.value.value, input.selector));
+    }
+    if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
+    const match = matches[0] ?? null;
+    if (match !== null && input.owningUnit !== undefined
+      && (match.planId !== normalizePlanId(input.owningUnit.planId)
+        || match.workUnitId !== input.owningUnit.workUnitId)) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+    return { status: "ok", value: match };
   }
 }
 
