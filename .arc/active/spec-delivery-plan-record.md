@@ -131,6 +131,9 @@ The constructor derives all identities, order-dependent ownership, fingerprints,
 complete record from its contents and, for a successor, checks exact revision lineage. It does not inspect Git, a
 provider, review state, or delivery state.
 
+Successor lineage also preserves the original `projectId` presence and value, originally authored `workUnitId`, and
+authoring `entry`. A work-unit rename resolves around the record; it never rewrites the record's authored subject.
+
 The existing `strict-current` posture permits the pre-public implementation to remove `status`,
 `assuranceSubjectId`, and their registered preimage without aliases or migrations. Development-only persisted data is
 cleared or regenerated.
@@ -219,6 +222,11 @@ After binding, composition calls one pure classifier with:
 - the currently bound deliverable ids from `DeliveryStateV1`; and
 - a freshly observed, plan-ordered landed prefix from the selected host.
 
+The classifier validates its supplied facts before applying policy. Bound ids must be distinct members of the current
+plan. The landed ids must be a distinct, contiguous prefix of the current plan, and every landed id must be bound.
+Freshness remains a caller obligation: the pure classifier can reject contradictory values but cannot attest when the
+host was observed. Invalid records or lineage refuse before classification.
+
 The classifier returns exactly one outcome:
 
 - `accepted` — every externally bound or landed member retains its identity and predecessor position; presentation
@@ -231,6 +239,24 @@ The classifier returns exactly one outcome:
   landing; contradicts the host-derived landed prefix; or drops a crossing-seam obligation attached to the landed
   side.
 
+Matching is exclusively by stable `deliverableId`. A title-only change is presentation. For an unbound member, any
+structurally valid change is accepted. For a bound, unlanded member, unchanged semantics or strictly additive task or
+design coverage with every existing id and semantic digest preserved is accepted; any other contract, coverage,
+landability, incidence, identity, or predecessor-position change requires replacement. The corresponding change to a
+landed member refuses. Inserting, removing, rekeying, or reordering an unbound suffix is accepted only when no bound
+member's identity or predecessor position changes. Projection changes are accepted before binding, require replacement
+after binding but before landing, and refuse after any landing.
+
+Seam titles are presentation. Adding seam design coverage is accepted only when none of its incident members is
+landed; removing or moving existing seam coverage, or changing an existing design element's semantic digest, requires
+replacement when an incident member is bound and refuses when an incident member is landed. Acceptance or incidence
+changes follow the same bound-versus-landed rule, except that a crossing seam may recut only its unlanded incidents
+through replacement while retaining its acceptance and every landed-side incident.
+
+The result is a closed union: `accepted`; `replacement-required` with the exact affected bound-unlanded deliverable ids
+in plan order; or `refused` with a closed reason. The classifier performs no publication, provider access, state write,
+or persistence of amendment causes.
+
 Titles do not enter semantic fingerprints. Additive coverage on a bound unlanded member is accepted because it does
 not alter the external contribution; moving or removing its existing coverage requires replacement. Any task, design,
 contract, landability, or seam-semantic change to a landed member refuses.
@@ -240,11 +266,16 @@ incident member. The unlanded side may be recut through `replacement-required`. 
 is necessary because the classifier compares immutable revisions with current host facts.
 
 An accepted amendment follows one exact retry-safe order: record the candidate receipt, publish the plan, rebind state
-when state exists, render the task-list projection, delete the Markdown map, then delete the canonical snapshot. If
-interrupted after plan publication, state remains bound to the old digest and all operations refuse until an
-idempotent retry completes the rebind. A later render or cleanup failure leaves the existing candidate receipt
-sufficient to resume without republishing a new revision. `replacement-required` does not publish; it names the bound
-suffix that must be torn down, and the authoring pair remains available for retry. `refused` makes no mutation.
+when state exists, render the task-list projection, delete the Markdown map, then delete the canonical snapshot. The
+receipt records the accepted outcome, candidate plan and projection digests, and either no state binding or the exact
+state revision and old bound-plan digest used by classification. If interrupted after plan publication, state remains
+bound to the old digest and all operations refuse until an idempotent retry completes that exact compare-and-swap
+rebind. A changed state token refuses instead of being adopted as the new expectation.
+
+A later render or cleanup failure leaves the receipt sufficient to resume without republishing a new revision. One
+composer-owned recovery path performs the same rebind, render, and cleanup sequence whether or not the Markdown map is
+still present; a handler shortcut cannot skip durable steps. `replacement-required` does not publish; it names the
+bound suffix that must be torn down, and the authoring pair remains available for retry. `refused` makes no mutation.
 
 ### 6. One version-checked `DeliveryStateV1`
 
@@ -286,6 +317,13 @@ exact ref plus observed head, or from an exact head when unambiguous, to that su
 `deliverableId`. The existing authenticated rename resolver translates the stored subject to the current slug when a
 caller needs current work-unit position. Ref names never encode work-unit identity.
 
+State is first created only through a binding constructor supplied with the validated current plan and one observed
+external event: a member ref was pushed or a member change request was opened. The constructor builds the complete
+plan-ordered member sequence and records that exact first binding. Local candidate construction never calls it. The
+structural codec may still accept a later bound state whose external bindings are all absent after teardown; state
+existence, not continued provider visibility, remains the binding fact. Later topology executors own observing the
+external event and invoking this constructor; this work unit adds no provider adapter.
+
 `DeliveryStateV1Schema` registers as a strict-current delivery schema. The local v1 adapter stores plans under one
 repository-common `plans` namespace and state under one `state` namespace. Plan writes compare the expected current
 digest; state writes compare the expected revision. Stale writes refuse. Both ports remain storage-agnostic and use
@@ -306,15 +344,21 @@ An `activeOperation` contains only what crash recovery needs:
 - `kind: materialize | publish | rewrite | land | teardown`;
 - affected deliverable ids;
 - the state revision and bound plan digest against which it was reserved; and
-- exact expected destination and source ref, head, and tree coordinates relevant to the requested mutation.
+- an exact `before` snapshot of the relevant target and member ref, head, and tree coordinates; and
+- an exact `requested` snapshot of those same relevant positions after mutation, where `null` represents intentional
+  absence for creation or teardown.
+
+The two snapshots use one generic target/member coordinate shape. Operation kinds do not mint provider-specific
+payloads, status fields, or a capability hierarchy. A reservation is structurally valid only when its affected ids and
+snapshot entries are known, distinct, and plan ordered.
 
 Only one operation may be active. Reserving a second or reserving against stale state refuses. The later executor then:
 
 1. reobserves every control-bearing coordinate immediately before mutation;
-2. refuses if current facts differ from the reservation;
+2. refuses if current facts differ from `before`;
 3. invokes the one topology-specific mutation;
 4. reobserves the result;
-5. accepts only the exact requested result; and
+5. accepts only an exact match with `requested`; and
 6. updates current coordinates and clears the reservation by version-checked write.
 
 If the session crashes, the reservation remains. Reconciliation reobserves first. An exact already-applied result is
@@ -413,13 +457,13 @@ bounds reconciliation work.
 - Binding begins only at the first pushed member ref or opened change request; local candidate construction remains
   unbound.
 - Amendment fixtures cover `accepted`, `replacement-required`, and `refused`, including landed-prefix protection and
-  crossing-seam preservation.
+  crossing-seam preservation, contradictory binding facts, and exact ordered replacement targets.
 - Plan and state writes refuse stale digest or revision tokens, and interrupted accepted amendments remain blocked
-  until state rebind completes.
+  until the receipt-pinned state rebind completes.
 - `DeliveryStateV1` supports exact member bindings, unambiguous reverse lookup, and one active operation without a
   second observation or assurance record.
 - Crash fixtures distinguish already-applied, not-applied, and ambiguous operation outcomes without silently adopting
-  unexpected movement.
+  unexpected movement by comparing persisted exact `before` and `requested` snapshots.
 - Current position and closeout readiness derive from fresh plan, state, Git, host, check, and review inputs; no
   terminal delivery-proof record is emitted.
 - Work-unit rename resolution preserves the plan and all dependent identities.

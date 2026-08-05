@@ -777,7 +777,8 @@ current work.
     - `[ ]` **5.5.b Simplify construction and revision validation**
 
         - Re-derive every member and seam fingerprint on every revision, remove frozen-prefix and conversion logic,
-          and keep plan validation independent of host or state access.
+          keep plan validation independent of host or state access, and preserve original `projectId`, `workUnitId`,
+          and `entry` across successor lineage.
         - Build `test-first` around identity stability, digest movement, and exact predecessor lineage.
 
     - `[ ]` **5.5.c Reconcile authoring and the task-list projection**
@@ -795,6 +796,10 @@ current work.
         - Treat state existence as binding, triggered only by the first pushed member ref or opened change request;
           local candidate construction remains unbound.
         - Accept exact bound deliverable ids and a freshly observed plan-ordered landed prefix as caller-supplied facts.
+        - Reject unknown or duplicate bound ids and a landed sequence that is unknown, duplicate, non-contiguous, or
+          not wholly bound; freshness remains the caller's obligation.
+        - Require already-validated current and proposed successor revisions and match members only by stable
+          `deliverableId`.
 
     - `[ ]` **5.6.b Return `accepted`, `replacement-required`, or `refused`**
 
@@ -802,12 +807,21 @@ current work.
           unbound-suffix changes.
         - Require replacement for moved or removed existing coverage and contract, landability, incidence, order, or
           identity changes affecting a bound unlanded member; refuse the corresponding landed-member changes.
-        - Build `test-first` around those cases and projection changes before and after landing.
+        - Treat a changed semantic digest for an existing covered task or design element as a semantic change; preserve
+          every bound member's predecessor position, and classify projection changes as accepted before binding,
+          replacement before landing, and refused after landing.
+        - Return exact affected bound-unlanded ids in plan order for `replacement-required` and a closed reason for
+          `refused`; perform no publication, provider access, state write, or cause persistence.
+        - Build `test-first` from the compact policy table in `spec-delivery-plan-record.md` § Binding and plan
+          amendment rather than multiplying cases into a second taxonomy.
 
     - `[ ]` **5.6.c Preserve crossing-seam obligations**
 
         - Refuse removal of a landed-side incident or changed acceptance across the landed boundary while allowing the
           unlanded side to re-cut through `replacement-required`.
+        - Treat seam titles as presentation. Add seam design coverage only while no incident is landed; route removal,
+          movement, semantic-digest change, acceptance change, and incidence change by the incident members' bound or
+          landed position.
 
 ## **Phase 6:** One delivery state and guarded operations
 
@@ -893,6 +907,9 @@ active operation; provider status and review authority are reobserved.
           artifact expectations in this increment.
         - Add a pure plan-coherence validator for subject, revision, digest, member identity, and member order; keep the
           structural codec and store plan-agnostic.
+        - Add a plan-aware initial-binding constructor that requires one observed pushed-ref or opened-change-request
+          event and records that exact first binding; do not add a provider adapter or forbid later all-null teardown
+          state at the structural codec.
 
     - `[ ]` **6.5.b Publish state by expected revision**
 
@@ -915,11 +932,13 @@ active operation; provider status and review authority are reobserved.
         - Build `test-first` around stale state, stale plan binding, a second reservation, unknown deliverables, and
           exact source and destination coordinates for each supported operation kind.
         - Accept a caller-minted opaque operation id; the one-slot invariant supplies all uniqueness v1 needs.
+        - Persist generic exact `before` and `requested` target/member snapshots, using `null` for intentional absence;
+          reject unknown, duplicate, or non-plan-ordered affected members without introducing provider-specific shapes.
 
     - `[ ]` **6.6.b Compare fresh pre- and post-mutation facts**
 
-        - Return ready only when reobserved coordinates equal the reservation and accept only the exact requested
-          result after mutation; every partial result remains blocked.
+        - Return ready only when reobserved coordinates equal `before` and accept only an exact `requested` result
+          after mutation; every partial result remains blocked.
 
     - `[ ]` **6.6.c Reconcile interruption**
 
@@ -1011,13 +1030,19 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
         - Publish freely when no state exists; after binding, return the classifier outcome before mutation and keep
           the authoring pair for `replacement-required` or `refused`.
+        - Depend on the completed classifier and state contracts rather than duplicating their comparisons in the
+          handler; surface the exact ordered replacement ids and closed refusal reason.
 
     - `[ ]` **7.5.b Publish accepted plan then rebind state**
 
         - Preserve the existing candidate receipt, then publish plan, rebind state when present, render the task-list
           projection, delete Markdown, and delete the canonical snapshot in that exact order.
-        - Use plan-digest and state-revision compare-and-swap, make retry idempotent after each durable step, and block
-          all operations while the plan and state bindings disagree.
+        - Record the accepted outcome plus the candidate digests and either no state or the exact classified state
+          revision and old bound-plan digest in the receipt. Use those plan-digest and state-revision tokens for
+          compare-and-swap, make retry idempotent after each durable step, and block all operations while the plan and
+          state bindings disagree.
+        - Remove the handler-owned cleanup shortcut: one composer recovery path performs rebind, render, and cleanup
+          whether Markdown remains or has already been deleted. A changed receipt-pinned state token refuses.
         - Build failure-injection coverage for interruption after candidate receipt, plan publication, state rebind,
           render, and each cleanup deletion.
 
@@ -1025,6 +1050,8 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
         - Remove assignment, observation, and assurance schemas, stores, namespaces, exports, and dedicated tests;
           move only reverse lookup and current bindings into state.
+        - Preserve global ambiguity detection in reverse lookup: an optional owning-unit pointer may be validated and
+          used as a hint but cannot suppress another matching state record.
 
 ### `[ ]` **7.6 Prove the reduced contract end to end**
 
@@ -1045,6 +1072,8 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
         - Update handler and E2E coverage, confirm the already-updated registry, build, and emitted artifacts expose only
           the reduced schema family, and run the complete Phase 5 through 7 gate set before member cut.
+        - Interpret the status-removal requirement as delivery authoring-map and generated task-list output; do not
+          broaden it into unrelated CLI terminology.
 
 ## **Phase 8:** Verification
 

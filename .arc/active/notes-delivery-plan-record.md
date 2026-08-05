@@ -126,3 +126,21 @@ delivery proof, review ledger, or custom clearance path is part of this plan.
 This delivery remains a useful third field datapoint because it was planned before its final implementation member.
 Observe rewrite cascades, abandonment, and host merge behavior as field evidence. Do not add machinery for those cases
 unless a concrete supported-path failure crosses the spec's hardening-admission boundary.
+
+## Guarded-state grounding audit
+
+The pre-implementation audit over amended Phases 5 through 7 found three contract gaps worth fixing before code: the
+classifier needed one explicit policy and result shape; an active operation needed both exact pre-state and requested
+post-state; and an accepted-amendment receipt needed to pin the classified state revision for crash-safe rebind. These
+are corrections to the reduced design, not reasons to restore observation, assurance, or proof records.
+
+Implementation follows the dependency order already present in the task list: intent-only schemas and validation,
+then the pure classifier, then state storage, guarded operations and position derivation, and finally composition and
+end-to-end cleanup. The current-main surface is broader than the task titles: authored status appears in schema,
+construction, maps, projection, fixtures, registry expectations, and field-run tests; assignment, observation, and
+assurance also occupy ports, repository-common namespaces, exports, and dedicated tests.
+
+Two code-level cautions carry into that sequence. The existing Markdown-absent handler path bypasses rendering and must
+collapse into composer-owned recovery. Existing reverse lookup treats an optional owning-unit pointer as a scan
+restriction; the state implementation must instead validate it only as a hint and retain global ambiguity detection.
+Neither caution warrants a new abstraction or durable record.
