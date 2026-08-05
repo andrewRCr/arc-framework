@@ -1,0 +1,94 @@
+name: ARC Lane Attestation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  lane-attestation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - id: lane-trusted-checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - id: lane-target
+        name: Bind the lane attestation to the live pull-request pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r .state <<<"$pull_request")" = open
+          test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          base_ref="$(jq -r .base.ref <<<"$pull_request")"
+          base_sha="$(jq -r .base.sha <<<"$pull_request")"
+          head_repository="$(jq -r .head.repo.full_name <<<"$pull_request")"
+          head_sha="$(jq -r .head.sha <<<"$pull_request")"
+          test -n "$base_ref"
+          [[ "$base_sha" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$head_sha" =~ ^[a-f0-9]{40}$ ]]
+          {
+            echo "base_ref=$base_ref"
+            echo "base_sha=$base_sha"
+            echo "head_repository=$head_repository"
+            echo "head_sha=$head_sha"
+          } >>"$GITHUB_OUTPUT"
+      - id: lane-reset
+        name: Invalidate the prior lane attestation on the live head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.lane-target.outputs.head_sha }}
+        run: |
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=pending -f context=arc-lane \
+            -f description='ARC is reclassifying this exact head' -f target_url="$target"
+      # Pull-request content is inert classification data; no command executes from this checkout.
+      - id: lane-data
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          repository: ${{ steps.lane-target.outputs.head_repository }}
+          ref: ${{ steps.lane-target.outputs.head_sha }}
+          path: _arc_change_data
+          fetch-depth: 0
+          persist-credentials: false
+      - id: lane-status
+        name: Publish the lane attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ steps.lane-target.outputs.base_ref }}
+          BASE_SHA: ${{ steps.lane-target.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.lane-target.outputs.head_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA" \
+            --repository "$GITHUB_WORKSPACE/_arc_change_data")"
+          test "$lane" = planning || test "$lane" = reviewed
+          if [ "$lane" = planning ]; then
+            bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY" \
+              "$PR_NUMBER" "$BASE_REF" "$BASE_SHA" "$HEAD_SHA"
+            description='planning lane; live pull-request pair confirmed on this exact head'
+          else
+            description='reviewed lane; auto-merge eligibility not asserted for this head'
+          fi
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=success -f context=arc-lane \
+            -f description="$description" -f target_url="$target"

@@ -57,12 +57,24 @@ import {
   type ReviewReadinessRequest,
 } from "../scripts/review-gate/readiness.js";
 import {
-  ReviewUnlockEnvelopeSchema,
-  ReviewUnlockRequestSchema,
-  unlockReviewHead,
-  type ReviewUnlockRequest,
-} from "../scripts/review-gate/unlock.js";
-import { GhReviewUnlockPort } from "../scripts/review-gate/hosts/github/unlock.js";
+  MergeLockCommandErrorEnvelopeSchema,
+  MergeLockHoldEnvelopeSchema,
+  MergeLockReleaseEnvelopeSchema,
+  MergeLockResolveEnvelopeSchema,
+  type MergeLockCommandMode,
+} from "../scripts/review-gate/merge-lock-command-envelope.js";
+import {
+  MergeLockResolveRequestSchema,
+  MergeLockTransitionRequestSchema,
+  holdMergeLock,
+  releaseMergeLock,
+  resolveMergeLock,
+  type MergeLockPort,
+  type MergeLockResolveRequest,
+  type MergeLockTransitionRequest,
+} from "../scripts/review-gate/merge-lock.js";
+import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
@@ -138,7 +150,6 @@ export const ReviewCommandInputSchema = reviewCommandInputSchema();
 /** Canonical paths of the review commands sharing the JSON request-source operand. */
 const REVIEW_JSON_COMMAND_PATHS = [
   "review readiness",
-  "review unlock",
   "review resolve",
   "review chunking resolve",
   "review frontline resolve",
@@ -172,9 +183,16 @@ const reviewPlanningLaneInputRegistration = {
   },
 } satisfies CommandInputRegistration;
 
-/** Registry contributions owned by the review command adapters. */
+/** Canonical paths of the merge-lock commands sharing the same JSON request-source operand. */
+const MERGE_LOCK_JSON_COMMAND_PATHS = [
+  "merge lock resolve",
+  "merge lock hold",
+  "merge lock release",
+] as const;
+
+/** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
-  ...REVIEW_JSON_COMMAND_PATHS.map((commandPath) => ({
+  ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
     commandPath,
     schema: reviewCommandInputSchema(),
     schemaFields: { "operand.input": "input" },
@@ -413,47 +431,123 @@ export async function handleReviewReadiness(
   });
 }
 
-export interface ReviewUnlockHandlerDependencies {
+/** Modes carried by the review-command family and by the merge-lock family that split from it. */
+type ReviewFamilyMode = ReviewCommandMode | MergeLockCommandMode;
+
+export interface MergeLockResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  unlock(request: ReviewUnlockRequest, root: string): Promise<unknown>;
+  resolve(request: MergeLockResolveRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultReviewUnlockDependencies(): ReviewUnlockHandlerDependencies {
-  return {
-    ...defaultReviewHandlerBoundary(),
-    unlock: (request) => unlockReviewHead(
-      request,
-      new GhReviewUnlockPort(hostedGhRunner, evaluateReviewReadiness),
-    ),
-  };
+export interface MergeLockTransitionHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  transition(request: MergeLockTransitionRequest, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultMergeLockPort(): MergeLockPort {
+  return new GhMergeLockPort(hostedGhRunner, evaluateReviewReadiness, readMergeLockSetting);
 }
 
 /**
- * Preflight and dispatch one exact-head clearance request as a JSON envelope.
+ * Answer how a pull request about to be opened should be opened, as one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
  * @returns Resolves after stdout and exit status are assigned.
  */
-export async function handleReviewUnlock(
+export async function handleMergeLockResolve(
   source: string,
-  overrides: Partial<ReviewUnlockHandlerDependencies> = {},
+  overrides: Partial<MergeLockResolveHandlerDependencies> = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReviewUnlockDependencies(), ...overrides };
+  const dependencies: MergeLockResolveHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    resolve: (request) => resolveMergeLock(request, defaultMergeLockPort()),
+    ...overrides,
+  };
   await executeReviewHandler({
-    mode: "review-unlock",
+    mode: "merge-lock-resolve",
     source,
-    requestSchema: ReviewUnlockRequestSchema,
-    resultSchema: ReviewUnlockEnvelopeSchema,
+    requestSchema: MergeLockResolveRequestSchema,
+    resultSchema: MergeLockResolveEnvelopeSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.unlock(
-      ReviewUnlockRequestSchema.parse(request),
+    execute: (request, root) => dependencies.resolve(
+      MergeLockResolveRequestSchema.parse(request),
       root,
     ),
   });
+}
+
+async function handleMergeLockTransition(
+  mode: Extract<MergeLockCommandMode, "merge-lock-hold" | "merge-lock-release">,
+  resultSchema: ZodType,
+  verb: (request: MergeLockTransitionRequest, port: MergeLockPort) => Promise<unknown>,
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies>,
+): Promise<void> {
+  const dependencies: MergeLockTransitionHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    transition: (request) => verb(request, defaultMergeLockPort()),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode,
+    source,
+    requestSchema: MergeLockTransitionRequestSchema,
+    resultSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.transition(
+      MergeLockTransitionRequestSchema.parse(request),
+      root,
+    ),
+  });
+}
+
+/**
+ * Lock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockHold(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+): Promise<void> {
+  await handleMergeLockTransition(
+    "merge-lock-hold",
+    MergeLockHoldEnvelopeSchema,
+    holdMergeLock,
+    source,
+    overrides,
+  );
+}
+
+/**
+ * Unlock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockRelease(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+): Promise<void> {
+  await handleMergeLockTransition(
+    "merge-lock-release",
+    MergeLockReleaseEnvelopeSchema,
+    releaseMergeLock,
+    source,
+    overrides,
+  );
 }
 
 /**
@@ -520,16 +614,19 @@ function errorCode(error: unknown): string | null {
 }
 
 async function executeReviewHandler(input: {
-  mode: ReviewCommandMode;
+  mode: ReviewFamilyMode;
   source: string;
   requestSchema: ZodType;
   resultSchema: ZodType;
+  /** Error envelope owning `input.mode`; the review family's own by default. */
+  errorSchema?: ZodType;
   dependencies: ReviewHandlerBoundary;
   execute(request: unknown, root: string): Promise<unknown>;
 }): Promise<void> {
+  const errorSchema = input.errorSchema ?? ReviewCommandErrorEnvelopeSchema;
   const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
   if (!operand.success) {
-    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies);
+    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies, errorSchema);
     return;
   }
 
@@ -539,7 +636,7 @@ async function executeReviewHandler(input: {
     if (resolved === null) throw new Error("Not inside an ARC project.");
     root = resolved;
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
+    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
     return;
   }
 
@@ -547,7 +644,7 @@ async function executeReviewHandler(input: {
   try {
     request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "request", input.dependencies);
+    emitReviewCommandError(input.mode, error, "request", input.dependencies, errorSchema);
     return;
   }
 
@@ -555,7 +652,7 @@ async function executeReviewHandler(input: {
   try {
     rawResult = await input.execute(request, root);
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
+    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
     return;
   }
 
@@ -563,7 +660,7 @@ async function executeReviewHandler(input: {
     const result = input.resultSchema.parse(rawResult);
     input.dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "output", input.dependencies);
+    emitReviewCommandError(input.mode, error, "output", input.dependencies, errorSchema);
   }
 }
 
@@ -611,17 +708,18 @@ function emitHostedReviewError(
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<HostedReviewHandlerBoundary, "write" | "setExitCode">,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, ReviewCommandErrorEnvelopeSchema))}\n`);
   dependencies.setExitCode(1);
 }
 
 function emitReviewCommandError(
-  mode: ReviewCommandMode,
+  mode: ReviewFamilyMode,
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<ReviewHandlerBoundary, "write" | "setExitCode">,
+  errorSchema: ZodType,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, errorSchema))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -809,9 +907,10 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
 }
 
 function reviewCommandError(
-  mode: ReviewCommandMode,
+  mode: ReviewFamilyMode,
   error: unknown,
   phase: ReviewHandlerErrorPhase,
+  errorSchema: ZodType,
 ) {
   const message = error instanceof Error ? error.message : String(error);
   const stableCode = errorCode(error);
@@ -831,7 +930,7 @@ function reviewCommandError(
         precondition: repositoryPrecondition(error.reason),
       }]
     : [];
-  return ReviewCommandErrorEnvelopeSchema.parse({
+  return errorSchema.parse({
     schemaVersion: 1,
     mode,
     diagnostics,

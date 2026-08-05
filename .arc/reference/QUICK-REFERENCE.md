@@ -136,8 +136,12 @@ npm run -w packages/arc-framework test:watch
 ### Building
 
 ```bash
-# Build CLI package (ESM output with shebang and declarations)
+# Build CLI package (ESM output with shebang and declarations) — the build-verification gate
 npm run build
+
+# Runtime-only build: bundle, esbuild metafile, freshness stamp, and kernel schema, no
+# declarations. The one-second fix when the dev-build guard refuses a command.
+npm run build:fast
 ```
 
 ---
@@ -169,6 +173,7 @@ full suite — the expensive checks narrow by an order of magnitude, and the ARC
 | `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
 | `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
 | `build`                 | 5.7s         | not narrowable                              |
+| `build:fast`            | 1.1s         | not narrowable; not a gate (2026-08-04)     |
 
 ### The gates
 
@@ -268,8 +273,9 @@ additional full-suite gates.
 > `arc` install in this working tree. A global install would resolve to the published version,
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
-> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires `npm run build` to be
-> current (the binary points at `packages/arc-framework/dist/cli.js`). This guidance applies only
+> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
+> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
+> and `npm run build:fast` refreshes it in about a second. This guidance applies only
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
 

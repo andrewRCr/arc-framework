@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveForwardDeliverySubject,
   resolveExistingDeliveryPlan,
   type DeliveryRenameTransitionSource,
 } from "../../../src/lib/delivery/plan-resolution.js";
@@ -57,6 +58,20 @@ function resolve(input: {
 }
 
 describe("existing delivery plan resolution", () => {
+  it("resolves payload-neutral records without a delivery plan store", async () => {
+    const authoredMap = { mapId: "map-1", originalWorkUnitId: "original-unit" };
+
+    await expect(resolveForwardDeliverySubject({
+      records: [authoredMap],
+      currentWorkUnitId: "current-unit",
+      recordWorkUnitId: (record) => record.originalWorkUnitId,
+      authority: { status: "established", ref: "refs/heads/main" },
+      transitionSource: transitionSource([
+        { subject: "original-unit", outcome: { kind: "rename", targetSlug: "current-unit" } },
+      ]),
+    })).resolves.toEqual({ status: "match", record: authoredMap });
+  });
+
   it("matches a stored plan through a transitive rename chain", async () => {
     const stored = plan("plan-1", "original-unit");
 

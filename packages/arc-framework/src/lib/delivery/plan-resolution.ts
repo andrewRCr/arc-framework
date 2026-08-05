@@ -38,6 +38,28 @@ export type ExistingDeliveryPlanResolution<TPlan> =
       | "substrate-unreachable";
   };
 
+/** Payload-neutral lookup result for any delivery record keyed by an original work-unit identity. */
+export type ForwardDeliverySubjectResolution<TRecord> =
+  | { readonly status: "match"; readonly record: TRecord }
+  | { readonly status: "no-match" }
+  | {
+    readonly status: "indeterminate";
+    readonly reason:
+      | "ambiguous-subject"
+      | "namespace-corrupt"
+      | "reachability-unestablished"
+      | "substrate-unreachable";
+  };
+
+/** Resolution after transition authority has already been established and loaded. */
+export type ForwardDeliverySubjectTransitionResolution<TRecord> =
+  | { readonly status: "match"; readonly record: TRecord }
+  | { readonly status: "no-match" }
+  | {
+    readonly status: "indeterminate";
+    readonly reason: "ambiguous-subject" | "namespace-corrupt";
+  };
+
 /** Git-backed source of authenticated retirement transitions from one established ref. */
 export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransitionSource {
   constructor(private readonly exec: GitExec) {}
@@ -76,29 +98,78 @@ export async function resolveExistingDeliveryPlan<TPlan>(input: {
   if (plans.status === "refused") {
     return { status: "indeterminate", reason: "namespace-corrupt" };
   }
-  if (plans.value.length === 0) return { status: "no-match" };
+
+  const resolution = await resolveForwardDeliverySubject({
+    records: plans.value,
+    currentWorkUnitId: input.currentWorkUnitId,
+    recordWorkUnitId: input.planWorkUnitId,
+    authority: input.authority,
+    transitionSource: input.transitionSource,
+  });
+  return resolution.status === "match"
+    ? { status: "match", plan: resolution.record }
+    : resolution;
+}
+
+/**
+ * Resolve one current work-unit identity against payload-neutral records.
+ *
+ * Storage adapters enumerate and validate their own records before calling this shared
+ * rename-aware authority boundary.
+ */
+export async function resolveForwardDeliverySubject<TRecord>(input: {
+  readonly records: readonly TRecord[];
+  readonly currentWorkUnitId: string;
+  readonly recordWorkUnitId: (record: TRecord) => string;
+  readonly authority: DeliveryRenameEvidenceAuthority;
+  readonly transitionSource: DeliveryRenameTransitionSource;
+}): Promise<ForwardDeliverySubjectResolution<TRecord>> {
+  if (input.authority.status === "unestablished") {
+    return { status: "indeterminate", reason: "reachability-unestablished" };
+  }
+  if (input.records.length === 0) return { status: "no-match" };
 
   const transitions = await input.transitionSource.enumerate(input.authority.ref);
   if (transitions.status === "refused") {
     return { status: "indeterminate", reason: transitions.reason };
   }
-  const outcomes = groupOutcomes(transitions.value);
-  const matches: TPlan[] = [];
-  for (const plan of plans.value) {
+  return resolveForwardDeliverySubjectFromTransitions({
+    records: input.records,
+    currentWorkUnitId: input.currentWorkUnitId,
+    recordWorkUnitId: input.recordWorkUnitId,
+    transitions: transitions.value,
+  });
+}
+
+/**
+ * Resolve records against an already-authenticated transition snapshot.
+ *
+ * @param input - Validated records, identity accessor, current subject, and reachable transitions
+ * @returns One matching record, safe absence, or an authority-preserving indeterminate result
+ */
+export function resolveForwardDeliverySubjectFromTransitions<TRecord>(input: {
+  readonly records: readonly TRecord[];
+  readonly currentWorkUnitId: string;
+  readonly recordWorkUnitId: (record: TRecord) => string;
+  readonly transitions: readonly ReachableReferenceTransition[];
+}): ForwardDeliverySubjectTransitionResolution<TRecord> {
+  const outcomes = groupOutcomes(input.transitions);
+  const matches: TRecord[] = [];
+  for (const record of input.records) {
     const resolution = resolvesTo(
-      input.planWorkUnitId(plan),
+      input.recordWorkUnitId(record),
       input.currentWorkUnitId,
       outcomes,
     );
     if (resolution === "ambiguous") {
       return { status: "indeterminate", reason: "ambiguous-subject" };
     }
-    if (resolution === "match") matches.push(plan);
+    if (resolution === "match") matches.push(record);
   }
   if (matches.length > 1) return { status: "indeterminate", reason: "namespace-corrupt" };
   return matches[0] === undefined
     ? { status: "no-match" }
-    : { status: "match", plan: matches[0] };
+    : { status: "match", record: matches[0] };
 }
 
 function groupOutcomes(

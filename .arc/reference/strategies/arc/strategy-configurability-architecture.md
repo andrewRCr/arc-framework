@@ -188,6 +188,7 @@ branch.protection: partial
 commit.format: conventional
 commit.context_footer: required
 merge.strategy: merge
+merge.lock: none
 hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 platform.type: github
@@ -273,6 +274,16 @@ Most config settings are straightforward toggles. Some carry deeper implications
 - **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
   PR descriptions must carry the traceability that individual commits would normally provide.
 
+**Merge lock** (`merge.lock`) decides whether a pull request is held unmergeable until the work is cleared to
+land:
+
+- **`none`** (default) — No host-side hold. Interlocks and harness permissions are the only thing standing
+  between an open pull request and a merge.
+- **`draft`** — Pull requests open as drafts, which the host refuses to merge until they are released. The
+  hold is structural rather than procedural, so it does not depend on whoever merges remembering the
+  convention. It costs a release step before every merge, and review automation that skips drafts by default
+  stays quiet until that release.
+
 **Session interlocks** govern how approval propagates through the commit, sync, and push
 interlocks. All three are per-developer settings via git config — see [Personal Configuration
 via Git Config](#personal-configuration-via-git-config) above for the key reference.
@@ -336,6 +347,7 @@ Config settings divide into two categories based on how changes take effect:
 - `hooks.pre_commit`, `hooks.commit_msg` — Hook enable/disable
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
+- `merge.lock` — Host-side hold on merging an open pull request
 - `platform.type` — Agent platform awareness
 - `review.frontline_sources` — Ordered registered frontline review source defaults
 - `review.chunking_threshold_lines`, `review.chunking_threshold_files` — Independent exact-target attention

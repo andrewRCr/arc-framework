@@ -2,6 +2,7 @@
 
 import type { CommitCheckFinding, CommitCheckPolicy, CommitCheckConfigurationKey } from "./types.js";
 import type { ParsedCommitMessage, ParsedCommitLine } from "./parser.js";
+import { isTaskNonReferenceContext, parseTaskReference } from "./task-reference.js";
 
 const CONVENTIONAL_TYPES = new Set([
   "feat",
@@ -197,15 +198,6 @@ export function validateSubjectAndBody(
   return findings;
 }
 
-const TASK_ID_SOURCE = "[0-9]+(?:\\.[0-9A-Za-z]+)+";
-const TASK_RANGE_SOURCE = `${TASK_ID_SOURCE}-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*`;
-const TASK_ITEM_SOURCE = `(?:${TASK_ID_SOURCE}|${TASK_RANGE_SOURCE})`;
-const TASK_LIST_SOURCE = `(?:${TASK_RANGE_SOURCE}|${TASK_ITEM_SOURCE}(?:, ${TASK_ITEM_SOURCE})+)`;
-const TASK_REFERENCE_PATTERN = new RegExp(
-  `^(?:Task ${TASK_ID_SOURCE}|Tasks ${TASK_LIST_SOURCE}|` +
-    `Task ${TASK_ID_SOURCE}; (?:planning|maintenance)|Tasks ${TASK_LIST_SOURCE}; (?:planning|maintenance)|` +
-    "incidental during \\S(?:.*\\S)?|planning|maintenance|code review)$",
-);
 const TASK_FOOTER_PATTERN = /^(tasks-[A-Za-z0-9-]+\.md) \((.+)\)$/;
 const DESIGN_FOOTER_PATTERN = /^((?:draft|spec)-[A-Za-z0-9-]+\.md) \((planning|code review)\)$/;
 const META_FOOTER_PATTERN =
@@ -226,7 +218,8 @@ function classifyFooter(value: string): FooterClassification {
   if (taskMatch) {
     const filename = taskMatch[1] ?? "";
     return {
-      valid: TASK_REFERENCE_PATTERN.test(taskMatch[2] ?? ""),
+      valid: parseTaskReference(taskMatch[2] ?? "") !== null
+        || isTaskNonReferenceContext(taskMatch[2] ?? ""),
       artifact: { family: "tasks", filename },
       contribution: false,
       suggestions: [
