@@ -248,6 +248,46 @@ async function transitionMergeLock(
   } catch {
     return blocked("transition-failed", `The ${kind} transition against the pull request failed.`);
   }
+
+  // The host offers no expected-head guard on the flip, so a push landing between
+  // the preflight above and the mutation moves the lock onto a head nothing
+  // evaluated. Detection after the fact is the only guard available. Locking a
+  // newer head is still locked, so `hold` only reports; `release` has left an
+  // unevaluated head mergeable and must put the lock back.
+  let settled: MergeLockPullRequest;
+  try {
+    settled = MergeLockPullRequestSchema.parse(
+      await port.resolvePullRequest(request.target.repository, request.target.pullRequest),
+    );
+  } catch {
+    return blocked(
+      "pull-request-unavailable",
+      `The guarded pull request could not be re-read to confirm the ${kind} landed on the exact head.`,
+    );
+  }
+
+  if (settled.headSha !== request.target.headSha) {
+    if (!shape.targetLocked) {
+      try {
+        await port.applyTransition({
+          repository: request.target.repository,
+          pullRequest: request.target.pullRequest,
+          transition: "hold",
+        });
+      } catch {
+        return blocked(
+          "transition-failed",
+          "The pull request advanced during the release and the compensating hold failed.",
+          [{
+            code: "release-not-reverted",
+            message: "The pull request is released on an unevaluated head; re-lock it before any merge.",
+          }],
+        );
+      }
+    }
+    return blocked("stale-head", `The pull request advanced during the ${kind}; its head is no longer the target.`);
+  }
+
   return { ...base, diagnostics: [], state: shape.settled, nextAction: "proceed", payload };
 }
 

@@ -479,3 +479,115 @@ describe("merge-lock transitions", () => {
     expect(result).toMatchObject({ state: "blocked", nextAction: "stop", payload: { reason } });
   });
 });
+
+describe("a push landing during the transition", () => {
+  const MOVED = "b".repeat(40);
+
+  /**
+   * The preflight sees the target head; the post-transition re-read sees a
+   * newer one, which is the race the host's guardless flip permits.
+   */
+  function advancingPort(overrides: Partial<MergeLockPort> = {}, locked = true): FakeLockPort {
+    let reads = 0;
+    return lockPort({
+      resolvePullRequest: async () => {
+        reads += 1;
+        return {
+          repository: "owner/repo",
+          number: 42,
+          state: "open" as const,
+          headBranch: "feat/demo",
+          headSha: reads === 1 ? SHA : MOVED,
+          locked,
+        };
+      },
+      ...overrides,
+    }, locked);
+  }
+
+  it("refuses to report a release that landed on a head nothing evaluated", async () => {
+    const port = advancingPort();
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      payload: { reason: "stale-head" },
+    });
+  });
+
+  it("puts the lock back when the release landed on the newer head", async () => {
+    const port = advancingPort();
+
+    await releaseMergeLock(transitionRequest(), port);
+
+    expect(port.transitions).toEqual([
+      { repository: "owner/repo", pullRequest: 42, transition: "release" },
+      { repository: "owner/repo", pullRequest: 42, transition: "hold" },
+    ]);
+  });
+
+  it("names the unreverted release when the compensating hold also fails", async () => {
+    let applied = 0;
+    const port = advancingPort({
+      applyTransition: async () => {
+        applied += 1;
+        if (applied > 1) throw new Error("gh failed");
+      },
+    });
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      payload: { reason: "transition-failed" },
+    });
+    expect(result).toMatchObject({
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "release-not-reverted" }),
+      ]) as unknown,
+    });
+  });
+
+  it("reports the drift on hold without a second transition, since locking a newer head is still locked",
+    async () => {
+      const port = advancingPort({}, false);
+
+      const result = await holdMergeLock(transitionRequest(), port);
+
+      expect(result).toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        payload: { reason: "stale-head" },
+      });
+      expect(port.transitions).toEqual([
+        { repository: "owner/repo", pullRequest: 42, transition: "hold" },
+      ]);
+    });
+
+  it("blocks when the pull request cannot be re-read after the transition", async () => {
+    let reads = 0;
+    const port = lockPort({
+      resolvePullRequest: async () => {
+        reads += 1;
+        if (reads > 1) throw new Error("gh failed");
+        return {
+          repository: "owner/repo",
+          number: 42,
+          state: "open" as const,
+          headBranch: "feat/demo",
+          headSha: SHA,
+          locked: true,
+        };
+      },
+    });
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      payload: { reason: "pull-request-unavailable" },
+    });
+  });
+});

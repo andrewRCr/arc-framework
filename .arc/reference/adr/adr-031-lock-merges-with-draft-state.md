@@ -101,6 +101,14 @@ The retired mechanism was better on two axes, and the trade was made anyway:
   the release and the arming — a couple of commands wide, inside the lane's own gate and after its exact-head
   recheck. This is the price of the open-locked rule, and it buys those lanes a lock across PR-open, review,
   and triage, which the previous design could not cover because it could not classify the lane in time.
+- **Release is not atomic on the head it checked.** The host takes no expected-head parameter on the ready flip,
+  so the exact-head preflight and the mutation cannot be made one operation. A push landing between them marks a
+  head nothing evaluated as ready. The verbs detect this by re-reading the pull request after the flip and
+  reverting the release when the head moved, which leaves a window where an unevaluated head is briefly ready and
+  a narrower one where the compensating hold itself fails and the pull request stays released — reported, never
+  silent. Locking is unaffected: a hold that lands on a newer head is still locked. Exactness on release is
+  therefore recovered rather than guaranteed, and closing it properly would need a host primitive that does not
+  exist.
 - **Provider auto-review.** With provider auto-review disabled — this project's posture — nothing fires at the
   ready flip. Projects that enable it should expect a benign, comment-only review to fire post-release.
 - **Draft availability.** A residual uncertainty applies to Free-plan private repositories, covered by

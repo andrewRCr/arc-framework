@@ -479,7 +479,8 @@ new-versus-old split.
   head after release, and re-locked on `gh pr ready --undo`. Host-side teardown was confirmed against the live
   API — classic protection returns 404 and the ruleset requires `merge-ok` alone. The renamed lane context and
   this work unit's own integration pull request remain read-verified, since `pull_request_target` resolves
-  workflows from the base branch.
+  workflows from the base branch. A hosted review after this pass found the release transition unbound to its
+  checked head; the fix and its tests landed on the integration branch, recorded on criterion 1.
 
 ---
 
@@ -495,6 +496,13 @@ new-versus-old split.
       refused; on the exact head it merged; `gh pr ready --undo` re-locked and refusal resumed. The fixture
       targeted its own base branch, so `main` was never a merge target. The fire site that opens the pull request
       locked is covered by the workflow-contract test rather than this exercise.
+    - **Deviation:** the criterion's release clause did not hold when it was first marked. A hosted review of the
+      integration pull request found the release transition unbound to the head its own preflight had just
+      checked: the host offers no expected-head guard on the ready flip, so a push landing in that window marked
+      an unevaluated head ready while the envelope still reported the reviewed one. Closed by re-reading the pull
+      request after the flip and reverting the release when the head moved, with five unit tests that fail
+      against the unfixed path. Exactness on release is therefore detect-and-revert, not atomic — see `ADR-031`
+      § Risks.
 
 - `[x]` No `arc-cleared` producer or enforcement point survives: `grep -riE "arc.cleared|arc.clearance"` over
   `packages/arc-framework/src/` and `.github/workflows/` returns nothing, and no base-branch enforcement surface
