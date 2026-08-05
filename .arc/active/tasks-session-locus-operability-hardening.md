@@ -10,40 +10,25 @@ _Purpose:_ Produce the first main-mergeable deliverable by establishing and prov
 model, dormant future-marker projection, and worktree-first reader without changing any production
 producer, consumer, public contract, workflow, or on-disk behavior.
 
-### `[ ]` **1.1 Define authority-only role derivation and topology corroboration**
+### `[x]` **1.1 Define authority-only role derivation and topology corroboration**
 
 - _Goal:_ Checkout subjects derive through a pure typed authority boundary that cannot consult branch shape, durable
   locus state, or process liveness, while topology corroboration can only preserve or reject the derived subject.
 
-- _Context:_ This is an internal foundation in Deliverable 1; no production import path switches here.
+    - `[x]` **1.1.a Define the authority fact and derived-role contracts**
+        - Added pure authority projections and least-destructive role derivation for unoccupied primary, work-unit,
+          transient, retired, unmanaged, and unresolved checkout outcomes.
 
-    - `[ ]` **1.1.a Define the authority fact and derived-role contracts**
-        - Add `role-derivation.ts` with path/primary topology, marker, lifecycle, and identity projections.
-        - Model least-destructive unoccupied-primary, `work-unit`, `transient`, `retired`, `unmanaged-checkout`, and
-          `unresolved-checkout` outcomes without accepting observed branch, `HEAD`, record, lease, lock, or process
-          inputs.
+    - `[x]` **1.1.b Add preserve-or-unresolve topology corroboration**
+        - Added branch, `HEAD`, and detached corroboration that returns the exact derived role on agreement and only an
+          unresolved checkout diagnostic on mismatch.
 
-    - `[ ]` **1.1.b Add preserve-or-unresolve topology corroboration**
-        - Add `role-corroboration.ts` with observed branch, `HEAD`, and detached facts isolated from authority
-          derivation.
-        - Require corroboration to return the exact authority-derived subject or an unresolved diagnostic; it cannot
-          originate, replace, or retarget a subject.
-        - Keep subject-sourced expected topology distinct from the registered worktree observations it checks.
+    - `[x]` **1.1.c Enforce the authority dependency boundary**
+        - Added narrow topology adapters plus type, import, and runtime contracts that exclude durable locus and
+          liveness dependencies and prevent complete registered-worktree values from crossing either seam.
 
-    - `[ ]` **1.1.c Enforce the authority dependency boundary**
-        - Add targeted type and import contracts that fail when the authority builder or derivation module reaches
-          retired locus storage, liveness, or observed branch-shape inputs.
-        - Require the roster adapter to construct fresh narrow topology projections rather than forwarding a complete
-          `RegisteredWorktree` value through the authority seam.
-
-    - Build `test-first` (one behavior at a time):
-        - Derive each role class from explicit authority fixtures, choosing unresolved unless positive retirement or
-          availability evidence exists.
-        - Hold authority facts fixed while varying branch and `HEAD`; derivation remains invariant and corroboration
-          either preserves the exact subject or downgrades it.
-        - Compose `free-primary` only from an unoccupied physical primary plus positive existing primary-safety facts.
-        - Seed each prohibited import/input class and prove the narrow boundary rejects it without adding a general
-          source-policy framework.
+- _Outcome:_ Authority selection, registered-topology observation, and positive primary-safety composition now have
+  separate typed boundaries; the new modules remain dormant and unexported from production entry points.
 
 ### `[ ]` **1.2 Define the dormant future occupancy-marker projection**
 
