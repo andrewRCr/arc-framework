@@ -375,8 +375,8 @@ and regenerated, no aliases, no migration readers; published envelope slots chan
   motivating failure and that its scope "was never separately scoped or reviewed." It exists to give a single
   operator's grooming and drains claimed mutual exclusion — the same disproportion this re-founding ends, one
   layer up. Grooming and housekeeping continue as workflow conventions; the inert vocabulary it was to redeem is
-  in this unit's deletion inventory. Stub retirement executes at a housekeep/planning-closeout with operator
-  approval, not from this branch.
+  in this unit's deletion inventory. It carries a full spec rather than a bare stub, so its destruction is the
+  larger of the two below.
 - **`locus-generation-binding` — killed.** All five generation gaps are defects in the mutation layer being
   deleted; the driver it would adopt guards actions that stop existing. The identity ref's transaction — the one
   CAS that matters — already exists and is untouched.
@@ -390,6 +390,18 @@ and regenerated, no aliases, no migration readers; published envelope slots chan
 - **`staleness-guard-policy` — unchanged.** Owns stale-command mutation policy; session identity stays out of its
   spec. The typed `schemaVersion` seam the prior draft designed for reader-skew detection is moot with the record
   store gone.
+
+**Destroying the two killed work units is this unit's own cleanup deliverable**, not deferred housekeep work.
+`arc abandon <slug> --yes` destroys tracked artifacts, so removing `backlog/planned/claimed-sweep-verbs/` and
+`backlog/provisional/locus-generation-binding/` lands in this unit's change set, where a reviewer and
+`verify-work-unit` can both see it — the earliest boundary whose validator can see the evidence, which is where
+the obligation belongs. Killing a work unit without destroying it leaves exactly the orphaned residue this unit
+forbids one layer down. `ROADMAP.md` needs no edit; it is the regenerable projection.
+
+One piece is deliberately **out of scope**: `wu-lifecycle-state-model`'s draft carries a live coordination
+pointer at `locus-generation-binding`. That is a sibling's tracked planning artifact, so it routes as a
+`USER-INBOX` capture targeted at that work unit rather than an edit from this branch — cross-WU planning churn
+does not ride an implementation change set.
 
 ## Forward-compat check
 
@@ -450,7 +462,8 @@ layer exist") — the two questions this draft's audit history answered in oppos
 7. The deletion is complete: no caller-less exports, no unreachable workflow prose, no unread envelope fields,
    and no declared CLI option whose body deleted remain from the retired substrate — verified mechanically
    (dead-export sweep + envelope-consumer trace + a declared-option-carries-a-body check, which neither of the
-   first two instruments can catch), not by assertion.
+   first two instruments can catch), not by assertion. Completeness reaches the backlog: the two work units this
+   unit kills are destroyed in this change set, not left as planned work with no subject.
 8. The locus-triggered advisory sections satisfy the two doctrinal cuts, and net line pressure on
    `session-init.md` is negative.
 9. The retention boundary has a mechanical carrier: the derivation sources are enumerated in one typed surface,
