@@ -14,6 +14,7 @@ import type { DeliveryCompositionProjection } from "./compose.js";
 import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
 import { buildDeliveryTaskInventory, type DeliveryTaskInventory } from "./task-inventory.js";
+import { canonicalize } from "../kernel/index.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 
 /** Inputs for one task-list-derived authoring map. */
@@ -114,6 +115,34 @@ export function prepareDeliveryFromTasksAuthoring(
   } catch {
     return { status: "refused", reason: "invalid-authoring-identity" };
   }
+}
+
+/**
+ * Rebuild phase-alignment facts from the current task list and compare them with the authored snapshot.
+ *
+ * @param input - Authored snapshot plus the current task-list content and validated task inventory
+ * @returns Success when phase membership is unchanged, otherwise a typed refusal
+ */
+export function revalidateDeliveryFromTasksPhaseFacts(input: {
+  readonly snapshot: DeliveryAuthoringSnapshotV1;
+  readonly taskListContent: string;
+  readonly taskInventory: DeliveryTaskInventory;
+}): { readonly status: "ok" } | {
+  readonly status: "refused";
+  readonly reason: "from-tasks-facts-malformed" | "task-list-malformed" | "task-phase-drift";
+} {
+  if (input.snapshot.source.entry !== "from-tasks") {
+    return { status: "refused", reason: "from-tasks-facts-malformed" };
+  }
+  const authored = DeliveryFromTasksFactsSchema.safeParse(input.snapshot.source.facts);
+  if (!authored.success || !eligibilityMatchesSnapshot(input.snapshot, authored.data)) {
+    return { status: "refused", reason: "from-tasks-facts-malformed" };
+  }
+  const current = deriveFromTasksFacts(input.taskListContent, input.taskInventory);
+  if (current.status === "refused") return current;
+  return canonicalize(current.value.phaseGroups) === canonicalize(authored.data.phaseGroups)
+    ? { status: "ok" }
+    : { status: "refused", reason: "task-phase-drift" };
 }
 
 /** Resolve authored task boundaries into the entry-neutral composition projection. */

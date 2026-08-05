@@ -23,6 +23,7 @@ import {
 } from "../lib/delivery/from-branch.js";
 import {
   prepareDeliveryFromTasksAuthoring,
+  revalidateDeliveryFromTasksPhaseFacts,
   resolveDeliveryFromTasksProjection,
 } from "../lib/delivery/from-tasks.js";
 import {
@@ -522,6 +523,18 @@ export async function handleDeliveryCompose(
       reason: "task-inventory-drift",
     });
     return;
+  }
+  if (resolution.record.snapshot.source.entry === "from-tasks"
+    && integrity.slots.boundary.kind === "phase-aligned") {
+    const currentPhaseFacts = revalidateDeliveryFromTasksPhaseFacts({
+      snapshot: resolution.record.snapshot,
+      taskListContent,
+      taskInventory: currentTaskInventory.inventory,
+    });
+    if (currentPhaseFacts.status === "refused") {
+      emit("delivery compose", parsed.data.json === true, currentPhaseFacts);
+      return;
+    }
   }
   const composer = new DeliveryPlanComposer({
     authoringStore: context.authoringStore,
