@@ -209,6 +209,12 @@ routing write.
   reviewed without another permission stop, but never the reverse. Immediately before arming, invoke
   `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
   locked PR. `released / proceed` and `no-lock / none` both continue; `blocked / stop` invalidates approval.
+
+  **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
+  so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
+  exact `headSha` in their payload, and the grooming lane's arming matches that head explicitly: a head arriving
+  after the release inherits nothing. Every way out of the released window that is not armed auto-merge re-locks
+  first, per that lane.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
   keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
 

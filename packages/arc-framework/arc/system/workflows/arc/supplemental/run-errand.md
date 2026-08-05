@@ -339,9 +339,16 @@ lane action.
 
    **Reviewed-lane** — invoke `arc merge lock release -` for the exact approved target. On both lanes, follow only
    the verb's typed action: `released / proceed` continues; `no-lock / none` continues because no lock applies or
-   the PR already holds that state; `blocked / stop` invalidates approval. Re-read the required checks on the
-   unchanged head, then leave the PR open for owner review on `{approved-head-sha}`. Native owner approval satisfies
-   its own requirement but never replaces the integration-interlock.
+   the PR already holds that state; `blocked / stop` invalidates approval.
+
+   **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
+   so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
+   exact `headSha` in their payload, and that head is the only one the approval reaches: the arming above and any
+   merge below match it explicitly, and a head that arrives after the release inherits nothing.
+
+   Re-read the required checks on the unchanged head, then leave the PR open for owner review on
+   `{approved-head-sha}`. Native owner approval satisfies its own requirement but never replaces the
+   integration-interlock.
 
    A head change restarts Step 4, and it is the one place a released PR starts accepting commits again — so invoke
    `arc merge lock hold -` for the new head before re-entering, and the change returns to review locked. An

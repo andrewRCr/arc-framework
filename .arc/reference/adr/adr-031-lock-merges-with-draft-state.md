@@ -101,14 +101,21 @@ The retired mechanism was better on two axes, and the trade was made anyway:
   the release and the arming — a couple of commands wide, inside the lane's own gate and after its exact-head
   recheck. This is the price of the open-locked rule, and it buys those lanes a lock across PR-open, review,
   and triage, which the previous design could not cover because it could not classify the lane in time.
-- **Release is not atomic on the head it checked.** The host takes no expected-head parameter on the ready flip,
-  so the exact-head preflight and the mutation cannot be made one operation. A push landing between them marks a
-  head nothing evaluated as ready. The verbs detect this by re-reading the pull request after the flip and
-  reverting the release when the head moved, which leaves a window where an unevaluated head is briefly ready and
-  a narrower one where the compensating hold itself fails and the pull request stays released — reported, never
-  silent. Locking is unaffected: a hold that lands on a newer head is still locked. Exactness on release is
-  therefore recovered rather than guaranteed, and closing it properly would need a host primitive that does not
-  exist.
+- **Release is not head-scoped, and the lock never claimed it was.** Draft is a property of the pull request, not
+  of a commit — the host's ready flip takes a pull request and nothing else — so "release head H" is not
+  expressible, and no implementation recovers it. A release reports that the lock came off, never that it came off
+  for one head. This is not a separate risk from the push-re-lock regression above: it is that regression observed
+  at its smallest scale. A push landing microseconds after the preflight and a push landing a minute after a
+  successful release leave the identical state, an unevaluated head sitting ready, and the workflows' explicit
+  re-lock is the answer to both.
+
+  What keeps that safe is the merge rather than the release. Callers merge with the host's head-matched merge at
+  the exact head the release envelope names, so an advanced head refuses instead of landing. The verbs additionally
+  re-read after a flip they performed and revert a release that missed its head, which is **best-effort narrowing,
+  not a guarantee**: it holds because a step that mutates state can check its own mutation, and it stops there
+  — the no-op path polls for nothing, since sampling a race whose outcome is already accepted buys no safety and
+  invites the mistake of treating the verb as head-atomic. Locking is unaffected throughout: a hold that lands on a
+  newer head is still locked.
 - **Provider auto-review.** With provider auto-review disabled — this project's posture — nothing fires at the
   ready flip. Projects that enable it should expect a benign, comment-only review to fire post-release.
 - **Draft availability.** A residual uncertainty applies to Free-plan private repositories, covered by

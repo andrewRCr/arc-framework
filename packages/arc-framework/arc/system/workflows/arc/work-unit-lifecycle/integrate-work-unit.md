@@ -522,6 +522,12 @@ Invoke `arc merge lock release -` with the exact approved target, vehicle, and t
 action: `released / proceed` continues; `no-lock / none` continues because no lock applies or the PR already holds
 that state; `blocked / stop` invalidates approval. Re-read required checks on the unchanged head.
 
+**A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit, so
+the release says the lock came off — never that it came off for one head. Both continuing actions carry the exact
+`headSha` in their payload, and that head is the only one this approval reaches: merge it with the host's
+head-matched merge below, and never let a head that arrived after the release inherit the authorization. Treating
+`released / proceed` as permission to merge whatever head is current steps outside the verb's contract.
+
 From that release until the merge command, the PR is open and released, so **every exit that is not that merge
 command re-locks first** — each non-merge outcome of the reads below, and any stop they surface. Invoke
 `arc merge lock hold -` with the same target, vehicle, and tree root, then take the exit; dispatch on its typed

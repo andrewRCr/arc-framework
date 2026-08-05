@@ -2,6 +2,19 @@
  * Merge-lock verb contracts — how a pull request should open, and whether a
  * hold or release applies to a live one.
  *
+ * **Release is not head-atomic, and cannot be.** The host's ready-for-review flip
+ * takes a pull request and nothing else: draft is a property of the pull request,
+ * not of a commit, so "release head H" is not expressible against it. A release
+ * therefore reports that the lock came off, never that it came off *for one head*
+ * — a push landing immediately afterward leaves an unevaluated head ready, which
+ * is the same accepted residual the design already carries for the whole
+ * post-release window.
+ *
+ * What makes that safe is the merge, not the release: callers merge with the
+ * host's head-matched merge, using the exact `headSha` this envelope's payload
+ * carries. A caller that treats `released / proceed` as authority to merge
+ * whatever head is current has stepped outside the contract.
+ *
  * @module
  */
 
@@ -295,11 +308,19 @@ async function bindLiveTarget(
  * Settle step — flip the lock when the state differs, then confirm the flip landed
  * on the bound head.
  *
- * The host offers no expected-head guard on the flip, so a push landing between the
- * bind step and the mutation moves the lock onto a head nothing evaluated. Detection
- * after the fact is the only guard available. Locking a newer head is still locked,
- * so `hold` only reports; `release` has left an unevaluated head mergeable and must
- * put the lock back.
+ * The post-flip confirmation is **best-effort narrowing, not a guarantee** — see the
+ * module note on why head-atomic release is not expressible. It exists because a step
+ * that mutates state can cheaply check that its own mutation landed where it aimed,
+ * and reverting leaves the safer state when it did not. Locking a newer head is still
+ * locked, so `hold` only reports; `release` has left an unevaluated head mergeable and
+ * puts the lock back.
+ *
+ * The already-in-state branch deliberately does **not** re-read. It mutated nothing, so
+ * it has no effect of its own to confirm, and polling there would only sample a race
+ * whose outcome is already accepted — a pull request that drifts between the bind step
+ * and this decision ends up exactly where a pull request that drifts one second after a
+ * successful release ends up. The line is: verify your own mutation, do not poll for
+ * concurrent ones.
  */
 async function settleLockState(
   kind: keyof typeof TRANSITIONS,
