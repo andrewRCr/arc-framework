@@ -7,8 +7,9 @@
 - **Purpose:** Contain locus faults to the loci they belong to, and settle what an ARC session persists — by
   retiring the durable record-and-lease substrate and deriving checkout roles from the state that already carries
   them, rather than by hardening the substrate.
-- **State:** Draft — `maturing`, re-founded. The direction, the retention set, the deletion inventory, and every
-  sibling boundary are settled; the derivation specification for the four load-bearing behaviors is the open core.
+- **State:** Draft — `maturing`, re-founded, at the readiness boundary. The direction, retention set, deletion
+  inventory, sibling boundaries, and all four derivation-spec shapes are settled; what remains is the delivery
+  cut and three small mechanism successors (OQ3, OQ5–OQ7) plus the ADR-032 amendment.
 - **Created:** 2026-08-04 · **Re-scoped:** 2026-08-05
 
 ---
@@ -164,31 +165,107 @@ residue class. The whole-surface union, register vocabulary, and cadence mechani
 `operational-advisory-registers`' subject, with the discriminator contributed forward — that boundary is
 unchanged from the prior draft.
 
-## The open core — derivation specified, not assumed
+## The derivation specs — traced 2026-08-05
 
-The consumer trace is an existence proof (the adoption path already derives roles), not a specification. The same
-instrument discipline that governed the last four passes applies to this direction too: the spec must trace each
-consumer, not assert the derivation from the design. Four behaviors carry load and must be specified before this
-draft is formalization-ready:
+Three instrumented consumer traces ran over the four load-bearing behaviors (every record/lease read enumerated
+with file:line evidence, classified derivable / confirmation-replaced / orphaned), and the three claims carrying
+the largest decisions were re-verified against source directly: `provisionPrimary` writes no marker (only the
+spawn path calls `establishReadyMarker`), ordinary-errand identity schemas carry no `partial` arm (the `partial`
+literals are groom-only — a partial errand's record row is its sole durable state), and `inFlightIdentities`
+derives from the identity-ref snapshot, record-free. The traces produced one new design decision and settled the
+per-behavior shapes below. Each behavior's spec section states its failure policy explicitly, on the Q6 pattern:
+derivation inputs that cannot be read degrade toward the non-destructive reading, and no derivation failure
+anywhere authorizes cleanup.
 
-1. **Session-init dispatch.** With no records there is no `current: resolved` attach flow. The probe derives the
-   entering checkout's role directly; the envelope's locus slots reshape (fewer, simpler), and the workflow's
-   dispatch section shrinks accordingly. What replaces `arc locus attach`, whether anything does, and what the
-   roster view (`arc locus`) renders are this behavior's decisions.
-2. **Errand close, abandon, promote, settle.** Claim resolution reads the marker (`createdFor.claimId`) joined to
-   the identity ref, not a record row. The occupancy-authority classifications these verbs perform must be
-   re-derived from those two sources plus checkout facts, with the destructive legs routing through Design
-   center 4's confirmation.
-3. **Handoff.** The frame (release-work-unit / leave-errand / between-work-units) derives from the checkout the
-   session hands off from — meta presence, marker, identity ref — plus the parent link for the warm case. The
-   current record-based selection refuses on states the derivation handles; the spec names the mapping.
-4. **Compaction recovery.** Recovery reads its own checkout's derivation and nothing else — which dissolves
-   `refuseUnresolvedResidue` and the repository-wide scan rather than scoping them. The recovery frame's
-   workflow/load-set/task-cursor content already derives from the same sources session-init uses; the spec
-   confirms the parent-edge case (recovering mid-transient) against the relocated parent link.
+### The unified transient-occupancy marker
 
-Each behavior's spec section must state its failure policy explicitly, on the Q6 pattern: derivation inputs that
-cannot be read degrade toward the non-destructive reading, and no derivation failure anywhere authorizes cleanup.
+Two independently-found gaps are the same gap. The partial-protection errand's only durable state is the record
+row (no identity arm, no marker — markers exist only on spawned worktrees, and marker _absence_ is today the
+primary's proof of freedom). And the warm primary-occupancy errand (full protection, free primary, parent WU in a
+linked worktree) also writes no marker, so a marker-carried parent link would strand exactly that case — the
+handoff trace's carrier verdict.
+
+**Decision: every transient occupancy writes the ownership marker, the primary included.** One polarity replaces
+two: the free primary is _clean + on base + marker absent_; any transient occupancy — spawned or primary, full or
+partial protection — is marker-present with `createdFor` naming the exact subject and claim. The marker gains two
+fields: `parentCheckoutPath` (the warm leave/return link) and, for the partial-errand case, the `originEntry`
+binding the record row used to carry. This is the OQ2 settlement, and the carrier argument is structural rather
+than preferential: the parent link is a machine-local absolute path, the identity ref is synced state — a
+machine-local path does not belong on a record that leaves the machine — and the traces established the link's
+required lifetime is exactly the occupancy's, which is the marker's lifetime by construction. On the primary the
+exit verbs remove the marker where they restore the base; a crashed session leaves a stale marker, which is the
+staleness-advisory case with confirmation-gated cleanup, not a new residue class. Costs, named: the close path's
+marker-absence checks re-key to the single polarity, and the two-source parent cross-check (`parentCheckoutPath`
+vs `sessionHomePath`) collapses to one source — it discriminated one refusal shape, accepted under the
+single-operator posture.
+
+### Behavior 1 — session-init dispatch and the probe (settled; settles OQ4)
+
+The `derived` projection (`workflow`/`sessionType`/`taskCursor`/`loadSet`) is already record-independent —
+`projectCheckoutSubjectMeta` takes a subject key, checkout path, and identity; only its caller gates it behind
+records. Re-keyed on meta/marker discovery, the entering checkout's role is known directly, and `arc locus
+attach` deletes: traced end-to-end it adds only a persisted anchor claim (sole producer of `current: resolved` —
+dies with leases), a `leaseId` for handoff's release handshake (dies with leases), and the incidental unlocking
+of `derived`. The attach arm and its mandated re-probe leave `session-init.md`. `primaryAvailability` keeps its
+`free`/`unsafe` git basis (already pure `primary-safety.ts`, re-checked raw under the allocator's own lock) and
+re-keys `occupied` on the unified marker. Envelope triage is complete: `current`/`recovery`/`reconciliation`
+slots and all lease fields disappear; `role`/`frame`/`derived`/guidance reshape; roster paths, identity-ref
+slots, and every non-locus slot survive unchanged. The bare `arc locus` roster view has zero programmatic
+consumers — it survives as a read-only derived roster; `attach`/`release`/`resolve` delete. `resolve`'s one
+unique capability — it is today the only caller that can pass `confirmedNoLiveSession: true`, while the errand
+CLI hardwires `false` — moves to the errand verbs themselves as the Design-center-4 confirmation flag; the
+plumbing already exists.
+
+### Behavior 2 — errand exits (traced; four spec items remain)
+
+Most of close/abandon/leave already runs on surviving sources, verbatim: the idempotent terminal-replay
+property, the identity state-machine refusals, branch-preservation proofs, the `hasExactInFlightIdentity` gates,
+and marker provenance before any `git worktree remove`. The `selfHeld` authority read — documented in-tree as
+"the one question no consumer can derive" — collapses for the main arm to **cwd identity** (the session is
+standing in the errand's checkout), which is strictly stronger; the foreign arm routes to operator confirmation.
+The record-outlived-its-checkout arms — `removed-checkout` and `releaseRetiredResidue` — lose their trigger (no
+records, no orphaned records) and collapse into idempotence, stated here deliberately rather than by omission.
+The record locks and the `validateOwnedLocusRole` optimistic-concurrency layer delete with the store;
+concurrency protection becomes cwd occupancy + marker-generation CAS + the identity ref's version-checked
+transaction, with the narrowed residual accepted under the single-operator posture. One independent protocol is
+named so it is not folded into "leases": close's roster-wide `HEAD.lock` receipts (keyed `{slug, claimId}`,
+swept on identity read) are durable local state that survives unchanged. Promote is the one exit that does not
+release its checkout — it rewrites the role in place — and the spec must model it as a conversion, not an exit.
+Spec items this behavior still owes: the `promotionSource` carrier (the marker conversion currently drops the
+errand subject, and `promotionSource` is the only surviving errand→WU link once the identity retires — either
+the converted marker gains a `promotedFrom` field or the promoted-frame recovery arm is deliberately removed);
+a successor or deliberate removal for `leave`'s occupancy-generation binding (`lease.attachedAt ===
+identity.updatedAt`); the reshaped exit-result vocabulary (`recordId`/`leaseId`/`sessionHomePath` fields and
+`run-errand.md`'s consumption of them); and promote's two-phase inbox-capture staging, which currently parks
+`originEntry` on the work-unit role between commits.
+
+### Behavior 3 — handoff (settled shape)
+
+The frame derives from the checkout the session occupies: exactly one owner-matching meta → `release-work-unit`;
+marker `createdFor` + identity-ref agreement → `leave-errand` (with groom/housekeep/partial refusals re-keyed on
+the same two sources); neither → `between-work-units`. The trace found most of the current gate is
+self-referential once leases go: the generation-freshness and session-home asserts compare two projections of
+one read and drop without replacement; the duplicate-record guard is structurally impossible under path-digest
+derivation (`recordId` is already `sha256` of the checkout path — path math, not a store token, so every
+`recordId` comparison survives as a path comparison wherever it still earns a place). The parent link reads from
+the unified marker. The `arc locus release <recordId> --lease <leaseId>` emission loses its referent entirely —
+releasing a lease becomes "the process exited" — and the three plan arms collapse to the release-nothing shape
+two of them already document.
+
+### Behavior 4 — compaction recovery (settled shape)
+
+Recovery reads its own checkout's derivation and nothing else: `refuseUnresolvedResidue` and the
+repository-wide residue scan dissolve rather than get scoped. The mid-transient case was traced to its exact
+requirement: the transient frame borrows the parent's `sessionType`, load set, and task cursor, so recovery
+needs the parent checkout path while the transient checkout exists — precisely the unified marker's lifetime —
+and re-derives the parent frame from the parent checkout's own meta after the transient exits. Of the
+compaction seed's five locus-hint fields, four derive (`activeLocusPath` is the checkout; `recordId` is its
+digest and therefore redundant; `parentRecordId` and `sessionHomePath` reduce to the parent link); `leaseId` is
+the one genuine loss — it distinguished two sessions at the same checkout with the same role. Its successor is a
+seed-minted session nonce if that discrimination is worth keeping, or a written-down acceptance if not (open
+below). The trace also found the recovery frame and session-init compute their load sets through the same
+resolver with different `activeExtensions` inputs (recovery hardcodes `[]`) — a pre-existing divergence the spec
+should unify while it is reshaping both paths.
 
 ## Deletion inventory
 
@@ -205,7 +282,13 @@ Removed with the substrate (the spec turns this inventory into an exact file/sym
   (their owning unit is killed — see boundaries);
 - the unread envelope surface: five `errandState` fields, `heartbeatAt` on roster rows, `establishedAt`, and the
   session-init prose that dispatches on unreachable states;
-- `classifyLeaseAuthority`, previously retained as a building block for a design that no longer needs it.
+- `classifyLeaseAuthority`, previously retained as a building block for a design that no longer needs it;
+- the `arc locus attach` / `release` / `resolve` verbs (the read-only roster view survives), the handoff plan's
+  `leaseId` payload and its `arc locus release` emission, and session-init's attach-and-re-probe arm;
+- the handoff/recovery self-consistency asserts that compare two projections of one read (generation-freshness,
+  session-home tautologies, the duplicate-record guard);
+- dead code the traces surfaced: `close --force` (refused unconditionally for v3 yet still a declared CLI option,
+  and still emitted as recovery advice by the sync handler).
 
 The deletion removes tests along with code — on the order of half the subsystem's ~45k combined lines. That is
 coverage of deleted behavior, not lost coverage; the derivation spec brings its own fixtures (below).
@@ -295,8 +378,9 @@ layer exist") — the two questions this draft's audit history answered in oppos
    claim-ending exit routes through subject-scoped operator confirmation.
 5. Role derivation is specified per consumer and keys on marker + meta + identity ref, with branch as
    corroboration only; every derivation failure degrades toward the non-destructive reading. Fixtures cover: a
-   shipped subject (retired), a parked subject, a mid-transient warm parent, a marker/meta disagreement, and an
-   unreadable lifecycle scan.
+   shipped subject (retired), a parked subject, a mid-transient warm parent, a marker/meta disagreement, an
+   unreadable lifecycle scan, a partial-protection errand occupying the primary, and a warm errand occupying the
+   free primary from a linked-worktree parent.
 6. Handoff and compaction recovery resolve their frames from the session's own checkout derivation, covering the
    warm-transient parent case, and recovery completes while any other checkout carries arbitrary state.
 7. The deletion is complete: no caller-less exports, no unreachable workflow prose, no unread envelope fields
@@ -309,25 +393,43 @@ layer exist") — the two questions this draft's audit history answered in oppos
 
 ## Open questions
 
-- **OQ1 — the four derivation specs** (§ The open core). The readiness gate. Each is a consumer trace plus a
-  stated failure policy; none is expected to reopen the direction, but behavior 2 (errand close authority) is the
-  richest and most likely to surface a fifth consumer.
-- **OQ2 — the parent link's exact carrier.** Leaning: marker field for spawned transients, identity-record field
-  for primary-occupancy transients — the two cases have different natural homes and the spec should not force
-  one. Settles inside behavior 3's trace.
-- **OQ3 — delivery shape.** A removal this size still does not land as one review surface. Candidate cut:
-  derivation reader + probe reshape first (additive), verb migration second, deletion third, workflow-prose diet
-  riding each. The prior draft's R/A/B/C shape and its three seams are superseded; the new cut is settled at spec
-  time against the actual dependency edges.
-- **OQ4 — what `arc locus` renders afterward.** A read-only roster over derived rows is cheap and useful; whether
-  `attach`/`release`/`resolve` survive in any form or delete with the substrate is behavior 1's call.
+OQ1 (the four derivation traces), OQ2 (the parent-link carrier — settled by the unified transient-occupancy
+marker), and OQ4 (the fate of `arc locus` — read-only roster survives, mutation verbs delete) resolved
+2026-08-05; their content lives in § The derivation specs. Remaining:
+
+- **OQ3 — delivery shape.** A removal this size still does not land as one review surface. Candidate cut, now
+  informed by the traces: the unified marker + derivation reader + probe reshape first (additive), verb
+  migration second, deletion third, workflow-prose diet riding each. Settled at spec time against the actual
+  dependency edges.
+- **OQ5 — the seed session nonce.** The compaction seed's `leaseId` field was the one hint discriminating two
+  sessions at the same checkout with the same role. Replace with a seed-minted nonce, or accept the loss and
+  write it down — the seed is already worktree-local, so the colliding case is two sessions in one checkout,
+  the operator-error class this design deliberately stops guarding.
+- **OQ6 — `promotionSource` carrier.** Marker `promotedFrom` field on conversion, or deliberate removal of the
+  promoted-frame recovery arm (behavior 2's spec item; small, but it decides whether a promoted WU stays
+  traceable to its errand after the identity retires).
+- **OQ7 — `leave`'s occupancy-generation binding.** `lease.attachedAt === identity.updatedAt` bound an
+  occupancy to the exact identity write that minted it. Successor (marker `createdAt` vs identity `updatedAt`
+  comparison) or deliberate removal; either is small, but silence is neither.
 
 ## Continuity
 
-**Readiness: `maturing`, re-founded.** The direction, retention set, deletion inventory, boundaries, and
-forward-compat posture are settled with the maintainer 2026-08-05. Not formalization-ready until OQ1's four
-derivation specs exist — the same discipline that governed the prior passes (trace consumers, not intentions)
-applied to this direction's own claims.
+**Readiness: `maturing`, at the boundary.** The direction, retention set, deletion inventory, boundaries, and
+forward-compat posture were settled with the maintainer 2026-08-05; the four derivation traces ran the same day
+and their shapes are folded into § The derivation specs. What separates this draft from formalization-ready is
+narrow and named: OQ3 (delivery shape), OQ5–OQ7 (three small mechanism successors), and the ADR-032 amendment.
+No open question touches the direction.
+
+**Traced 2026-08-05 — the four behaviors, consumer-first.** Three instrumented traces enumerated every
+record/lease read across session-init/probe, the errand exit verbs, handoff, and compaction recovery, with the
+three heaviest claims re-verified against source directly. What the traces changed: the partial-errand orphan
+and the parent-link carrier question turned out to be one gap (no marker on the primary), resolved by the
+unified transient-occupancy marker; `arc locus attach` was shown to add nothing a derived reader does not
+already have, so it deletes rather than reshapes; a substantial share of the handoff/recovery gate turned out to
+be self-consistency asserts between projections of one read, which drop without replacement; and the one genuine
+information loss anywhere in the retirement was isolated to the seed's `leaseId` discrimination (OQ5). The
+confirmation mechanism Design center 4 needs already exists in-tree (`--confirm-no-live-session`) and is merely
+unreachable from the errand verbs — the change is plumbing, not invention.
 
 **What the re-founding superseded, named so nothing is lost silently:** the four-deliverable hardening shape
 (R/A/B/C) and its three seams; the named containment relation and the stop-versus-proposal split; the
@@ -353,5 +455,6 @@ The re-founding does not retire the caution — it redirects it: the claim now m
 derivation covers consumer X," and the instrument that works is unchanged — grep the consumers, read what they
 do, never re-read the design's account of them.
 
-**Next:** author the four derivation specs (OQ1), behavior 2 first — it is the richest and bounds the others;
-then OQ2–OQ4; then amend ADR-032; then re-assess readiness.
+**Next:** settle OQ5–OQ7 (small, each a named either/or), settle OQ3's delivery cut, amend ADR-032 to record the
+full retirement and the unified-marker decision, then run the readiness assessment — the remaining opens are
+mechanism successors, not design questions, so formalization-ready is the expected verdict if they settle clean.
