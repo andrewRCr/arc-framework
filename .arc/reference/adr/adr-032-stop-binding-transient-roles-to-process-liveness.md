@@ -115,3 +115,10 @@ deliberately.
   process anchor again would re-acquire every finding above.
 
 ## Amending This Document
+
+**Amendment (2026-08-05):** A system-level proportionality pass carried this direction further the day this ADR
+was accepted: transients (and work units) now mint no lease at all, and the durable locus record store retires in
+favor of read-time role derivation. This ADR's decision stands and is subsumed by
+[ADR-033](adr-033-retire-locus-records-derive-roles.md), which records the full retirement; a reader implementing
+from this document alone would build the declined keep-the-lease variant. The contention-time primary-occupancy
+risk noted above resolves there via the unified transient-occupancy marker.

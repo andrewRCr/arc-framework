@@ -8,8 +8,9 @@
   retiring the durable record-and-lease substrate and deriving checkout roles from the state that already carries
   them, rather than by hardening the substrate.
 - **State:** Draft — `maturing`, re-founded, at the readiness boundary. The direction, retention set, deletion
-  inventory, sibling boundaries, and all four derivation-spec shapes are settled; what remains is the delivery
-  cut and three small mechanism successors (OQ3, OQ5–OQ7) plus the ADR-032 amendment.
+  inventory, sibling boundaries, all four derivation-spec shapes, and the three mechanism successors are
+  settled and recorded in ADR-033; what remains is the delivery cut (OQ3, a spec-time call) and the readiness
+  assessment.
 - **Created:** 2026-08-04 · **Re-scoped:** 2026-08-05
 
 ---
@@ -231,13 +232,15 @@ transaction, with the narrowed residual accepted under the single-operator postu
 named so it is not folded into "leases": close's roster-wide `HEAD.lock` receipts (keyed `{slug, claimId}`,
 swept on identity read) are durable local state that survives unchanged. Promote is the one exit that does not
 release its checkout — it rewrites the role in place — and the spec must model it as a conversion, not an exit.
-Spec items this behavior still owes: the `promotionSource` carrier (the marker conversion currently drops the
-errand subject, and `promotionSource` is the only surviving errand→WU link once the identity retires — either
-the converted marker gains a `promotedFrom` field or the promoted-frame recovery arm is deliberately removed);
-a successor or deliberate removal for `leave`'s occupancy-generation binding (`lease.attachedAt ===
-identity.updatedAt`); the reshaped exit-result vocabulary (`recordId`/`leaseId`/`sessionHomePath` fields and
-`run-errand.md`'s consumption of them); and promote's two-phase inbox-capture staging, which currently parks
-`originEntry` on the work-unit role between commits.
+Two successors settled 2026-08-05 (maintainer's call, recommendation-confirmed): the marker conversion gains a
+`promotedFrom {slug, claimId}` field — promote keeps the idempotent terminal replay every other exit has, for
+one field's cost on a marker the conversion already rewrites — and promote's two-phase inbox-capture staging
+relocates to the same converted marker (same lifetime, same write). `leave`'s occupancy-generation binding
+(`lease.attachedAt === identity.updatedAt`) is deliberately removed rather than replaced: it guarded
+within-claim re-attachment, a state that no longer exists once attach is deleted, and the marker↔identity
+`claimId` match remains the generation binding. What the spec still authors mechanically: the reshaped
+exit-result vocabulary (`recordId`/`leaseId`/`sessionHomePath` fields and `run-errand.md`'s consumption of
+them).
 
 ### Behavior 3 — handoff (settled shape)
 
@@ -261,9 +264,11 @@ needs the parent checkout path while the transient checkout exists — precisely
 and re-derives the parent frame from the parent checkout's own meta after the transient exits. Of the
 compaction seed's five locus-hint fields, four derive (`activeLocusPath` is the checkout; `recordId` is its
 digest and therefore redundant; `parentRecordId` and `sessionHomePath` reduce to the parent link); `leaseId` is
-the one genuine loss — it distinguished two sessions at the same checkout with the same role. Its successor is a
-seed-minted session nonce if that discrimination is worth keeping, or a written-down acceptance if not (open
-below). The trace also found the recovery frame and session-init compute their load sets through the same
+the one genuine loss — it distinguished two sessions at the same checkout with the same role. **Accepted as a
+named cost, settled 2026-08-05:** the comparison needs a live-side token that only per-session durable state
+could supply — reintroducing what this design removes — the colliding case is the operator-error class this
+design deliberately stops guarding, and harness-level session-keyed recovery markers already cover it in
+practice. The trace also found the recovery frame and session-init compute their load sets through the same
 resolver with different `activeExtensions` inputs (recovery hardcodes `[]`) — a pre-existing divergence the spec
 should unify while it is reshaping both paths.
 
@@ -308,6 +313,9 @@ and regenerated, no aliases, no migration readers; published envelope slots chan
 - **An ordinary session is still not silent when this ships.** The non-locus advisory majority is untouched;
   `operational-advisory-registers` owns it. Unchanged from the prior draft, restated so the re-scope does not
   silently claim it.
+- **The seed loses its same-checkout session discrimination.** The compaction hint can no longer distinguish two
+  sessions at one checkout with one role (§ Behavior 4). Accepted deliberately — the guarded case is
+  operator-scheduled, and harness session-keyed recovery markers cover it.
 
 ## Boundaries with sibling work
 
@@ -353,10 +361,11 @@ content or touches external-PM authority.
 `spec-session-locus-model` is shipped and archived; its criteria stand as the record of what was decided then.
 This unit reverses its substrate decisions forward — the durable record store (D2), the role-and-lease lifecycle
 (D4), and process-anchor liveness (D5) — on the maintainer's explicit call, grounded in the census and consumer
-trace above. **ADR-032 is amended to record the full retirement**: it currently records the halfway version
-(anchor not load-bearing, unleased transient ordinary) and omits that no lease is minted at all and that the
-record store follows. The amendment carries the advisory-file-lock option forward and records the operator-error
-posture for checkout contention, so the next reader inherits the reasoning without this draft. The retained
+trace above. **ADR-033 records the retirement decision** (authored 2026-08-05): ADR-032 stands — accepted
+decisions change only by supersession, and nothing here contradicts it — but recorded only the halfway version,
+so it carries a dated annotation pointing forward and ADR-033 is the governing record. It carries the
+advisory-file-lock option, the operator-error posture for checkout contention, and the per-mechanism-versus-
+per-system audit lesson, so the next reader inherits the reasoning without this draft. The retained
 mechanisms the prior audit endorsed (identity transaction, provisioning receipts, teardown guard set, marker
 payload) are not reversed — they survive in the retention set.
 
@@ -394,31 +403,23 @@ layer exist") — the two questions this draft's audit history answered in oppos
 ## Open questions
 
 OQ1 (the four derivation traces), OQ2 (the parent-link carrier — settled by the unified transient-occupancy
-marker), and OQ4 (the fate of `arc locus` — read-only roster survives, mutation verbs delete) resolved
-2026-08-05; their content lives in § The derivation specs. Remaining:
+marker), OQ4 (the fate of `arc locus` — read-only roster survives, mutation verbs delete), and the three
+mechanism successors OQ5–OQ7 (seed discrimination accepted as a named cost; marker `promotedFrom`; `leave`
+binding deliberately removed) all resolved 2026-08-05; their content lives in § The derivation specs. Remaining:
 
 - **OQ3 — delivery shape.** A removal this size still does not land as one review surface. Candidate cut, now
   informed by the traces: the unified marker + derivation reader + probe reshape first (additive), verb
   migration second, deletion third, workflow-prose diet riding each. Settled at spec time against the actual
   dependency edges.
-- **OQ5 — the seed session nonce.** The compaction seed's `leaseId` field was the one hint discriminating two
-  sessions at the same checkout with the same role. Replace with a seed-minted nonce, or accept the loss and
-  write it down — the seed is already worktree-local, so the colliding case is two sessions in one checkout,
-  the operator-error class this design deliberately stops guarding.
-- **OQ6 — `promotionSource` carrier.** Marker `promotedFrom` field on conversion, or deliberate removal of the
-  promoted-frame recovery arm (behavior 2's spec item; small, but it decides whether a promoted WU stays
-  traceable to its errand after the identity retires).
-- **OQ7 — `leave`'s occupancy-generation binding.** `lease.attachedAt === identity.updatedAt` bound an
-  occupancy to the exact identity write that minted it. Successor (marker `createdAt` vs identity `updatedAt`
-  comparison) or deliberate removal; either is small, but silence is neither.
 
 ## Continuity
 
 **Readiness: `maturing`, at the boundary.** The direction, retention set, deletion inventory, boundaries, and
-forward-compat posture were settled with the maintainer 2026-08-05; the four derivation traces ran the same day
-and their shapes are folded into § The derivation specs. What separates this draft from formalization-ready is
-narrow and named: OQ3 (delivery shape), OQ5–OQ7 (three small mechanism successors), and the ADR-032 amendment.
-No open question touches the direction.
+forward-compat posture were settled with the maintainer 2026-08-05; the four derivation traces ran the same day,
+their shapes are folded into § The derivation specs, the three mechanism successors were settled on maintainer
+confirmation the same session, and ADR-033 records the retirement decision (with ADR-032 annotated forward).
+What separates this draft from formalization-ready is OQ3 — deliberately a spec-time call — and the readiness
+assessment itself. No open question touches the direction.
 
 **Traced 2026-08-05 — the four behaviors, consumer-first.** Three instrumented traces enumerated every
 record/lease read across session-init/probe, the errand exit verbs, handoff, and compaction recovery, with the
@@ -455,6 +456,7 @@ The re-founding does not retire the caution — it redirects it: the claim now m
 derivation covers consumer X," and the instrument that works is unchanged — grep the consumers, read what they
 do, never re-read the design's account of them.
 
-**Next:** settle OQ5–OQ7 (small, each a named either/or), settle OQ3's delivery cut, amend ADR-032 to record the
-full retirement and the unified-marker decision, then run the readiness assessment — the remaining opens are
-mechanism successors, not design questions, so formalization-ready is the expected verdict if they settle clean.
+**Next:** run the readiness assessment (the adversarial-review offer fires at that boundary per the workflow —
+`Heavy` scales it to a neutral offer, and given this unit's history the pass should attack the derivation specs'
+consumer coverage, not the direction). OQ3 deliberately rides to spec time. ADR-033 promotes to Accepted at this
+unit's integration.
