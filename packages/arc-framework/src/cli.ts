@@ -13,7 +13,6 @@ import { Command, Option } from "commander";
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
-import { isHandoffCritical } from "./lib/handoff-critical.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { handleInit, type InitOptions } from "./handlers/init.js";
 import { handleJoin, type JoinOptions } from "./handlers/join.js";
@@ -44,6 +43,16 @@ import {
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import {
+  handleDeliveryCompose,
+  handleDeliveryPlanAbandon,
+  handleDeliveryPlanFromBranch,
+  handleDeliveryPlanFromTasks,
+  type DeliveryComposeOptions,
+  type DeliveryPlanAbandonOptions,
+  type DeliveryPlanFromBranchOptions,
+  type DeliveryPlanFromTasksOptions,
+} from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -121,9 +130,11 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleMergeLockHold,
+  handleMergeLockRelease,
+  handleMergeLockResolve,
   handleReviewReadiness,
   handleReviewResolve,
-  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
@@ -647,6 +658,54 @@ plan
     (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
   ));
 
+const delivery = program
+  .command("delivery")
+  .description("Author, compose, and manage delivery plans");
+
+delivery
+  .command("compose")
+  .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--json", "Emit the typed composition result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryComposeOptions) => handleDeliveryCompose(opts, context),
+  ));
+
+const deliveryPlan = delivery
+  .command("plan")
+  .description("Create or abandon transient delivery-plan authoring state");
+
+deliveryPlan
+  .command("from-tasks")
+  .description("Create a delivery authoring map from the active task list")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+  ));
+
+deliveryPlan
+  .command("from-branch")
+  .description("Create a delivery authoring map from a branch contribution")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--base <commit-ish>", "Selected base line (defaults to the configured base)")
+  .option("--head <commit-ish>", "Branch head (defaults to HEAD)")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromBranchOptions) => handleDeliveryPlanFromBranch(opts, context),
+  ));
+
+deliveryPlan
+  .command("abandon")
+  .description("Delete the outstanding authoring map idempotently")
+  .option("--json", "Emit the typed abandonment result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
+  ));
+
 // --- Lifecycle ---
 
 program
@@ -1157,6 +1216,37 @@ logCmd
   )
   .action(handleLogStandalone);
 
+// --- Merge ---
+
+const mergeCmd = program
+  .command("merge")
+  .description("Merge-control operations");
+
+const mergeLockCmd = mergeCmd
+  .command("lock")
+  .description("Resolve and transition the host merge lock");
+
+mergeLockCmd
+  .command("resolve")
+  .description("Resolve how a pull request should open as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockResolve(input));
+
+mergeLockCmd
+  .command("hold")
+  .description("Lock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockHold(input));
+
+mergeLockCmd
+  .command("release")
+  .description("Unlock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockRelease(input));
+
 // --- Review ---
 
 const reviewCmd = program
@@ -1176,13 +1266,6 @@ reviewCmd
   .option("--repository <path>", "Repository containing both exact commits")
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
-
-reviewCmd
-  .command("unlock")
-  .description("Preflight and dispatch exact-head ARC clearance as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewUnlock(input));
 
 reviewCmd
   .command("resolve")
@@ -1300,23 +1383,23 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     = `arc dev build is stale (${verdict.newestSrc} changed `
     + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
 
-  const critical = isHandoffCritical({
-    name: actionCommand.name(),
-    parentName: actionCommand.parent?.name(),
-    opts: actionCommand.opts(),
-  });
-  if (critical) {
-    const cmdPath = formatCommandPath(actionCommand);
+  // Sole exception: the compaction-seed write. A seed produced by stale logic
+  // is revalidated when recovery reads it, so it beats no seed. The option is
+  // declared on `status` alone, so this needs no command-name test.
+  const opts: Record<string, unknown> = actionCommand.opts();
+  if (opts.writeCompactionSeed === true) {
     process.stderr.write(
-      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
-      + "run `npm run build`, then retry.\n",
+      `warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`,
     );
-    process.exit(1);
+    return;
   }
 
+  const cmdPath = formatCommandPath(actionCommand);
   process.stderr.write(
-    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+    `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
+    + "run `npm run build:fast`, then retry.\n",
   );
+  process.exit(1);
 });
 
 function formatCommandPath(cmd: Command): string {

@@ -50,12 +50,15 @@ describe("command-input schema adapter and registry", () => {
     });
   });
 
-  it("registers exactly every schema-owned value path in the live Commander tree", async () => {
+  it("registers every command-owned schema in the live Commander tree", async () => {
     const sourceRoot = resolve(import.meta.dirname, "../../../src");
     const source = await scanCommandInputSources({ sourceRoot });
+    const flagOnlySchemaPaths = ["delivery compose", "delivery plan abandon"];
     const expectedPaths = source.commands
       .filter((command) => command.path !== "release commit" && command.path !== "release push")
-      .filter((command) => command.operands.length > 0 || command.options.some((option) => option.valueName !== null))
+      .filter((command) => flagOnlySchemaPaths.includes(command.path)
+        || command.operands.length > 0
+        || command.options.some((option) => option.valueName !== null))
       .map((command) => command.path)
       .sort();
     const registeredPaths = commandInputRegistrations.map((registration) => registration.commandPath).sort();

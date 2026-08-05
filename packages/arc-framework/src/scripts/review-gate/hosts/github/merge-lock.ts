@@ -1,15 +1,12 @@
-/** Developer-authenticated GitHub port for exact-head clearance dispatch. */
+/** Developer-authenticated GitHub port for merge-lock state and transitions. */
 
-import {
-  HostedProcessError,
-  type HostedProcessRunner,
-} from "../../hosted/gh-process.js";
+import type { HostedProcessRunner } from "../../hosted/gh-process.js";
 import type {
-  ReviewUnlockDispatchPayload,
-  ReviewUnlockPort,
-  WorkflowInspection,
-} from "../../unlock.js";
-import { CLEARANCE_WORKFLOW_PATH } from "../../unlock.js";
+  MergeLockPort,
+  MergeLockPullRequest,
+  MergeLockSetting,
+  MergeLockTransition,
+} from "../../merge-lock.js";
 import type {
   ReviewReadinessEnvelope,
   ReviewReadinessRequest,
@@ -34,6 +31,11 @@ function integer(value: unknown, path: string): number {
   return value;
 }
 
+function boolean(value: unknown, path: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`${path}: expected a boolean`);
+  return value;
+}
+
 function parse(text: string, path: string): unknown {
   try {
     return JSON.parse(text) as unknown;
@@ -42,12 +44,20 @@ function parse(text: string, path: string): unknown {
   }
 }
 
-/** `gh` implementation of the unlock boundary; readiness remains the shared local evaluator. */
-export class GhReviewUnlockPort implements ReviewUnlockPort {
+/**
+ * `gh` implementation of the merge-lock boundary. Config resolution and
+ * lifecycle readiness stay with the shared local collaborators.
+ */
+export class GhMergeLockPort implements MergeLockPort {
   constructor(
     private readonly runner: HostedProcessRunner,
     private readonly readiness: (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope>,
+    private readonly config: (treeRoot: string) => Promise<MergeLockSetting>,
   ) {}
+
+  readMergeLock(treeRoot: string): Promise<MergeLockSetting> {
+    return this.config(treeRoot);
+  }
 
   async resolveRepository(): Promise<{ repository: string; defaultBranch: string }> {
     const result = await this.runner.run([
@@ -66,7 +76,7 @@ export class GhReviewUnlockPort implements ReviewUnlockPort {
     };
   }
 
-  async resolvePullRequest(repository: string, pullRequest: number) {
+  async resolvePullRequest(repository: string, pullRequest: number): Promise<MergeLockPullRequest> {
     const result = await this.runner.run(["api", `repos/${repository}/pulls/${pullRequest}`]);
     const value = object(parse(result.stdout, "pullRequest"), "pullRequest");
     const head = object(value.head, "pullRequest.head");
@@ -77,65 +87,17 @@ export class GhReviewUnlockPort implements ReviewUnlockPort {
       state: string(value.state, "pullRequest.state") === "open" ? "open" as const : "closed" as const,
       headBranch: string(head.ref, "pullRequest.head.ref"),
       headSha: string(head.sha, "pullRequest.head.sha"),
+      locked: boolean(value.draft, "pullRequest.draft"),
     };
-  }
-
-  async inspectWorkflow(input: {
-    repository: string;
-    ref: string;
-    path: typeof CLEARANCE_WORKFLOW_PATH;
-  }): Promise<WorkflowInspection> {
-    try {
-      const result = await this.runner.run([
-        "api",
-        `repos/${input.repository}/contents/${input.path}`,
-        "--method",
-        "GET",
-        "--raw-field",
-        `ref=${input.ref}`,
-      ]);
-      const value = parse(result.stdout, "workflow");
-      if (typeof value !== "object" || value === null || Array.isArray(value)) return { state: "ambiguous" };
-      const record = value as Record<string, unknown>;
-      return record.type === "file"
-        && record.path === input.path
-        && typeof record.sha === "string"
-        && record.sha.length > 0
-        ? { state: "present" }
-        : { state: "ambiguous" };
-    } catch (error) {
-      return error instanceof HostedProcessError && error.httpStatus === 404
-        ? { state: "absent" }
-        : { state: "unreadable" };
-    }
   }
 
   checkReadiness(request: ReviewReadinessRequest): Promise<ReviewReadinessEnvelope> {
     return this.readiness(request);
   }
 
-  async dispatch(payload: ReviewUnlockDispatchPayload): Promise<void> {
-    const args = [
-      "api",
-      `repos/${payload.repository}/dispatches`,
-      "--method",
-      "POST",
-      "--raw-field",
-      `event_type=${payload.eventType}`,
-      "--raw-field",
-      `client_payload[repository]=${payload.repository}`,
-      "--field",
-      `client_payload[pull_request]=${payload.pullRequest}`,
-      "--raw-field",
-      `client_payload[head_sha]=${payload.headSha}`,
-      "--raw-field",
-      `client_payload[vehicle_kind]=${payload.vehicle.kind}`,
-      "--raw-field",
-      `client_payload[slug]=${payload.vehicle.slug}`,
-    ];
-    if (payload.vehicle.kind === "work-unit") {
-      args.push("--raw-field", `client_payload[archive_cadence]=${payload.vehicle.archiveCadence}`);
-    }
+  async applyTransition(transition: MergeLockTransition): Promise<void> {
+    const args = ["pr", "ready", String(transition.pullRequest), "--repo", transition.repository];
+    if (transition.transition === "hold") args.push("--undo");
     await this.runner.run(args);
   }
 }

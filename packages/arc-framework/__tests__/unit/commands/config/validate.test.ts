@@ -50,6 +50,7 @@ describe("validateConfigFile", () => {
       "PASS  hooks.body_max_lines: 100",
       "PASS  hooks.body_max_line_length: 100",
       "PASS  merge.strategy: [absent, default: merge]",
+      "PASS  merge.lock: [absent, default: none]",
       "PASS  platform.type: [absent, default: github]",
       "PASS  review.frontline_max_passes: 2",
       "PASS  review.standard_max_passes: 2",
@@ -66,9 +67,9 @@ describe("validateConfigFile", () => {
       "PASS  sync.auto_pull: [absent, default: false]",
       "PASS  archive.cadence: [absent, default: with-integration]",
       "",
-      "Summary: 28 passed, 0 warnings, 0 errors (28 checks)",
+      "Summary: 29 passed, 0 warnings, 0 errors (29 checks)",
     ]);
-    expect(result).toMatchObject({ passes: 28, warnings: 0, errors: 0, exitCode: 0 });
+    expect(result).toMatchObject({ passes: 29, warnings: 0, errors: 0, exitCode: 0 });
   });
 
   it("reports catalog-domain failures without exposing unrelated values", async () => {
@@ -93,7 +94,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR worktree.location_template: '' is not valid (expected: non-empty value)",
     );
-    expect(result).toMatchObject({ passes: 26, warnings: 0, errors: 3, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 27, warnings: 0, errors: 3, exitCode: 2 });
   });
 
   it("warns for every validatable unknown occurrence in source order", async () => {
@@ -121,7 +122,7 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'hooks.subject_warn_length' (possible typo?)",
       "WARN  Unknown key: 'unknown.two' (possible typo?)",
     ]);
-    expect(result).toMatchObject({ passes: 28, warnings: 5, errors: 0, exitCode: 1 });
+    expect(result).toMatchObject({ passes: 29, warnings: 5, errors: 0, exitCode: 1 });
   });
 
   it("distinguishes default, unset, and invalid quoted-empty fields", async () => {
@@ -148,7 +149,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR inbox.remind_after_days must be a positive integer (got '')",
     );
-    expect(result).toMatchObject({ passes: 27, warnings: 0, errors: 2, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 28, warnings: 0, errors: 2, exitCode: 2 });
   });
 
   it("applies custom-pattern dependencies without compiling or echoing pattern bodies", async () => {
@@ -234,8 +235,8 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
     ]);
-    expect(result.lines.at(-1)).toBe("Summary: 27 passed, 3 warnings, 1 errors (31 checks)");
-    expect(result).toMatchObject({ passes: 27, warnings: 3, errors: 1, exitCode: 2 });
+    expect(result.lines.at(-1)).toBe("Summary: 28 passed, 3 warnings, 1 errors (32 checks)");
+    expect(result).toMatchObject({ passes: 28, warnings: 3, errors: 1, exitCode: 2 });
   });
 
   it("enforces positive-safe-integer minima and accepts normalized boundaries", async () => {

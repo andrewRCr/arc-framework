@@ -80,6 +80,7 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
     "commit.custom_pattern": "",
     "commit.context_pattern": "",
     "merge.strategy": "merge",
+    "merge.lock": "none",
     "platform.type": "github",
       "review.frontline_sources": "[]",
       "review.standard_sources": "[]",

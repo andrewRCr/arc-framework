@@ -1321,7 +1321,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       .not.toMatch(/plan\/origin|chore\/decompose-origin/u);
     expect(await git(repo, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]))
       .toBe("main");
-  }, 150_000);
+    // Drives the installed CLI through a full decomposition and lands ~138s against
+    // the previous 150s ceiling, so it fails on a shared CI runner while passing in
+    // isolation. Sized for margin, still short enough to catch a hang.
+  }, 240_000);
 
   // -------------------------------------------------------------------------
   // arc park@Planning (CLI) — relocate in-verb, defer teardown out-of-band
