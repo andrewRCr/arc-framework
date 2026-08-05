@@ -23,6 +23,14 @@
 # resolves packages/arc-framework/eslint.config.js from each linted file's
 # location, so the type-checked rule set applies exactly as `npm run lint:ts`
 # would apply it.
+#
+# Deliberately no --cache. This lints exactly the files that just changed, so
+# every entry is a miss by construction, and measurement confirms it saves
+# nothing in that shape. The dominant cost is building the TypeScript program
+# the type-aware rules need, which a single miss already pays in full. A cache
+# would only pay off when re-linting files that did not change -- which is the
+# whole-package run, not this one -- against a cache file to place, ignore, and
+# invalidate whenever the config or toolchain moves.
 
 # shellcheck source=../.arc/system/.internal/scripts/arc-lib.sh
 . .arc/system/.internal/scripts/arc-lib.sh
