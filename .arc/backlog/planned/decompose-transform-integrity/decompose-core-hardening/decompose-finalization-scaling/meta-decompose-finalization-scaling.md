@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity/decompose-core-hardening`
-- **Depends On:** [none]
+- **Depends On:** `decompose-transition-record`
 
 - **Origin:** [internal]
 - **Design:** `draft-decompose-finalization-scaling.md`

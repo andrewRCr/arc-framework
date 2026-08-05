@@ -1,15 +1,16 @@
-# Metadata: decomposition-doctrine
+# Metadata: decompose-transition-record
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** [none]
-- **Depends On:** `decompose-transition-record`
+- **Cohort:** `decompose-transform-integrity`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-decomposition-doctrine.md`
+- **Design:** `draft-decompose-transition-record.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
 - **Last Completed:** [none]
