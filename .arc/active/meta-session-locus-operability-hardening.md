@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Re-founded on retirement-and-derivation — system-level census run, four consumer traces
-  folded, mechanism successors settled, ADR-033 authored
+- **Last Completed:** draft-design closed — adversarial pass converged at one of two passes, six findings verified
+  and disposed subtractively, draft `formalization-ready`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
