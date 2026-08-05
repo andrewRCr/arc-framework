@@ -8,11 +8,11 @@
 - **Depends On:** `merge-readiness-control`
 
 - **Origin:** [internal]
-- **Design:** `draft-clearance-corpus-retirement.md`
+- **Design:** `spec-clearance-corpus-retirement.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
