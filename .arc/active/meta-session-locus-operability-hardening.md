@@ -13,12 +13,14 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Q2–Q4 settled, the reversal given a mechanism and a four-deliverable shape, pass four run
+- **Last Completed:** Re-founded on retirement-and-derivation — system-level census run, four consumer traces
+  folded, mechanism successors settled, ADR-033 authored
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Settle Q7 — what carries the session-home link and the parent-suspension signal once the
-  transient lease is gone — then Q8–Q10, the B-before-R ordering, and the mechanical advisory-census re-derivation
+- **Next Action:** Run the draft-design readiness boundary — adversarial pass offer (aim it at
+  derivation-consumer coverage, not direction), then assess-draft-readiness; OQ3 (delivery cut) rides to
+  create-spec
 
 - **PR URL:** [none]
 - **Completed:** [none]
