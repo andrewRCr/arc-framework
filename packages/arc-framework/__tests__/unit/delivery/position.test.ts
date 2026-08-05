@@ -5,6 +5,7 @@ import {
   deriveDeliveryPosition,
   type DeliveryPositionFactsV1,
 } from "../../../src/lib/delivery/position.js";
+import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
 import {
   DeliveryStateV1Schema,
   type DeliveryStateV1,
@@ -176,7 +177,8 @@ describe("assessDeliveryMemberReadiness", () => {
 
   it("blocks a stack member without the relevant landability assertion", () => {
     const plan = deliveryPlanFixture();
-    const stackPlan = { ...plan, projection: { kind: "stack-to-main" as const } };
+    const preimage = { ...plan, projection: { kind: "stack-to-main" as const } };
+    const stackPlan = { ...preimage, planDigest: deriveDeliveryPlanDigest(preimage) };
     const state = deliveryStateFixture(stackPlan);
     expect(assessDeliveryMemberReadiness(
       stackPlan,
