@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
-- **Depends On:** `decompose-transform-integrity`
+- **Depends On:** `decompose-transition-record`
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-durable-consumers.md`
