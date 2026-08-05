@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { bindDesignInventory } from "../../../src/lib/delivery/design-inventory.js";
-import { constructDeliveryPlanRevision } from "../../../src/lib/delivery/plan.js";
 import {
-  DeliveryPlanAuthoringInputV1Schema,
   DeliveryStateV1Schema,
-  type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
 import {
   constructInitialDeliveryState,
@@ -13,6 +9,7 @@ import {
   validateDeliveryStateAgainstPlan,
 } from "../../../src/lib/delivery/state.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 const firstId = canonicalDigest({ member: "first" });
@@ -61,66 +58,6 @@ function state(): Record<string, unknown> {
   };
 }
 
-function plan(): DeliveryPlanV1 {
-  const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "delivery-plan/v1",
-    workUnitId: "delivery-plan-record",
-    design: {
-      artifacts: [{ artifactId: "spec-delivery-plan-record.md" }],
-      elements: [{ elementId: "detailed:state-contract" }],
-    },
-    tasks: {
-      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }],
-      verificationTaskId: "2.1",
-    },
-    entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
-    members: [{
-      chunkKey: "first",
-      title: "First member",
-      contract: "Publish the first contract.",
-      taskIds: ["1.1"],
-      designElementIds: ["detailed:state-contract"],
-      mainlineLandability: "integration-only",
-    }, {
-      chunkKey: "second",
-      title: "Second member",
-      contract: "Publish the second contract.",
-      taskIds: ["1.2"],
-      designElementIds: [],
-      mainlineLandability: "integration-only",
-    }],
-    seams: [],
-  });
-  const design = bindDesignInventory({
-    artifacts: [{
-      artifactId: "spec-delivery-plan-record.md",
-      revisionDigest: canonicalDigest({ source: "spec" }),
-      form: "detailed",
-      elements: [{ elementId: "state-contract", semanticDigest: canonicalDigest({ contract: "state" }) }],
-    }],
-  });
-  if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const implementation = [
-    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: "First" }) },
-    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: "Second" }) },
-  ];
-  const result = constructDeliveryPlanRevision({
-    authoring,
-    taskInventory: {
-      inventoryDigest: canonicalDigest(implementation),
-      implementation,
-      verificationTaskId: "2.1",
-    },
-    designInventory: design.inventory,
-    predecessor: null,
-    mintPlanId: () => planId,
-  });
-  if (result.status !== "constructed") throw new Error("fixture plan must construct");
-  return result.plan;
-}
-
 describe("DeliveryStateV1Schema", () => {
   it("accepts exact current coordinates and rejects copied authority or history fields", () => {
     expect(DeliveryStateV1Schema.safeParse(state()).success).toBe(true);
@@ -143,7 +80,7 @@ describe("DeliveryStateV1Schema", () => {
 
 describe("delivery state binding and plan coherence", () => {
   it("constructs the complete ordered state from a pushed ref or opened change request", () => {
-    const current = plan();
+    const current = deliveryPlanFixture();
     const [firstId, secondId] = current.members.map((member) => member.deliverableId);
     const pushed = constructInitialDeliveryState(current, {
       kind: "pushed-ref",
@@ -185,7 +122,7 @@ describe("delivery state binding and plan coherence", () => {
   });
 
   it("refuses missing or unknown initial binding evidence", () => {
-    const current = plan();
+    const current = deliveryPlanFixture();
     expect(constructInitialDeliveryState(current, null)).toEqual({
       status: "refused",
       reason: "binding-invalid",
@@ -199,7 +136,7 @@ describe("delivery state binding and plan coherence", () => {
   });
 
   it("distinguishes subject, binding, and member-sequence incoherence", () => {
-    const current = plan();
+    const current = deliveryPlanFixture();
     const initial = constructInitialDeliveryState(current, {
       kind: "pushed-ref",
       deliverableId: current.members[0]!.deliverableId,
