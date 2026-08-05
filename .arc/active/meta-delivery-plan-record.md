@@ -1,8 +1,8 @@
 # Metadata: delivery-plan-record
 
-| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
-| --------- | --------- | --------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/delivery-plan-record` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ------------- | --------- | --------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/delivery-plan-record` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4 — authoring entries and projection delivered through member 2
-- **Next Task:** Task 5.1 — Determine when a plan becomes bound (line ~713)
+- **Last Completed:** Phase 8 — Verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
