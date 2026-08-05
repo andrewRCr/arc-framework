@@ -4,8 +4,9 @@
   non-goals, and hardening-admission boundary.
 - **Purpose:** Execute a human-authored stack to the protected base while preserving exact member order, member-sized
   review and authorization, lifecycle-artifact isolation, and resumability from the owning work-unit control locus.
-- **Position:** Depends on `delivery-plan-record` and `delivery-integration-target`. It reuses their state and operation
-  boundaries and adds only stack-specific eligibility, ref topology, landing, and review-vehicle behavior.
+- **Position:** Depends on `delivery-plan-record` and the external `delivery-slice-review-vehicle`. It reuses the
+  shipped state and operation contracts, builds the projection-neutral landing core other projections may later
+  reuse, and adds only stack-specific eligibility, ref topology, landing, and suffix reconciliation.
 
 ---
 
@@ -40,8 +41,9 @@ segments or split the concern into sibling work units merely to obtain increment
 1. **Materialize the chain.** The lowest unlanded member targets the current protected base; each higher member targets
    its predecessor ref. Bind every exact ref and pull request in `DeliveryState`, while the work-unit control branch
    remains the authoring surface.
-2. **Review the next member.** Extend the existing review vehicle boundary only enough to bind the plan, member,
-   owning work unit, exact base, and exact head. Existing review routing and clearance remain authoritative.
+2. **Review the next member.** Admit it through the delivery-member vehicle owned by
+   `delivery-slice-review-vehicle`, binding the plan, member, owning work unit, exact base, and exact head. Existing
+   review routing and clearance remain authoritative; this projection adds no review schema of its own.
 3. **Reserve and reobserve.** Reserve a single-member landing with the expected plan revision, state version, base,
    member head/tree, and predecessor relation. Reobserve Git, host, checks, and review immediately before mutation.
 4. **Authorize and land once.** Every member landing reaches the existing integration interlock for its exact head.
@@ -108,6 +110,5 @@ larger batch operations are follow-up scope.
 ## Open implementation details
 
 - Exact naming and namespace of delivery refs.
-- The narrow review-vehicle extension's existing schema locus.
 - The repository operation used to establish exact member contribution after a provider rewrite.
 - The attended final-tail composition point shared with current work-unit integration.
