@@ -66,21 +66,24 @@ markers. The existing daily-nudge markers reduce frequency while still reporting
 right instinct at the wrong altitude; whether they survive alongside transition tracking or are replaced by it is
 this unit's call, and it is a storage design rather than a rendering one.
 
-**The surface was counted, and the locus half is being handled separately.** Session-init Step 6 carries 31
-conditional sections, of which 3 batch behind a daily nudge marker. Six fire on locus state itself — the two
-`locusGuidance` arms, residue recovery, the current-husk notice, the linked-worktree cleanup-residue section, and
-in-flight identities — and `draft-session-locus-operability-hardening.md` holds those six to both cuts above.
+**The surface needs counting mechanically, and the attempts so far are not trustworthy.** Two independent counts
+of Step 6's conditional sections returned 31 and 32, and two successive classifications of which sections are
+locus-triggered were both wrong — the current-husk advisory reads branch, HEAD, marker, and worktree path with no
+locus input, and the linked-worktree cleanup-residue section fires on the same sweep and orphan inputs as sections
+already classified as veto-only. Do not inherit any figure from this note or from
+`draft-session-locus-operability-hardening.md`; derive the census from the workflow and the composing source
+before classifying anything. The 3 rate-limited nudge markers are the one figure that has reproduced.
 
-Four more are a **mixed class worth keeping in view when classifying**: the three sweep arms and orphan branches
-are triggered by worktree and lifecycle facts while locus participates only as a veto, and the rename-move arm
-reads no locus state at all. A condition's trigger and its gate can sit in different subsystems, so a
-classification keyed to "which subsystem owns this advisory" will mis-sort them; key it to what makes the section
-fire.
+**A classification trap worth naming, which is what those errors have in common.** A condition's **trigger** and
+its **gate** frequently sit in different subsystems: the sweep arms and orphan branches fire on worktree and
+lifecycle facts while locus participates only as a veto, and the rename-move arm reads no locus state at all. A
+classification keyed to "which subsystem owns this advisory" will mis-sort every such section. Key it to what
+makes the section fire, and expect the owning-subsystem intuition to be wrong more often than it is right.
 
-The remaining twenty-one are unambiguously this unit's: worktree sync, base distance, base-branch sync, the two
-reconcile surfaces, notes state and drift, compaction, dirty, retired subdirs, in-flight work units, the two
-materializable routes, and housekeep. That split is why an ordinary session stays noisy after the locus work
-ships — the single advisory an observed healthy session rendered was base drift, from this unit's half.
+The clearly non-locus majority is this unit's regardless of how the census resolves: worktree sync, base distance,
+base-branch sync, the two reconcile surfaces, notes state and drift, compaction, dirty, retired subdirs, in-flight
+work units, the two materializable routes, and housekeep. That is why an ordinary session stays noisy after the
+locus work ships — the single advisory an observed healthy session rendered was base drift, from this unit's half.
 
 **The vocabulary is already forked in-tree, which sharpens § Direction's three-register proposal into a
 reconciliation rather than an introduction.** Two typed register fields already ship with different namings:

@@ -4,11 +4,10 @@
   repair is preserved by commit `5c6dd5c74`.
 - **Purpose:** Contain locus faults to the loci they belong to, and settle what an ARC session persists when it
   cannot prove its own process identity — the state the model currently has no operable answer for.
-- **State:** Draft — `maturing`, at the readiness boundary. Every design question is settled and the
-  proportionality audit has run, finding the retained model sound. A third adversarial pass then found that the
-  reversal at the design's center had closed the _reason_ for the central question without authoring the
-  replacement state; settling that gave the reversal its own mechanism, its own scope item, and its own
-  deliverable.
+- **State:** Draft — `maturing`. The problem, the scope, the delivery shape, and every question outside the
+  reversal are settled, and the proportionality audit found the retained model sound. The reversal itself is
+  settled in direction and open in mechanism: four adversarial passes have each sharpened it, and the fourth
+  bounded what remains into Q7–Q10.
 - **Created:** 2026-08-04
 
 ---
@@ -392,7 +391,8 @@ Four deliverables, each an independent merge boundary over one shared design and
 
 Success Condition 9 is cross-cutting — every deliverable that touches a destructive path demonstrates its guard
 set rather than one deliverable owning it. Success Condition 11's multi-session fixtures span R and C, since the
-two states it names are each deliverable's own.
+two states it names are each deliverable's own. Success Condition 14 belongs to A, which converts the
+compaction-recovery guard from a throw to a scoped verdict; R closes only the transient paths into it.
 
 **Named seam — R and A share the recovery derivation, and split the compaction-recovery guard between them.**
 They are not independent. R deletes the transient residue arm, which is one of the sites A would otherwise scope,
@@ -400,10 +400,24 @@ and both edit the same derivation. They also divide the recover guard: R closes 
 reaches it — no transient lease to read dead or unknown, no transient residue frame, no transient recovery
 verdict — while A scopes the work-unit lease that still stops recovery repository-wide and converts the throw to
 a verdict. So R alone unblocks the observed failure and A is what makes it structurally safe; neither claim
-should be made for the other. They sequence, R first: scoping a site R removes is wasted work, and the reverse
-order leaves A's relation briefly governing a classification the design has already abolished. B and C are
-independent of both and of each other. R first is also the right default on merit — it is the headline change and
-what makes a sandboxed session operable at all.
+should be made for the other. Against A alone, R sequences first: scoping a site R removes is wasted work, and the
+reverse order leaves A's relation briefly governing a classification the design has already abolished.
+
+**Second seam — B must precede R, which corrects an earlier ordering claim.** The collapsing ownership proof is
+unreachable today only because the eleven anchor-conditional refusals return before either comparison site can be
+evaluated. R is what removes those refusals. So landing R before B merges a state in which any sandboxed sibling
+session can end another session's claim — the exact hole Success Condition 13 exists to close, opened by the
+deliverable that was supposed to lead. Either B lands first, or R carries the comparison repair for the sites it
+unguards. The second option keeps R's lead position and is probably right, since the repair belongs to the
+refusals R is replacing; it is recorded as a preference, not a settlement.
+
+**Third seam — R and C both claim the record-generation exit.** R's exit re-binding is justified by consuming the
+shape C authors for the reap verb. Either R authors it and C consumes it, inverting the stated dependency, or R
+depends on C and the two cannot be ordered as written. Unsettled; it interacts with Q8, since what the exit binds
+to is what that question decides.
+
+C is independent of all three. R's lead position is right on merit — it is the headline change and what makes a
+sandboxed session operable at all — but the two seams above bound how much of it can land first.
 
 These are **deliverables**, not work units and not a cohort: one concern, one design, one spec, separated only at
 the merge boundary. `assess-cohort-fit` clears as one unit. The separation is hand-rolled because the mechanism
@@ -443,8 +457,8 @@ sources may be the better composition target.
 
 ### Boundary with `operational-advisory-registers`
 
-**That work owns the advisory union, the register vocabulary, and the cadence mechanism. This work owns its own
-ten sections and contributes the discriminator that governs them.**
+**That work owns the advisory union, the register vocabulary, and the cadence mechanism. This work owns only the
+sections its own state triggers, and contributes the discriminator that governs them.**
 
 `draft-operational-advisory-registers.md` already declares exactly the scope Design center 5 was reaching for —
 inventory the complete surface, classify each condition as actionable-now / awareness / expected, and settle where
@@ -454,17 +468,18 @@ split is not being invented here; it is being honored.
 
 **Two facts decide it rather than preference.**
 
-- **The union is not reachable from here, and the locus-triggered share is smaller than a first count suggests.**
-  Six of the 31 conditional sections fire on locus state itself: the two `locusGuidance` arms, residue recovery,
-  the current-husk notice, the linked-worktree cleanup-residue section, and in-flight identities. A second group —
-  the three sweep arms and orphan branches — is triggered by worktree and lifecycle facts with locus participating
-  only as a veto; the rename-move arm reads no locus state at all. This unit can stop those misfiring, which is
-  what § Q6 does, but cannot make them silent, because nothing it owns decides whether they fire. The remaining
-  twenty-one are worktree sync, base distance, base-branch sync, the two reconcile surfaces, notes state and
+- **The union is not reachable from here, and the locus-triggered share keeps shrinking under examination.** Two
+  successive classifications were wrong in the same direction — see § Corrections owed — and the surviving
+  locus-triggered set is small: the two `locusGuidance` arms and in-flight identities, with residue recovery
+  deleted by the reversal itself. A larger group is triggered by worktree and lifecycle facts while locus
+  participates only as a veto, and one arm reads no locus state at all. This unit can stop those misfiring, which
+  is what § Q6 does, but cannot make them silent, because nothing it owns decides whether they fire. The clear
+  majority is neither: worktree sync, base distance, base-branch sync, the two reconcile surfaces, notes state and
   drift, compaction, dirty, retired subdirs, in-flight work units, the two materializable routes, and housekeep. A
   locus-scoped diet therefore cannot make an ordinary session silent, because most of what speaks is not locus
   state. The worked example is this draft's own session of 2026-08-05, which rendered exactly one conditional
-  section — base drift — from the non-locus half.
+  section — base drift — from the non-locus half. Exact figures await the mechanical re-derivation § Corrections
+  owed requires; the direction of the argument does not depend on them.
 - **The vocabulary is already being minted independently, which is the defect.** `BaseDriftRegister` carries
   `calm` / `attention` / `degraded` (`lib/git/base-drift-types.ts:63`) and `notesDriftSurface` carries `expected`
   / `caution`, each local to its own surface, while the register work proposes a third naming. Minting a fourth
@@ -782,6 +797,67 @@ resolution. The port's failure policy must therefore be settled explicitly at sp
 scan resolves to `unresolved`, never to `retired`, since inventing a retirement is the one direction that
 authorizes cleanup.
 
+## Open questions — reopened by pass four
+
+The reversal's settlement holds in direction and is under-specified in substance. Three decisions are open,
+each verified against source; none refutes the leaseless direction, and all three must be answered before a spec
+can crystallize it.
+
+**Q7 — what carries the session-home link and the parent-suspension signal once the transient lease is gone?**
+The lease is not only a liveness carrier. `sessionHomePath` is a required lease field and exists nowhere else on
+the record, and the `suspended` parent frame is set only for a transient row whose lease reads `live`. Remove the
+transient lease and handoff refuses, compaction recovery throws at its parent-edge assertion, promote can no
+longer tell an Errand-shaped record from a work-unit-shaped one, and the selected-generation token every driver
+revalidates loses half its value — its `leaseId` is a required field.
+
+_A likely resolution, not yet confirmed:_ the role already carries `parentCheckoutPath`, and the handoff parent
+validation checks it alongside `sessionHomePath` expecting the two to agree — so the session-home fact may be
+largely redundant with something already on the role. Suspension likewise reduces to "a transient role names this
+checkout as parent," dropping only the liveness qualifier, which is the removal the reversal is about. What must
+be settled is whether that redundancy is exact, what the selected-generation token becomes, and whether handoff,
+promote, recover, and rename absorb the change or need their own repairs. None of those surfaces is currently in
+§ Scope.
+
+**Q8 — what authorizes a transient exit, as distinct from what guards it?** Binding exits to the record
+generation supplies a compare-and-swap over published bytes, which prevents a lost update but authorizes nothing
+— the same objection that withdrew the `leaseId`-as-capability option. The probable answer is that authority is
+**checkout occupancy** (the session holds the worktree, which is what partial-protection Errands already rely on)
+while the record generation is the concurrency guard, and that the two are separable and both required. The draft
+currently names only the guard. Settling this also re-scopes Success Condition 13: both anchor-comparison sites
+refuse on a null lease before reaching the comparison, so after the reversal Q4's repair applies to work-unit
+leases only, and the condition's two-session fixture cannot run as written.
+
+**Q9 — which checkout does current resolution read?** Current resolution takes no entering-checkout parameter
+today, and a transient's active locus is deliberately not its session home. The caller's working directory, the
+role's own recorded path, and a newly recorded active-locus path are three different designs with different
+failure modes — a session running commands from its session home would resolve to the parent work unit under the
+first. The read-only roster path also relies on an unverifiable entering anchor to resolve no current at all
+today, so the change alters what that path admits.
+
+**Q10 — which mechanism is the conformance surface?** Design center 4 asks for a carrier "whose target set is
+derived rather than hand-listed" and names none, while weakening the one concrete candidate it had. At least
+three shapes in this repository fit the description: a compile-time exhaustive `Record` keyed to a schema enum, a
+computed set intersection, and a type-narrowed signature. Which one decides what the target set derives from,
+what a violation looks like, and whether it fails at compile time or in a test.
+
+## Corrections owed, recorded rather than applied
+
+- **The advisory census is wrong twice over and needs re-deriving from scratch.** The current-husk advisory reads
+  branch, HEAD, marker, and worktree path — no locus state — so it is marker-triggered, not locus-triggered. The
+  linked-worktree cleanup-residue section fires on the same sweep and orphan inputs as the two sections already
+  assigned to the veto group. Residue recovery, a third member, is deleted by the reversal itself. The
+  locus-triggered set is therefore much smaller than six, which makes Success Condition 6 close to vacuous as
+  written. The section total is also unconfirmed — two independent counts returned 31 and 32. Re-derive the whole
+  census mechanically before restating any number; it has now been asserted wrongly twice, and the defective
+  version has already been written into `draft-operational-advisory-registers.md`, which must be corrected with
+  it.
+- **ADR-032 records the declined alternative, not the settled one.** Its Decision states that the process anchor
+  is no longer load-bearing and that an unleased transient role is ordinary state — both satisfied by "keep the
+  lease, stop consulting it," which this draft declines. It never states that transients mint no lease, and its
+  Consequences therefore omit every downstream effect of removing the lease record. A reader following the ADR
+  implements the rejected option. It needs amending once Q7–Q9 settle, since what it should record depends on
+  them.
+
 ## Resolved design questions
 
 **Was ancestry the live defect? Yes, though not as first framed — settled by reproduction.** Every invocation in
@@ -884,10 +960,13 @@ already typed to a verifiable anchor, and three are idempotency tests rather tha
    removing its worktree are ordinary success, not conditions to report. An operator who follows the lifecycle
    correctly sees a quiet session-init and is never directed to reconcile anything by hand.
 6. **The locus-triggered surfaces are silent on an ordinary session.** A session entered against a repository
-   whose loci are all either live or cleanly terminal renders none of the six locus-triggered conditional
-   sections — not a shorter set, none. Both discriminators hold over them: a locus advisory fires on a condition
-   becoming true rather than for as long as it stays true, and one naming no runnable verb is not raised.
-   Demonstrated over those six together against a representative repository state, not asserted per-condition.
+   whose loci are all either live or cleanly terminal renders none of the locus-triggered conditional sections —
+   not a shorter set, none. Both discriminators hold over them: a locus advisory fires on a condition becoming
+   true rather than for as long as it stays true, and one naming no runnable verb is not raised. Demonstrated
+   over the set together against a representative repository state, not asserted per-condition. **The set's
+   membership is not yet established** — two classifications have been wrong, and the reversal deletes one member
+   — so the spec must derive it mechanically before this condition can be tested, and must state plainly whether
+   what survives is substantial enough for the condition to carry weight (§ Corrections owed).
    The veto-participating sweep and orphan sections are held to a weaker and separately stated bar: they must not
    fire on a state this unit has made correct, which is what § Q6's repair delivers, but their triggers are
    lifecycle facts this unit does not own. A shipped work unit whose worktree still stands is not an ordinary
@@ -936,14 +1015,17 @@ split, Q2 and Q3 by ownership and by tier, Q4 by consequence, and Q5/Q6 by the r
 exits. The proportionality audit has run, three sibling boundaries are drawn against what the tree contains, and
 the reversal ADR is authored.
 
-**Assessed against the formalization bar, 2026-08-05.** All three criteria clear on the current read: fourteen
-success conditions state observable outcomes, no inbound buffer is pending, and what remains are implementation
-choices two competent engineers would each make locally. **That read is not yet trustworthy, and the reason is
-recorded rather than argued away.** Each of the last three adversarial passes overturned a verdict the draft had
-already recorded as settled, and the third overturned the largest one. This pass's changes are also the most
-extensive since the reversal — a new scope item, a fourth deliverable, a new named seam, and amendments to four
-success conditions. A draft that has been wrong about its own readiness three times running should be attacked
-once more before it crosses, and the changes that would be attacked are exactly the ones no pass has seen.
+**Assessed against the formalization bar, 2026-08-05: not-ready, on four `needs-design` gaps.** The pass that
+prediction called for ran, and it was right to run: it confirmed the reversal's direction and found the mechanism
+under-specified in three places, each verified against source. Q7–Q10 are those gaps. The success-signal and
+inbound-buffer criteria clear.
+
+**What the pass sequence says about this draft's self-assessment.** Four passes have now each overturned a
+verdict the draft had already recorded as settled. They are converging on substance rather than churning — pass
+three found the reversal had no mechanism, pass four found the mechanism has consequences nobody traced — but the
+pattern is consistent enough to be a fact about the artifact: this draft has been optimistic about its own
+readiness every time, and the optimism has always been about the reversal. Weight the next readiness call
+accordingly, and prefer tracing a consumer set over re-reading the design.
 
 One thing the spec must record rather than re-derive is the lifecycle port's failure policy — an unreadable
 lifecycle scan resolves to unresolved, never to retired, since inventing a retirement is the one direction that
@@ -1041,10 +1123,11 @@ than two about design:
   declares this exact scope and this exact composition in its own draft. The union, the register vocabulary, and
   the cadence mechanism stay there; the discriminator and its two supporting cuts are contributed forward as
   recorded input.
-- The union is not reachable from here on evidence, not preference: ten of the 31 conditional sections are
-  locus-owned and twenty-one are not, and the one advisory an observed healthy session rendered came from the
-  non-locus half. Success Condition 6 narrowed accordingly, and the residual cost — an ordinary session is still
-  not silent when this unit ships — is written down rather than absorbed.
+- The union is not reachable from here on evidence, not preference: the clear majority of conditional sections
+  are triggered by state this unit does not own, and the one advisory an observed healthy session rendered came
+  from that majority. Success Condition 6 narrowed accordingly, and the residual cost — an ordinary session is
+  still not silent when this unit ships — is written down rather than absorbed. The exact census is unsettled and
+  owed (§ Corrections owed); the argument does not turn on the figure.
 - Two register vocabularies are already minted independently in-tree (`BaseDriftRegister`,
   `notesDriftSurface.register`), so a locus-local third would extend the defect rather than resolve it. That fact
   travels to the register unit, whose three-register direction is a reconciliation rather than an introduction.
@@ -1098,6 +1181,25 @@ from the question holds, with a corollary this adds: a question of the form _whe
 appear_ is answered badly by reading the module the pattern was found in. Success Condition 14 is new and covers
 it; scope item 2 and deliverable A carry it, with R closing the transient path through it.
 
-**Next:** a fourth adversarial pass over the settled draft, then create-spec if it converges. The unit's shape is
-stable — six scoped items over a substrate the audit found sound, four deliverables with one named seam, Q6's
-exits settled, and boundaries drawn against what the tree and the sibling units actually contain.
+**Found by pass four, 2026-08-05** — the reversal's direction survived; its mechanism did not survive intact:
+
+- The transient lease carries `sessionHomePath` and triggers the `suspended` parent frame. Removing it reaches
+  handoff, compaction recovery's parent-edge assertion, promote's target classification, session-home rebase, and
+  the selected-generation token — none of which § Scope names. Q7.
+- Binding exits to the record generation supplies a concurrency guard, not an authorization; the draft named only
+  one of the two. Q8.
+- Role-and-checkout current resolution does not say which checkout, and a transient's active locus is
+  deliberately not its session home. Q9.
+- The conformance surface still names no mechanism while three in-tree shapes fit its description. Q10.
+- B must precede R, or R must carry the comparison repair: R removes the refusals that currently make the
+  collapsing ownership proof unreachable. The earlier ordering claim was wrong.
+- The advisory census was wrong a second time, in the same direction, and the defective version had already
+  propagated to the sibling draft. Both are now marked unsettled rather than restated.
+- ADR-032 records the declined alternative. It needs amending once Q7–Q9 settle.
+
+**Next:** settle Q7 first — it is the widest, and Q8's exit binding and the third delivery seam both depend on
+what it decides about the record's shape. Then Q9, Q10, the B/R ordering, and the mechanical census
+re-derivation; then amend ADR-032 to record what was actually decided; then re-assess. The unit's shape is stable
+— six scoped items over a substrate the audit found sound, four deliverables with three named seams, Q6's exits
+settled, and boundaries drawn against what the tree and the sibling units actually contain. What is unstable is
+the reversal's own mechanism, and it is now bounded by four named questions rather than open-ended.
