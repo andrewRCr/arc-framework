@@ -35,28 +35,6 @@ function sectionBetween(content: string, start: string, end?: string): string {
   return content.slice(startIndex, endIndex);
 }
 
-interface ClearanceStatusFixture {
-  context: string;
-  previousHead: string;
-  replacementHead: string;
-  statuses: Array<{
-    context: string;
-    sha: string;
-    state: "success";
-  }>;
-}
-
-function hasClearanceSuccess(
-  fixture: ClearanceStatusFixture,
-  sha: string,
-): boolean {
-  return fixture.statuses.some(
-    (status) => status.context === fixture.context
-      && status.sha === sha
-      && status.state === "success",
-  );
-}
-
 describe("trusted review-gate workflows", () => {
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
@@ -90,7 +68,7 @@ describe("trusted review-gate workflows", () => {
     for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
 
     expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
-    for (const name of ["docs.yml", "arc-clearance.yml"]) {
+    for (const name of ["docs.yml", "arc-lane-attestation.yml"]) {
       const hostedWorkflow = await read(name);
       const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
       for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
@@ -221,10 +199,14 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("retains only the clearance workflow from the retired review-gate family", async () => {
+  it("retains only the lane attestation from the retired review-gate family", async () => {
     const names = (await readdir(resolve(root, ".github/workflows"))).filter((name) => /\.ya?ml$/u.test(name));
     expect(names.filter((name) => name.startsWith("review-gate"))).toEqual([]);
-    expect(names).toContain("arc-clearance.yml");
+    expect(names).toContain("arc-lane-attestation.yml");
+    // The clearance producer and its required status retired together — a surviving
+    // producer with no requirement is harmless, but a requirement with no producer
+    // blocks every pull request permanently.
+    expect(names).not.toContain("arc-clearance.yml");
   });
 
   it("assembles a provisional candidate only after authoritative review settlement", async () => {
@@ -626,126 +608,21 @@ describe("trusted review-gate workflows", () => {
     expect(resumeEntry).toContain("lifecycle-only repair change request");
   });
 
-  it("validates clearance with pinned code while treating the detached PR checkout only as data", async () => {
-    const clearance = await read("arc-clearance.yml");
-    const workflow = load(clearance) as {
-      on?: unknown;
-      permissions?: unknown;
-    };
-    expect(workflow.on).toEqual({
-      pull_request_target: { types: ["opened", "reopened", "synchronize", "edited"] },
-      repository_dispatch: { types: ["arc-clearance"] },
-    });
-    expect(workflow.permissions).toEqual({});
-
-    const validation = jobValue(clearance, "validate");
-    expect(validation.permissions).toEqual({
-      contents: "read",
-      "pull-requests": "read",
-    });
-    expect(validation).not.toHaveProperty("environment");
-    expect(validation).not.toHaveProperty("statuses");
-    const target = stepValue(clearance, "validate", "target");
-    expect(target.run).toContain(
-      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
-    );
-
-    const trustedCheckout = stepValue(clearance, "validate", "trusted-checkout");
-    expect(trustedCheckout.with).toMatchObject({
-      ref: "${{ github.workflow_sha }}",
-      "persist-credentials": false,
-    });
-    expect(trustedCheckout.with).not.toHaveProperty("path");
-
-    const dataCheckout = stepValue(clearance, "validate", "data-checkout");
-    expect(dataCheckout.with).toMatchObject({
-      ref: "${{ steps.target.outputs.head_sha }}",
-      path: "_arc_pr_data",
-      "persist-credentials": false,
-    });
-    const readiness = stepValue(clearance, "validate", "readiness");
-    expect(readiness.run).toContain(
-      "./node_modules/.bin/tsx packages/arc-framework/src/cli.ts review readiness",
-    );
-    expect(readiness.run).toContain("treeRoot:$treeRoot");
-    expect(readiness.run).toContain('test "$(jq -r .state <<<"$result")" = ready');
-
-    const executableSteps = (validation.steps as Array<Record<string, unknown>>)
-      .filter((step) => typeof step.run === "string");
-    for (const step of executableSteps) {
-      expect(step["working-directory"]).not.toBe("_arc_pr_data");
-      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
-    }
-    expect(clearance).not.toMatch(/(?:npm|npx|tsx).*(?:github\.event\.client_payload|_arc_pr_data\/)/u);
-  });
-
-  it("isolates clearance publication and binds success to the still-current full SHA", async () => {
-    const clearance = await read("arc-clearance.yml");
-    const writer = jobValue(clearance, "write-status");
-    expect(writer.needs).toBe("validate");
-    expect(writer.if).toBe("${{ needs.validate.result == 'success' }}");
-    expect(writer.environment).toBe("arc-clearance");
-    expect(writer.permissions).toEqual({
-      contents: "read",
-      "pull-requests": "read",
-      statuses: "write",
-    });
-    expect(writer).not.toHaveProperty("secrets");
-
-    const steps = writer.steps;
-    expect(Array.isArray(steps)).toBe(true);
-    expect(steps).toHaveLength(2);
-    const trustedCheckout = stepValue(clearance, "write-status", "live-pair-checkout");
-    expect(trustedCheckout.with).toMatchObject({
-      ref: "${{ github.workflow_sha }}",
-      "persist-credentials": false,
-    });
-    const publish = (steps as Array<Record<string, unknown>>)[1] ?? {};
-    expect(publish).not.toHaveProperty("uses");
-    expect(publish.env).toMatchObject({
-      PR_NUMBER: "${{ github.event.client_payload.pull_request }}",
-      STATUS_CONTEXT: "arc-cleared",
-      VALIDATED_BASE: "${{ needs.validate.outputs.base_sha }}",
-      VALIDATED_BASE_REF: "${{ needs.validate.outputs.base_ref }}",
-      VALIDATED_HEAD: "${{ needs.validate.outputs.head_sha }}",
-      READINESS_JSON: "${{ needs.validate.outputs.readiness_json }}",
-    });
-    expect(publish.run).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
-    expect(publish.run).toContain('test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"');
-    expect(publish.run).toContain(
-      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
-    );
-    expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
-    expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
-    expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
-  });
-
-  it("does not inherit clearance across heads or let a stale unlock clear its replacement", async () => {
-    const fixture = JSON.parse(await readRepositoryFile(
-      "packages/arc-framework/__tests__/fixtures/review-gate/clearance-status-history.json",
-    )) as ClearanceStatusFixture;
-    expect(hasClearanceSuccess(fixture, fixture.previousHead)).toBe(true);
-    expect(hasClearanceSuccess(fixture, fixture.replacementHead)).toBe(false);
-
-    expect(fixture.previousHead).not.toBe(fixture.replacementHead);
-    const statusesAfterStaleUnlock = [...fixture.statuses, {
-      context: fixture.context,
-      sha: fixture.previousHead,
-      state: "success" as const,
-    }];
-    expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
-  });
-
-  it("publishes planning clearance only from trusted pull-request-target code", async () => {
-    const [ci, workflow] = await Promise.all([read("ci.yml"), read("arc-clearance.yml")]);
-    const parsed = load(workflow) as { on?: Record<string, unknown> };
-    const stamp = jobValue(workflow, "planning-clearance");
+  it("attests the lane only from trusted pull-request-target code", async () => {
+    const [ci, workflow] = await Promise.all([read("ci.yml"), read("arc-lane-attestation.yml")]);
+    const parsed = load(workflow) as { on?: Record<string, unknown>; permissions?: unknown };
+    const stamp = jobValue(workflow, "lane-attestation");
 
     expect(ci).not.toContain("planning-classify:");
-    expect(ci).not.toContain("planning-clearance:");
-    expect(parsed.on).toHaveProperty("pull_request_target");
+    expect(ci).not.toContain("lane-attestation:");
+    expect(parsed.on).toEqual({
+      pull_request_target: { types: ["opened", "reopened", "synchronize", "edited"] },
+    });
+    // The dispatch producer retired with the required status; a surviving trigger
+    // would be a second entry point into a job that now only observes.
+    expect(parsed.on).not.toHaveProperty("repository_dispatch");
     expect(parsed.on).not.toHaveProperty("pull_request");
-    expect(stamp.if).toContain("github.event_name == 'pull_request_target'");
+    expect(parsed.permissions).toEqual({});
     expect(stamp.if).toContain("head.repo.full_name == github.repository");
     expect(stamp.permissions).toEqual({
       contents: "read",
@@ -754,38 +631,39 @@ describe("trusted review-gate workflows", () => {
     });
     expect(stamp["runs-on"]).toBe("ubuntu-latest");
 
-    const trustedCheckout = stepValue(workflow, "planning-clearance", "planning-trusted-checkout");
+    const trustedCheckout = stepValue(workflow, "lane-attestation", "lane-trusted-checkout");
     expect(trustedCheckout.with).toMatchObject({
       ref: "${{ github.workflow_sha }}",
       "persist-credentials": false,
     });
-    const target = stepValue(workflow, "planning-clearance", "planning-target");
+    expect(trustedCheckout.with).not.toHaveProperty("path");
+    const target = stepValue(workflow, "lane-attestation", "lane-target");
     expect(target.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
     expect(target.run).toContain('test "$(jq -r .state <<<"$pull_request")" = open');
     expect(target.run).toContain('test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
     expect(target.run).toContain('test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
 
-    const planningSteps = stamp.steps as Array<Record<string, unknown>>;
-    const buildIndex = planningSteps.findIndex((step) => step.run === "npm run build");
-    const targetIndex = planningSteps.findIndex((step) => step.id === "planning-target");
-    const resetIndex = planningSteps.findIndex((step) => step.id === "planning-reset");
-    const dataIndex = planningSteps.findIndex((step) => step.id === "planning-data");
-    const publishIndex = planningSteps.findIndex((step) => step.id === "planning-status");
+    const steps = stamp.steps as Array<Record<string, unknown>>;
+    const buildIndex = steps.findIndex((step) => step.run === "npm run build");
+    const targetIndex = steps.findIndex((step) => step.id === "lane-target");
+    const resetIndex = steps.findIndex((step) => step.id === "lane-reset");
+    const dataIndex = steps.findIndex((step) => step.id === "lane-data");
+    const publishIndex = steps.findIndex((step) => step.id === "lane-status");
     expect(buildIndex).toBeGreaterThanOrEqual(0);
     expect(publishIndex).toBeGreaterThan(buildIndex);
     expect(resetIndex).toBeGreaterThan(targetIndex);
     expect(dataIndex).toBeGreaterThan(resetIndex);
-    const reset = stepValue(workflow, "planning-clearance", "planning-reset");
+    const reset = stepValue(workflow, "lane-attestation", "lane-reset");
     expect(reset.env).toMatchObject({
-      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
+      HEAD_SHA: "${{ steps.lane-target.outputs.head_sha }}",
     });
     expect(reset.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
-    expect(reset.run).toContain("-f state=pending -f context=arc-cleared");
+    expect(reset.run).toContain("-f state=pending -f context=arc-lane");
 
-    const dataCheckout = stepValue(workflow, "planning-clearance", "planning-data");
+    const dataCheckout = stepValue(workflow, "lane-attestation", "lane-data");
     expect(dataCheckout.with).toMatchObject({
-      repository: "${{ steps.planning-target.outputs.head_repository }}",
-      ref: "${{ steps.planning-target.outputs.head_sha }}",
+      repository: "${{ steps.lane-target.outputs.head_repository }}",
+      ref: "${{ steps.lane-target.outputs.head_sha }}",
       path: "_arc_change_data",
       "fetch-depth": 0,
       "persist-credentials": false,
@@ -794,37 +672,51 @@ describe("trusted review-gate workflows", () => {
       "Pull-request content is inert classification data; no command executes from this checkout.",
     );
 
-    const publish = stepValue(workflow, "planning-clearance", "planning-status");
+    const publish = stepValue(workflow, "lane-attestation", "lane-status");
     expect(publish.run).toContain(
       'lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA"',
     );
     expect(publish.run).not.toContain("npx arc");
     expect(publish.run).toContain('test "$lane" = planning || test "$lane" = reviewed');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
-    expect(publish.run).toContain("-f context=arc-cleared");
+    expect(publish.run).toContain("-f context=arc-lane");
     expect(publish.run).toContain(
       'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
     );
-    expect(publish.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_change_data\//u);
+
+    for (const step of steps.filter((candidate) => typeof candidate.run === "string")) {
+      expect(step["working-directory"]).not.toBe("_arc_change_data");
+      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_change_data\//u);
+    }
   });
 
-  it("resets prior clearance before either exact-head writer can publish success", async () => {
-    const [ci, clearance, codeowners] = await Promise.all([
+  it("records a terminal verdict on both classifier arms without vetoing either", async () => {
+    const [ci, attestation, codeowners] = await Promise.all([
       read("ci.yml"),
-      read("arc-clearance.yml"),
+      read("arc-lane-attestation.yml"),
       readRepositoryFile(".github/CODEOWNERS"),
     ]);
-    const writers = [ci, clearance].flatMap((workflow, workflowIndex) =>
-      [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\S]{0,180}?context="?(\$STATUS_CONTEXT|arc-cleared)"?/gu)]
-        .map((match) => ({ workflowIndex, sha: match[1], context: match[2] })));
+    const writers = [ci, attestation].flatMap((workflow, workflowIndex) =>
+      [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\\]+-f state=(\w+) -f context=([\w-]+)/gu)]
+        .map((match) => ({ workflowIndex, sha: match[1], state: match[2], context: match[3] })));
+    // One pending reset and one terminal write, both on the same exact head. The
+    // attestation never publishes a failing state: it is not a required check, so a
+    // red verdict on an ordinary reviewed-lane change would report a problem that
+    // does not exist.
     expect(writers).toEqual([
-      { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
-      { workflowIndex: 1, sha: "HEAD_SHA", context: "arc-cleared" },
-      { workflowIndex: 1, sha: "VALIDATED_HEAD", context: "$STATUS_CONTEXT" },
+      { workflowIndex: 1, sha: "HEAD_SHA", state: "pending", context: "arc-lane" },
+      { workflowIndex: 1, sha: "HEAD_SHA", state: "success", context: "arc-lane" },
     ]);
     expect(ci).not.toContain("statuses/$HEAD_SHA");
-    expect(clearance).toContain('if [ "$lane" = planning ]; then');
-    expect(clearance).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
+
+    // Both arms reach the single terminal write; only the eligible one confirms the
+    // live pair, and the description is where the verdict survives.
+    const publish = stepValue(attestation, "lane-attestation", "lane-status");
+    expect(publish.run).toContain('if [ "$lane" = planning ]; then');
+    expect(publish.run).toMatch(/description='planning lane; live pull-request pair confirmed/u);
+    expect(publish.run).toMatch(/else\s+description='reviewed lane;/u);
+    expect(publish.run).toContain('-f description="$description"');
+
     expect(codeowners).toContain("* @andrewRCr");
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
     expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");

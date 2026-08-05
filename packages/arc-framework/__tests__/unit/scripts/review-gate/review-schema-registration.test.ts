@@ -43,6 +43,10 @@ const reviewIdentities = [
   "local-review-source",
   "local-review-source-digest-preimage",
   "local-review-state",
+  "merge-lock-command-error-envelope",
+  "merge-lock-hold-envelope",
+  "merge-lock-release-envelope",
+  "merge-lock-resolve-envelope",
   "standard-review-contract",
   "standard-review-obligation-projection",
   "standard-review-rubric-digest-preimage",
@@ -88,7 +92,6 @@ const reviewIdentities = [
   "review-suspension-state",
   "review-target",
   "review-target-id-preimage",
-  "review-unlock-envelope",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];

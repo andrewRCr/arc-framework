@@ -245,6 +245,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "commit.custom_pattern": "",
       "commit.context_pattern": "",
       "merge.strategy": "merge",
+      "merge.lock": "none",
       "platform.type": "github",
     "review.frontline_sources": "[]",
     "review.standard_sources": "[]",

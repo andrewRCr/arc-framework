@@ -48,6 +48,7 @@ const VALIDATION_DOMAIN_ORDER = [
   "hooks.body_max_lines",
   "hooks.body_max_line_length",
   "merge.strategy",
+  "merge.lock",
   "platform.type",
   "review.frontline_max_passes",
   "review.standard_max_passes",

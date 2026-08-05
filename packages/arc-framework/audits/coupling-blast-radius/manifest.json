@@ -24,7 +24,7 @@
       ".editorconfig",
       ".gitattributes",
       ".github/CODEOWNERS",
-      ".github/workflows/arc-clearance.yml",
+      ".github/workflows/arc-lane-attestation.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/docs.yml",
       ".gitignore",

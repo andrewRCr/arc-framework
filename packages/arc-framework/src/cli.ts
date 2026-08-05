@@ -121,9 +121,11 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleMergeLockHold,
+  handleMergeLockRelease,
+  handleMergeLockResolve,
   handleReviewReadiness,
   handleReviewResolve,
-  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
@@ -1157,6 +1159,37 @@ logCmd
   )
   .action(handleLogStandalone);
 
+// --- Merge ---
+
+const mergeCmd = program
+  .command("merge")
+  .description("Merge-control operations");
+
+const mergeLockCmd = mergeCmd
+  .command("lock")
+  .description("Resolve and transition the host merge lock");
+
+mergeLockCmd
+  .command("resolve")
+  .description("Resolve how a pull request should open as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockResolve(input));
+
+mergeLockCmd
+  .command("hold")
+  .description("Lock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockHold(input));
+
+mergeLockCmd
+  .command("release")
+  .description("Unlock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockRelease(input));
+
 // --- Review ---
 
 const reviewCmd = program
@@ -1176,13 +1209,6 @@ reviewCmd
   .option("--repository <path>", "Repository containing both exact commits")
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
-
-reviewCmd
-  .command("unlock")
-  .description("Preflight and dispatch exact-head ARC clearance as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewUnlock(input));
 
 reviewCmd
   .command("resolve")
