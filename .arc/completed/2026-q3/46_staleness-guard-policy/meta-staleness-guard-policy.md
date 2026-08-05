@@ -1,8 +1,8 @@
 # Metadata: Staleness-Guard Hard-Fail Policy
 
-| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/staleness-guard-policy` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/458>
+- **Completed:** 2026-08-05
 
 ---
 
