@@ -64,7 +64,6 @@ function prepare() {
 
 function member(chunkKey: string): DeliveryAuthoringSlotsV1["members"][number] {
   return {
-    status: "live",
     chunkKey: SlugSchema.parse(chunkKey),
     title: `${chunkKey} member`,
     contract: `${chunkKey} contract`,

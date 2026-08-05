@@ -108,7 +108,6 @@ describe("recorded delivery field runs", () => {
       entry: "from-branch",
       projection: { kind: "stack-to-main" },
       members: run.members.map((member) => ({
-        status: "live",
         chunkKey: member.chunkKey,
         title: member.title,
         contract: member.contract,

@@ -1,55 +1,53 @@
-/** Git-common-directory adapters for current delivery plan, assignment, and observation records. */
+/** Git-common-directory adapters for delivery plan and mutable execution records. */
 
 import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
-import { canonicalize, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
 import {
-  DeliveryAssignmentsV1Codec,
-  isDeliveryAssignmentSuccessor,
-  type DeliveryAssignmentsV1,
-} from "./assignment.js";
+  canonicalize,
+  SlugSchema,
+  sortByCanonicalBytes,
+  type CanonicalDigest,
+} from "../kernel/index.js";
 import type {
-  DeliveryAssignmentStore,
-  DeliveryAssignmentStoreFailure,
-  DeliveryMemberResolution,
   DeliveryMemberSelector,
-  DeliveryObservationStore,
-  DeliveryObservationStoreFailure,
   DeliveryOwningUnitPointer,
   DeliveryPayloadCodec,
   DeliveryPlanPayloadCodec,
   DeliveryPlanStore,
   DeliveryPlanStoreFailure,
   DeliveryRevisionedRecord,
+  DeliveryStateMemberResolution,
+  DeliveryStateStore,
+  DeliveryStateStoreFailure,
   DeliveryStoreResult,
 } from "./ports.js";
-import { DeliveryPlanIdSchema } from "./schema.js";
+import { DeliveryPlanIdSchema, type DeliveryStateV1 } from "./schema.js";
+import { DeliveryStateV1Codec } from "./state.js";
 
 const PLAN_LOCATION = { root: "delivery", namespace: "plans" } as const;
-const ASSIGNMENT_LOCATION = { root: "delivery", namespace: "assignments" } as const;
-const OBSERVATION_LOCATION = { root: "delivery", namespace: "observations" } as const;
-const ASSIGNMENT_SEMANTICS = "delivery-assignment-store/v1";
-const OBSERVATION_SEMANTICS = "delivery-observation-store/v1";
+const STATE_LOCATION = { root: "delivery", namespace: "state" } as const;
+const STATE_SEMANTICS = "delivery-state-store/v1";
 
-function memberMatches(
-  member: DeliveryAssignmentsV1["members"][number],
+function stateMemberMatches(
+  member: DeliveryStateV1["members"][number],
   selector: DeliveryMemberSelector,
 ): boolean {
-  if (selector.kind === "head") return member.assignedHeadObjectId === selector.objectId;
+  if (member.coordinates === null) return false;
+  if (selector.kind === "head") return member.coordinates.head === selector.objectId;
   return member.ref === selector.ref
-    && member.assignedHeadObjectId === selector.observedHeadObjectId;
+    && member.coordinates.head === selector.observedHeadObjectId;
 }
 
-function matchingMembers(
-  assignment: DeliveryAssignmentsV1,
+function matchingStateMembers(
+  state: DeliveryStateV1,
   selector: DeliveryMemberSelector,
-): readonly DeliveryMemberResolution<DeliveryAssignmentsV1>[] {
-  return assignment.members
-    .filter((member) => memberMatches(member, selector))
+): readonly DeliveryStateMemberResolution<DeliveryStateV1>[] {
+  return state.members
+    .filter((member) => stateMemberMatches(member, selector))
     .map((member) => ({
-      planId: assignment.planId,
+      planId: state.planId,
       deliverableId: member.deliverableId as CanonicalDigest,
-      workUnitId: assignment.workUnitId,
-      assignment,
+      workUnitId: state.workUnitId,
+      state,
     }));
 }
 
@@ -291,43 +289,41 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
   }
 }
 
-/** Repository-common revision-checked assignment adapter. */
-export class RepositoryDeliveryAssignmentStore
-implements DeliveryAssignmentStore<DeliveryAssignmentsV1> {
+/** Repository-common revision-checked delivery-state adapter. */
+export class RepositoryDeliveryStateStore implements DeliveryStateStore<DeliveryStateV1> {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async read(
     planId: string,
   ): Promise<DeliveryStoreResult<
-    DeliveryRevisionedRecord<DeliveryAssignmentsV1> | null,
-    DeliveryAssignmentStoreFailure
+    DeliveryRevisionedRecord<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
   >> {
     return readRevisionedRecord(
       this.publisher,
-      ASSIGNMENT_LOCATION,
-      ASSIGNMENT_SEMANTICS,
-      DeliveryAssignmentsV1Codec,
+      STATE_LOCATION,
+      STATE_SEMANTICS,
+      DeliveryStateV1Codec,
       planId,
     );
   }
 
   async publish(
     planId: string,
-    value: DeliveryAssignmentsV1,
+    value: DeliveryStateV1,
     expectedRevision: number,
   ): Promise<DeliveryStoreResult<
-    DeliveryRevisionedRecord<DeliveryAssignmentsV1>,
-    DeliveryAssignmentStoreFailure
+    DeliveryRevisionedRecord<DeliveryStateV1>,
+    DeliveryStateStoreFailure
   >> {
     return publishRevisionedRecord(
       this.publisher,
-      ASSIGNMENT_LOCATION,
-      ASSIGNMENT_SEMANTICS,
-      DeliveryAssignmentsV1Codec,
+      STATE_LOCATION,
+      STATE_SEMANTICS,
+      DeliveryStateV1Codec,
       planId,
       value,
       expectedRevision,
-      isDeliveryAssignmentSuccessor,
     );
   }
 
@@ -335,79 +331,41 @@ implements DeliveryAssignmentStore<DeliveryAssignmentsV1> {
     readonly selector: DeliveryMemberSelector;
     readonly owningUnit?: DeliveryOwningUnitPointer;
   }): Promise<DeliveryStoreResult<
-    DeliveryMemberResolution<DeliveryAssignmentsV1> | null,
-    DeliveryAssignmentStoreFailure
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
   >> {
-    if (input.owningUnit !== undefined) {
-      if (!DeliveryPlanIdSchema.safeParse(input.owningUnit.planId).success) {
-        return { status: "refused", reason: "identity-mismatch" };
-      }
-      const candidate = await this.read(input.owningUnit.planId);
-      if (candidate.status === "refused") return candidate;
-      if (candidate.value === null) return { status: "ok", value: null };
-      if (candidate.value.value.workUnitId !== input.owningUnit.workUnitId) {
-        return { status: "refused", reason: "identity-mismatch" };
-      }
-      const matches = matchingMembers(candidate.value.value, input.selector);
-      if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
-      return { status: "ok", value: matches[0] ?? null };
+    if (input.owningUnit !== undefined
+      && (normalizePlanId(input.owningUnit.planId) === null
+        || !SlugSchema.safeParse(input.owningUnit.workUnitId).success)) {
+      return { status: "refused", reason: "identity-mismatch" };
     }
 
-    const entries = await this.publisher.snapshot(ASSIGNMENT_LOCATION);
-    const matches: DeliveryMemberResolution<DeliveryAssignmentsV1>[] = [];
+    const entries = await this.publisher.snapshot(STATE_LOCATION);
+    const matches: DeliveryStateMemberResolution<DeliveryStateV1>[] = [];
     for (const entry of entries) {
-      const planId = entry.name.endsWith(".json")
+      const rawPlanId = entry.name.endsWith(".json")
         ? entry.name.slice(0, -".json".length)
         : "";
-      if (entry.kind !== "file" || !DeliveryPlanIdSchema.safeParse(planId).success) {
+      const parsedPlanId = DeliveryPlanIdSchema.safeParse(rawPlanId);
+      if (entry.kind !== "file" || !parsedPlanId.success || parsedPlanId.data !== rawPlanId) {
         return { status: "refused", reason: "namespace-corrupt" };
       }
       const candidate = decodeRevisionedRecord(
         entry.content,
-        planId,
-        ASSIGNMENT_SEMANTICS,
-        DeliveryAssignmentsV1Codec,
+        rawPlanId,
+        STATE_SEMANTICS,
+        DeliveryStateV1Codec,
       );
       if (candidate.status === "refused") return candidate;
-      matches.push(...matchingMembers(candidate.value.value, input.selector));
-      if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
+      matches.push(...matchingStateMembers(candidate.value.value, input.selector));
     }
-    return { status: "ok", value: matches[0] ?? null };
-  }
-}
-
-/** Repository-common revision-checked observation adapter. */
-export class RepositoryDeliveryObservationStore<TObservation> implements DeliveryObservationStore<TObservation> {
-  constructor(
-    private readonly publisher: GitCommonStatePublisher,
-    private readonly codec: DeliveryPayloadCodec<TObservation>,
-  ) {}
-
-  async read(
-    planId: string,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation> | null, DeliveryObservationStoreFailure>> {
-    return readRevisionedRecord(
-      this.publisher,
-      OBSERVATION_LOCATION,
-      OBSERVATION_SEMANTICS,
-      this.codec,
-      planId,
-    );
-  }
-
-  async publish(
-    planId: string,
-    value: TObservation,
-    expectedRevision: number,
-  ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TObservation>, DeliveryObservationStoreFailure>> {
-    return publishRevisionedRecord(
-      this.publisher,
-      OBSERVATION_LOCATION,
-      OBSERVATION_SEMANTICS,
-      this.codec,
-      planId,
-      value,
-      expectedRevision,
-    );
+    if (matches.length > 1) return { status: "refused", reason: "ambiguous-match" };
+    const match = matches[0] ?? null;
+    if (match !== null && input.owningUnit !== undefined
+      && (match.planId !== normalizePlanId(input.owningUnit.planId)
+        || match.workUnitId !== input.owningUnit.workUnitId)) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+    return { status: "ok", value: match };
   }
 }
