@@ -1342,7 +1342,10 @@ describe("Git v3 repository plan", () => {
     expect(await git(candidate, ["status", "--porcelain=v1", "--untracked-files=all"])).toBe("");
     expect((await git(repo, ["rev-parse", "chore/decompose-origin"])).trim()).toBe(candidateHead);
     expect((await git(repo, ["rev-parse", alternateBranch])).trim()).toBe(candidateHead);
-  });
+    // Spawns several git worktrees and takes ~4s of the suite default's 5s, so any
+    // load on the host tips it over — observed failing on a shared CI runner while
+    // green in isolation. Sized for margin, still short enough to catch a hang.
+  }, 15_000);
 
   it("refuses a committed configured-ref source before changing its candidate", async () => {
     const { repo, dependencies, completedMap } = await backlogStubRepository();

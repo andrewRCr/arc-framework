@@ -4,7 +4,7 @@
  * Decides, for a given CLI command, whether a stale `dist/cli.js` must
  * fail-fast (refuse) rather than warn. Refuse for:
  * - cross-machine state (`sync`, `user save/push/sync`)
- * - gate work (`release commit/push`, session-init/handoff probes, review unlock)
+ * - gate work (`release commit/push`, session-init/handoff probes, merge lock verbs)
  * - tracked-state remedies (`hook-remedy-roadmap-conflict`)
  * - **lifecycle mutations** that mint durable branch/record state (`errand open`
  *   and siblings, `start`) so a stale build never creates a branch then only
@@ -42,7 +42,9 @@ export function isHandoffCritical(cmd: HandoffCommand): boolean {
   if (parentName === "arc" && name === "hook-remedy-roadmap-conflict") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
   if (parentName === "release" && (name === "commit" || name === "push")) return true;
-  if (parentName === "review" && name === "unlock") return true;
+  // Keys on the immediate parent: for `arc merge lock <verb>` that is `lock`,
+  // the same shape as the `hosted` nested group below.
+  if (parentName === "lock" && ["resolve", "hold", "release"].includes(name)) return true;
   if (parentName === "hosted" && (name === "request" || name === "settle")) return true;
   // Errand mutators mint branches/records; refuse before those land. `check` is advisory.
   if (

@@ -23,7 +23,10 @@ describe("isHandoffCritical", () => {
     expect(isHandoffCritical(cmd("sync", "user"))).toBe(true);
     expect(isHandoffCritical(cmd("commit", "release"))).toBe(true);
     expect(isHandoffCritical(cmd("push", "release"))).toBe(true);
-    expect(isHandoffCritical(cmd("unlock", "review"))).toBe(true);
+    expect(isHandoffCritical(cmd("resolve", "lock"))).toBe(true);
+    expect(isHandoffCritical(cmd("hold", "lock"))).toBe(true);
+    expect(isHandoffCritical(cmd("release", "lock"))).toBe(true);
+    expect(isHandoffCritical(cmd("lock", "merge"))).toBe(false);
     expect(isHandoffCritical(cmd("request", "hosted"))).toBe(true);
     expect(isHandoffCritical(cmd("settle", "hosted"))).toBe(true);
   });

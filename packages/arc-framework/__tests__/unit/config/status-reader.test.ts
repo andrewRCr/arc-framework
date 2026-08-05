@@ -50,8 +50,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     });
   });
 
-  it("enumerates the 29 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(29);
+  it("enumerates the 30 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(30);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -108,6 +108,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["commit.format"]).toBe("conventional");
     expect(result.settings["commit.context_footer"]).toBe("required");
     expect(result.settings["merge.strategy"]).toBe("merge");
+    expect(result.settings["merge.lock"]).toBe("none");
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["review.frontline_sources"]).toBe("[]");
     expect(result.settings["review.standard_sources"]).toBe("[]");
@@ -158,6 +159,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "commit.custom_pattern: ^FOO-.+",
       "commit.context_pattern: ^Relates to",
       "merge.strategy: rebase",
+      "merge.lock: draft",
       "platform.type: gitlab",
       "review.frontline_sources: [coderabbit-cli,project-reviewer]",
       "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]",
@@ -186,6 +188,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
     expect(result.settings["worktree.harness_dirs"]).toBe(".codex,.custom-harness");
     expect(result.settings["commit.format"]).toBe("custom");
+    expect(result.settings["merge.lock"]).toBe("draft");
     expect(result.settings["review.frontline_sources"]).toBe("[coderabbit-cli,project-reviewer]");
     expect(result.settings["review.standard_sources"]).toBe("[coderabbit-pr,codex-pr,delegated-agent]");
     expect(result.settings["review.frontline_max_passes"]).toBe("3");
