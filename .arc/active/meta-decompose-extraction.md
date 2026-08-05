@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/decompose-extraction` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
-- **Depends On:** `decompose-transform-integrity`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-extraction.md`
