@@ -355,11 +355,239 @@ not land as one review surface. Task generation must preserve these four ordered
 Each slice closes its own declarations and consumers and receives a structured review increment. The final review
 adds a seam scope across all four slices and verifies their union covers the complete change set.
 
+### Approved forward amendment — two main-mergeable deliverables
+
+This amendment changes delivery sequencing and merge topology only. It preserves the accepted authority model,
+final contracts, deletion inventory, trust boundaries, verification obligations, and the four review facets above.
+Where the earlier delivery text assigns unified-marker producer behavior or record dual-write to the additive
+foundation, this amendment supersedes that assignment.
+
+The accepted design originally assigned a temporary unified-marker-plus-record dual-write to the first slice.
+Implementation-boundary assessment found that merging that producer-only interval would also require terminal marker
+cleanup, rollback, promotion conversion, old-reader compatibility, and transitional tests. That would enlarge the
+compatibility surface at the first merge boundary. The approved delivery therefore narrows the first merge to dormant
+additive code and moves every observable producer and consumer change into the second deliverable.
+
+1. **Dormant derived-role foundation.** Land the typed authority/corroboration modules, completed-index and lifecycle
+   projections, internal derived roster/current-checkout reader, future unified-marker schema and types,
+   extension-aware subject projection, fixture matrix, and authority/dependency/invariance tests. Existing production
+   entry points, public JSON schemas, CLI commands, allocation and terminal producers, marker lifecycle, record/lease
+   writes, status/session-init/handoff/recovery consumers, shipped workflows, and on-disk behavior remain unchanged.
+   The derived reader has no production caller and no record fallback; tests exercise it through injected evidence.
+   This deliverable is independently green and safe on `main`, but it does not claim the work unit's final operational
+   success criteria.
+2. **Behavioral cutover and substrate retirement.** Activate the unified marker lifecycle and move every producer and
+   consumer together: primary/spawn allocation and rollback, terminal marker cleanup/conversion, current-checkout
+   session consumers, Errand terminal operations and promotion, work-unit lifecycle callers, rename, teardown and
+   cleanup sweeps, public schemas/results/CLI/workflows, and cessation of record, lease, lock, and process-anchor
+   writes. Delete the retired substrate, dead compatibility paths, stale tests, and obsolete doctrine in the same
+   deliverable. If dual-write helps keep intermediate local commits buildable, it is an unshipped implementation
+   detail removed before this deliverable closes; no dual-write interval lands on `main`.
+
+These are the only main-mergeable boundaries and remain deliverables of one WU rather than separately owned work
+units. The WU branch remains the control and authoring surface. Disposable delivery refs project review payloads from
+it and are not WU branches or session loci. The first deliverable excludes the owning WU's lifecycle artifacts. The
+second is constructed only after the exact first merge is present on `main` and carries the ordinary attended WU
+closeout. Git and the change-request host remain authoritative for exact base, head, review, and landed state.
+
+The canonical delivery plan records the two-member `stack-to-main` intent; it does not execute the stack. Until the
+planned stack-topology executor ships, member construction, lifecycle-artifact exclusion, ordering, exact-head
+verification, and landing are manual operations. The first review facet is narrowed to the dormant foundation. The
+remaining three facets are structured review increments inside the second deliverable and merge only as their
+contract-closed union. Both deliverable heads pass their relevant gates, and the final seam review covers both heads
+and all four facets.
+
+Verification follows the same boundary. The first deliverable proves typed authority exclusion, dependency closure,
+branch/HEAD invariance, marker-schema parsing, dormant derived projection, production unreachability, and unchanged
+runtime regression behavior. The second proves the complete runtime, lifecycle, public-contract, deletion, doctrine,
+mechanical-closure, and cross-deliverable seam matrix described by the accepted verification strategy.
+
+### Approved Phase 1 grounding clarification — dormant boundary and primary availability
+
+Deliverable 1 represents and validates the future occupancy marker through a separate internal, pure projection. It
+does not widen or replace the selected `WorktreeMarker` parser, decoder, serializer, writers, production barrel, or
+on-disk contract. Deliverable 2 activates the accepted occupancy fields and invariants in the live marker lifecycle.
+This separation is an implementation boundary only: it adds no compatibility format, migration reader, persisted
+state, configuration axis, or second runtime authority.
+
+Authority derivation distinguishes an unoccupied physical primary from an occupied checkout without consulting
+observed branch or `HEAD`. The stable `free-primary` roster result is composed only after the existing primary-safety
+projection positively establishes clean and configured-base facts and marker absence. Likewise, the
+`spawnedByArc: false` primary-only invariant is enforced where the dormant marker projection meets physical-primary
+topology, not by a raw marker parser that has no checkout path. Observed branch, `HEAD`, and detached state remain
+corroboration-only and can preserve the exact derived subject or degrade it to unresolved.
+
+The dormant lifecycle reader consumes injected evidence. It reuses the existing completed-index result contract and
+models exact active-meta presence, absence, unreadability, duplication, and conflict without adding another lifecycle
+scanner, cache, persisted snapshot, or service. A WU subject comes from an exact WU marker or exactly one
+owner-eligible active meta; missing required evidence and duplicate or conflicting candidates remain unresolved.
+Production acquisition and cutover remain Deliverable 2 work. Phase 1 enforcement stays narrow: typed inputs,
+behavioral invariance, targeted dependency/source-reference assertions, and existing regression suites rather than a
+general dependency-graph or policy-analysis framework.
+
+### Approved Phase 2 grounding clarification — migration frame and bounded review routing
+
+Deliverable 2 introduces the derived entering-checkout frame beside the legacy internal `LocusStateV1` projection
+only long enough to move its consumers in buildable order. The overlap is not a public compatibility contract and is
+deleted before the deliverable head closes. The final frame contains the roster, an `entering` selector bound to the
+canonical current checkout path, `primaryAvailability`, and identity discovery. The existing top-level `active` slot
+remains a convenience view derived from the entering WU row; it performs no second meta, lifecycle, or load-set read.
+Missing identity affects only identity-backed transient derivation and does not suppress a WU, partial transient,
+unmanaged checkout, or free primary that its own evidence resolves.
+
+Operational workflow consumers move with the code contract they describe. Session-init and probe-envelope prose
+changes with status/session guidance; handoff prose changes with handoff results; and compaction/recovery prose changes
+with the seed and recovery result. Handoff and recovery results carry the exact subject, current checkout path,
+optional marker parent where applicable, and the workflow/session projection their caller uses—no record, lease,
+session-home, or replacement authority fields. The unpublished compaction seed schema changes in place and existing
+development seeds are regenerated; there is no compatibility reader or migration.
+
+Marker activation begins from an exact inventory of every live transient producer and field-by-field reconstructor,
+including Errand, groom, housekeep, primary, spawned, rollback, leave, close, abandon, promotion, and partial-settlement
+paths. Each declared operation is either wired through its existing owning runtime or proven dead and removed in the
+retirement suffix. This inventory does not create a generic lifecycle service, policy graph, cache, or second marker
+authority.
+
+Review execution uses the shipped typed driver only after its read-only chunking and policy preflights succeed for the
+exact target. A selected carrier remains usable only while its typed lifecycle can prepare, resume, attest, and reduce
+without malformed, unavailable, blocked, or non-resumable state. Such a result is a stop: it never authorizes
+self-attestation, review-state reconstruction, or review-system repair inside this WU. Continuing through a manual
+fresh non-author procedure requires explicit approval and remains bound to the same exact target and review scope.
+
+### Approved Phase 3 grounding clarification — terminal cutover and operation serialization
+
+The common foreign-terminal confirmation contract covers close, abandon, leave, partial settlement, and promotion.
+It is request-local and bound to the exact subject generation and named verb being attempted; every retry re-derives
+the authoritative marker, identity, lifecycle, branch, and `HEAD` evidence before the confirmation can authorize the
+act. It creates no durable confirmation token, confirmation store, generic authorization framework, or bypass for a
+failed evidence guard. Promotion consumes this same contract rather than retaining lease, `selfHeld`, process-anchor,
+or record-lock authority.
+
+`Promotion Receipt` immutability is enforced within the authorities that exist. Managed meta mutations, transitions,
+relocations, and archival preserve the exact canonical value. While the identity transaction still supplies
+comparison evidence, promotion recovery refuses a missing or mismatched receipt; after identity removal, the receipt
+itself is the durable exact-generation replay identity. Arbitrary out-of-band removal is not made detectable through a
+second history oracle, compatibility record, migration layer, or receipt store.
+
+Producer shutdown follows consumer migration. Start, materialize, park/resume, graduation, reconcile, allocation,
+rename, teardown, and their command/handler composition first move to marker/topology-owned contracts. Temporary
+record production may remain only for an as-yet-unmigrated rename or teardown consumer during local buildable
+ordering; the final producer-closure step removes that seam and every attach, mint, heartbeat, locus-lock, and
+process-anchor producer before Deliverable 2 closes. No such compatibility interval merges to `main`.
+
+Rename and teardown reuse the existing advisory-lock primitive only as a short-lived, operation-scoped mutex. Its
+holder bookkeeping and stale-lock handling serialize the physical mutation but confer no role, occupancy, liveness,
+or destructive authority. Under the mutex, each operation re-derives topology, exact marker generation, subject, and
+`HEAD` evidence before mutation. This is not a replacement locus-lock service, persisted role, new lock schema, or
+second authority source.
+
+Teardown migration includes both candidate authorization and the physical retirement transaction. Its selected
+generation becomes topology plus marker generation; record, lease, record-generation, and locus-lock outputs
+disappear. Stale-worktree and orphan-branch sweeps consume the same derived roster helpers while retaining their own
+git, provenance, lifecycle, confirmation, and dirty-worktree guards.
+
+The terminal/lifecycle review facet follows the same bounded review route as the session-frame facet: read-only
+chunking and policy preflights bind the exact target before the typed driver runs. Malformed, unavailable, blocked, or
+non-resumable review state is a stop and never authorizes repair or self-attestation. A manual fresh non-author route
+requires explicit approval and remains bound to the same exact target and scope.
+
+### Approved Phase 4 grounding clarification — bounded closure and exact union review
+
+Operational workflow changes remain owned by the phase that changes their consumed contract. Phase 2 moves
+session-init, probe, handoff, and recovery workflow consumption; Phase 3 moves `run-errand.md` plus the affected
+init/resume WU workflow paths with terminal, promotion, allocation, and lifecycle results. Phase 4 performs a residual
+corpus sweep and doctrine closure rather than reopening those consumer shapes or creating a second workflow rewrite.
+It follows the workflow-authoring and package/project sync contracts, edits package source first, and preserves
+template rendering and project-specific configuration.
+
+Final public closure removes retired-only declarations, commands, options, and stale consumers. Earlier status,
+handoff, recovery, and terminal tasks own their final result shapes; Phase 4 verifies those shapes and removes any
+residue without compatibility helpers, adapters, readers, or migration layers. The four mechanical closure families
+remain narrow repository contracts: extend the existing command-input source inventory, locus methodology suite,
+TypeScript/import closure, and targeted source-reference assertions. They do not add a CLI command, registry, generic
+semantic analyzer, dependency graph, policy framework, or new snapshot system.
+
+Absorbed sibling work units are removed only through the existing `arc abandon` lifecycle verb. Each target's typed,
+non-mutating impact preview is surfaced before a separately authorized `--yes` invocation; task approval is not
+prospective authority for that destructive act. The verb-owned transition regenerates readiness, and the task verifies
+the staged roadmap projection rather than hand-editing it.
+
+Surviving sibling coordination is planning-closeout work, not part of Deliverable 2. The obsolete live-locus premise
+in `recovery-hardening`, the killed `locus-generation-binding` pointer in `wu-lifecycle-state-model`, and the deleted
+`locus attach` / `release` / `resolve` migration obligation in `cli-substrate-complete-migration` route through
+identity-global `USER-INBOX` captures for their owning planning sessions. The CLI-substrate tail drops only those
+three locus verbs and retains its housekeep/plan command-input migrations. This branch does not edit those siblings
+or make their later adoption an implementation success criterion. Destruction of the two absorbed WUs remains in
+scope because their complete tracked artifact removal is part of this retirement.
+
+The complete-union review binds one immutable Git target from Deliverable 1's recorded pre-merge base tree through
+the Deliverable 2 candidate head. The landed Deliverable 1 tree is the internal seam coordinate, not a second target
+combined through custom review state. Phase 4 facet and union reviews use the same read-only preflights, typed-driver
+health boundary, explicit manual-fallback approval, and no-repair rule as the earlier facets.
+
+Retirement vocabulary remains specific to the locus authority substrate. The deleted lock and liveness surfaces are
+the durable locus lock, process anchor, and session-authority inspectors; the existing non-authoritative advisory-lock
+primitive remains available for unrelated synchronization and the approved rename/teardown operation mutex. It never
+becomes positive occupancy or role evidence.
+
+### Approved finalization clarification — remaining executable contracts
+
+Identity snapshot availability is not a repository-wide checkout gate. An absent snapshot or root-level read error
+degrades identity discovery and leaves only identity-backed transient rows unresolved. Healthy WU, free-primary,
+unmanaged-checkout, and marker-origin partial-Errand rows continue from their own evidence. A complete snapshot with
+entry diagnostics remains usable for exact valid-entry read projection; the diagnostics degrade only the affected
+identity-backed rows. Every identity mutation still requires the existing clean complete basis and fails closed on a
+root error, malformed entry, or same-slug conflict.
+
+Handoff preserves the existing workflow-specific terminal boundary. A resolved groom returns
+`groom-incomplete`, a resolved housekeep returns `housekeep-incomplete`, and an identity-free partial Errand returns
+its partial-settlement refusal rather than entering ordinary `leave-errand` dispatch. WU, ordinary Errand, and
+between-WUs results otherwise follow the derived current-checkout frame described above.
+
+Errand open, materialize, and link result migration precedes retired producer and shared-schema shutdown. Their final
+success result reshapes the existing operation surface in place around `operation`, `outcome`, nullable `allocation`
+with exact `checkoutPath` when allocated, exact subject, optional `parentCheckoutPath`, identity/origin settlement
+evidence, next offer, and CLI-composed prompt. Link uses the same result with `allocation: null`, no checkout or parent,
+and the exact updated identity/origin evidence. The result contains no `recordId`, `leaseId`, `activeLocusPath`,
+`sessionHomePath`, or record-bearing restored-parent shape. Terminal operation results retain their separately named
+subject, generation, checkout/parent, and settlement evidence. No compatibility result, adapter, dedicated link
+wrapper, or second public result version survives the cutover.
+
+The common foreign-terminal confirmation is one request-local exact-generation value. Close, abandon, leave,
+partial settlement, and promote expose `--confirm-foreign-generation <generation>` and the matching typed input. A
+`confirmation-required` refusal carries the named operation, exact subject, checkout path, generation, destructive
+effect, and a CLI-composed retry. Identity-backed operations use the canonical
+`errand-v1/<slug>/<claim-id>` generation; marker-backed partial settlement uses the exact marker-generation digest.
+The retry re-derives all authority evidence and requires an exact supplied-generation match. A changed generation
+uses the ordinary refusal path; there is no durable token, confirmation store, or reusable authorization object.
+
+Rename and teardown share one repository-wide operation mutex at the canonical
+`<git-common-dir>/arc-worktree-operation.lock` path. Both acquire that same advisory lock before their under-lock
+topology, marker-generation, subject, and `HEAD` revalidation, so rename-versus-rename, rename-versus-teardown, and
+teardown-versus-teardown contend without a multi-lock ordering protocol. The existing advisory-lock primitive owns
+bounded waiting and stale-holder cleanup only. The mutex serializes physical mutations and supplies no role,
+occupancy, liveness, confirmation, or destructive authority.
+
+The unified marker represents an identity-free partial Errand with the exact distinct subject
+`{ kind: "partial-errand", slug, claimId: null }`. Identity-backed `errand`, `groom`, and `housekeep` subjects retain
+their non-null claim IDs. A legacy claimless `{ kind: "errand", slug }` marker never aliases the new partial shape;
+it remains legacy/manual-only evidence. Partial settlement authority comes from the explicit partial subject, marker
+origin binding, and exact marker-generation digest rather than an invented identity claim.
+
+Deliverable 1's negative production-reachability assertion is head-specific acceptance evidence and remains attached
+to that exact dormant head. When Phase 2 intentionally selects the derived reader, the cutover replaces that live
+assertion with a narrow positive source-reference contract enumerating the permitted production adapter, reader,
+schema, and dependency-factory paths. Final closure reruns the unchanged authority-input, dependency, and invariance
+contracts plus this final reachability contract; it does not require the obsolete dormant-head assertion to pass
+after activation and adds no general dependency graph or policy analyzer.
+
 ### Sibling work-unit disposition
 
 - Destroy `claimed-sweep-verbs` and `locus-generation-binding` in slice 4. Their tracked artifacts are part of this
   change set; `ROADMAP.md` is regenerated rather than hand-edited.
 - Keep `recovery-hardening`, remove its dissolved locus-buffer obligation, and sequence it after this WU.
+- Keep `cli-substrate-complete-migration`, remove only its `locus attach` / `release` / `resolve` command-input
+  migration obligation, retain its housekeep/plan migrations, and route the correction through `USER-INBOX`.
 - Leave `recurring-errand-pr-resolution`, `operational-advisory-registers`, and `staleness-guard-policy` in place.
 - Keep `identity-conflict-recovery` provisional and off ROADMAP; its draft's observed-need trigger governs whether it
   is ever promoted.
@@ -484,9 +712,9 @@ slice.
    recorded parent path no longer resolves.
 7. No record store, lease, record lock, process anchor, liveness inspector, attach/release/resolve mutation verb,
    reconcile-attach surface, dead workflow arm, unread envelope field, or body-less CLI option remains.
-8. `claimed-sweep-verbs` and `locus-generation-binding` are destroyed in the tracked change set; surviving sibling
-   WUs carry the revised dependency/coordination posture; and `identity-conflict-recovery` remains a provisional,
-   evidence-gated stub rather than a sequenced commitment.
+8. `claimed-sweep-verbs` and `locus-generation-binding` are destroyed in the tracked change set; regenerated
+   roadmap/readiness projections carry no stale row or dependency; and `identity-conflict-recovery` remains a
+   provisional, evidence-gated stub rather than a sequenced commitment.
 9. Locus-driven session-init prose and schema surface shrink in net lines; the shipped brief, concurrent-work
    strategy, and work-organization strategy describe the derived-role model without retired record/lease doctrine
    or `errand close --force`; and all user-facing offers or diagnostics remain precomposed by the CLI.
@@ -494,6 +722,10 @@ slice.
     process-liveness source, or branch-shape oracle enters role derivation.
 11. The four delivery slices are independently reviewable, their union covers every changed file and hunk, and a
     final seam review validates the cross-slice contracts.
+12. Delivery follows the approved two-member `stack-to-main` amendment: the first head is behaviorally dormant and
+    independently green; the second completes the observable cutover and retirement without a merged dual-write
+    interval; both heads pass their relevant gates; and the final seam review covers the complete two-head,
+    four-facet union.
 
 ## Open Questions
 
