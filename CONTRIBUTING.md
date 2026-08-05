@@ -25,17 +25,20 @@ npm run build
 
 ## Development Workflow
 
-After pulling self-hosting changes or making local source edits, run `npm run build` before
-invoking handoff-critical commands (`npx arc sync`, `npx arc user save`, `npx arc user push`,
-`npx arc user sync`, and `npx arc status --session-init --json` or
-`npx arc status --session-handoff --json`). The CLI's dev-mode check refuses these commands
-with a stderr error and exit 1 when `dist/cli.js` is older than the newest `src/**/*.ts`,
-since their output drives cross-machine state and a stale build silently produces wrong
-answers. Quick-read commands (`npx arc log`, `npx arc health`, `npx arc diff`, plain
-`npx arc status`) print a stderr warning but still run.
+After pulling self-hosting changes or making local source edits, rebuild before invoking the
+CLI. Its dev-mode check refuses to run against a stale build: every command exits 1 with a
+stderr error naming the fix, since a stale bundle silently produces wrong answers. Rebuild with
+`npm run build:fast` — a runtime-only build that takes about a second — and retry.
 
-The check fires only in this development checkout — published installs don't include `src/`,
-so adopters never see it.
+There is no warning tier and no exempt set of commands, so read-only commands refuse too. The
+sole exception is the compaction-seed write, which proceeds so that a recovery seed still lands.
+The repository's `commit-msg` hook runs through the CLI as well, so a stale build blocks
+committing until you rebuild — editing source and then committing is the ordinary way to meet
+the check.
+
+The check fires only when the CLI runs as the built bundle in this development checkout.
+Invoking it from source produces no verdict at all, and published installs don't include `src/`,
+so it never fires there.
 
 ## Commit Convention
 

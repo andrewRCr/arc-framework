@@ -158,16 +158,16 @@ it then is.
 - _Outcome:_ The retarget lands entirely in a gitignored file, so this record is the only durable evidence that the
   repair command is pointed at the one-second script — and the confirmation above the only check of it.
 
-### `[ ]` **3.2 Rewrite the contributing guide's guard description**
+### `[x]` **3.2 Rewrite the contributing guide's guard description**
 
 - _Goal:_ The guide describes unconditional refusal — no warn tier, no enumerated command set — and names the
   fast script as the fix.
 
-- _Rationale:_ It currently documents the enumerated commands as the ones that refuse and four quick-reads as
-  warning but running, so after the change it is wrong rather than merely incomplete.
-
-- _Note:_ It is the only prose surface describing the guard — the published contributing page does not mention
-  it.
+- _Outcome:_ `CONTRIBUTING.md` § Development Workflow now states unconditional refusal, names `build:fast` as the
+  fix, and carries the two facts a contributor meets in practice — the seed-write exception, and the `commit-msg`
+  hook blocking commits against a stale build. The built-bundle condition replaces the "development checkout"
+  framing, which was true but is no longer the whole discriminator. Re-confirmed that the published contributing
+  page needs nothing: it names the full build only as a build-verification gate, which stays correct.
 
 ### `[ ]` **3.3 Reach the fast script from the repository's other build surfaces**
 
