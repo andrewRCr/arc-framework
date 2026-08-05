@@ -1,8 +1,8 @@
 # Metadata: merge-readiness-control
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/merge-readiness-control` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -18,10 +18,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/455>
+- **Completed:** 2026-08-04
 
 ---
 

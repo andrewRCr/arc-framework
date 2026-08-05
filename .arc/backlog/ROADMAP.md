@@ -21,9 +21,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | integration-boundary-accuracy       | P1       | andrew | —          | —                         |
 | `Planning`    | review-checkout-lifecycle           | P1       | andrew | —          | —                         |
 | `Planning`    | session-locus-operability-hardening | P1       | andrew | —          | —                         |
-| `Active`      | staleness-guard-policy              | P1       | andrew | —          | —                         |
+| `Integrating` | staleness-guard-policy              | P1       | andrew | —          | —                         |
 | `Planning`    | stub-mint-to-launch                 | P1       | andrew | —          | —                         |
-| `Integrating` | merge-readiness-control             | P2       | andrew | —          | —                         |
 
 ## Ready
 
@@ -52,6 +51,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-preflight-scaling        | P2       | andrew | —          | decompose-core-hardening      |
 | method-conventions                 | P2       | andrew | —          | doc-conventions               |
 | naming-conventions                 | P2       | andrew | —          | doc-conventions               |
+| clearance-corpus-retirement        | P2       | andrew | —          | —                             |
 | cross-wu-coordination              | P2       | andrew | —          | —                             |
 | execution-delegation-doctrine      | P2       | andrew | —          | —                             |
 | frictionless-capture               | P2       | andrew | —          | —                             |
@@ -111,7 +111,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-integration-target       | P1       | andrew | delivery-plan-record                                        | chunked-delivery           |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
-| clearance-corpus-retirement       | P2       | andrew | merge-readiness-control                                     | —                          |
 | review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                          |
 | documentation-surface-routing     | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
 | instruction-optimization          | P3       | andrew | composable-workflows                                        | agent-context-optimization |
