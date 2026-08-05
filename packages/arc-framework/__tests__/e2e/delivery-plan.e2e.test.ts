@@ -36,8 +36,18 @@ describe("arc delivery", () => {
     const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
     expect(branchHelp).toMatchObject({ exitCode: 0 });
     expect(branchHelp.stdout).toContain("--base <commit-ish>");
-    await expect(runArc(["delivery", "compose", "--help"], repository))
-      .resolves.toMatchObject({ exitCode: 0 });
+    const composeHelp = await runArc(["delivery", "compose", "--help"], repository);
+    expect(composeHelp).toMatchObject({ exitCode: 0 });
+    expect(composeHelp.stdout).toContain("--landed-prefix <json>");
+    const malformedPrefix = await runArc([
+      "delivery", "compose", "--landed-prefix", "not-json", "--json",
+    ], repository);
+    expect(malformedPrefix.exitCode).toBe(1);
+    expect(JSON.parse(malformedPrefix.stdout)).toMatchObject({
+      command: "delivery compose",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
   });
@@ -283,6 +293,12 @@ describe("arc delivery", () => {
         expect(map).toContain('"classification": "ambient-base-absorb"');
       }
       await fillSlots(mapPath, fieldSlots(run, contributionIds));
+      const filledMap = await readFile(mapPath, "utf8");
+      const authorSlots = filledMap.slice(
+        filledMap.indexOf("<!-- arc:delivery-authoring-slots:start -->"),
+        filledMap.indexOf("<!-- arc:delivery-authoring-slots:end -->"),
+      );
+      expect(authorSlots).not.toMatch(/"status"\s*:/u);
       const compose = await runArc(["delivery", "compose", "--json"], repository);
       expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
 
@@ -348,6 +364,11 @@ describe("arc delivery", () => {
     const tasks = await readFile(join(repository, ".arc", "active", "tasks-demo.md"), "utf8");
     expect(tasks).toContain("<!-- arc:delivery-plan:start -->");
     expect(tasks).toContain("| 1 | Implementation | `implementation` | `1.1`");
+    const renderedPlan = tasks.slice(
+      tasks.indexOf("<!-- arc:delivery-plan:start -->"),
+      tasks.indexOf("<!-- arc:delivery-plan:end -->") + "<!-- arc:delivery-plan:end -->".length,
+    );
+    expect(renderedPlan).not.toContain("Status");
 
     const plans = join(common, "arc", "delivery", "plans");
     const planName = (await readdir(plans))[0];
