@@ -169,33 +169,25 @@ it then is.
   framing, which was true but is no longer the whole discriminator. Re-confirmed that the published contributing
   page needs nothing: it names the full build only as a build-verification gate, which stays correct.
 
-### `[ ]` **3.3 Reach the fast script from the repository's other build surfaces**
+### `[x]` **3.3 Reach the fast script from the repository's other build surfaces**
 
 - _Goal:_ Every path a developer takes to get a working bundle reaches the runtime-only build, so the remedy
   costs what the design assumes wherever it is met.
 
-- _Context:_ Two surfaces beyond the guard and the hook name a build — the quick reference, in its building
-  section and again in the self-hosting invocation callout, and the provisioning script that lays down the first
-  bundle in a fresh linked worktree. Neither reads the declarations the full build spends most of its time
-  emitting.
+    - `[x]` **3.3.a Record `build:fast` in the quick reference**
+        - The building section now carries both scripts and what each is for, and the self-hosting invocation
+          callout names the fast script as what makes the binary usable against a guard that refuses everything.
+        - The measured-cost table gains a `build:fast` row at **1.1s** wall clock, carrying its own measurement
+          date and marked not-a-gate. The table's own date and every existing row are untouched.
+        - The gate listing still names the full build, in both § The gates and the Tier 3 block.
 
-- _Note:_ The quick-reference edit belongs to the project copy alone. The packaged template carries no building
-  section, so nothing ships and no adopter-facing surface changes.
+    - `[x]` **3.3.b Switch linked-worktree provisioning to `build:fast`**
+        - `scripts/worktree-post-create.sh` builds through the fast script between its two installs; its header
+          records why the runtime-only build suffices there.
 
-    - `[ ]` **3.3.a Record `build:fast` in the quick reference**
-        - The building section carries both scripts and what each is for; the measured-cost table gains a row
-          from the pair recorded at Task 1.1. The self-hosting invocation callout, which tells a developer what
-          makes the binary usable, names the fast script too — it is the surface refusal is met from.
-        - That table's single date governs every row, so leave it alone and let the new row carry its own
-          measurement date. Only a materially moved figure for the full build justifies touching the existing
-          rows, and then by re-measuring the table rather than re-dating it off two samples.
-        - The gate listing keeps naming the full build. That gate is build verification and continuous
-          integration runs it, so naming the fast script there would claim a gate it does not satisfy — it emits
-          no declarations.
-
-    - `[ ]` **3.3.b Switch linked-worktree provisioning to `build:fast`**
-        - Provisioning needs the bundle and the workspace bin link that follows it; neither depends on
-          declarations, so the full build's cost buys nothing there.
+- _Outcome:_ Both edits are project-copy-only — the packaged quick-reference template carries no building section
+  or build reference at all, and the provisioning script has no packaged counterpart — so the surfaces a developer
+  meets the refusal from all name the one-second remedy without anything shipping.
 
 ## **Phase 4:** Verification
 
