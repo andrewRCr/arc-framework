@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "codex-probe-escalation-note",
+  "claimId": "e8eeac487adc1ba3c3475540bb35fc90",
+  "createdAt": "2026-08-05T23:06:01.499Z",
+  "updatedAt": "2026-08-05T23:06:01.499Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add standing Codex workspace-write guidance to AGENTS.md: escalated probe rerun when session-init silently degrades under a write-denied shared .git",
+  "branch": "chore/codex-probe-escalation-note",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
