@@ -1,8 +1,8 @@
 # Metadata: session-locus-operability-hardening
 
-| **State**  | **Owner** | **Branch**                                 | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/session-locus-operability-hardening` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                                | **Class** | **Priority** |
+| --------- | --------- | ----------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/session-locus-operability-hardening` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,13 @@
 - **Task List:** `tasks-session-locus-operability-hardening.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** create-spec finalized — detailed RFC approved, draft retired, and planning advanced to
   `generate-tasks`
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Define authority-only role derivation and topology corroboration
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Define authority-only role derivation and topology corroboration
 
 - **PR URL:** [none]
 - **Completed:** [none]
