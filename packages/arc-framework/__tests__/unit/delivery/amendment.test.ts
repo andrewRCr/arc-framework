@@ -324,6 +324,12 @@ describe("classifyDeliveryPlanAmendment", () => {
     expect(classify({
       current,
       proposed: recutSuffix,
+      bound: [firstId],
+      landed: [firstId],
+    })).toEqual({ status: "accepted" });
+    expect(classify({
+      current,
+      proposed: recutSuffix,
       bound: [firstId, secondId],
       landed: [firstId],
     })).toEqual({

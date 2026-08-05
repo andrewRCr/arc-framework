@@ -155,8 +155,10 @@ export function classifyDeliveryPlanAmendment(
       if (canonicalize(currentLandedIncidents) !== canonicalize(proposedLandedIncidents)) {
         return { status: "refused", reason: "landed-seam-changed" };
       }
-      replacementRequired = true;
-      for (const deliverableId of boundUnlandedIncidents) affected.add(deliverableId);
+      if (boundUnlandedIncidents.length > 0) {
+        replacementRequired = true;
+        for (const deliverableId of boundUnlandedIncidents) affected.add(deliverableId);
+      }
     } else if ((acceptanceChanged || incidenceChanged) && boundUnlandedIncidents.length > 0) {
       replacementRequired = true;
       for (const deliverableId of boundUnlandedIncidents) affected.add(deliverableId);
