@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Draft worked through both adversarial passes; central question reframed twice
+- **Last Completed:** Q1 settled by withdrawing its premise — Errands stop detecting session liveness
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Settle Q1's frame-disposition ballot — what lease state and frame a role receives when
-  its anchor cannot be verified; approach from fresh context
+- **Next Action:** Run the proportionality audit over its named candidate set, then re-derive scope from what
+  survives; author the reversal ADR before spec authoring
 
 - **PR URL:** [none]
 - **Completed:** [none]
