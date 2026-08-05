@@ -17,8 +17,7 @@
 - **Next Task:** Task 5.1 — Determine when a plan becomes bound (line ~713)
 - **Blockers:** [none]
 
-- **Next Action:** Reconcile the control checkout with `main`, audit member 3 against Phase 5, cut it from `main`,
-  then begin Task 5.1
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

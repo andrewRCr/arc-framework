@@ -761,67 +761,46 @@ current work.
 
 - _Outcome:_ Superseded before implementation; only the crossing-seam safety invariant remains.
 
-### `[ ]` **5.5 Make the canonical plan intent-only**
+### `[x]` **5.5 Make the canonical plan intent-only**
 
 - _Goal:_ A plan revision describes current delivery intent without copying provider position or minting identities
   that no v1 consumer addresses.
 
-    - `[ ]` **5.5.a Collapse member and seam schemas**
+    - `[x]` **5.5.a Collapse member and seam schemas**
 
-        - Remove `live` / `landed`, `assuranceSubjectId`, and the assurance-subject preimage while retaining stable
-          `deliverableId`, current semantic fingerprints, strict registration, and revision lineage.
-        - Update the exact schema-family, generated-schema, build, and artifact expectations in the same increment;
-          do not leave their removal for the end-to-end task.
-        - Build `test-first` around strict rejection of the removed fields and revalidation of current intent.
+        - Collapsed members and seams to strict intent-only schemas, removed the assurance-subject preimage from the
+          registered family, and updated schema-generation and production-artifact expectations in the same increment.
 
-    - `[ ]` **5.5.b Simplify construction and revision validation**
+    - `[x]` **5.5.b Simplify construction and revision validation**
 
-        - Re-derive every member and seam fingerprint on every revision, remove frozen-prefix and conversion logic,
-          keep plan validation independent of host or state access, and preserve original `projectId`, `workUnitId`,
-          and `entry` across successor lineage.
-        - Build `test-first` around identity stability, digest movement, and exact predecessor lineage.
+        - Construction now re-derives current member and seam fingerprints on every revision without frozen-prefix or
+          conversion logic; successor validation preserves the original `projectId`, `workUnitId`, and `entry`.
 
-    - `[ ]` **5.5.c Reconcile authoring and the task-list projection**
+    - `[x]` **5.5.c Reconcile authoring and the task-list projection**
 
-        - Remove authored status and landed-history rendering from maps, composition, fixtures, and CLI output while
-          preserving the two authoring entries and idempotent publication sequence.
+        - Removed authored status and landed-history rendering from maps, composition, fixtures, and CLI output while
+          preserving both authoring entries and the existing idempotent publication sequence.
 
-### `[ ]` **5.6 Classify binding and amendment from explicit facts**
+### `[x]` **5.6 Classify binding and amendment from explicit facts**
 
 - _Goal:_ Post-binding changes receive the smallest safe outcome from immutable revisions plus current external facts,
   without a fourth cause taxonomy or historical advisory stream.
 
-    - `[ ]` **5.6.a Define binding and classifier inputs**
+    - `[x]` **5.6.a Define binding and classifier inputs**
 
-        - Treat state existence as binding, triggered only by the first pushed member ref or opened change request;
-          local candidate construction remains unbound.
-        - Accept exact bound deliverable ids and a freshly observed plan-ordered landed prefix as caller-supplied facts.
-        - Reject unknown or duplicate bound ids and a landed sequence that is unknown, duplicate, non-contiguous, or
-          not wholly bound; freshness remains the caller's obligation.
-        - Require already-validated current and proposed successor revisions and match members only by stable
-          `deliverableId`.
+        - Added a pure classifier input over validated current and successor plans, distinct known bound ids, and a
+          distinct exact landed prefix wholly contained in those bindings; freshness remains with the caller.
 
-    - `[ ]` **5.6.b Return `accepted`, `replacement-required`, or `refused`**
+    - `[x]` **5.6.b Return `accepted`, `replacement-required`, or `refused`**
 
-        - Accept presentation changes anywhere, additive coverage on non-landed members, and structurally valid
-          unbound-suffix changes.
-        - Require replacement for moved or removed existing coverage and contract, landability, incidence, order, or
-          identity changes affecting a bound unlanded member; refuse the corresponding landed-member changes.
-        - Treat a changed semantic digest for an existing covered task or design element as a semantic change; preserve
-          every bound member's predecessor position, and classify projection changes as accepted before binding,
-          replacement before landing, and refused after landing.
-        - Return exact affected bound-unlanded ids in plan order for `replacement-required` and a closed reason for
-          `refused`; perform no publication, provider access, state write, or cause persistence.
-        - Build `test-first` from the compact policy table in `spec-delivery-plan-record.md` § Binding and plan
-          amendment rather than multiplying cases into a second taxonomy.
+        - Implemented the three-outcome policy: presentation and safe additions are accepted, bound-member semantic or
+          predecessor-prefix changes return exact plan-ordered replacement ids, and the corresponding landed changes
+          refuse under a closed reason vocabulary. The classifier has no provider, storage, or publication dependency.
 
-    - `[ ]` **5.6.c Preserve crossing-seam obligations**
+    - `[x]` **5.6.c Preserve crossing-seam obligations**
 
-        - Refuse removal of a landed-side incident or changed acceptance across the landed boundary while allowing the
-          unlanded side to re-cut through `replacement-required`.
-        - Treat seam titles as presentation. Add seam design coverage only while no incident is landed; route removal,
-          movement, semantic-digest change, acceptance change, and incidence change by the incident members' bound or
-          landed position.
+        - Crossing seams retain acceptance and every landed-side incident while the unlanded side may re-cut through
+          replacement; titles remain presentation, and seam coverage or incidence changes route by bound/landed facts.
 
 ## **Phase 6:** One delivery state and guarded operations
 
@@ -892,74 +871,80 @@ active operation; provider status and review authority are reobserved.
 
 - _Outcome:_ Superseded before implementation; Task 6.6 carries the smaller exact-result contract.
 
-### `[ ]` **6.5 Replace four delivery stores with plan plus state**
+### `[x]` **6.5 Replace four delivery stores with plan plus state**
 
 - _Goal:_ Delivery persists exactly the authored plan and one current mutable state, with stale writers refusing and
   member lookup working from any linked checkout.
 
-    - `[ ]` **6.5.a Define `DeliveryStateV1` and its codec**
+    - `[x]` **6.5.a Define `DeliveryStateV1` and its codec**
 
-        - Bind the plan's original authored subject, exact revision and digest, plan-ordered deliverable ids, optional
-          target refs, member refs, change requests, one destination head/tree set, one source base/head/tree set per
-          member, and either one active operation or none.
-        - Reject copied provider status, review verdicts, generations, and extra fields at the runtime boundary.
-        - Register the state schema `strict-current` and update exact schema-family, generated-schema, build, and
-          artifact expectations in this increment.
-        - Add a pure plan-coherence validator for subject, revision, digest, member identity, and member order; keep the
-          structural codec and store plan-agnostic.
-        - Add a plan-aware initial-binding constructor that requires one observed pushed-ref or opened-change-request
-          event and records that exact first binding; do not add a provider adapter or forbid later all-null teardown
-          state at the structural codec.
+        - Added the strict state schema and codec, exact source/destination coordinates, change-request handle, and
+          active-operation shapes; registered and generated the state family while rejecting copied authority fields.
+        - Added pure plan-coherence validation and a plan-aware constructor that creates complete ordered state only
+          from one exact pushed-ref or opened-change-request observation while permitting later all-null teardown.
 
-    - `[ ]` **6.5.b Publish state by expected revision**
+    - `[x]` **6.5.b Publish state by expected revision**
 
-        - Add one storage-agnostic state port and one repository-common `state` adapter with nullable read, idempotent
-          same-value publication, version conflict, identity checks, and corrupt-namespace refusal.
+        - Added one storage-agnostic state port and one repository-common `state` adapter with a revision envelope,
+          nullable reads, canonical same-value replay, stale-write refusal, and strict record identity validation.
 
-    - `[ ]` **6.5.c Move exact reverse lookup to state**
+    - `[x]` **6.5.c Move exact reverse lookup to state**
 
-        - Resolve an exact ref plus the head in its sole coordinate set, or an unambiguous exact head, to plan, the
-          stored original work-unit subject, and deliverable; validate but never trust an optional owning-unit pointer.
-        - Reuse the authenticated rename resolver when a caller needs the current work-unit slug.
+        - Moved exact head and ref-plus-head lookup to one locked snapshot of the state namespace, returning the plan,
+          original work-unit subject, deliverable, and state only when the match is globally unambiguous.
+        - Validated an optional owning-unit pointer after the global scan so it cannot conceal another match or corrupt
+          entry; callers that need a current slug can resolve it from the returned original subject.
 
-### `[ ]` **6.6 Guard and reconcile one active operation**
+- _Outcome:_ Plan intent and current execution state now have one store each; state publication is version checked and
+  member-checkout recovery retains global ambiguity and namespace-integrity checks without an index or extra ledger.
+
+### `[x]` **6.6 Guard and reconcile one active operation**
 
 - _Goal:_ An interrupted external mutation is either safely retryable, exactly adoptable, or explicitly blocked, with
   no competing operation and no historical evidence ledger.
 
-    - `[ ]` **6.6.a Reserve one exact operation**
+    - `[x]` **6.6.a Reserve one exact operation**
 
-        - Build `test-first` around stale state, stale plan binding, a second reservation, unknown deliverables, and
-          exact source and destination coordinates for each supported operation kind.
-        - Accept a caller-minted opaque operation id; the one-slot invariant supplies all uniqueness v1 needs.
-        - Persist generic exact `before` and `requested` target/member snapshots, using `null` for intentional absence;
-          reject unknown, duplicate, or non-plan-ordered affected members without introducing provider-specific shapes.
+        - Added a pure reservation guard that binds the caller's opaque id and generic exact `before` and `requested`
+          snapshots to the current state revision and plan digest for every supported operation kind.
+        - Refused stale state or plan binding, an occupied slot, invalid or unknown deliverables, non-plan order, and a
+          source snapshot that differs from stored coordinates without adding kind-specific payloads.
 
-    - `[ ]` **6.6.b Compare fresh pre- and post-mutation facts**
+    - `[x]` **6.6.b Compare fresh pre- and post-mutation facts**
 
-        - Return ready only when reobserved coordinates equal `before` and accept only an exact `requested` result
-          after mutation; every partial result remains blocked.
+        - Added pure pre- and post-mutation comparisons that return ready only for exact `before`, accept only exact
+          `requested`, update the affected current coordinates, and clear the reservation in the returned state.
+        - Blocked malformed, partial, extra, stale-revision, and stale-plan-bound observations without adopting them.
 
-    - `[ ]` **6.6.c Reconcile interruption**
+    - `[x]` **6.6.c Reconcile interruption**
 
-        - Adopt an exact already-applied result, permit retry after exact non-application, and leave partial, extra,
-          reordered, or otherwise ambiguous movement blocked for explicit remedy.
+        - Added interruption reconciliation that adopts and clears an exact already-applied result, returns retry for
+          exact non-application, and leaves partial, extra, reordered, or otherwise changed observations blocked.
 
-### `[ ]` **6.7 Derive current delivery position**
+- _Outcome:_ One pure operation contract now reserves against exact state, gates mutation on fresh source equality,
+  accepts only the exact requested result, and classifies interruption without a provider workflow or history ledger.
+
+### `[x]` **6.7 Derive current delivery position**
 
 - _Goal:_ Callers receive current plan position and refusal reasons from fresh facts without writable aggregate status
   or a terminal proof record.
 
-    - `[ ]` **6.7.a Derive prefix and suffix labels**
+    - `[x]` **6.7.a Derive prefix and suffix labels**
 
-        - Derive `landedPrefix`, `firstUnlanded`, and bound suffix from plan order, state bindings, and supplied host
-          facts; reject missing, duplicate, reordered, or foreign members.
+        - Added pure derivation of `landedPrefix`, `firstUnlanded`, and the currently bound unlanded suffix from exact
+          plan order, state bindings, and caller-supplied host facts.
+        - Refused malformed, missing, duplicate, reordered, or foreign members, non-prefix landing assertions, and
+          exact target or member coordinate movement.
 
-    - `[ ]` **6.7.b Block stale or ambiguous readiness**
+    - `[x]` **6.7.b Block stale or ambiguous readiness**
 
-        - Refuse when state binds a different plan revision, exact coordinates moved, an operation is unresolved, or
-          the selected member lacks the plan's relevant landability assertion.
-        - Leave checks, review settlement, provider capability, and final integration authority to their owners.
+        - Added selected-member readiness over the derived position, requiring the first unlanded member to be bound
+          and to carry the topology's relevant landability assertion.
+        - Blocked stale plan binding, exact coordinate movement, unresolved operation, unknown or out-of-position
+          selection, and unbound selection; checks, review, provider capability, and integration authority stay external.
+
+- _Outcome:_ Current position and member readiness are now caller-visible derived results only; exact state and fresh
+  facts control them, while checks, review settlement, provider capability, and final integration remain out of scope.
 
 ## **Phase 7:** Reduced-contract integration
 
@@ -1021,63 +1006,61 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
 - _Outcome:_ Superseded before implementation by derived closeout plus ordinary work-unit verification.
 
-### `[ ]` **7.5 Integrate bound amendment with state**
+### `[x]` **7.5 Integrate bound amendment with state**
 
 - _Goal:_ Composition publishes only a safe plan revision and cannot leave a stale bound state eligible for another
   operation.
 
-    - `[ ]` **7.5.a Route composition through binding and amendment classification**
+    - `[x]` **7.5.a Route composition through binding and amendment classification**
 
-        - Publish freely when no state exists; after binding, return the classifier outcome before mutation and keep
-          the authoring pair for `replacement-required` or `refused`.
-        - Depend on the completed classifier and state contracts rather than duplicating their comparisons in the
-          handler; surface the exact ordered replacement ids and closed refusal reason.
+        - Composition publishes freely without state; bound successors require fresh plan-ordered landed facts and
+          surface exact `replacement-required` ids or the classifier's closed refusal before mutation.
 
-    - `[ ]` **7.5.b Publish accepted plan then rebind state**
+    - `[x]` **7.5.b Publish accepted plan then rebind state**
 
-        - Preserve the existing candidate receipt, then publish plan, rebind state when present, render the task-list
-          projection, delete Markdown, and delete the canonical snapshot in that exact order.
-        - Record the accepted outcome plus the candidate digests and either no state or the exact classified state
-          revision and old bound-plan digest in the receipt. Use those plan-digest and state-revision tokens for
-          compare-and-swap, make retry idempotent after each durable step, and block all operations while the plan and
-          state bindings disagree.
-        - Remove the handler-owned cleanup shortcut: one composer recovery path performs rebind, render, and cleanup
-          whether Markdown remains or has already been deleted. A changed receipt-pinned state token refuses.
-        - Build failure-injection coverage for interruption after candidate receipt, plan publication, state rebind,
-          render, and each cleanup deletion.
+        - The accepted receipt pins candidate digests plus the exact old state token; one composer-owned path publishes,
+          rebinds, renders, and deletes Markdown then JSON idempotently, refusing token drift at every retry boundary.
 
-    - `[ ]` **7.5.c Retire obsolete delivery contracts**
+    - `[x]` **7.5.c Retire obsolete delivery contracts**
 
-        - Remove assignment, observation, and assurance schemas, stores, namespaces, exports, and dedicated tests;
-          move only reverse lookup and current bindings into state.
-        - Preserve global ambiguity detection in reverse lookup: an optional owning-unit pointer may be validated and
-          used as a hint but cannot suppress another matching state record.
+        - Removed the assignment, observation, assurance, generation, and subject-identity substrate; linked-worktree
+          reverse lookup now uses state and still detects global ambiguity despite an owning-unit pointer.
 
-### `[ ]` **7.6 Prove the reduced contract end to end**
+- _Outcome:_ Bound amendments now cross one receipt-first plan/state transaction boundary; plan, authoring, and the one
+  mutable state record are the complete delivery persistence surface.
+
+### `[x]` **7.6 Prove the reduced contract end to end**
 
 - _Goal:_ Both authoring entries and the new state lifecycle work from real repository coordinates, while removed
   proof-system surfaces cannot leak back through fixtures or public exports.
 
-    - `[ ]` **7.6.a Re-run both field reconstructions**
+    - `[x]` **7.6.a Re-run both field reconstructions**
 
-        - Preserve the seven-member and rolling-session fixtures, including strict ambient-merge refusal, under the
-          intent-only record.
+        - Re-ran the seven-member and rolling-session fixtures under the intent-only record, retaining strict raw-head
+          purity refusal for the reconstructed ambient base merge and sparse task attribution for field evidence.
 
-    - `[ ]` **7.6.b Exercise linked-checkout state and crash cases**
+    - `[x]` **7.6.b Exercise linked-checkout state and crash cases**
 
-        - Prove repository-common visibility, exact reverse lookup, stale-write refusal, already-applied adoption,
-          not-applied retry, and ambiguous-result blocking.
+        - Re-proved repository-common visibility, exact and globally unambiguous reverse lookup, stale-write refusal,
+          already-applied adoption, exact non-application retry, and ambiguous-result blocking from persisted state.
 
-    - `[ ]` **7.6.c Close CLI, build, and artifact coverage**
+    - `[x]` **7.6.c Close CLI, build, and artifact coverage**
 
-        - Update handler and E2E coverage, confirm the already-updated registry, build, and emitted artifacts expose only
-          the reduced schema family, and run the complete Phase 5 through 7 gate set before member cut.
-        - Interpret the status-removal requirement as delivery authoring-map and generated task-list output; do not
-          broaden it into unrelated CLI terminology.
+        - Exercised the built compose option and malformed landed-prefix refusal, confirmed the registry and production
+          artifact expose only the reduced delivery family, and scoped status-removal checks to editable author slots
+          and the generated delivery-plan section.
+
+- _Outcome:_ Both historical authoring entries and linked-checkout recovery now pass through the same intent-only plan
+  and versioned state lifecycle; public CLI, schema, and rendered artifacts contain no retired proof-system contract.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both type checks, 9,722 tests, and the
+  production build passed; one test remained intentionally skipped.
+- _Success criteria:_ 24 criteria resolved — 16 met and 8 superseded with annotations; the readiness criterion records
+  that delivery supplies exact current facts while existing check, review, and integration authorities retain closeout.
 
 ---
 
@@ -1092,7 +1075,7 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
   recorded merge/base/head triples are verified separately because strict inspection correctly refuses unproved
   base-merge purity in seven raw PR-head histories.
 
-- `[ ]` A `from-tasks` plan against a current task list and validated design inventory publishes and renders its
+- `[x]` A `from-tasks` plan against a current task list and validated design inventory publishes and renders its
   task-list projection, with an uncovered implementation task refused at composition and the verification task
   refused as a member
 
@@ -1119,11 +1102,11 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
   _Superseded:_ V1 has no assurance subject or materialization generation.
 
-- `[ ]` The starter map refuses an unfilled slot, a machine section differing from its CLI-owned canonical
+- `[x]` The starter map refuses an unfilled slot, a machine section differing from its CLI-owned canonical
   snapshot, and a reordered identity sequence, each with its typed code; no boundary slot arrives pre-filled; and
   interrupted post-publication cleanup remains safely retryable
 
-- `[ ]` After `arc rename`, authoring resolves the existing plan through the recorded rename rather than minting
+- `[x]` After `arc rename`, authoring resolves the existing plan through the recorded rename rather than minting
   a second one; `planId` and every dependent identity are unchanged; and a chained rename resolves transitively
 
 - `[~]` A plan whose `landed`-discriminated prefix disagrees with the host-derived `landedPrefix` is refused at
@@ -1133,7 +1116,7 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
   _Superseded:_ The plan-discriminant half was removed. The contribution-partition half is retained as a separate
   criterion below.
 
-- `[ ]` Position resolves from a member checkout via the reverse-lookup query, in a checkout carrying none of the
+- `[x]` Position resolves from a member checkout via the reverse-lookup query, in a checkout carrying none of the
   work unit's artifacts, without reading identity from any ref name
 
 - `[~]` No delivery record is writable into a work unit's change set, and every mutating write refuses a stale
@@ -1152,32 +1135,36 @@ readiness and uses ordinary work-unit verification; it emits no delivery-owned e
 
   _Superseded:_ V1 has no assurance store or transport contract.
 
-- `[ ]` The canonical plan and authoring input reject `live` / `landed`, assurance-subject, generation,
+- `[x]` The canonical plan and authoring input reject `live` / `landed`, assurance-subject, generation,
   review-routing, and terminal-proof fields while preserving current fingerprint and lineage validation
 
-- `[ ]` `planId` and each surviving `deliverableId` remain stable across accepted title and coverage amendments;
+- `[x]` `planId` and each surviving `deliverableId` remain stable across accepted title and coverage amendments;
   changing a bound or landed member receives `replacement-required` or `refused` according to current host facts
 
-- `[ ]` Binding begins only with the first pushed member ref or opened change request, and the amendment classifier
+- `[x]` Binding begins only with the first pushed member ref or opened change request, and the amendment classifier
   returns only `accepted`, `replacement-required`, or `refused` while preserving crossing-seam acceptance
 
-- `[ ]` A cut containing a proven ambient base merge partitions over contribution alone, while a base merge whose
+- `[x]` A cut containing a proven ambient base merge partitions over contribution alone, while a base merge whose
   merge-only delta cannot be proved empty refuses
 
-- `[ ]` No delivery record is writable into a work unit's change set; plan publication refuses a stale expected digest,
+- `[x]` No delivery record is writable into a work unit's change set; plan publication refuses a stale expected digest,
   and the single state store refuses a stale expected revision
 
-- `[ ]` One `DeliveryStateV1` binds exact member refs and change requests, supports unambiguous reverse lookup, and
+- `[x]` One `DeliveryStateV1` binds exact member refs and change requests, supports unambiguous reverse lookup, and
   permits at most one active operation without separate assignment, observation, or assurance records
 
-- `[ ]` Operation recovery adopts an exact already-applied result, permits retry after exact non-application, and
+- `[x]` Operation recovery adopts an exact already-applied result, permits retry after exact non-application, and
   blocks partial, extra, reordered, or otherwise ambiguous movement
 
-- `[ ]` Current position and closeout readiness derive from current plan, state, Git, host, check, and review inputs;
+- `[x]` Current position and closeout readiness derive from current plan, state, Git, host, check, and review inputs;
   no terminal delivery-proof record is emitted
+
+  _Deviation:_ Delivery derives exact position and member readiness from the plan, state, and fresh host facts, then
+  leaves checks, review settlement, and final integration authority with their existing owners instead of composing a
+  delivery-owned closeout verdict.
 
 - `[x]` The shipped sizing doctrine no longer contradicts the one-work-unit-one-delivery-plan invariant
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
