@@ -289,6 +289,27 @@ describe("releaseMergeLock", () => {
     expect(port.transitions).toEqual([]);
   });
 
+  it("gates a pull request someone else already readied, rather than waving it through", async () => {
+    const port = lockPort({ checkReadiness: async () => invalidEnvelope() }, false);
+
+    const result = await releaseMergeLock(transitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      payload: { reason: "readiness-failed" },
+    });
+  });
+
+  it("runs the readiness gate even when no host transition is needed", async () => {
+    const port = lockPort({}, false);
+
+    await releaseMergeLock(transitionRequest(), port);
+
+    expect(port.readinessRequests).toHaveLength(1);
+    expect(port.transitions).toEqual([]);
+  });
+
   it("blocks a lifecycle-unready candidate and carries its diagnostics", async () => {
     const port = lockPort({ checkReadiness: async () => invalidEnvelope() });
 

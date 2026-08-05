@@ -503,6 +503,13 @@ new-versus-old split.
       request after the flip and reverting the release when the head moved, with five unit tests that fail
       against the unfixed path. Exactness on release is therefore detect-and-revert, not atomic — see `ADR-031`
       § Risks.
+    - **Deviation:** a second hosted pass found the same clause failing a second way. A pull request already
+      non-draft — someone clicking Ready for review, which is the accidental act the lock exists to catch —
+      returned `no-lock / already-in-state` before the lifecycle-readiness gate ran, and the workflows continue on
+      that action. Two defects of one shape in one function argued the ordering was accidental, so the release
+      path was restructured into three explicit obligations: bind the live target at the exact head, gate the
+      candidate on readiness, then settle the lock state. `already-in-state` is now a settle-step outcome rather
+      than an early exit past the gate.
 
 - `[x]` No `arc-cleared` producer or enforcement point survives: `grep -riE "arc.cleared|arc.clearance"` over
   `packages/arc-framework/src/` and `.github/workflows/` returns nothing, and no base-branch enforcement surface

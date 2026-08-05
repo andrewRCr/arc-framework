@@ -194,22 +194,69 @@ async function transitionMergeLock(
     nextAction: "none",
     payload: { ...payload, reason },
   });
+  const refuse = (refusal: LockRefusal) => blocked(refusal.reason, refusal.message, refusal.details ?? []);
 
   const lock = await readLockMode(port, request.treeRoot);
   if (lock === "unresolved") return blocked("config-unresolved", CONFIG_UNRESOLVED_MESSAGE);
   if (lock === "none") return noLock("lock-disabled");
 
+  // A transition owes three things, in this order, and no outcome may skip one:
+  //
+  //   bind   — the live pull request is the target, open, at exactly the requested head
+  //   gate   — the candidate is lifecycle-ready (release only; locking is always safe)
+  //   settle — flip when the state differs, then confirm the flip landed on that head
+  //
+  // Each step refuses in its own terms and the orchestration below converts. The
+  // ordering is the correctness property: a pull request someone already readied
+  // still owes the gate, so "already in the requested state" is a settle-step
+  // outcome rather than an early exit past it.
+  const bound = await bindLiveTarget(request, port);
+  if ("refusal" in bound) return refuse(bound.refusal);
+
+  if (shape.gatesReadiness) {
+    const unready = await gateCandidateReadiness(request, bound.pullRequest, port);
+    if (unready !== null) return refuse(unready);
+  }
+
+  const settlement = await settleLockState(kind, shape, request, bound.pullRequest, port);
+  if ("refusal" in settlement) return refuse(settlement.refusal);
+  if (settlement.settled === "already-in-state") return noLock("already-in-state");
+
+  return { ...base, diagnostics: [], state: shape.settled, nextAction: "proceed", payload };
+}
+
+/** A step's refusal, in its own terms — the orchestration owns envelope shape. */
+interface LockRefusal {
+  reason: MergeLockBlockedReason;
+  message: string;
+  details?: readonly { code: string; message: string }[];
+}
+
+/**
+ * Bind step — resolve the live pull request and prove it is the requested target
+ * at the requested head. Everything downstream reads the returned snapshot.
+ */
+async function bindLiveTarget(
+  request: MergeLockTransitionRequest,
+  port: MergeLockPort,
+): Promise<{ pullRequest: MergeLockPullRequest } | { refusal: LockRefusal }> {
   let repository: { repository: string; defaultBranch: string };
   try {
     repository = await port.resolveRepository();
   } catch {
-    return blocked("repository-unavailable", "The authenticated repository could not be resolved.");
+    return { refusal: {
+      reason: "repository-unavailable",
+      message: "The authenticated repository could not be resolved.",
+    } };
   }
   if (
     repository.repository.toLowerCase() !== request.target.repository.toLowerCase()
     || repository.defaultBranch.trim() === ""
   ) {
-    return blocked("repository-mismatch", "The authenticated repository does not match the lock target.");
+    return { refusal: {
+      reason: "repository-mismatch",
+      message: "The authenticated repository does not match the lock target.",
+    } };
   }
 
   let pullRequest: MergeLockPullRequest;
@@ -218,89 +265,106 @@ async function transitionMergeLock(
       await port.resolvePullRequest(request.target.repository, request.target.pullRequest),
     );
   } catch {
-    return blocked("pull-request-unavailable", "The guarded pull request could not be resolved.");
+    return { refusal: {
+      reason: "pull-request-unavailable",
+      message: "The guarded pull request could not be resolved.",
+    } };
   }
   if (pullRequest.state !== "open") {
-    return blocked("pull-request-closed", "The guarded pull request is not open.");
+    return { refusal: { reason: "pull-request-closed", message: "The guarded pull request is not open." } };
   }
   if (
     pullRequest.repository.toLowerCase() !== request.target.repository.toLowerCase()
     || pullRequest.number !== request.target.pullRequest
   ) {
-    return blocked("pull-request-mismatch", "The resolved pull request does not match the lock target.");
+    return { refusal: {
+      reason: "pull-request-mismatch",
+      message: "The resolved pull request does not match the lock target.",
+    } };
   }
   if (pullRequest.headSha !== request.target.headSha) {
-    return blocked("stale-head", "The requested SHA is not the exact live pull-request head.");
+    return { refusal: {
+      reason: "stale-head",
+      message: "The requested SHA is not the exact live pull-request head.",
+    } };
   }
-  if (pullRequest.locked === shape.targetLocked) return noLock("already-in-state");
+  return { pullRequest };
+}
 
-  if (shape.gatesReadiness) {
-    const refused = await refuseUnreadyCandidate(request, pullRequest, port, blocked);
-    if (refused !== null) return refused;
-  }
+/**
+ * Settle step — flip the lock when the state differs, then confirm the flip landed
+ * on the bound head.
+ *
+ * The host offers no expected-head guard on the flip, so a push landing between the
+ * bind step and the mutation moves the lock onto a head nothing evaluated. Detection
+ * after the fact is the only guard available. Locking a newer head is still locked,
+ * so `hold` only reports; `release` has left an unevaluated head mergeable and must
+ * put the lock back.
+ */
+async function settleLockState(
+  kind: keyof typeof TRANSITIONS,
+  shape: (typeof TRANSITIONS)[keyof typeof TRANSITIONS],
+  request: MergeLockTransitionRequest,
+  pullRequest: MergeLockPullRequest,
+  port: MergeLockPort,
+): Promise<{ settled: "transitioned" | "already-in-state" } | { refusal: LockRefusal }> {
+  if (pullRequest.locked === shape.targetLocked) return { settled: "already-in-state" };
 
+  const target = {
+    repository: request.target.repository,
+    pullRequest: request.target.pullRequest,
+  };
   try {
-    await port.applyTransition({
-      repository: request.target.repository,
-      pullRequest: request.target.pullRequest,
-      transition: kind,
-    });
+    await port.applyTransition({ ...target, transition: kind });
   } catch {
-    return blocked("transition-failed", `The ${kind} transition against the pull request failed.`);
+    return { refusal: {
+      reason: "transition-failed",
+      message: `The ${kind} transition against the pull request failed.`,
+    } };
   }
 
-  // The host offers no expected-head guard on the flip, so a push landing between
-  // the preflight above and the mutation moves the lock onto a head nothing
-  // evaluated. Detection after the fact is the only guard available. Locking a
-  // newer head is still locked, so `hold` only reports; `release` has left an
-  // unevaluated head mergeable and must put the lock back.
   let settled: MergeLockPullRequest;
   try {
     settled = MergeLockPullRequestSchema.parse(
       await port.resolvePullRequest(request.target.repository, request.target.pullRequest),
     );
   } catch {
-    return blocked(
-      "pull-request-unavailable",
-      `The guarded pull request could not be re-read to confirm the ${kind} landed on the exact head.`,
-    );
+    return { refusal: {
+      reason: "pull-request-unavailable",
+      message: `The guarded pull request could not be re-read to confirm the ${kind} landed on the exact head.`,
+    } };
   }
+  if (settled.headSha === request.target.headSha) return { settled: "transitioned" };
 
-  if (settled.headSha !== request.target.headSha) {
-    if (!shape.targetLocked) {
-      try {
-        await port.applyTransition({
-          repository: request.target.repository,
-          pullRequest: request.target.pullRequest,
-          transition: "hold",
-        });
-      } catch {
-        return blocked(
-          "transition-failed",
-          "The pull request advanced during the release and the compensating hold failed.",
-          [{
-            code: "release-not-reverted",
-            message: "The pull request is released on an unevaluated head; re-lock it before any merge.",
-          }],
-        );
-      }
+  if (!shape.targetLocked) {
+    try {
+      await port.applyTransition({ ...target, transition: "hold" });
+    } catch {
+      return { refusal: {
+        reason: "transition-failed",
+        message: "The pull request advanced during the release and the compensating hold failed.",
+        details: [{
+          code: "release-not-reverted",
+          message: "The pull request is released on an unevaluated head; re-lock it before any merge.",
+        }],
+      } };
     }
-    return blocked("stale-head", `The pull request advanced during the ${kind}; its head is no longer the target.`);
   }
-
-  return { ...base, diagnostics: [], state: shape.settled, nextAction: "proceed", payload };
+  return { refusal: {
+    reason: "stale-head",
+    message: `The pull request advanced during the ${kind}; its head is no longer the target.`,
+  } };
 }
 
-async function refuseUnreadyCandidate(
+/**
+ * Gate step — refuse a candidate the lifecycle does not consider ready. Runs on the
+ * release side whether or not a host transition turns out to be needed.
+ */
+async function gateCandidateReadiness(
   request: MergeLockTransitionRequest,
   pullRequest: MergeLockPullRequest,
   port: MergeLockPort,
-  blocked: (
-    reason: MergeLockBlockedReason,
-    message: string,
-    details?: readonly { code: string; message: string }[],
-  ) => unknown,
-): Promise<unknown> {
+): Promise<LockRefusal | null> {
   // The readiness request embeds the shared live-pull-request shape, which the
   // port's widened payload would fail against — narrow before composing it.
   const live = LivePullRequestSchema.parse({
@@ -320,28 +384,31 @@ async function refuseUnreadyCandidate(
       vehicle: request.vehicle,
     }));
   } catch {
-    return blocked("readiness-failed", "The lifecycle-readiness result was unavailable or malformed.");
+    return {
+      reason: "readiness-failed",
+      message: "The lifecycle-readiness result was unavailable or malformed.",
+    };
   }
   if (
     readiness.payload.target.repository.toLowerCase() !== request.target.repository.toLowerCase()
     || readiness.payload.target.pullRequest !== request.target.pullRequest
     || readiness.payload.target.headSha !== request.target.headSha
   ) {
-    return blocked(
-      "readiness-failed",
-      "The lifecycle-readiness result belongs to a different guarded target.",
-      [{ code: "readiness-target-mismatch", message: "Readiness did not bind the exact release target." }],
-    );
+    return {
+      reason: "readiness-failed",
+      message: "The lifecycle-readiness result belongs to a different guarded target.",
+      details: [{ code: "readiness-target-mismatch", message: "Readiness did not bind the exact release target." }],
+    };
   }
   if (readiness.state !== "ready") {
-    return blocked(
-      "readiness-failed",
-      "The exact candidate is not lifecycle-ready.",
-      readiness.diagnostics.map((diagnostic) => ({
+    return {
+      reason: "readiness-failed",
+      message: "The exact candidate is not lifecycle-ready.",
+      details: readiness.diagnostics.map((diagnostic) => ({
         code: diagnostic.code,
         message: `${diagnostic.path}: ${diagnostic.message}`,
       })),
-    );
+    };
   }
   return null;
 }
