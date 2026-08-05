@@ -102,6 +102,12 @@ describe("repository command-input inventory", () => {
         schemaField: "designInventory",
       }),
       expect.objectContaining({
+        identity: "delivery compose:option.landed-prefix",
+        acquisition: "required-evidence",
+        schemaOwnership: "owned",
+        schemaField: "landedPrefix",
+      }),
+      expect.objectContaining({
         identity: "delivery compose:option.json",
         schemaOwnership: "owned",
         schemaField: "json",

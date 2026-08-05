@@ -6,19 +6,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { receiptId } from "../../src/lib/canonical/receipt-id.js";
 import {
-  DeliveryAssignmentsV1Codec,
-  type DeliveryAssignmentsV1,
-} from "../../src/lib/delivery/assignment.js";
-import { deriveMemberAssuranceSubjectId } from "../../src/lib/delivery/identity.js";
-import {
-  RepositoryDeliveryAssignmentStore,
   RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
 } from "../../src/lib/delivery/local-stores.js";
 import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "../../src/lib/delivery/plan-resolution.js";
 import type { DeliveryPlanPayloadCodec } from "../../src/lib/delivery/ports.js";
+import {
+  DeliveryStateV1Schema,
+  type DeliveryStateV1,
+} from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest, canonicalize } from "../../src/lib/kernel/index.js";
 import type { RetirementReceipt } from "../../src/lib/work-unit/retirement-authority.js";
@@ -65,35 +64,29 @@ function plan(planId: string, workUnitId: string): LinkedPlan {
   };
 }
 
-function assignment(input: {
+function state(input: {
   readonly planId: string;
   readonly workUnitId: string;
   readonly head: string;
   readonly ref: string;
   readonly label: string;
-}): DeliveryAssignmentsV1 {
+}): DeliveryStateV1 {
   const deliverableId = canonicalDigest({ deliverable: input.label });
-  const assuranceSubjectId = deriveMemberAssuranceSubjectId(input.planId, deliverableId);
-  const decoded = DeliveryAssignmentsV1Codec.decode({
+  return DeliveryStateV1Schema.parse({
     schemaVersion: 1,
-    semanticsVersion: "delivery-assignments/v1",
+    semanticsVersion: "delivery-state/v1",
     planId: input.planId,
     workUnitId: input.workUnitId,
-    host: { adapterId: "git", providerBinding: {} },
-    terminalTarget: { sourceRef: "owning-unit", destinationRef: "main" },
+    boundPlan: { planRevision: 1, planDigest: canonicalDigest({ plan: input.planId }) },
+    target: null,
     members: [{
       deliverableId,
-      assuranceSubjectId,
       ref: input.ref,
-      assignedHeadObjectId: input.head,
-      changeRequestHandles: [],
-      materializationGeneration: 1,
-      reviewRouting: { routeId: "standard", binding: {} },
+      changeRequest: null,
+      coordinates: { base: input.head, head: input.head, tree: input.head },
     }],
-    generationHighWater: [{ assuranceSubjectId, generation: 1 }],
+    activeOperation: null,
   });
-  if (decoded.status === "refused") throw new Error("invalid linked-worktree assignment fixture");
-  return decoded.value;
 }
 
 function renameReceipt(subject: string, targetSlug: string, marker: string): RetirementReceipt {
@@ -148,8 +141,8 @@ describe("delivery records from an artifact-free linked worktree", () => {
     await cleanupTempDir(primary);
   });
 
-  function assignmentStore(cwd: string): RepositoryDeliveryAssignmentStore {
-    return new RepositoryDeliveryAssignmentStore(
+  function stateStore(cwd: string): RepositoryDeliveryStateStore {
+    return new RepositoryDeliveryStateStore(
       new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
     );
   }
@@ -161,9 +154,9 @@ describe("delivery records from an artifact-free linked worktree", () => {
     );
   }
 
-  async function publishAssignment(value: DeliveryAssignmentsV1): Promise<void> {
-    const result = await assignmentStore(primary).publish(value.planId, value, 0);
-    if (result.status === "refused") throw new Error(`assignment publication refused: ${result.reason}`);
+  async function publishState(value: DeliveryStateV1): Promise<void> {
+    const result = await stateStore(primary).publish(value.planId, value, 0);
+    if (result.status === "refused") throw new Error(`state publication refused: ${result.reason}`);
   }
 
   async function publishPlan(value: LinkedPlan): Promise<void> {
@@ -180,22 +173,22 @@ describe("delivery records from an artifact-free linked worktree", () => {
   }
 
   it("resolves exact head and opaque authoritative ref selectors through Git-common storage", async () => {
-    const value = assignment({
+    const value = state({
       planId: FIRST_PLAN_ID,
       workUnitId: "owning-unit",
       head: memberHead,
       ref: "opaque-member-binding",
       label: "member-one",
     });
-    await publishAssignment(value);
-    const store = assignmentStore(member);
+    await publishState(value);
+    const store = stateStore(member);
     const expected = {
       status: "ok",
       value: {
         planId: FIRST_PLAN_ID,
         deliverableId: value.members[0]!.deliverableId,
         workUnitId: "owning-unit",
-        assignment: value,
+        state: value,
       },
     };
 
@@ -212,21 +205,21 @@ describe("delivery records from an artifact-free linked worktree", () => {
   });
 
   it("preserves ambiguous and unmatched selector results from the sibling checkout", async () => {
-    await publishAssignment(assignment({
+    await publishState(state({
       planId: FIRST_PLAN_ID,
       workUnitId: "first-unit",
       head: memberHead,
       ref: "first-binding",
       label: "first",
     }));
-    await publishAssignment(assignment({
+    await publishState(state({
       planId: SECOND_PLAN_ID,
       workUnitId: "second-unit",
       head: memberHead,
       ref: "second-binding",
       label: "second",
     }));
-    const store = assignmentStore(member);
+    const store = stateStore(member);
 
     await expect(store.resolveMember({ selector: { kind: "head", objectId: memberHead } }))
       .resolves.toEqual({ status: "refused", reason: "ambiguous-match" });

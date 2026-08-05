@@ -16,6 +16,18 @@ const DistinctOpaqueSequenceSchema = z.array(DeliveryOpaqueIdSchema).refine(
   "identity sequence must contain distinct values",
 );
 
+/** Accepted classification facts pinned before a candidate plan is published. */
+export const DeliveryAuthoringCandidateOutcomeV1Schema = z.strictObject({
+  outcome: z.literal("accepted"),
+  stateBinding: z.strictObject({
+    stateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    oldBoundPlanDigest: DeliveryCanonicalDigestSchema,
+  }).nullable(),
+});
+export type DeliveryAuthoringCandidateOutcomeV1 = z.infer<
+  typeof DeliveryAuthoringCandidateOutcomeV1Schema
+>;
+
 /** Runtime authority for the bound design inventory carried during authoring. */
 export const DeliveryAuthoringDesignInventorySchema = z.strictObject({
   artifacts: z.array(z.strictObject({
@@ -38,8 +50,7 @@ export const DeliveryAuthoringTaskInventorySchema = z.strictObject({
   verificationTaskId: ParentTaskIdSchema,
 });
 
-/** Strict canonical snapshot owned by the CLI rather than the map author. */
-export const DeliveryAuthoringSnapshotV1Schema = z.strictObject({
+const DeliveryAuthoringSnapshotV1ObjectSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("delivery-authoring/v1"),
   mapId: SlugSchema,
@@ -48,6 +59,7 @@ export const DeliveryAuthoringSnapshotV1Schema = z.strictObject({
   expectedCurrentPlanDigest: DeliveryCanonicalDigestSchema.nullable(),
   candidatePlanDigest: DeliveryCanonicalDigestSchema.nullable(),
   candidateProjectionDigest: DeliveryCanonicalDigestSchema.nullable(),
+  candidateOutcome: DeliveryAuthoringCandidateOutcomeV1Schema.nullable(),
   design: DeliveryAuthoringDesignInventorySchema,
   tasks: DeliveryAuthoringTaskInventorySchema,
   source: z.strictObject({
@@ -66,6 +78,32 @@ export const DeliveryAuthoringSnapshotV1Schema = z.strictObject({
     sourceIds: DistinctOpaqueSequenceSchema,
   }),
 });
+
+/** Immutable machine material repeated in the editable map, excluding mutable receipt fields. */
+export const DeliveryAuthoringMachineV1Schema = DeliveryAuthoringSnapshotV1ObjectSchema.omit({
+  candidatePlanDigest: true,
+  candidateProjectionDigest: true,
+  candidateOutcome: true,
+});
+
+/** Strict canonical snapshot owned by the CLI rather than the map author. */
+export const DeliveryAuthoringSnapshotV1Schema = DeliveryAuthoringSnapshotV1ObjectSchema.superRefine(
+  (snapshot, context) => {
+  const receiptParts = [
+    snapshot.candidatePlanDigest,
+    snapshot.candidateProjectionDigest,
+    snapshot.candidateOutcome,
+  ];
+  const populated = receiptParts.filter((part) => part !== null).length;
+  if (populated !== 0 && populated !== receiptParts.length) {
+    context.addIssue({
+      code: "custom",
+      message: "candidate receipt must be wholly absent or wholly populated",
+      path: ["candidateOutcome"],
+    });
+  }
+  },
+);
 export type DeliveryAuthoringSnapshotV1 = z.infer<typeof DeliveryAuthoringSnapshotV1Schema>;
 
 /** Inputs whose identity-order projection the constructor pins in the snapshot. */
@@ -99,6 +137,7 @@ export function createDeliveryAuthoringSnapshot(
     expectedCurrentPlanDigest: input.expectedCurrentPlanDigest,
     candidatePlanDigest: null,
     candidateProjectionDigest: null,
+    candidateOutcome: null,
     design,
     tasks,
     source: input.source,

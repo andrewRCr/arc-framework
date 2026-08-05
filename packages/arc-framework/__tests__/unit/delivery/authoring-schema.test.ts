@@ -55,5 +55,9 @@ describe("delivery authoring snapshot", () => {
       taskIds: ["1.1", "1.2", "2.1"],
       sourceIds: ["phase:1", "task:1.1", "task:1.2"],
     });
+    expect(DeliveryAuthoringSnapshotV1Schema.safeParse({
+      ...snapshot,
+      candidatePlanDigest: canonicalDigest({ plan: "partial-receipt" }),
+    }).success).toBe(false);
   });
 });
