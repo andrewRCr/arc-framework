@@ -8,43 +8,14 @@ import {
   type DeliveryOperationReservationRequestV1,
 } from "../../../src/lib/delivery/operation.js";
 import {
-  DeliveryStateV1Schema,
   type DeliveryOperationSnapshotV1,
-  type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const STATE_REVISION = 7;
-
-function currentState(plan: DeliveryPlanV1 = deliveryPlanFixture()): DeliveryStateV1 {
-  return DeliveryStateV1Schema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "delivery-state/v1",
-    planId: plan.planId,
-    workUnitId: plan.workUnitId,
-    boundPlan: {
-      planRevision: plan.planRevision,
-      planDigest: plan.planDigest,
-    },
-    target: {
-      ref: "refs/heads/delivery-target",
-      coordinates: { head: "1".repeat(40), tree: "2".repeat(40) },
-    },
-    members: plan.members.map((member, index) => ({
-      deliverableId: member.deliverableId,
-      ref: `refs/heads/member-${index + 1}`,
-      changeRequest: null,
-      coordinates: {
-        base: "3".repeat(40),
-        head: String(index + 4).repeat(40),
-        tree: String(index + 6).repeat(40),
-      },
-    })),
-    activeOperation: null,
-  });
-}
 
 function stateSnapshot(
   state: DeliveryStateV1,
@@ -91,7 +62,7 @@ function operationRequest(
 
 function reservedRecord() {
   const plan = deliveryPlanFixture();
-  const state = currentState(plan);
+  const state = deliveryStateFixture(plan);
   const request = operationRequest(state);
   const reserved = reserveDeliveryOperation(
     { revision: STATE_REVISION, value: state },
@@ -108,7 +79,7 @@ function reservedRecord() {
 
 function reservedAllMembersRecord() {
   const plan = deliveryPlanFixture();
-  const state = currentState(plan);
+  const state = deliveryStateFixture(plan);
   const affectedDeliverableIds = state.members.map((member) => member.deliverableId);
   const before = stateSnapshot(state, affectedDeliverableIds);
   const request = operationRequest(state, {
@@ -137,7 +108,7 @@ function reservedAllMembersRecord() {
 describe("reserveDeliveryOperation", () => {
   it("records exact snapshots for every supported operation kind", () => {
     const plan = deliveryPlanFixture();
-    const state = currentState(plan);
+    const state = deliveryStateFixture(plan);
 
     for (const kind of ["materialize", "publish", "rewrite", "land", "teardown"] as const) {
       const request = operationRequest(state, { kind });
@@ -161,7 +132,7 @@ describe("reserveDeliveryOperation", () => {
 
   it("refuses a stale state revision or stale plan binding", () => {
     const plan = deliveryPlanFixture();
-    const state = currentState(plan);
+    const state = deliveryStateFixture(plan);
     expect(reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
       plan,
@@ -181,7 +152,7 @@ describe("reserveDeliveryOperation", () => {
 
   it("refuses a second active operation", () => {
     const plan = deliveryPlanFixture();
-    const state = currentState(plan);
+    const state = deliveryStateFixture(plan);
     const first = reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
       plan,
@@ -199,7 +170,7 @@ describe("reserveDeliveryOperation", () => {
 
   it("refuses unknown, duplicate, or non-plan-ordered affected members", () => {
     const plan = deliveryPlanFixture();
-    const state = currentState(plan);
+    const state = deliveryStateFixture(plan);
     const unknown = canonicalDigest({ member: "unknown" });
     expect(reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
@@ -232,7 +203,7 @@ describe("reserveDeliveryOperation", () => {
 
   it("refuses snapshots that omit affected members or disagree with stored source coordinates", () => {
     const plan = deliveryPlanFixture();
-    const state = currentState(plan);
+    const state = deliveryStateFixture(plan);
     const request = operationRequest(state);
     expect(reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
