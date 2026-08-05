@@ -4,8 +4,9 @@
   repair is preserved by commit `5c6dd5c74`.
 - **Purpose:** Contain locus faults to the loci they belong to, and settle what an ARC session persists when it
   cannot prove its own process identity — the state the model currently has no operable answer for.
-- **State:** Draft — `rough`. Containment is settled and Q1 is settled by withdrawal of its premise; a
-  proportionality audit of the surrounding model is now the open work.
+- **State:** Draft — `maturing`. Containment is settled, Q1 is settled by withdrawal of its premise, and the
+  proportionality audit has run. It found the retained model sound and re-derived the work as four specific
+  wiring faults rather than a set of cuts.
 - **Created:** 2026-08-04
 
 ---
@@ -128,7 +129,9 @@ passes `adoptionCandidates: []` and no `selected`, and `deriveRecovery` receives
 live inputs reduce to internal actions, the primary row, and `current`. What the relation means for a read with no
 target is unspecified and must be settled rather than inherited.
 
-**2. What a session persists when it cannot prove its identity — open, and this work's centre.** See Q1.
+**2. What a session persists when it cannot prove its identity — settled by withdrawing the premise.** Errands
+stop detecting session liveness, so nothing needs recording. See Q1 and § Reversal of record. What the withdrawal
+leaves behind is not a replacement mechanism but the terminal-state gap Q6 owns.
 
 **3. Diagnosability — solved in the composer, not by attribution.** Threading an originating locus through
 `LocusStopReason` was proposed to let the guidance composer name the degraded checkout and the clearing verb. The
@@ -200,21 +203,37 @@ weakly but genuinely; `strategy-pm-composition-evolution` does not fire.
 
 ## Scope
 
-**In:** the four aggregation sites and the named relation over them; the Q1 mechanism once settled, including its
-exit paths; the audit classifying every locus and Errand refusal site against the resolved posture; the
-conformance carrier; boundary relocation; permanent fixtures covering both a session whose anchor cannot be
-verified and a role whose subject has retired.
+The audit re-derived this section. It found no mechanism to cut, so scope is no longer "the containment fix plus
+whatever trimming survives" — it is four named wiring faults plus their carriers.
 
-**Also in:** the false-`dead` liveness fix. `platform-inspectors.ts:87-89` maps `ENOENT` on `/proc/{pid}/stat` to
-`absent`, hence `dead`, while every other read failure degrades to `unknown` — so a reader that cannot see another
-process concludes it exited, on the one verdict that authorizes reap and abandon. Q1's reversal removes most of its
-blast radius but not all: WU lease clearing and teardown's occupancy check still consult liveness. The correction
-is that unreadability must never resolve toward `dead`.
+**In:**
 
-**Undecided, pending Q6's boundary call:** the retired-subject frame and the verb that clears an orphaned
-work-unit record. Also undecided is where the reap-gate correction belongs — `reconciliation.ts:294` admitting a
-null lease is a small, self-contained bug fix, and by concern-identity it may be a distinct concern from the
-frame-disposition question this unit owns, so it may want an Errand rather than riding this work unit.
+1. **Stop scope** — the four aggregation sites and the named relation over them.
+2. **The fail-toward-`dead` verdict** — promoted from a bundled fix to a first-class item; see below.
+3. **The retired-subject state and its exits** — Q6, settled, carrying what was Q5: the third subject-resolution
+   outcome and its lifecycle port, the branched-shipped offer routed to `arc teardown`, the reap gate admitting a
+   null lease, and the owning verb for `reap-stale-record` reusing teardown's proven lock-and-generation shape.
+4. **The advisory budget** — the union against Success Condition 6.
+
+Plus their carriers: the audit classifying every locus and Errand refusal site against the resolved posture; the
+conformance surface; boundary relocation; permanent fixtures covering a session whose anchor cannot be verified, a
+role whose subject has retired, and a lock whose holder is unreadable.
+
+**The fail-toward-`dead` verdict.** `platform-inspectors.ts:87-89` maps `ENOENT` on `/proc/{pid}/stat` to `absent`,
+hence `dead`, while every other read failure degrades to `unknown` — so a reader that cannot see another process
+concludes it exited, on the one verdict that authorizes destruction. This was scoped as a small self-contained fix
+riding the unit. The audit found its blast radius understated: besides WU lease clearing and teardown's occupancy
+check, the verdict reaches `acquireLocusLock`, whose stale-break path unlinks a lock the moment its holder reads
+`dead` (`lock.ts:82-98,164-169`). A PID-namespaced reader therefore breaks a **live** record lock and admits a
+second concurrent mutator — the precise hole `lease-live` is tiered `hard` to prevent. That makes the correction
+load-bearing for Success Condition 9 rather than incidental to it, and it earns Success Condition 12 below. The
+correction itself is unchanged and small: unreadability must never resolve toward `dead`.
+
+**Settled by Q6, closing the last open scope call.** The reap-gate correction rides this work unit rather than an
+Errand. It was held open on concern-identity — a null-lease gate fix reads as distinct from a frame-disposition
+question — but that split does not survive the boundary move: once the verb redeeming `reap-stale-record` is
+authored here, the gate and its redemption are one concern, and an Errand carrying half of it would be the
+anti-rider rule applied backwards.
 
 **Out:** cross-machine arbitration and backend storage evolution. Harness-recognition improvements beyond what
 landed — recognition sharpness is not what decides operability. Stop-reason attribution, whose payoff the guidance
@@ -222,12 +241,27 @@ composer already reaches locally.
 
 ### Boundary with `locus-generation-binding`
 
-**This work owns where a stop reason comes from, whether it applies to you, and what state an unverifiable-anchored
-session occupies. `locus-generation-binding` owns what authority a mutation carries and who invokes it.**
+**This work owns where a stop reason comes from, whether it applies to you, and what state a role occupies when
+its anchor cannot be verified or its subject has retired — including the verb that clears an orphaned record.
+`locus-generation-binding` owns what authority a mutation carries, generalized across every mutator.**
 
-Q1's resolution may cross that line: options (b) and (d) below both touch what generation token an exit binds to,
-which is that unit's subject. If the settled answer changes the binding, sequence with it explicitly rather than
-duplicating the contract. That unit is provisional, `P2`, `Light`, and depends on `claimed-sweep-verbs`, unlanded.
+**The boundary moved deliberately, 2026-08-05.** The earlier split assigned the record-clearing verb to that unit,
+on the reading that reap and dead-lock recovery "still lack an owning verb" — its own words. That reading assumed
+an existing driver to adopt. `applyLocusReconciliationAction` is **not in the tree**: it was built ahead, carved
+out during chunked-review triage, and preserved only at an archive tag. So deferring did not mean deferring
+adoption of something built; it meant deferring authorship indefinitely, behind a unit that is provisional, `P2`,
+and itself blocked on unlanded `claimed-sweep-verbs` — while Success Condition 4 went unmet here.
+
+Taking it costs adding a sixth mutation site to the set that unit exists to reconcile. That cost is paid down by
+**reuse rather than deferral**: `arc teardown` already performs exact-generation record removal under the record
+lock, and reap of an orphaned record is a strictly simpler instance of it — no worktree, no roster generation to
+revalidate, no projection retirement — whose action already carries the exact record bytes in its proof payload.
+The verb authored here consumes that proven shape; it does not mint a second contract.
+
+What stays with `locus-generation-binding` is unchanged and non-empty: the five carried generation gaps across
+attach, provisioning, promotion, and marker authority, the uniform capability contract over all of them, and the
+failure-injection and replay matrix. A drawn boundary is evidence about what was known when it was drawn, not a
+standing obligation; this one was redrawn against what the tree actually contains.
 
 ### Boundary with `staleness-guard-policy`
 
@@ -372,36 +406,78 @@ amendment forward.
 - **D4's session-liveness binding for transients** — "Transient roles are session-bounded." Retained as intent,
   withdrawn as mechanism: the boundary is no longer proven by a process anchor.
 
-This is a design reversal of a shipped model on the maintainer's explicit call. **An ADR is confirmed** —
-the next person to meet the lease fields needs this reasoning without reading a work-unit draft. Author it before
-spec authoring; its subject is the reversal and its three grounds, not this unit's implementation.
+This is a design reversal of a shipped model on the maintainer's explicit call. **Authored as ADR-032, "Stop
+Binding Transient Roles to Process Liveness"** (2026-08-05) — the next person to meet the lease fields needs this
+reasoning without reading a work-unit draft. Its subject is the reversal and its three grounds, not this unit's
+implementation. It is a new record rather than a supersession: no prior ADR carried the liveness binding, which
+lived only in the archived spec. The archived criteria are not edited; ADR-032 is the amendment forward, and it
+carries the advisory-file-lock option so a future reader does not re-derive the rejected alternatives.
 
 ## Proportionality audit
 
-The reversal above came from asking whether one mechanism earned its cost. The same question is owed to the rest
-of the model, scoped deliberately so the audit does not become an open-ended sweep.
+The reversal above came from asking whether one mechanism earned its cost. The same question was owed to the rest
+of the model, scoped deliberately so the audit did not become an open-ended sweep.
 
-**The spec supplies its own target set.** Its proportionality boundary names what it deliberately retained:
+**The spec supplied its own target set.** Its proportionality boundary names what it deliberately retained:
 "platform inspectors, record-scoped locks with stale-break, staged provisioning receipts, the complete-basis
-identity transaction … extend none of it without a new motivating failure." That list is the audit's subject,
-plus the machinery this session found by operating the system. Each candidate is asked one question: **what
+identity transaction … extend none of it without a new motivating failure." That list was the audit's subject,
+plus the machinery this session found by operating the system. Each candidate was asked one question: **what
 failure does this prevent, how often does that failure happen, and what does the mechanism cost when it is
 wrong?**
 
-Candidates, evidence-grounded rather than speculative:
+**Run 2026-08-05. The headline result is that nothing was cut.** The audit was framed on the expectation that
+Q1's reversal would strand machinery downstream of it. It did not. Every mechanism the spec deliberately retained
+still earns its keep, one of them is _more_ load-bearing after the reversal than before, and the single piece of
+genuinely uncalled code is worth keeping for a different reason. What the audit found instead was four wiring
+faults, which is what § Scope now derives from.
 
-- **The three platform process inspectors** (`linux-proc`, `bsd-ps`, Windows). Their sole consumer is anchor
-  liveness. If Q1's reversal holds, they may have no remaining caller.
-- **The lease itself.** D4 names its consumers as the transient frame graph, cleanup's occupancy veto, and residue
-  classification — all three downstream of liveness. Whether any survives the reversal is open.
-- **The blocking residue gate.** Distinct from liveness: even a correct dead-lease reading should not have stopped
-  an unrelated WU session cold with no decline route.
-- **The husk stamp's evidence payload** (`resultDigest`, `baseProofOid`, `expectedLifecycle`) against what
-  teardown actually reads.
-- **The two divergent occupancy predicates** (Q5) — a second reader is cost with no evident benefit.
-- **`unsupported-version` at the `hard` tier** (Q3), already suspected disproportionate.
+**Retained — no cut available:**
 
-- **The 31-section advisory surface itself**, against Success Condition 6 — the union, not each trigger.
+- **The three platform process inspectors.** The premise was wrong. `process-inspector.ts` carries two independent
+  boundaries: `ProcessAncestryInspector` / `acquireSessionAnchor` selects the _caller's own_ anchor structurally
+  from its own ancestry (fourteen call sites, nothing to do with liveness), while `ProcessInspector` /
+  `verifyProcessAnchor` verifies a _recorded_ anchor. Only the second is the sandbox-unreliable one, and it keeps
+  consumers the reversal never touches — the record-lock stale-break, WU lease clearing, teardown occupancy, and
+  rename. Removing either boundary is an adequacy regression.
+- **Staged provisioning receipts.** Not bookkeeping. Transient setup is a five-step sequence — branch, worktree,
+  ownership marker, record, lease — and the receipt is the exact-generation token its rollback reads. It is what
+  makes the undo delete _the branch this operation created_ rather than whatever now carries that name; every
+  rollback can return `generation-mismatch` and decline. When rollback itself fails, typed evidence
+  (`pending-marker`, `marker-record-mismatch`, `PrimaryCheckoutResidueError`) reports the residue rather than
+  abandoning it silently. Removing it means a failed transient open leaves phantom worktrees and branches, or
+  deletes a sibling's — the exact hand-cleanup dead end this unit is chartered against.
+- **The complete-basis identity transaction.** Every v3 identity mutation reads the whole tree from local and
+  remote, reconciles per key from their common basis, applies one transform, CAS-moves and pushes, and refuses
+  rather than reading a transport failure as absence (D8, read whole this pass). **The reversal raises its value
+  rather than lowering it:** Q1 removed liveness and rested "parked or abandoned?" entirely on the identity
+  record's own three-valued state, so this is now the _sole_ authority for that question. D8 also records the
+  heavier machinery already declined — no winner-arbitration, no retry-adoption, no persisted sweep plan — so the
+  restraint the audit would have recommended is already applied.
+- **The husk stamp's evidence payload.** All three fields are read by the destructive teardown path:
+  `resultDigest` and `baseProofOid` gate the retirement driver's digest and ancestry proofs, `expectedLifecycle`
+  gates teardown's lifecycle-location match. This falls inside the audit's own out-of-scope rule below.
+
+**Kept, but by decision rather than by having a caller:**
+
+- **`classifyLeaseAuthority` and its `LeaseAuthority` vocabulary** (`self` / `foreign` / `dead` / `unverifiable`)
+  have no production consumer at all — only their own definition, a rationale comment, and unit assertions, which
+  is why they read as live code. That is the exact authority vocabulary the post-reversal model needs, and it is
+  cheaper to keep than to re-derive. **Retained as a building block**, on the maintainer's call. If the resolved
+  design does not consume it by spec authoring, it is `unsupported-machinery` and goes.
+
+**Reclassified rather than cut:**
+
+- **The two divergent occupancy predicates** are not a tie between two readers. The roster's work-unit predicate
+  requires a resolved `active/meta-{key}.md`; teardown's matches on role key alone. Shipping _moves_ that meta by
+  design, so the roster reader conflates "the subject is identifiable" with "the subject is still active" and
+  answers `subject-unresolved` for a work unit that completed correctly. The repair is the missing state, after
+  which the predicates agree without ranking. **Q5 is therefore folded into Q6** rather than surviving as its own
+  question.
+- **`unsupported-version` at the `hard` tier** is already contained. It reaches reconciliation through the
+  relevance-filtered row path, not the unfiltered `derivationStops` set, so Design center 1 does most of Q3's
+  work. What remains is smaller and cheaper than assumed — see Q3.
+- **The blocking residue gate** and **the 31-section advisory surface** stand as written; the counts re-verified
+  exactly (31 conditional sections, 3 rate-limited). Both are wiring faults in § Scope, not cut candidates.
 
 **Out of scope for the audit:** anything whose removal would weaken a destructive path's guard set. The
 proportionality principle cuts ceremony, never guards — Success Condition 9 is unchanged.
@@ -413,6 +489,77 @@ unnecessary, which is the same reasoning error that produced the overbuild, run 
 worked example: it names crash detection and dual occupancy as the losses, shows both were already unavailable
 under a sandboxed harness, and records the residual cost rather than claiming there is none.
 
+The audit's own result is the second worked example, in the opposite direction. Applying that discipline to six
+candidates returned no removal at all — each named a failure it prevents that is neither impossible nor covered
+elsewhere. A proportionality pass is not obliged to find something to cut, and one that manufactures a cut to
+justify having run is the failure mode this discipline exists to prevent.
+
+## Q6 — what state does a role occupy when its subject has legitimately retired?
+
+**Settled 2026-08-05, carrying what was Q5.** The reader had no subject-completed state, so a shipped WU's role
+and a corrupted one projected identically. Tracing it end to end decomposed the question into two distinct states
+with different mechanics, found one cause behind the observed symptom, and found a second cause the draft had not
+seen at all.
+
+**Two states, not one.**
+
+- **Checkout registered, subject shipped.** The row is an ordinary managed role. Subject resolution looks for
+  `.arc/active/meta-{slug}.md`, does not find it because shipping relocated it, and answers `subject-unresolved`.
+- **Checkout removed, record orphaned.** The row becomes `stale-record`. A `reap-stale-record` internal action
+  already exists for exactly this, and never fires: its gate demands `lease?.state === "dead"` while a live WU
+  role's lease is `null`, and the action has no CLI verb bound to it.
+
+**The observed symptom has one cause, four hops.** `subject-unresolved` maps to an authority reason
+(`trusted-row.ts:147`), which makes the row untrusted, which makes `locusOccupancyAtPath` return `manual` despite
+a null lease, which the sweep converts into the `locus-unverified` veto that blocks its own cleanup offer. No
+branching, one root. Supplying a retired state inverts the whole chain: trusted row, null lease, occupancy
+`clear`, veto lifts, and — per that function's own contract — "the surface's own removal predicates decide alone."
+Those predicates then pass for the ordinary case (marker present, tree clean, merged, user surfaces safe →
+`removable`), so the offer does appear.
+
+**The exit already exists and already carries the discipline.** `arc teardown` removes the locus record as well as
+the worktree (`teardown-locus.ts:86-95`), under the record lock, matching exact bytes, with the roster generation
+revalidated under lock and a hard refusal if anything moved. So the ordinary lifecycle closes with no new verb at
+all: ship and archive → retired subject → veto lifts → sweep offers teardown → teardown clears worktree and record
+together.
+
+**The bug was manufacturing its own residue class.** State 2 arises when a worktree is removed by hand before
+teardown runs — which is exactly what the 2026-08-05 incident did, _because the veto made teardown unofferable_.
+Removing the cause shrinks the residual obligation from "shipping strands records" to "someone ran a raw worktree
+removal first."
+
+**The second cause, found while tracing the offer.** Even with the veto lifted, the sweep's `branched` arm renders
+a `removable` decision as an interlock-gated `git worktree remove` — raw Git, which takes the checkout and leaves
+the record. Only the `husk` arm offers `arc teardown`. So the branched-shipped path _produces_ the orphan it is
+trying to clean, and `locus-classification.ts` names the reason in its own header: these are "legacy session
+cleanup surfaces," written before the locus record existed. A branched worktree carrying a work-unit role must
+offer `arc teardown {name}`; the raw removal is correct only for a branched worktree with no role, which is the
+genuinely external case.
+
+**Resolved shape:**
+
+1. **A retired subject is a third subject-resolution outcome** — `resolved` / `retired` / `unresolved` — not a
+   fifth frame value. The frame answers "can a session enter here," and a retired role's answer is the same "no"
+   that `idle` already carries; what changed is _why_, which is the resolution question. A new frame value would
+   touch every consumer that switches on frame for a distinction none of them act on.
+2. **The retired fact arrives through an injected port.** The project already resolves any slug's lifecycle
+   position across `backlog/provisional/`, `backlog/planned/`, `active/`, and `completed/` — one filesystem scan
+   over tens of files, built fresh per call, with `isShipped` sitting on it and `completed-index.ts` describing
+   itself as "the one place that knows what a shipped-WU archive looks like." The locus reader currently
+   duplicates a fragment of that and calls the miss corruption. It cannot import the index directly: `lib/locus`
+   imports nothing from `lib/work-unit` today while `lib/work-unit` imports from `lib/locus` in four places, so a
+   direct reach inverts the dependency. A port matches the reader's established idiom (`SubjectMetaIO`,
+   `createLocusEvidenceIO`) and keeps the module free of the cycle.
+3. **The branched-shipped offer routes to `arc teardown`** when a work-unit role is present at the path.
+4. **The reap gate admits a null lease**, and **the reap action gets its owning verb here** — see the boundary
+   note below.
+
+**Cost, named rather than minimized.** Reading a retired subject means the locus reader now depends on lifecycle
+state it previously did not consult, so a malformed or unreadable archive tree becomes a new input to subject
+resolution. The port's failure policy must therefore be settled explicitly at spec time: an unreadable lifecycle
+scan resolves to `unresolved`, never to `retired`, since inventing a retirement is the one direction that
+authorizes cleanup.
+
 ## Other open questions
 
 **Q2 — Does the guidance composer's output need a register?** A degraded sibling is advisory while a degraded
@@ -422,6 +569,13 @@ current locus gates. `operational-advisory-registers` may own that vocabulary; c
 when a record cannot be identified. A current record read by an out-of-date checkout is different: the record is
 fine, the reader is behind, and the remedy is freshening the reader.
 
+_Narrowed by the audit._ Two findings shrink it. First, it is already contained: it reaches reconciliation through
+the relevance-filtered row path rather than the unfiltered `derivationStops` set, so containment resolves the
+blast-radius half without touching the tier. Second, the reader can already tell which party is stale —
+`record-store.ts:68` returns the offending `schemaVersion` alongside the verdict, and nothing downstream consumes
+it. So the remaining question is narrower than a tier change: whether saying "your checkout is behind; freshen it"
+from evidence already in hand is sufficient, leaving `hard` correct for the genuinely unidentifiable record.
+
 **Q4 — Which anchor comparisons must change, and under what precondition?** Of seven raw deep-equality
 comparisons, the false-`self` hazard is genuine at `mutation.ts:227` (release/heartbeat generation guard) and
 `:424` (ownership assertion). At `rename-locus.ts:340` a liveness check already guarantees a process anchor; at
@@ -429,25 +583,7 @@ comparisons, the false-`self` hazard is genuine at `mutation.ts:227` (release/he
 `mutation.ts:136` are idempotency checks rather than release authority. Under option (d) these become the
 mechanism rather than a precondition.
 
-**Q5 — Which occupancy predicate governs when two current readers disagree about one checkout?** Observed
-2026-08-05 on a shipped work unit's husk. `classifyTeardownOccupancy` (`teardown-occupancy.ts`) resolves a
-work-unit role by role key alone and returned `clear`; the roster (`roster.ts:207-219`) additionally requires a
-live `.arc/active/meta-{key}.md`, which shipping had archived, so it returned `subject-unresolved` and
-`locusOccupancyAtPath` degraded to `manual`. The session-init sweep therefore vetoed its own cleanup offer
-(`locus-unverified`) for a checkout `arc teardown` would have accepted. Neither reader is stale — this is not Q3's
-version skew but two concurrent predicates over one fact, with the stricter one gating the **offer** and the
-looser gating the **act**. Containment's named fault-domain authority may need a companion: one named occupancy
-predicate. Whether the fix is to converge the predicates or to rank them is open.
-
-**Q6 — What frame does a role occupy when its subject has legitimately retired?** The reader has no
-subject-completed state, so a shipped WU's role and a corrupted one project identically. This is Q1's question
-asked from the other end — Q1 asks what a role receives when its anchor cannot be verified, Q6 when its subject
-ended correctly — and both terminate in the same place: no verb clears the record. `arc locus resolve` is
-transient-only by construction (`deriveRecovery` filters `role.kind !== "work-unit"`; the CLI help reads "one
-exact transient generation"), `locus release` needs a lease, reconciliation's reap needs a dead lease, and
-`teardown` needs a still-registered checkout. Removing a husk by hand — an ordinary act — closes the last of
-those. **Scope is open:** the frame disposition reads as this unit's, being Q1's shape; the clearing verb may be
-`locus-generation-binding`'s. Settle the boundary before authoring either.
+Q5 and Q6 were settled 2026-08-05 and have moved to § Q6 below.
 
 ## Resolved design questions
 
@@ -495,10 +631,19 @@ attribution was their mechanical prerequisite was wrong.
     that names the boundary rather than a rewritten test.
 11. Multi-session fixtures prove fault containment and unchanged exclusivity together, covering both a session
     whose anchor cannot be verified and a role whose subject has retired.
+12. **Unreadable process state never resolves toward destruction.** A reader that cannot observe another process
+    reaches `unknown`, never `dead`, on every path that consults liveness — including the record lock's
+    stale-break, where the current mapping lets a sandboxed reader delete a live lock and admit a second
+    concurrent mutator. Demonstrated by a fixture whose process table is unreadable and whose live lock survives
+    intact, not by asserting the mapping was corrected. Added by the proportionality audit; condition 9 covers
+    guard sets that exist, and this covers a guard that inverts.
 
 ## Continuity
 
-**Readiness:** `rough`. Containment is settled and well-evidenced; Q1 is open and is the work's centre.
+**Readiness:** `maturing`. Containment is settled and well-evidenced, Q1 is settled by withdrawal, the
+proportionality audit has run and re-derived scope, and Q6 is settled with its boundary moved and its last scope
+call closed. What remains is the advisory budget's mechanism, Q2's register, and the narrowed Q3 — none of them
+fundamentals. The reversal ADR is still to author.
 
 **Resolved this pass:**
 
@@ -527,6 +672,45 @@ carries none of the selective-quotation risk the two adversarial passes exposed:
 - Scope calls deliberately left open rather than assumed: Q6's frame-versus-verb boundary against
   `locus-generation-binding`, and whether the reap-gate fix rides this unit or an Errand.
 
+**Resolved by the proportionality audit, 2026-08-05** — source-grounded against consumers rather than against the
+spec's description of them:
+
+- The audit cut nothing. All four mechanisms the spec deliberately retained still earn their keep, and the
+  complete-basis identity transaction is _more_ load-bearing after Q1's reversal than before it, since the
+  identity record is now the sole authority for "parked or abandoned."
+- The platform-inspector premise was wrong: anchor selection and anchor verification are two independent
+  boundaries, and both retain consumers the reversal never reaches.
+- The fail-toward-`dead` verdict reaches the record lock's stale-break, so a sandboxed reader can delete a live
+  lock. Promoted from a bundled fix to a scoped item with its own success condition (12).
+- Q5 folds into Q6: the two occupancy predicates ask different questions rather than disagreeing about one, and
+  the missing retired state is the single root cause.
+- Q3 narrows twice — already relevance-contained, and the evidence distinguishing a stale reader from an
+  unidentifiable record is already returned and unconsumed.
+- `classifyLeaseAuthority` has no production consumer; retained on the maintainer's call as the post-reversal
+  authority vocabulary, with a decision point at spec authoring rather than an open-ended reprieve.
+- The advisory counts re-verified exactly: 31 conditional sections, 3 rate-limited.
+
+**Audit coverage, stated rather than implied:** the six named candidates and all four spec-retained mechanisms
+were assessed. D8 was read whole this pass, so it is safe to quote; D1–D3, D5–D7, and D9–D12 have still not been,
+and the handoff caveat about selective quotation stands for that range.
+
+**Resolved by the Q6 trace, 2026-08-05** — every hop reproduced against source, and the two findings that changed
+the shape were both invisible to the framing that preceded them:
+
+- Q6 decomposes into two states with different mechanics, and the observed symptom has a single four-hop cause
+  ending in the sweep's own veto.
+- `arc teardown` already clears the locus record under lock with exact-generation matching, so the ordinary
+  lifecycle needs no new verb — which is what made the boundary move affordable rather than merely preferable.
+- The veto was manufacturing the orphan class it appeared to be reporting; removing the cause shrinks the
+  residual obligation rather than only relabelling it.
+- The sweep's branched arm offers raw `git worktree remove` for a shipped WU, orphaning the record a second way,
+  independent of the veto. Not previously in the draft at all; found only by tracing past the point the veto
+  lifts.
+- The retired fact is already computed by the lifecycle index and sits behind a module boundary the reader cannot
+  cross directly, which is what selects a port over an import.
+- The boundary with `locus-generation-binding` moved on evidence: the driver its charter assumed is not in the
+  tree, so deferring meant deferring authorship rather than adoption.
+
 **Adversarial review:** both passes run at the readiness boundary (`Class: Heavy`, cap 2 — the loop is exhausted).
 Pass one returned seven findings (two `blocker`, three `major`, two `minor`); pass two returned six (three
 `blocker`, one `major`, two `minor`). Every finding across both passes was verified against source and confirmed;
@@ -539,9 +723,11 @@ shrank at each step — attribution dropped, one storage option refuted, contain
 stop-versus-offer decision. The cap is now reached with the reframed Q1 live, so the loop stops here by the
 method's own rule and the question goes to the stage interlock rather than a third pass.
 
-**Next:** run the proportionality audit against its named candidate set, then re-derive scope from what survives.
-Q1 is settled by withdrawal, which changes the work's shape rather than shrinking it: the question is no longer
-what a degraded session records, but how much of the model was load-bearing on a mechanism now removed. Confirm
-the ADR before spec authoring. Q4 is very likely moot — it concerns anchor comparisons — and Q6 is now the larger
-of the two remaining terminal-state questions, since it never depended on liveness at all. Containment's
-stop-versus-offer split still stands; Q2, Q3, and Q5 fold into the audit.
+**Next:** the remaining smaller questions — the advisory budget's mechanism (whether the daily nudge markers
+survive or transition tracking replaces them), Q2's register against `operational-advisory-registers`, and the
+narrowed Q3. Q4 is very likely moot — it concerns anchor comparisons. Containment's stop-versus-offer split still
+stands. The reversal ADR is authored (ADR-032), so the last blocker on spec authoring is cleared.
+
+The unit's shape is now stable: four wiring faults over a substrate the audit found sound, with Q6's exits
+settled and the boundary redrawn against what the tree contains. What the spec must still resolve rather than
+inherit is the lifecycle port's failure policy (§ Q6, closing note) and the advisory budget's discriminator.
