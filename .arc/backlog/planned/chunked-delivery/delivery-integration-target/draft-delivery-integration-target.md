@@ -4,10 +4,25 @@
   non-goals, and hardening-admission boundary.
 - **Purpose:** Execute the work-unit integration-target projection by landing planned members sequentially on a
   private target, then hand the completed contribution to the existing work-unit integration lifecycle.
-- **Position:** Depends only on `delivery-plan-record`. It is the first executable consumer of the plan and state
-  contract; stack-specific behavior remains in `delivery-stack-topology`.
+- **Position:** Demand-held. Depends on `delivery-plan-record`; expected to reuse the projection-neutral landing core
+  built by `delivery-stack-topology`. Stack-specific behavior remains in `delivery-stack-topology`.
 
 ---
+
+## Activation threshold
+
+Do not activate this work unit from architectural completeness alone. Neither recorded field delivery used a private
+integration target, and this projection's terminal merge still carries the whole contribution — it relieves member
+review attention without shrinking the final pull request. Activation requires a concrete concern that:
+
+- is correctly one work unit rather than a decomposition candidate;
+- produces a change set too large for one effective review; and
+- cannot leave the protected base green and semantically coherent in increments, so it fails stack eligibility.
+
+Record the concern, why decomposition and the stack projection cannot serve it, and the expected member shape before
+beginning design. An activated design must not answer the terminal pull request's size by minting aggregate review
+machinery; that pressure routes to `delivery-review-cardinality`'s own activation threshold. If no qualifying concern
+arrives, the correct disposition is to retire or retain this draft without implementation.
 
 ## Goals
 
