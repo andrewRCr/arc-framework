@@ -2,10 +2,10 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity`
-- **Depends On:** [none]
+- **Depends On:** `decompose-transition-record`
 
 - **Origin:** [internal]
 - **Design:** `draft-decompose-candidate-abandon.md`
@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Hold until `decompose-transition-record` settles — its cut retires the exactness gates behind
+  all four recorded refusal states. Confirm which stranded states survive, then re-scope or retire.
 
 - **PR URL:** [none]
 - **Completed:** [none]
