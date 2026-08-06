@@ -30,43 +30,25 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 - _Outcome:_ Authority selection, registered-topology observation, and positive primary-safety composition now have
   separate typed boundaries; the new modules remain dormant and unexported from production entry points.
 
-### `[ ]` **1.2 Define the dormant future occupancy-marker projection**
+### `[x]` **1.2 Define the dormant future occupancy-marker projection**
 
 - _Goal:_ A pure internal projection represents future primary and spawned transient occupancy while the selected
   marker parser, writers, and on-disk contract remain untouched in Deliverable 1.
 
-- _Context:_ The accepted runtime lifecycle activates only inside Deliverable 2.
+    - `[x]` **1.2.a Define a separate internal occupancy projection**
+        - Added an isolated pure codec for spawned, primary, work-unit, identity-backed, and exact partial-Errand
+          occupancy without changing or exporting the live marker implementation.
 
-    - `[ ]` **1.2.a Define a separate internal occupancy projection**
-        - Add `src/lib/locus/occupancy-marker.ts` with `spawnedByArc`, exact `createdFor`, optional
-          `parentCheckoutPath`, and the all-or-none `originEntry` / `originEntrySourceDigest` pair.
-        - Define identity-free partial ownership exactly as
-          `{ kind: "partial-errand", slug, claimId: null }`; retain non-null claim IDs on identity-backed `errand`,
-          `groom`, and `housekeep` subjects.
-        - Leave `WorktreeMarker`, `isWorktreeMarker()`, ownership decoding, serialization, generation operations,
-          production exports, and writers unchanged.
+    - `[x]` **1.2.b Encode the primary, spawned, and ownership invariants**
+        - Enforced closed ownership shapes, complete partial-origin binding, primary/spawn topology agreement, and
+          rejection of legacy claimless Errands and unrelated lifecycle fields.
 
-    - `[ ]` **1.2.b Encode the primary, spawned, and ownership invariants**
-        - Structurally permit `spawnedByArc: false` only for transient occupancy; require physical-primary topology at
-          the authority-composition boundary and grant the shape no removal provenance.
-        - Keep transient-only parent/origin fields out of WU ownership and reject promotion-staging or terminal-state
-          additions.
-        - Treat existing husk, rename, decomposition, and legacy marker evidence as outside this occupancy projection.
-          A legacy claimless `{ kind: "errand", slug }` marker remains legacy/manual-only and cannot alias the explicit
-          partial-Errand subject; do not erase, reinterpret, or replace the live marker superset.
+    - `[x]` **1.2.c Add pure future transition projections**
+        - Added immutable pending-to-ready, terminal removal, spawned-to-WU replacement, and primary-marker removal
+          projections with no production I/O or call sites.
 
-    - `[ ]` **1.2.c Add pure future transition projections**
-        - Model pending-to-ready, terminal removal intent, spawned-to-WU conversion, and primary-marker removal without
-          wiring any helper into production allocation, promotion, or exit paths.
-
-    - Build `test-first` (one behavior at a time):
-        - Parse and round-trip valid future spawned, primary, warm-parent, and partial-origin fixtures.
-        - Round-trip the exact partial-Errand discriminant with `claimId: null` and reject a legacy claimless Errand as
-          current partial ownership.
-        - Reject invalid primary/spawn combinations, incomplete origin pairs, and transient fields on WU ownership.
-        - Preserve spawn provenance and remove transient-only fields in pure conversion fixtures.
-        - Run the existing live marker and producer suites unchanged; refuse the task if any selected marker source,
-          serialized output, or writer behavior changes.
+- _Outcome:_ The accepted future occupancy contract is executable and regression-proven as a dormant projection;
+  selected live marker parsing, serialization, generation operations, writers, and producer behavior remain unchanged.
 
 ### `[ ]` **1.3 Add the default-preserving active-extension input seam**
 
