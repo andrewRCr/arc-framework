@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** `create-spec` — `outline` spec finalized and approved; draft retired, `Class` persisted
+- **Last Completed:** `generate-tasks` — task list finalized and adversarially reviewed; work unit activated
 - **Next Task:** Task 1.1 — Delivery member lookup port contract (line ~16)
 - **Blockers:** [none]
 
