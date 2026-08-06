@@ -291,7 +291,7 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("in-place");
-    expect(renamed.stdout).toContain("Marker:    skipped");
+    expect(renamed.stdout).toContain("Checkout:  unmanaged");
     expect(renamed.stdout).toContain("Worktree:  unchanged");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/new-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");

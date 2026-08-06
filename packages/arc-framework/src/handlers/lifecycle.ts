@@ -964,7 +964,7 @@ export async function handleRename(
   }
   if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
   if (result.shape === "in-place") {
-    lines.push("Marker:    skipped; in-place work units carry no ownership marker");
+    lines.push("Checkout:  unmanaged; no ownership marker was minted");
     lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
   }
   if (result.worktree !== undefined) {
@@ -988,10 +988,10 @@ export async function handleRename(
       lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
     } else if (result.worktree.status === "deferred-self-move") {
       lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
-      if (result.marker === "renamed") {
+      if (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent") {
         lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
       } else {
-        lines.push(`Marker:    ${result.marker ?? "unavailable"}; no move action projected`);
+        lines.push(`Checkout:  ${result.checkout?.kind ?? "unavailable"}; no move action projected`);
       }
     } else {
       lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");

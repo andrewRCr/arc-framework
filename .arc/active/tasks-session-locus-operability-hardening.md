@@ -427,10 +427,9 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
 - _Goal:_ Worktree rename preserves serialization, exact race detection, physical move ordering, and rollback using
   topology plus marker generation rather than records or lease liveness.
 
-    - `[ ]` **3.4.a Re-key rename snapshots and refusals**
-        - Replace locus-record snapshots with pre/post worktree topology and exact marker generation.
-        - Retain role-conflict, roster-changed, and generation-changed refusal families; remove lease-live and
-          lease-unknown outcomes.
+    - `[x]` **3.4.a Re-key rename snapshots and refusals**
+        - Replaced record and lease snapshots with exact pre/under-lock/post topology plus marker generations,
+          retaining only role-conflict, roster-changed, and generation-changed refusals.
 
     - `[ ]` **3.4.b Preserve the physical move transaction**
         - Reuse the existing advisory-lock primitive at the single canonical
@@ -443,9 +442,9 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
           re-deriving topology, marker generation, subject, and exact `HEAD` under the mutex.
         - Do not sweep sibling markers to rewrite stale warm-parent paths.
 
-    - `[ ]` **3.4.c Migrate rename callers and results**
-        - Update work-unit rename identity, verbs, handlers, and integration composition to consume marker/topology
-          results with no compatibility wrapper around `rename-locus.ts`.
+    - `[x]` **3.4.c Migrate rename callers and results**
+        - Replaced `rename-locus.ts` with the marker/topology transaction and migrated rename coordinates, verb,
+          command, handler, result, integration, E2E, and unit consumers without a compatibility surface.
 
     - Build `test-first` (one behavior at a time):
         - Inject roster and marker-generation races at each transaction boundary.

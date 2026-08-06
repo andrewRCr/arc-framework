@@ -587,53 +587,6 @@ export async function writeWorktreeOwnershipMarker(
   });
 }
 
-/** Result of rewriting a work-unit ownership marker for a rename. */
-export type RenameWorktreeOwnershipMarkerResult =
-  | { status: "renamed" }
-  | { status: "absent" }
-  | { status: "foreign" }
-  | { status: "malformed"; message: string; path: string };
-
-/**
- * Rewrite both work-unit identity projections in an existing ARC marker.
- * Missing markers represent in-place or externally managed worktrees and skip;
- * malformed or foreign ownership is never repaired or appropriated.
- *
- * @param cwd - Registered worktree root
- * @param names - Expected old identity and replacement identity
- * @returns Whether ownership changed or why it was left untouched
- */
-export async function renameWorktreeOwnershipMarker(
-  cwd: string,
-  names: { oldWuName: string; newWuName: string },
-  options: { renameMovePending?: WorktreeRenameMovePending | null } = {},
-): Promise<RenameWorktreeOwnershipMarkerResult> {
-  const current = await readWorktreeMarker(cwd);
-  if (current.kind === "absent") return { status: "absent" };
-  if (current.kind === "malformed") return { status: "malformed", message: current.message, path: current.path };
-
-  const createdForName = current.marker.createdFor?.kind === "work-unit"
-    ? current.marker.createdFor.name
-    : undefined;
-  const ownedName = current.marker.wuName ?? createdForName;
-  const ownedByRename = ownedName === names.oldWuName || ownedName === names.newWuName;
-  if (!ownedByRename || current.marker.provisioning !== undefined) return { status: "foreign" };
-
-  const pending = options.renameMovePending;
-  const markerBase = { ...current.marker };
-  if (pending !== undefined) delete markerBase.renameMovePending;
-  const renamed: WorktreeMarker = {
-    ...markerBase,
-    wuName: names.newWuName,
-    createdFor: { kind: "work-unit", name: names.newWuName },
-    ...(pending === null || pending === undefined || current.marker.husk !== undefined
-      ? {}
-      : { renameMovePending: pending }),
-  };
-  await writeWorktreeMarker(cwd, renamed);
-  return { status: "renamed" };
-}
-
 /**
  * Add terminal husk proof to an existing valid ownership marker.
  *
@@ -726,6 +679,30 @@ export async function replaceWorktreeMarkerGeneration(
   expectedBytes: Buffer,
   marker: WorktreeMarker,
 ): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, serializeWorktreeMarker(marker));
+}
+
+/** Restore one exact valid worktree-marker byte generation after an exact comparison. */
+export async function restoreWorktreeMarkerGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+  restoreBytes: Buffer,
+): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(restoreBytes.toString("utf8"));
+  } catch {
+    throw new Error("Cannot restore malformed worktree marker bytes");
+  }
+  if (!isWorktreeMarker(parsed)) throw new Error("Cannot restore invalid worktree marker bytes");
+  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, restoreBytes);
+}
+
+async function replaceWorktreeMarkerBytesGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+  replacementBytes: Buffer,
+): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
   const path = resolveWorktreeMarkerPath(cwd);
   let current: Buffer;
   try {
@@ -735,16 +712,15 @@ export async function replaceWorktreeMarkerGeneration(
     throw error;
   }
   if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
-  const bytes = serializeWorktreeMarker(marker);
   const temporaryPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
   let published = false;
   try {
-    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+    await writeFile(temporaryPath, replacementBytes, { flag: "wx", mode: 0o600 });
     const recheck = await readFile(path);
     if (!recheck.equals(expectedBytes)) return { kind: "generation-mismatch" };
     await rename(temporaryPath, path);
     published = true;
-    return { kind: "replaced", bytes };
+    return { kind: "replaced", bytes: replacementBytes };
   } finally {
     if (!published) await unlink(temporaryPath).catch(() => undefined);
   }
