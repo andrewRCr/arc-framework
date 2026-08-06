@@ -33,6 +33,23 @@ export {
 } from "./identity-record.js";
 
 export {
+  authorizeErrandTerminal,
+  type AuthorizeErrandTerminalOptions,
+  type ErrandTerminalAuthority,
+  type ErrandTerminalOperation,
+  type ErrandTerminalSubject,
+} from "./terminal-authority.js";
+
+export {
+  createErrandTerminalResult,
+  ErrandTerminalGenerationSchema,
+  ErrandTerminalOperationSchema,
+  ErrandTerminalResultSchema,
+  ErrandTerminalSubjectSchema,
+  type ErrandTerminalResult,
+} from "./terminal-result.js";
+
+export {
   readTransientIdentitySnapshot,
   readTransientIdentitySnapshotAtRef,
   type IdentitySnapshotIO,

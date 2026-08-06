@@ -340,14 +340,10 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
   foreign acts use the same exact-generation confirmation contract promotion can consume without overriding evidence
   failures.
 
-    - `[ ]` **3.1.a Define common terminal authority and confirmation results**
-        - Replace lease/`selfHeld` authority with cwd-to-marker/identity subject agreement.
-        - Return a typed `confirmation-required` refusal carrying the named operation, exact subject, checkout path,
-          generation, destructive effect, and CLI-composed retry when cwd is foreign.
-        - Use canonical `errand-v1/<slug>/<claim-id>` for identity-backed generations and the exact marker-generation
-          digest for identity-free partial settlement.
-        - Accept one request-local `confirmForeignGeneration` input, require its exact match after fresh evidence
-          derivation, and add no durable token, store, or generic authorization framework.
+    - `[x]` **3.1.a Define common terminal authority and confirmation results**
+        - Added a derived-row authority contract and strict terminal result schema: exact current subjects proceed,
+          foreign acts bind to one request-local generation, unrelated malformed rows stay contained, and incomplete
+          shared identity bases fail identity-backed mutations closed.
 
     - `[ ]` **3.1.b Move each terminal runtime off locus state**
         - Rework close, abandon, leave, and partial-settle paths around identity transactions or marker origin binding.
