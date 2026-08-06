@@ -79,6 +79,31 @@ export function deriveDerivedLocusSessionGuidance(
   });
 }
 
+/** Precompose recovery narration, including non-blocking stale-parent fallback. */
+export function deriveRecoveryLocusSessionGuidance(
+  probe: DerivedLocusProbe,
+): LocusSessionGuidance {
+  const guidance = deriveDerivedLocusSessionGuidance(probe);
+  if (!probe.ok || guidance.kind !== "ready" || probe.value.entering.kind !== "selected") {
+    return guidance;
+  }
+  const entering = probe.value.entering.row;
+  if (entering.kind !== "transient" || entering.parentCheckoutPath === null) return guidance;
+  const parentMatches = probe.value.roster.filter((row) =>
+    row.checkout.path === entering.parentCheckoutPath
+    && row.kind === "work-unit"
+    && row.subject.kind === "work-unit"
+    && row.context !== null
+    && row.context.workflow !== null
+    && row.diagnostics.length === 0);
+  if (parentMatches.length === 1) return guidance;
+  const basePath = probe.value.primaryAvailability.checkoutPath ?? "the configured base checkout";
+  return LocusSessionGuidanceSchema.parse({
+    ...guidance,
+    recovery: `Parent checkout ${entering.parentCheckoutPath} was not found; return to base ${basePath}.`,
+  });
+}
+
 /**
  * Precompose stable session and cleanup narration without adding authority.
  *

@@ -27,7 +27,7 @@ const execFileAsync = promisify(execFile);
 
 interface SessionInitEnvelope {
   mode: string;
-  locusState?: { ok: boolean };
+  derivedLocusState?: { ok: boolean };
   recoveryFrame?: {
     ok: boolean;
     value?: { kind: string; workflow: string | null; sessionType: string | null };
@@ -402,15 +402,21 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.locusState?.ok).toBe(true);
+    expect(envelope.derivedLocusState?.ok).toBe(true);
+    expect(envelope).not.toHaveProperty("locusState");
     expect(envelope.recoveryFrame).toMatchObject({
       ok: true,
-      value: { kind: "none", workflow: null, sessionType: null },
+      value: {
+        kind: "resolved",
+        subject: { kind: "work-unit", key: "foo" },
+        workflow: "process-task-loop",
+        sessionType: "execution",
+      },
     });
     expect(envelope.loadSet?.ok).toBe(true);
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
-      .not.toContain(".arc/active/meta-foo.md");
-    expect(envelope.taskCursor).toBeUndefined();
+      .toContain(".arc/active/meta-foo.md");
+    expect(envelope.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
   });
 
   it("preserves terminal task evidence for an integrating work unit", async () => {
@@ -504,15 +510,12 @@ describe("session-init E2E — sessionType across type variants", () => {
       join(".arc", "user", "test-user", ".internal", "compaction-seed.json"),
     );
     expect(report.verdict).toMatchObject({
-      status: "stop",
-      ready: false,
-      stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-drift" }),
-        expect.objectContaining({ kind: "task-cursor-unresolved" }),
-      ]),
+      status: "ready",
+      ready: true,
+      stopReasons: [],
       taskCursor: {
-        match: false,
-        actual: null,
+        match: true,
+        actual: expect.objectContaining({ status: "found" }),
       },
     });
   });

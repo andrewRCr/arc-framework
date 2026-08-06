@@ -106,12 +106,12 @@ describe("PreCompact locus anchor", () => {
           status: "ready",
           locusHint: {
             expected: {
-              recordId: opened.recordId,
-              leaseId: opened.leaseId,
+              checkoutPath: repository,
+              parentCheckoutPath: null,
             },
             actual: {
-              recordId: opened.recordId,
-              leaseId: opened.leaseId,
+              checkoutPath: repository,
+              parentCheckoutPath: null,
             },
             match: true,
           },
@@ -124,11 +124,12 @@ describe("PreCompact locus anchor", () => {
       )) as Record<string, unknown>;
       expect(seed).toMatchObject({
         locus: {
-          recordId: opened.recordId,
-          leaseId: opened.leaseId,
+          checkoutPath: repository,
+          parentCheckoutPath: null,
         },
       });
       expect(seed).not.toHaveProperty("locusAbsence");
+      expect(JSON.stringify(seed.locus)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);

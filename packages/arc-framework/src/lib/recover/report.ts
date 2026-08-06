@@ -6,7 +6,6 @@ import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js
 import {
   COMPACTION_SEED_LOCUS_HINT_FIELDS,
   COMPACTION_SEED_SCHEMA_VERSION,
-  CompactionSeedLocusAbsenceSchema,
   CompactionSeedLocusHintSchema,
 } from "../compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "./audit.js";
@@ -21,8 +20,7 @@ export const RecoverAuditSeedSummarySchema = z.strictObject({
   head: NON_EMPTY_TEXT,
   branch: NON_EMPTY_TEXT,
   sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
-  locus: CompactionSeedLocusHintSchema.optional(),
-  locusAbsence: CompactionSeedLocusAbsenceSchema.optional(),
+  locus: CompactionSeedLocusHintSchema,
 });
 
 const RecoverAuditReportObjectSchema = z.strictObject({
@@ -63,7 +61,7 @@ export const RecoverAuditReportSchema = RecoverAuditReportObjectSchema.superRefi
       message: "ready reports require a seed summary",
     });
   }
-  if (value.verdict.status === "ready" && value.seed?.locus !== undefined) {
+  if (value.verdict.status === "ready" && value.seed !== null) {
     const comparison = value.verdict.locusHint;
     if (comparison === null) {
       context.addIssue({

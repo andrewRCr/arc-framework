@@ -85,7 +85,10 @@ describe("locus methodology contracts", () => {
       expect(handoff).toContain("If the composite call itself fails, surface the failure and stop.");
       expect(handoff).not.toContain("Probe failure fallback");
 
-      expect(recovery).toContain("required `recover.locusState` is the sole topology/frame read");
+      expect(recovery).toContain("required `recover.derivedLocusState` is the sole topology/frame read");
+      expect(recovery).toContain("checkout path and optional\nmarker-parent path");
+      expect(recovery).toContain("emits a return-to-base diagnostic");
+      expect(recovery).not.toMatch(/recordId|leaseId|sessionHomePath|activeLocusPath/u);
       expect(recovery).toContain("dispatching only on `report.recover.recoveryFrame.value`");
     }
   });

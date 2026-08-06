@@ -420,11 +420,11 @@ export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
 export interface SessionRecoverProbeResult {
   mode: "recover";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
-  /** CLI-precomposed narration derived from the same locus probe. */
+  /** Exact entering-checkout projection used for recovery selection. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
+  /** CLI-precomposed narration derived from the same entering frame. */
   locusGuidance: LocusSessionGuidance;
-  /** Reader-owned active frame and governing workflow selected from `locusState`. */
+  /** Reader-owned subject frame and governing workflow selected from the entering checkout. */
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
@@ -755,8 +755,11 @@ export interface SessionInitProbes extends SessionSharedProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
-  /** Resolve the shared, network-free machine-local locus interpretation. */
-  locusState: (identity: string) => Promise<LocusStateV1>;
+  /** Resolve the entering checkout with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;

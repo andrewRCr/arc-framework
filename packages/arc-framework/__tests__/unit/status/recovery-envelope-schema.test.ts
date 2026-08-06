@@ -21,48 +21,7 @@ const READY_PATH = join(
 
 function recovery(): Record<string, unknown> {
   const report = JSON.parse(readFileSync(READY_PATH, "utf8")) as { recover: Record<string, unknown> };
-  const value = structuredClone(report.recover);
-  value.locusState = {
-    ok: true,
-    value: {
-      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
-      current: { kind: "none" },
-      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
-      inFlightIdentities: [],
-      recovery: { kind: "none" },
-      reconciliation: { kind: "clean" },
-    },
-  };
-  value.recoveryFrame = {
-    ok: true,
-    value: {
-      kind: "resolved",
-      workflow: "process-task-loop",
-      sessionType: "execution",
-      activeRecordId: `sha256:${"a".repeat(64)}`,
-      parentRecordId: null,
-    },
-  };
-  value.loadSet = {
-    ok: true,
-    value: {
-      manifestVersion: 1,
-      entries: [
-        { path: ".arc/active/tasks-active-widget.md", readMode: { kind: "partial-strategic" } },
-      ],
-    },
-  };
-  value.taskCursor = {
-    ok: true,
-    value: {
-      status: "found",
-      cursor: {
-        section: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
-        leaf: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
-      },
-    },
-  };
-  return value;
+  return structuredClone(report.recover);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -92,7 +51,7 @@ describe("lean recovery envelope schema", () => {
     "config",
     "active",
     "releaseRouting",
-    "locusState",
+    "derivedLocusState",
     "locusGuidance",
     "recoveryFrame",
     "loadSet",

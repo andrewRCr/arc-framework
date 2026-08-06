@@ -69,10 +69,9 @@ import {
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import {
   deriveDerivedLocusSessionGuidance,
-  deriveLocusSessionGuidance,
+  deriveRecoveryLocusSessionGuidance,
 } from "../../lib/locus/session-guidance.js";
 import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
-import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 import {
   deriveHandoffLocusPlan,
   type HandoffLocusPlan,
@@ -90,10 +89,6 @@ import {
 } from "../../lib/kernel/index.js";
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
-}
-
-function checkoutPathForIdentity(state: LocusStateV1, identity: WorktreeIdentity): string {
-  return identity.kind === "linked" ? identity.path : state.roster.primaryPath;
 }
 
 /**
@@ -523,7 +518,6 @@ export async function runRecoverStatus(
   const { identity, role, probes, workingMemoryPath } = options;
 
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
-  const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
@@ -532,7 +526,6 @@ export async function runRecoverStatus(
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
   const [
-    locusState,
     worktree,
     worktreeIdentitySlot,
     dirty,
@@ -541,7 +534,6 @@ export async function runRecoverStatus(
     active,
     releaseRouting,
   ] = await Promise.all([
-    locusStateTask,
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
@@ -551,9 +543,15 @@ export async function runRecoverStatus(
     releaseRoutingTask,
   ]);
 
-  // Physical checkout identity stays a Result through authority selection: which
-  // row recovery resolves depends on it, so an unestablished identity fails the
-  // derived slots rather than standing in a synthetic primary.
+  const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
+
+  // Physical checkout identity remains an independent informational slot; the
+  // derived frame already selected the exact entering checkout.
   const enrichedWorktree = worktree.andThen((value) =>
     worktreeIdentitySlot.map((identityValue) => ({
       ...value,
@@ -561,20 +559,14 @@ export async function runRecoverStatus(
     } satisfies SessionRecoverWorktreeValue)));
 
   const deriveContext = fromThrowable(
-    (input: {
-      state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"];
-      worktreeIdentity: WorktreeIdentity;
-    }) => deriveRecoveryLocusContext({
-      state: input.state,
-      checkoutPath: checkoutPathForIdentity(input.state, input.worktreeIdentity),
+    (state: DerivedLocusFrame) => deriveRecoveryLocusContext({
+      state,
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
-  const recoveryContext = locusState.andThen((state) => worktreeIdentitySlot.andThen(
-    (identityValue) => deriveContext({ state, worktreeIdentity: identityValue }),
-  ));
+  const recoveryContext = derivedLocusState.andThen(deriveContext);
   const recoveryFrame = recoveryContext.map((value) => value.frame);
   const loadSet = recoveryContext.map((value) => value.loadSet);
   const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
@@ -584,8 +576,8 @@ export async function runRecoverStatus(
   return {
     mode: "recover",
     identity: buildIdentity(identity, role),
-    locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveRecoveryLocusSessionGuidance(toProbe(derivedLocusState)),
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),

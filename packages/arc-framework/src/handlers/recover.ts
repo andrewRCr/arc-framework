@@ -238,8 +238,7 @@ function seedSummary(
     head: seed.head,
     branch: seed.branch,
     sessionType: seed.sessionType,
-    ...(seed.locus === undefined ? {} : { locus: seed.locus }),
-    ...(seed.locusAbsence === undefined ? {} : { locusAbsence: seed.locusAbsence }),
+    locus: seed.locus,
   };
 }
 

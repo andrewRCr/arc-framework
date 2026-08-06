@@ -30,10 +30,10 @@ Require `mode: "recover-audit"`. If the command fails or the report is malformed
 surface that recovery cannot establish live state, and ask for direction.
 Do not manually reconstruct a seed from the harness summary.
 
-The report's required `recover.locusState` is the sole topology/frame read. `recover.recoveryFrame`,
+The report's required `recover.derivedLocusState` is the sole topology/frame read. `recover.recoveryFrame`,
 `recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
-than resolving worktrees, branches, metas, or parent edges again. `recover.locusGuidance` carries CLI-composed
-recovery/refusal narration.
+than resolving worktrees, branches, metas, identities, or parent edges again. `recover.locusGuidance` carries
+CLI-composed recovery/refusal narration.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
@@ -42,19 +42,19 @@ Use them only as context after the deterministic recovery checks and harness sum
 ## 2. Interpret The Verdict
 
 If `verdict.status === "stop"`, surface the structured reason details and stop. The CLI has already
-checked seed presence/schema, identity, fresh recovery state, load-set drift, dirty path-set drift,
-and non-planning task-cursor drift when a cursor exists.
-For session locus, lease, parent, path, or optional seed-hint failures, also render the matching
-`report.recover.locusGuidance` text verbatim. Do not choose another row or repair the graph in workflow prose.
+checked seed presence/schema, identity, the fresh entering-checkout frame, load-set drift, dirty path-set drift,
+and non-planning task-cursor drift when a cursor exists. For an unresolved entering checkout or identity-basis
+failure, also render the matching `report.recover.locusGuidance` text verbatim. Do not choose another row or repair
+the graph in workflow prose.
 
 If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
 of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
 
-Require `verdict.locusHint.match === true`. A pre-model seed with no `locus` hint remains valid when the fresh frame
-itself resolves; when the hint is present, the audit has already compared its session-home path, active session
-locus path, record, lease, and parent tokens against the fresh reader. Any mismatch is a stop, never an invitation
-to fall back to branch or harness-summary inference.
+Require `verdict.locusHint.match === true`. The audit has already compared the seed's checkout path and optional
+marker-parent path against the fresh entering row and recovery frame. Any mismatch is a stop, never an invitation
+to fall back to branch or harness-summary inference. An unavailable marker parent is not a mismatch: recovery keeps
+the marker path as context, emits a return-to-base diagnostic, and omits parent WU session context.
 
 Use the **fresh** report surfaces for context loading:
 
@@ -168,9 +168,9 @@ Resume without a routine prompt by dispatching only on `report.recover.recoveryF
 
 - `kind: "resolved"` — continue its `workflow`, already included in the fresh load set. A transient workflow
   (`run-errand`, `draft-design`, or `drain-inbox`) resumes before its optional parent WU; when it leaves/closes,
-  re-run the recovery probe and continue from the freshly derived parent WU or record-free between-WUs frame.
+  re-run the recovery probe and continue from the freshly derived parent WU or between-WUs frame.
   Never persist or reconstruct a third frame.
-- `kind: "none"` — the reader proves a record-free between-WUs frame. Use the harness summary only for the
+- `kind: "none"` — the reader proves a between-WUs frame for the current checkout. Use the harness summary only for the
   volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
 For a resolved WU, `workflow` selects execution, planning, or integration directly. For a resolved transient, the
 subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and

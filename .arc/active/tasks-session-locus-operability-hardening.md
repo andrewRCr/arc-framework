@@ -273,35 +273,27 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
   Errand settlement and WU workflow/session context; sibling state is diagnostic only and process exit writes no
   generic occupancy state.
 
-### `[ ]` **2.5 Reduce compaction seeds and recovery to checkout and marker-parent facts**
+### `[x]` **2.5 Reduce compaction seeds and recovery to checkout and marker-parent facts**
 
 - _Goal:_ Compaction persists only the active checkout and optional marker parent, and recovery freshly derives the
   same current-checkout frame while degrading an unavailable parent to base.
 
-    - `[ ]` **2.5.a Reduce the compaction seed locus hint**
-        - Retain the active checkout path and optional transient parent path.
-        - Remove `recordId`, `leaseId`, duplicate `sessionHomePath`, and checkout-path authority digests.
-        - Change the unpublished seed schema in place and regenerate existing development seeds; add no compatibility
-          reader or migration.
+    - `[x]` **2.5.a Reduce the compaction seed locus hint**
+        - Seeds now retain only the selected checkout path and optional marker parent; the unpublished schema and
+          development seed were updated in place with no compatibility reader or migration.
 
-    - `[ ]` **2.5.b Rebuild recovery from the shared derived projection**
-        - Re-read the current checkout, derive the same role/load-set frame as session init, and resolve an optional
-          parent checkout independently.
-        - Convert a missing, moved, or unreadable parent to a non-blocking return-to-base diagnostic.
-        - Limit the recovered result to exact subject, current checkout path, optional marker parent, and the shared
-          workflow/session projection; update package-source recovery workflow prose and sync its self-hosting copy.
+    - `[x]` **2.5.b Rebuild recovery from the shared derived projection**
+        - Recovery now projects exact subject, checkout, optional marker parent, workflow, session, load set, and cursor
+          from the shared entering frame; an unavailable parent falls back to base with CLI-composed guidance, and the
+          package/self-hosted workflows consume that contract.
 
-    - `[ ]` **2.5.c Remove residue and lease-generation recovery stops**
-        - Delete repository-wide record residue scans and lease/session-home mismatch paths while preserving dirty
-          path-set, load-set, task-cursor, identity-basis, and other real recovery checks.
+    - `[x]` **2.5.c Remove residue and lease-generation recovery stops**
+        - Recovery auditing now compares checkout and marker-parent facts while retaining repository-root, branch/HEAD,
+          dirty path-set, load-set, task-cursor, identity-basis, and other live-state checks; sibling residue is ignored.
 
-    - Build `test-first` (one behavior at a time):
-        - Seeds contain checkout path plus optional parent and no retired hint fields.
-        - Recovery and session init produce the same role and WU load set from identical facts.
-        - A stale parent recovers to base and a malformed sibling remains irrelevant.
-        - An identity root error leaves non-identity-backed WU recovery healthy while an identity-backed transient
-          requiring that record remains unresolved.
-        - Shared identity-basis invalidity stays mutation-fatal without becoming sibling-checkout residue.
+- _Outcome:_ Compaction recovery now re-establishes the same checkout-local authority as session initialization;
+  transient parent loss degrades to an explicit base return while unrelated sibling and retired lease state cannot
+  block an otherwise healthy recovery.
 
 ### `[ ]` **2.6 Flip the public frame and delete the legacy session projection**
 

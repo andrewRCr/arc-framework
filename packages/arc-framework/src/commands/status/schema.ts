@@ -673,7 +673,7 @@ export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema
 const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
-  locusState: probe(LocusStateV1Schema),
+  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
