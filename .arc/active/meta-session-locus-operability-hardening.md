@@ -1,8 +1,8 @@
 # Metadata: session-locus-operability-hardening
 
-| **State** | **Owner** | **Branch**                                | **Class** | **Priority** |
-| --------- | --------- | ----------------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/session-locus-operability-hardening` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                                | **Class** | **Priority** |
+| ------------- | --------- | ----------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/session-locus-operability-hardening` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning finalized and work unit activated — implementation begins at Task 1.1
-- **Next Task:** Task 1.1 — Define authority-only role derivation and topology corroboration
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
