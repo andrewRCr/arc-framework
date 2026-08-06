@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** `draft-design` — local-lane target composition settled; draft formalization-ready
+- **Last Completed:** `create-spec` — `outline` spec finalized and approved; draft retired, `Class` persisted
 - **Next Task:** [none]
 - **Blockers:** [none]
 
