@@ -28,17 +28,25 @@ const dormantModules = [
 
 const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], readonly string[]>> = {
   "src/lib/locus/derived-lifecycle-evidence.ts": [
+    "src/lib/locus/derived-evidence.ts",
     "src/lib/locus/derived-reader.ts",
     "src/lib/locus/derived-roster.ts",
   ],
-  "src/lib/locus/derived-reader.ts": [],
+  "src/lib/locus/derived-reader.ts": [
+    "src/handlers/derived-locus-state-probe.ts",
+    "src/lib/locus/derived-evidence.ts",
+  ],
   "src/lib/locus/derived-roster.ts": ["src/lib/locus/derived-reader.ts"],
-  "src/lib/locus/occupancy-marker.ts": ["src/lib/locus/derived-lifecycle-evidence.ts"],
+  "src/lib/locus/occupancy-marker.ts": [
+    "src/lib/locus/derived-evidence.ts",
+    "src/lib/locus/derived-lifecycle-evidence.ts",
+  ],
   "src/lib/locus/role-corroboration.ts": [
     "src/lib/locus/derived-roster.ts",
     "src/lib/locus/role-topology.ts",
   ],
   "src/lib/locus/role-derivation.ts": [
+    "src/lib/locus/derived-evidence.ts",
     "src/lib/locus/derived-lifecycle-evidence.ts",
     "src/lib/locus/derived-reader.ts",
     "src/lib/locus/derived-roster.ts",
@@ -53,7 +61,10 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",
     "__tests__/unit/locus/derived-roster.test.ts",
   ],
-  "src/lib/locus/derived-reader.ts": ["__tests__/unit/locus/derived-reader.test.ts"],
+  "src/lib/locus/derived-reader.ts": [
+    "__tests__/unit/locus/derived-evidence.test.ts",
+    "__tests__/unit/locus/derived-reader.test.ts",
+  ],
   "src/lib/locus/derived-roster.ts": ["__tests__/unit/locus/derived-roster.test.ts"],
   "src/lib/locus/occupancy-marker.ts": [
     "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",
@@ -80,16 +91,14 @@ interface ModuleReference {
 
 const referenceCache = new Map<"src" | "__tests__", readonly ModuleReference[]>();
 
-describe("Phase 1 dormant locus foundation", () => {
-  it("has a closed exact incoming graph with tests as its only outside consumers", () => {
+describe("dormant locus foundation acceptance and activation", () => {
+  it("limits production activation to the exact derived adapter and probe paths", () => {
     const sourceReferences = referencesUnder("src");
     const testReferences = referencesUnder("__tests__");
 
     for (const target of dormantModules) {
       expect(incoming(sourceReferences, target), target).toEqual(expectedSourceIncoming[target]);
       expect(incoming(testReferences, target), target).toEqual(expectedTestIncoming[target]);
-      expect(expectedSourceIncoming[target].every((consumer) =>
-        dormantModules.includes(consumer as (typeof dormantModules)[number])), target).toBe(true);
     }
   });
 
@@ -97,6 +106,26 @@ describe("Phase 1 dormant locus foundation", () => {
     const dynamic = referencesUnder("src")
       .filter((reference) => reference.kind === "dynamic" && isDormant(reference.target));
     expect(dynamic).toEqual([]);
+  });
+
+  it("keeps the activated reader boundary free of legacy record, lock, and process authority", () => {
+    const activated = new Set([
+      "src/handlers/derived-locus-state-probe.ts",
+      "src/lib/locus/derived-evidence.ts",
+      "src/lib/locus/derived-reader.ts",
+    ]);
+    const forbidden = new Set([
+      "src/lib/locus/evidence.ts",
+      "src/lib/locus/lock.ts",
+      "src/lib/locus/process-inspector.ts",
+      "src/lib/locus/reader.ts",
+      "src/lib/locus/record-store.ts",
+      "src/lib/locus/root.ts",
+      "src/lib/locus/roster.ts",
+      "src/lib/locus/state.ts",
+    ]);
+    expect(referencesUnder("src").filter((reference) =>
+      activated.has(reference.consumer) && forbidden.has(reference.target))).toEqual([]);
   });
 
   it("records seven additive modules and one exact helper edit at the acceptance head", () => {

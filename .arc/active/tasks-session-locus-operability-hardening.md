@@ -219,46 +219,25 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
 - _Outcome:_ One exact-generation marker lifecycle now covers every live transient allocation and exit shape while
   retaining only the explicitly bounded, unshipped record compatibility needed by the remaining migration sequence.
 
-### `[ ]` **2.2 Activate the entering-checkout frame beside the legacy internal frame**
+### `[x]` **2.2 Activate the entering-checkout frame beside the legacy internal frame**
 
 - _Goal:_ The shared probe can select a freshly derived entering-checkout row for migrated consumers without breaking
   the still-unmigrated handoff and recovery callers or letting malformed siblings create repository-wide stops.
 
-    - `[ ]` **2.2.a Activate the production evidence adapter and derived reader**
-        - Resolve cwd canonically against one registered-worktree snapshot and supply bounded marker, lifecycle,
-          identity, and corroboration facts.
-        - Replace record-first projection without adding a record fallback to the derived reader.
-        - Return root identity-read failure as identity discovery evidence rather than a top-level roster failure;
-          reserve mutation-fatal complete-basis validation for the identity transaction boundary.
+    - `[x]` **2.2.a Activate the production evidence adapter and derived reader**
+        - Added a worktree-first adapter for exact marker generations, lifecycle metadata, completed evidence,
+          primary safety, and identity discovery with checkout-local read containment and no record fallback.
 
-    - `[ ]` **2.2.b Introduce the derived frame in buildable migration order**
-        - Add the checkout-row roster, canonical-path `entering` selector, `primaryAvailability`, and identity
-          discovery beside the legacy internal `LocusStateV1` projection.
-        - Derive the existing top-level `active` convenience slot from the entering WU row without a second meta,
-          lifecycle, or load-set read; identity absence affects only identity-backed transient derivation.
-        - Apply the same containment to identity root errors and unrelated complete-snapshot diagnostics: only the
-          identity discovery surface and affected identity-backed rows degrade.
-        - Keep the legacy frame internal only until Tasks 2.3-2.5 move its consumers; add no fallback from the derived
-          reader and expose no compatibility promise.
+    - `[x]` **2.2.b Introduce the derived frame in buildable migration order**
+        - Added canonical entering-row selection, primary availability, identity discovery, and a WU-only active
+          convenience derived from the same row while leaving the legacy internal frame buildable.
 
-    - `[ ]` **2.2.c Route new entry reads without retiring old consumer inputs yet**
-        - Make the derived entering frame available to status/session-init migration without session anchors, process
-          inspection, attach-and-reprobe, adoption, dead-lock, or repository-wide record-residue resolution.
-        - Replace the Deliverable 1 negative production-reachability assertion with a narrow positive source contract
-          enumerating the permitted production adapter, reader, schema, and dependency-factory paths; reject every
-          unlisted production path without adding a general dependency analyzer.
-        - Keep user-facing diagnostics and offers precomposed by the CLI; defer final public field removal and attach
-          dispatch deletion to Task 2.6 after all internal consumers move.
+    - `[x]` **2.2.c Route new entry reads without retiring old consumer inputs yet**
+        - Added a dedicated production probe and replaced dormant reachability with an exact activation contract that
+          permits only the derived adapter/reader seam and rejects legacy record, lock, and process dependencies.
 
-    - Build `test-first` (one behavior at a time):
-        - A healthy cwd resolves while arbitrary sibling rows are malformed, stale, retired, or mid-lifecycle.
-        - An unresolved current checkout stops only the operation that requires its facts.
-        - Free primary requires primary topology, configured base, clean worktree, and marker absence.
-        - The probe performs no record-root, lock, or process inspection.
-        - New entering-frame consumers perform no record-root, lock, or process read while legacy-only internal
-          consumer inputs remain buildable until their assigned migration tasks.
-        - WU, free-primary, unmanaged, and partial-marker entry remain healthy under an identity root error; an
-          identity-backed transient requiring the unavailable record becomes unresolved.
+- _Outcome:_ Migrated consumers can now select one canonical entering row from a contained repository roster while
+  unrelated malformed or identity-dependent sibling evidence remains localized to the rows that require it.
 
 ### `[ ]` **2.3 Collapse session guidance and load-set projection onto the selected checkout**
 
