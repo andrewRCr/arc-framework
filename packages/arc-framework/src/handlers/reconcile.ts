@@ -19,9 +19,10 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+  transitionRecordGitExec,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import {
   runCurrentWuReconcile,
@@ -155,8 +156,8 @@ export async function handleWuReconcile(
 
   const result = await runCurrentWuReconcile({
     index,
-    queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-    enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+    queryDisposition: (input) => queryGitTransitionDisposition(transitionRecordGitExec(exec), "HEAD", input),
+    enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionRecordGitExec(exec), "HEAD"),
     listArtifactPaths: (slug, metaPath) =>
       listCurrentWuArtifactPaths(slug, metaPath, (path) => readdir(resolve(cwd, path))),
     readFile: (path) => io.readFile(resolve(cwd, path)),

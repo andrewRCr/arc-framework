@@ -39,7 +39,6 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       ]),
       queryDisposition: () => Promise.resolve({
         status: "unique",
-        evidenceQuality: "reachable",
         receiptId: "sha256:receipt",
         disposition: { kind: "retarget", targetSlug: "successor" },
       }),

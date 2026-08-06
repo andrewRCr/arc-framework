@@ -5,13 +5,20 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { enumerateReferenceTransitions } from "../../src/lib/work-unit/reference-reconcile.js";
+import {
+  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
+} from "../../src/lib/work-unit/reference-reconcile.js";
 import { queryRetirementDisposition } from "../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   validateRetirementRecordEnumeration,
   type RetirementRecordEnumerationResult,
 } from "../../src/lib/work-unit/retirement-record-enumeration.js";
-import { validateTransitionRecordEnumeration } from "../../src/lib/work-unit/transition-record-enumeration.js";
+import {
+  validateTransitionRecordEnumeration,
+  type TransitionRecordEnumerationResult,
+} from "../../src/lib/work-unit/transition-record-enumeration.js";
+import { queryTransitionDisposition } from "../../src/lib/work-unit/transition-disposition-query.js";
 import { parseTransitionRecord, serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
 import {
   EXCLUDED_PARK_ORACLE,
@@ -38,6 +45,16 @@ async function loadLegacyEnumeration(): Promise<RetirementRecordEnumerationResul
     mode: "100644",
     type: "blob",
     content: await readFile(`${LEGACY_FIXTURE_DIRECTORY}/${filename}`, "utf8"),
+  }))));
+}
+
+async function loadTransitionEnumeration(): Promise<TransitionRecordEnumerationResult> {
+  const filenames = (await readdir(REPOSITORY_TRANSITION_DIRECTORY)).sort();
+  return validateTransitionRecordEnumeration(await Promise.all(filenames.map(async (filename) => ({
+    filename,
+    mode: "100644",
+    type: "blob",
+    content: await readFile(`${REPOSITORY_TRANSITION_DIRECTORY}/${filename}`),
   }))));
 }
 
@@ -109,6 +126,43 @@ describe("live transition record migration fixture", () => {
     expect(projected.transitions.some(({ subject }) => subject === EXCLUDED_PARK_ORACLE.origin)).toBe(false);
   });
 
+  it("returns the same literal disposition answers through both migration readers", async () => {
+    const legacy = await loadLegacyEnumeration();
+    const lean = await loadTransitionEnumeration();
+    for (const transition of TERMINAL_TRANSITION_ORACLE) {
+      for (const query of transition.queries) {
+        const legacyAnswer = semanticAnswer(queryRetirementDisposition(legacy, {
+          retiredSubject: transition.origin,
+          dependentSlug: query.dependent,
+        }));
+        const leanAnswer = queryTransitionDisposition(lean, {
+          origin: transition.origin,
+          dependentSlug: query.dependent,
+        });
+        expect(legacyAnswer, `legacy:${transition.origin}:${query.dependent}`).toEqual(query.answer);
+        expect(leanAnswer, `lean:${transition.origin}:${query.dependent}`).toEqual(query.answer);
+        expect(leanAnswer, `equivalence:${transition.origin}:${query.dependent}`).toEqual(legacyAnswer);
+      }
+    }
+  });
+
+  it("returns the same literal reference projection through both migration readers", async () => {
+    const legacy = enumerateReferenceTransitions(await loadLegacyEnumeration());
+    const lean = enumerateTransitionReferenceTransitions(await loadTransitionEnumeration());
+    const expected = TERMINAL_TRANSITION_ORACLE
+      .map(({ reference }) => reference)
+      .sort((left, right) => left.subject.localeCompare(right.subject));
+    expect(legacy.status).toBe("valid");
+    expect(lean.status).toBe("valid");
+    if (legacy.status !== "valid" || lean.status !== "valid") return;
+    expect([...legacy.transitions].sort((left, right) => left.subject.localeCompare(right.subject)))
+      .toEqual(expected);
+    expect([...lean.transitions].sort((left, right) => left.subject.localeCompare(right.subject)))
+      .toEqual(expected);
+    expect([...lean.transitions].sort((left, right) => left.subject.localeCompare(right.subject)))
+      .toEqual([...legacy.transitions].sort((left, right) => left.subject.localeCompare(right.subject)));
+  });
+
   it("materializes exactly eight canonical lean records without changing legacy bytes", async () => {
     const legacyFilenames = (await readdir(LEGACY_FIXTURE_DIRECTORY)).sort();
     expect((await readdir(REPOSITORY_RETIREMENT_DIRECTORY)).sort()).toEqual(legacyFilenames);
@@ -126,12 +180,7 @@ describe("live transition record migration fixture", () => {
       filename,
       content: await readFile(`${REPOSITORY_TRANSITION_DIRECTORY}/${filename}`),
     })));
-    const enumeration = validateTransitionRecordEnumeration(contents.map(({ filename, content }) => ({
-      filename,
-      mode: "100644",
-      type: "blob",
-      content,
-    })));
+    const enumeration = await loadTransitionEnumeration();
     expect(enumeration.status).toBe("valid");
     if (enumeration.status !== "valid") return;
     expect(enumeration.groups).toHaveLength(8);

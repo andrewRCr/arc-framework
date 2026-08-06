@@ -51,7 +51,6 @@ export const CurrentWuReconcileSessionValueViewSchema = z
         reason: z.enum([
           "ambiguous-history",
           "rename-cycle",
-          "version-conflict",
           "namespace-corrupt",
         ]),
       })).optional(),

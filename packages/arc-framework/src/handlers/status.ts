@@ -149,9 +149,10 @@ import {
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+  transitionRecordGitExec,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
@@ -724,8 +725,9 @@ export async function handleStatus(
         return runCurrentWuReconcileSessionProbe(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            queryDisposition: (input) =>
+              queryGitTransitionDisposition(transitionRecordGitExec(exec), "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionRecordGitExec(exec), "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
@@ -754,7 +756,7 @@ export async function handleStatus(
               return false;
             }
           },
-          enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
+          enumerateAt: (ref) => enumerateGitTransitionRecords(transitionRecordGitExec(exec), ref),
         });
         const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
         return projectUserReferenceSessionResult(authority, {

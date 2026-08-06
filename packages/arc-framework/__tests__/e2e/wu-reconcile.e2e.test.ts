@@ -46,18 +46,20 @@ function meta(slug: string, branch: string, dependsOn: string): string {
 
 describe("arc wu reconcile", () => {
   let repo: string;
-  let receiptPath: string;
-  let receiptRelativePath: string;
-  let receiptContent: string;
+  let transitionPath: string;
+  let transitionRelativePath: string;
+  let transitionContent: string;
 
   beforeEach(async () => {
     repo = await createTempRepo("arc-wu-reconcile-");
     const active = join(repo, ".arc", "active");
     const planned = join(repo, ".arc", "backlog", "planned");
     const records = join(repo, ".arc", "system", ".internal", "retirement-receipts");
+    const transitions = join(repo, ".arc", "system", ".internal", "transitions");
     await mkdir(active, { recursive: true });
     await mkdir(planned, { recursive: true });
     await mkdir(records, { recursive: true });
+    await mkdir(transitions, { recursive: true });
     await writeFile(
       join(active, "meta-dependent.md"),
       meta("dependent", "main", "`origin`"),
@@ -88,16 +90,26 @@ describe("arc wu reconcile", () => {
       authorization: "identity-renamed",
       result: { kind: "rename", targetSlug: "successor", artifactDigest: DIGEST },
     };
-    receiptRelativePath = join(
+    const receiptRelativePath = join(
       ".arc",
       "system",
       ".internal",
       "retirement-receipts",
       `${receiptId.replace(":", "-")}.json`,
     );
-    receiptPath = join(repo, receiptRelativePath);
-    receiptContent = canonicalize(receipt);
+    const receiptPath = join(repo, receiptRelativePath);
+    const receiptContent = canonicalize(receipt);
     await writeFile(receiptPath, receiptContent, "utf8");
+    transitionRelativePath = join(".arc", "system", ".internal", "transitions", "origin.json");
+    transitionPath = join(repo, transitionRelativePath);
+    transitionContent = canonicalize({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "rename",
+      successors: ["successor"],
+      edges: [],
+    });
+    await writeFile(transitionPath, transitionContent, "utf8");
     await git(repo, ["add", "--all"]);
     await git(repo, ["commit", "-m", "fixture"]);
   });
@@ -446,16 +458,16 @@ describe("arc wu reconcile", () => {
     expect(await git(repo, ["status", "--porcelain"])).toBe(beforeStatus);
   });
 
-  it("rechecks receipt evidence that appears after the dependent entered integration", async () => {
+  it("rechecks transition evidence that appears after the dependent entered integration", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     await writeFile(
       metaPath,
       meta("dependent", "main", "`origin`").replace("- **State:** Active", "- **State:** Integrating"),
       "utf8",
     );
-    await git(repo, ["rm", receiptRelativePath]);
+    await git(repo, ["rm", transitionRelativePath]);
     await git(repo, ["add", ".arc/active/meta-dependent.md"]);
-    await git(repo, ["commit", "-m", "enter integration before receipt"]);
+    await git(repo, ["commit", "-m", "enter integration before transition"]);
 
     const blocked = await runArc(["status", "--session-init", "--json"], repo);
     expect(blocked.exitCode).toBe(0);
@@ -466,10 +478,10 @@ describe("arc wu reconcile", () => {
       },
     });
 
-    await mkdir(join(repo, ".arc", "system", ".internal", "retirement-receipts"), { recursive: true });
-    await writeFile(receiptPath, receiptContent, "utf8");
-    await git(repo, ["add", receiptRelativePath]);
-    await git(repo, ["commit", "-m", "merge retirement evidence"]);
+    await mkdir(join(repo, ".arc", "system", ".internal", "transitions"), { recursive: true });
+    await writeFile(transitionPath, transitionContent, "utf8");
+    await git(repo, ["add", transitionRelativePath]);
+    await git(repo, ["commit", "-m", "merge transition evidence"]);
     const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
 
     expect(applied.exitCode).toBe(0);

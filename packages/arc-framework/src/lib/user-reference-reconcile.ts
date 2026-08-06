@@ -9,12 +9,12 @@
  */
 
 import {
-  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
   resolveReferenceTransition,
   type ReachableReferenceTransition,
   type ReferenceTransitionResolution,
 } from "./work-unit/reference-reconcile.js";
-import type { RetirementRecordEnumerationResult } from "./work-unit/retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./work-unit/transition-record-enumeration.js";
 
 /** One exact user-surface snapshot. */
 export interface UserReferenceSurface {
@@ -80,14 +80,14 @@ export interface UserReferenceAuthorityContext {
   protection: "full" | "partial";
   baseBranch: string;
   refreshRemoteBase: () => Promise<boolean>;
-  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+  enumerateAt: (ref: string) => Promise<TransitionRecordEnumerationResult>;
 }
 
 /** Protection-aware transition authority result. */
 export type UserReferenceAuthorityResult =
   | { status: "ready"; ref: string; transitions: readonly ReachableReferenceTransition[] }
   | { status: "unavailable"; ref: string }
-  | { status: "conflict"; ref: string; reason: "version-conflict" | "namespace-corrupt" };
+  | { status: "conflict"; ref: string; reason: "ambiguous-history" | "namespace-corrupt" };
 
 /** Read-only session projection with CLI-owned dispatch. */
 export interface UserReferenceReconcileSessionResult {
@@ -196,13 +196,13 @@ export async function resolveUserReferenceAuthority(
   if (ctx.protection === "full" && !await ctx.refreshRemoteBase()) {
     return { status: "unavailable", ref };
   }
-  let enumeration: RetirementRecordEnumerationResult;
+  let enumeration: TransitionRecordEnumerationResult;
   try {
     enumeration = await ctx.enumerateAt(ref);
   } catch {
     return { status: "unavailable", ref };
   }
-  const projected = enumerateReferenceTransitions(enumeration);
+  const projected = enumerateTransitionReferenceTransitions(enumeration);
   return projected.status === "valid"
     ? { status: "ready", ref, transitions: projected.transitions }
     : { status: "conflict", ref, reason: projected.reason };

@@ -47,8 +47,9 @@ import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
-  enumerateGitRetirementRecords,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  transitionRecordGitExec,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
   planUserReferenceReconcile,
   resolveUserReferenceAuthority,
@@ -111,7 +112,7 @@ export async function handleUserReconcileReferences(
         return false;
       }
     },
-    enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
+    enumerateAt: (ref) => enumerateGitTransitionRecords(transitionRecordGitExec(exec), ref),
   });
   if (authority.status !== "ready") {
     emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });

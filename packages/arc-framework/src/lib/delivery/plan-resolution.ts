@@ -2,10 +2,11 @@
 
 import type { GitExec } from "../git/exec.js";
 import {
-  enumerateGitRetirementRecords,
-} from "../work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  transitionRecordGitExec,
+} from "../work-unit/git-transition-record-enumeration.js";
 import {
-  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
   type ReachableReferenceTransition,
 } from "../work-unit/reference-reconcile.js";
 import type { DeliveryPlanStore } from "./ports.js";
@@ -18,7 +19,10 @@ export type DeliveryRenameEvidenceAuthority =
 /** Validated rename transitions or a storage-boundary refusal. */
 export type DeliveryRenameTransitionResult =
   | { readonly status: "ok"; readonly value: readonly ReachableReferenceTransition[] }
-  | { readonly status: "refused"; readonly reason: "namespace-corrupt" | "substrate-unreachable" };
+  | {
+      readonly status: "refused";
+      readonly reason: "ambiguous-subject" | "namespace-corrupt" | "substrate-unreachable";
+    };
 
 /** Storage-independent source of authenticated reachable rename transitions. */
 export interface DeliveryRenameTransitionSource {
@@ -60,18 +64,21 @@ export type ForwardDeliverySubjectTransitionResolution<TRecord> =
     readonly reason: "ambiguous-subject" | "namespace-corrupt";
   };
 
-/** Git-backed source of authenticated retirement transitions from one established ref. */
+/** Git-backed source of authenticated transitions from one established ref. */
 export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransitionSource {
   constructor(private readonly exec: GitExec) {}
 
   async enumerate(ref: string): Promise<DeliveryRenameTransitionResult> {
     try {
-      const transitions = enumerateReferenceTransitions(
-        await enumerateGitRetirementRecords(this.exec, ref),
+      const transitions = enumerateTransitionReferenceTransitions(
+        await enumerateGitTransitionRecords(transitionRecordGitExec(this.exec), ref),
       );
       return transitions.status === "valid"
         ? { status: "ok", value: transitions.transitions }
-        : { status: "refused", reason: "namespace-corrupt" };
+        : {
+            status: "refused",
+            reason: transitions.reason === "ambiguous-history" ? "ambiguous-subject" : "namespace-corrupt",
+          };
     } catch {
       return { status: "refused", reason: "substrate-unreachable" };
     }

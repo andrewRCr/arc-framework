@@ -65,9 +65,10 @@ import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "./git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+  transitionRecordGitExec,
+} from "./git-transition-record-enumeration.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import { listParkedSlugs } from "./lifecycle-resolver.js";
 import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
@@ -297,8 +298,9 @@ export function buildExecutorContext(
         prepareCurrentWuReconcile(
           {
             index: await buildLifecycleIndex({ cwd, fs: indexFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            queryDisposition: (input) =>
+              queryGitTransitionDisposition(transitionRecordGitExec(exec), "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionRecordGitExec(exec), "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
             readFile: (path) => io.readFile(at(path)),

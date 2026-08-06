@@ -146,43 +146,28 @@ and after conversion, and leave the non-terminal park record for its authorizati
 - _Outcome:_ The repository now carries exactly the eight terminal decisions in canonical lean form while the
   complete legacy namespace remains intact for equivalence and authorization cutover.
 
-### `[ ]` **2.3 Prove live query and reconcile equivalence**
+### `[x]` **2.3 Prove live query and reconcile equivalence**
 
 - _Goal:_ Every characterized consumer read has the same semantic result from the lean record as from its sealed
   predecessor before production loses access to the old namespace.
 
-    - `[ ]` **2.3.a Compare disposition answers through test-only adapters**
-        - Pair each temporary old fixture with its lean record and compare both readers to the independently authored
-          literal oracle, omitting only the intentionally removed `evidenceQuality` member from semantic answers.
-        - Exercise multiple arbitrary dependents for rename and abandon and the decompose unmapped-dependent case;
-          do not add a production dual-reader to enable the comparison.
+    - `[x]` **2.3.a Compare disposition answers through test-only adapters**
+        - Compared every legacy and lean answer independently against the literal oracle and against each other,
+          including arbitrary rename and abandon dependents plus unmapped decomposition dependents.
 
-    - `[ ]` **2.3.b Compare reference projections and inventory completeness**
-        - Assert identical rename, removed, and decompose reference transitions for all eight origins.
-        - Assert the lean enumeration has exactly eight unique terminal origins and no park transition.
-        - Retain the lean-only literal semantic oracle and expected-origin manifest through final verification; the
-          temporary old bytes and test adapters retire with the old codec in Task 4.9.
+    - `[x]` **2.3.b Compare reference projections and inventory completeness**
+        - Proved identical reference projections across the exact eight-origin lean manifest, retained the literal
+          oracle and legacy fixtures, and kept the park transition excluded.
 
-    - `[ ]` **2.3.c Cut production history consumers over once**
-        - Begin cutover only after the Task 2.2 migration commit is integrated into every authority ref selected by
-          the production ports; treat the already-reachable data plus code cutover as one release boundary.
-        - Switch the semantic paths in `handlers/reconcile.ts`, the corresponding status session probes,
-          `executor-context.ts`, `handlers/user.ts`, `resolveUserReferenceAuthority()`, and
-          `GitDeliveryRenameTransitionSource` to the lean enumeration, query, and reference ports in one type-safe
-          cutover.
-        - Keep `enumerateGitRetirementRecords()` and `RetirementRecordEnumerationResult` unchanged for
-          `lifecycle-residue-sweep.ts`, `configured-base-decomposition-anchor.ts`,
-          `git-retirement-authorization-context.ts`, merge-overlay, landed-handoff, preparation, finalization, and
-          every remaining consumer that inspects receipt IDs, kinds, or sealed fields.
-        - Remove `evidenceQuality` and retirement-specific `version-conflict` only from the lean semantic result,
-          reference, dependency, status, and conflict unions; change `DependencyReconcileEvidence` to `{subject}`
-          across recursive composition, drop evidence, result schemas, rendering, fixtures, and mocks without
-          altering legacy enumeration corruption handling.
-        - Prohibit a semantic call path from invoking both adapters, merging namespaces, retrying the old reader
-          after a lean failure, or mapping lean absence to an old lookup. A mixed composition module may import both
-          only when separately typed semantic and receipt-specific consumers require them.
-        - Prove pre-cutover refs return the old answers, a migrated pre-cutover ref still returns old answers, and a
-          post-cutover ref containing both records and code returns the lean answers with no false-absence interval.
+    - `[x]` **2.3.c Cut production history consumers over once**
+        - Switched every named semantic consumer to the lean query, enumeration, and reference ports while preserving
+          receipt-specific callers; dependency evidence now carries subjects only and lean conflicts omit sealed
+          version vocabulary. A three-ref integration proof keeps old authority live through migration, then shows
+          the lean delivery reader remains authoritative even when the legacy namespace is malformed.
+
+- _Outcome:_ Live reconciliation and delivery semantics now read one origin-keyed namespace without fallback or
+  namespace merging. Real-Git coverage also corrected ancestor-tree handling in the byte-oriented enumerator so the
+  selected namespace is reachable through ordinary repository trees.
 
 ### `[ ]` **2.4 Prove migration reachability and namespace failure behavior**
 

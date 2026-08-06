@@ -89,7 +89,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.resolve(false),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
     const partial = await resolveUserReferenceAuthority({
@@ -98,7 +98,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.reject(new Error("must not fetch")),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
     const full = await resolveUserReferenceAuthority({
@@ -107,7 +107,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.resolve(true),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
 

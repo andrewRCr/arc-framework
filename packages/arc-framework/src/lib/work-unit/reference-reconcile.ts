@@ -61,7 +61,7 @@ export interface ReferenceAdvisory {
 /** A subject whose reachable history cannot grant mechanical rewrite authority. */
 export interface ReferenceTransitionConflict {
   subject: string;
-  reason: "ambiguous-history" | "rename-cycle" | "version-conflict" | "namespace-corrupt";
+  reason: "ambiguous-history" | "rename-cycle" | "namespace-corrupt";
 }
 
 /** Closed pure reference plan. */
