@@ -15,17 +15,9 @@ receipt consumer before migration and authorization re-derivation.
 - _Goal:_ Terminal transitions have one closed, human-legible schema and an exclusive origin-slug store that
   preserves authored history without integrity identities or transaction evidence.
 
-    - `[ ]` **1.1.a Define and parse the schema-v1 record**
-        - Add `transition-record.ts` with a closed `TransitionRecord` type, `parseTransitionRecord()`, and
-          deterministic `serializeTransitionRecord()` for `schemaVersion`, `origin`, `kind`, `successors`, and
-          dependent-keyed `edges`; reuse `SlugSchema` and the existing `replace` and `drop` value shapes.
-        - Build `test-first` (one behavior at a time):
-            - Accept ordinary valid UTF-8 JSON regardless of insignificant whitespace or key order, while producing
-              one deterministic serialized form for writes.
-            - Enforce rename-one, abandon-zero, and decompose-new-member successor cardinality plus canonical unique
-              successor and replacement-target ordering already guaranteed by authoring validation.
-            - Reject unknown versions, extra or malformed fields, invalid slugs, duplicate dependents, empty drop
-              reasons, and invalid dispositions without importing receipt authentication.
+    - `[x]` **1.1.a Define and parse the schema-v1 record**
+        - Added the closed `TransitionRecord` schema and whitespace-tolerant parser, with deterministic canonical
+          serialization, kind-specific cardinality, canonical set ordering, and strict malformed-input rejection.
 
     - `[ ]` **1.1.b Add the origin-keyed transitions store**
         - Add `transition-record-store.ts` for `.arc/system/.internal/transitions/<origin>.json`, preserving the safe
