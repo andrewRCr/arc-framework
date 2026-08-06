@@ -10,7 +10,7 @@ _Purpose:_ Add the origin-keyed historical substrate and its final projection AP
 the still-required receipts, and admit the exact namespace through the generic planning lane without cutting a live
 receipt consumer before migration and authorization re-derivation.
 
-### `[ ]` **1.1 Establish the origin-keyed transition record substrate**
+### `[x]` **1.1 Establish the origin-keyed transition record substrate**
 
 - _Goal:_ Terminal transitions have one closed, human-legible schema and an exclusive origin-slug store that
   preserves authored history without integrity identities or transaction evidence.
@@ -19,16 +19,12 @@ receipt consumer before migration and authorization re-derivation.
         - Added the closed `TransitionRecord` schema and whitespace-tolerant parser, with deterministic canonical
           serialization, kind-specific cardinality, canonical set ordering, and strict malformed-input rejection.
 
-    - `[ ]` **1.1.b Add the origin-keyed transitions store**
-        - Add `transition-record-store.ts` for `.arc/system/.internal/transitions/<origin>.json`, preserving the safe
-          directory, symlink, and exclusive-write behavior of `retirement-record-store.ts` while leaving that
-          digest-keyed receipt API unchanged until its final consumer retires.
-        - Build `test-first` (one behavior at a time):
-            - Accept a typed `TransitionRecord`, derive the path from `record.origin`, and create it exclusively with
-              no arbitrary-content or alternate-identity path.
-            - Refuse an occupied origin, invalid record, or unsafe parent before mutating the filesystem.
-            - Keep every existing receipt-store resolver and `.arc/system/.internal/retirement-receipts/**` consumer
-              operational throughout the additive phase.
+    - `[x]` **1.1.b Add the origin-keyed transitions store**
+        - Added the exclusive `.arc/system/.internal/transitions/<origin>.json` store with pre-mutation record
+          validation and real-directory checks, leaving the digest-keyed receipt namespace unchanged.
+
+- _Outcome:_ Untrusted JSON now narrows into a closed record that can be written only at its validated origin path;
+  no receipt identity, authentication, or transaction evidence crosses the new substrate.
 
 ### `[ ]` **1.2 Converge terminal-transition writers on the lean record**
 
