@@ -114,35 +114,21 @@ receipt consumer before migration and authorization re-derivation.
 _Purpose:_ Preserve the eight terminal decisions that cannot be regenerated, prove their consumer answers before
 and after conversion, and leave the non-terminal park record for its authorization trace.
 
-### `[ ]` **2.1 Characterize every live terminal record's consumer answers**
+### `[x]` **2.1 Characterize every live terminal record's consumer answers**
 
 - _Goal:_ A reviewable golden inventory freezes the consumer-visible meaning of all eight terminal decisions
   before their bytes move, without treating sealed fields as required behavior.
 
-    - `[ ]` **2.1.a Inventory the terminal and park records**
-        - Copy the nine live files verbatim into a temporary legacy fixture beneath
-          `packages/arc-framework/__tests__/fixtures/transition-record-migration/`; decode those inputs only through
-          the existing old codecs and readers.
-        - Author a separate literal semantic oracle that does not call the converter or either projector:
-            - Abandon `review-gate-enforcement-promotion`, `retirement-record-relocation`,
-              `review-gate-enforcement-qualification`, `recovery-load-scoping`, and
-              `review-gate-github-adapter`.
-            - Rename `cohortless-decomposition` to `decomposition-hardening` and `pr-decomposition` to
-              `review-chunking`.
-            - Decompose `chunked-delivery` into `delivery-integration-target`, `delivery-plan-record`,
-              `delivery-review-cardinality`, and `delivery-stack-topology`, with no incoming edge answers.
-            - Exclude the ninth record, the `decompose-extraction` park transition.
-        - Record each terminal origin, kind, successor projection, fixed disposition-query vectors and answers, and
-          reference transition in the oracle; keep the park exclusion explicit.
+    - `[x]` **2.1.a Inventory the terminal and park records**
+        - Added byte-identical fixtures for all nine live receipts and an independent literal oracle covering the
+          eight terminal origins, successor sets, query vectors, reference projections, and explicit park exclusion.
 
-    - `[ ]` **2.1.b Freeze old-reader answers**
-        - Characterize `queryRetirementDisposition()` and `enumerateReferenceTransitions()` over the eight terminal
-          records before conversion, using the literal oracle rather than deriving expectations from the reader.
-        - Use at least two distinct valid dependent slugs for every rename and abandon origin, with the exact
-          `retarget` or `abandoned` action, and at least two for `chunked-delivery`, each expecting
-          `unmapped-dependent`; assert the exact rename, removed, or decompose reference outcome for every origin.
-        - Treat `evidenceQuality` only as an old-reader field to omit from semantic comparison; do not assert receipt
-          identities, digests, `version-conflict`, or other sealing and duplicate-digest vocabulary as live answers.
+    - `[x]` **2.1.b Freeze old-reader answers**
+        - Added old-codec characterization for two dependents per terminal origin and every reference transition,
+          comparing only consumer semantics while excluding evidence quality, identities, digests, and sealing terms.
+
+- _Outcome:_ The live migration now has a byte-exact legacy input set and reader-independent semantic authority;
+  both disposition and reference regressions are detectable before any repository record moves.
 
 ### `[ ]` **2.2 Convert the eight terminal records to the lean namespace**
 
