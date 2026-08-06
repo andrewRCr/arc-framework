@@ -1327,7 +1327,6 @@ export async function handlePark(
       [
         `Work unit: ${target}`,
         `Commit:    ${result.commit}`,
-        `Receipt:   ${result.receiptPath}`,
         `Artifacts: ${result.plannedPaths.length} staged`,
       ].join("\n"),
       "Park result landed",

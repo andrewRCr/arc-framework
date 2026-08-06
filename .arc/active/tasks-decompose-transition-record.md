@@ -209,30 +209,21 @@ coverage before any receipt-consuming predecessor is removed.
 - _Outcome:_ Abandon history is now independently locatable and conservation-checked from committed trees; malformed,
   duplicate, ambiguous, unrelated, or structurally invalid candidates fail closed without receipt evidence.
 
-### `[ ]` **3.2 Authenticate park landing from the relocation commit**
+### `[x]` **3.2 Authenticate park landing from the relocation commit**
 
 - _Goal:_ Partial-protection park landing accepts only an owned exact single-parent commit whose complete relevant
   diff is a blob-identical relocation of the planned artifact group, with no receipt path or content involved.
 
-    - `[ ]` **3.2.a Derive the landing proof and result from commit structure**
-        - Remove the receipt member from `ParkLandingTransition` and reshape `ParkPlanningLandingResult` to the
-          committed transition plus planned paths only; remove receipt rendering from `handlers/lifecycle.ts` and
-          update the handler, unit, and lifecycle E2E fixtures.
-        - Accept exactly the complete source deletes, blob-identical complete planned writes, and an optional
-          lifecycle-correct `ROADMAP` delta; reject every other path. The base landing stages only the planned files,
-          never the source commit's `ROADMAP` or old namespace.
-        - Build `test-first` (one behavior at a time):
-            - Resolve and stage only the exact planned relocation from a valid owned tip.
-            - Reject root or merge topology, incomplete or extra paths, content edits, source survivors, an invalid
-              `ROADMAP` transition, and one arbitrary unrelated diff operation.
-            - Return `{commit, plannedPaths}` and leave the staged/index tree free of the old namespace.
+    - `[x]` **3.2.a Derive the landing proof and result from commit structure**
+        - Reduced the landing transition and result to the owned commit, subject, and planned files; exact relocation
+          bytes, complete path coverage, and valid optional `ROADMAP` movement now establish the result.
 
-    - `[ ]` **3.2.b Retain landing concurrency safeguards**
-        - Preserve exact-tip ownership, index compare-and-set, ref lease, base-side concurrency checks, and rollback
-          of attempted files while removing the record-path exception from the allowed patch and conflict inventory.
-        - Build `test-first` (one behavior at a time):
-            - Refuse owner, tip, index, or ref drift without partial staging.
-            - Neither require nor land a transition record as authorization evidence.
+    - `[x]` **3.2.b Retain landing concurrency safeguards**
+        - Preserved tip and owner rechecks, base/index compare-and-set, dual ref leases, and rollback while removing
+          the retirement namespace from source validation, conflict inventory, staging, and CLI output.
+
+- _Outcome:_ Partial-protection landing now materializes only the commit-proven planned artifact group and rejects
+  content, conservation, topology, ownership, or concurrency drift without consulting or copying receipt state.
 
 ### `[ ]` **3.3 Re-derive park teardown from planned-artifact bytes**
 

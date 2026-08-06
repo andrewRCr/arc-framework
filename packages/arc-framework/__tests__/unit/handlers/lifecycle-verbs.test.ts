@@ -329,7 +329,6 @@ beforeEach(() => {
   mockLandParkPlanningTransition.mockResolvedValue({
     status: "landed",
     commit: "abc123",
-    receiptPath: ".arc/system/.internal/retirement-receipts/receipt.json",
     plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });

@@ -227,6 +227,9 @@ async function scaffoldCommittedParkTransition(
   repo: string,
   slug: string,
   cohort = "[none]",
+  options: {
+    fault?: "planned-content" | "incomplete" | "source-survivor" | "invalid-roadmap";
+  } = {},
 ): Promise<{ worktree: string; transition: string; receiptFile: string }> {
   const { worktree } = await scaffoldStartedWu(repo, slug, "linked", cohort);
   expect(worktree).toBeDefined();
@@ -242,10 +245,26 @@ async function scaffoldCommittedParkTransition(
     worktree!,
   );
   expect(park.exitCode, park.stdout + park.stderr).toBe(0);
+  const receiptDirectory = join(worktree!, ".arc/system/.internal/retirement-receipts");
+  const receiptFile = (await readdir(receiptDirectory))[0];
+  expect(receiptFile).toBeDefined();
+  await rm(join(receiptDirectory, receiptFile!));
+  const plannedDir = cohort === "[none]"
+    ? join(worktree!, ".arc/backlog/planned", slug)
+    : join(worktree!, ".arc/backlog/planned", cohort, slug);
+  const plannedDraft = join(plannedDir, `draft-${slug}.md`);
+  if (options.fault === "planned-content") await writeFile(plannedDraft, "# edited after relocation\n");
+  if (options.fault === "incomplete") await rm(plannedDraft);
+  if (options.fault === "source-survivor") {
+    const activeDir = join(worktree!, ".arc/active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(join(activeDir, `draft-${slug}.md`), await readFile(plannedDraft));
+  }
+  if (options.fault === "invalid-roadmap") {
+    await writeFile(join(worktree!, ".arc/backlog/ROADMAP.md"), "# forged roadmap\n");
+  }
   await commitFixtureBypassingHooks(worktree!, `park ${slug}`);
   const transition = await git(worktree!, ["rev-parse", "HEAD"]);
-  const receiptFile = (await readdir(join(worktree!, ".arc/system/.internal/retirement-receipts")))[0];
-  expect(receiptFile).toBeDefined();
   return { worktree: worktree!, transition, receiptFile: receiptFile! };
 }
 
@@ -1370,15 +1389,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const receiptPath = `.arc/system/.internal/retirement-receipts/${receiptFile}`;
     const staged = await git(repo, ["diff", "--cached", "--name-only"]);
     expect(staged).toContain(plannedPath);
-    expect(staged).toContain(receiptPath);
+    expect(staged).not.toContain(receiptPath);
     expect(await readFile(join(repo, plannedPath))).toEqual(await readFile(join(worktree!, plannedPath)));
-    expect(await readFile(join(repo, receiptPath))).toEqual(await readFile(join(worktree!, receiptPath)));
+    expect(await pathExists(join(repo, receiptPath))).toBe(false);
     expect(await git(repo, ["rev-parse", `:${plannedPath}`])).toBe(
       await git(worktree, ["rev-parse", `${transition}:${plannedPath}`]),
     );
-    expect(await git(repo, ["rev-parse", `:${receiptPath}`])).toBe(
-      await git(worktree, ["rev-parse", `${transition}:${receiptPath}`]),
-    );
+    expect(land.stdout + land.stderr).not.toContain("Receipt:");
   });
 
   it("arc park --land preserves nested cohort placement", async () => {
@@ -1414,7 +1431,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
   });
 
-  it("partial-protection park landing round-trips to a stamped planning husk", async () => {
+  it("partial-protection park landing does not preserve receipt-backed teardown authority", async () => {
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await git(repo, ["remote", "add", "origin", origin]);
@@ -1433,9 +1450,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
       const teardown = await runArc(["teardown", "solo", "--force"], worktree);
 
-      expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-      expect(await branchExists(repo, "plan/solo")).toBe(false);
-      expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+      expect(teardown.exitCode).toBe(1);
+      expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence is missing/iu);
+      expect(await branchExists(repo, "plan/solo")).toBe(true);
+      expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/solo");
     } finally {
       await removeGitBackedDir(origin);
     }
@@ -1500,6 +1518,27 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(land.exitCode).toBe(1);
     expect(land.stdout + land.stderr).toMatch(/outside its result/);
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+  });
+
+  it.each([
+    ["edited planned bytes", "planned-content"],
+    ["an incomplete planned group", "incomplete"],
+    ["a surviving source artifact", "source-survivor"],
+    ["an invalid ROADMAP transition", "invalid-roadmap"],
+  ] as const)("arc park --land refuses %s without writing the base", async (_label, fault) => {
+    const { worktree, transition } = await scaffoldCommittedParkTransition(
+      repo,
+      "solo",
+      "[none]",
+      { fault },
+    );
+    worktrees.push(worktree);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
   });
 
   it("arc park --land refuses a conflicting base slug without a partial write", async () => {

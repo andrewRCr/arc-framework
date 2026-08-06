@@ -14,24 +14,9 @@ import {
 } from "../../../src/lib/work-unit/park-planning-landing.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
-const sourceDigest = canonicalDigest("source");
-const patchDigest = canonicalDigest("patch");
-const resultDigest = canonicalDigest("result");
-const recordDigest = canonicalDigest("record");
-
 const transition: ParkLandingTransition = {
   commit: "b".repeat(40),
-  receipt: {
-    schemaVersion: 1,
-    receiptId: recordDigest,
-    subject: { kind: "work-unit", name: "solo" },
-    transition: "park-planning",
-    source: { branch: "plan/solo", head: "a".repeat(40), artifactDigest: sourceDigest },
-    transitionPatchDigest: patchDigest,
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "planning-relocated",
-    result: { kind: "relocate", plannedArtifactDigest: resultDigest },
-  },
+  name: "solo",
   files: [{
     path: validateManagedPath(".arc/backlog/planned/solo/meta-solo.md"),
     mode: "100644",
@@ -210,7 +195,11 @@ describe("landParkPlanningTransition", () => {
       { name: "solo", commit: transition.commit },
     );
 
-    expect(result.status).toBe("landed");
+    expect(result).toEqual({
+      status: "landed",
+      commit: transition.commit,
+      plannedPaths: [".arc/backlog/planned/solo/meta-solo.md"],
+    });
     expect(stagedVersions).toEqual([fresh.version]);
   });
 

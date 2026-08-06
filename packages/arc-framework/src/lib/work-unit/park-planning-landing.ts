@@ -2,9 +2,8 @@
  * Partial-protection materialization of a committed park-at-Planning result.
  *
  * The retiring planning branch proves the direct transition. The base-side arm
- * copies only the committed receipt and complete planned artifact group, using
- * their existing Git blob identities so checkout filters cannot rewrite the
- * staged result.
+ * copies only the complete planned artifact group, using its existing Git blob
+ * identities so checkout filters cannot rewrite the staged result.
  */
 
 import { posix, join, resolve } from "node:path";
@@ -13,29 +12,16 @@ import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
-  contentDigest,
   deleteOperation,
   writeOperation,
-  type ArtifactSetEntry,
   type PatchOperation,
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
-import { artifactGroupDigest, receiptId } from "../canonical/receipt-id.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import {
-  validateReceiptMatrix,
-  type RetirementReceipt,
-} from "./retirement-authority.js";
-import { parseRetirementReceipt } from "./retirement-receipt-codec.js";
-import { validateRetirementReceiptRelation } from "./retirement-relation.js";
-import {
-  RETIREMENT_RECORD_NAMESPACE,
-  resolveRetirementRecordRelativePath,
-} from "./retirement-record-store.js";
 import { isSlugSafe } from "./slug.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
@@ -57,7 +43,7 @@ export interface ParkLandingFile {
 /** Fully validated source transition ready for base materialization. */
 export interface ParkLandingTransition {
   commit: string;
-  receipt: RetirementReceipt;
+  name: string;
   files: readonly ParkLandingFile[];
 }
 
@@ -86,7 +72,7 @@ export interface ParkPlanningLandingContext {
 
 /** Result of one partial-protection park landing. */
 export type ParkPlanningLandingResult =
-  | { status: "landed"; commit: string; receiptPath: ManagedPath; plannedPaths: readonly ManagedPath[] }
+  | { status: "landed"; commit: string; plannedPaths: readonly ManagedPath[] }
   | { status: "rejected"; reason: string };
 
 /** Low-level production boundaries for the in-repository landing adapter. */
@@ -137,14 +123,10 @@ export async function landParkPlanningTransition(
   const staged = await ctx.stage(source.transition, freshBase);
   if (staged.status === "rejected") return staged;
 
-  const receiptPath = validateManagedPath(resolveRetirementRecordRelativePath(source.transition.receipt.receiptId));
   return {
     status: "landed",
     commit: source.transition.commit,
-    receiptPath,
-    plannedPaths: source.transition.files
-      .map((file) => file.path)
-      .filter((path) => path !== receiptPath),
+    plannedPaths: source.transition.files.map((file) => file.path),
   };
 }
 
@@ -157,9 +139,7 @@ export function createInRepoParkPlanningLandingContext(
     readTransition: (params) => readCommittedTransition(deps, params),
     readBase,
     stage: async (transition, expectedBase) => {
-      const current = await readBase(transition.receipt.subject.kind === "work-unit"
-        ? transition.receipt.subject.name
-        : "", transition.files);
+      const current = await readBase(transition.name, transition.files);
       if (current.version !== expectedBase.version) {
         return { status: "rejected", reason: "The base changed during park landing; retry from the fresh base." };
       }
@@ -167,7 +147,7 @@ export function createInRepoParkPlanningLandingContext(
       if (refusal !== null) return { status: "rejected", reason: refusal };
       return stageExactFiles(
         deps,
-        transition.receipt.subject.kind === "work-unit" ? transition.receipt.subject.name : "",
+        transition.name,
         transition.commit,
         transition.files,
         expectedBase,
@@ -216,28 +196,13 @@ async function readCommittedTransition(
     if (parents.length !== 1 || parent === undefined) {
       return { status: "rejected", reason: "The park transition must be a direct single-parent commit." };
     }
-    const id = receiptId({
-      schemaVersion: 2,
-      subject: { kind: "work-unit", name: params.name },
-      transition: "park-planning",
-      sourceBranch: branch,
-      sourceHead: parent,
-    });
-    const recordPath = validateManagedPath(resolveRetirementRecordRelativePath(id));
-    const recordEntry = await readExactTreeEntry(deps, commit, recordPath);
-    if (recordEntry === null) {
-      return { status: "rejected", reason: "The transition commit does not contain its exact park receipt." };
-    }
-    const recordBytes = await requireBlob(deps, commit, recordPath);
-    const receipt = parseParkReceipt(recordBytes);
-
     const plannedRoot = resolveArcPath({ kind: "placement-root", tier: "planned" });
     const sourceDir = resolveArcPath({ kind: "placement-root", tier: "active" });
     const matcher = artifactMatcher(params.name);
     const [plannedRootTree, sourceTree, operations] = await Promise.all([
       readTreeEntries(deps, commit, plannedRoot),
       readTreeEntries(deps, parent, sourceDir),
-      readDiffOperations(deps, parent, commit, recordPath),
+      readDiffOperations(deps, parent, commit),
     ]);
     const plannedCandidates = plannedRootTree.filter((entry) => matcher.test(posix.basename(entry.path)));
     const plannedMetas = plannedCandidates.filter(
@@ -285,56 +250,20 @@ async function readCommittedTransition(
       return { status: "rejected", reason: "The planned result contains a path outside the work-unit artifact group." };
     }
     assertMatchingRelocation(sourceEntries, plannedEntries);
-    assertAllowedTransitionPatch(operations, sourceEntries, plannedEntries);
-
-    const [sourceInventory, plannedInventory, plannedFiles] = await Promise.all([
-      inventoryForEntries(deps, parent, sourceEntries),
-      inventoryForEntries(deps, commit, plannedEntries),
-      Promise.all(plannedEntries.map((entry) => landingFile(deps, commit, entry))),
-    ]);
-    if (
-      receipt.receiptId !== id
-      || receipt.subject.kind !== "work-unit"
-      || receipt.subject.name !== params.name
-      || receipt.source.branch !== branch
-      || receipt.source.head !== parent
-      || receipt.source.artifactDigest !== artifactGroupDigest(sourceInventory)
-      || receipt.result.kind !== "relocate"
-      || receipt.result.plannedArtifactDigest !== artifactGroupDigest(plannedInventory)
-      || receipt.retiringProjection.kind !== "direct-transition"
-      || validateReceiptMatrix(receipt, "planned") !== null
-    ) {
-      return { status: "rejected", reason: "The park receipt does not match the exact planning transition." };
-    }
-
-    const relationRefusal = await validateRetirementReceiptRelation(
-      {
-        readCommitParents: (candidate) => readCommitParents(deps, candidate),
-        readRecord: async (candidate, receiptIdValue) => {
-          const bytes = await deps.readBlob(
-            candidate,
-            validateManagedPath(resolveRetirementRecordRelativePath(receiptIdValue)),
-          );
-          return bytes === null ? null : decodeUtf8(bytes);
-        },
-        readPatchOperations: async (relationParent, relationCommit, excludedId) => readDiffOperations(
-          deps,
-          relationParent,
-          relationCommit,
-          validateManagedPath(resolveRetirementRecordRelativePath(excludedId)),
-        ),
-      },
-      receipt,
-      { retiringHead: commit, resultHead: commit },
+    await assertAllowedTransitionPatch(
+      deps,
+      parent,
+      commit,
+      params.name,
+      operations,
+      sourceEntries,
+      plannedEntries,
     );
-    if (relationRefusal !== null) {
-      return { status: "rejected", reason: "The supplied commit does not preserve the receipt's direct-transition relation." };
-    }
 
-    const recordFile = await landingFile(deps, commit, recordEntry);
+    const plannedFiles = await Promise.all(plannedEntries.map((entry) => landingFile(deps, commit, entry)));
     return {
       status: "resolved",
-      transition: { commit, receipt, files: [...plannedFiles, recordFile] },
+      transition: { commit, name: params.name, files: plannedFiles },
     };
   } catch (err) {
     return {
@@ -368,8 +297,7 @@ async function readBaseSnapshot(
   );
   const inventoryResult = await deps.exec(
     "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS,
-      RETIREMENT_RECORD_NAMESPACE],
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS],
     execOptions,
   );
   const indexTree = indexTreeResult.stdout.trim();
@@ -565,17 +493,6 @@ async function readTreeEntries(
   });
 }
 
-async function readExactTreeEntry(
-  deps: InRepoParkPlanningLandingDeps,
-  ref: string,
-  path: ManagedPath,
-): Promise<TreeEntry | null> {
-  const entries = await readTreeEntries(deps, ref, path);
-  const exact = entries.filter((entry) => entry.path === path);
-  if (exact.length > 1) throw new Error(`Git tree contains duplicate path: ${path}`);
-  return exact[0] ?? null;
-}
-
 function selectExactArtifactGroup(entries: readonly TreeEntry[], dir: string, matcher: RegExp): TreeEntry[] {
   return entries.filter((entry) => posix.dirname(entry.path) === dir && matcher.test(posix.basename(entry.path)));
 }
@@ -597,15 +514,38 @@ function assertMatchingRelocation(source: readonly TreeEntry[], planned: readonl
   }
 }
 
-function assertAllowedTransitionPatch(
+async function assertAllowedTransitionPatch(
+  deps: InRepoParkPlanningLandingDeps,
+  parent: string,
+  commit: string,
+  name: string,
   operations: readonly PatchOperation[],
   source: readonly TreeEntry[],
   planned: readonly TreeEntry[],
-): void {
+): Promise<void> {
   const expectedDeletes = new Set(source.map((entry) => entry.path));
   const expectedWrites = new Set(planned.map((entry) => entry.path));
   for (const operation of operations) {
-    if (operation.path === ROADMAP_PATH) continue;
+    if (operation.path === ROADMAP_PATH) {
+      const [before, after] = await Promise.all([
+        requireBlob(deps, parent, ROADMAP_PATH),
+        requireBlob(deps, commit, ROADMAP_PATH),
+      ]);
+      const beforeText = decodeUtf8(before);
+      const afterText = decodeUtf8(after);
+      const beforeState = roadmapState(beforeText, name);
+      const afterState = roadmapState(afterText, name);
+      const rowTransitionValid = beforeState === "Active" && afterState === "Planning";
+      const absentProjectionValid = beforeState === null && afterState === null
+        && isRoadmapDocument(afterText);
+      if (!rowTransitionValid && !absentProjectionValid) {
+        throw new Error(
+          `The park transition carries an invalid ROADMAP lifecycle change: ${beforeState ?? "absent"}`
+          + ` -> ${afterState ?? "absent"}.`,
+        );
+      }
+      continue;
+    }
     if (operation.operation === "delete" && expectedDeletes.delete(operation.path)) continue;
     if (operation.operation === "write" && expectedWrites.delete(operation.path)) continue;
     throw new Error(`The park transition touches a path outside its result: ${operation.path}`);
@@ -615,16 +555,20 @@ function assertAllowedTransitionPatch(
   }
 }
 
-async function inventoryForEntries(
-  deps: InRepoParkPlanningLandingDeps,
-  ref: string,
-  entries: readonly TreeEntry[],
-): Promise<ArtifactSetEntry[]> {
-  return Promise.all(entries.map(async (entry): Promise<ArtifactSetEntry> => ({
-    path: entry.path,
-    state: "present",
-    contentDigest: contentDigest(await requireBlob(deps, ref, entry.path)),
-  })));
+function isRoadmapDocument(content: string): boolean {
+  return content.startsWith("# Roadmap: Project Status\n")
+    && !content.includes("<<<<<<<")
+    && !content.includes("=======")
+    && !content.includes(">>>>>>>");
+}
+
+function roadmapState(content: string, name: string): string | null {
+  for (const line of content.split("\n")) {
+    if (!line.startsWith("|")) continue;
+    const cells = line.split("|").slice(1, -1).map((cell) => cell.trim().replaceAll("`", ""));
+    if (cells[1] === name) return cells[0] ?? null;
+  }
+  return null;
 }
 
 async function landingFile(
@@ -652,7 +596,6 @@ async function readDiffOperations(
   deps: InRepoParkPlanningLandingDeps,
   parent: string,
   commit: string,
-  excludedRecord: ManagedPath,
 ): Promise<PatchOperation[]> {
   const { stdout } = await deps.exec(
     "git",
@@ -667,7 +610,6 @@ async function readDiffOperations(
     const pathText = fields[index + 1];
     if (status === undefined || pathText === undefined) throw new Error("Malformed Git name-status output.");
     const path = validateManagedPath(pathText);
-    if (path === excludedRecord) continue;
     if (status === "D") {
       operations.push(deleteOperation(path));
       continue;
@@ -679,14 +621,6 @@ async function readDiffOperations(
     throw new Error(`Unsupported park transition operation ${status}: ${path}`);
   }
   return operations;
-}
-
-function parseParkReceipt(bytes: Uint8Array): RetirementReceipt {
-  const receipt = parseRetirementReceipt(decodeUtf8(bytes));
-  if (receipt === null || receipt.transition !== "park-planning") {
-    throw new Error("The park receipt has an invalid schema.");
-  }
-  return receipt;
 }
 
 function decodeUtf8(bytes: Uint8Array): string {
