@@ -1242,9 +1242,10 @@ Code-owners patterns are a path-ownership approximation: they cannot express the
 rename/copy identity, or Git type/mode changes. ARC-managed workflows therefore rerun the canonical exact-base/head
 classifier immediately before arming native auto-merge and permit arming only on literal `planning`.
 **Escalation is one-directional** · `[invariant]` — a confidently recognized human-only review condition may move
-that result to reviewed, never the reverse. Without the optional ARC merge guard this is procedural enforcement at
-the integration interlock. When `arc-cleared` is installed and required, its planning writer makes the same exact
-classification structural at the host.
+that result to reviewed, never the reverse. That classifier gate plus the integration interlock is procedural
+enforcement — never infer merge safety from agent-layer discipline alone. Optional draft-state lock
+(`merge.lock: draft`) is a separate per-PR structural hold whose installation is procedural; it is not a
+required-status check and does not replace the classifier decision.
 
 **Solo repositories.** Condition 2 is a two-party primitive — a sole maintainer cannot approve their own PR, so
 requiring code-owner review would block every reviewed-lane PR. A solo repo instead requires only the stable

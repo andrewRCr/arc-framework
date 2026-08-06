@@ -106,27 +106,28 @@ spec's reword constraint; historical activation analysis is banner-marked, not r
 _Design decisions:_ Exact prose is implementation judgment inside the fixed constraint — do not equate required
 check with draft lock; keep "never infer merge safety from agent-layer discipline."
 
-### `[ ]` **3.1 Reword doctrine and overview present-tense clearance claims**
+### `[x]` **3.1 Reword doctrine and overview present-tense clearance claims**
 
 - _Goal:_ Live doctrine/overview no longer describe `arc-cleared` as current machinery; structural-enforcement
   loci still forbid inferring merge safety from agent review alone
 
 - **Additional Context:** `spec-clearance-corpus-retirement.md` § Decision 4 (reword constraint)
 
-    - `[ ]` **3.1.a Update strategy-work-organization auto-merge / clearance mentions**
-        - Package + `.arc/` present-tense mentions
+    - `[x]` **3.1.a Update strategy-work-organization auto-merge / clearance mentions**
+        - Classifier + interlock as procedural enforcement; draft lock named as separate per-PR hold, not a
+          required-status substitute (package + `.arc/`)
 
-    - `[ ]` **3.1.b Update TECHNICAL-OVERVIEW Self-Hosting Review Gate passages**
-        - `.arc/reference/TECHNICAL-OVERVIEW.md` present-tense `arc-cleared` / unlock wording (project instance —
-          package ships `TECHNICAL-OVERVIEW.template.md` only, which has no clearance residue)
+    - `[x]` **3.1.b Update TECHNICAL-OVERVIEW Self-Hosting Review Gate passages**
+        - Replaced `arc-cleared` lifecycle-lock narrative with `merge.lock: draft` / `arc merge lock release`
+          wording in Self-Hosting Review Gate and Merge gating
 
-    - `[ ]` **3.1.c Update structural-enforcement wording in brief, strategy, and review methods**
-        - `AGENT-BRIEF.ARC.md`, `strategy-session-operations.md` § Review enforcement boundary,
-        `standard-review.md`, and sibling frontline/self-review sentences that tests pin (package + `.arc/` for
-          each dual-copy method/brief) — preserve the never-infer caution; do not claim draft lock is a
-          fail-closed required check
+    - `[x]` **3.1.c Update structural-enforcement wording in brief, strategy, and review methods**
+        - AGENT-BRIEF + session-operations distinguish required check vs draft lock; keep never-infer caution;
+          standard-review drops "only a required host-side check" phrasing; self/frontline sentences unchanged
 
-### `[ ]` **3.2 Banner-mark historical clearance activation analysis**
+- _Outcome:_ Live doctrine matches draft-lock model without equating it to a fail-closed required check
+
+### `[x]` **3.2 Banner-mark historical clearance activation analysis**
 
 - _Goal:_ `analysis-arc-clearance-activation.md` remains as history and is clearly marked as retired machinery
 
@@ -134,9 +135,10 @@ check with draft lock; keep "never infer merge safety from agent-layer disciplin
   coupling `manifest.json` is not a residual allowlist. Analysis lives only under
   `.arc/reference/supplemental/analysis/` (not packaged).
 
-    - `[ ]` **3.2.a Add retired-machinery banner to analysis-arc-clearance-activation.md**
-        - Short banner at the top of `.arc/reference/supplemental/analysis/analysis-arc-clearance-activation.md`;
-          do not relitigate the body
+    - `[x]` **3.2.a Add retired-machinery banner to analysis-arc-clearance-activation.md**
+        - Banner at top points to ADR-031 / draft-lock displacement; body left as history
+
+- _Outcome:_ Historical activation analysis is banner-marked, not rewritten
 
 ## **Phase 4:** Retarget coupled tests
 
