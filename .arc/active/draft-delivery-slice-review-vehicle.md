@@ -103,6 +103,68 @@ tiers, or review models are not admission on their own:
 - Host-status publication is assumed to reuse the existing clearance publication path per vehicle, with nothing
   member-specific.
 
+## Re-entry from `create-spec` — the local review lane's target composition
+
+Spec authoring settled the readiness lane and returned this one concern for shaping. Two adversarial passes over
+`spec-delivery-slice-review-vehicle.md` certified everything else; this is the residue.
+
+**What is already settled** (recorded in the spec, not re-open here): local review of a member runs from the
+owning work unit's **control locus**, where the meta is present, so a member's review assurance _is_ the owning
+work unit's `workClass` and `reviewRubric` composed by the existing function — no new rubric or guidance model.
+The selector is the member's exact head object id, because the delivery member selector is head-keyed. Member
+selection must be carried to every site that re-derives authority, and assurance dispatch must route
+`delivery-member` to the work-unit arm rather than the Errand fallthrough. The terminal-member refusal applies in
+both lanes.
+
+**The open question.** How is a delivery member's **review target** composed?
+
+Two facts make this design rather than detail:
+
+1. **Derivation and confirmation are paired, and only derivation was addressed.** Local target derivation
+   resolves `HEAD` plus the merge base against the configured base ref. The lane then _re-confirms_ the target by
+   re-deriving it exactly that way — at prepare, attest, resume, respond, and reduce — and returns `stale-target`
+   on any difference. At the control locus `HEAD` is the control branch by construction, so a target built from
+   a member's coordinates is refused as stale on every one of those verbs. Moving derivation without moving its
+   paired verification is what made the first attempt unbuildable.
+2. **A member's recorded coordinates do not span a review target.** Delivery records a member's base, head, and
+   tree. A review target needs repository id, base ref, diff-base sha, diff-base tree, head sha, and head tree.
+   `diffBaseTree` is derivable locally; `baseRef` is not derivable at all — and it is identity-bearing in the
+   target-id preimage, so a guess does not fail loudly, it silently mints a different target identity for the
+   same change set. A member's own ref is nullable, and delivery ref naming is an explicit open implementation
+   detail in `delivery-stack-topology`.
+
+**Credible directions, none yet chosen:**
+
+- Parameterize the shipped derivation by a base revision and a head revision (defaulting to the configured base
+  and `HEAD`), and feed it the member's recorded base and head. Confirmation then composes for free, both trees
+  compute locally, and the dirty-worktree guard is retained. `baseRef` still needs an answer.
+- Give `stale-target` member-specific meaning — drift measured against re-read delivery coordinates rather than
+  the checkout. Costs a second delivery read and a second semantics for one refusal.
+- Accept that local member review reviews the control-branch change set, and record why that is sound. Cheapest,
+  but it pairs an identity claim with a different change set, which is the property this work unit exists to
+  protect.
+
+**The upstream dependency is the crux.** `baseRef` resolution depends on delivery ref naming, which the consumer
+has not settled. Shaping should decide whether this work unit constrains that naming (as it already does for the
+terminal member), waits on it, or picks a formulation that does not need a member ref at all.
+
+### Absorbed from the capture surface
+
+- **The `work-unit` vehicle's lifecycle assumption has now failed twice.** A capture against
+  `wu-lifecycle-state-model` records that releasing the merge lock for a `work-unit` vehicle requires
+  `.arc/active/meta-{name}.md`, which a **park** has by definition just relocated to `backlog/` — so a park pull
+  request can never satisfy the readiness the lock defends. That is the same structural defect as this work
+  unit's: a legitimate pull-request shape the vehicle model cannot admit because it assumes every reviewable
+  change carries active lifecycle artifacts. Delivery members are one such shape; parks are another. Worth
+  holding while shaping — not as license to widen scope here, but because a queue forming behind "add a kind per
+  shape" is evidence about whether the union is the right long-run answer. This work unit's non-goals still bind.
+- **Downstream consumers beyond `delivery-stack-topology`.** A capture against the decomposition stream names
+  this work unit as "the current delivery start" and pre-authors a removal-plus-migration work unit as the next
+  stacked-delivery field run. Delay or scope cuts here reach further than the cohort.
+- One capture surfaced _during_ this work unit's own draft-design entry concerns relocating
+  `delivery-integration-target` to `backlog/provisional/`. Unrelated backlog hygiene — left for the drain, not
+  absorbed.
+
 ## Scope Estimate
 
 Medium (days): one schema union member mirrored in two files, one readiness validation branch backed by a narrow
