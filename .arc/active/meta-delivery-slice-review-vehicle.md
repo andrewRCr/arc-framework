@@ -1,8 +1,8 @@
 # Metadata: delivery-slice-review-vehicle
 
-| **State**  | **Owner** | **Branch**                           | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/delivery-slice-review-vehicle` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                           | **Class** | **Priority** |
+| --------- | --------- | ------------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/delivery-slice-review-vehicle` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-delivery-slice-review-vehicle.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** `create-spec` — `outline` spec finalized and approved; draft retired, `Class` persisted
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Delivery member lookup port contract (line ~16)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Delivery member lookup port contract
 
 - **PR URL:** [none]
 - **Completed:** [none]
