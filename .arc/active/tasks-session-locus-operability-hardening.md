@@ -100,31 +100,40 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 - _Outcome:_ One injected worktree snapshot now produces deterministic dormant future rows and rich WU context without
   records, leases, liveness, fallback acquisition, public exposure, or production selection.
 
-### `[ ]` **1.5 Prove behavioral dormancy and the additive authority boundary**
+### `[x]` **1.5 Prove behavioral dormancy and the additive authority boundary**
 
 - _Goal:_ The additive foundation is independently buildable and mechanically proven unreachable from selected
   production behavior, public contracts, and on-disk mutation paths.
 
-    - `[ ]` **1.5.a Close production reachability and public-surface invariance**
-        - Add a narrow source-reference contract proving the dormant modules are referenced only by their internal
-          set and tests, and are absent from production entry points, live readers/schemas, barrels, registries, and
-          dependency factories.
-        - Bind the negative reachability result to the exact Deliverable 1 head as acceptance evidence; later
-          intentional activation replaces the live assertion rather than weakening or pretending to rerun it.
-        - Protect command registration, public locus/status/session schemas, shipped workflows, selected marker code,
-          and session-envelope golden files with an explicit no-diff inventory rather than a new snapshot framework.
+    - `[x]` **1.5.a Close production reachability and public-surface invariance**
+        - Added an exact repository contract that closes every dormant module's incoming source and test edges, rejects
+          dynamic production references, and permits no production delta beyond the seven modules and helper seam.
+        - Bound protected commands, handlers, schemas, selected readers, marker/provisioning code, workflows, doctrine,
+          and session-envelope goldens to a zero-diff inventory from the exact Phase 1 base.
 
-    - `[ ]` **1.5.b Run the old and new contract families together**
-        - Run focused authority, corroboration, dormant marker, lifecycle, roster, extension, and source-reference
-          tests.
-        - Run existing record-backed locus, status, Errand, provisioning, marker, handoff, and recovery assertions and
-          golden outputs unchanged.
+    - `[x]` **1.5.b Run the old and new contract families together**
+        - Passed 505 focused old/new unit assertions, 16 dormancy/command/framework integration assertions, both
+          TypeScript programs, targeted lint, and 10 unchanged session-envelope compatibility goldens.
+        - Passed the full Tier 2 suite with the acceptance contract included: 758 files passed and one skipped; 9,764
+          tests passed and one skipped.
 
-    - `[ ]` **1.5.c Record the Deliverable 1 acceptance inventory**
-        - Enumerate additive modules, tests, the one default-preserving shared-helper edit, and protected unchanged
-          surfaces against the exact deliverable base.
-        - Refuse closure if a production producer or consumer, public schema, command, workflow, doctrine surface, or
-          on-disk behavior changes.
+    - `[x]` **1.5.c Record the Deliverable 1 acceptance inventory**
+        - Base: `5c9e806dcda9eb04166695a0cf45e25b08435c7f` / tree
+          `77ef6977dd4f6c4b189ad2a100c2435086148812`.
+        - Acceptance subject: `e6dc138d3bdd70cae0941b9f899cd6eae7a66a68` / tree
+          `2e35e63c1fc53d5ffc7abf5cc3c0722b957ebe8a`.
+        - Additive source: `role-derivation.ts`, `role-corroboration.ts`, `role-topology.ts`, `occupancy-marker.ts`,
+          `derived-lifecycle-evidence.ts`, `derived-roster.ts`, and `derived-reader.ts` under `src/lib/locus/`.
+        - Additive tests: the corresponding role, marker, lifecycle, roster, reader, extension, authority-boundary, and
+          `locus-dormant-foundation-contract.test.ts` suites; the isolated-mock inventory is the sole test-helper edit.
+        - Shared production edit: only `src/lib/locus/subject-meta.ts`, mechanically restricted to its optional readonly
+          input and empty default forwarding.
+        - Protected unchanged inventory: production selection and composition, public locus/status/session contracts,
+          CLI and handler registration, live marker and provisioning paths, shipped workflows and doctrine, and wire
+          goldens. Any additional production path or protected-byte delta makes the acceptance contract fail.
+
+- _Outcome:_ The exact additive package payload is independently buildable, mechanically unreachable from selected
+  production behavior, and proven byte-invariant across every protected Phase 1 surface.
 
 ### `[ ]` **1.6 Close the dormant-foundation review facet**
 
