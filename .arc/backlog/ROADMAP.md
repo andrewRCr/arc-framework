@@ -30,7 +30,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                          | Priority | Owner  | Depends on | Cohort                        |
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
-| decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
 | claimed-sweep-verbs                | P1       | andrew | —          | —                             |
@@ -49,7 +48,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-preflight-scaling        | P2       | andrew | —          | decompose-core-hardening      |
 | method-conventions                 | P2       | andrew | —          | doc-conventions               |
 | naming-conventions                 | P2       | andrew | —          | doc-conventions               |
-| clearance-corpus-retirement        | P2       | andrew | —          | —                             |
 | cross-wu-coordination              | P2       | andrew | —          | —                             |
 | execution-delegation-doctrine      | P2       | andrew | —          | —                             |
 | frictionless-capture               | P2       | andrew | —          | —                             |
@@ -111,6 +109,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-finalization-scaling     | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
 | review-source-authority            | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
 | unit-scoped-review                 | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
+| decompose-candidate-abandon        | P2       | andrew | decompose-transition-record                                 | decompose-transform-integrity |
 | decompose-durable-consumers        | P2       | andrew | decompose-transition-record                                 | decompose-transform-integrity |
 | review-orchestration-right-sizing  | P2       | andrew | retrospective-right-sizing                                  | —                             |
 | documentation-surface-routing      | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |

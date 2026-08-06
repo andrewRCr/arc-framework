@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Hold until `decompose-transition-record` settles, then re-derive the spec from the surviving
+  surfaces before task generation — it is written against the sealed receipt spine that member replaces.
 
 - **PR URL:** [none]
 - **Completed:** [none]
