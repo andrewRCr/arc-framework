@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-delivery-slice-review-vehicle.md`
-- **Task List:** [none]
+- **Task List:** `tasks-delivery-slice-review-vehicle.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

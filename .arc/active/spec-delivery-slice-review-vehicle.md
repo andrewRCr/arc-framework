@@ -99,6 +99,12 @@ resolution against the vehicle's assertion. New facts:
 A mismatch emits one fact per disagreeing field, each carrying its own `path` (`vehicle.planId`,
 `vehicle.deliverableId`, `vehicle.workUnitSlug`), so a refusal names what disagreed.
 
+The authentication runs **inside the member arm, after tree-root resolution**, and authenticates the live
+pull-request head. Identity-fact evaluation is synchronous and pure, so folding an asynchronous read into it
+would change that function's character; the two heads are proven equal by the time the arm runs, since a stale
+head returns early. The visible consequence is precedence — a member request with an unusable tree root reports
+the root fault rather than the delivery fault, the cheaper local check first.
+
 The lookup's optional `owningUnit` ownership hint is **not** passed. Readiness compares the resolution itself, so
 refusal vocabulary stays readiness-owned rather than surfacing as a store failure.
 
@@ -167,13 +173,21 @@ plan the state is not bound to.
 This relies on one stated invariant — **`state.members` is plan-ordered** — which the delivery module maintains
 rather than merely happening to satisfy. The spec depends on it explicitly rather than silently.
 
-The port binds to the **repository resolved by the composition root** — the root the readiness handler already
-resolves and passes to its adapter, and the injected `cwd` on the local lane — never to `request.treeRoot` and
-never to a module-internal read of the process working directory. Every local-lane store is constructed from an
-explicitly injected cwd, so a `process.cwd()` read inside the port would ignore the checkout the rest of the lane
-is bound to and would defeat the test-substitution pattern `fs` already establishes. Delivery state is
-Git-common-directory state rather than a tree product, and the supplied tree is untrusted by construction, which
-the readiness module's existing posture already assumes.
+The port binds to the **repository resolved by the composition root**, stated as a rule over composition roots
+rather than a list of callers: every composition root that constructs a readiness evaluation binds the port from
+its own resolved repository root — never from `request.treeRoot`, and never from a module-internal read of the
+process working directory. Readiness is reached from more than one such root, and the local lane binds its
+injected `cwd` the same way. Every local-lane store is constructed from an explicitly injected cwd, so a
+`process.cwd()` read inside the port would ignore the checkout the rest of the lane is bound to and would defeat
+the test-substitution pattern `fs` already establishes. Delivery state is Git-common-directory state rather than
+a tree product, and the supplied tree is untrusted by construction, which the readiness module's existing posture
+already assumes.
+
+Because no repository root reaches the evaluation through its request, the port has no sound default and is
+supplied rather than defaulted. It is consequently **optional at the boundary, with the member arm failing closed
+when it is absent** — an unbound port resolves as `delivery-state-unavailable`, matching the fail-closed posture
+D3 already assigns that fact. The work-unit and Errand arms never consult it, so their evaluation is unchanged
+whether or not it is bound.
 
 The local lane consumes the same port for its member authentication and target derivation (D7), so there is one
 delivery read in the review gate, not two.
@@ -206,7 +220,30 @@ lane re-resolves authority through one shared adapter used by prepare, attest, a
 result against persisted state — attest refuses on a vehicle mismatch, and re-entrant admission (a comparison
 inside prepare, not a separate resolution) refuses on an operation-key mismatch. A selector honored only at
 prepare would therefore produce an operation that can be prepared and never attested. The selector is
-consequently carried on the operation and supplied wherever that adapter runs. Assurance dispatch, which today
+consequently carried on the operation and supplied wherever that adapter runs. It reaches those sites as an
+**added optional parameter on the resolution dependency**, each callsite supplying its own source: prepare from
+one optional field on its existing request, attest from the head its persisted target pins — and attest supplies
+it only when that persisted vehicle is a member. That condition is load-bearing: an ordinary work unit's target
+pins its control-branch head, which is itself bound in delivery state whenever the terminal member's pull request
+is opened from it, so an unconditional supply would authenticate an ordinary operation as a member and fail its
+own vehicle comparison.
+Nothing further is persisted to carry it — the target is the operation's exact-head record, and a second stored
+copy of that head would be a field capable of disagreeing with it. The parameter is what makes the attest source
+reachable at all, since that verb's composition wrapper holds no operation state while its command does. Respond
+is the one adapter site needing nothing: it consumes only the author and runtime identities, which are identical
+with or without a selector at the control locus.
+
+Resolution also **returns the member's recorded coordinates alongside the authority**, because target composition
+needs them and the authority vehicle cannot carry them: that vehicle is written verbatim into a strict persisted
+union, so an extra field fails the operation's own parse. Prepare consequently resolves authority **before**
+deriving its target, inverting its current order — the coordinates are otherwise unavailable at the moment
+derivation needs them. The alternatives were rejected as worse: a second delivery read inside derivation gives
+two lookups that can disagree and lands the ownership and terminal refusals after a derivation failure, and a
+selector-conditional call order hides a branch in the lane's control flow. The inversion changes which refusal
+surfaces first when two would fire at once; no successful outcome changes, and the no-selector path's vehicle,
+target, and assurance are unaffected.
+
+Assurance dispatch, which today
 branches on `work-unit` and treats everything else as an Errand, routes `delivery-member` to the **work-unit**
 arm; left unrouted it would compose an Errand assurance with no work class, the opposite of this decision's
 intent. Routing it there also keeps the guidance digest stable between prepare and attest, which reach the same
@@ -247,9 +284,13 @@ staleness:
   predecessor-ref alternative was rejected — it would have constrained naming, namespace (derivation admits
   `refs/heads/` only), and binding non-nullability at successor-review time, three couplings for a label whose
   identity contribution the shas already supply.
-- **Derivation parameterizes by base and head revisions**, defaulting to the configured base and `HEAD`. The
+- **Derivation takes an optional member-coordinate input**, defaulting without it to the configured base and
+  `HEAD`. The
   shipped derivation hardcodes both, so parameterization is mandatory infrastructure for any member formulation
-  rather than one option among several; the member path feeds it the recorded shas. Object-existence checks are
+  rather than one option among several; the member path feeds it the recorded shas. The input is named for what
+  it carries rather than as a generic revision pair, because its presence must also select the target's kind —
+  the kind is part of the identity preimage and cannot be assigned after derivation without invalidating the id,
+  and the member path is the only caller supplying either. Object-existence checks are
   retained on both paths. **The worktree-cleanliness guard is scoped to the inputs that read the worktree** — it
   exists because the ordinary path derives from `HEAD` and the working tree, and a member target derives from
   neither. Retaining it uniformly would refuse the supported path for an unrelated reason: the control locus is
@@ -436,8 +477,4 @@ are not admission on their own.
 
 ## Open items
 
-- The exact ordering of the delivery authentication relative to tree-root resolution — behaviourally equivalent
-  because neither reads the other's inputs, settled during implementation for diagnostic clarity.
-- How the member selector reaches the authority resolution at prepare and attest — as an added parameter on the
-  existing resolution dependency, or as operation context those sites already receive. A structural choice within
-  D7's settled rule that both derive the same vehicle, not a question about what they derive.
+[none]
