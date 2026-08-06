@@ -1,5 +1,13 @@
 /** Dormant, pure projection of the future unified checkout occupancy marker. */
 
+import { SlugSchema } from "../kernel/index.js";
+import {
+  LocusAbsolutePathSchema,
+  LocusDigestSchema,
+  LocusOpaqueTextSchema,
+  LocusTokenSchema,
+} from "./schema/limits.js";
+
 export type OccupancySubject =
   | { readonly kind: "work-unit"; readonly name: string }
   | { readonly kind: "partial-errand"; readonly slug: string; readonly claimId: null }
@@ -59,30 +67,30 @@ export function parseOccupancyMarker(content: string): OccupancyMarkerParseResul
   const subject = isRecord(value.createdFor) ? value.createdFor : null;
   const identityBacked = subject !== null
     && (subject.kind === "errand" || subject.kind === "groom" || subject.kind === "housekeep")
-    && typeof subject.slug === "string"
-    && typeof subject.claimId === "string";
+    && SlugSchema.safeParse(subject.slug).success
+    && LocusTokenSchema.safeParse(subject.claimId).success;
   const partial = subject !== null
     && subject.kind === "partial-errand"
-    && typeof subject.slug === "string"
+    && SlugSchema.safeParse(subject.slug).success
     && subject.claimId === null;
   const workUnit = subject !== null
     && subject.kind === "work-unit"
-    && typeof subject.name === "string";
+    && SlugSchema.safeParse(subject.name).success;
   const hasOriginEntry = value.originEntry !== undefined;
   const hasOriginDigest = value.originEntrySourceDigest !== undefined;
   const originValid = partial
     ? hasOriginEntry === hasOriginDigest
       && (!hasOriginEntry
-        || (typeof value.originEntry === "string"
-          && typeof value.originEntrySourceDigest === "string"
-          && /^sha256:[0-9a-f]{64}$/u.test(value.originEntrySourceDigest)))
+        || (LocusOpaqueTextSchema.safeParse(value.originEntry).success
+          && LocusDigestSchema.safeParse(value.originEntrySourceDigest).success))
     : !hasOriginEntry && !hasOriginDigest;
   const occupancyFieldsValid = workUnit
     ? value.spawnedByArc === true
       && value.provisioning === undefined
       && value.parentCheckoutPath === undefined
     : (value.provisioning === "pending" || value.provisioning === "ready")
-      && (value.parentCheckoutPath === undefined || typeof value.parentCheckoutPath === "string");
+      && (value.parentCheckoutPath === undefined
+        || LocusAbsolutePathSchema.safeParse(value.parentCheckoutPath).success);
   const subjectKeysValid = subject !== null && keysEqual(
     subject,
     workUnit ? ["kind", "name"] : ["claimId", "kind", "slug"],

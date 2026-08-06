@@ -68,14 +68,29 @@ describe("active-meta lifecycle evidence", () => {
     })).toMatchObject({ kind: "conflicting" });
   });
 
-  it("treats a marker disagreement and exact cross-owner meta as conflicts", () => {
+  it("contains owner-eligible metas outside the marker-selected subject", () => {
     expect(projectActiveMetaEvidence({
       cwd: "/repo",
       identity: "andrew",
       expectedSubjectKey: "demo",
-      candidates: [meta("other")],
+      candidates: [
+        meta("demo"),
+        meta("other"),
+        {
+          kind: "error",
+          name: "meta-broken.md",
+          path: "/repo/.arc/active/meta-broken.md",
+          message: "permission denied",
+        },
+      ],
       metaRoots: [],
-    })).toMatchObject({ kind: "conflicting" });
+    })).toMatchObject({
+      kind: "present",
+      subject: { kind: "work-unit", key: "demo" },
+    });
+  });
+
+  it("rejects an exact marker-selected meta owned by another identity", () => {
     expect(projectActiveMetaEvidence({
       cwd: "/repo",
       identity: "andrew",

@@ -11,6 +11,7 @@ import type {
 import type { CompletedEvidenceRead } from "../work-unit/completed-index.js";
 import {
   projectActiveMetaEvidence,
+  type ActiveMetaEvidence,
   type DormantMetaEvidence,
   type DormantMarkerGenerationEvidence,
 } from "./derived-lifecycle-evidence.js";
@@ -112,13 +113,16 @@ export async function readDerivedLocusRoster(options: {
       && evidence.marker.marker.createdFor.kind === "work-unit"
       ? evidence.marker.marker.createdFor.name
       : undefined;
-    const activeMeta = projectActiveMetaEvidence({
-      cwd: item.original.path,
-      identity: options.identity,
-      candidates: evidence.metas,
-      metaRoots: evidence.metaRoots,
-      ...(expectedSubjectKey === undefined ? {} : { expectedSubjectKey }),
-    });
+    const activeMeta: ActiveMetaEvidence = evidence.marker.kind === "present"
+      && evidence.marker.marker.createdFor.kind !== "work-unit"
+      ? { kind: "absent" }
+      : projectActiveMetaEvidence({
+          cwd: item.original.path,
+          identity: options.identity,
+          candidates: evidence.metas,
+          metaRoots: evidence.metaRoots,
+          ...(expectedSubjectKey === undefined ? {} : { expectedSubjectKey }),
+        });
     let row = projectDerivedCheckoutRow({
       checkout: item.checkout,
       marker: evidence.marker,

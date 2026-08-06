@@ -70,6 +70,9 @@ export function projectActiveMetaEvidence(options: {
   metaRoots: readonly MetaRootEvidence[];
   expectedSubjectKey?: string;
 }): ActiveMetaEvidence {
+  const relevantCandidates = options.expectedSubjectKey === undefined
+    ? options.candidates
+    : options.candidates.filter((candidate) => metaKey(candidate.name) === options.expectedSubjectKey);
   const unreadableRoot = options.metaRoots.find((root) => root.kind === "error");
   if (unreadableRoot?.kind === "error") {
     return {
@@ -78,7 +81,7 @@ export function projectActiveMetaEvidence(options: {
       path: normalizedRelative(options.cwd, unreadableRoot.path),
     };
   }
-  const unreadableCandidate = options.candidates.find((candidate) => candidate.kind === "error");
+  const unreadableCandidate = relevantCandidates.find((candidate) => candidate.kind === "error");
   if (unreadableCandidate?.kind === "error") {
     return {
       kind: "unreadable",
@@ -88,7 +91,7 @@ export function projectActiveMetaEvidence(options: {
   }
 
   const parsed: ParsedCandidate[] = [];
-  for (const candidate of options.candidates) {
+  for (const candidate of relevantCandidates) {
     if (candidate.kind !== "read") continue;
     const location = activeMetaLocation(options.cwd, options.identity, candidate.path);
     if (location === null) continue;
@@ -124,17 +127,11 @@ export function projectActiveMetaEvidence(options: {
       };
     }
   }
-  const eligible = parsed.filter((candidate) => candidate.owner === options.identity);
+  const eligible = parsed.filter((candidate) =>
+    candidate.owner === options.identity
+    && (options.expectedSubjectKey === undefined || candidate.key === options.expectedSubjectKey));
   if (eligible.length === 0) return { kind: "absent" };
   const paths = eligible.map((candidate) => normalizedRelative(options.cwd, candidate.evidence.path)).sort();
-  if (options.expectedSubjectKey !== undefined
-    && eligible.some((candidate) => candidate.key !== options.expectedSubjectKey)) {
-    return {
-      kind: "conflicting",
-      reason: "Marker and active-meta evidence select different work units",
-      paths,
-    };
-  }
   if (eligible.length > 1) {
     const first = eligible[0];
     if (first !== undefined && eligible.every((candidate) =>
@@ -157,7 +154,7 @@ export function projectActiveMetaEvidence(options: {
       ...(selected.branch === null ? {} : { branch: selected.branch, detached: false }),
     },
     metaRoot: selected.metaRoot,
-    candidates: options.candidates,
+    candidates: relevantCandidates,
   };
 }
 

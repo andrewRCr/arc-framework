@@ -202,6 +202,48 @@ describe("dormant derived roster reader", () => {
     });
   });
 
+  it("does not project unrelated WU metas into a marker-selected transient", async () => {
+    const path = "/repo/repair";
+    const unrelated = meta(path, "other");
+    const repair = identity("repair");
+    const result = await readDerivedLocusRoster(baseOptions({
+      topology: {
+        ok: true,
+        worktrees: [
+          { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
+        ],
+      },
+      checkouts: [{
+        checkoutPath: path,
+        marker: {
+          kind: "present",
+          marker: {
+            spawnedByArc: true,
+            createdFor: { kind: "errand", slug: "repair", claimId: "claim-repair" },
+            provisioning: "ready",
+          },
+          generation: `sha256:${"b".repeat(64)}`,
+        },
+        metaRoots: [{ kind: "listed", path: `${path}/.arc/active` }],
+        metas: [unrelated],
+      }],
+      identities: {
+        kind: "complete",
+        tip: "c".repeat(40),
+        objects: new Map(),
+        records: new Map(),
+        projections: new Map([["repair", repair]]),
+        diagnostics: [],
+      },
+      subjectMetaIO: subjectIO(new Map()),
+    }));
+
+    expect(result.rows).toMatchObject([{
+      kind: "transient",
+      subject: { kind: "errand", key: "repair", claimId: "claim-repair" },
+    }]);
+  });
+
   it("keeps orphan identities on discovery and unrelated diagnostics off healthy rows", async () => {
     const orphan = identity("orphan");
     const result = await readDerivedLocusRoster(baseOptions({

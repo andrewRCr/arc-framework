@@ -10,9 +10,10 @@ import {
   type OccupancyMarker,
 } from "../../../src/lib/locus/occupancy-marker.js";
 
+const validClaimId = "a".repeat(32);
 const spawnedErrand: OccupancyMarker = {
   spawnedByArc: true,
-  createdFor: { kind: "errand", slug: "repair-index", claimId: "claim-1" },
+  createdFor: { kind: "errand", slug: "repair-index", claimId: validClaimId },
   provisioning: "pending",
   parentCheckoutPath: "/repo/parent",
 };
@@ -28,7 +29,7 @@ describe("dormant occupancy marker projection", () => {
   it("round-trips transient occupancy on the physical primary", () => {
     const primary: OccupancyMarker = {
       spawnedByArc: false,
-      createdFor: { kind: "errand", slug: "repair-index", claimId: "claim-1" },
+      createdFor: { kind: "errand", slug: "repair-index", claimId: validClaimId },
       provisioning: "ready",
     };
     expect(parseOccupancyMarker(serializeOccupancyMarker(primary))).toEqual({
@@ -96,6 +97,42 @@ describe("dormant occupancy marker projection", () => {
     expect(parseOccupancyMarker(JSON.stringify(invalid))).toMatchObject({ kind: "malformed" });
   });
 
+  it.each([
+    { spawnedByArc: true, createdFor: { kind: "work-unit", name: "" } },
+    {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "../escape", claimId: validClaimId },
+      provisioning: "ready",
+    },
+    {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "repair", claimId: "x" },
+      provisioning: "ready",
+    },
+    {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "repair", claimId: validClaimId },
+      provisioning: "ready",
+      parentCheckoutPath: "relative/path",
+    },
+    {
+      spawnedByArc: false,
+      createdFor: { kind: "partial-errand", slug: "", claimId: null },
+      provisioning: "ready",
+      originEntry: "Repair",
+      originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
+    },
+    {
+      spawnedByArc: false,
+      createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
+      provisioning: "ready",
+      originEntry: "",
+      originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
+    },
+  ])("rejects invalid persisted identity, path, and origin scalars %#", (invalid) => {
+    expect(parseOccupancyMarker(JSON.stringify(invalid))).toMatchObject({ kind: "malformed" });
+  });
+
   it("validates primary-only and spawned-only provenance at topology composition", () => {
     const primary = { ...spawnedErrand, spawnedByArc: false };
     expect(validateOccupancyMarkerTopology(primary, { primary: true }))
@@ -127,7 +164,7 @@ describe("dormant occupancy marker projection", () => {
     });
     const primary: OccupancyMarker = {
       spawnedByArc: false,
-      createdFor: { kind: "errand", slug: "repair-index", claimId: "claim-1" },
+      createdFor: { kind: "errand", slug: "repair-index", claimId: validClaimId },
       provisioning: "ready",
     };
     expect(promoteOccupancyMarker(primary, "widget")).toEqual({ kind: "remove-marker" });
