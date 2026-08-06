@@ -94,7 +94,7 @@
     "reference/templates/arc/merge-gate/CODEOWNERS": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "8518086fadbe0bec41d7360b6a1ff79e3442c57f109d695897713f2bb37b6d5f"
+      "pristine_hash": "91b78fb2d700ba9521f58829aef3459d7e7dce2ae23dfbdae3c3a813334a6e05"
     },
     "reference/templates/arc/work-unit/template-draft.md": {
       "classification": "Framework",
@@ -499,7 +499,7 @@
     "system/.internal/scripts/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "575d0623bded469bb029c0df7a780af02488d712b26fa00da43ef17a4a647e0e"
+      "pristine_hash": "f62b332827f446a07799598ec0fd9f8bc67ea222eca6ae08a91cf67d87e2cfb8"
     },
     "system/.internal/skills/arc-setup/SKILL.md": {
       "classification": "Framework",
@@ -579,7 +579,7 @@
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "350a9fb0681050fe6786dbf3bf01daa18e098eb72c235734be2b1ebd5d228edb"
+      "pristine_hash": "6a60e63f710cefd9db97f73a50a619d2dd286aeb50f16f8c2e4f193f3f844f6a"
     },
     "system/workflows/arc/initial-setup/02_define-project.md": {
       "classification": "Framework",
@@ -634,7 +634,7 @@
     "system/workflows/arc/supplemental/setup-merge-gate.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "9b8ad93030569ab09856787bcfde6830511109d617635680eafe90d8a7926528"
+      "pristine_hash": "59d33286dc48c3e2fc7fc2c663c8bb37712f8ed3ec60b317e0afe8e21ee286c7"
     },
     "system/workflows/arc/supplemental/add-agent.md": {
       "classification": "Framework",

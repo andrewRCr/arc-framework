@@ -51,22 +51,24 @@ _Design decisions:_ Whole-file delete for setup + template; recipe/manifest drop
 _Purpose:_ Auto-merge setup, initial-setup offers, CODEOWNERS comments, and the live-pair script blurb stay —
 but no longer describe, offer, or require `arc-cleared`.
 
-### `[ ]` **2.1 Excise clearance cross-references from auto-merge setup and CODEOWNERS**
+### `[x]` **2.1 Excise clearance cross-references from auto-merge setup and CODEOWNERS**
 
 - _Goal:_ Auto-merge lane docs describe classifier + `merge-ok` only; CODEOWNERS comments no longer name a
   required `arc-cleared` context
 
-    - `[ ]` **2.1.a Reword present-tense arc-cleared cross-refs in setup-merge-gate.md**
-        - In `setup-merge-gate.md` (package + `.arc/`), remove or reword the two present-tense `arc-cleared`
-          cross-reference passages so they do not imply an installable required-status guard
+    - `[x]` **2.1.a Reword present-tense arc-cleared cross-refs in setup-merge-gate.md**
+        - Procedural classifier + interlock boundary only; dropped independent-clearance install clauses
+          (package + `.arc/`)
 
-    - `[ ]` **2.1.b Reword merge-gate CODEOWNERS template comment naming arc-cleared**
-        - Package + `.arc/` comment that names optional/required `arc-cleared`
+    - `[x]` **2.1.b Reword merge-gate CODEOWNERS template comment naming arc-cleared**
+        - Template comment now points only at the canonical classifier (package + `.arc/`)
 
-    - `[ ]` **2.1.c Reword this repo's .github/CODEOWNERS arc-cleared comment**
-        - Project-only surface naming the required `arc-cleared` context
+    - `[x]` **2.1.c Reword this repo's .github/CODEOWNERS arc-cleared comment**
+        - Project CODEOWNERS comment names the canonical classifier, not a required `arc-cleared` context
 
-### `[ ]` **2.2 Replace initial-setup merge-guard offer with merge.lock opt-in**
+- _Outcome:_ Setup and CODEOWNERS surfaces no longer describe installable required-status clearance
+
+### `[x]` **2.2 Replace initial-setup merge-guard offer with merge.lock opt-in**
 
 - _Goal:_ `01_verify-and-configure.md` offers a config opt-in for draft-lock semantics and does not point at
   Set Up ARC Clearance or leave an orphan "independently selectable merge guard" claim
@@ -74,26 +76,27 @@ but no longer describe, offer, or require `arc-cleared`.
 - _Note:_ No new `setup-merge-lock.md`. Point at project config / template `merge.lock` and existing
   `arc merge lock` / ADR-031 / work-organization doctrine as needed.
 
-    - `[ ]` **2.2.a Replace ARC merge guard choices with merge.lock opt-in guidance**
-        - In `system/workflows/arc/initial-setup/01_verify-and-configure.md` (package + `.arc/`), both choices
-          become `merge.lock` opt-in guidance (`draft` vs `none`)
+    - `[x]` **2.2.a Replace ARC merge guard choices with merge.lock opt-in guidance**
+        - Both initial and reconfigure sections offer draft-state merge lock config guidance (`draft` vs
+          `none`)
 
-    - `[ ]` **2.2.b Drop orphan independently-selectable merge-guard claim**
-        - Reword or drop the Planning auto-merge bullet sentence that claims "the independently selectable merge
-          guard adds structural host enforcement" once the dedicated offer is gone
+    - `[x]` **2.2.b Drop orphan independently-selectable merge-guard claim**
+        - Removed the structural-host-enforcement clause from the Planning auto-merge bullet
 
-    - `[ ]` **2.2.c Remove dead setup-arc-clearance link definitions**
-        - Drop the `setup-arc-clearance` link definition and any other dead links to the deleted setup workflow
+    - `[x]` **2.2.c Remove dead setup-arc-clearance link definitions**
+        - Dropped the `[setup-arc-clearance]` link definition
 
-### `[ ]` **2.3 Reword the live-pair script install blurb**
+- _Outcome:_ Initial-setup offers `merge.lock` opt-in only; no dead clearance setup path
+
+### `[x]` **2.3 Reword the live-pair script install blurb**
 
 - _Goal:_ Scripts README describes `confirm-live-change-pair.sh` as live-pair / lane-attestation support, not
   clearance publication
 
-    - `[ ]` **2.3.a Update scripts README entry for confirm-live-change-pair.sh**
-        - `system/.internal/scripts/README.md` (package + `.arc/`) — keep the script; replace "Refuse clearance
-          publication…" framing with the attestation / live head-base pair role used by
-        `arc-lane-attestation.yml`
+    - `[x]` **2.3.a Update scripts README entry for confirm-live-change-pair.sh**
+        - Blurb now describes the live-pair / lane-attestation role (package + `.arc/`)
+
+- _Outcome:_ Retained install surface no longer narrates the retired clearance publish path
 
 ## **Phase 3:** Doctrine, overview, and historical banner
 

@@ -217,12 +217,10 @@ These choices are independently selectable and default off. Configure only the l
 - **Planning auto-merge lane** — under `branch.protection: full`, run the
   [Set Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
-  arming a PR; the independently selectable merge guard adds structural host enforcement. Skip under partial
-  protection. See [Auto-Merge Lane][work-org-auto-merge].
-- **ARC merge guard** — on GitHub with full branch protection and repository admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
-  additive `arc-cleared` required context. The workflow must land on the default branch before the context is
-  required.
+  arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+- **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want
+  `arc merge lock` / draft-PR structural hold semantics. See ADR-031 and [Auto-Merge Lane][work-org-auto-merge]
+  for the draft-lock model; this is a config opt-in, not a required-status install ceremony.
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -328,9 +326,8 @@ These repository choices remain independently selectable and default off:
 - **Standard-review sources** — review the ordered `review.standard_sources` list and confirm each provider is
   available.
 - **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
-- **ARC merge guard** — on GitHub with full protection and admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
-  `arc-cleared` becomes required.
+- **Draft-state merge lock** — set `merge.lock: draft` (or leave `none`) for draft-PR structural hold; use
+  existing `arc merge lock` verbs and ADR-031 / work-organization doctrine for semantics.
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation
@@ -352,4 +349,3 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 [setup-workflow]: ../supplemental/setup-release-wrapper.md
 [work-org-auto-merge]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-merge-gate]: ../supplemental/setup-merge-gate.md
-[setup-arc-clearance]: ../supplemental/setup-arc-clearance.md
