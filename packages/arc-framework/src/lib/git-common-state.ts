@@ -14,7 +14,7 @@ import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
 export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
 
 /** Closed delivery-state namespace vocabulary. */
-export type DeliveryStateNamespace = "plans" | "assignments" | "assurance" | "observations" | "authoring";
+export type DeliveryStateNamespace = "plans" | "state" | "authoring";
 
 /** Runtime-validated repository-common root and namespace pair. */
 export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
@@ -24,7 +24,7 @@ export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
   }),
   z.strictObject({
     root: z.literal("delivery"),
-    namespace: z.enum(["plans", "assignments", "assurance", "observations", "authoring"]),
+    namespace: z.enum(["plans", "state", "authoring"]),
   }),
 ]);
 export type GitCommonStateLocation = z.infer<typeof GitCommonStateLocationSchema>;

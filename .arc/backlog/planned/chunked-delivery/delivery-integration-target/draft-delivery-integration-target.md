@@ -1,34 +1,93 @@
-# Draft: delivery-integration-target — the work-unit-scoped integration projection
+# Draft: delivery-integration-target — guarded delivery through a private target
 
-- **Cohort:** `chunked-delivery` — see `cohort-chunked-delivery.md` for the shared canonical model,
-  the problem framing, the field evidence the design rests on, and the cut that produced this member.
-- **Purpose:** Own the work-unit-scoped integration-target reducer, the generic Git / pull-request
-  delivery-host adapter, and the terminal integration ceremony. This is the default topology: chunk
-  change requests accumulate on a private integration target and the unit reaches the protected base once.
-- **Position:** depends only on `delivery-plan-record`. Together the two make the mechanism usable, and
-  the remaining members are their first consumers.
+- **Cohort:** `chunked-delivery` — `cohort-chunked-delivery.md` owns the shared v1 lifecycle, robustness floor,
+  non-goals, and hardening-admission boundary.
+- **Purpose:** Execute the work-unit integration-target projection by landing planned members sequentially on a
+  private target, then hand the completed contribution to the existing work-unit integration lifecycle.
+- **Position:** Demand-held. Depends on `delivery-plan-record`; expected to reuse the projection-neutral landing core
+  built by `delivery-stack-topology`. Stack-specific behavior remains in `delivery-stack-topology`.
 
 ---
 
-## Integration-target projection
+## Activation threshold
 
-**WU-integration-target reducer.** Let `I0` be the exact integration-target head at bind and `Ik` the reconciled head
-after `D1 … Dk` have landed there.
+Do not activate this work unit from architectural completeness alone. Neither recorded field delivery used a private
+integration target, and this projection's terminal merge still carries the whole contribution — it relieves member
+review attention without shrinking the final pull request. Activation requires a concrete concern that:
 
-- A one-member plan preserves today's one-branch / one-PR path: its existing WU → `main` carrier is both the sole
-  member target and terminal carrier. The reducer proves and records one member landing with no intermediate ref,
-  extra PR, or topology-created terminal delta; any actual post-review candidate tail still follows the terminal-delta
-  contract.
-- Only `Dk+1` may materialize or publish. Its ref begins at `Ik`, its PR directly targets the integration ref at
-  `Ik`, and no later member is admitted until it lands. This multi-member rule begins at two members.
-- A deliverable landing is always the singleton `{Dk+1}`. Post-reconcile proves the new `I(k+1)` tree equals applying
-  that member's current reviewed range to `Ik`; commit identity and merge method are irrelevant.
-- Intermediate landings never touch `main` and do not consume the final-integration window. After `Dn`, reconcile the
-  current `main` head, construct the WU candidate against that exact base, and prove its contribution equals the
-  ordered `D1 … Dn` series with no integration-target rider.
-- Base reconciliation that changes the candidate's interacting paths creates a new terminal target and follows the
-  review applicability / retrigger contract. Only the exact settled candidate reaches the integration interlock and
-  the one WU → `main` landing.
+- is correctly one work unit rather than a decomposition candidate;
+- produces a change set too large for one effective review; and
+- cannot leave the protected base green and semantically coherent in increments, so it fails stack eligibility.
 
-Unexpected integration-ref movement is never adopted as another member. A recognized result of the reserved landing
-operation may advance the prefix; any other extra commit or ambiguous result blocks for an explicit replan or repair.
+Record the concern, why decomposition and the stack projection cannot serve it, and the expected member shape before
+beginning design. An activated design must not answer the terminal pull request's size by minting aggregate review
+machinery; that pressure routes to `delivery-review-cardinality`'s own activation threshold. If no qualifying concern
+arrives, the correct disposition is to retire or retain this draft without implementation.
+
+## Goals
+
+- Preserve the authored member order and bind every landing to exact expected target, head, and tree coordinates.
+- Make interruption safe through the shared single-active-operation state rather than through branch-name inference or
+  a new delivery history.
+- Refuse unexpected target movement and leave the operator a typed, current-state remedy.
+- Reuse ordinary member review and work-unit integration instead of constructing parallel assurance gates.
+- Preserve today's one-branch/one-pull-request path for a one-member plan.
+
+## Projection lifecycle
+
+Let `I0` be the exact private integration-target head at bind and `Ik` the observed target after members `D1 … Dk`
+have landed.
+
+1. **Prepare the next member.** Only `D(k+1)` may open against `Ik`. Bind its exact ref and change request in
+   `DeliveryState`; later members remain intent, not active host operations.
+2. **Reserve and reobserve.** Reserve the landing operation with the expected plan revision, state version, member,
+   target head/tree, and member head/tree. Immediately reobserve the Git and change-request authorities. Any mismatch
+   refuses before mutation.
+3. **Land once.** Invoke the ordinary merge capability for that one member. V1 does not loop a multi-member merge or
+   simulate host atomicity.
+4. **Reobserve and reconcile.** Read the resulting target coordinates and prove that the target contribution advanced
+   by exactly the planned member. Record the current coordinates and clear the operation with a version-checked write.
+   An ambiguous or rider-bearing result remains blocked for explicit repair or replacement.
+5. **Repeat.** The observed `I(k+1)` becomes the exact predecessor for the next member.
+6. **Complete the work unit.** After `Dn`, reobserve the private target, reconcile it with the current protected base,
+   and construct the ordinary work-unit integration candidate. Existing review applicability, verification,
+   integration-interlock, and exact-head merge rules govern that candidate.
+
+A one-member plan uses the existing work-unit pull request directly. It needs no private target, intermediate ref, or
+extra change request; the state still binds the exact plan revision and current carrier.
+
+## Robustness floor
+
+- Every mutation follows reserve → reobserve → mutate → reobserve → version-checked completion.
+- The reducer admits only the next planned member and only at the expected target coordinates.
+- Post-observation compares exact trees or exact contribution, not merge-message, branch-name, or provider status
+  heuristics.
+- A recognized operation result may complete after a crash. Unknown movement never becomes a member implicitly.
+- Base reconciliation that changes interacting content creates a new ordinary work-unit review target before final
+  integration.
+- The private target is a delivery projection, not a second work-unit identity or lifecycle locus.
+
+## Explicit non-goals
+
+This member does not add:
+
+- a durable observation log, assurance ledger, terminal-proof record, or historical reconstruction API;
+- group review, seam receipts, cross-pull-request receipt projection, or a terminal whole-series review pass;
+- parallel member landing, atomic-prefix or ordered-prefix capability algebra, or provider-native stack APIs;
+- a generalized pull-request provider framework beyond the narrow operations this projection invokes;
+- automatic repair of an arbitrary changed target, or adoption of unplanned commits as delivery members;
+- mixed topology segments or direct-to-base landing; or
+- a replacement for work-unit verification, candidate-tail handling, integration authorization, or merge locking.
+
+## Hardening boundary
+
+The cohort's hardening-admission rule applies. In particular, a proposed store, identity, retry state, provider
+capability, or proof record must answer a demonstrated failure in this sequential lifecycle. Supporting a hypothetical
+future adapter or making the result more auditable is not sufficient by itself.
+
+## Open implementation details
+
+- The exact Git/change-request port method names and observation field spelling derive from the shared typed schema.
+- The private target's ref naming is a projection detail and must not become work-unit identity.
+- The terminal contribution comparison may use tree subtraction or an equivalent exact repository operation; it does
+  not need a persisted proof object.

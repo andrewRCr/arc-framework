@@ -8,6 +8,7 @@ import { canonicalize, SlugSchema } from "../kernel/index.js";
 import type { ReachableReferenceTransition } from "../work-unit/reference-reconcile.js";
 import {
   DeliveryAuthoringSnapshotV1Schema,
+  type DeliveryAuthoringCandidateOutcomeV1,
   type DeliveryAuthoringSnapshotV1,
 } from "./authoring-schema.js";
 import { resolveForwardDeliverySubjectFromTransitions } from "./plan-resolution.js";
@@ -60,6 +61,7 @@ export interface DeliveryAuthoringCompositionStore {
     expected: DeliveryAuthoringSnapshotV1,
     candidatePlanDigest: string,
     candidateProjectionDigest: string,
+    candidateOutcome: DeliveryAuthoringCandidateOutcomeV1,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>>;
   deleteMarkdown(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
   deleteSnapshot(mapId: string): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>>;
@@ -256,6 +258,7 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
     expected: DeliveryAuthoringSnapshotV1,
     candidatePlanDigest: string,
     candidateProjectionDigest: string,
+    candidateOutcome: DeliveryAuthoringCandidateOutcomeV1,
   ): Promise<DeliveryAuthoringStoreResult<DeliveryAuthoringSnapshotV1>> {
     const parsedMapId = SlugSchema.safeParse(mapId);
     if (!parsedMapId.success || expected.mapId !== parsedMapId.data) {
@@ -279,6 +282,7 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
           ...decoded.value,
           candidatePlanDigest,
           candidateProjectionDigest,
+          candidateOutcome,
         });
         if (!next.success) {
           return { mutations: [], result: { status: "refused", reason: "record-malformed" } };

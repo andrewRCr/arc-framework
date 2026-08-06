@@ -631,7 +631,6 @@ describe("branch-derived delivery facts", () => {
 
 function memberSlot(chunkKey: string) {
   return {
-    status: "live" as const,
     chunkKey,
     title: `${chunkKey} member`,
     contract: `Publish the ${chunkKey} contribution`,

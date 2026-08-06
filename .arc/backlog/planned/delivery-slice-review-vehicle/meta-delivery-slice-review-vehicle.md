@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `delivery-plan-record`, `merge-readiness-control`
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-slice-review-vehicle.md`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Begin draft-design
 
 - **PR URL:** [none]
 - **Completed:** [none]
