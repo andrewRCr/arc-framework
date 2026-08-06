@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** create-spec finalized — `spec-decompose-transition-record.md` (draft retired, Class persisted)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
