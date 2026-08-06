@@ -29,7 +29,7 @@
     "reference/TECHNICAL-OVERVIEW.md": {
       "classification": "Scaffolded",
       "layer": "core",
-      "pristine_hash": "c9e572e9b147aef613ab01a3a66c81c4f9024b850d3bd5f0a893ee36159a03d5"
+      "pristine_hash": "0827e1a8a55b164c9571bf48feddf58563143fb3a147aedf0e1c11759cbb0e41"
     },
     "reference/adr/README.md": {
       "classification": "Framework",
@@ -174,7 +174,7 @@
     "reference/strategies/arc/strategy-work-organization.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a6d07b2df3adcfa9d17c2412ada31d2607d6cce1147f331d3f59665605443542"
+      "pristine_hash": "9e7d5e4229ba70d1e6e33222669efa4c160544166d6919ac850a4986b7d5e5e3"
     },
     "reference/strategies/arc/strategy-work-planning.md": {
       "classification": "Framework",

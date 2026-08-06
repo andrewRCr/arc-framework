@@ -137,9 +137,9 @@ pass fits a changed target. Confident in-scope choices proceed and are disclosed
 material uncertainty, exceptional cost, and final integration remain human-authorized.
 
 When `merge.lock: draft` is enabled, the final exact candidate head may invoke `arc merge lock release` only from
-the combined disposition and integration interlock. Draft-state lock is a per-PR structural hold — not a required
-status check, not evidence of provider review, and not autonomous merge authority. No GitHub App or resident review
-controller exists.
+the combined disposition and integration interlock. Draft-state lock is a per-PR structural hold on host
+mergeability; provider evidence and merge authorization stay separate — the integration interlock remains the sole
+merge authority.
 
 ## 3. Infrastructure
 
@@ -173,10 +173,9 @@ _CI & configuration:_
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
   documentation lint. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at the
-  lifecycle-ready exact-head interlock — a per-PR structural hold, not a required status check or evidence proof.
-  `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled—planning/backlog grooming PRs
-  auto-merge, while code and constitutional PRs merge deliberately (solo repo: no formal Code Owner review). See
-  `strategy-work-organization.md` § Auto-Merge Lane.
+  lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
+  no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

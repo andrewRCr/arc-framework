@@ -297,9 +297,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(overview).toContain("The operating agent owns bounded judgment");
     expect(overview).toContain("Draft-state lock is a per-PR structural hold");
     expect(overview).toContain("merge.lock: draft");
-    expect(overview).not.toMatch(/arc-cleared/iu);
-    expect(overview).toMatch(/No GitHub App or resident review\s+controller exists/);
-    expect(overview).not.toContain("review-gate-right-sizing");
+    expect(overview).toMatch(/integration interlock remains the sole\s+merge authority/);
   });
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
