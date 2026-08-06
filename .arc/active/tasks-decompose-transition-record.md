@@ -44,31 +44,21 @@ receipt consumer before migration and authorization re-derivation.
   receipt validators admit the exact companion path while preserving old candidates, teardown proofs, and park's
   receipt-only lifecycle until their later cutover.
 
-### `[ ]` **1.3 Enumerate origin-keyed records fail-closed from Git**
+### `[x]` **1.3 Enumerate origin-keyed records fail-closed from Git**
 
 - _Goal:_ Every query sees a deterministic current-ref snapshot whose content-origin grouping and global parse
   failures cannot be weakened by filenames, worktree state, or unrelated history.
 
-    - `[ ]` **1.3.a Validate and group a complete namespace snapshot**
-        - Add `transition-record-enumeration.ts` with a `TransitionRecordEnumerationResult` whose valid arm contains
-          deterministic origin groups and preserves one parsed record per namespace entry without digest IDs or
-          content de-duplication; leave `RetirementRecordEnumerationResult` unchanged for receipt consumers.
-        - Build `test-first` (one behavior at a time):
-            - Require an immediate valid-slug `.json` leaf but treat filename/content-origin mismatch as valid.
-            - Preserve byte-identical duplicate files in the same origin group so projections return origin-local
-              ambiguity rather than silently de-duplicating their outcome.
-            - Poison every read for nested or malformed filenames, invalid UTF-8/JSON, an unknown version, invalid
-              shape, duplicate dependents, symlinks, trees, or another non-regular Git entry.
-            - Accept an absent or empty namespace as a valid empty snapshot.
+    - `[x]` **1.3.a Validate and group a complete namespace snapshot**
+        - Added a path-free byte-entry validator with deterministic content-origin groups, preserved duplicate
+          records, fatal UTF-8 decoding, and fail-closed filename, object-kind, and schema validation.
 
-    - `[ ]` **1.3.b Read only the selected Git tree**
-        - Add `enumerateGitTransitionRecords()` over the selected ref and transitions namespace, using a
-          byte-preserving blob boundary plus fatal UTF-8 decoding; keep `enumerateGitRetirementRecords()` on the old
-          namespace for authorization, overlay, handoff, and other receipt-specific consumers.
-        - Build `test-first` (one behavior at a time):
-            - Resolve records from the requested ref rather than the worktree or another branch.
-            - Keep unreachable malformed history from poisoning the selected ref while selected malformed or
-              invalid-UTF-8 bytes do.
+    - `[x]` **1.3.b Read only the selected Git tree**
+        - Added a raw Git adapter that snapshots the requested ref by object ID, reads blobs without text coercion,
+          and leaves the existing receipt enumerator and its consumers unchanged.
+
+- _Outcome:_ Lean enumeration now authenticates one complete selected-tree snapshot before any origin projection;
+  unreachable history and ambient worktree bytes cannot influence its deterministic grouped result.
 
 ### `[ ]` **1.4 Rebuild disposition queries around dependent slugs**
 
