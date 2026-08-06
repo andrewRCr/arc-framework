@@ -94,6 +94,9 @@ tiers, or review models are not admission on their own:
 
 ## Unknowns and Assumptions
 
+> _Settled by `spec-delivery-slice-review-vehicle.md` — the fact set and port shape as decisions (D3, D6), the
+> lock-resolve and publication items as recorded assumptions. Retained as the questions that shaped the spec._
+
 - The exact readiness-fact set for a `delivery-member` vehicle — which of the shared facts (PR match, open state,
   exact head) carry over unchanged, plus the state-lookup facts that replace the branch and lifecycle checks.
 - The shape of the delivery read port readiness consumes (existing state-store read vs. the reverse-lookup surface)
@@ -106,9 +109,10 @@ tiers, or review models are not admission on their own:
 ## Re-entry from `create-spec` — the local review lane's target composition
 
 Spec authoring settled the readiness lane and returned this one concern for shaping. Two adversarial passes over
-`spec-delivery-slice-review-vehicle.md` certified everything else; this is the residue.
+`spec-delivery-slice-review-vehicle.md` certified everything else; this was the residue, and shaping has now
+settled it under source contact. It returns to the spec's D7 marker at the next `create-spec` pass.
 
-**What is already settled** (recorded in the spec, not re-open here): local review of a member runs from the
+**What was already settled** (recorded in the spec, not re-opened here): local review of a member runs from the
 owning work unit's **control locus**, where the meta is present, so a member's review assurance _is_ the owning
 work unit's `workClass` and `reviewRubric` composed by the existing function — no new rubric or guidance model.
 The selector is the member's exact head object id, because the delivery member selector is head-keyed. Member
@@ -116,37 +120,51 @@ selection must be carried to every site that re-derives authority, and assurance
 `delivery-member` to the work-unit arm rather than the Errand fallthrough. The terminal-member refusal applies in
 both lanes.
 
-**The open question.** How is a delivery member's **review target** composed?
+**Settled: member targets compose from recorded delivery coordinates; `baseRef` carries the configured base;
+drift detection moves to the authentication the lane already runs.** Source contact over `repository-target.ts`
+and the five verb compositions grounds each piece:
 
-Two facts make this design rather than detail:
+- **Five of the six target fields have delivery or local sources.** The D6 port resolution supplies the member's
+  recorded head and base; `headTree` and `diffBaseTree` are local `rev-parse` reads over those commits;
+  `repositoryId` is the composition root's. Only `baseRef` has no delivery source.
+- **`baseRef` is filled with the configured base ref** (`branch.base` — the base the stack lands to). Outside
+  derivation itself, every consumer of the field compares or copies it — the target-id preimage
+  (`baseRef\0diffBaseSha\0headSha`), the carrier snapshot equality, fix authorization, the lifecycle-tail
+  proof — so a deterministic, resolvable value satisfies them all, and exactness rides the shas in the preimage.
+  The kind-conditional invariant is recorded rather than hidden: for a member target, `diffBaseSha` is the
+  member's recorded base (its predecessor's head), not the merge base of `HEAD` and `baseRef`.
+- **No member ref is consumed anywhere in the lane**, which dissolves the upstream dependency: delivery ref
+  naming stays `delivery-stack-topology`'s free choice, and this work unit routes an **informational** note (not
+  a constraint) saying so. The predecessor-ref alternative would have constrained naming, namespace (derivation
+  admits `refs/heads/` only), and binding non-nullability at successor-review time — three couplings for a label
+  whose identity contribution the shas already provide.
+- **Derivation parameterizes by base and head revisions**, defaulting to the configured base and `HEAD` — the
+  shipped derivation hardcodes both, so parameterization is mandatory infrastructure for any member formulation,
+  not one option among several. The member path feeds the recorded shas; the dirty-worktree guard and
+  object-existence checks are retained.
+- **Confirmation composes at one site, made kind-aware by signature.** All five verbs consume one injected
+  confirm port; the attest, resume, respond, and reduce compositions delegate to prepare's, and confirmation
+  re-derives from the carried target rather than fresh configuration. One gap was found and closed in design: a
+  member target is indistinguishable from an ordinary one by inspection (same `baseRef` value, same target
+  kind), so an unmodified confirm would re-derive against the control branch's `HEAD` and refuse `stale-target` —
+  the trap paid for twice. The port signature therefore widens to carry the operation's vehicle context, which
+  operation state holds (D1). A widened signature turns every missed callsite into a compile error — the spec's
+  "selection carried to every re-derivation site," made structural rather than procedural.
+- **`stale-target` keeps one semantics.** For a member, confirmation pins to recorded coordinates and retains
+  the object-existence and dirty-worktree checks; binding drift — a rebased, rebound, or unbound member — is
+  caught by the D6-port authentication already required wherever authority re-derives
+  (`delivery-member-unbound`, `delivery-member-mismatch`). No member-specific staleness meaning is introduced.
+- **Lane boundaries confirmed.** The evaluator's source materialization consumes the pinned exact head without
+  re-deriving a target, so it serves member targets unchanged. Frontline self-review remains the no-selector
+  path over the work unit's own change set; member review does not run it.
 
-1. **Derivation and confirmation are paired, and only derivation was addressed.** Local target derivation
-   resolves `HEAD` plus the merge base against the configured base ref. The lane then _re-confirms_ the target by
-   re-deriving it exactly that way — at prepare, attest, resume, respond, and reduce — and returns `stale-target`
-   on any difference. At the control locus `HEAD` is the control branch by construction, so a target built from
-   a member's coordinates is refused as stale on every one of those verbs. Moving derivation without moving its
-   paired verification is what made the first attempt unbuildable.
-2. **A member's recorded coordinates do not span a review target.** Delivery records a member's base, head, and
-   tree. A review target needs repository id, base ref, diff-base sha, diff-base tree, head sha, and head tree.
-   `diffBaseTree` is derivable locally; `baseRef` is not derivable at all — and it is identity-bearing in the
-   target-id preimage, so a guess does not fail loudly, it silently mints a different target identity for the
-   same change set. A member's own ref is nullable, and delivery ref naming is an explicit open implementation
-   detail in `delivery-stack-topology`.
-
-**Credible directions, none yet chosen:**
-
-- Parameterize the shipped derivation by a base revision and a head revision (defaulting to the configured base
-  and `HEAD`), and feed it the member's recorded base and head. Confirmation then composes for free, both trees
-  compute locally, and the dirty-worktree guard is retained. `baseRef` still needs an answer.
-- Give `stale-target` member-specific meaning — drift measured against re-read delivery coordinates rather than
-  the checkout. Costs a second delivery read and a second semantics for one refusal.
-- Accept that local member review reviews the control-branch change set, and record why that is sound. Cheapest,
-  but it pairs an identity claim with a different change set, which is the property this work unit exists to
-  protect.
-
-**The upstream dependency is the crux.** `baseRef` resolution depends on delivery ref naming, which the consumer
-has not settled. Shaping should decide whether this work unit constrains that naming (as it already does for the
-terminal member), waits on it, or picks a formulation that does not need a member ref at all.
+**Superseded directions, dropped deliberately:** the three-way fork recorded at spec return — parameterize the
+derivation, give `stale-target` member-specific meaning, or review the control-branch change set — collapsed
+under source contact. Parameterization proved mandatory infrastructure rather than a choice; member-specific
+staleness dissolved into the authentication layer; and the control-branch reading paired an identity claim with
+a different change set, the property this work unit exists to protect. The upstream crux — whether to constrain
+`delivery-stack-topology`'s ref naming, wait on it, or avoid needing a member ref — resolved to the third:
+nothing in the lane consumes a member ref, so the coordination inverts from constraint to information.
 
 ### Absorbed from the capture surface
 

@@ -12,12 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** `create-spec` — spec authored; readiness lane settled, local lane returned to drafting
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Shape the local lane's review-target composition per the draft's § Re-entry from `create-spec`
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
