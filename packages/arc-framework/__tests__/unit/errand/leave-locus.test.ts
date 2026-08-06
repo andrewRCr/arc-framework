@@ -36,7 +36,6 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
-          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -97,7 +96,6 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
-          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -119,7 +117,7 @@ describe("leaveOrdinaryErrand", () => {
     expect(cleanup).not.toHaveBeenCalled();
   });
 
-  it("refuses leave authorization from a stale open occupancy generation", async () => {
+  it("binds leave to the identity transition instead of a retired lease timestamp", async () => {
     const resumed = { ...record, updatedAt: "2026-07-18T00:02:00.000Z" };
     const persist = vi.fn().mockResolvedValue({
       kind: "applied",
@@ -141,7 +139,6 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: resumed, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
-          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: resumed,
@@ -159,9 +156,7 @@ describe("leaveOrdinaryErrand", () => {
       },
     });
 
-    expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
-    expect(persist).not.toHaveBeenCalled();
-    expect(cleanup).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-leave" });
   });
 
   it("retains the persisted tail when exact local role cleanup refuses", async () => {
@@ -176,7 +171,6 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
-          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "pause",
             previous: record,
@@ -277,7 +271,6 @@ describe("leaveOrdinaryErrand", () => {
         readIdentity: vi.fn().mockResolvedValue({ kind: "idempotent", value: record, tip: "b".repeat(40) }),
         authorize: vi.fn().mockResolvedValue({
           kind: "authorized",
-          occupancyEstablishedAt: record.updatedAt,
           transition: {
             kind: "await-merge",
             previous: record,

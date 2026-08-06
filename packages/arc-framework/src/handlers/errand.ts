@@ -90,6 +90,7 @@ import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 type ErrandHandlerOperation = "errand-open" | "errand-materialize" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
 type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
@@ -913,11 +914,6 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
-      const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-        cwd,
-        identity: SlugSchema.parse(identity),
-        exec: io.exec,
-      })).identityGlobalRoot;
       const result = await leaveOrdinaryErrandAtRuntime({
         slug: parsed.data.slug,
         state: parsed.data.state,
@@ -925,11 +921,9 @@ export async function handleErrandLeave(
         base,
         updatedAt: new Date().toISOString(),
         identity,
-        identityGlobalUserDir,
-        postCreateScript: settings["worktree.post_create"],
-        registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
         execInput: io.execInput,
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
       });
       emitErrandLeaveResult(result, opts.json === true);
     },
