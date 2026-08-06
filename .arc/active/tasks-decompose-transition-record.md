@@ -60,29 +60,21 @@ receipt consumer before migration and authorization re-derivation.
 - _Outcome:_ Lean enumeration now authenticates one complete selected-tree snapshot before any origin projection;
   unreachable history and ambient worktree bytes cannot influence its deterministic grouped result.
 
-### `[ ]` **1.4 Rebuild disposition queries around dependent slugs**
+### `[x]` **1.4 Rebuild disposition queries around dependent slugs**
 
 - _Goal:_ Retirement consumers receive the same authored action by origin and dependent without digest-edge
   indirection, evidence-quality pass-through, or digest-filename conflicts.
 
-    - `[ ]` **1.4.a Close the lean query result contract**
-        - Define the lean disposition query over `TransitionRecordEnumerationResult` with the closed result set
-          `absent`, `unique`, `ambiguous`, `unmapped-dependent`, and `namespace-corrupt`; keep the production
-          receipt query contract intact until the migration cutover.
-        - Build `test-first` (one behavior at a time):
-            - Return `retarget` for any dependent of a rename and `abandoned` for any dependent of an abandon.
-            - Resolve a decompose edge by `edges[].dependent`, preserving `replace` and `drop`, and return
-              `unmapped-dependent` when no entry exists.
-            - Distinguish no matching origin, multiple same-origin records, and global namespace corruption.
+    - `[x]` **1.4.a Close the lean query result contract**
+        - Added the evidence-quality-free lean query and port types with direct-transition projection,
+          dependent-keyed decompose lookup, origin-local ambiguity, and global corruption outcomes.
 
-    - `[ ]` **1.4.b Preserve Git reachability at the query port**
-        - Add the Git lean-query port over `enumerateGitTransitionRecords()` with no old-namespace fallback, leaving
-          `queryGitRetirementDisposition()` wired to current receipt history until Phase 2 proves and performs the
-          one-way production cutover.
-        - Build `test-first` (one behavior at a time):
-            - Return the selected ref's authored answer across divergent histories.
-            - Require the validated enumeration port and consult only `edges[].dependent`, never successor
-              membership, as the decompose edge lookup.
+    - `[x]` **1.4.b Preserve Git reachability at the query port**
+        - Added the Git lean-query port over selected-ref enumeration with no receipt fallback, while leaving the
+          production receipt query unchanged for the later cutover.
+
+- _Outcome:_ Lean queries now return only record-authored transition actions and closed lean failures; digest
+  identity, evidence quality, successor inference, and the legacy namespace remain outside the new port.
 
 ### `[ ]` **1.5 Project lean transitions into reconcile and dependency discharge**
 

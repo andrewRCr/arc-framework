@@ -2,6 +2,11 @@
 
 import type { RawGitExec } from "../change-facts.js";
 import {
+  queryTransitionDisposition,
+  type TransitionDispositionQuery,
+  type TransitionDispositionQueryResult,
+} from "./transition-disposition-query.js";
+import {
   validateTransitionRecordEnumeration,
   type TransitionRecordEnumerationEntry,
   type TransitionRecordEnumerationResult,
@@ -51,6 +56,15 @@ export async function enumerateGitTransitionRecords(
     });
   }
   return validateTransitionRecordEnumeration(entries);
+}
+
+/** Resolve one lean disposition from history reachable at the selected ref. */
+export async function queryGitTransitionDisposition(
+  exec: RawGitExec,
+  ref: string,
+  input: TransitionDispositionQuery,
+): Promise<TransitionDispositionQueryResult> {
+  return queryTransitionDisposition(await enumerateGitTransitionRecords(exec, ref), input);
 }
 
 function parseTreeEntry(raw: string): {

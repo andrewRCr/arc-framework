@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/change-facts.js";
-import { enumerateGitTransitionRecords } from "../../../src/lib/work-unit/git-transition-record-enumeration.js";
-import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import {
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "../../../src/lib/work-unit/git-transition-record-enumeration.js";
+import {
+  serializeTransitionRecord,
+  type TransitionRecord,
+} from "../../../src/lib/work-unit/transition-record.js";
 import { TRANSITION_RECORD_NAMESPACE } from "../../../src/lib/work-unit/transition-record-store.js";
 
 const encoder = new TextEncoder();
@@ -41,6 +47,17 @@ function selectedRefExec(): RawGitExec {
     }
     if (args[0] === "cat-file" && args[2] === otherOid) {
       return { stdout: encoder.encode(other) };
+    }
+    throw new Error(`unexpected git call: ${args.join(" ")}`);
+  };
+}
+
+function singleRecordExec(candidate: TransitionRecord): RawGitExec {
+  const oid = "e".repeat(40);
+  return async (args) => {
+    if (args[0] === "ls-tree") return { stdout: treeLine(oid, `${candidate.origin}.json`) };
+    if (args[0] === "cat-file" && args[2] === oid) {
+      return { stdout: encoder.encode(serializeTransitionRecord(candidate)) };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
   };
@@ -97,5 +114,40 @@ describe("Git transition record enumeration", () => {
       .resolves.toMatchObject({ status: "valid" });
     await expect(enumerateGitTransitionRecords(exec, "refs/heads/selected-malformed"))
       .resolves.toEqual({ status: "namespace-corrupt", filename: "malformed.json" });
+  });
+
+  it("returns the selected ref's transition answer across divergent histories", async () => {
+    await expect(queryGitTransitionDisposition(
+      selectedRefExec(),
+      "refs/heads/selected",
+      { origin: "selected", dependentSlug: "consumer" },
+    )).resolves.toEqual({
+      status: "unique",
+      disposition: { kind: "abandoned" },
+    });
+  });
+
+  it("consults authored dependent edges rather than successor membership", async () => {
+    const exec = singleRecordExec({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "decompose",
+      successors: ["consumer"],
+      edges: [{ dependent: "authored", disposition: { kind: "drop", reason: "retired" } }],
+    });
+
+    await expect(queryGitTransitionDisposition(
+      exec,
+      "refs/heads/selected",
+      { origin: "origin", dependentSlug: "consumer" },
+    )).resolves.toEqual({ status: "unmapped-dependent" });
+    await expect(queryGitTransitionDisposition(
+      exec,
+      "refs/heads/selected",
+      { origin: "origin", dependentSlug: "authored" },
+    )).resolves.toEqual({
+      status: "unique",
+      disposition: { kind: "drop", reason: "retired" },
+    });
   });
 });
