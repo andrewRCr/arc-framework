@@ -167,31 +167,39 @@ prose. This is the main red-suite failure mode if skipped.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ `lint:md`, `lint:ts`, `lint:sh`, ARC contract checks, `typecheck` + `typecheck:test`,
+  `build`, full `npm test` (9722 passed / 1 skipped) — all green (first full suite hit parallel timeout
+  flakes on two scan-heavy unit tests; clean re-run attested)
+
+- _Success criteria:_ 8 criteria: 8 met
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `grep -riE "arc.cleared|arc.clearance"` over the corpus returns only historical records
+- `[x]` `grep -riE "arc.cleared|arc.clearance"` over the corpus returns only historical records
   (`completed/**`, banner-marked analysis), ADR text, backlog planning artifacts that re-ground at their own
   grooming, and this work unit's own artifacts — no live workflow, template, CI, ruleset, recipe, install
   blurb, or CLI install surface
 
-- `[ ]` Scripts `README.md` describes `confirm-live-change-pair.sh` as live-pair / lane-attestation support, not
+- `[x]` Scripts `README.md` describes `confirm-live-change-pair.sh` as live-pair / lane-attestation support, not
   clearance publication
 
-- `[ ]` `confirm-live-change-pair.sh` remains installed and referenced by lane attestation; recipe still ships it
+- `[x]` `confirm-live-change-pair.sh` remains installed and referenced by lane attestation; recipe still ships it
 
-- `[ ]` `01_verify-and-configure.md` offers `merge.lock` config opt-in (or equivalent), does not point at Set Up
+- `[x]` `01_verify-and-configure.md` offers `merge.lock` config opt-in (or equivalent), does not point at Set Up
   ARC Clearance, and leaves no orphan independently-selectable merge-guard structural-enforcement claim
 
-- `[ ]` Coupled tests listed in Phase 4 are green against the post-retirement corpus
+- `[x]` Coupled tests listed in Phase 4 are green against the post-retirement corpus
+    - **Deviation:** pins use positive ship-set / live-prose allowlists rather than inverted "does not ship"
+      absence cases (follow-up on review of retired-name negatives)
 
-- `[ ]` Package and `.arc/` mirrors stay byte-identical for edited framework files
+- `[x]` Package and `.arc/` mirrors stay byte-identical for edited framework files
 
-- `[ ]` All quality gates green (Markdown + ARC contract checks for docs; full suite when tests/recipe change)
+- `[x]` All quality gates green (Markdown + ARC contract checks for docs; full suite when tests/recipe change)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 ---
