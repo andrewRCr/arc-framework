@@ -313,28 +313,21 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
 - _Outcome:_ Session initialization now exposes one strict derived entering-checkout frame across runtime types,
   schemas, wire goldens, and shipped/project workflows; its `active` and load-set views come from that same read.
 
-### `[ ]` **2.7 Close the session-frame consumer review facet**
+### `[x]` **2.7 Close the session-frame consumer review facet**
 
 - _Goal:_ The complete Phase 2 delta is reviewed at an exact head, with every temporary seam to the unmerged
   terminal/lifecycle suffix identified and contained.
 
-    - `[ ]` **2.7.a Bind and preflight the exact marker/session-frame review scope**
-        - Enumerate marker producers and cleanup, status/session-init, load-set, handoff, compaction, recovery, public
-          schema, workflow-consumer, and test hunks introduced by Phase 2.
-        - Identify every compatibility seam Task 3.6 or Task 4.1 must remove; none is a supported main-visible state.
-        - Run `npx arc review chunking resolve -` and `npx arc review resolve -` as read-only exact-target preflights;
-          treat their typed scope and carrier selection as usable only when both return healthy dispatchable states.
+    - `[x]` **2.7.a Bind and preflight the exact marker/session-frame review scope**
+        - Bound the complete Phase 2 surface and its Task 3.6/4.1 compatibility seams to an exact Git target; typed
+          chunking and policy preflights selected the healthy local non-author carrier.
 
-    - `[ ]` **2.7.b Obtain and settle complete facet review**
-        - Require non-author coverage of current-checkout isolation, marker lifecycle, sibling containment,
-          warm-parent fallback, envelope/result agreement, and CLI-composed text.
-        - Follow the selected typed carrier only while prepare, resume, attest, and reduce remain healthy. On
-          malformed, unavailable, blocked, or non-resumable state, stop; do not self-attest, reconstruct review
-          state, or repair review infrastructure in this WU. Continue through a fresh manual non-author procedure
-          only with explicit approval and the same exact target and scope.
-        - Verify findings against source, obtain disposition approval, settle accepted fixes, rerun affected gates,
-          and record the exact reviewed target.
-        - Do not publish this internal facet separately; Deliverable 2 remains incomplete until Phases 3–5 close.
+    - `[x]` **2.7.b Obtain and settle complete facet review**
+        - Settled the verified direct-partial-marker finding, then recorded a clean supplemental review against the
+          exact post-fix head while retaining the prior review's coverage of unchanged Phase 2 code.
+
+- _Outcome:_ The session-frame facet is durably clean at `6cfc53955`; temporary record-backed production and
+  terminal-consumer seams remain explicitly owned by Tasks 3.6 and 4.1 rather than entering the supported contract.
 
 ## **Phase 3:** Switch terminal and lifecycle consumers
 
