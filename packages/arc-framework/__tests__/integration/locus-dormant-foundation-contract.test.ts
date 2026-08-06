@@ -11,6 +11,8 @@ const packageRoot = resolve(import.meta.dirname, "../..");
 const repositoryRoot = resolve(packageRoot, "../..");
 const phaseOneBase = "5c9e806dcda9eb04166695a0cf45e25b08435c7f";
 const phaseOneBaseTree = "77ef6977dd4f6c4b189ad2a100c2435086148812";
+const contractPath = "packages/arc-framework/__tests__/integration/locus-dormant-foundation-contract.test.ts";
+const comparisonBase = resolveComparisonBase();
 
 const dormantModules = [
   "src/lib/locus/derived-lifecycle-evidence.ts",
@@ -96,7 +98,9 @@ describe("Phase 1 dormant locus foundation", () => {
   });
 
   it("limits the production delta to seven additive modules and one exact helper edit", () => {
-    expect(git("rev-parse", `${phaseOneBase}^{tree}`)).toBe(phaseOneBaseTree);
+    if (comparisonBase === phaseOneBase) {
+      expect(git("rev-parse", `${phaseOneBase}^{tree}`)).toBe(phaseOneBaseTree);
+    }
     expect(changedPaths("packages/arc-framework/src")).toEqual([
       "packages/arc-framework/src/lib/locus/derived-lifecycle-evidence.ts",
       "packages/arc-framework/src/lib/locus/derived-reader.ts",
@@ -109,7 +113,7 @@ describe("Phase 1 dormant locus foundation", () => {
     ]);
 
     const subjectMetaPath = "packages/arc-framework/src/lib/locus/subject-meta.ts";
-    const baseSubjectMeta = git("show", `${phaseOneBase}:${subjectMetaPath}`, { trim: false });
+    const baseSubjectMeta = git("show", `${comparisonBase}:${subjectMetaPath}`, { trim: false });
     const expectedSubjectMeta = replaceExactly(
       replaceExactly(
         baseSubjectMeta,
@@ -219,8 +223,25 @@ function isDormant(path: string): boolean {
 }
 
 function changedPaths(...pathspecs: string[]): string[] {
-  const output = git("diff", "--name-only", "--no-renames", phaseOneBase, "--", ...pathspecs);
+  const output = git("diff", "--name-only", "--no-renames", comparisonBase, "--", ...pathspecs);
   return output === "" ? [] : output.split("\n").sort();
+}
+
+function resolveComparisonBase(): string {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", phaseOneBase, "HEAD"], {
+      cwd: repositoryRoot,
+      stdio: "ignore",
+    });
+    return phaseOneBase;
+  } catch {
+    const introducingCommit = git("log", "--diff-filter=A", "--format=%H", "--", contractPath)
+      .split("\n")[0];
+    if (introducingCommit === undefined || introducingCommit === "") {
+      throw new Error("Dormant-foundation contract introduction commit is unavailable");
+    }
+    return git("rev-parse", `${introducingCommit}^`);
+  }
 }
 
 function git(...args: string[]): string;
