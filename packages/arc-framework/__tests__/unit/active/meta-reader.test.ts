@@ -216,6 +216,7 @@ describe("renderMetaFile — semantic record", () => {
       taskList: "tasks-foo.md",
       reviewRubric: null,
       decompositionReceipt: null,
+      promotionReceipt: `errand-v1/repair/${"a".repeat(32)}`,
       currentWorkflow: "integrate-work-unit",
       lastCompleted: "Task 7.1",
       nextTask: "Task 7.2",
@@ -238,6 +239,7 @@ describe("renderMetaFile — semantic record", () => {
       Origin: "https://example.com/issue/1",
       Design: "spec-a.md, spec-b.md",
       "Task List": "tasks-foo.md",
+      "Promotion Receipt": `errand-v1/repair/${"a".repeat(32)}`,
       "Current Workflow": "integrate-work-unit",
       "Last Completed": "Task 7.1",
       "Next Task": "Task 7.2",
@@ -1366,6 +1368,63 @@ describe("Decomposition Receipt field — omit-when-absent identity", () => {
     const reconciled = reconcileMetaFields(content);
     expect(reconciled.content).toBe(content);
     expect(parseMetaRecord(reconciled.content).decompositionReceipt).toBe(receiptId);
+  });
+});
+
+describe("Promotion Receipt field — immutable originating generation", () => {
+  const receipt = `errand-v1/repair/${"a".repeat(32)}`;
+
+  it("omits ordinary absence and round-trips one canonical receipt", () => {
+    const ordinary = renderMetaFile("foo", { state: "Active", owner: "andrew" });
+    const promoted = renderMetaFile("foo", {
+      state: "Active",
+      owner: "andrew",
+      promotionReceipt: receipt,
+    });
+
+    expect(ordinary).not.toContain("Promotion Receipt");
+    expect(parseMetaRecord(ordinary).promotionReceipt).toBeNull();
+    expect(promoted).toContain(`- **Promotion Receipt:** \`${receipt}\``);
+    expect(parseMetaRecord(promoted).promotionReceipt).toBe(receipt);
+  });
+
+  it("refuses managed mutation or removal of an existing receipt", () => {
+    const content = renderMetaFile("foo", {
+      state: "Active",
+      owner: "andrew",
+      promotionReceipt: receipt,
+    });
+
+    expect(() => setMetaBulletFields(content, {
+      "Promotion Receipt": `\`errand-v1/repair/${"b".repeat(32)}\``,
+    })).toThrow(/Promotion Receipt.*immutable/u);
+    expect(() => setMetaBulletFields(content, { "Promotion Receipt": "[none]" }))
+      .toThrow(/Promotion Receipt.*immutable/u);
+  });
+
+  it("survives managed transitions, reconciliation, and archive finalization", () => {
+    let content = renderMetaFile("foo", {
+      state: "Planning",
+      owner: "andrew",
+      promotionReceipt: receipt,
+    });
+    const transitions = [
+      (value: string): string => setMetaState(value, "Active"),
+      (value: string): string => setMetaBranch(value, "feat/foo"),
+      (value: string): string => setMetaClass(value, "Heavy"),
+      (value: string): string => setMetaCurrentWorkflow(value, "[none]"),
+      (value: string): string => setMetaDesign(value, "spec-foo.md"),
+      (value: string): string => setMetaFinalizeFields(value, {
+        prUrl: "https://example.com/pr/1",
+        completed: "2026-08-06",
+      }),
+      (value: string): string => reconcileMetaFields(value).content,
+    ];
+
+    for (const transition of transitions) {
+      content = transition(content);
+      expect(parseMetaRecord(content).promotionReceipt).toBe(receipt);
+    }
   });
 });
 

@@ -362,12 +362,12 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
   immutable receipt carrying the durable origin after identity removal and the common terminal contract governing
   own versus foreign authority.
 
-    - `[ ]` **3.2.a Add the canonical immutable `Promotion Receipt` contract**
-        - Extend meta schema, parsing, rendering, mutation, transition, relocation, and archival paths with the
-          optional canonical `errand-v1/<slug>/<claim-id>` value.
-        - Permit absence on ordinary WUs and preserve the exact value through every managed later mutation.
-        - Refuse a missing or mismatched receipt while the identity transaction supplies comparison evidence; add no
-          second history oracle for detecting arbitrary out-of-band edits after identity removal.
+    - `[x]` **3.2.a Add the canonical immutable `Promotion Receipt` contract**
+        - Added the optional canonical `errand-v1/<slug>/<claim-id>` meta field, preserved absent historical and
+          ordinary projections, barred managed rewrites, and retained exact receipts through transition, pointer,
+          relocation, reconciliation, and archival mutation paths.
+        - Promotion now mints the receipt from its exact identity generation and refuses missing or mismatched
+          identity-backed replay evidence without introducing a second post-settlement history authority.
 
     - `[ ]` **3.2.b Move promotion authority and settlement onto exact generation**
         - Replace lease, `selfHeld`, process-anchor, and record-lock authority with the common own/foreign terminal

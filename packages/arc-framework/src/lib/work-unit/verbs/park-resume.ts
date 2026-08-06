@@ -247,6 +247,7 @@ function renderFieldsFrom(record: ParsedMetaRecord): MetaRenderOverrides {
     dependsOn: record.dependsOn,
     origin: record.origin ?? "internal",
     design: record.design,
+    promotionReceipt: record.promotionReceipt,
   };
 }
 

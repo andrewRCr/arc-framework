@@ -148,7 +148,7 @@ async function replaceLocalFrame(
   }
   const branch = promotionBranch(options);
   const metaPath = promotionMetaPath(options.name);
-  const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch));
+  const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch, record));
   try {
     await options.exec("git", ["check-ref-format", "--branch", branch]);
   } catch {
@@ -355,7 +355,9 @@ async function recoverPromotedFrame(
   }
   // The identity is retired here, so the slug is the only source field comparable with the caller;
   // the persisted claim ID remains durable provenance on the promoted role.
-  if (row.role?.promotionSource?.slug !== options.slug) {
+  const role = row.role;
+  const promotionSource = role?.promotionSource;
+  if (role === null || promotionSource?.slug !== options.slug) {
     return refused(
       "promotion-source-invalid",
       "Promoted work-unit recovery does not match the originating Errand generation.",
@@ -363,7 +365,7 @@ async function recoverPromotedFrame(
   }
   const branch = promotionBranch(options);
   const metaPath = promotionMetaPath(options.name);
-  const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch));
+  const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch, promotionSource));
   const inspected = await inspectCheckout(options.exec, row.checkoutPath, branch, branch, metaPath, expectedMeta);
   if (inspected.kind !== "ready") return inspected;
   if (!carriesPromotedEvidence(inspected, branch)) {
@@ -375,8 +377,8 @@ async function recoverPromotedFrame(
     branch,
     metaPath,
     false,
-    row.role.originEntry,
-    (row.role.originEntrySourceDigest as CanonicalDigest | undefined) ?? null,
+    role.originEntry,
+    (role.originEntrySourceDigest as CanonicalDigest | undefined) ?? null,
     inspected.metaCommitted,
   );
 }
@@ -726,11 +728,13 @@ function promotionMetaPath(name: string): string {
 function metaOverrides(
   options: Pick<PromoteOrdinaryErrandRuntimeOptions, "owner" | "priority" | "class" | "floor">,
   branch: string,
+  promotionSource: { slug: string; claimId: string },
 ): MetaRenderOverrides {
   const overrides: MetaRenderOverrides = {
     owner: options.owner,
     branch,
     lastCompleted: "Errand promoted to work unit",
+    promotionReceipt: `errand-v1/${promotionSource.slug}/${promotionSource.claimId}`,
   };
   if (options.priority !== undefined) overrides.priority = MetaPrioritySchema.parse(options.priority);
   if (options.class !== undefined) overrides.workClass = MetaWorkClassSchema.parse(options.class);

@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import {
   ensureWorktreeMarkerIgnored,
   nodeWorktreeMarkerIgnoreFs,
@@ -73,7 +73,10 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
 
     expect(failed).toMatchObject({ outcome: "error", operation: "errand-promote" });
     expect((await exec("git", ["branch", "--show-current"])).stdout).toBe("feat/growth");
-    expect(await readFile(join(primary, ".arc/active/meta-growth.md"), "utf8")).toContain("# Metadata: growth");
+    const promotedMeta = await readFile(join(primary, ".arc/active/meta-growth.md"), "utf8");
+    expect(promotedMeta).toContain("# Metadata: growth");
+    expect(parseMetaRecord(promotedMeta).promotionReceipt)
+      .toBe(`errand-v1/${identity.slug}/${identity.claimId}`);
     const promoted = await readRecord(root, primary);
     expect(promoted.role).toMatchObject({
       kind: "work-unit",
@@ -128,6 +131,38 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     expect((await readRecord(root, primary)).role).toMatchObject({
       promotionSource: { slug: identity.slug, claimId: identity.claimId },
     });
+  });
+
+  it.each([
+    ["missing", (content: string) => content.replace(/^- \*\*Promotion Receipt:\*\*.*\n/mu, "")],
+    ["mismatched", (content: string) => content.replace("c".repeat(32), "d".repeat(32))],
+  ] as const)("refuses an identity-backed replay with a %s promotion receipt", async (_case, tamper) => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+    const options = runtimeOptions(primary, exec, execInput, root, anchor);
+    const failingExec: typeof exec = (command, args, commandOptions) => args[0] === "commit-tree"
+      ? Promise.reject(new Error("injected identity retirement failure"))
+      : exec(command, args, commandOptions);
+
+    expect(await promoteOrdinaryErrandAtRuntime({ ...options, exec: failingExec })).toMatchObject({ outcome: "error" });
+    const metaPath = join(primary, ".arc/active/meta-growth.md");
+    await writeFile(metaPath, tamper(await readFile(metaPath, "utf8")));
+
+    const replay = await promoteOrdinaryErrandAtRuntime(options);
+
+    expect(replay).toMatchObject({
+      outcome: "refused",
+      operation: "errand-promote",
+      reason: "promotion-source-invalid",
+    });
+    expect(await readIdentity(exec, execInput)).toMatchObject({ slug: identity.slug, claimId: identity.claimId });
   });
 
   it.each([
