@@ -81,10 +81,9 @@ cp .arc/reference/templates/arc/merge-gate/CODEOWNERS .github/CODEOWNERS
 
 Then replace `@your-org/reviewers` with the real reviewer(s), and confirm the constitutional and unowned blocks
 match the project's paths. CODEOWNERS supplies path ownership only. ARC-managed PR workflows run the canonical
-classifier over the exact base/head before arming auto-merge; only literal `planning` is eligible. Without
-`arc-cleared`, that classifier gate plus the integration interlock is procedural enforcement. When `arc-cleared`
-is required through the independent clearance setup, its planning writer makes the same decision structural at
-the host.
+classifier over the exact base/head before arming auto-merge; only literal `planning` is eligible. That
+classifier gate plus the integration interlock is the procedural boundary — never infer merge safety from
+agent-layer discipline alone.
 
 The shipped skeleton deliberately keeps decomposition receipts owned; do not add that namespace to the unowned
 block while copying or reconciling the skeleton.
@@ -139,9 +138,7 @@ Summarize what landed: the `merge-ok` gate in the CI workflow, the CODEOWNERS lo
 required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch only a supported
 planning artifact) and confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR
 touching a constitutional path (a rule, ADR, or strategy) should require owner review. **Also verify a mode-only
-change or malformed planning-looking filename classifies `reviewed` and is not armed** · `[invariant]`. If
-`arc-cleared` is independently installed and required, confirm that reviewed head remains structurally locked as
-well.
+change or malformed planning-looking filename classifies `reviewed` and is not armed** · `[invariant]`.
 
 A second run of this workflow detects each piece already in place and confirms rather than duplicating.
 

@@ -363,9 +363,11 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
 can require an agent to run an activity, and standard review can produce evidence eligible for a review
-obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
-host-side check structurally enforces merge safety. Projects without that host control must describe review as
-procedural discipline, not a merge guarantee.
+obligation, but none of those agent-layer controls prevents a direct host-UI merge. Host-side merge controls are
+distinct from agent-layer discipline: a required status check is fail-closed repo configuration; draft-state lock
+(`merge.lock: draft`) is a per-PR structural hold whose installation is procedural. Never infer merge safety from
+agent-layer discipline alone. Projects that rely only on agent workflows must describe review as procedural
+discipline, not a merge guarantee.
 
 ---
 

@@ -67,5 +67,5 @@ only what guidance that evaluator received. Result normalization and attestation
 A local fresh-context carrier may run this standard through `adversarial-review`; other qualified carriers apply the
 same contract. A result becomes satisfying evidence only after an authorized attestor revalidates the exact target,
 evaluator separation, rubric identity, and complete result. Findings remain advisory for mutation and return to the
-author-side disposition cycle. This method defines evidence eligibility, not merge enforcement; only a configured
-required host-side check can prevent merge when the obligation is unsatisfied.
+author-side disposition cycle. This method defines evidence eligibility, not merge enforcement; agent-layer results
+never by themselves prevent a host-UI merge when the obligation is unsatisfied.
