@@ -66,6 +66,7 @@ import {
 } from "../lib/errand/close-runtime.js";
 import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
+import { ErrandTerminalGenerationSchema } from "../lib/errand/terminal-result.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
   LocusGitOidSchema,
@@ -1222,13 +1223,19 @@ function emitErrandCloseFailure(code: LocusMutationErrorCode, message: string, j
 
 /** Options for the `arc errand abandon` subcommand. */
 export interface ErrandAbandonOptions {
+  /** Exact foreign subject generation authorizing this abandon request. */
+  confirmForeignGeneration?: string;
   /** Emit the producer-validated mutation result without human decoration. */
   json?: boolean;
 }
 
 /** Validated input for abandoning an errand. */
 export const ErrandAbandonInputSchema = z
-  .object({ slug: SlugSchema, json: z.boolean().optional() })
+  .object({
+    slug: SlugSchema,
+    confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
+    json: z.boolean().optional(),
+  })
   .strict();
 
 /** Explicitly retire a safely preserved ordinary Errand while retaining its capture. */
@@ -1298,11 +1305,6 @@ async function runErrandAbandonHandler(
     );
     return;
   }
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
-    exec: io.exec,
-  })).identityGlobalRoot;
   let result: LocusMutationResultV1;
   try {
     result = protection === "partial"
@@ -1312,6 +1314,7 @@ async function runErrandAbandonHandler(
         base,
         exec: io.exec,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        confirmForeignGeneration: input.confirmForeignGeneration,
         settleInbox: async (binding) => {
           if (binding.originEntry === null) {
             return { kind: "idempotent", nextOffer: null };
@@ -1330,11 +1333,10 @@ async function runErrandAbandonHandler(
         protection: "full",
         base,
         identity,
-        identityGlobalUserDir,
-        postCreateScript: settings["worktree.post_create"],
-        registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
         execInput: io.execInput,
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        confirmForeignGeneration: input.confirmForeignGeneration,
         confirmedNoLiveSession: false,
         clearExecuteBound: async (record) => {
           if (record.originEntry === null) return { kind: "idempotent" };
@@ -1465,7 +1467,11 @@ export const errandCommandInputRegistrations = [
   {
     commandPath: "errand abandon",
     schema: ErrandAbandonInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.json": "json" },
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.confirm-foreign-generation": "confirmForeignGeneration",
+      "option.json": "json",
+    },
   },
   {
     commandPath: "errand close",
@@ -1564,6 +1570,23 @@ export const errandCommandInputPolicyDeclarations = [
       cancellation: "not-applicable",
       automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--state <value>"] },
       mutationBoundary: "errand leave input preflight",
+      subprocess: "none",
+    })],
+  },
+  {
+    commandPath: "errand abandon",
+    aliases: [],
+    sites: [declareCliOptionSite("confirm-foreign-generation", {
+      acquisition: "optional",
+      schemaOwnership: "owned",
+      schemaField: "confirmForeignGeneration",
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "preserve-absent",
+        flags: ["--confirm-foreign-generation <generation>"],
+        acceptedSyntax: ["--confirm-foreign-generation <generation>"],
+      },
+      mutationBoundary: "errand abandon subject-generation authority",
       subprocess: "none",
     })],
   },

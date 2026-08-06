@@ -28,6 +28,7 @@ import { locusErrorCode, type LocusMutationResultV1 } from "../lib/locus/schema/
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { unmarkCurrentInboxEntry } from "../commands/user/inbox-mutation.js";
 import type { LocusResolveAction } from "../lib/locus/resolve-driver.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface LocusCliOptions {
   json?: boolean;
@@ -106,9 +107,6 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
       }
       const execInput = io.execInput;
       const { settings } = await readConfigSettings(cwd);
-      const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-        cwd, identity: SlugSchema.parse(identity), exec: io.exec,
-      })).identityGlobalRoot;
       const common = {
         recordId, action, base: settings["branch.base"], identity, cwd,
         confirmedNoLiveSession: options.confirmNoLiveSession === true,
@@ -128,9 +126,10 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
             });
           }
           return abandonOrdinaryErrandAtRuntime({
-            slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
-            postCreateScript: common.postCreateScript,
-            registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput, selected,
+            slug: key, protection: "full", base: common.base, identity, exec: io.exec, execInput, selected,
+            readFrame: () => runDerivedLocusStateProbe({
+              cwd, identity, baseBranch: common.base, exec: io.exec,
+            }),
             confirmedNoLiveSession,
             clearExecuteBound: async (record) => {
               if (record.originEntry === null) return { kind: "idempotent" };

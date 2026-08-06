@@ -583,6 +583,7 @@ errand
 errand
   .command("abandon <slug>")
   .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

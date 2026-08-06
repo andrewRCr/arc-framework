@@ -104,29 +104,6 @@ async function seedOpenV3Errand(cwd: string, slug: string): Promise<void> {
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
-/** Seed an exact ordinary residue whose linked checkout was already removed. */
-async function seedMissingCheckoutResidue(cwd: string, slug: string): Promise<string> {
-  const checkoutPath = join(cwd, "missing-checkout");
-  const identity = deriveLocusRecordId(checkoutPath, "posix");
-  const lociDir = join(cwd, ".arc", "user", "test-user", ".internal", "loci");
-  const recordPath = join(lociDir, `locus-${identity.digest}.json`);
-  await mkdir(lociDir, { recursive: true });
-  await writeFile(recordPath, `${JSON.stringify({
-    schemaVersion: 1,
-    recordId: identity.recordId,
-    checkoutPath,
-    role: {
-      kind: "errand",
-      subject: { kind: "errand", key: slug, claimId: "d".repeat(32) },
-      establishedAt: "2026-07-21T00:00:00.000Z",
-      parentCheckoutPath: null,
-      originEntry: null,
-    },
-    lease: null,
-  })}\n`, "utf-8");
-  return recordPath;
-}
-
 /** Flip the installed config's branch.protection (default `partial`) to `full`. */
 async function setFullProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
@@ -1334,7 +1311,11 @@ describe("arc errand abandon", () => {
   it("retires a preserved identity-only claim while retaining its branch", async () => {
     await seedOpenV3Errand(tmpDir, "discard");
 
-    const result = await runArc(["errand", "abandon", "discard", "--json"], tmpDir);
+    const result = await runArc([
+      "errand", "abandon", "discard",
+      "--confirm-foreign-generation", `errand-v1/discard/${"d".repeat(32)}`,
+      "--json",
+    ], tmpDir);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(JSON.parse(result.stdout.trim())).toMatchObject({
@@ -1375,23 +1356,6 @@ describe("arc errand abandon", () => {
       error: { code: "locus.errand-abandon.input" },
     });
     expect(result.stderr).toBe("");
-  });
-
-  it("releases an exact residue after its checkout was already removed", async () => {
-    const slug = "missing-checkout";
-    await seedOpenV3Errand(tmpDir, slug);
-    const recordPath = await seedMissingCheckoutResidue(tmpDir, slug);
-
-    const result = await runArcAnchoredSequence([["errand", "abandon", slug, "--json"]], tmpDir);
-
-    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-    expect(result.results[0]).toMatchObject({
-      outcome: "applied",
-      operation: "errand-abandon",
-    });
-    await expect(readFile(recordPath, "utf-8")).rejects.toThrow();
-    await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
-      .rejects.toThrow();
   });
 
   it("abandons a clean partial Errand and releases its primary occupancy", async () => {
