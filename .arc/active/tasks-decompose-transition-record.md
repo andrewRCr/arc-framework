@@ -193,35 +193,21 @@ and after conversion, and leave the non-terminal park record for its authorizati
 _Purpose:_ Replace receipt-carried authorization with committed-tree proofs one arm at a time, retaining parity
 coverage before any receipt-consuming predecessor is removed.
 
-### `[ ]` **3.1 Re-derive abandon teardown authorization from transition trees**
+### `[x]` **3.1 Re-derive abandon teardown authorization from transition trees**
 
 - _Goal:_ Abandon teardown authorizes only when committed Git proves the exact structural abandon transition and
   conservation across its source and result trees, without trusting a transition-record payload.
 
-    - `[ ]` **3.1.a Locate the abandon transition structurally**
-        - Add a typed structural locator in `git-retirement-authorization-context.ts` with `absent`, `unique`,
-          `ambiguous`, and `unavailable` results over pinned source and result commits; map those results to the
-          existing evidence, ambiguity, and availability refusals without synthesizing a receipt.
-        - Treat direct and landed abandonment as separate topology arms:
-            - Direct: the retiring result head is an exact single-parent commit whose parent contains the complete
-              valid subject artifact group and whose result removes that group and clears the lifecycle entry.
-            - Landed: the selected base contains one reachable transition whose parent carries the complete planned
-              group bound by subject and branch and whose result removes it and clears the lifecycle entry.
-        - Validate the exact relevant artifact and lifecycle delta plus its ancestry relation; permit only the
-          transition's ordinary `ROADMAP` and lean-history sidecars outside that delta, and never read transition
-          record content or use its presence to grant authority.
-        - Build `test-first` (one behavior at a time):
-            - Accept the exact single-parent direct transition and its landed equivalent.
-            - Refuse root or merge topology, unrelated relevant changes, missing or ambiguous introductions, and
-              wrong authority ref, ancestry, subject, branch, or head.
+    - `[x]` **3.1.a Locate the abandon transition structurally**
+        - Added direct and landed Git-history location with closed absent, unique, ambiguous, and unavailable
+          outcomes, strict single-parent topology, exact relevant-delta validation, and semantic-refusal mapping.
 
-    - `[ ]` **3.1.b Prove conservation from the two trees**
-        - Require a complete, parseable, cohort-consistent subject artifact group on the selected source side, no
-          subject artifacts on the result side, and a clear result lifecycle index.
-        - Build `test-first` (one behavior at a time):
-            - Authorize the intact tree transition without reading record bytes.
-            - Refuse incomplete, malformed, duplicate, or cohort-inconsistent source groups, surviving result
-              artifacts, or a retained lifecycle entry using the existing semantic refusal classes.
+    - `[x]` **3.1.b Prove conservation from the two trees**
+        - Validated the complete parsed source group, branch and planned-cohort placement, result absence, and cleared
+          lifecycle index from pinned trees while leaving transition-record bytes unread.
+
+- _Outcome:_ Abandon history is now independently locatable and conservation-checked from committed trees; malformed,
+  duplicate, ambiguous, unrelated, or structurally invalid candidates fail closed without receipt evidence.
 
 ### `[ ]` **3.2 Authenticate park landing from the relocation commit**
 

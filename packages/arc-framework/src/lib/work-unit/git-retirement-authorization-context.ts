@@ -2,6 +2,8 @@
 
 import { posix } from "node:path";
 
+import { metaCohortDir } from "../active/cohort-consistency.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { assessReapSafety, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
@@ -40,12 +42,186 @@ import {
   resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
 import { validateRetirementReceiptRelation } from "./retirement-relation.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Exact committed-blob reader used for canonical content digests. */
 export type RetirementAuthorizationBlobReader = (
   ref: string,
   path: ManagedPath,
 ) => Promise<Uint8Array | null>;
+
+/** Structural abandon transition selected from committed Git history. */
+export interface AbandonTransitionProof {
+  topology: "direct" | "landed";
+  sourceHead: string;
+  resultHead: string;
+  sourceArtifacts: readonly ArtifactSetEntry[];
+}
+
+/** Closed locator result for structural abandon authorization. */
+export type AbandonTransitionLocation =
+  | { status: "absent" }
+  | { status: "unique"; proof: AbandonTransitionProof }
+  | { status: "ambiguous" }
+  | { status: "unavailable" };
+
+/** Map structural locator outcomes onto the teardown authorization vocabulary. */
+export function abandonTransitionLocationRefusal(
+  location: AbandonTransitionLocation,
+): TeardownAuthorizationRefusal | null {
+  switch (location.status) {
+    case "absent":
+      return "evidence-missing";
+    case "ambiguous":
+      return "authority-ambiguous";
+    case "unavailable":
+      return "authority-unavailable";
+    case "unique":
+      return null;
+  }
+}
+
+/** Locate and validate one receipt-independent abandon transition. */
+export async function locateAbandonTransition(
+  exec: GitExec,
+  baseRef: string,
+  request: TeardownAuthorizationRequest,
+  readBlob: RetirementAuthorizationBlobReader,
+): Promise<AbandonTransitionLocation> {
+  if (request.subject.kind !== "work-unit") return { status: "absent" };
+  try {
+    const directParents = await readCommitParents(exec, request.head);
+    if (directParents.length === 1 && directParents[0] !== undefined) {
+      const direct = await validateAbandonTransition(
+        exec,
+        request,
+        directParents[0],
+        request.head,
+        "direct",
+        readBlob,
+      );
+      if (direct !== null) return { status: "unique", proof: direct };
+    }
+
+    const baseHead = await resolveCommit(exec, baseRef);
+    const matches: AbandonTransitionProof[] = [];
+    for (const resultHead of await listAbandonCandidates(exec, baseHead)) {
+      const parents = await readCommitParents(exec, resultHead);
+      const sourceHead = parents.length === 1 ? parents[0] : undefined;
+      if (sourceHead === undefined) continue;
+      const proof = await validateAbandonTransition(
+        exec,
+        request,
+        sourceHead,
+        resultHead,
+        "landed",
+        readBlob,
+      );
+      if (proof !== null) matches.push(proof);
+    }
+    if (matches.length === 0) return { status: "absent" };
+    if (matches.length > 1) return { status: "ambiguous" };
+    const proof = matches[0];
+    return proof === undefined ? { status: "absent" } : { status: "unique", proof };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+async function listAbandonCandidates(exec: GitExec, baseHead: string): Promise<readonly string[]> {
+  const { stdout } = await exec("git", [
+    "log",
+    "--format=%H",
+    "--diff-filter=D",
+    "--no-renames",
+    baseHead,
+    "--",
+    ".arc/active",
+    ".arc/backlog/planned",
+    ".arc/backlog/provisional",
+  ]);
+  return [...new Set(stdout.split("\n").map((value) => value.trim()).filter(Boolean))];
+}
+
+async function validateAbandonTransition(
+  exec: GitExec,
+  request: TeardownAuthorizationRequest,
+  sourceHead: string,
+  resultHead: string,
+  topology: AbandonTransitionProof["topology"],
+  readBlob: RetirementAuthorizationBlobReader,
+): Promise<AbandonTransitionProof | null> {
+  const name = request.subject.kind === "work-unit" ? request.subject.name : "";
+  const [sourceArtifacts, resultArtifacts, sourceIndex, resultIndex] = await Promise.all([
+    readAllSubjectArtifacts(exec, sourceHead, name, readBlob),
+    readAllSubjectArtifacts(exec, resultHead, name, readBlob),
+    readLifecycleIndex(exec, sourceHead),
+    readLifecycleIndex(exec, resultHead),
+  ]);
+  const sourceEntry = sourceIndex.get(name);
+  if (sourceEntry === undefined || resultIndex.has(name) || resultArtifacts.length > 0) return null;
+  const metaName = `meta-${name}.md`;
+  const metas = sourceArtifacts.filter((artifact) => posix.basename(artifact.path) === metaName);
+  const meta = metas[0];
+  if (metas.length !== 1 || meta === undefined || meta.path !== sourceEntry.path) return null;
+  const sourceDir = posix.dirname(meta.path);
+  if (sourceArtifacts.some((artifact) => posix.dirname(artifact.path) !== sourceDir)) return null;
+  let record: ReturnType<typeof parseMetaRecord>;
+  try {
+    record = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes));
+  } catch {
+    return null;
+  }
+  if (record.branch !== request.branch) return null;
+  if (sourceEntry.location === "planned") {
+    const cohort = record.cohort === null || record.cohort === "[none]" ? "" : record.cohort;
+    if (metaCohortDir(meta.path) !== cohort) return null;
+  }
+  const sourcePaths = new Set(sourceArtifacts.map((artifact) => artifact.path));
+  const changes = await readNameStatus(exec, sourceHead, resultHead);
+  for (const change of changes) {
+    if (sourcePaths.has(change.path)) {
+      if (change.status !== "D") return null;
+      continue;
+    }
+    if (!isAllowedAbandonSidecar(change, name)) return null;
+  }
+  if ([...sourcePaths].some((path) => !changes.some((change) => change.path === path))) return null;
+  return {
+    topology,
+    sourceHead,
+    resultHead,
+    sourceArtifacts: toArtifactEntries(sourceArtifacts),
+  };
+}
+
+interface NameStatusEntry {
+  status: string;
+  path: ManagedPath;
+}
+
+async function readNameStatus(exec: GitExec, parent: string, commit: string): Promise<NameStatusEntry[]> {
+  const { stdout } = await exec("git", [
+    "diff-tree", "--no-commit-id", "--name-status", "-r", "-z", "--no-renames", parent, commit,
+  ]);
+  const fields = stdout.split("\0").filter(Boolean);
+  if (fields.length % 2 !== 0) throw new Error("malformed Git name-status output");
+  const entries: NameStatusEntry[] = [];
+  for (let index = 0; index < fields.length; index += 2) {
+    const status = fields[index];
+    const path = fields[index + 1];
+    if (status === undefined || path === undefined) throw new Error("malformed Git name-status output");
+    entries.push({ status, path: validateManagedPath(path) });
+  }
+  return entries;
+}
+
+function isAllowedAbandonSidecar(change: NameStatusEntry, name: string): boolean {
+  if (change.path === ".arc/backlog/ROADMAP.md") {
+    return change.status === "A" || change.status === "M" || change.status === "D";
+  }
+  return change.path === resolveTransitionRecordRelativePath(name) && change.status === "A";
+}
 
 /** Create the production Git context consumed by the strict authorization core. */
 export function createGitRetirementAuthorizationContext(
