@@ -165,15 +165,10 @@ producer, consumer, public contract, workflow, or on-disk behavior.
   implementation head is clean under the configured non-author lane, while the later member review remains the
   authoritative landing gate for the lifecycle-artifact-free projection.
 
-### `[ ]` **1.7 Validate the dormant-foundation delivery head**
+### `[x]` **1.7 Validate the dormant-foundation delivery head**
 
 - _Goal:_ Deliverable 1 reaches `main` as an independently supported additive head while the control branch retains
   the WU lifecycle and authoring record.
-
-- _Approach:_ Execute an exceptional manual delivery projection using existing Git, review-driver, pull-request, and
-  explicit integration interlocks; do not create ARC delivery execution state or another authoring surface.
-
-- _Note:_ The canonical `stack-to-main` delivery plan records intent only and does not construct or land this member.
 
     - `[x]` **1.7.a Construct the non-final delivery projection**
         - Projected the 18-file Phase 1 implementation payload from control head `bb91afcc1` onto disposable member
@@ -186,20 +181,15 @@ producer, consumer, public contract, workflow, or on-disk behavior.
           contract proves the dormant reader remains unselected and protected producer, consumer, and doctrine
           surfaces remain unchanged.
 
-    - `[ ]` **1.7.c Publish and verify only the exact authorized member**
-        - Published head `abbd37e6759416cb527bb50a6ce7fc6267173c1f` (tree
-          `e1b4fb3a63f878b1c21d89f8bcd43b40777e3876`) over base `638c3a2bcd8a6cc481384359ae28c61da9471831`
-          (tree `9e1dae06d066c7e06f02de5ef1703e5c334cd50a`) in draft PR #468.
-        - Push the member ref, open its pull request directly to `main`, and record exact base/head/PR coordinates on
-          the control branch without treating them as ARC delivery state.
-        - Recompose the exact member target through the review driver; require current checks, complete non-author
-          whole-target review, and explicit exact-head integration authorization. Repair findings only on the control
-          branch and reconstruct the member whenever bytes change.
-        - After authorized landing, fetch and verify the exact merge/tree, then merge current `origin/main` into the
-          clean control branch using append-only base reconciliation. Stop on a non-trivial conflict or unexpected
-          tree delta.
-        - Prove the Phase 1 payload remains tree-equivalent, the four active WU artifacts remain control-branch-only,
-          and affected fast gates pass; record the reconciled control head before entering Phase 2.
+    - `[x]` **1.7.c Publish and verify only the exact authorized member**
+        - Merged exact head `d30459ee6140153ad5c8eb7c9d57045a81089aec` (tree
+          `938046e4071f4788c0a6604c6c95a297430ceebb`) over base `638c3a2bcd8a6cc481384359ae28c61da9471831`
+          through PR #468 as merge commit `d0dbbb91e55732d666209884921c334593e78d25`; reconciled that mainline head
+          append-only into control at `20705169dcab384608336d6d5e0ca278f54fb9f2`, preserving byte equality across
+          all 18 delivered paths while the four active WU artifacts remain control-only.
+
+- _Outcome:_ The additive dormant foundation now stands independently on `main`; the control branch has rejoined the
+  exact delivered tree without publishing its lifecycle record and can begin the consumer cutover from that base.
 
 ## **Phase 2:** Switch current-checkout session-frame consumers
 
