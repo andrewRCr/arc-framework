@@ -1,8 +1,8 @@
 # Metadata: clearance-corpus-retirement
 
-| **State**     | **Owner** | **Branch**                          | **Class** | **Priority** |
-| ------------- | --------- | ----------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `chore/clearance-corpus-retirement` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/467>
+- **Completed:** 2026-08-05
 
 ---
 
