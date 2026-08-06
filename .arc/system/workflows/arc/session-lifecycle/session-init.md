@@ -120,7 +120,7 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before enterin
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
 3. **Enter the selected operation**:
     - `--errand` — invoke `arc errand open`; render its `recommendedPromptText`, direct subsequent work to
-      `activeLocusPath`, and retain `sessionHomePath`.
+      `allocation.checkoutPath`, and retain `parentCheckoutPath` when present as the warm-return parent.
     - `--housekeep` / `--plan` — run the selected workflow's write-context preflight and relocation path. These
       workflows use their base-branch grooming path and do not create a durable transient role.
 4. **Run the subject workflow**; Step 5 / Step 6 then run in signal-leaf mode (orient on the subject, not the WU).
@@ -233,8 +233,8 @@ here; the arms below are the **signal-absent** path.
   candidate's claim ID and expected head. If the result is refused or reports an error, render its
   diagnostic and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
   `identity.claimId`, and `identity.branch` exactly match the selected candidate, and it carries a non-null
-  `activeLocusPath`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected
-  transient row's checkout path equals the returned `activeLocusPath` and its role subject carries the same claim ID
+  `allocation`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected transient
+  row's checkout path equals the returned `allocation.checkoutPath` and its role subject carries the same claim ID
   before proceeding as **Transient-resume**. The Errand verb accepts only the candidate's exact recorded remote head;
   head drift or change-request mismatch refuses instead of selecting a descendant or replacement generation.
 
@@ -373,7 +373,7 @@ uses only the free primary and refuses unsafe occupancy.
    exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and invokes
    `arc errand open <slug>` (adopt a flagged capture with `--from-inbox <entry-title>`, or with
    `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title). Render its
-   `recommendedPromptText` and execute from `activeLocusPath`; the originating checkout remains unchanged.
+   `recommendedPromptText` and execute from `allocation.checkoutPath`; the originating checkout remains unchanged.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 

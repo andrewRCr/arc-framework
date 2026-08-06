@@ -397,15 +397,11 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Updated both shipped workflow copies and command continuations to reconcile tracked WU references without
           attach dispatch, preserving marker provisioning, topology, staging, and rollback behavior.
 
-    - `[ ]` **3.3.b Migrate Errand open, materialize, and link success results**
-        - Reshape the existing operation result in place before record production stops. Retain `operation`,
-          `outcome`, nullable `allocation` with exact `checkoutPath` when allocated, exact subject, optional
-          `parentCheckoutPath`, identity/origin settlement evidence, next offer, and CLI-composed prompt.
-        - Return link through the same result with `allocation: null`, no checkout or parent, and the exact updated
-          identity/origin evidence; retain the live command without creating a dedicated result wrapper.
-        - Remove `recordId`, `leaseId`, `activeLocusPath`, `sessionHomePath`, and record-bearing restored-parent
-          fields from open/materialize/link schemas, constructors, handlers, renderers, workflows, fixtures, and tests.
-        - Add no compatibility result, adapter, alias field, or second public result version.
+    - `[x]` **3.3.b Migrate Errand open, materialize, and link success results**
+        - Added one versionless open/materialize/link result with exact allocation, subject, parent, identity/origin,
+          offer, and prompt evidence; link carries a null allocation and no parent.
+        - Removed the retired identifiers and path aliases from entry results and migrated handlers, shipped workflow
+          copies, anchored CLI consumers, fixtures, and tests to the final fields without a compatibility surface.
 
     - `[ ]` **3.3.c Bound temporary compatibility production to remaining consumers**
         - Keep only the record writes required to preserve buildable rename or teardown behavior until Tasks 3.4 and

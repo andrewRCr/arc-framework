@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runCli } from "../helpers/run-cli.js";
+import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
 import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -264,7 +265,7 @@ describe("arc locus mutation commands", () => {
     ], repository);
     expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
     const result = JSON.parse(materialized.stdout.trim()) as {
-      activeLocusPath: string;
+      allocation: { checkoutPath: string };
       identity: { claimId: string; state: string };
     };
     expect(result).toMatchObject({
@@ -273,7 +274,7 @@ describe("arc locus mutation commands", () => {
       allocation: { kind: "spawned" },
       identity: { claimId, state: "open" },
     });
-    linkedCheckout = result.activeLocusPath;
+    linkedCheckout = result.allocation.checkoutPath;
     expect(await readMarker(linkedCheckout)).toMatchObject({
       spawnedByArc: true,
       createdFor: { kind: "errand", slug: errand, claimId },
@@ -411,7 +412,7 @@ describe("arc locus mutation commands", () => {
           operation: "errand-materialize",
           identity: { claimId, state: "open" },
         });
-        linkedCheckout = payload.activeLocusPath as string;
+        linkedCheckout = payload.allocation.checkoutPath as string;
       } else {
         expect(payload).toMatchObject({
           outcome: "refused",
@@ -432,11 +433,14 @@ describe("arc locus mutation commands", () => {
     await git(repository, ["push", "-u", "origin", "main"]);
 
     const cli = [process.execPath, CLI_PATH].map(shellQuote).join(" ");
+    const recordId = deriveLocusRecordId(
+      repository,
+      process.platform === "win32" ? "windows" : "posix",
+    ).recordId;
     const resolved = await runAnchoredCommands([
       `open_result=$(${cli} errand open ${slug} --json); printf '%s\\n' "$open_result"`,
-      "record_id=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).recordId)' \"$open_result\")",
       "git switch main >/dev/null",
-      `${cli} locus resolve "$record_id" --action abandon --confirm-no-live-session --json`,
+      `${cli} locus resolve "${recordId}" --action abandon --confirm-no-live-session --json`,
     ], repository);
 
     expect(resolved.exitCode, JSON.stringify(resolved)).toBe(1);
@@ -482,14 +486,17 @@ describe("arc locus mutation commands", () => {
     expect(await git(repository, ["status", "--porcelain"])).toBe("");
 
     const cli = [process.execPath, CLI_PATH].map(shellQuote).join(" ");
+    const recordId = deriveLocusRecordId(
+      repository,
+      process.platform === "win32" ? "windows" : "posix",
+    ).recordId;
     const resolved = await runAnchoredCommands([
       `open_result=$(${cli} errand open ${slug} --json); printf '%s\\n' "$open_result"`,
-      "record_id=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).recordId)' \"$open_result\")",
       "git push origin :refs/arc/user/test-user/errands >/dev/null",
       "git update-ref -d refs/arc/user/test-user/errands",
       "git switch main >/dev/null",
       `git branch -D chore/${slug} >/dev/null`,
-      `${cli} locus resolve "$record_id" --action abandon --confirm-no-live-session --json`,
+      `${cli} locus resolve "${recordId}" --action abandon --confirm-no-live-session --json`,
     ], repository);
 
     expect(resolved.exitCode, JSON.stringify(resolved)).toBe(0);
@@ -498,7 +505,6 @@ describe("arc locus mutation commands", () => {
       outcome: "applied",
       operation: "errand-open",
       allocation: { kind: "primary", checkoutPath: repository },
-      activeLocusPath: repository,
     });
     expect(resolved.results[1]).toMatchObject({
       outcome: "applied",
@@ -520,11 +526,18 @@ describe("arc locus mutation commands", () => {
 
     const opened = await runAnchored(["errand", "open", slug, "--json"], repository);
     expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
-    const openResult = JSON.parse(opened.stdout.trim()) as { recordId: string; leaseId: string };
-    const recordPath = await findLocusRecordPath(repository, openResult.recordId);
+    const openResult = JSON.parse(opened.stdout.trim());
+    expect(openResult).not.toHaveProperty("recordId");
+    expect(openResult).not.toHaveProperty("leaseId");
+    const recordId = deriveLocusRecordId(
+      repository,
+      process.platform === "win32" ? "windows" : "posix",
+    ).recordId;
+    const recordPath = await findLocusRecordPath(repository, recordId);
     const record = JSON.parse(await readFile(recordPath, "utf8")) as {
       lease: { anchor: unknown; leaseId: string };
     };
+    const openingLeaseId = record.lease.leaseId;
     record.lease.anchor = { kind: "unverifiable", reason: "fixture cannot inspect the opening session" };
     await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
     const unknownBytes = await readFile(recordPath, "utf8");
@@ -533,7 +546,7 @@ describe("arc locus mutation commands", () => {
     });
 
     const unconfirmed = await runAnchored([
-      "locus", "resolve", openResult.recordId, "--action", "resume", "--json",
+      "locus", "resolve", recordId, "--action", "resume", "--json",
     ], repository);
     expect(unconfirmed.exitCode).toBe(1);
     expect(JSON.parse(unconfirmed.stdout.trim())).toMatchObject({
@@ -544,7 +557,7 @@ describe("arc locus mutation commands", () => {
     expect(await readFile(recordPath, "utf8")).toBe(unknownBytes);
 
     const resolved = await runAnchored([
-      "locus", "resolve", openResult.recordId, "--action", "resume",
+      "locus", "resolve", recordId, "--action", "resume",
       "--confirm-no-live-session", "--json",
     ], repository);
 
@@ -553,10 +566,10 @@ describe("arc locus mutation commands", () => {
     expect(resolution).toMatchObject({
       outcome: "applied",
       operation: "locus-resolve",
-      recordId: openResult.recordId,
+      recordId,
       activeLocusPath: repository,
     });
-    expect(resolution.leaseId).not.toBe(openResult.leaseId);
+    expect(resolution.leaseId).not.toBe(openingLeaseId);
     expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
       lease: { leaseId: resolution.leaseId, anchor: { kind: "process" } },
     });
@@ -569,15 +582,19 @@ describe("arc locus mutation commands", () => {
 
     const opened = await runAnchored(["errand", "open", slug, "--json"], repository);
     expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
-    const openResult = JSON.parse(opened.stdout.trim()) as { recordId: string };
-    const recordPath = await findLocusRecordPath(repository, openResult.recordId);
+    expect(JSON.parse(opened.stdout.trim())).not.toHaveProperty("recordId");
+    const recordId = deriveLocusRecordId(
+      repository,
+      process.platform === "win32" ? "windows" : "posix",
+    ).recordId;
+    const recordPath = await findLocusRecordPath(repository, recordId);
 
     await git(repository, ["push", "origin", ":refs/arc/user/test-user/errands"]);
     await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
     await git(repository, ["switch", "main"]);
     await git(repository, ["branch", "-D", `chore/${slug}`]);
     const resolved = await runAnchored([
-      "locus", "resolve", openResult.recordId, "--action", "abandon", "--json",
+      "locus", "resolve", recordId, "--action", "abandon", "--json",
     ], repository);
 
     expect(resolved.exitCode, resolved.stdout + resolved.stderr).toBe(0);

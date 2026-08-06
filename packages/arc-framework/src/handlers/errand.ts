@@ -85,6 +85,10 @@ import {
   type ErrandPromotionResult,
 } from "../lib/errand/promotion-result.js";
 import {
+  createErrandOperationResult,
+  type ErrandOperationResult,
+} from "../lib/errand/operation-result.js";
+import {
   LocusGitOidSchema,
   LocusTokenSchema,
   locusErrorCode,
@@ -110,7 +114,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
-type ErrandHandlerOperation = "errand-open" | "errand-materialize" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
+type ErrandHandlerOperation = "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
 type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
 type TerminalProjection = Omit<AdaptErrandTerminalResultOptions, "result">;
 type OrdinaryTerminalIdentity = Extract<LocusIdentityV1, { kind: "errand"; purpose: "errand" }>;
@@ -126,6 +130,28 @@ async function runErrandHandlerBoundary(
     await run();
   } catch (error) {
     emit(createLocusMutationResult({
+      outcome: "error",
+      operation,
+      error: {
+        code: locusErrorCode(operation, "handler"),
+        message: error instanceof Error ? error.message : String(error),
+      },
+      recommendedPromptText,
+    }), json);
+  }
+}
+
+async function runErrandEntryHandlerBoundary(
+  operation: "errand-open" | "errand-materialize",
+  json: boolean,
+  emit: (result: ErrandOperationResult, json: boolean) => void,
+  recommendedPromptText: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    emit(createErrandOperationResult({
       outcome: "error",
       operation,
       error: {
@@ -412,7 +438,7 @@ export async function handleErrandOpen(
   }
   const input = parsed.data;
 
-  await runErrandHandlerBoundary(
+  await runErrandEntryHandlerBoundary(
     "errand-open",
     opts.json === true,
     emitErrandOpenResult,
@@ -508,7 +534,7 @@ async function runErrandOpenHandler(
 
   const primaryPath = await resolvePrimaryWorktreePath(io.exec);
   if (primaryPath === null) {
-    emitErrandOpenResult(createLocusMutationResult({
+    emitErrandOpenResult(createErrandOperationResult({
       outcome: "error",
       operation: "errand-open",
       error: { code: "locus.errand-open.topology", message: "Primary checkout is unavailable" },
@@ -523,7 +549,7 @@ async function runErrandOpenHandler(
   }))
     .identityGlobalRoot;
   const createdAt = new Date().toISOString();
-  let result: LocusMutationResultV1;
+  let result: ErrandOperationResult;
   try {
     result = await openOrdinaryErrandAtRuntime({
       slug,
@@ -543,7 +569,7 @@ async function runErrandOpenHandler(
       execInput: io.execInput,
     });
   } catch (err) {
-    result = createLocusMutationResult({
+    result = createErrandOperationResult({
       outcome: "error",
       operation: "errand-open",
       error: { code: "locus.errand-open.handler", message: err instanceof Error ? err.message : String(err) },
@@ -554,7 +580,7 @@ async function runErrandOpenHandler(
 }
 
 export function formatErrandOpenResult(
-  result: LocusMutationResultV1,
+  result: ErrandOperationResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
   if (json) {
@@ -577,7 +603,7 @@ export function formatErrandOpenResult(
   return { stream: "stdout", text: result.recommendedPromptText, exitCode: 0 };
 }
 
-function emitErrandOpenResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandOpenResult(result: ErrandOperationResult, json: boolean): void {
   const formatted = formatErrandOpenResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -589,7 +615,7 @@ function emitErrandOpenResult(result: LocusMutationResultV1, json: boolean): voi
 }
 
 function emitErrandOpenFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
-  emitErrandOpenResult(createLocusMutationResult({
+  emitErrandOpenResult(createErrandOperationResult({
     outcome: "error",
     operation: "errand-open",
     error: { code, message },
@@ -695,7 +721,7 @@ export async function handleErrandLink(
     return;
   }
 
-  let result: LocusMutationResultV1;
+  let result: ErrandOperationResult;
   try {
     result = await linkOrdinaryErrandAtRuntime({
       slug,
@@ -706,7 +732,7 @@ export async function handleErrandLink(
       execInput: io.execInput,
     });
   } catch (err) {
-    result = createLocusMutationResult({
+    result = createErrandOperationResult({
       outcome: "error",
       operation: "errand-link",
       error: { code: "locus.errand-link.handler", message: err instanceof Error ? err.message : String(err) },
@@ -717,13 +743,13 @@ export async function handleErrandLink(
 }
 
 export function formatErrandLinkResult(
-  result: LocusMutationResultV1,
+  result: ErrandOperationResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
   return formatErrandOpenResult(result, json);
 }
 
-function emitErrandLinkResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandLinkResult(result: ErrandOperationResult, json: boolean): void {
   const formatted = formatErrandLinkResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -740,7 +766,7 @@ function emitErrandLinkFailure(
   json: boolean,
   reason?: "full-protection-required",
 ): void {
-  emitErrandLinkResult(createLocusMutationResult(reason === undefined ? {
+  emitErrandLinkResult(createErrandOperationResult(reason === undefined ? {
     outcome: "error",
     operation: "errand-link",
     error: { code, message },
@@ -785,7 +811,7 @@ export async function handleErrandMaterialize(
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc errand materialize");
-  await runErrandHandlerBoundary(
+  await runErrandEntryHandlerBoundary(
     "errand-materialize",
     opts.json === true,
     emitErrandOpenResult,
@@ -898,11 +924,13 @@ export async function handleErrandMaterialize(
           execInput: io.execInput,
         });
         const { result } = execution;
-        const materialized = createLocusMutationResult({
+        const materialized = createErrandOperationResult({
           ...result,
           operation: "errand-materialize",
-          recommendedPromptText: result.outcome === "applied" || result.outcome === "idempotent"
-            ? `Errand materialized at ${result.activeLocusPath}; open a fresh session there to resume. ${result.recommendedPromptText}`
+          recommendedPromptText: (result.outcome === "applied" || result.outcome === "idempotent")
+            && result.allocation !== null
+            ? `Errand materialized at ${result.allocation.checkoutPath}; open a fresh session there to resume. `
+              + result.recommendedPromptText
             : result.recommendedPromptText,
         });
         if (materialized.outcome !== "applied" && materialized.outcome !== "idempotent"
@@ -927,7 +955,7 @@ function emitMaterializeRefusal(
   message: string,
   json: boolean,
 ): void {
-  emitErrandOpenResult(createLocusMutationResult({
+  emitErrandOpenResult(createErrandOperationResult({
     outcome: "refused",
     operation: "errand-materialize",
     reason,
@@ -936,7 +964,7 @@ function emitMaterializeRefusal(
 }
 
 function emitMaterializeError(stage: LocusErrorStage, message: string, json: boolean): void {
-  emitErrandOpenResult(createLocusMutationResult({
+  emitErrandOpenResult(createErrandOperationResult({
     outcome: "error",
     operation: "errand-materialize",
     error: { code: locusErrorCode("errand-materialize", stage), message },

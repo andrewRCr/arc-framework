@@ -675,20 +675,19 @@ describe("arc errand close", () => {
       const result = await runArcAnchoredSequence([
         ["locus", "attach", "--json"],
         ["errand", "open", slug, "--json"],
-        { args: ["errand", "close", slug, "--json"], cwdFromPreviousJson: "activeLocusPath" },
+        { args: ["errand", "close", slug, "--json"], cwdFromPreviousJson: "allocation.checkoutPath" },
       ], tmpDir, { env: host.env, timeout: 60_000 });
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       expect(result.results).toHaveLength(3);
       expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "locus-attach" });
-      const opened = result.results[1] as { activeLocusPath?: unknown };
+      const opened = result.results[1] as { allocation?: { checkoutPath?: unknown } };
       expect(opened, JSON.stringify(result.results)).toMatchObject({
         outcome: "applied",
         operation: "errand-open",
         allocation: { kind: "spawned", checkoutPath: expect.any(String) },
-        activeLocusPath: expect.any(String),
       });
-      spawnedPath = typeof opened.activeLocusPath === "string" ? opened.activeLocusPath : null;
+      spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
       expect(spawnedPath).not.toBeNull();
       expect(result.results[2], JSON.stringify(result.results)).toMatchObject({
         outcome: "applied",
@@ -1391,7 +1390,7 @@ describe("arc errand promote", () => {
 
     const prepared = await runArcAnchoredSequence([
       ["errand", "open", slug, "--json"],
-      { args: promote, cwdFromPreviousJson: "activeLocusPath" },
+      { args: promote, cwdFromPreviousJson: "allocation.checkoutPath" },
     ], tmpDir, { timeout: 60_000 });
 
     expect(prepared.exitCode, prepared.stdout + prepared.stderr).toBe(0);

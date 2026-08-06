@@ -97,9 +97,13 @@ describe("PreCompact locus anchor", () => {
       expect(opened).toMatchObject({
         outcome: "applied",
         operation: "errand-open",
-        recordId: expect.stringMatching(/^sha256:/u),
-        leaseId: expect.any(String),
+        allocation: { checkoutPath: repository },
+        subject: { kind: "errand", key: "seed-probe", claimId: expect.any(String) },
       });
+      expect(opened).not.toHaveProperty("recordId");
+      expect(opened).not.toHaveProperty("leaseId");
+      expect(opened).not.toHaveProperty("activeLocusPath");
+      expect(opened).not.toHaveProperty("sessionHomePath");
       expect(sequence.results[1]).toMatchObject({
         mode: "recover-audit",
         verdict: {

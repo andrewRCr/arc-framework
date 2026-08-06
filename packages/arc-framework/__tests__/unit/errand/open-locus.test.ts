@@ -590,13 +590,15 @@ describe("openOrdinaryErrand", () => {
       outcome: "applied",
       operation: "errand-open",
       allocation: { kind: "primary", checkoutPath: "/repo" },
-      recordId: RECORD_ID,
-      leaseId: LEASE_ID,
-      activeLocusPath: "/repo",
-      sessionHomePath: "/repo",
+      subject: { kind: "errand", key: "docs", claimId: CLAIM_ID },
       identity: { key: "docs", claimId: CLAIM_ID },
       recommendedPromptText: expect.stringMatching(/opened at \/repo.*session home remains \/repo/iu),
     });
+    expect(result).not.toHaveProperty("recordId");
+    expect(result).not.toHaveProperty("leaseId");
+    expect(result).not.toHaveProperty("activeLocusPath");
+    expect(result).not.toHaveProperty("sessionHomePath");
+    expect(result).not.toHaveProperty("restoredParent");
   });
 
   it("persists the inspected inbox source generation in a new full-protection identity", async () => {
@@ -704,10 +706,14 @@ describe("openOrdinaryErrand", () => {
     });
     expect(result).toMatchObject({
       outcome: "applied",
+      allocation: { kind: "primary", checkoutPath: "/repo" },
+      subject: { kind: "errand", key: "local-docs", claimId: null },
       identity: null,
       originEntry: "Captured docs fix",
-      activeLocusPath: "/repo",
+      originEntrySourceDigest: INBOX_SOURCE_DIGEST,
     });
+    expect(result).not.toHaveProperty("recordId");
+    expect(result).not.toHaveProperty("activeLocusPath");
   });
 
   it("spawns beside a warm WU and preserves that checkout as parent and session home", async () => {
@@ -777,10 +783,12 @@ describe("openOrdinaryErrand", () => {
     expect(result).toMatchObject({
       outcome: "applied",
       allocation: { kind: "spawned", checkoutPath: "/work/repo.locus-errand-child" },
-      activeLocusPath: "/work/repo.locus-errand-child",
-      sessionHomePath: "/repo",
+      subject: { kind: "errand", key: "child", claimId: CLAIM_ID },
+      parentCheckoutPath: "/repo",
       recommendedPromptText: expect.stringMatching(/confirm.*direct commands/iu),
     });
+    expect(result).not.toHaveProperty("activeLocusPath");
+    expect(result).not.toHaveProperty("sessionHomePath");
   });
 
   it("rolls back only its newly applied identity when allocation fails", async () => {

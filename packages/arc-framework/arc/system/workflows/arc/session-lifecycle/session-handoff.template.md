@@ -142,7 +142,7 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
 3. **Preserve and leave the exact Errand** — push the checkpoint through the normal Errand path, then invoke
    `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
    the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
-   `restoredParent`. Refusal or error stops; never hand-build the sequence.
+   `parentCheckoutPath`. Refusal or error stops; never hand-build the sequence.
 
     - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
       (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an

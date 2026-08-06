@@ -56,6 +56,14 @@ export {
 } from "./promotion-result.js";
 
 export {
+  createErrandOperationResult,
+  ErrandOperationResultSchema,
+  ErrandOperationSchema,
+  type ErrandOperation,
+  type ErrandOperationResult,
+} from "./operation-result.js";
+
+export {
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
   type SettleTerminalOccupancyOptions,

@@ -85,14 +85,14 @@ async function readMaterializedMarker(checkoutPath: string): Promise<unknown> {
   ));
 }
 
-async function readLocusRecord(repository: string, recordId: string): Promise<unknown> {
+async function readLocusRecordForCheckout(repository: string, checkoutPath: string): Promise<unknown> {
   const root = join(repository, ".arc", "user", "test-user", ".internal", "loci");
   for (const name of await readdir(root)) {
     if (!name.endsWith(".json")) continue;
-    const record = JSON.parse(await readFile(join(root, name), "utf8")) as { recordId?: string };
-    if (record.recordId === recordId) return record;
+    const record = JSON.parse(await readFile(join(root, name), "utf8")) as { checkoutPath?: string };
+    if (record.checkoutPath === checkoutPath) return record;
   }
-  throw new Error(`Could not find locus record ${recordId}`);
+  throw new Error(`Could not find locus record for ${checkoutPath}`);
 }
 
 describe("ordinary Errand promotion", () => {
@@ -125,7 +125,7 @@ describe("ordinary Errand promotion", () => {
         ["errand", "open", slug, "--json"],
         {
           command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
         { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
@@ -170,17 +170,16 @@ describe("ordinary Errand promotion", () => {
         identity: { state: "open", changeRequest: null },
       });
       const result = materialized as {
-        activeLocusPath: string;
-        recordId: string;
+        allocation: { checkoutPath: string };
         identity: { claimId: string };
       };
-      expect(await readMaterializedMarker(result.activeLocusPath)).toMatchObject({
+      expect(await readMaterializedMarker(result.allocation.checkoutPath)).toMatchObject({
         spawnedByArc: true,
         createdFor: { kind: "errand", slug, claimId: result.identity.claimId },
         provisioning: "ready",
       });
-      expect(await readLocusRecord(repository, result.recordId)).toMatchObject({
-        checkoutPath: result.activeLocusPath,
+      expect(await readLocusRecordForCheckout(repository, result.allocation.checkoutPath)).toMatchObject({
+        checkoutPath: result.allocation.checkoutPath,
         role: {
           kind: "errand",
           subject: { kind: "errand", key: slug, claimId: result.identity.claimId },
@@ -207,7 +206,7 @@ describe("ordinary Errand promotion", () => {
         ["errand", "open", slug, "--json"],
         {
           command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare fork-only work"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
       ], repository, {
@@ -224,9 +223,9 @@ describe("ordinary Errand promotion", () => {
         { outcome: "applied", operation: "errand-open", identity: { state: "open" } },
         { outcome: "refused", operation: "errand-leave", reason: "preservation-unproven" },
       ]);
-      const opened = sequence.results[0] as { activeLocusPath: string; recordId: string };
-      expect(await readLocusRecord(repository, opened.recordId)).toMatchObject({
-        checkoutPath: opened.activeLocusPath,
+      const opened = sequence.results[0] as { allocation: { checkoutPath: string } };
+      expect(await readLocusRecordForCheckout(repository, opened.allocation.checkoutPath)).toMatchObject({
+        checkoutPath: opened.allocation.checkoutPath,
         role: { subject: { kind: "errand", key: slug } },
       });
       expect(JSON.parse(await git(repository, ["show", `refs/arc/user/test-user/errands:${slug}`])))
@@ -252,7 +251,7 @@ describe("ordinary Errand promotion", () => {
         ["errand", "open", slug, "--json"],
         {
           command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
         { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
@@ -307,7 +306,7 @@ describe("ordinary Errand promotion", () => {
         {
           args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", floor,
             "--json"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
       ], repository, { timeout: 60_000, anchorShellPath: harness.executable });
 
@@ -362,7 +361,7 @@ describe("ordinary Errand promotion", () => {
         {
           args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
             "--json"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
         {
           command: ["git", "-c", "core.hooksPath=/dev/null", "add", ".arc/active/meta-growth-unit.md"],
@@ -423,7 +422,7 @@ describe("ordinary Errand promotion", () => {
         {
           args: ["errand", "promote", "growing", "--name", "growth-unit", "--type", "feat", "--floor", "scale",
             "--json"],
-          cwdFromPreviousJson: "activeLocusPath",
+          cwdFromPreviousJson: "allocation.checkoutPath",
         },
         {
           command: [process.execPath, "-e", "require('node:fs').writeFileSync(process.argv[1], process.argv[2])",

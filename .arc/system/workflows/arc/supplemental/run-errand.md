@@ -32,8 +32,10 @@ re-enterable through the Errand's exact identity and checkout. A full-mode inter
 exact identity and checkout without a meta, task list, or SESSION-NOTES; partial mode must complete, promote, or
 explicitly abandon in the current session.
 
-Every state-touching Errand command uses `--json`. For `open` / `materialize`, consume the returned allocation,
-identity, checkout paths, and lease evidence. For terminal `close` / `abandon` / `leave` results:
+Every state-touching Errand command uses `--json`. For `open` / `materialize`, consume `operation`, `subject`, the
+non-null `allocation` and its exact `checkoutPath`, optional `parentCheckoutPath`, identity/origin settlement
+evidence, `nextOffer`, and `recommendedPromptText`. For `link`, require `allocation: null`, no parent checkout, and
+consume the exact updated subject and identity/origin evidence. For terminal `close` / `abandon` / `leave` results:
 
 - On `applied` / `idempotent`, consume `operation`, `subject`, `generation`, `checkoutPath`,
   `parentCheckoutPath`, `settlement`, `nextOffer`, and `recommendedPromptText`. Only an `idempotent` result proving
@@ -53,8 +55,8 @@ identity while the returned `metaPath` is committed; rerun the same command and 
 Never reconstruct allocation, terminal authority, preservation, cleanup, or continuation from Git branch shape.
 
 When an `open` / `materialize` result asks for directed-command confirmation, confirm that the current session can
-run subsequent commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session
-at that checkout and stop before execution.
+run subsequent commands at `allocation.checkoutPath`. If it cannot or the capability is uncertain, recommend a cold
+session at that checkout and stop before execution.
 
 ## Launch
 
@@ -95,7 +97,8 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      that no longer matches the fetched remote or open change request refuses materialization. Open identities,
      legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
 
-   Execute every subsequent command from `activeLocusPath` while retaining `sessionHomePath` for restoration.
+   Execute every subsequent command from `allocation.checkoutPath`. Retain `parentCheckoutPath` when present as the
+   warm-return parent; terminal results own the actual restoration outcome.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add

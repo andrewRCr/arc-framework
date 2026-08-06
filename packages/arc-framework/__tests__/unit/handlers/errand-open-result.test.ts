@@ -9,11 +9,11 @@ import {
   formatErrandOpenResult,
   formatErrandPromoteResult,
 } from "../../../src/handlers/errand.js";
-import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import { createErrandOperationResult } from "../../../src/lib/errand/operation-result.js";
 import { createErrandPromotionResult } from "../../../src/lib/errand/promotion-result.js";
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
-const refusal = createLocusMutationResult({
+const refusal = createErrandOperationResult({
   outcome: "refused",
   operation: "errand-open",
   reason: "lease-unknown",
@@ -45,7 +45,7 @@ describe("errand leave result rendering", () => {
 
 describe("errand materialize result rendering", () => {
   it("preserves the validated materialize operation across JSON and human rendering", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandOperationResult({
       outcome: "refused",
       operation: "errand-materialize",
       reason: "preservation-unproven",
@@ -76,7 +76,7 @@ describe("errand open result rendering", () => {
   });
 
   it("renders typed errors on stderr for humans", () => {
-    const error = createLocusMutationResult({
+    const error = createErrandOperationResult({
       outcome: "error",
       operation: "errand-open",
       error: { code: "locus.errand-open.config", message: "Configuration is unavailable." },
@@ -92,14 +92,11 @@ describe("errand open result rendering", () => {
 });
 
 describe("errand link result rendering", () => {
-  const linked = createLocusMutationResult({
+  const linked = createErrandOperationResult({
     outcome: "applied",
     operation: "errand-link",
     allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: null,
+    subject: { kind: "errand", key: "fix-output", claimId: "0123456789abcdef0123456789abcdef" },
     identity: {
       kind: "errand",
       key: "fix-output",
@@ -115,7 +112,7 @@ describe("errand link result rendering", () => {
       changeRequest: null,
     },
     originEntry: "Fix output capture",
-    restoredParent: null,
+    originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
     nextOffer: null,
     recommendedPromptText: "Linked Errand 'fix-output' to inbox capture 'Fix output capture'.",
   });
