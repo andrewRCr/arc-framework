@@ -13,42 +13,38 @@ after each edit (package-project sync).
 _Design decisions:_ Whole-file delete for setup + template; recipe/manifest drop those rows only and retain
 `confirm-live-change-pair.sh`. Scripts README blurb reword is Phase 2 (retained surface).
 
-### `[ ]` **1.1 Delete setup workflow and merge-gate clearance template**
+### `[x]` **1.1 Delete setup workflow and merge-gate clearance template**
 
 - _Goal:_ No installable clearance setup workflow or `arc-clearance.yml` template remains in package or project
   mirror
 
-- _Approach:_ Edit package source under `packages/arc-framework/arc/`, then mirror to `.arc/`
+    - `[x]` **1.1.a Delete setup-arc-clearance workflow (package + .arc/)**
+        - Removed `system/workflows/arc/supplemental/setup-arc-clearance.md` from package and `.arc/`
 
-    - `[ ]` **1.1.a Delete setup-arc-clearance workflow (package + .arc/)**
-        - Path: `system/workflows/arc/supplemental/setup-arc-clearance.md`
+    - `[x]` **1.1.b Delete arc-clearance.yml merge-gate template (package + .arc/)**
+        - Removed `reference/templates/arc/merge-gate/arc-clearance.yml` from package and `.arc/`
 
-    - `[ ]` **1.1.b Delete arc-clearance.yml merge-gate template (package + .arc/)**
-        - Path: `reference/templates/arc/merge-gate/arc-clearance.yml`
+    - `[x]` **1.1.c Remove clearance coverage from merge-gate templates README**
+        - Dropped the `arc-clearance.yml` product bullet, install-arc-cleared sentence, and
+          `[clearance-setup]` link from package + `.arc/` merge-gate README
 
-    - `[ ]` **1.1.c Remove clearance coverage from merge-gate templates README**
-        - Drop `arc-clearance.yml` / Set Up ARC Clearance coverage from
-        `reference/templates/arc/merge-gate/README.md` (package + `.arc/`), including the clearance-setup link
-          definition
+- _Outcome:_ Installable clearance setup workflow and template are gone; recipe README no longer offers them
 
-### `[ ]` **1.2 Drop retired paths from recipe and internal manifest**
+### `[x]` **1.2 Drop retired paths from recipe and internal manifest**
 
 - _Goal:_ Install recipe and digest manifest no longer ship or certify the deleted clearance files; live-pair
   script remains installed
 
-    - `[ ]` **1.2.a Remove deleted paths from init-recipe.json; keep live-pair script**
-        - In `packages/arc-framework/init-recipe.json`, remove
-        `reference/templates/arc/merge-gate/arc-clearance.yml` and
-        `system/workflows/arc/supplemental/setup-arc-clearance.md`; keep
-        `system/.internal/scripts/confirm-live-change-pair.sh`
+    - `[x]` **1.2.a Remove deleted paths from init-recipe.json; keep live-pair script**
+        - Dropped both deleted paths from `include_files`; `confirm-live-change-pair.sh` retained
 
-    - `[ ]` **1.2.b Drop deleted-path entries from project manifest.json**
-        - Regenerate or hand-edit `.arc/system/.internal/manifest.json` so entries for the deleted paths are gone;
-          leave live-pair script entries intact (manifest is the project-instance file under `.arc/` — not a
-          package-tree dual copy)
+    - `[x]` **1.2.b Drop deleted-path entries from project manifest.json**
+        - Removed both file entries; rehashed merge-gate README; live-pair script entry kept
 
-    - `[ ]` **1.2.c Confirm no other inventory still names the deleted paths**
-        - Beyond historical ADRs / analysis (install docs, package file lists)
+    - `[x]` **1.2.c Confirm no other inventory still names the deleted paths**
+        - Remaining refs are Phase 2 setup surfaces and Phase 4 test pins (not install inventory)
+
+- _Outcome:_ Recipe and manifest no longer ship/certify clearance files; live-pair script still installed
 
 ## **Phase 2:** Reword retained setup and install surfaces
 
