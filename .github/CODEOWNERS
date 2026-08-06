@@ -13,7 +13,7 @@
 
 # --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
 # No owner clears the catch-all above. These patterns mirror the classifier's
-# supported directories and depths. The required arc-cleared context remains
+# supported directories and depths. The canonical classifier remains
 # authoritative for exact filenames, rename/copy endpoints, and type/mode
 # changes that CODEOWNERS cannot express.
 # Decomposition receipts stay owned here.

@@ -18,24 +18,22 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | decompose-transition-record         | P1       | andrew | —          | decompose-transform-integrity |
 | `Planning` | review-signal-convergence           | P1       | andrew | —          | review-protocol-alignment     |
 | `Planning` | decomposition-doctrine              | P1       | andrew | —          | —                             |
+| `Planning` | delivery-slice-review-vehicle       | P1       | andrew | —          | —                             |
 | `Planning` | integration-boundary-accuracy       | P1       | andrew | —          | —                             |
+| `Active`   | remote-access-contract              | P1       | andrew | —          | —                             |
 | `Planning` | review-checkout-lifecycle           | P1       | andrew | —          | —                             |
-| `Planning` | session-locus-operability-hardening | P1       | andrew | —          | —                             |
+| `Active`   | session-locus-operability-hardening | P1       | andrew | —          | —                             |
 | `Planning` | stub-mint-to-launch                 | P1       | andrew | —          | —                             |
-| `Planning` | clearance-corpus-retirement         | P2       | andrew | —          | —                             |
 
 ## Ready
 
 | Work unit                          | Priority | Owner  | Depends on | Cohort                        |
 | ---------------------------------- | -------- | ------ | ---------- | ----------------------------- |
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
-| delivery-integration-target        | P1       | andrew | —          | chunked-delivery              |
-| decompose-candidate-abandon        | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
 | claimed-sweep-verbs                | P1       | andrew | —          | —                             |
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
-| delivery-slice-review-vehicle      | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
 | recurring-errand-pr-resolution     | P1       | andrew | —          | —                             |
 | roadmap-tooling                    | P1       | andrew | —          | —                             |
@@ -44,6 +42,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                | P2       | andrew | —          | agent-context-optimization    |
 | commit-increments                  | P2       | andrew | —          | approval-flow-refinement      |
 | check-id-stabilization             | P2       | andrew | —          | architecture-remediation      |
+| delivery-integration-target        | P2       | andrew | —          | chunked-delivery              |
 | cli-substrate-complete-migration   | P2       | andrew | —          | cli-substrate-adoption        |
 | decompose-authoring-expressiveness | P2       | andrew | —          | decompose-core-hardening      |
 | decompose-preflight-scaling        | P2       | andrew | —          | decompose-core-hardening      |
@@ -105,11 +104,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                          | Priority | Owner  | Depends on                                                  | Cohort                        |
 | ---------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------------------- |
-| delivery-stack-topology            | P1       | andrew | delivery-integration-target                                 | chunked-delivery              |
+| delivery-stack-topology            | P1       | andrew | delivery-slice-review-vehicle                               | chunked-delivery              |
 | decompose-finalization-diagnostics | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
 | decompose-finalization-scaling     | P1       | andrew | decompose-transition-record                                 | decompose-core-hardening      |
 | review-source-authority            | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment     |
 | unit-scoped-review                 | P2       | andrew | commit-increments                                           | approval-flow-refinement      |
+| decompose-candidate-abandon        | P2       | andrew | decompose-transition-record                                 | decompose-transform-integrity |
 | decompose-durable-consumers        | P2       | andrew | decompose-transition-record                                 | decompose-transform-integrity |
 | review-orchestration-right-sizing  | P2       | andrew | retrospective-right-sizing                                  | —                             |
 | documentation-surface-routing      | P3       | andrew | handoff-optimization                                        | agent-context-optimization    |

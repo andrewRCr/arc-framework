@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Hold until `decompose-transition-record` settles; revisit first at its closeout — the
+  refusal-remedy scope survives the reshape, so this member is likelier to shrink than to retire.
 
 - **PR URL:** [none]
 - **Completed:** [none]

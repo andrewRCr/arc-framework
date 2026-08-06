@@ -16,10 +16,6 @@ their own primitives; only this recipe is GitHub-specific.
 - **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
-- **`arc-clearance.yml`** — an opt-in exact-head merge guard rendered by the
-  [Set Up ARC Clearance workflow][clearance-setup]. It runs the exact ARC package version recorded in the
-  installation manifest, treats pull-request content only as data, publishes planning clearance directly, and
-  publishes reviewed-head clearance through a secretless environment.
 
 ## The `merge-ok` gate (merge into your CI workflow)
 
@@ -100,11 +96,10 @@ the heavy jobs running — while a code/constitutional PR waits on them. This is
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
 the merge at _Pending_).
 
-Without `arc-cleared`, ARC-managed PR workflows still rerun the canonical classifier over the exact base/head
-immediately before arming auto-merge and require literal `planning`; `reviewed`, command failure, or malformed
-output never arms. CODEOWNERS cannot express filename grammar or Git type/mode changes, so this classifier gate
-and the integration interlock are the procedural boundary. Installing `arc-cleared` independently adds structural
-host enforcement of the same exact decision.
+ARC-managed PR workflows still rerun the canonical classifier over the exact base/head immediately before arming
+auto-merge and require literal `planning`; `reviewed`, command failure, or malformed output never arms. CODEOWNERS
+cannot express filename grammar or Git type/mode changes, so this classifier gate and the integration interlock are
+the procedural boundary.
 
 ## CI layouts
 
@@ -140,4 +135,3 @@ additionally waits on owner approval and must not be armed by ARC. The
 
 [doctrine]: ../../../strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-workflow]: ../../../../system/workflows/arc/supplemental/setup-merge-gate.md
-[clearance-setup]: ../../../../system/workflows/arc/supplemental/setup-arc-clearance.md

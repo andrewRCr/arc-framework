@@ -12,30 +12,35 @@ change-request, review, and ARC lifecycle operations. It does not create a secon
 ## Sequencing
 
 ```text
-delivery-plan-record
-└── delivery-integration-target
-    └── delivery-stack-topology
-        └── delivery-review-cardinality       optional follow-up; not a v1 delivery prerequisite
+delivery-plan-record                          shipped
+└── delivery-stack-topology                   v1 spine
+    └── delivery-review-cardinality           optional follow-up; not a v1 delivery prerequisite
 
+delivery-integration-target                   demand-held; not a v1 delivery prerequisite
+
+delivery-stack-topology also waits on delivery-slice-review-vehicle (external, review seam)
 delivery-review-cardinality also waits on review-request-contracts
 ```
 
 Current readiness derives from member metas and their `Depends On`, not from this orientation view.
 
-The first three members are the v1 delivery path. `delivery-review-cardinality` remains nearby because future field
-evidence may justify review aggregation across several member pull requests, but ordinary exact-head review and
-work-unit verification are sufficient for the initial delivery lifecycle. That follow-up does not gate cohort v1
-closeout.
+The v1 delivery path is `delivery-plan-record` plus `delivery-stack-topology`, with member review admission supplied
+by the external `delivery-slice-review-vehicle`. Both recorded field deliveries were stack-shaped landings to the
+protected base, and the stack projection is the one that removes the oversized terminal pull request, so it carries
+the cohort's spine. `delivery-integration-target` and `delivery-review-cardinality` remain nearby as demand-held
+follow-ups: each activates on observed field evidence, and neither gates cohort v1 closeout.
 
 ## Shared contracts
 
 - `delivery-plan-record` owns immutable authored intent, stable member identity and order, plan revisions, the task-list
   projection, and one version-checked mutable `DeliveryState`. State binds exact refs and change requests, supports
   reverse lookup from a member ref to its owning plan and work unit, and records at most one active operation.
-- `delivery-integration-target` owns guarded sequential landing on a private work-unit target and the handoff to the
-  existing work-unit integration lifecycle.
-- `delivery-stack-topology` owns stack eligibility, guarded sequential landing to the protected base, lifecycle-artifact
-  exclusion, and the minimum review-vehicle extension needed to admit a delivery member to existing exact-head review.
+- `delivery-stack-topology` owns stack eligibility, guarded sequential landing to the protected base, suffix
+  reconciliation, and lifecycle-artifact exclusion. Its landing core is built projection-neutral so a later activated
+  projection reuses it. Member review admission is owned by the external `delivery-slice-review-vehicle`.
+- `delivery-integration-target` is demand-held. If activated, it owns guarded sequential landing on a private
+  work-unit target and the handoff to the existing work-unit integration lifecycle, reusing the stack projection's
+  landing core.
 - `delivery-review-cardinality` owns no v1 contract. If field evidence activates it, it may improve review-request
   cardinality without weakening any member's existing obligation or creating delivery-authored review authority.
 
@@ -119,6 +124,9 @@ One plan revision selects one topology:
 - **Stack to base:** members form an ordered chain and land to the protected base one at a time. Every member must leave
   the protected base green and semantically coherent.
 
+The plan schema retains both projection discriminants. V1 executes the stack projection; the integration-target
+executor is demand-held until a concern that cannot leave the protected base coherent in increments actually arrives.
+
 The lifecycle is deliberately direct:
 
 1. Author a plan from the task decomposition and validate stable identities, order, coverage, and topology.
@@ -150,17 +158,20 @@ Canonical intent and minimum execution state: plan identity and revisions; stabl
 task-list projection; binding and three-way amendment outcome; exact ref/change-request bindings; reverse lookup;
 version-checked state; and one active-operation port. No topology execution.
 
-### `delivery-integration-target`
-
-The first executable projection: sequential member pull requests into a private target, exact pre/post observation,
-unexpected-movement refusal, and transfer to existing work-unit integration. No review aggregation or terminal proof
-ledger.
-
 ### `delivery-stack-topology`
 
-The stack-specific projection: human-authored landability validation, ordered member refs and pull requests, sequential
-landing and suffix reconciliation, lifecycle-artifact exclusion, and the narrow delivery-member binding needed by the
-existing review gate. No host-native stack API is required for v1.
+The v1 executable projection: human-authored landability validation, ordered member refs and pull requests, sequential
+landing and suffix reconciliation, and lifecycle-artifact exclusion, with the landing core built projection-neutral.
+Member review admission comes from the external `delivery-slice-review-vehicle`; no host-native stack API is required
+for v1.
+
+### `delivery-integration-target`
+
+Demand-held projection for a concern that cannot leave the protected base coherent in increments: sequential member
+pull requests into a private target, exact pre/post observation, unexpected-movement refusal, and transfer to existing
+work-unit integration. Its terminal merge still carries the whole contribution, so it relieves member review attention
+without shrinking the final pull request; activation requires such a concern actually arriving. No review aggregation
+or terminal proof ledger.
 
 ### `delivery-review-cardinality`
 
@@ -170,24 +181,24 @@ review contracts; it does not begin with an assurance-group schema.
 
 ## Closeout criteria
 
-Cohort v1 closes when the first three members ship and a work unit can:
+Cohort v1 closes when `delivery-plan-record` and `delivery-stack-topology` ship and a work unit can:
 
 - author and amend one delivery plan;
-- execute either topology through guarded, resumable operations;
-- review each member through the existing exact-head review lifecycle;
+- execute the stack projection through guarded, resumable operations;
+- review each member through the existing exact-head review lifecycle via the delivery-member vehicle;
 - preserve ordinary work-unit verification and exact-head integration authorization; and
 - run a partial stack without exposing active lifecycle artifacts or perturbing unrelated sessions.
 
-`delivery-review-cardinality` may remain planned after that closeout. Its activation and completion are not evidence
-requirements for v1 delivery.
+`delivery-integration-target` and `delivery-review-cardinality` may remain planned after that closeout. Their
+activation and completion are not evidence requirements for v1 delivery.
 
 ## Coordination
 
 - `review-chunking` owns review-attention boundaries. Delivery consumes chunk identity without making every chunk a
   merge boundary.
 - `decomposition-doctrine` owns whether a concern splits into several work units. Delivery begins after that decision.
-- Existing review contracts own obligation, applicability, findings, and clearance. The stack member adds only the
-  vehicle binding necessary to name a delivery member and exact head.
+- Existing review contracts own obligation, applicability, findings, and clearance. The external
+  `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact head.
 - `integration-boundary-accuracy` and `integration-lane` own shared integration naming and final-window behavior.
 - Storage remains abstract and version checked; delivery records do not assume tracked `.arc/` files or branch-derived
   work-unit identity.
@@ -197,5 +208,5 @@ requirements for v1 delivery.
 ## Scope estimate
 
 The overall cohort remains substantial because it touches planning, Git topology, review admission, and lifecycle
-integration. The first member is already active. Each remaining member should be reclassified from its reduced draft
+integration. The substrate member has shipped. Each remaining member should be reclassified from its reduced draft
 at planning close rather than inheriting `Heavy` solely from the earlier proof-system design.
