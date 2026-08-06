@@ -22,7 +22,6 @@ import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/par
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
-import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
@@ -489,7 +488,7 @@ export const DerivedLocusFrameValueViewSchema = z.object({
     subject: DerivedSubjectViewSchema,
     context: DerivedCheckoutRowViewSchema.shape.context.unwrap(),
   }).strict().nullable(),
-}).loose();
+}).strict();
 
 /** Complete invocation-only compaction-seed write result. */
 export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
@@ -508,7 +507,6 @@ export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
 const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
-  locusState: probe(LocusStateV1Schema),
   derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),

@@ -66,7 +66,6 @@ import type { RecommendedAction } from "../../lib/session-init/recommended-actio
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
-import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
@@ -213,9 +212,7 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
-  /** Worktree-derived migration frame selected for session-init consumers. */
+  /** Worktree-derived entering-checkout frame selected for session-init consumers. */
   derivedLocusState: Probe<DerivedLocusFrame>;
   /** CLI-precomposed narration derived from the same locus probe. */
   locusGuidance: LocusSessionGuidance;
@@ -571,31 +568,12 @@ export interface SessionHandoffResult {
   recommendedSummaryLine: string | null;
 }
 
-/**
- * Common session-init probes retained beside its derived-frame producer while
- * the legacy envelope slots remain selected during migration.
- */
-export interface SessionSharedProbes {
-  /** Resolve the shared, network-free machine-local locus interpretation. */
-  locusState: (identity: string) => Promise<LocusStateV1>;
+/** Probe functions in session-init mode — bound to cwd and any required I/O. */
+export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
-  /**
-   * Active probe receives `identity` and `role` so contributor flow can
-   * scan `.arc/user/{identity}/active/` instead of the maintainer root.
-   * Both pointers are forwarded verbatim from the composite — `null` means
-   * the corresponding `git config` key was absent.
-   */
-  active: (
-    identity: string | null,
-    role: string | null,
-  ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-}
-
-/** Probe functions in session-init mode — bound to cwd and any required I/O. */
-export interface SessionInitProbes extends SessionSharedProbes {
   /** Resolve the entering-checkout frame with the exact active extension set. */
   derivedLocusState: (
     identity: string,
@@ -741,16 +719,6 @@ export interface SessionInitProbes extends SessionSharedProbes {
   partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
   /** User-notes compaction advisory resolver. Fired eagerly whenever identity resolved when provided. */
   compactionAdvisory?: (identity: string) => Promise<NotesCompactionSessionAdvisoryResult>;
-  /**
-   * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
-   * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value
-   * and resolves the coordinating `cohort-<leaf>.md` under `backlog/planned/`,
-   * returning its path or `null`. Called ONLY when the active slot resolved to a
-   * single work unit; degrades to `null` on any miss.
-   */
-  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  /** Resolve the deterministic task-list cursor for a resolved task-list path. */
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in recover mode — the lean subset recovery needs. */

@@ -520,7 +520,8 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 ## 5. Assess Readiness
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Transient-resume via `locusState`): skip
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
+`derivedLocusState.value.entering`): skip
 this entire step — there is no work-unit handoff baseline to freshness-check, and the subject workflow replaces
 next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) /
 [Errand cold-entry](#errand-cold-entry-orient-arm).
@@ -603,7 +604,8 @@ Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, 
 claims copied from SESSION-NOTES prose.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Transient-resume via `locusState`): frame
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
+`derivedLocusState.value.entering`): frame
 the summary on the **transient subject** — the errand / drain / grooming target, its goal, branch, and any coordination
 caveat — instead of work-unit state; the active-work-state shape below does not apply. See
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).

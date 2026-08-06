@@ -7,14 +7,12 @@ import {
   SessionCompositionError,
   SessionIdentityMissingError,
   SessionProbeError,
-  buildSessionSharedSlots,
   gatedSlot,
   safeProbe,
   toProbe,
   userSlot,
   type SessionStatusError,
 } from "../../../src/commands/status/result-composition.js";
-import type { SessionSharedProbes } from "../../../src/commands/status/types.js";
 
 describe("status Result error taxonomy", () => {
   it("retains identity, probe, and composition context", () => {
@@ -97,40 +95,11 @@ describe("safeProbe and gatedSlot", () => {
   });
 });
 
-describe("identity and shared Result slots", () => {
+describe("identity-scoped Result slots", () => {
   it("short-circuits a missing user identity without invoking the probe", async () => {
     const probe = vi.fn(async (identity: string) => identity);
     const result = await userSlot(null, probe);
     expect(probe).not.toHaveBeenCalled();
     expect(result.isErr() && result.error).toBeInstanceOf(SessionIdentityMissingError);
-  });
-
-  it("starts shared probes independently and isolates a sibling failure", async () => {
-    const probes = {
-      user: vi.fn(async (identity: string) => ({ identity })),
-      worktree: vi.fn(async () => { throw new Error("worktree boom"); }),
-      dirty: vi.fn(async () => ({ state: "clean", fileCount: 0 })),
-      active: vi.fn(async () => ({ resolution: "none" })),
-      releaseRouting: vi.fn(async () => ({ taskCommit: "raw" })),
-    } as unknown as SessionSharedProbes;
-
-    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
-    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
-      shared.user,
-      shared.worktree,
-      shared.dirty,
-      shared.active,
-      shared.releaseRouting,
-    ]);
-
-    expect(probes.user).toHaveBeenCalledWith("andrew");
-    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
-    expect(worktree.isErr() && worktree.error.message).toBe("worktree boom");
-    expect([user.isOk(), dirty.isOk(), active.isOk(), releaseRouting.isOk()]).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
   });
 });

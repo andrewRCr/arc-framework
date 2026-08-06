@@ -77,7 +77,6 @@ import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 import type { TaskListCursorFileResult } from "../../../src/lib/task-list/file-cursor.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
-import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 
 // --- Fixtures ---
@@ -90,17 +89,6 @@ function materializableResult(
   candidates: Array<{ name: string; branch: string }>,
 ): MaterializableWorkUnitsResult {
   return MaterializableWorkUnitsResultSchema.parse({ candidates });
-}
-
-function locusState(): LocusStateV1 {
-  return {
-    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
-    current: { kind: "none" },
-    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
-    inFlightIdentities: [],
-    recovery: { kind: "none" },
-    reconciliation: { kind: "clean" },
-  };
 }
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
@@ -523,13 +511,18 @@ const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceR
   recommendedPromptText: "",
 });
 
-function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
+type SessionInitProbeOverrides = Partial<SessionInitProbes> & {
+  active?: SessionRecoverProbes["active"];
+  cohortDoc?: (activeMetaPath: string) => Promise<string | null>;
+  taskCursor?: (taskListPath: string) => Promise<TaskListCursorResult>;
+};
+
+function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionInitProbes {
   const active = overrides.active ?? vi.fn(async () => activeSessionInit());
   const cohortDoc = overrides.cohortDoc ?? vi.fn(async (): Promise<string | null> => null);
   const taskCursor = overrides.taskCursor
     ?? vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" }));
   return {
-    locusState: vi.fn(async () => locusState()),
     derivedLocusState: vi.fn(async (identity, activeExtensions) => {
       const activeResult = await active(identity, "maintainer");
       const cohortDocPath = activeResult.resolution === "single" && activeResult.path !== null
@@ -556,7 +549,6 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
-    active,
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
@@ -1326,19 +1318,16 @@ describe("runRecoverStatus — lean recover envelope", () => {
 });
 
 describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
-  const activeWu = sessionInitProbes({
-    active: vi.fn(async () =>
-      activeSessionInit({
-        resolution: "single",
-        path: ".arc/active/meta-my-wu.md",
-        sessionType: "execution",
-      }),
-    ),
-  });
+  const activeWu = vi.fn(async () =>
+    activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-my-wu.md",
+      sessionType: "execution",
+    }));
 
   it("upgrades loadNeeded for the safe sub-case (active WU SESSION-NOTES purely missing)", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1361,7 +1350,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces a mixed drift advisory without auto-loading", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1387,7 +1376,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces expected mixed for seed + identity-global sibling churn", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1413,7 +1402,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces general missing drift (beyond the active WU's SESSION-NOTES)", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1439,7 +1428,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("leaves loadNeeded and the surface untouched when no drift signal is present", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () => userSessionInit({ refState: "same" })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -1926,7 +1915,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
   });
 
-  it("keeps the envelope additive — every always-present slot remains present", async () => {
+  it("exposes only the derived session frame in the final public envelope", async () => {
     // Linked-worktree clean-resume state (active WU resolved, worktree clean) so
     // the conditional roster / recovery / sweep slots all stay absent — this
     // asserts the stable always-present set.
@@ -1957,7 +1946,6 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "inboxState",
       "loadSet",
       "locusGuidance",
-      "locusState",
       "mode",
       "orphanBranchSweep",
       "partialPushMarker",

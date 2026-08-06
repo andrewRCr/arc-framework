@@ -45,7 +45,6 @@ import type {
 } from "./types.js";
 import {
   gatedSlot,
-  locusStateSlot,
   safeProbe,
   SessionCompositionError,
   SessionIdentityMissingError,
@@ -135,7 +134,6 @@ export async function runSessionInitStatus(
     import("../../lib/session-init/errand-state.js").ErrandStateResult
   >;
 
-  const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
   const userTask = userSlot(identity, (id) => probes.user(id));
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
@@ -174,11 +172,10 @@ export async function runSessionInitStatus(
     : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
-    locusState, user, worktree, dirty, releaseRouting,
+    user, worktree, dirty, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
-    locusStateTask,
     userTask,
     worktreeTask,
     dirtyTask,
@@ -469,7 +466,6 @@ export async function runSessionInitStatus(
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
-    locusState: toProbe(locusState),
     derivedLocusState: toProbe(derivedLocusState),
     locusGuidance: deriveDerivedLocusSessionGuidance(toProbe(derivedLocusState)),
     user: toProbe(enrichedUser),

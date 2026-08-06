@@ -100,6 +100,12 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("rejects retired session-frame fields", () => {
+    const value = fixture("orient");
+    setPath(value, ["derivedLocusState", "value", "current"], { kind: "none" });
+    expectContractFailure(value, "derivedLocusState.value");
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";

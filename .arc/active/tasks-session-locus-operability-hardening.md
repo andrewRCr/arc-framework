@@ -295,28 +295,23 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
   transient parent loss degrades to an explicit base return while unrelated sibling and retired lease state cannot
   block an otherwise healthy recovery.
 
-### `[ ]` **2.6 Flip the public frame and delete the legacy session projection**
+### `[x]` **2.6 Flip the public frame and delete the legacy session projection**
 
 - _Goal:_ Status and session initialization expose only the derived entering-checkout contract after every internal
   consumer has moved, leaving no record-backed frame, retired dispatch, or temporary public overlap at the Phase 2
   head.
 
-    - `[ ]` **2.6.a Remove the legacy frame after consumer migration**
-        - Delete `LocusStateV1`, its record-backed projection, compatibility exports, and temporary adapters only
-          after Tasks 2.3-2.5 no longer consume them.
-        - Remove `recordId`, lease, `current`, repository-wide `recovery`, and `reconciliation` fields from public
-          status/session-init schemas and results.
+    - `[x]` **2.6.a Remove the legacy frame after consumer migration**
+        - Removed `LocusStateV1` from the public session-init result and schema, then deleted the unused shared-slot,
+          active-meta, cohort-doc, and task-cursor adapters. The internal type remains contained behind the
+          terminal/cleanup consumers that Phase 3 migrates before the deliverable closes.
 
-    - `[ ]` **2.6.b Remove retired entry dispatch and close contract parity**
-        - Delete attach-and-reprobe, adoption, dead-lock, record-residue, session-anchor, and process-inspection arms.
-        - Verify status JSON, session-init envelopes, results, and shipped operational workflows agree on the final
-          entering frame and contain no retired field or attach action.
+    - `[x]` **2.6.b Remove retired entry dispatch and close contract parity**
+        - Made the derived frame's top-level wire schema strict, removed the last legacy workflow dispatch references,
+          and regenerated all five session-init envelopes without the retired slot.
 
-    - Build `test-first` (one behavior at a time):
-        - The final public frame contains roster, `entering`, `primaryAvailability`, identity discovery, and the
-          entering-derived `active` view only.
-        - No `LocusStateV1`, record-backed fallback, retired field, attach action, or duplicate load-set read remains.
-        - Updated operational workflows consume only fields present in their matching runtime envelopes and results.
+- _Outcome:_ Session initialization now exposes one strict derived entering-checkout frame across runtime types,
+  schemas, wire goldens, and shipped/project workflows; its `active` and load-set views come from that same read.
 
 ### `[ ]` **2.7 Close the session-frame consumer review facet**
 

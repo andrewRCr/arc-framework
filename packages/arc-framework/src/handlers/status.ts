@@ -35,10 +35,7 @@ import type {
   SessionInitProbes,
   StatusProbes,
 } from "../commands/status.js";
-import {
-  runActiveSessionInitStatus,
-  runActiveStatus,
-} from "../commands/active.js";
+import { runActiveStatus } from "../commands/active.js";
 import {
   runConfigSessionInitStatus,
   runConfigStatus,
@@ -90,7 +87,6 @@ import {
 } from "../lib/session-init/current-wu-reconcile.js";
 import { runLocusStateProbe } from "./locus-state-probe.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
 import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
@@ -137,7 +133,6 @@ import {
   renderRoadmapFromIndexViewResult,
   resolveStagedRetirementTransitionOverlay,
 } from "../lib/status/roadmap-regeneration-assert.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import {
   assertSessionInitProbeResult,
   assertSessionRecoverProbeResult,
@@ -648,7 +643,6 @@ export async function handleStatus(
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
-      locusState: getLocusState,
       derivedLocusState: async (id, activeExtensions) => {
         const resolved = await resolvedSettingsP;
         return runDerivedLocusStateProbe({
@@ -719,7 +713,6 @@ export async function handleStatus(
       }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       currentWuReconcile: async ({ slug, metaPath }) => {
@@ -961,16 +954,6 @@ export async function handleStatus(
           userSurfacesFor,
         ),
       }),
-      cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-        cwd,
-        activeMetaPath,
-        fs: {
-          readFile: (path) => readFile(path, "utf8"),
-          pathExists: (path) => access(path).then(() => true, () => false),
-        },
-      }),
-      taskCursor: async (taskListPath) =>
-        resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
     const workingMemoryPath = identity === null
       ? null

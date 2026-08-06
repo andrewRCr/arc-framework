@@ -64,7 +64,6 @@ import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.
 import type { GitExec } from "../../src/lib/git/index.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
-import { locusStateFixture } from "../fixtures/locus-state.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 interface Fixture {
@@ -329,7 +328,6 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
-    locusState: async () => locusStateFixture({ rows: [] }),
     derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
@@ -354,7 +352,6 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
@@ -373,8 +370,6 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
-    cohortDoc: async () => null,
-    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -407,7 +402,6 @@ function makeResolvedReleaseModeSessionInitProbes(
   };
 
   return {
-    locusState: async () => locusStateFixture({ rows: [] }),
     derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
@@ -436,7 +430,6 @@ function makeResolvedReleaseModeSessionInitProbes(
         cwd: fixture.root,
         resolvedSettings: await resolvedSettings(),
       }),
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
@@ -455,8 +448,6 @@ function makeResolvedReleaseModeSessionInitProbes(
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
-    cohortDoc: async () => null,
-    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -671,7 +662,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
 
   it("resolves the contributor WU from its entering-checkout context", async () => {
     const probes: SessionInitProbes = {
-      locusState: async () => locusStateFixture({ rows: [] }),
       derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
         await runActiveSessionInitStatus({
           cwd: fixture.root,
@@ -701,8 +691,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
-      active: (identity, role) =>
-        runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
       currentWuReconcile: cleanCurrentWuReconcile,
       userReferenceReconcile: cleanUserReferenceReconcile,
@@ -721,8 +709,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     }),
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
       partialPushMarker: async () => ({ markers: [] }),
-      cohortDoc: async () => null,
-      taskCursor: async () => ({ status: "no-open-task" }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -867,7 +853,6 @@ function makeRealWorktreeProbes(
   const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
   const userState = opts.userState ?? "clean";
   return {
-    locusState: async () => locusStateFixture({ rows: [] }),
     derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
@@ -896,7 +881,6 @@ function makeRealWorktreeProbes(
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
@@ -915,8 +899,6 @@ function makeRealWorktreeProbes(
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
-    cohortDoc: async () => null,
-    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

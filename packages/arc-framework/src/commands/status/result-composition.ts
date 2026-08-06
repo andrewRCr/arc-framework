@@ -9,14 +9,7 @@ import {
 } from "../../lib/kernel/index.js";
 import type {
   Probe,
-  SessionSharedProbes,
 } from "./types.js";
-import type { ActiveSessionInitResult } from "../active/types.js";
-import type { UserSessionInitStatusResult } from "../user/types.js";
-import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
-import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
-import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 
 function causeMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -96,43 +89,6 @@ export function userSlot<Value>(
   return identity === null
     ? errAsync(new SessionIdentityMissingError("user"))
     : safeProbe("user", () => probe(identity));
-}
-
-/** Declare the required identity-scoped locus-state probe without invoking it on missing identity. */
-export function locusStateSlot(
-  identity: string | null,
-  probe: (identity: string) => Promise<LocusStateV1>,
-): ResultAsync<LocusStateV1, SessionIdentityMissingError | SessionProbeError> {
-  return identity === null
-    ? errAsync(new SessionIdentityMissingError("locusState"))
-    : safeProbe("locusState", () => probe(identity));
-}
-
-/** Eager session-init slots retained beside the derived-frame producer. */
-export interface SessionSharedResults {
-  locusState: ResultAsync<LocusStateV1, SessionIdentityMissingError | SessionProbeError>;
-  user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
-  worktree: ResultAsync<WorktreeSyncStatusResult, SessionProbeError>;
-  dirty: ResultAsync<DirtyStateResult, SessionProbeError>;
-  active: ResultAsync<ActiveSessionInitResult, SessionProbeError>;
-  releaseRouting: ResultAsync<ReleaseRoutingValue, SessionProbeError>;
-}
-
-/** Declare the eager session-init probes without awaiting or aggregating them. */
-export function buildSessionSharedSlots(options: {
-  identity: string | null;
-  role: string | null;
-  probes: SessionSharedProbes;
-}): SessionSharedResults {
-  const { identity, role, probes } = options;
-  return {
-    locusState: locusStateSlot(identity, (id) => probes.locusState(id)),
-    user: userSlot(identity, (id) => probes.user(id)),
-    worktree: safeProbe("worktree", () => probes.worktree()),
-    dirty: safeProbe("dirty", () => probes.dirty()),
-    active: safeProbe("active", () => probes.active(identity, role)),
-    releaseRouting: safeProbe("releaseRouting", () => probes.releaseRouting()),
-  };
 }
 
 /**
