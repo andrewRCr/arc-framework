@@ -64,17 +64,21 @@ proceeding.
 
 ## Proposed direction
 
-One record per transition, written once, never edited. It unifies the store's two current record kinds — the light
-`receipt` kind serving rename, removal, and park-planning, and the heavy `v3-decomposition-receipt` kind serving
-decompose.
+One record per **terminal** transition — decompose, rename, abandon — written once, never edited. It unifies the
+terminal uses of the store's two current record kinds: the light `receipt` kind serving rename and abandon, and the
+heavy `v3-decomposition-receipt` kind serving decompose. Park-planning stays out (§ Terminal transitions only).
 
-The record carries: origin slug, transition kind, recorded date, successors, and the authored incoming-edge
-dispositions keyed **directly by dependent slug**. Keying by slug removes the `edgeId` digest indirection through
+The record carries: origin slug, transition kind, successors, and the authored incoming-edge dispositions keyed
+**directly by dependent slug**. Keying by slug removes the `edgeId` digest indirection through
 the machine inventory, which deletes two `namespace-corrupt` failure modes that exist only because the lookup is
 digest-keyed.
 
 It drops: `preparationId` and `receiptId` sealing, `finalized.transitionPatch`, `managedPathResults`,
-`destinationDigests`, and `initialContinuation`.
+`destinationDigests`, and `initialContinuation`. It also drops the evidence-quality channel — the v2 receipt's
+`inventoryRead` and the query result's required `evidenceQuality`: the field is live-read but pure pass-through
+(the query hardcodes it for v3, discharge only carries it into evidence hops, nothing branches on the value), and
+pass-through is not the consumption the field-admission test protects. The query-result contract and discharge's
+evidence vocabulary drop the field with it.
 
 ### Location — the record stays; the predicate moves
 
@@ -100,6 +104,45 @@ A record the predicate treats as planning content is conventional rather than ta
 with the rest of the planning substrate — metas, ROADMAP, and cohort docs are all hand-editable — and it is the
 mechanism that dissolves the lane. It is an accepted design position, recorded here rather than discovered later.
 
+The failure stance survives the downgrade: enumeration stays fail-closed at the namespace level — one unparseable
+record still poisons every read, because bytes that cannot be classified cannot be ruled out as relevant evidence,
+and dependency discharge is decision-bearing. The closed result set reduces to parse-failure, ambiguity, and
+version-conflict once the digest-keyed modes go; the operator remedy is editing the record back to parseable — it
+is hand-editable planning content with git history behind it.
+
+### Terminal transitions only — park stays out
+
+Park is a location-axis move with an inverse: the slug is not retired, `parked` derives from the artifact
+location, and the authored park reason is verb input rather than receipt content. Its receipt is never history:
+the disposition query excludes park, and the eight records the reference-reconcile authority reads are exactly
+the terminal ones. What the receipt does serve is authorization — the out-of-band post-park teardown,
+detached-husk revalidation, and the partial-protection landing arm, which authenticates a park transition commit
+by the exact receipt it contains. Every input to each of those proofs is committed, so park fails the
+field-admission test on both arms and stays out of the record; its authorization consumers re-derive per
+§ History, never authorization. One live park receipt exists (`decompose-extraction`, parked during the
+re-scope; its branch is already gone locally and on origin), dropped unconverted when the namespace retires.
+
+### History, never authorization — the proof cluster re-derives
+
+The disposition query is not the receipt's only consumer. A retirement-authorization cluster reads receipts by
+`receiptId` after the transition lands and validates sealed fields before acting: abandon teardown reads
+`source.head` and `source.artifactDigest` to prove conservation before destroying a branch or worktree
+(`validateAbandonResult`), detached-husk revalidation re-reads the receipt behind a husk stamp's
+`{kind: "receipt", receiptId}` evidence ref (`validateGitRetirementReceiptEvidence`), and the partial-protection
+park landing authenticates the transition commit by the exact receipt it contains
+(`park-planning-landing.ts`).
+
+The settled position: **the record is history, never authorization evidence.** Every proof in that cluster
+re-derives from committed git state at proof time — the transition commit located structurally (direct parent,
+lifecycle index), its trees byte-compared — the same move settled above for park. The lean record may point a
+proof at the right transition, but it is never the evidence, so dropping the sealed fields costs the cluster
+nothing once it re-derives. Husk evidence refs need a receipt-free shape (transition kind plus a result digest
+against the stamped head — a spec-level detail); per the pre-release posture no compatibility reader for old
+stamps is kept — existing husks are torn down or re-stamped. `decompose-durable-consumers`' "receipt-backed
+retirement authority" contract re-sizes against this: the authority it consumes becomes the re-derived proof
+set, not receipt decoding. Each of the three arms gets its own consumer trace in the removal work, alongside the
+clusters already listed.
+
 ### Migration is required, not optional
 
 Eight records are live on the integration base and in active use: dependency discharge and user-reference reconcile
@@ -115,6 +158,8 @@ read transitions out of them. They encode past human decisions and are **not reg
 | `kind` and `successors`, light kind | `subject.name`, `transition`, `result.kind`, `result.targetSlug` |
 
 Convert all eight, verify against current consumer behavior, then retire the namespace and its record validator.
+A ninth live record — the `decompose-extraction` park receipt — is not converted; it drops with the namespace
+after the post-park consumer trace (§ Terminal transitions only).
 
 ### Accumulation
 
@@ -122,6 +167,41 @@ Records accumulate one per retired work unit indefinitely — references to a de
 That is the correct answer rather than a deferred problem: the storage direction already carries an open
 history-model policy question for the user-notes ref, and this composes with it rather than receiving a bespoke
 policy. The real cost is enumeration rather than disk, and `decompose-durable-consumers` already owns bounded reads.
+
+## Non-goals and scope guards
+
+The origin of this work unit is a proportionality failure — machinery grown around states the problem does not
+contain. These guards exist so the replacement cannot re-grow it. They carry forward into the spec as standing
+constraints: a proposal that trips one is a scope decision routed back to planning, never an implementation call.
+
+- **Field-admission test.** The record carries a fact only if git cannot reconstruct it _and_ a live consumer
+  reads it today. A proposed field failing either arm stays out — no fields added for consumers that might want
+  them later; a future consumer that needs more is that work unit's scope question, not this record's. One
+  recorded exception: `successors` is one unified field because rename's target is live-read; decompose's
+  successor list rides the same field rather than minting a second shape — git could reconstruct it from the
+  transition commit, so the spec may narrow it if no consumer materializes.
+- **No integrity machinery.** Written once, never sealed: no digests, no record or preparation identifiers, no
+  validation beyond parsing the shape. Git commit history is the tamper-evidence layer, shared with the whole
+  planning substrate (§ Trust boundary); its consumers are advisory with an operator approving the result, and a
+  forger who can edit a record can reseal it, so sealing without an external trust anchor detects nothing. A
+  genuine future integrity need is substrate-wide — signed commits, host-side protection — and per-record sealing
+  does not return.
+- **No invented states.** The replacement mints no new transient, claim, candidate, publication, or launch state.
+  Whatever the claim-store trace (§ Unknowns) shows must be kept is kept as-is, not redesigned into a successor
+  mechanism.
+- **The predicate stays exact.** One `isPlanningArtifactPath` entry scoped to the transitions namespace exactly;
+  never widened toward `.arc/system/.internal/**` (§ Location).
+- **No parallel readiness vocabulary.** Lifecycle resolution stays the sole authority for ready / blocked
+  frontiers. Nothing in this work re-types, adapts, or wraps that answer.
+- **No retention or compaction policy.** Accumulation is accepted (§ Accumulation) and composes with the storage
+  direction's open history-model question; this work unit adds no bespoke pruning, archiving, or GC.
+- **No storage lift.** The record shape stays storage-agnostic, but the tier-2 backing store and materialized
+  rendering remain out of scope — no gitignored materialization, no propagation machinery.
+- **One-way migration.** The eight live records convert once and the old namespace retires with its validator. No
+  dual-read bridge, alias, or compatibility reader survives the conversion (per the pre-release posture — and the
+  authored dispositions themselves are preserved by conversion, not by keeping the old shape readable).
+- **Refusal work is subtractive only.** Codes describing deleted states go with their states; no renumbering or
+  redesign of surviving codes, and remedy authoring belongs to `decompose-finalization-diagnostics`.
 
 ## Alternatives
 
@@ -148,12 +228,11 @@ policy. The real cost is enumeration rather than disk, and `decompose-durable-co
   justified than its hold suggests, and should be revisited first.
 - **`decompose-candidate-abandon` is expected to largely dissolve** — its scope is the stranded states the
   candidate and claim model invented. Its draft has not been read; confirm against it before acting.
-- **Does `park-planning` belong in this record** or remain a separate concept? It is already excluded from the
-  disposition query.
 - **Removal surface is an estimate, not a verified list.** Roughly 5,000 lines of non-test source plus a comparable
   test mass are implicated across the lane trio, the record validator, the claim store and candidate discard, the
-  launch and publication cluster, and parts of preparation, receipt, and finalization. Each cluster needs its own
-  consumer trace before anything is cut.
+  launch and publication cluster, the retirement-authorization cluster (abandon teardown, husk revalidation, park
+  landing — § History, never authorization), and parts of preparation, receipt, and finalization. Each cluster
+  needs its own consumer trace before anything is cut.
 
 ## Forward-compatibility check
 
@@ -174,6 +253,8 @@ deciding review-bearingness, which stops matching most of its own list once oper
   the cost is that the operator must know.
 - **The initial-continuation choice goes** with the launch cluster. After decomposing, the operator picks a
   successor and starts it.
+- **Record-time reachability provenance goes.** `inventoryRead` recorded whether the remote was reachable when a
+  retirement was recorded; nothing ever branched on it, and the lean record does not carry it.
 
 ## Scope Estimate
 
