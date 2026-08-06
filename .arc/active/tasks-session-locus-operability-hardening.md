@@ -50,7 +50,7 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 - _Outcome:_ The accepted future occupancy contract is executable and regression-proven as a dormant projection;
   selected live marker parsing, serialization, generation operations, writers, and producer behavior remain unchanged.
 
-### `[ ]` **1.3 Add the default-preserving active-extension input seam**
+### `[x]` **1.3 Add the default-preserving active-extension input seam**
 
 - _Goal:_ Rich WU context accepts active extensions through its existing projection seam while every selected caller
   continues to produce the same session-init and recovery output.
@@ -63,18 +63,15 @@ producer, consumer, public contract, workflow, or on-disk behavior.
         - Preserved the helper's identity, meta-evidence, workflow, stage, task-cursor, cohort, and load-set ownership
           without a wrapper or adjacent type migration.
 
-    - `[ ]` **1.3.b Preserve selected callers and supply the dormant reader**
-        - Leave current `reader.ts` and `recover/locus-context.ts` call shapes unchanged so they retain the empty
-          default.
-        - Require the dormant reader alone to pass its injected active extensions in Deliverable 1.
+    - `[x]` **1.3.b Preserve selected callers and supply the dormant reader**
+        - Left the selected record-backed reader and recovery call shapes unchanged at the empty default.
+        - Made the dormant derived reader the sole explicit caller supplying injected active extensions and proved its
+          one-call pass-through into the existing rich-context projection.
 
-    - Build `test-first` (one behavior at a time):
-        - Supplied extensions appear exactly once in the dormant projected load set.
-        - An omitted extension input reproduces the existing projection exactly.
-        - Session type, planning/execution stage, task cursor, and cohort projection remain stable.
-        - Existing session-init and recovery golden outputs remain unchanged.
+- _Outcome:_ Rich dormant WU context now accepts active extensions through the existing resolver seam while omitted
+  input, selected session fields, and session-init/recovery wire outputs remain unchanged.
 
-### `[ ]` **1.4 Build dormant lifecycle evidence and derived roster rows**
+### `[x]` **1.4 Build dormant lifecycle evidence and derived roster rows**
 
 - _Goal:_ A dormant reader derives the future roster from one worktree snapshot and injected existing evidence while
   containing every malformed checkout to its own row.
@@ -82,42 +79,26 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 - _Context:_ Keep `readLocusEnvelope()` and `readLocusState()` selected and record-backed until Deliverable 2; do not
   add another lifecycle scanner, cache, persisted snapshot, or service.
 
-    - `[ ]` **1.4.a Define bounded evidence projections**
-        - Add internal lifecycle evidence for exact active-meta `present`, `absent`, `unreadable`, `duplicate`, and
-          `conflicting` states.
-        - Accept the existing `CompletedEvidenceRead` union, marker generation, registered-worktree snapshot, and one
-          identity snapshot as injected inputs rather than wiring a second repository reader.
-        - Preserve identity snapshot `absent`, root-level `error`, and `complete` with entry-diagnostics outcomes as
-          distinct read evidence; do not collapse them into a roster-wide failure.
-        - Canonicalize registered paths once and separate authority topology from corroboration observations.
+    - `[x]` **1.4.a Define bounded evidence projections**
+        - Added exact active-meta absence, presence, unreadability, duplication, and conflict projections plus injected
+          future-marker generation, completed-index, registered-topology, and identity snapshot inputs.
+        - Preserved absent, root-error, and complete identity outcomes, canonicalized each registered path once, and
+          split authority-safe topology from branch, `HEAD`, and detached corroboration observations.
 
-    - `[ ]` **1.4.b Derive lifecycle and transient subjects**
-        - Select a WU from an exact marker subject or one unique owner-eligible active meta; keep missing or ambiguous
-          required evidence unresolved.
-        - Classify a marker-named WU as retired only from positive completed-index membership; unavailable completed
-          evidence cannot prove retirement.
-        - Require marker/identity generation agreement for identity-backed Errands and marker origin binding for
-          the exact `{ kind: "partial-errand", slug, claimId: null }` identity-free subject; identity absence does not
-          suppress topology-only or WU rows.
-        - Localize a root identity error to identity discovery and identity-backed transient rows. From a complete
-          snapshot, use exact valid entries for read projection while retaining unrelated diagnostics for their own
-          affected rows; do not weaken the clean-complete-basis requirement for mutation.
+    - `[x]` **1.4.b Derive lifecycle and transient subjects**
+        - Derived active and parked WUs, positive completed-index retirement, ready identity-backed transients, and the
+          exact origin-bound partial-Errand subject through the authority-only seam.
+        - Localized unavailable lifecycle, marker/meta and marker/identity conflicts, identity-root failures, affected
+          entry diagnostics, and branch/`HEAD`/detached mismatches to their own unresolved checkout rows.
 
-    - `[ ]` **1.4.c Compose the dormant roster and discovery projections**
-        - Add separate internal derived reader/roster modules and future row types without modifying live locus schemas,
-          readers, production barrels, handlers, commands, or dependency factories.
-        - Compose authority derivation, corroboration, and existing primary-safety facts into the future row taxonomy.
-        - Keep identities with no checkout on the identity-discovery surface rather than inventing checkout rows.
+    - `[x]` **1.4.c Compose the dormant roster and discovery projections**
+        - Added separate dormant evidence, row-composition, and reader modules with future internal row and identity
+          discovery types; selected readers, schemas, barrels, commands, handlers, and factories remain unchanged.
+        - Composed derivation, preserve-or-unresolve corroboration, and positive primary safety into deterministic rows,
+          while identities without checkouts remain on discovery and malformed siblings cannot alter healthy rows.
 
-    - Build `test-first` (one behavior at a time):
-        - Cover active and parked WUs, positively retired WUs, and unreadable lifecycle evidence.
-        - Cover spawned, primary full-protection, primary partial-protection, and warm-parent Errands.
-        - Cover free-primary, unmanaged, and every marker/meta, marker/identity, branch, and `HEAD` disagreement.
-        - Cover identity snapshot absence, root error, and complete snapshots with unrelated entry diagnostics,
-          proving healthy non-identity-backed rows remain derivable while affected identity-backed rows unresolve.
-        - Prove a malformed sibling cannot alter a healthy current-checkout fixture and an identity without a checkout
-          never becomes a fake roster row.
-        - Keep new authority fixtures separate from the legacy public locus-state fixture family.
+- _Outcome:_ One injected worktree snapshot now produces deterministic dormant future rows and rich WU context without
+  records, leases, liveness, fallback acquisition, public exposure, or production selection.
 
 ### `[ ]` **1.5 Prove behavioral dormancy and the additive authority boundary**
 
