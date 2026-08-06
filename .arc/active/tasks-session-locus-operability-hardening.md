@@ -345,10 +345,9 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
           foreign acts bind to one request-local generation, unrelated malformed rows stay contained, and incomplete
           shared identity bases fail identity-backed mutations closed.
 
-    - `[ ]` **3.1.b Move each terminal runtime off locus state**
-        - Rework close, abandon, leave, and partial-settle paths around identity transactions or marker origin binding.
-        - Preserve marker/identity generation, exact branch/`HEAD`, dirty-tree, capture settlement, idempotent replay,
-          and close `HEAD.lock` checks.
+    - `[x]` **3.1.b Move each terminal runtime off locus state**
+        - Reworked close, abandon, leave, and partial settlement around fresh derived checkout authority, identity
+          transactions, or marker-origin binding while retaining exact Git, capture, replay, and `HEAD.lock` guards.
 
     - `[ ]` **3.1.c Expose confirmation on the owning Errand verbs**
         - Expose `--confirm-foreign-generation <generation>` on close, abandon, leave, and partial settlement, and

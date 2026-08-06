@@ -534,7 +534,11 @@ describe("arc errand close", () => {
     try {
       await seedOpenV3Errand(tmpDir, slug);
       const result = await runArcAnchoredSequence([
-        ["errand", "close", slug, "--json"],
+        [
+          "errand", "close", slug,
+          "--confirm-foreign-generation", `errand-v1/${slug}/${"d".repeat(32)}`,
+          "--json",
+        ],
       ], tmpDir, { env: host.env });
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
@@ -543,18 +547,13 @@ describe("arc errand close", () => {
       await expect(
         git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]),
       ).rejects.toThrow();
-      const locus = deriveLocusRecordId(tmpDir, "posix");
-      await expect(readFile(
-        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
-        "utf-8",
-      )).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
     }
   });
 
-  it("finalizes its occupied Errand after the same anchored checkout returns to base", async () => {
+  it("refuses an occupied Errand after its checkout leaves the exact branch", async () => {
     const slug = "merged-v3-from-base";
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", "-A"]);
@@ -567,18 +566,10 @@ describe("arc errand close", () => {
         ["errand", "close", slug, "--json"],
       ], tmpDir, { env: host.env, timeout: 60_000 });
 
-      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(1);
       expect(result.results).toHaveLength(2);
-      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
-      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
-      await expect(
-        git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]),
-      ).rejects.toThrow();
-      const locus = deriveLocusRecordId(tmpDir, "posix");
-      await expect(readFile(
-        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
-        "utf-8",
-      )).rejects.toMatchObject({ code: "ENOENT" });
+      expect(result.results.at(-1)).toMatchObject({ outcome: "refused", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
@@ -604,23 +595,6 @@ describe("arc errand close", () => {
       expect((await git(tmpDir, ["rev-parse", "--verify", "HEAD"])).trim()).toMatch(/^[0-9a-f]{40}$/u);
       expect(await git(tmpDir, ["status", "--porcelain"])).toBe("");
 
-      const locus = deriveLocusRecordId(tmpDir, "posix");
-      const recordPath = join(
-        tmpDir,
-        ".arc",
-        "user",
-        "test-user",
-        ".internal",
-        "loci",
-        `locus-${locus.digest}.json`,
-      );
-      await expect(readFile(recordPath, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
-
-      const reopened = await runArcAnchoredSequence([
-        ["errand", "open", "after-terminal-close", "--json"],
-      ], tmpDir, { env: host.env, timeout: 60_000 });
-      expect(reopened.exitCode, reopened.stdout + reopened.stderr).toBe(0);
-      expect(reopened.results[0]).toMatchObject({ outcome: "applied", operation: "errand-open" });
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
@@ -656,11 +630,6 @@ describe("arc errand close", () => {
         .toBe(`chore/${slug}`);
       expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
         .toContain('"state": "open"');
-      const locus = deriveLocusRecordId(tmpDir, "posix");
-      await expect(readFile(
-        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
-        "utf-8",
-      )).resolves.toContain(`"key": "${slug}"`);
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
@@ -706,15 +675,10 @@ describe("arc errand close", () => {
         operation: "errand-close",
         activeLocusPath: null,
         sessionHomePath: tmpDir,
-        restoredParent: { recordId: expect.any(String), checkoutPath: tmpDir },
+        restoredParent: null,
       });
       if (spawnedPath === null) throw new Error("Errand open returned no spawned checkout path.");
       await expect(access(spawnedPath)).rejects.toMatchObject({ code: "ENOENT" });
-      const locus = deriveLocusRecordId(spawnedPath, "posix");
-      await expect(readFile(
-        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
-        "utf-8",
-      )).rejects.toMatchObject({ code: "ENOENT" });
       await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
         .rejects.toThrow();
     } finally {
@@ -726,88 +690,6 @@ describe("arc errand close", () => {
       await cleanupTempDir(host.remoteDir);
     }
   });
-
-  it.runIf(process.platform !== "win32")(
-    "refuses when the checkout leaves base during locus acquisition",
-    async () => {
-      const slug = "merged-v3-displaced-during-read";
-      const gitDir = await mkdtemp(join(tmpdir(), "arc-e2e-git-displacement-"));
-      const triggerPath = join(gitDir, "switch-after-snapshot-branch-read");
-      const realGit = (await execFileAsync("sh", ["-c", "command -v git"])).stdout.trim();
-      const gitWrapper = [
-        "#!/bin/sh",
-        "set -eu",
-        "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] && [ \"$#\" -eq 2 ] \\",
-        "    && [ \"$1\" = rev-parse ] && [ \"$2\" = --show-toplevel ]; then",
-        "  : >\"$ARC_TEST_GIT_OCCUPANCY_STARTED\"",
-        "fi",
-        "if [ -f \"$ARC_TEST_GIT_OCCUPANCY_STARTED\" ] && [ \"$#\" -eq 4 ] \\",
-        "    && [ \"$1\" = worktree ] && [ \"$2\" = list ] \\",
-        "    && [ \"$3\" = --porcelain ] && [ \"$4\" = -z ]; then",
-        "  : >\"$ARC_TEST_GIT_SNAPSHOT_STARTED\"",
-        "fi",
-        "if [ -f \"$ARC_TEST_GIT_SWITCH_TRIGGER\" ] \\",
-        "    && [ -f \"$ARC_TEST_GIT_SNAPSHOT_STARTED\" ] && [ \"$#\" -eq 3 ] \\",
-        "    && [ \"$1\" = rev-parse ] && [ \"$2\" = --abbrev-ref ] && [ \"$3\" = HEAD ]; then",
-        "  \"$ARC_TEST_REAL_GIT\" \"$@\" >\"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
-        "  rm \"$ARC_TEST_GIT_SWITCH_TRIGGER\"",
-        "  rm \"$ARC_TEST_GIT_OCCUPANCY_STARTED\"",
-        "  rm \"$ARC_TEST_GIT_SNAPSHOT_STARTED\"",
-        "  \"$ARC_TEST_REAL_GIT\" switch feat/displaced >/dev/null",
-        "  cat \"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
-        "  rm \"$ARC_TEST_GIT_BRANCH_OUTPUT\"",
-        "  exit 0",
-        "fi",
-        "exec \"$ARC_TEST_REAL_GIT\" \"$@\"",
-        "",
-      ].join("\n");
-      await writeFile(join(gitDir, "git"), gitWrapper, "utf-8");
-      await chmod(join(gitDir, "git"), 0o755);
-      await setFullProtection(tmpDir);
-      await git(tmpDir, ["add", "-A"]);
-      await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-      await git(tmpDir, ["branch", "feat/displaced"]);
-      const host = await createMergedGhFixture(tmpDir, slug);
-      try {
-        const result = await runArcAnchoredSequence([
-          ["errand", "open", slug, "--json"],
-          { command: ["git", "switch", "main"] },
-          {
-            command: [
-              process.execPath,
-              "-e",
-              `require("node:fs").writeFileSync(${JSON.stringify(triggerPath)}, "")`,
-            ],
-          },
-          ["errand", "close", slug, "--json"],
-        ], tmpDir, {
-          env: {
-            ...host.env,
-            PATH: `${gitDir}:${host.env.PATH}`,
-            ARC_TEST_GIT_SWITCH_TRIGGER: triggerPath,
-            ARC_TEST_GIT_OCCUPANCY_STARTED: `${triggerPath}.occupancy-started`,
-            ARC_TEST_GIT_SNAPSHOT_STARTED: `${triggerPath}.snapshot-started`,
-            ARC_TEST_GIT_BRANCH_OUTPUT: `${triggerPath}.output`,
-            ARC_TEST_REAL_GIT: realGit,
-          },
-          timeout: 60_000,
-        });
-
-        expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-        expect(result.results.at(-1)).toMatchObject({
-          outcome: "refused", operation: "errand-close", reason: "role-conflict",
-        });
-        expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/displaced");
-        expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
-        expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
-          .toContain('"state": "open"');
-      } finally {
-        await cleanupTempDir(gitDir);
-        await cleanupTempDir(host.ghDir);
-        await cleanupTempDir(host.remoteDir);
-      }
-    },
-  );
 
   it.runIf(process.platform !== "win32")(
     "prevents the checkout from leaving base during ref teardown",
@@ -850,7 +732,6 @@ describe("arc errand close", () => {
         const result = await runArcAnchoredSequence([
           ["errand", "open", slug, "--json"],
           { command: ["git", "push", "-u", "origin", branch] },
-          { command: ["git", "switch", "main"] },
           {
             command: [
               process.execPath,
@@ -927,7 +808,6 @@ describe("arc errand close", () => {
         const result = await runArcAnchoredSequence([
           ["errand", "open", slug, "--json"],
           { command: ["git", "push", "-u", "origin", branch] },
-          { command: ["git", "switch", "main"] },
           {
             command: [
               process.execPath,
@@ -1001,7 +881,7 @@ describe("arc errand close", () => {
 
         expect(result.exitCode, result.stdout + result.stderr).toBe(1);
         expect(result.results.at(-1)).toMatchObject({
-          outcome: "refused", operation: "errand-close", reason: "preservation-unproven",
+          outcome: "refused", operation: "errand-close", reason: "identity-conflict",
         });
         expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
         expect(await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toContain(branch);
@@ -1080,7 +960,7 @@ describe("arc errand close", () => {
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(1);
       expect(result.results.at(-1)).toMatchObject({
-        outcome: "refused", operation: "errand-close", reason: "role-conflict",
+        outcome: "refused", operation: "errand-close", reason: "identity-conflict",
       });
       expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
       expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))

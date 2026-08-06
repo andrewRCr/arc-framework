@@ -962,13 +962,20 @@ function emitErrandLeaveFailure(code: LocusMutationErrorCode, message: string, j
 export interface ErrandCloseOptions {
   /** Bypass the containment safety check — the deliberate shipped / abandon override. */
   force?: boolean;
+  /** Exact foreign subject generation authorizing this close request. */
+  confirmForeignGeneration?: string;
   /** Emit the producer-validated mutation result without human decoration. */
   json?: boolean;
 }
 
 /** Validated input for closing an errand. */
 export const ErrandCloseInputSchema = z
-  .object({ slug: SlugSchema, force: z.boolean().optional(), json: z.boolean().optional() })
+  .object({
+    slug: SlugSchema,
+    force: z.boolean().optional(),
+    confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
+    json: z.boolean().optional(),
+  })
   .strict();
 
 /**
@@ -1064,6 +1071,7 @@ async function runErrandCloseHandler(
           base,
           exec: io.exec,
           readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+          confirmForeignGeneration: opts.confirmForeignGeneration,
           settleInbox: async (binding) => {
             if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
             const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
@@ -1119,11 +1127,10 @@ async function runErrandCloseHandler(
           protection: "full",
           force: opts.force === true,
           identity,
-          identityGlobalUserDir,
-          postCreateScript: settings["worktree.post_create"],
-          registeredHarnessDirs: settings["worktree.harness_dirs"],
           exec: io.exec,
           execInput: io.execInput,
+          readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+          confirmForeignGeneration: opts.confirmForeignGeneration,
           removeInbox: async (record, sessionHomePath) => {
             if (record.originEntry === null) return { kind: "absent", nextOffer: null };
             const removed = await removeCurrentInboxEntry({
@@ -1476,7 +1483,12 @@ export const errandCommandInputRegistrations = [
   {
     commandPath: "errand close",
     schema: ErrandCloseInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.force": "force", "option.json": "json" },
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.force": "force",
+      "option.confirm-foreign-generation": "confirmForeignGeneration",
+      "option.json": "json",
+    },
   },
   {
     commandPath: "errand promote",
@@ -1587,6 +1599,23 @@ export const errandCommandInputPolicyDeclarations = [
         acceptedSyntax: ["--confirm-foreign-generation <generation>"],
       },
       mutationBoundary: "errand abandon subject-generation authority",
+      subprocess: "none",
+    })],
+  },
+  {
+    commandPath: "errand close",
+    aliases: [],
+    sites: [declareCliOptionSite("confirm-foreign-generation", {
+      acquisition: "optional",
+      schemaOwnership: "owned",
+      schemaField: "confirmForeignGeneration",
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "preserve-absent",
+        flags: ["--confirm-foreign-generation <generation>"],
+        acceptedSyntax: ["--confirm-foreign-generation <generation>"],
+      },
+      mutationBoundary: "errand close subject-generation authority",
       subprocess: "none",
     })],
   },

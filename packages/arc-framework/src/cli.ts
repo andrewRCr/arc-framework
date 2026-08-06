@@ -574,6 +574,7 @@ errand
   .command("close <slug>")
   .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
   .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
