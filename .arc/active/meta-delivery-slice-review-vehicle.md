@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/delivery-slice-review-vehicle` | `Light`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `delivery-plan-record`, `merge-readiness-control`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-slice-review-vehicle.md`
