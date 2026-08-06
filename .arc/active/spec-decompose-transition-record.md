@@ -115,11 +115,34 @@ One JSON record per terminal transition, written once at the transition commit a
 
 ### Write path
 
-The decompose transform's finalization writes the lean record from the cut map's authored allocation and
-incoming-edge dispositions — the authoring flow (cut map, dispositions, validation of the authored content) is
-unchanged; what changes is what persists. Rename and abandon writers converge on the same record shape at their
-existing write points. Sealing artifacts (`preparationId`, `receiptId`, `finalized.transitionPatch`,
-`managedPathResults`, `destinationDigests`, `initialContinuation`) are not written by anything.
+The decompose transform's `--execute <cut-map>` operation validates and applies the authored plan, then stages the
+lean record from the cut map's allocation and incoming-edge dispositions in the same operation. It is the sole
+terminal mutation command: there is no persisted preparation and no later `--finalize` / `--continuation` step.
+Under full protection the complete transition is staged in the owned candidate worktree; under partial protection
+it is staged in the current index. Success is reported only when the transform and the one exclusive origin record
+share that staged tree. A record-write or later staging failure follows the existing protection-specific rollback
+boundary and never reports a half-transition as complete.
+
+Rename and abandon writers converge on the same record shape at their existing write points. Sealing artifacts
+(`preparationId`, `receiptId`, `finalized.transitionPatch`, `managedPathResults`, `destinationDigests`,
+`initialContinuation`) are not written by anything.
+
+### Command and base-mobility cutover
+
+The surviving decomposition modes are `--preflight`, `--execute <cut-map>`, and full-protection
+`--advance-base <cut-map>`. Candidate cleanup uses the ordinary owned-worktree route, landed state comes from
+lifecycle resolution, and the `--discard`, `--finalize`, `--continuation`, and `--handoff` modes retire with their
+invented states.
+
+Base advancement remains append-only and receipt-free. It revalidates the canonical completed map, pins the
+deterministic candidate branch/worktree and current base, and authenticates the committed candidate from its Git
+topology and exact transform delta. The initial transition is a unique single-parent commit; a candidate already
+advanced remains valid only through a first-parent chain of previously validated append-only base merges. The
+supplied map establishes authored allocation and incoming-disposition intent; neither the lean record nor an old
+receipt grants mutation authority. Advancement admits only a descendant base with no newly acquired incoming
+dependency, merges that pinned base into the candidate without rewriting history, revalidates the resulting tree,
+and race-closes the candidate and base refs. Any retained transient claim is restated through its existing contract
+only when the claim-store trace proves that contract independently necessary; no replacement state is introduced.
 
 ### Read path
 
@@ -194,8 +217,9 @@ with the namespace after the post-park consumer trace.
 Roughly 5,000 lines of non-test source plus a comparable test mass, cut cluster by cluster, **each cluster
 traced for consumers before anything is cut**: the lane trio; the record validator; the claim store and
 candidate discard (pending the concurrency trace — see Open Questions); the launch and publication cluster; the
-retirement-authorization cluster's receipt-consuming halves (after re-derivation lands); and the sealing paths in
-preparation, receipt, and finalization. Refusal codes describing deleted states go with their states.
+decomposition receipt marker and special graduation/start path; the retirement-authorization cluster's
+receipt-consuming halves (after re-derivation lands); and the sealing paths in preparation, receipt, finalization,
+and their public command modes. Refusal codes describing deleted states go with their states.
 
 ### Delivery order
 
@@ -204,7 +228,9 @@ Additive before subtractive, so the tree is consistent at every boundary:
 1. Lean record shape + writers + readers (query, reconcile) behind the existing store, plus the predicate entry.
 2. One-time migration of the eight records, with the equivalence verification.
 3. Authorization re-derivation arms land; husk stamp shape follows.
-4. Cluster removals, each behind its consumer trace; namespace and validator retire last.
+4. Ordinary candidate cleanup lands before discard retires; receipt-free terminal execution and base advancement
+   land before their old execution/finalization/advancement paths cut over. Remaining cluster removals follow their
+   consumer traces, with the namespace and validator retiring last.
 
 These four stages are the candidate **stack-slice boundaries** for stacked delivery, decided here at planning
 close rather than discovered mid-diff — a removal-plus-migration WU with per-cluster consumer traces is a
@@ -238,8 +264,9 @@ natural field run for the current delivery vehicle. Task generation phases again
 - **Concurrency.** Same-origin record writes collide as git conflicts on one file and surface for resolution;
   different origins never conflict. The claim-store question is traced before that machinery is cut.
 - **Operator-facing losses** (accepted knowingly): a crashed source finish recovers via git checkout rather than
-  an in-process preimage restore; the post-decompose initial-continuation choice goes (the operator picks a
-  successor and starts it); record-time reachability provenance (`inventoryRead`) goes.
+  an in-process preimage restore; the post-decompose initial-continuation choice and separate finalize, discard,
+  and landed-handoff modes go; the operator picks a successor and starts it, and ordinary owned-worktree cleanup
+  handles an abandoned candidate. Record-time reachability provenance (`inventoryRead`) also goes.
 - **Downstream re-sizing.** `decompose-durable-consumers`' "receipt-backed retirement authority" contract
   re-sizes to the re-derived proof set; extraction and the finalization members re-plan against the lean core.
   `decompose-candidate-abandon` retires at closeout: its draft's four recorded discard refusals are all products
@@ -269,9 +296,12 @@ natural field run for the current delivery vehicle. Task generation phases again
    git-re-derived proofs — demonstrated by parity tests against the behaviors they replace.
 5. The launch and publication cluster and the planning-lane trio are removed; `arc status` and lifecycle
    resolution remain the sole readiness authorities.
-6. Every scope guard in Non-Goals holds over the landed diff — no sealing, no new states, no predicate widening,
+6. `decompose --execute <cut-map>` is the sole terminal mutation path, and full-protection
+   `--advance-base <cut-map>` preserves append-only base mobility through pinned Git-derived proof without reading
+   a receipt or treating the lean record as authority.
+7. Every scope guard in Non-Goals holds over the landed diff — no sealing, no new states, no predicate widening,
    no compatibility readers.
-7. A stranded candidate in each of the four recorded discard-refusal states (`candidate-cleanup-failed`,
+8. A stranded candidate in each of the four recorded discard-refusal states (`candidate-cleanup-failed`,
    `candidate-not-exact`, `candidate-index-changed`, `candidate-path-set-changed`) is destroyable after the cut —
    the exactness gates that produced those states are in-scope machinery, and their removal is what licenses
    `decompose-candidate-abandon`'s retirement at closeout.

@@ -1,0 +1,738 @@
+# Task List: decompose-transition-record
+
+- **Design:** `spec-decompose-transition-record.md`
+
+---
+
+## **Phase 1:** Establish the lean transition record
+
+_Purpose:_ Add the origin-keyed historical substrate and its final projection APIs, co-stage terminal history with
+the still-required receipts, and admit the exact namespace through the generic planning lane without cutting a live
+receipt consumer before migration and authorization re-derivation.
+
+### `[ ]` **1.1 Establish the origin-keyed transition record substrate**
+
+- _Goal:_ Terminal transitions have one closed, human-legible schema and an exclusive origin-slug store that
+  preserves authored history without integrity identities or transaction evidence.
+
+    - `[ ]` **1.1.a Define and parse the schema-v1 record**
+        - Add `transition-record.ts` with a closed `TransitionRecord` type, `parseTransitionRecord()`, and
+          deterministic `serializeTransitionRecord()` for `schemaVersion`, `origin`, `kind`, `successors`, and
+          dependent-keyed `edges`; reuse `SlugSchema` and the existing `replace` and `drop` value shapes.
+        - Build `test-first` (one behavior at a time):
+            - Accept ordinary valid UTF-8 JSON regardless of insignificant whitespace or key order, while producing
+              one deterministic serialized form for writes.
+            - Enforce rename-one, abandon-zero, and decompose-new-member successor cardinality plus canonical unique
+              successor and replacement-target ordering already guaranteed by authoring validation.
+            - Reject unknown versions, extra or malformed fields, invalid slugs, duplicate dependents, empty drop
+              reasons, and invalid dispositions without importing receipt authentication.
+
+    - `[ ]` **1.1.b Add the origin-keyed transitions store**
+        - Add `transition-record-store.ts` for `.arc/system/.internal/transitions/<origin>.json`, preserving the safe
+          directory, symlink, and exclusive-write behavior of `retirement-record-store.ts` while leaving that
+          digest-keyed receipt API unchanged until its final consumer retires.
+        - Build `test-first` (one behavior at a time):
+            - Accept a typed `TransitionRecord`, derive the path from `record.origin`, and create it exclusively with
+              no arbitrary-content or alternate-identity path.
+            - Refuse an occupied origin, invalid record, or unsafe parent before mutating the filesystem.
+            - Keep every existing receipt-store resolver and `.arc/system/.internal/retirement-receipts/**` consumer
+              operational throughout the additive phase.
+
+### `[ ]` **1.2 Converge terminal-transition writers on the lean record**
+
+- _Goal:_ Decompose, rename, and abandon persist only the historical facts their consumers need, while park
+  continues without creating terminal-transition history.
+
+    - `[ ]` **1.2.a Project decompose authoring into the lean record**
+        - Derive `origin`, new-member `successors`, and dependent-keyed `edges` from the validated completed map and
+          incoming dispositions after successful existing v3 finalization, then co-stage the lean record in the
+          same terminal transaction while the sealed receipt remains available to its current consumers.
+        - Build `test-first` (one behavior at a time):
+            - Write the exact lean projection and legacy receipt after a successful terminal decompose, with no
+              sealed or finalization field admitted to the lean record.
+            - Refuse mismatched or incomplete authored edge dispositions before writing history.
+            - Remove and unstage the attempted lean record when terminal commit or rollback fails, and never replace
+              pre-existing history after an occupied-origin refusal.
+
+    - `[ ]` **1.2.b Converge direct terminal writers and exclude park**
+        - Define a typed `TerminalTransitionRecordWriter` result contract for `recorded`, `origin-occupied`, and
+          `unavailable`; invoke it from `verbs/rename.ts` and `verbs/abandon.ts` inside their existing terminal
+          transactions without changing legacy receipt-backed lifecycle and authorization results.
+        - Build `test-first` (one behavior at a time):
+            - Rename and abandon co-stage their exact lean record with the still-required legacy receipt.
+            - Map same-origin collision to a stable verb refusal and roll back only the attempted record on a later
+              commit failure.
+            - Park-planning retains its existing receipt-backed transition, writes nothing under `transitions/`, and
+              remains consumable by current landing and teardown authorization.
+
+### `[ ]` **1.3 Enumerate origin-keyed records fail-closed from Git**
+
+- _Goal:_ Every query sees a deterministic current-ref snapshot whose content-origin grouping and global parse
+  failures cannot be weakened by filenames, worktree state, or unrelated history.
+
+    - `[ ]` **1.3.a Validate and group a complete namespace snapshot**
+        - Add `transition-record-enumeration.ts` with a `TransitionRecordEnumerationResult` whose valid arm contains
+          deterministic origin groups and preserves one parsed record per namespace entry without digest IDs or
+          content de-duplication; leave `RetirementRecordEnumerationResult` unchanged for receipt consumers.
+        - Build `test-first` (one behavior at a time):
+            - Require an immediate valid-slug `.json` leaf but treat filename/content-origin mismatch as valid.
+            - Preserve byte-identical duplicate files in the same origin group so projections return origin-local
+              ambiguity rather than silently de-duplicating their outcome.
+            - Poison every read for nested or malformed filenames, invalid UTF-8/JSON, an unknown version, invalid
+              shape, duplicate dependents, symlinks, trees, or another non-regular Git entry.
+            - Accept an absent or empty namespace as a valid empty snapshot.
+
+    - `[ ]` **1.3.b Read only the selected Git tree**
+        - Add `enumerateGitTransitionRecords()` over the selected ref and transitions namespace, using a
+          byte-preserving blob boundary plus fatal UTF-8 decoding; keep `enumerateGitRetirementRecords()` on the old
+          namespace for authorization, overlay, handoff, and other receipt-specific consumers.
+        - Build `test-first` (one behavior at a time):
+            - Resolve records from the requested ref rather than the worktree or another branch.
+            - Keep unreachable malformed history from poisoning the selected ref while selected malformed or
+              invalid-UTF-8 bytes do.
+
+### `[ ]` **1.4 Rebuild disposition queries around dependent slugs**
+
+- _Goal:_ Retirement consumers receive the same authored action by origin and dependent without digest-edge
+  indirection, evidence-quality pass-through, or digest-filename conflicts.
+
+    - `[ ]` **1.4.a Close the lean query result contract**
+        - Define the lean disposition query over `TransitionRecordEnumerationResult` with the closed result set
+          `absent`, `unique`, `ambiguous`, `unmapped-dependent`, and `namespace-corrupt`; keep the production
+          receipt query contract intact until the migration cutover.
+        - Build `test-first` (one behavior at a time):
+            - Return `retarget` for any dependent of a rename and `abandoned` for any dependent of an abandon.
+            - Resolve a decompose edge by `edges[].dependent`, preserving `replace` and `drop`, and return
+              `unmapped-dependent` when no entry exists.
+            - Distinguish no matching origin, multiple same-origin records, and global namespace corruption.
+
+    - `[ ]` **1.4.b Preserve Git reachability at the query port**
+        - Add the Git lean-query port over `enumerateGitTransitionRecords()` with no old-namespace fallback, leaving
+          `queryGitRetirementDisposition()` wired to current receipt history until Phase 2 proves and performs the
+          one-way production cutover.
+        - Build `test-first` (one behavior at a time):
+            - Return the selected ref's authored answer across divergent histories.
+            - Require the validated enumeration port and consult only `edges[].dependent`, never successor
+              membership, as the decompose edge lookup.
+
+### `[ ]` **1.5 Project lean transitions into reconcile and dependency discharge**
+
+- _Goal:_ Reference repair and dependency discharge retain their observable rename, removal, replacement, and
+  drop behavior while consuming only lean transition contracts.
+
+    - `[ ]` **1.5.a Map lean kinds into reference transitions**
+        - Add a lean reference projector whose origin groups map rename to `rename`, abandon to `removed`, and
+          decompose to `decompose`; retain the current receipt projector until the migration cutover.
+        - Build `test-first` (one behavior at a time):
+            - Preserve rename targets and removal/decompose projections for current tracked-reference planning.
+            - Return `ambiguous-history` for any duplicate origin, including byte-identical records with the same
+              projected outcome, before rename-chain outcome de-duplication can erase multiplicity.
+            - Fail closed on namespace corruption without carrying receipt-specific `version-conflict` into the
+              lean contract.
+
+    - `[ ]` **1.5.b Discharge dependency edges without evidence quality**
+        - Exercise the final `resolveRetiredEdge()` and `DependencyReconcileEvidence` behavior against the lean query
+          port, preserving `{subject}` evidence while proving the quality member is semantically unused; defer the
+          production type switch and exhaustive-union removal to the Phase 2 cutover.
+        - Build `test-first` (one behavior at a time):
+            - Preserve recursive rename resolution, abandon discharge, replacement targets, and authored drops.
+            - Preserve ambiguity, unmapped-dependent, and namespace-corrupt refusals without reintroducing an old
+              record decoder.
+
+### `[ ]` **1.6 Admit transition records through the generic planning lane**
+
+- _Goal:_ Local and hosted review gates classify only exact transition-record leaves as planning artifacts, while
+  adjacent executable `.internal` content remains review-bearing.
+
+    - `[ ]` **1.6.a Add the exact generic predicate entry**
+        - Extend `isPlanningArtifactPath()` for one slug-named JSON leaf directly under
+          `.arc/system/.internal/transitions/`; do not match the directory itself, nested paths, or sibling content.
+        - Build `test-first` (one behavior at a time):
+            - Accept a valid transition-record leaf alongside planned artifacts and `ROADMAP`.
+            - Reject wrong extensions, malformed slugs, nested leaves, hooks, scripts, skills, and other
+              `.arc/system/.internal/**` paths.
+            - Keep rename endpoint and non-regular-file classification fail-closed.
+
+    - `[ ]` **1.6.b Prove one predicate governs local and hosted verdicts**
+        - Exercise `classifyPlanningLane()`, `classifyGitDecompositionPlanningLane()`,
+          `handleReviewPlanningLane()`, `scripts/classify-change.sh`, and the lane-attestation workflow contract
+          through the shared predicate path; do not target the legacy `change-facts` executable as an exact-ref CLI.
+        - Build `test-first` (one behavior at a time):
+            - Produce matching exact-ref planning admission locally and in the hosted command for the intended
+              decomposition change set.
+            - Produce matching reviewed verdicts when any adjacent executable or unclassified path is present.
+            - Keep the existing receipt-specific exception operational for old receipt changes until Task 4.3
+              removes it, while transition records take the generic fallback.
+
+## **Phase 2:** Convert live retirement history
+
+_Purpose:_ Preserve the eight terminal decisions that cannot be regenerated, prove their consumer answers before
+and after conversion, and leave the non-terminal park record for its authorization trace.
+
+### `[ ]` **2.1 Characterize every live terminal record's consumer answers**
+
+- _Goal:_ A reviewable golden inventory freezes the consumer-visible meaning of all eight terminal decisions
+  before their bytes move, without treating sealed fields as required behavior.
+
+    - `[ ]` **2.1.a Inventory the terminal and park records**
+        - Copy the nine live files verbatim into a temporary legacy fixture beneath
+          `packages/arc-framework/__tests__/fixtures/transition-record-migration/`; decode those inputs only through
+          the existing old codecs and readers.
+        - Author a separate literal semantic oracle that does not call the converter or either projector:
+            - Abandon `review-gate-enforcement-promotion`, `retirement-record-relocation`,
+              `review-gate-enforcement-qualification`, `recovery-load-scoping`, and
+              `review-gate-github-adapter`.
+            - Rename `cohortless-decomposition` to `decomposition-hardening` and `pr-decomposition` to
+              `review-chunking`.
+            - Decompose `chunked-delivery` into `delivery-integration-target`, `delivery-plan-record`,
+              `delivery-review-cardinality`, and `delivery-stack-topology`, with no incoming edge answers.
+            - Exclude the ninth record, the `decompose-extraction` park transition.
+        - Record each terminal origin, kind, successor projection, fixed disposition-query vectors and answers, and
+          reference transition in the oracle; keep the park exclusion explicit.
+
+    - `[ ]` **2.1.b Freeze old-reader answers**
+        - Characterize `queryRetirementDisposition()` and `enumerateReferenceTransitions()` over the eight terminal
+          records before conversion, using the literal oracle rather than deriving expectations from the reader.
+        - Use at least two distinct valid dependent slugs for every rename and abandon origin, with the exact
+          `retarget` or `abandoned` action, and at least two for `chunked-delivery`, each expecting
+          `unmapped-dependent`; assert the exact rename, removed, or decompose reference outcome for every origin.
+        - Treat `evidenceQuality` only as an old-reader field to omit from semantic comparison; do not assert receipt
+          identities, digests, `version-conflict`, or other sealing and duplicate-digest vocabulary as live answers.
+
+### `[ ]` **2.2 Convert the eight terminal records to the lean namespace**
+
+- _Goal:_ The repository contains exactly eight schema-v1 terminal records that losslessly project past authored
+  decisions, while the park receipt remains available until its authorization consumer trace completes.
+
+    - `[ ]` **2.2.a Materialize the direct-transition records**
+        - Add origin-named transition records for the five named abandon histories and the two named rename pairs in
+          Task 2.1's literal inventory, with deterministic JSON formatting and kind-valid successor cardinality.
+        - Keep all nine old records byte-identical through the migration, authorization, and removal traces; Task
+          4.9 is their sole repository-data deletion point.
+
+    - `[ ]` **2.2.b Materialize the decompose transition**
+        - Convert `chunked-delivery` from its completed map and authoring projection, preserving the exact ordered
+          successor set `delivery-integration-target`, `delivery-plan-record`, `delivery-review-cardinality`, and
+          `delivery-stack-topology`, plus an empty `edges` list.
+        - Write no digest, preparation, finalization, publication, or continuation field and do not convert the
+          `decompose-extraction` park receipt.
+        - Assert the repository now has exactly eight lean files, no park transition record, and the nine unchanged
+          old files.
+
+### `[ ]` **2.3 Prove live query and reconcile equivalence**
+
+- _Goal:_ Every characterized consumer read has the same semantic result from the lean record as from its sealed
+  predecessor before production loses access to the old namespace.
+
+    - `[ ]` **2.3.a Compare disposition answers through test-only adapters**
+        - Pair each temporary old fixture with its lean record and compare both readers to the independently authored
+          literal oracle, omitting only the intentionally removed `evidenceQuality` member from semantic answers.
+        - Exercise multiple arbitrary dependents for rename and abandon and the decompose unmapped-dependent case;
+          do not add a production dual-reader to enable the comparison.
+
+    - `[ ]` **2.3.b Compare reference projections and inventory completeness**
+        - Assert identical rename, removed, and decompose reference transitions for all eight origins.
+        - Assert the lean enumeration has exactly eight unique terminal origins and no park transition.
+        - Retain the lean-only literal semantic oracle and expected-origin manifest through final verification; the
+          temporary old bytes and test adapters retire with the old codec in Task 4.9.
+
+    - `[ ]` **2.3.c Cut production history consumers over once**
+        - Begin cutover only after the Task 2.2 migration commit is integrated into every authority ref selected by
+          the production ports; treat the already-reachable data plus code cutover as one release boundary.
+        - Switch the semantic paths in `handlers/reconcile.ts`, the corresponding status session probes,
+          `executor-context.ts`, `handlers/user.ts`, `resolveUserReferenceAuthority()`, and
+          `GitDeliveryRenameTransitionSource` to the lean enumeration, query, and reference ports in one type-safe
+          cutover.
+        - Keep `enumerateGitRetirementRecords()` and `RetirementRecordEnumerationResult` unchanged for
+          `lifecycle-residue-sweep.ts`, `configured-base-decomposition-anchor.ts`,
+          `git-retirement-authorization-context.ts`, merge-overlay, landed-handoff, preparation, finalization, and
+          every remaining consumer that inspects receipt IDs, kinds, or sealed fields.
+        - Remove `evidenceQuality` and retirement-specific `version-conflict` only from the lean semantic result,
+          reference, dependency, status, and conflict unions; change `DependencyReconcileEvidence` to `{subject}`
+          across recursive composition, drop evidence, result schemas, rendering, fixtures, and mocks without
+          altering legacy enumeration corruption handling.
+        - Prohibit a semantic call path from invoking both adapters, merging namespaces, retrying the old reader
+          after a lean failure, or mapping lean absence to an old lookup. A mixed composition module may import both
+          only when separately typed semantic and receipt-specific consumers require them.
+        - Prove pre-cutover refs return the old answers, a migrated pre-cutover ref still returns old answers, and a
+          post-cutover ref containing both records and code returns the lean answers with no false-absence interval.
+
+### `[ ]` **2.4 Prove migration reachability and namespace failure behavior**
+
+- _Goal:_ Converted history remains ref-local and fail-closed under real Git reads, while content-authoritative
+  naming and same-origin ambiguity behave exactly as designed.
+
+    - `[ ]` **2.4.a Exercise converted records across divergent refs**
+        - Extend `retirement-disposition-reachability.test.ts` with committed lean records on divergent refs and
+          query each selected tree independently.
+        - Build `test-first` (one behavior at a time):
+            - Ignore uncommitted worktree bytes and unreachable branch records.
+            - Return the committed answer selected through current-WU `HEAD`, the partial-protection local base, the
+              refreshed full-protection `origin/<base>`, and an explicit delivery ref.
+            - Keep failed full-protection refresh `unavailable` without falling back to another ref or the old
+              namespace.
+
+    - `[ ]` **2.4.b Exercise the migration failure matrix**
+        - Build `test-first` (one behavior at a time):
+            - Poison all queries for malformed, unknown-version, or duplicate-dependent records.
+            - Accept filename/content mismatch without changing the content-origin answer.
+            - Return ambiguity for one duplicated origin without corrupting unrelated valid origins.
+            - Assert the repository migration contains the expected eight origins and excludes park.
+
+## **Phase 3:** Re-derive retirement authorization from Git
+
+_Purpose:_ Replace receipt-carried authorization with committed-tree proofs one arm at a time, retaining parity
+coverage before any receipt-consuming predecessor is removed.
+
+### `[ ]` **3.1 Re-derive abandon teardown authorization from transition trees**
+
+- _Goal:_ Abandon teardown authorizes only when committed Git proves the exact structural abandon transition and
+  conservation across its source and result trees, without trusting a transition-record payload.
+
+    - `[ ]` **3.1.a Locate the abandon transition structurally**
+        - Add a typed structural locator in `git-retirement-authorization-context.ts` with `absent`, `unique`,
+          `ambiguous`, and `unavailable` results over pinned source and result commits; map those results to the
+          existing evidence, ambiguity, and availability refusals without synthesizing a receipt.
+        - Treat direct and landed abandonment as separate topology arms:
+            - Direct: the retiring result head is an exact single-parent commit whose parent contains the complete
+              valid subject artifact group and whose result removes that group and clears the lifecycle entry.
+            - Landed: the selected base contains one reachable transition whose parent carries the complete planned
+              group bound by subject and branch and whose result removes it and clears the lifecycle entry.
+        - Validate the exact relevant artifact and lifecycle delta plus its ancestry relation; permit only the
+          transition's ordinary `ROADMAP` and lean-history sidecars outside that delta, and never read transition
+          record content or use its presence to grant authority.
+        - Build `test-first` (one behavior at a time):
+            - Accept the exact single-parent direct transition and its landed equivalent.
+            - Refuse root or merge topology, unrelated relevant changes, missing or ambiguous introductions, and
+              wrong authority ref, ancestry, subject, branch, or head.
+
+    - `[ ]` **3.1.b Prove conservation from the two trees**
+        - Require a complete, parseable, cohort-consistent subject artifact group on the selected source side, no
+          subject artifacts on the result side, and a clear result lifecycle index.
+        - Build `test-first` (one behavior at a time):
+            - Authorize the intact tree transition without reading record bytes.
+            - Refuse incomplete, malformed, duplicate, or cohort-inconsistent source groups, surviving result
+              artifacts, or a retained lifecycle entry using the existing semantic refusal classes.
+
+### `[ ]` **3.2 Authenticate park landing from the relocation commit**
+
+- _Goal:_ Partial-protection park landing accepts only an owned exact single-parent commit whose complete relevant
+  diff is a blob-identical relocation of the planned artifact group, with no receipt path or content involved.
+
+    - `[ ]` **3.2.a Derive the landing proof and result from commit structure**
+        - Remove the receipt member from `ParkLandingTransition` and reshape `ParkPlanningLandingResult` to the
+          committed transition plus planned paths only; remove receipt rendering from `handlers/lifecycle.ts` and
+          update the handler, unit, and lifecycle E2E fixtures.
+        - Accept exactly the complete source deletes, blob-identical complete planned writes, and an optional
+          lifecycle-correct `ROADMAP` delta; reject every other path. The base landing stages only the planned files,
+          never the source commit's `ROADMAP` or old namespace.
+        - Build `test-first` (one behavior at a time):
+            - Resolve and stage only the exact planned relocation from a valid owned tip.
+            - Reject root or merge topology, incomplete or extra paths, content edits, source survivors, an invalid
+              `ROADMAP` transition, and one arbitrary unrelated diff operation.
+            - Return `{commit, plannedPaths}` and leave the staged/index tree free of the old namespace.
+
+    - `[ ]` **3.2.b Retain landing concurrency safeguards**
+        - Preserve exact-tip ownership, index compare-and-set, ref lease, base-side concurrency checks, and rollback
+          of attempted files while removing the record-path exception from the allowed patch and conflict inventory.
+        - Build `test-first` (one behavior at a time):
+            - Refuse owner, tip, index, or ref drift without partial staging.
+            - Neither require nor land a transition record as authorization evidence.
+
+### `[ ]` **3.3 Re-derive park teardown from planned-artifact bytes**
+
+- _Goal:_ Park teardown authorizes only when the retiring head and effective base contain complete, cohort-correct,
+  byte-identical planned artifact groups computed at proof time.
+
+    - `[ ]` **3.3.a Make the park proof receipt-independent**
+        - Remove receipt bytes from `ParkRetirementProjection` and make `validateParkRetirementProof()` consume the
+          subject, retiring head, and selected result head rather than a `RetirementReceipt`.
+        - Compare the canonical planned path set and exact `Uint8Array` content on both sides, producing a canonical
+          result inventory that the later stamp digest can bind without reconstructing a receipt shape.
+        - Build `test-first` (one behavior at a time):
+            - Accept identical complete projections and derive a deterministic canonical result inventory.
+            - Reject lifecycle mismatch, invalid cohort/path, missing, duplicate, or extra artifacts, and any byte
+              difference including trailing bytes.
+
+    - `[ ]` **3.3.b Preserve protection-mode target selection**
+        - Have `verbs/teardown.ts` and `lifecycle-residue-sweep.ts` select and pin the refreshed remote base under
+          full protection or local integrating base under partial protection before calling the pure proof; remove
+          or wire the currently isolated `resolveParkProofTarget()` so no second authority selector survives.
+        - Build `test-first` (one behavior at a time):
+            - Pass the correct exact ref and head into the proof for each protection mode.
+            - Fail authority-unavailable on refresh or Git read failure and ignore transition-record presence.
+
+### `[ ]` **3.4 Replace receipt-backed husk stamp evidence**
+
+- _Goal:_ A husk stamp carries only a receipt-free replay pointer and a digest of its pinned Git-derived result,
+  while preserving shipped evidence, remote-ref intent, and fail-closed decoding.
+
+    - `[ ]` **3.4.a Define the receipt-free evidence and digest contracts**
+        - Keep the shipped arm of `RetirementEvidenceRef` unchanged and replace its non-shipped receipt arm with
+          `{kind: "git-transition", transition: "abandon" | "park-planning", resultDigest}`; derive expected
+          lifecycle from transition and reject rename or decompose evidence.
+        - Define one versioned, domain-separated canonical digest preimage over transition, subject, branch, pinned
+          retiring and result heads, derived lifecycle, and the path-sorted `{path, contentDigest}` result inventory.
+          Both authorization and replay use the same function; no record field participates.
+        - Preserve all-absent shipped legacy stamps and unknown-future evidence as manual-only, while old non-shipped
+          receipt-shaped stamps become manual-only without a compatibility reader.
+        - Build `test-first` (one behavior at a time):
+            - Round-trip valid abandon and park evidence with exact outer stamped SHA, branch, and subject.
+            - Reject partial shapes, cross-kind replay, transition/authorization disagreement, wrong digest vectors,
+              rename/decompose evidence, and old receipt evidence without weakening unknown-future handling.
+
+    - `[ ]` **3.4.b Stamp only the result established by Git authorization**
+        - Have each structural authorization decision compute the shared result digest from its pinned proof and pass
+          it through `stampWorktreeHusk()` without consulting record content or mutable worktree bytes.
+        - Build `test-first` (one behavior at a time):
+            - Bind abandon and park stamps to the exact proof heads and canonical result inventory.
+            - Preserve the current remote deletion/retention proof and authority-version revalidation matrix.
+
+### `[ ]` **3.5 Revalidate husks from stamped Git state**
+
+- _Goal:_ A decoded non-shipped husk stamp grants cleanup authority only after its transition-specific structural
+  proof and shared result digest are recomputed from pinned Git state.
+
+    - `[ ]` **3.5.a Replace receipt evidence validation with proof replay**
+        - Replace `validateGitRetirementReceiptEvidence()` with abandon-locator and park-proof replay in
+          `git-retirement-authorization-context.ts` and `teardown-retirement-driver.ts`.
+        - Build `test-first` (one behavior at a time):
+            - Recompute topology, lifecycle, canonical result inventory, and digest from the stamped and selected
+              authority heads.
+            - Refuse copied stamps, wrong subject/branch/transition, changed bytes, missing or ambiguous transitions,
+              cross-kind replay, and a mismatched result digest.
+
+    - `[ ]` **3.5.b Preserve each replay consumer's failure behavior**
+        - Update `stale-worktree-sweep.ts`, `handlers/status.ts` current-husk resolution, and teardown to consume the
+          receipt-free replay result; do not treat the still-branched lifecycle residue sweep as a detached-husk
+          consumer.
+        - Build `test-first` (one behavior at a time):
+            - Keep the current-husk status probe on ordinary detached orientation when proof fails.
+            - Project stale swept husks as manual-only and blocked, and grant teardown no destructive authority after
+              any replay failure.
+
+### `[ ]` **3.6 Prove receipt-free authorization parity across lifecycle seams**
+
+- _Goal:_ All four retirement-adjacent arms retain their material grants and refusals end to end with no receipt
+  lookup, and lifecycle callers consume the re-derived authority consistently.
+
+    - `[ ]` **3.6.a Establish the authorization parity matrix**
+        - Cover valid topology plus each material tamper or topology mismatch for abandon teardown, park landing,
+          park teardown, and detached-husk replay.
+        - Build `test-first` (one behavior at a time):
+            - Preserve each prior safe grant and semantic refusal class.
+            - Assert authorization fixtures and boundaries perform no retirement-receipt read.
+
+    - `[ ]` **3.6.b Exercise command and lifecycle integration seams**
+        - Drive authorize → stamp → decode/revalidate → teardown/advisory through lifecycle-generated inputs, plus
+          partial-protection park landing and landed abandon cases.
+        - Replace `lifecycle-residue-sweep.ts` receipt enumeration and matching with per-candidate structural abandon
+          authorization from the already selected base; preserve clean-worktree gating and actionable/blocked
+          projections without emitting receipt-backed authority.
+        - Build `test-first` (one behavior at a time):
+            - Keep status and lifecycle resolution as the only ready/blocked authority.
+            - Complete valid cleanup and refuse invalid cleanup without record-backed evidence.
+
+    - `[ ]` **3.6.c Retire direct-transition receipt co-staging**
+        - Replace `RetirementAuthorityPort.record()`, direct-driver receipt validation, and
+          `InRepoDirectRetirementDeps` record creation/removal with a record-neutral snapshot-and-completion contract:
+          rename and abandon complete through the Phase 1 lean writer, while park has an explicit no-record success
+          arm.
+        - Preserve source/result/index compare-and-set validation and specify rollback for transition staging,
+          occupied or unavailable lean writes, later commit failure, and successful park completion with no record.
+        - Split `RetirementLifecycleResult` by transition: abandon carries cleanup projections without a receipt
+          authority member, while the decompose receipt-backed arm remains explicitly isolated until Phase 4.
+        - Remove the old receipt write and coexistence wiring from rename, abandon, and park, then assert no direct
+          lifecycle result, rollback path, husk stamp, landing/teardown proof, advisory, or fixture retains
+          `receiptId` or the old namespace; still-live decompose consumers remain covered and compiling.
+
+## **Phase 4:** Retire the sealed receipt apparatus
+
+_Purpose:_ Establish ordinary candidate cleanup and receipt-free terminal/base-mobility paths before cutting their
+respective predecessors, then retire the old namespace only after every surviving consumer is authoritative.
+
+### `[ ]` **4.1 Trace the claim store against Git collision coverage**
+
+- _Goal:_ Every retained transient-claim behavior has a surviving independent consumer, while Git ref creation and
+  worktree registration own collision exclusion wherever they already provide the guarantee.
+
+- _Approach:_ Preserve any independently necessary claim behavior unchanged; this trace authorizes subtraction,
+  not a redesigned claim successor.
+
+    - `[ ]` **4.1.a Trace claim readers, writers, and collision authority**
+        - Follow `decompose-transient-claim-store.ts`, `decompose-transient-claim.ts`, operation I/O, result
+          occupation, base advancement, local cleanup, cleanup gate, and in-flight derivation.
+        - Produce a retain/delete matrix distinguishing concurrency exclusion from in-flight residue suppression,
+          owned-candidate identity, landed cleanup authorization, and terminal release.
+        - Make the matrix the binding input to Tasks 4.2, 4.4, and 4.7: any retained claim port and state transition
+          remains unchanged, and no later deletion may silently assume the whole store retired.
+
+    - `[ ]` **4.1.b Prove material creation and residue interleavings**
+        - Build `test-first` (one behavior at a time):
+            - Simultaneous same-origin creation is serialized by the named branch/ref and worktree registration.
+            - Pre-existing unregistered branches and registered worktrees with moved branches refuse safely.
+            - Crash residue between branch and worktree creation remains discoverable and cleanable.
+            - In-flight derivation suppresses an owned live candidate without hiding unrelated branch residue.
+            - Landed cleanup retains equivalent authorization and release behavior from either existing Git/marker
+              facts or the unchanged claim contract selected by the trace.
+        - Retain claim projection only if a traced consumer needs provenance unavailable from Git refs or worktree
+          markers; otherwise delete the dead store and transitions.
+
+### `[ ]` **4.2 Remove candidate exactness and discard machinery**
+
+- _Goal:_ Every stranded decomposition candidate is destroyable through ordinary branch/worktree cleanup, without
+  the four exactness-created refusal states or a dedicated discard path.
+
+    - `[ ]` **4.2.a Define the owned-candidate cleanup boundary**
+        - Require agreement among the deterministic candidate branch, its registered worktree/path, the existing
+          decomposition-candidate marker, and any retained claim identity; refuse missing, malformed, ambiguous, or
+          cross-worktree identity rather than guessing ownership.
+        - After ownership is established, pin the observed candidate head and allow staged path-set or index-content
+          drift to be reset as candidate-local state; preserve refusal for unstaged/untracked user content, an
+          unrelated checked-out worktree, identity drift, and a raced ref deletion.
+        - Build `test-first` (one behavior at a time):
+            - Destroy candidates corresponding to `candidate-cleanup-failed`, `candidate-not-exact`,
+              `candidate-index-changed`, and `candidate-path-set-changed` through the surviving cleanup route.
+            - Retry partial worktree/branch cleanup idempotently and compare-delete the exact observed ref head.
+            - Preserve unrelated-worktree, user-content, marker, registration, and ref-race refusals.
+
+    - `[ ]` **4.2.b Delete candidate-only exactness and discard surfaces**
+        - Remove `decompose-candidate-discard.ts`, `git-decompose-v3-candidate-discard.ts`, `--discard`, its handler
+          schema/routing/rendering/help, and command-mode fixtures and tests.
+        - Remove discard commands, result members, and remedies from the still-transitional execute path; render the
+          ordinary owned-worktree cleanup route established in 4.2.a instead.
+        - Remove only the occupation, cleanup, operation-I/O, and base-advancement checks the Task 4.1 matrix marks
+          candidate-exactness-only; preserve every selected claim transition and generic Git lease unchanged.
+        - Delete the four refusal codes and update affected tests without weakening source-worktree, user-content,
+          or unrelated-worktree safety.
+
+### `[ ]` **4.3 Remove the decomposition-specific planning-lane trio**
+
+- _Goal:_ Generic `isPlanningArtifactPath()` classification is the sole local and hosted authority for
+  decomposition planning changes.
+
+    - `[ ]` **4.3.a Remove the exception modules and receipt fact assembly**
+        - Delete `decomposition-planning-lane.ts`, `git-decomposition-planning-lane.ts`, and
+          `git-decomposition-fact-assembler.ts`; remove object readers whose consumer trace becomes empty.
+        - Replace the review handler's exception-specific dependency/result type with the exact-ref adapter
+          `resolveChangeSet()` → `classifyPlanningLane()`; retain the existing closed stdout and failure behavior.
+
+    - `[ ]` **4.3.b Close local and hosted exception coverage**
+        - Delete exception-specific tests and fixtures while retaining the exact transitions-namespace and
+          never-widen coverage established in Task 1.6.
+        - Prove local and host verdicts remain identical for both admitted records and adjacent reviewed content.
+
+### `[ ]` **4.4 Establish receipt-free terminal execution and base mobility**
+
+- _Goal:_ Receipt-free paths are authoritative before any preparation, finalization, or advancement predecessor is
+  disconnected, so every subsequent subtraction leaves a compiling, operable tree.
+
+    - `[ ]` **4.4.a Stage the complete transition in one execution operation**
+        - Add a direct execution boundary that consumes the validated completed map and existing plan, topology,
+          conservation, materializer, and occupation facts without creating or parsing a preparation or receipt.
+        - Return a closed `staged` result: partial protection carries the exact staged paths; full protection also
+          carries the deterministic candidate branch and worktree. The refusal arm retains existing applicable
+          preflight, planning, occupation, materialization, and rollback results but no receipt, discard, readiness,
+          or follow-up-finalize member.
+        - Invoke the Phase 1 `TerminalTransitionRecordWriter` exactly once inside the same operation as the transform;
+          success requires the transform and lean record in one staged tree, and a writer or later staging failure
+          follows the existing protection-specific rollback without reporting a half-transition as complete.
+        - Build `test-first` (one behavior at a time):
+            - Stage the exact partial- and full-protection transforms with one lean origin record and no old record.
+            - Refuse incomplete dispositions or occupied origins before success and never invoke the writer twice.
+            - Restore the partial preimage or leave an explicitly owned, ordinarily cleanable full candidate after
+              a record-write, staging, or post-write revalidation failure.
+
+    - `[ ]` **4.4.b Re-derive append-only base advancement from the candidate transition**
+        - Add the receipt-free advancement boundary behind the future `--advance-base <cut-map>` mode: revalidate the
+          canonical completed map, pin the deterministic candidate branch/worktree and current base, and authenticate
+          a unique initial single-parent transition from its exact transform delta. Accept an already-advanced tip
+          only through a first-parent chain of prior append-only base merges that independently revalidate.
+        - Treat the cut map as authored intent and the candidate Git transition as mutation authority; validate the
+          lean record as a result of that intent but never use its content or presence to grant advancement.
+        - Admit only a descendant base with no newly acquired incoming dependency, merge it append-only into the
+          candidate, revalidate the result tree, race-close both refs, and restate only a claim contract retained by
+          Task 4.1.
+        - Build `test-first` (one behavior at a time):
+            - Advance an exact committed candidate over a descendant base without rewriting history or a record.
+            - Re-advance a candidate whose first-parent chain contains one prior validated base merge.
+            - Refuse a root or ambiguous initial transition, malformed advancement merge chain, transform or map
+              mismatch, new incoming dependencies, divergent or regressed base, unrelated changes, candidate/base
+              races, and a mismatched retained claim.
+            - Restore the pinned candidate after a failed merge or post-merge validation.
+
+### `[ ]` **4.5 Cut over commands and remove live publication consumers**
+
+- _Goal:_ Production reaches only the receipt-free execution and advancement paths, while lifecycle/status replaces
+  handoff and readiness projection before their now-dead schema modules are removed.
+
+    - `[ ]` **4.5.a Contract the public decomposition modes**
+        - Route `--execute <cut-map>` to Task 4.4's one-step result and `--advance-base <cut-map>` to its receipt-free
+          proof; retain `--preflight`, keep `--discard` absent, and remove `--finalize`, `--continuation`, and
+          `--handoff`.
+        - Rewrite the authoritative packaged `decompose-work-unit.md` workflow around one-step execution,
+          receipt-free base advancement, ordinary owned-candidate cleanup, and lifecycle/status readiness; sync the
+          self-host installed copy through the package-project sync path rather than editing the mirrors
+          independently.
+        - Remove the retired options from `cli.ts`, input registration/schema/exclusivity, machine-readable routing,
+          help and command renderers, handler branches, no-input fixtures, and command-mode tests.
+        - Replace the workflow-contract assertions with coverage for `--preflight`, `--execute <cut-map>`, and
+          `--advance-base <cut-map>`, plus explicit absence of `--discard`, `--finalize`, `--continuation`, and
+          `--handoff` from both shipped and self-host workflow surfaces.
+        - Assert no production result renders a receipt ID, continuation file, discard remedy, handoff payload, or
+          prescribed next successor.
+
+    - `[ ]` **4.5.b Retire landed handoff and readiness consumers**
+        - Characterize the destination ready/blocked frontier through lifecycle composition and ordinary status,
+          then delete `landed-decomposition-publication.ts`, `landed-decomposition-handoff.ts`,
+          `git-landed-decomposition-handoff.ts`, their E2E path, and response shaping.
+        - Disconnect `decompose-launch-readiness.ts` and `decompose-continuation.ts` from every production caller;
+          keep their dead receipt/finalization schema dependencies isolated until Task 4.7 removes that cluster.
+        - Prove lifecycle and status report the same reconstructed frontier without an adapter, launch advice,
+          publication object, or another wrapper around ready/blocked state.
+
+### `[ ]` **4.6 Remove preparation and candidate-publication sealing state**
+
+- _Goal:_ The authoritative execution path carries validated authored plan facts directly, while the unreachable
+  two-stage persistence path is dismantled without deleting any fact the new path still consumes.
+
+    - `[ ]` **4.6.a Extract the surviving authored-fact contract**
+        - Move any still-required path-state, completed-map, topology, conservation, destination, incoming-disposition,
+          occupation, and materialization types/helpers out of preparation-shaped modules into their existing plan or
+          direct-execution owners before deleting a producer.
+        - Build `test-first` (one behavior at a time):
+            - Produce the same staged transform and lean projection from validated authored inputs.
+            - Preserve topology, conservation, disposition, occupation, and materialization failures before success.
+            - Keep every new production import free of preparation, publication, receipt, and finalization types.
+
+    - `[ ]` **4.6.b Delete the two-stage preparation path**
+        - Remove `decompose-preparation.ts`, `prepareV3`, operation persistence of prepared records,
+          prepared-record staging/replacement, `preparationId`, `V3CandidatePublication`, prospective publication
+          fields, and preparation-only authority sealing from production paths and results.
+        - Update operation, repository-plan, materializer, handler, fixture, and test seams; retain only isolated dead
+          schema definitions still imported by the receipt/finalization cluster Task 4.7 deletes next.
+
+### `[ ]` **4.7 Remove finalization, receipt projection, and recovery state**
+
+- _Goal:_ The cut-over production tree retains the one-step transform, lean write, and structural Git safeguards,
+  with every unreachable receipt/finalization schema and special publication consumer physically gone.
+
+    - `[ ]` **4.7.a Delete the sealed finalization cluster**
+        - Remove `decompose-v3-receipt.ts`, the remaining preparation schema, finalization drivers,
+          `decompose-finalization-recovery.ts`, `decompose-launch-readiness.ts`, `decompose-continuation.ts`, and their
+          unreachable adapters, result unions, schemas, codes, fixtures, and tests.
+        - Remove `receiptId`, `preparationId`, managed-path and destination digests, sealed transition patches,
+          refresh/restatement, prepared-to-finalized replacement, the legacy decompose co-staging leg, and the six
+          provider-only plus continuation-only refusal codes.
+        - Retain the Phase 1 staged lean write as the sole invocation in Task 4.4's operation; do not rewrite it,
+          invoke it again, or move it outside the established transform rollback boundary.
+        - Build `test-first` (one behavior at a time):
+            - Complete a valid transform with exactly one origin record and refuse an occupied origin.
+            - Leave no successful half-transition after transform, record-write, or rollback failure.
+            - Find no provider, continuation, preparation, finalization, refresh, or receipt-shaped result vocabulary.
+
+    - `[ ]` **4.7.b Resolve structural and graduation consumers before deleting their carriers**
+        - Produce a caller-and-check matrix for configured-base anchors, descendant landing, integration anchors,
+          merge overlays, roadmap regeneration, local cleanup, and base advancement. Mark each check
+          publication/receipt-only or independently required for Git topology, ancestry, dependency, ref-race,
+          occupation, rollback, or lifecycle correctness.
+        - Route every retained check and test through Task 4.4's receipt-free plan/Git contracts before removing old
+          anchor, overlay, validation, base-advancement, and retirement-driver projections; delete rather than rename
+          every check whose sole authority was receipt content.
+        - Remove the `Decomposition Receipt` meta field and parser/renderer, `decomposition-receipt-marker.ts`, marker
+          injection in the plan composer, the decomposition-only planning-tuple arm, and graduation/start anchor
+          lookup; ordinary planning validation and start behavior remain authoritative.
+        - Preserve generic ancestry/object-ID/ref-reread, topology, conservation, dependency snapshot, merge,
+          worktree-ownership, CAS, rollback, and lifecycle tests under their surviving callers.
+
+### `[ ]` **4.8 Close surviving consumers and deleted-state vocabulary**
+
+- _Goal:_ No production path imports, reads, renders, or authorizes from deleted decomposition transaction state,
+  while unrelated receipt systems and surviving structural checks remain intact.
+
+    - `[ ]` **4.8.a Resolve every surviving transaction consumer**
+        - Trace roadmap regeneration, in-repo retirement authority, merge overlays, descendant-base landing,
+          configured-base and integration anchors, local cleanup, in-flight derivation, active-meta schema/readers,
+          decomposition planning tuples, graduation transactions, start and lifecycle handlers, CLI modes, and
+          command renderers/registrations.
+        - Remove obsolete result unions, CLI rendering, fixtures, mocks, and workflow-contract assertions only after
+          each locus is deleted or rewritten around a surviving structural fact.
+
+    - `[ ]` **4.8.b Add an absence boundary for the retired vocabulary**
+        - Extend the decomposition authority-boundary contract to prohibit production uses of `receiptId`,
+          `preparationId`, `V3DecomposeReceipt`, `V3CandidatePublication`, `initialContinuation`, sealed result fields,
+          exception types, readiness-provider codes, and candidate-discard codes.
+        - Prohibit transitional dual-write/co-staging adapters, coexistence branches, old-to-new aliases, receipt
+          fallbacks, and the retired `--discard`, `--finalize`, `--continuation`, and `--handoff` modes after the old
+          paths retire; require the surviving advancement path to import no old codec or authority.
+        - Exclude review-gate receipts, errand identity transactions, notes-publication proofs, and any generic
+          retirement authority that Phase 3 did not supersede.
+
+### `[ ]` **4.9 Retire the receipt namespace and validator last**
+
+- _Goal:_ The digest-keyed retirement-receipts substrate disappears only after lean records and Git-derived proofs
+  are the sole production authorities, leaving no compatibility or dual-read route.
+
+    - `[ ]` **4.9.a Remove the validator and old codec/store branches**
+        - Delete `validate-decompose-record.ts`, its CLI and input-policy registrations, old-format codec branches,
+          digest-key path helpers, and old enumeration variants.
+        - Remove `hook-validate-decompose-record` from the package hook source and self-host installed hook, command
+          help/input/no-input matrices, generated E2E invocations, shell-contract fixtures, and every shipped
+          workflow/template registration; shape validation remains owned by the transition writer and lean parser.
+
+    - `[ ]` **4.9.b Delete old namespace data and prove one-way closure**
+        - Remove `.arc/system/.internal/retirement-receipts/**`, including the traced park record, after the eight
+          terminal migrations and all four authorization arms are green.
+        - Delete the temporary verbatim migration inputs and old-reader test adapters while retaining the lean-only
+          semantic oracle and expected-origin manifest.
+        - Build `test-first` (one behavior at a time):
+            - Preserve lean fail-closed parsing, duplicate-origin ambiguity, and existing-origin write refusal.
+            - Find no old namespace, digest filename handling, compatibility reader, alias, or dual-read fallback in
+              production, shipped configuration, fixtures, or repository data.
+
+## **Phase 5:** Verification
+
+### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` A planned-artifact + `ROADMAP` + exact transition-record change classifies `planning` through the generic
+  predicate in both local and hosted checks; adjacent `.arc/system/.internal/**` content remains reviewed.
+
+- `[ ]` Exactly eight live terminal decisions exist as schema-v1 origin-keyed transition records, the park record
+  is not converted, and query/reference answers match the characterized predecessor answers for every live read.
+
+- `[ ]` Disposition and reference consumers expose only the lean closed result vocabulary, preserve namespace-level
+  fail-closed behavior, and treat content origin—not filename—as authoritative.
+
+- `[ ]` Abandon teardown, husk revalidation, park landing, and park teardown grant and refuse through committed-Git
+  proofs with parity coverage and no transition-record or receipt content used as authorization evidence.
+
+- `[ ]` `decompose --execute <cut-map>` is the sole terminal mutation path, stages one lean record with the
+  transform under both protection modes, and exposes no preparation/finalization follow-up.
+
+- `[ ]` Full-protection `--advance-base <cut-map>` preserves append-only descendant-base mobility through pinned
+  Git/map proof, with no receipt or transition-record content used as mutation authority.
+
+- `[ ]` The planning-lane exception trio, launch/readiness adapter, initial continuation, landed publication/handoff,
+  decomposition receipt marker/start special case, candidate discard/exactness, preparation, sealing, and
+  receipt-shaped recovery clusters are absent.
+
+- `[ ]` The four stranded candidate states formerly reported as `candidate-cleanup-failed`, `candidate-not-exact`,
+  `candidate-index-changed`, and `candidate-path-set-changed` are destroyable through surviving cleanup behavior.
+
+- `[ ]` No production or shipped configuration path reads or writes decomposition `receiptId`, `preparationId`,
+  sealed receipt fields, the digest-keyed retirement-receipts namespace, or its validator; no transitional
+  co-staging, coexistence branch, alias, fallback, or retired decomposition command mode remains.
+
+- `[ ]` The landed diff adds no integrity machinery, invented lifecycle state, parallel readiness vocabulary,
+  widened `.internal` predicate, retention policy, storage lift, compatibility reader, or redesigned refusal scheme.
+
+- `[ ]` Unrelated receipt systems and independently necessary Git, lifecycle, topology, conservation, merge, and
+  cleanup safeguards remain covered and operational.
+
+- `[ ]` All quality gates pass (tests, linting, type checking).
+
+- `[ ]` Ready for integration.
