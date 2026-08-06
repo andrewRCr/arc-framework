@@ -38,6 +38,10 @@ import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
 } from "./retirement-record-store.js";
+import {
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "./transition-record-store.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 import { readLiveRemoteBranchTip } from "../git/remote-ref-reader.js";
@@ -190,6 +194,12 @@ async function persistPreparation(
       },
       removeRecord: async (receiptId) => {
         await rm(resolveRetirementRecordPath(targetCwd, receiptId));
+      },
+      createTransitionRecord: async (record) => {
+        await writeTransitionRecord(targetCwd, record);
+      },
+      removeTransitionRecord: async (origin) => {
+        await rm(resolveTransitionRecordPath(targetCwd, origin));
       },
     });
     const persisted = await driver.prepareV3(preparation);

@@ -55,6 +55,10 @@ import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
 } from "./retirement-record-store.js";
+import {
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "./transition-record-store.js";
 
 export type GitV3DecomposeFinalizationDependencies =
   GitV3RepositoryPlanDependencies;
@@ -407,6 +411,12 @@ export async function finalizeGitV3DecomposeOperation(
       },
       removeRecord: async (selectedReceiptId) => {
         await rm(resolveRetirementRecordPath(dependencies.cwd, selectedReceiptId));
+      },
+      createTransitionRecord: async (record) => {
+        await writeTransitionRecord(dependencies.cwd, record);
+      },
+      removeTransitionRecord: async (origin) => {
+        await rm(resolveTransitionRecordPath(dependencies.cwd, origin));
       },
       readTopologyValidationInput: async (selectedPreparation) => {
         if (canonicalize(selectedPreparation) !== canonicalize(preparation)

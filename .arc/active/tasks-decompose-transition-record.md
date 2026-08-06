@@ -31,16 +31,9 @@ receipt consumer before migration and authorization re-derivation.
 - _Goal:_ Decompose, rename, and abandon persist only the historical facts their consumers need, while park
   continues without creating terminal-transition history.
 
-    - `[ ]` **1.2.a Project decompose authoring into the lean record**
-        - Derive `origin`, new-member `successors`, and dependent-keyed `edges` from the validated completed map and
-          incoming dispositions after successful existing v3 finalization, then co-stage the lean record in the
-          same terminal transaction while the sealed receipt remains available to its current consumers.
-        - Build `test-first` (one behavior at a time):
-            - Write the exact lean projection and legacy receipt after a successful terminal decompose, with no
-              sealed or finalization field admitted to the lean record.
-            - Refuse mismatched or incomplete authored edge dispositions before writing history.
-            - Remove and unstage the attempted lean record when terminal commit or rollback fails, and never replace
-              pre-existing history after an occupied-origin refusal.
+    - `[x]` **1.2.a Project decompose authoring into the lean record**
+        - Added validated completed-map projection and co-staged the lean record with v3 finalization; mismatch,
+          occupied-origin, staging, and projection-race paths leave prior receipt history and attempted records safe.
 
     - `[ ]` **1.2.b Converge direct terminal writers and exclude park**
         - Define a typed `TerminalTransitionRecordWriter` result contract for `recorded`, `origin-occupied`, and

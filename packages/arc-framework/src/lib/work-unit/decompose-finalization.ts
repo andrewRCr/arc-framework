@@ -156,9 +156,11 @@ export type V3DecomposeFinalizationTransitionRefusal =
 export type V3DecomposeRecordMutationRefusal =
   | { code: "record-projection-moved"; locus: "before" | "after" }
   | { code: "record-replacement-failed"; diagnostic: string }
+  | { code: "transition-origin-occupied" }
+  | { code: "transition-record-unavailable"; diagnostic: string }
   | {
     code: "record-rollback-residue";
-    locus: "worktree" | "index" | "projection";
+    locus: "worktree" | "index" | "projection" | "transition";
     diagnostic: string;
   };
 

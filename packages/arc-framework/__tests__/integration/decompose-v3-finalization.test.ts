@@ -15,12 +15,18 @@ import {
   type ProjectReadinessCompositionResult,
 } from "../../src/lib/status/project-view.js";
 import { createInRepoDecomposeRetirementDriver } from "../../src/lib/work-unit/decompose-retirement-driver.js";
+import { createDecomposeTransitionRecord } from "../../src/lib/work-unit/decompose-transition-record.js";
 import { renderV3IncompleteCohort } from "../../src/lib/work-unit/decompose-v3-topology.js";
 import type { DecomposeReadinessDeps } from "../../src/lib/work-unit/decompose-launch-readiness.js";
 import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
 } from "../../src/lib/work-unit/retirement-record-store.js";
+import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import {
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "../../src/lib/work-unit/transition-record-store.js";
 import { v3DecompositionEvidenceFixture } from "../fixtures/decompose-v3.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
@@ -149,6 +155,8 @@ describe("v3 decompose refresh against real Git", () => {
       readBlob: async (ref, path) => await readGitBlobBytes(repo, ref, path),
       createRecord: async (receiptId, content) => await writeRetirementRecord(repo, receiptId, content),
       removeRecord: async (receiptId) => await rm(resolveRetirementRecordPath(repo, receiptId)),
+      createTransitionRecord: async (record) => await writeTransitionRecord(repo, record),
+      removeTransitionRecord: async (origin) => await rm(resolveTransitionRecordPath(repo, origin)),
       atomicWriteFile: options.raceAfterWrite === true
         ? async (path, content) => {
             await atomicWriteFile(path, content);
@@ -190,6 +198,13 @@ describe("v3 decompose refresh against real Git", () => {
     });
 
     expect(result).toMatchObject({ status: "refreshed" });
+    const transition = createDecomposeTransitionRecord(fixture.preparation.facts.completedMap);
+    if (transition === null) throw new Error("fixture must project a transition record");
+    expect(await readFile(resolveTransitionRecordPath(repo, "origin"), "utf8")).toBe(
+      serializeTransitionRecord(transition),
+    );
+    const staged = (await execFileAsync("git", ["diff", "--cached", "--name-only"], { cwd: repo })).stdout;
+    expect(staged).toContain(".arc/system/.internal/transitions/origin.json");
     await expect(execFileAsync("git", [
       "cat-file",
       "-e",
@@ -252,6 +267,32 @@ describe("v3 decompose refresh against real Git", () => {
       resolveRetirementRecordPath(repo, fixture.receipt.receiptId),
       "utf8",
     )).toBe(canonicalize(fixture.receipt));
+    await expect(readFile(resolveTransitionRecordPath(repo, "origin"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("refuses an occupied origin without replacing either history record", async () => {
+    const { driver, fixture, repo } = await harness();
+    const transition = createDecomposeTransitionRecord(fixture.preparation.facts.completedMap);
+    if (transition === null) throw new Error("fixture must project a transition record");
+    await writeTransitionRecord(repo, transition);
+    const existing = await readFile(resolveTransitionRecordPath(repo, "origin"), "utf8");
+
+    expect(await driver.finalizeV3("origin", fixture.receipt.receiptId, {
+      continuation: fixture.receipt.finalized.publication.initialContinuation,
+      continuationPath: "/tmp/continuation.json",
+      composition: composition(),
+      readinessDeps: readyDeps,
+    })).toMatchObject({
+      status: "refused",
+      reason: "evidence-mismatch: transition-origin-occupied",
+      recovery: { action: "guidance" },
+    });
+    expect(await readFile(resolveTransitionRecordPath(repo, "origin"), "utf8")).toBe(existing);
+    expect(await readFile(resolveRetirementRecordPath(repo, fixture.receipt.receiptId), "utf8")).toBe(
+      canonicalize(fixture.receipt),
+    );
   });
 
   it("names unavailable prospective projection validation precisely", async () => {

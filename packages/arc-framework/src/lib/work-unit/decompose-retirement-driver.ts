@@ -36,6 +36,7 @@ import {
   resolveRetirementRecordPath,
   resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
+import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import {
   prepareV3DecomposeRetirement,
   type PreparedV3DecomposeRetirement,
@@ -58,6 +59,8 @@ import {
   type ValidateV3DecomposeTopologyInput,
 } from "./decompose-topology-validation.js";
 import type { ValidatedTransitionOverlay } from "./transition-overlay.js";
+import type { TransitionRecord } from "./transition-record.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Exact Git blob reader; `null` reads the current index. */
 export type DecomposeBlobReader = (ref: string | null, path: ManagedPath) => Promise<Uint8Array | null>;
@@ -70,6 +73,8 @@ export interface InRepoDecomposeRetirementDeps {
   readBlob: DecomposeBlobReader;
   createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
   removeRecord(receiptId: CanonicalDigest): Promise<void>;
+  createTransitionRecord(record: TransitionRecord): Promise<void>;
+  removeTransitionRecord(origin: string): Promise<void>;
   atomicWriteFile?: typeof atomicWriteFile;
   readTopologyValidationInput?(
     preparation: V3DecomposePreparation,
@@ -210,6 +215,7 @@ async function readV3RecordBlob(
 async function readV3FinalizationProjection(
   deps: InRepoDecomposeRetirementDeps,
   preparation: V3DecomposePreparation,
+  transitionPath?: string,
 ): Promise<{
   authorityVersion: CanonicalDigest;
   candidateIndexIdentity: CanonicalDigest;
@@ -260,7 +266,7 @@ async function readV3FinalizationProjection(
     resultBaseHead,
     candidateHead,
     candidateStates,
-    stagedPaths: stagedPaths.filter((path) => path !== receiptPath),
+    stagedPaths: stagedPaths.filter((path) => path !== receiptPath && path !== transitionPath),
   });
   return {
     candidateIndexIdentity,
@@ -318,14 +324,17 @@ async function replaceV3Record(
   preparation: V3DecomposePreparation,
   expectedProjection: Awaited<ReturnType<typeof readV3FinalizationProjection>>,
   expectedStagedPaths: readonly string[],
+  transitionRecord: TransitionRecord,
   receiptId: CanonicalDigest,
   expected: string,
   next: string,
 ): Promise<V3DecomposeRecordMutationResult> {
   const path = resolveRetirementRecordPath(deps.cwd, receiptId);
   const relativePath = resolveRetirementRecordRelativePath(receiptId);
+  const transitionPath = resolveTransitionRecordRelativePath(transitionRecord.origin);
+  const finalStagedPaths = [...expectedStagedPaths, transitionPath].sort(compareUtf8);
   try {
-    const immediatelyBefore = await readV3FinalizationProjection(deps, preparation);
+    const immediatelyBefore = await readV3FinalizationProjection(deps, preparation, transitionPath);
     await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
     await requireExactV3StagedPaths(deps, expectedStagedPaths);
     if (immediatelyBefore.authorityVersion !== expectedProjection.authorityVersion
@@ -337,22 +346,44 @@ async function replaceV3Record(
     return { status: "refused", refusal: { code: "record-projection-moved", locus: "before" } };
   }
   const write = deps.atomicWriteFile ?? atomicWriteFile;
+  let transitionCreated = false;
+  let transitionStaged = false;
   try {
+    try {
+      await deps.createTransitionRecord(transitionRecord);
+      transitionCreated = true;
+    } catch (error) {
+      return isNodeError(error) && error.code === "EEXIST"
+        ? { status: "refused", refusal: { code: "transition-origin-occupied" } }
+        : {
+            status: "refused",
+            refusal: { code: "transition-record-unavailable", diagnostic: errorMessage(error) },
+          };
+    }
     await write(path, next);
-    await stageDecomposePaths(deps, [relativePath]);
-    const staged = await deps.readBlob(null, validateManagedPath(relativePath));
-    if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next) {
+    await stageDecomposePaths(deps, [relativePath, transitionPath]);
+    transitionStaged = true;
+    const [staged, stagedTransition] = await Promise.all([
+      deps.readBlob(null, validateManagedPath(relativePath)),
+      deps.readBlob(null, validateManagedPath(transitionPath)),
+    ]);
+    if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next
+      || stagedTransition === null) {
       throw new Error("finalized record is absent from the staged index");
     }
   } catch (error) {
     const rollbackFailure = await restorePreparedRecord(deps, write, path, relativePath, expected);
-    if (rollbackFailure !== null) {
+    const transitionRollbackFailure = transitionCreated
+      ? await removeAttemptedTransitionRecord(deps, transitionRecord.origin, transitionPath, transitionStaged)
+      : null;
+    const failure = rollbackFailure ?? transitionRollbackFailure;
+    if (failure !== null) {
       return {
         status: "refused",
         refusal: {
           code: "record-rollback-residue",
-          locus: rollbackFailure.locus,
-          diagnostic: `${errorMessage(error)}; ${rollbackFailure.diagnostic}`,
+          locus: failure.locus,
+          diagnostic: `${errorMessage(error)}; ${failure.diagnostic}`,
         },
       };
     }
@@ -363,9 +394,9 @@ async function replaceV3Record(
   }
   let postCasMatches: boolean;
   try {
-    const immediatelyAfter = await readV3FinalizationProjection(deps, preparation);
+    const immediatelyAfter = await readV3FinalizationProjection(deps, preparation, transitionPath);
     await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
-    await requireExactV3StagedPaths(deps, expectedStagedPaths);
+    await requireExactV3StagedPaths(deps, finalStagedPaths);
     postCasMatches = immediatelyAfter.sourceHead === expectedProjection.sourceHead
       && immediatelyAfter.resultBaseHead === expectedProjection.resultBaseHead
       && immediatelyAfter.candidateHead === expectedProjection.candidateHead
@@ -384,14 +415,21 @@ async function replaceV3Record(
       relativePath,
       expected,
     );
-    return rollbackFailure === null
+    const transitionRollbackFailure = await removeAttemptedTransitionRecord(
+      deps,
+      transitionRecord.origin,
+      transitionPath,
+      transitionStaged,
+    );
+    const failure = rollbackFailure ?? transitionRollbackFailure;
+    return failure === null
       ? { status: "refused", refusal: { code: "record-projection-moved", locus: "after" } }
       : {
           status: "refused",
           refusal: {
             code: "record-rollback-residue",
-            locus: rollbackFailure.locus,
-            diagnostic: rollbackFailure.diagnostic,
+            locus: failure.locus,
+            diagnostic: failure.diagnostic,
           },
         };
   }
@@ -449,7 +487,13 @@ function finalizationRecoveryCause(
       return { kind: "mechanical-repreflight" };
     case "record-projection-moved":
     case "record-replacement-failed":
+    case "transition-record-unavailable":
       return { kind: "transient-finalization" };
+    case "transition-origin-occupied":
+      return {
+        kind: "manual-guidance",
+        message: "Transition history already exists for this origin; inspect it before retrying finalization.",
+      };
     case "record-rollback-residue":
       return {
         kind: "manual-guidance",
@@ -532,6 +576,11 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         if (preparation === null || preparation.facts.completedMap.machine.source.origin !== origin) {
           return refused("evidence-mismatch", { kind: "mechanical-repreflight" });
         }
+        const transitionRecord = createDecomposeTransitionRecord(preparation.facts.completedMap);
+        if (transitionRecord === null) {
+          return refused("transition-record-derivation-mismatch", { kind: "semantic-reauthorization" });
+        }
+        const transitionPath = resolveTransitionRecordRelativePath(transitionRecord.origin);
         const continuation = validateV3DecomposeContinuation({
           continuation: input.continuation,
           preparation,
@@ -571,7 +620,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         }
         let projectionBefore;
         try {
-          projectionBefore = await readV3FinalizationProjection(deps, preparation);
+          projectionBefore = await readV3FinalizationProjection(deps, preparation, transitionPath);
           await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
         } catch (error) {
           return refused(errorMessage(error), { kind: "transient-finalization" });
@@ -628,7 +677,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         }
         let projectionAfter;
         try {
-          projectionAfter = await readV3FinalizationProjection(deps, preparation);
+          projectionAfter = await readV3FinalizationProjection(deps, preparation, transitionPath);
           await requireV3IndexWorktreeParity(deps, preparation.facts.allowedPaths);
         } catch (error) {
           return refused(errorMessage(error), { kind: "transient-finalization" });
@@ -670,6 +719,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
                 preparation,
                 projectionAfter,
                 expectedStagedPaths,
+                transitionRecord,
                 targetRecordId,
                 expected,
                 next,
@@ -704,6 +754,27 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
       }
     },
   };
+}
+
+async function removeAttemptedTransitionRecord(
+  deps: InRepoDecomposeRetirementDeps,
+  origin: string,
+  relativePath: string,
+  staged: boolean,
+): Promise<{ locus: "transition"; diagnostic: string } | null> {
+  try {
+    if (staged) {
+      await deps.exec("git", ["restore", "--staged", "--", relativePath], { cwd: deps.cwd });
+    }
+    await deps.removeTransitionRecord(origin);
+    return null;
+  } catch (error) {
+    return { locus: "transition", diagnostic: `transition record rollback failed: ${errorMessage(error)}` };
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 async function restorePreparedRecord(
