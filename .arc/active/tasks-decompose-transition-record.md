@@ -76,29 +76,21 @@ receipt consumer before migration and authorization re-derivation.
 - _Outcome:_ Lean queries now return only record-authored transition actions and closed lean failures; digest
   identity, evidence quality, successor inference, and the legacy namespace remain outside the new port.
 
-### `[ ]` **1.5 Project lean transitions into reconcile and dependency discharge**
+### `[x]` **1.5 Project lean transitions into reconcile and dependency discharge**
 
 - _Goal:_ Reference repair and dependency discharge retain their observable rename, removal, replacement, and
   drop behavior while consuming only lean transition contracts.
 
-    - `[ ]` **1.5.a Map lean kinds into reference transitions**
-        - Add a lean reference projector whose origin groups map rename to `rename`, abandon to `removed`, and
-          decompose to `decompose`; retain the current receipt projector until the migration cutover.
-        - Build `test-first` (one behavior at a time):
-            - Preserve rename targets and removal/decompose projections for current tracked-reference planning.
-            - Return `ambiguous-history` for any duplicate origin, including byte-identical records with the same
-              projected outcome, before rename-chain outcome de-duplication can erase multiplicity.
-            - Fail closed on namespace corruption without carrying receipt-specific `version-conflict` into the
-              lean contract.
+    - `[x]` **1.5.a Map lean kinds into reference transitions**
+        - Added a parallel lean reference projector for rename, removed, and decompose outcomes that refuses all
+          duplicate-origin groups before outcome de-duplication and carries no digest-conflict arm.
 
-    - `[ ]` **1.5.b Discharge dependency edges without evidence quality**
-        - Exercise the final `resolveRetiredEdge()` and `DependencyReconcileEvidence` behavior against the lean query
-          port, preserving `{subject}` evidence while proving the quality member is semantically unused; defer the
-          production type switch and exhaustive-union removal to the Phase 2 cutover.
-        - Build `test-first` (one behavior at a time):
-            - Preserve recursive rename resolution, abandon discharge, replacement targets, and authored drops.
-            - Preserve ambiguity, unmapped-dependent, and namespace-corrupt refusals without reintroducing an old
-              record decoder.
+    - `[x]` **1.5.b Discharge dependency edges without evidence quality**
+        - Added a parallel lean planner entry that adapts only the legacy compatibility field, then exercises the
+          final recursive resolver across retarget, abandon, replace, drop, and all lean refusal outcomes.
+
+- _Outcome:_ Reference repair and dependency discharge now have receipt-independent projection seams with lean
+  multiplicity and failure semantics, while the production receipt ports remain intact for the Phase 2 switch.
 
 ### `[ ]` **1.6 Admit transition records through the generic planning lane**
 

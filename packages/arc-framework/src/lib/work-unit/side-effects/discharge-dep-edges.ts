@@ -33,6 +33,10 @@ import type {
   RetirementDispositionQueryResult,
   RetirementEvidenceQuality,
 } from "../retirement-disposition-query.js";
+import type {
+  TransitionDispositionQuery,
+  TransitionDispositionQueryResult,
+} from "../transition-disposition-query.js";
 
 /** One evidence hop retained in a dependency repair. */
 export interface DependencyReconcileEvidence {
@@ -113,6 +117,14 @@ export interface PlanDependencyReconcileInput {
   dependentSlug: string;
   edges: readonly string[];
   queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
+}
+
+/** Parallel lean-query input retained until the production port cutover. */
+export interface PlanTransitionDependencyReconcileInput {
+  index: LifecycleIndex;
+  dependentSlug: string;
+  edges: readonly string[];
+  queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
 }
 
 /** One exact current-WU edit guarded by the content that produced it. */
@@ -267,6 +279,23 @@ export async function planDependencyReconcile(
     trackedReferences: { edits: [] },
     advisories: [],
   };
+}
+
+/** Exercise the dependency planner through the lean transition query contract. */
+export async function planTransitionDependencyReconcile(
+  input: PlanTransitionDependencyReconcileInput,
+): Promise<CurrentWuReconcilePlan> {
+  return planDependencyReconcile({
+    index: input.index,
+    dependentSlug: input.dependentSlug,
+    edges: input.edges,
+    queryDisposition: async ({ retiredSubject, dependentSlug }) => {
+      const resolution = await input.queryDisposition({ origin: retiredSubject, dependentSlug });
+      return resolution.status === "unique" || resolution.status === "unmapped-dependent"
+        ? { ...resolution, evidenceQuality: "unknown" }
+        : resolution;
+    },
+  });
 }
 
 async function resolveRetiredEdge(

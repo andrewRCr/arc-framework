@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import type { RetirementRecordEnumerationResult } from "./retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 
 /** One storage-independent retirement transition relevant to tracked references. */
 export interface ReachableReferenceTransition {
@@ -21,6 +22,12 @@ export interface ReachableReferenceTransition {
     | { kind: "decompose" }
     | { kind: "removed" };
 }
+
+/** Lean transition projection before current tracked-reference planning. */
+export type TransitionReferenceProjectionResult =
+  | { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
+  | { status: "conflict"; reason: "ambiguous-history"; subject: string }
+  | { status: "conflict"; reason: "namespace-corrupt" };
 
 /** One exact artifact snapshot supplied to the pure planner. */
 export interface ReferenceArtifactSnapshot {
@@ -132,6 +139,31 @@ export function enumerateReferenceTransitions(
         break;
       case "relocate":
         break;
+    }
+  }
+  return { status: "valid", transitions };
+}
+
+/** Project authenticated lean transition groups into reference transitions. */
+export function enumerateTransitionReferenceTransitions(
+  enumeration: TransitionRecordEnumerationResult,
+): TransitionReferenceProjectionResult {
+  if (enumeration.status !== "valid") return { status: "conflict", reason: "namespace-corrupt" };
+  const transitions: ReachableReferenceTransition[] = [];
+  for (const group of enumeration.groups) {
+    if (group.records.length > 1) {
+      return { status: "conflict", reason: "ambiguous-history", subject: group.origin };
+    }
+    const record = group.records[0];
+    if (record === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+    if (record.kind === "rename") {
+      const targetSlug = record.successors[0];
+      if (targetSlug === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+      transitions.push({ subject: record.origin, outcome: { kind: "rename", targetSlug } });
+    } else if (record.kind === "abandon") {
+      transitions.push({ subject: record.origin, outcome: { kind: "removed" } });
+    } else {
+      transitions.push({ subject: record.origin, outcome: { kind: "decompose" } });
     }
   }
   return { status: "valid", transitions };

@@ -25,9 +25,11 @@ import type {
 import type {
   RetirementDispositionQueryResult,
 } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+import type { TransitionDispositionQueryResult } from "../../../../src/lib/work-unit/transition-disposition-query.js";
 import {
   dischargeDepEdges,
   planDependencyReconcile,
+  planTransitionDependencyReconcile,
   runCurrentWuReconcile,
   type DischargeDepEdgesContext,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
@@ -182,6 +184,68 @@ describe("dischargeDepEdges — live edges stay", () => {
 });
 
 describe("current-WU dependency reconcile planning", () => {
+  it("preserves recursive lean rename, abandon, replacement, and drop decisions", async () => {
+    const results: Readonly<Record<string, TransitionDispositionQueryResult>> = {
+      renamed: { status: "unique", disposition: { kind: "retarget", targetSlug: "middle" } },
+      middle: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      abandoned: { status: "unique", disposition: { kind: "abandoned" } },
+      replaced: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      dropped: { status: "unique", disposition: { kind: "drop", reason: "not retained" } },
+    };
+    const result = await planTransitionDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+        { path: ".arc/active/meta-member.md", content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["renamed", "abandoned", "replaced", "dropped"],
+      queryDisposition: ({ origin }) => Promise.resolve(results[origin] ?? { status: "absent" }),
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      dependency: {
+        after: ["member"],
+        drops: [
+          { retiredSubject: "abandoned", reason: "retired work unit was abandoned" },
+          { retiredSubject: "dropped", reason: "not retained" },
+        ],
+        conflicts: [],
+      },
+    });
+    expect(result.dependency.replacements.map(({ evidence }) =>
+      evidence.map(({ subject }) => subject))).toEqual([
+      ["renamed", "middle"],
+      ["replaced"],
+    ]);
+  });
+
+  it.each([
+    [{ status: "ambiguous" }, "ambiguous-evidence"],
+    [{ status: "unmapped-dependent" }, "unmapped-dependent"],
+    [{ status: "namespace-corrupt" }, "namespace-corrupt"],
+  ] as const)("preserves the lean %s refusal", async (resolution, reason) => {
+    const result = await planTransitionDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["origin"],
+      queryDisposition: async () => resolution,
+    });
+
+    expect(result).toMatchObject({
+      status: "conflict",
+      dependency: { conflicts: [{ edge: "origin", subject: "origin", reason }] },
+    });
+  });
+
   it("replaces one retired edge with its deduplicated delivering members", async () => {
     const index = buildLifecycleIndexFromMetas([
       { path: DEPENDENT_PATH, content: meta("Active", ["origin"]) },
