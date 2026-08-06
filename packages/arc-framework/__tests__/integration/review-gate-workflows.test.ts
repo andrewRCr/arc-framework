@@ -418,7 +418,7 @@ describe("trusted review-gate workflows", () => {
     expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*Exact replay is idempotent/iu);
   });
 
-  it("keeps auto-merge arming on canonical classification without requiring ARC clearance", async () => {
+  it("keeps auto-merge arming on canonical classification without a required clearance status", async () => {
     const paths = {
       errand: "system/workflows/arc/supplemental/run-errand.md",
       drain: "system/workflows/arc/supplemental/drain-inbox.md",
@@ -442,11 +442,15 @@ describe("trusted review-gate workflows", () => {
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
     expect(documents.setup).toMatch(/canonical\s+classifier/iu);
-    expect(documents.setup).toMatch(/without\s+`arc-cleared`[\s\S]*procedural enforcement/iu);
-    expect(documents.setup).toMatch(/when `arc-cleared`\s+is required[\s\S]*structural/iu);
-    expect(documents.readme).toMatch(/without `arc-cleared`[\s\S]*canonical classifier/iu);
-    expect(documents.codeowners).not.toContain("required arc-cleared");
+    expect(documents.setup).toMatch(/procedural boundary[\s\S]*never infer merge safety/iu);
+    expect(documents.setup).not.toMatch(/arc-cleared/iu);
+    expect(documents.readme).toMatch(/canonical classifier/iu);
+    expect(documents.readme).not.toMatch(/arc-cleared|arc-clearance/iu);
+    expect(documents.codeowners).not.toMatch(/arc-cleared/iu);
     expect(documents.initial).toMatch(/planning auto-merge lane[\s\S]*canonical classifier/iu);
+    expect(documents.initial).toMatch(/Draft-state merge lock[\s\S]*merge\.lock:\s*draft/iu);
+    expect(documents.strategy).toMatch(/merge\.lock:\s*draft/iu);
+    expect(documents.strategy).toMatch(/never infer merge safety from agent-layer discipline alone/iu);
   });
 
   it("uses one late authoritative base-reconcile mutation site", async () => {
@@ -738,121 +742,63 @@ describe("trusted review-gate workflows", () => {
     expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
   });
 
-  it("ships an installable clearance workflow pinned to the installed framework version", async () => {
-    const templatePath = "packages/arc-framework/arc/reference/templates/arc/merge-gate/arc-clearance.yml";
-    const setupPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md";
-    const [template, setup, recipe, codeowners, recipeReadme] = await Promise.all([
-      readRepositoryFile(templatePath),
-      readRepositoryFile(setupPath),
+  it("does not ship an installable clearance workflow or template", async () => {
+    const [recipe, codeowners, recipeReadme, livePairScript] = await Promise.all([
       readRepositoryFile("packages/arc-framework/init-recipe.json"),
       readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
       readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/.internal/scripts/confirm-live-change-pair.sh",
+      ),
     ]);
     const inventory = JSON.parse(recipe) as { include_files: string[] };
-    const installedWorkflow = load(template) as {
-      on?: Record<string, unknown>;
-      jobs?: Record<string, unknown>;
-    };
 
     expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/README.md");
-    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/arc-clearance.yml");
     expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/CODEOWNERS");
-    expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-arc-clearance.md");
     expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-merge-gate.md");
-    expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
-    expect(template).toContain("npm exec --yes --package=");
-    expect(installedWorkflow.on?.pull_request_target).toEqual({
-      types: ["opened", "reopened", "synchronize", "edited"],
-    });
-    expect(installedWorkflow.on).not.toHaveProperty("pull_request");
-    expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
-    expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
-    expect(jobValue(template, "planning-clearance").if).toContain("head.repo.full_name == github.repository");
-    expect(stepValue(template, "planning-clearance", "planning-trusted-checkout").with).toMatchObject({
-      ref: "${{ github.workflow_sha }}",
-      "persist-credentials": false,
-    });
-    expect(stepValue(template, "planning-clearance", "planning-target").run).toContain(
-      'pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"',
-    );
-    const templateReset = stepValue(template, "planning-clearance", "planning-reset");
-    expect(templateReset.env).toMatchObject({
-      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
-    });
-    expect(templateReset.run).toContain("-f state=pending -f context=arc-cleared");
-    expect(stepValue(template, "planning-clearance", "planning-data").with).toMatchObject({
-      repository: "${{ steps.planning-target.outputs.head_repository }}",
-      ref: "${{ steps.planning-target.outputs.head_sha }}",
-      path: "_arc_change_data",
-      "fetch-depth": 0,
-      "persist-credentials": false,
-    });
-    expect(stepValue(template, "planning-clearance", "planning-status").env).toMatchObject({
-      BASE_REF: "${{ steps.planning-target.outputs.base_ref }}",
-      BASE_SHA: "${{ steps.planning-target.outputs.base_sha }}",
-      HEAD_SHA: "${{ steps.planning-target.outputs.head_sha }}",
-    });
-    expect(stepValue(template, "validate", "target").run).toContain(
-      'test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"',
-    );
-    expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
-    expect(template).toContain(
-      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
-    );
     expect(inventory.include_files).toContain(
       "system/.internal/scripts/confirm-live-change-pair.sh",
     );
-    expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
-    expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
-    expect(template).toContain("path: _arc_pr_data");
-    expect(template).toContain(
-      "Fetch branch refs: exact decomposition source commits may sit outside the PR history.",
+    expect(inventory.include_files).not.toContain(
+      "reference/templates/arc/merge-gate/arc-clearance.yml",
     );
-    expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
+    expect(inventory.include_files).not.toContain(
+      "system/workflows/arc/supplemental/setup-arc-clearance.md",
+    );
+
+    await expect(
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/arc-clearance.yml"),
+    ).rejects.toThrow();
+    await expect(
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md",
+      ),
+    ).rejects.toThrow();
+    await expect(
+      readRepositoryFile(".arc/reference/templates/arc/merge-gate/arc-clearance.yml"),
+    ).rejects.toThrow();
+    await expect(
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/setup-arc-clearance.md"),
+    ).rejects.toThrow();
+
+    expect(livePairScript.length).toBeGreaterThan(0);
     expect(codeowners).not.toContain("/.arc/backlog/**/");
     expect(codeowners).toContain("/.arc/backlog/planned/*/*/spec-*.md");
     expect(codeowners).toContain("/.arc/backlog/provisional/*/meta-*.md");
     expect(codeowners).not.toContain("/.arc/system/.internal/retirement-receipts/*.json");
+    expect(codeowners).not.toMatch(/arc-cleared/iu);
     expect(recipeReadme).not.toContain("git diff --name-only");
     expect(recipeReadme).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(recipeReadme).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
     expect(recipeReadme).toContain("classification checkout must fetch branch refs");
-    expect(setup).toContain(".arc/system/.internal/manifest.json");
-    expect(setup).toContain("arc --version");
-    expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
-    expect(setup).toContain("both fixed writers");
-  });
-
-  it("keeps clearance setup additive, idempotent, and fail-closed at protection settlement", async () => {
-    const [packaged, project] = await Promise.all([
-      readRepositoryFile(
-        "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md",
-      ),
-      readRepositoryFile(".arc/system/workflows/arc/supplemental/setup-arc-clearance.md"),
-    ]);
-    expect(project).toBe(packaged);
-    expect(packaged).toMatch(/detect current state[\s\S]*workflow[\s\S]*environment[\s\S]*required context/iu);
-    expect(packaged).toMatch(/workflow and delegated live-pair[\s\S]*are present on the default branch/iu);
-    expect(packaged).toContain(".arc/system/.internal/scripts/confirm-live-change-pair.sh");
-    expect(packaged).toMatch(/stop before changing required\s+checks/iu);
-    expect(packaged).toContain("arc-clearance");
-    expect(packaged).toContain("protected_branches");
-    expect(packaged).toContain("custom_branch_policies");
-    expect(packaged).toContain("reviewers");
-    expect(packaged).toContain("total_count");
-    expect(packaged).toContain('["arc-cleared"]');
-    expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
-    expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
-    expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
+    expect(recipeReadme).not.toMatch(/arc-clearance|setup-arc-clearance|Set Up ARC Clearance/iu);
   });
 
   it("keeps every shipped host-policy asset byte-identical to its project mirror", async () => {
     const paths = [
       "reference/templates/arc/merge-gate/CODEOWNERS",
       "reference/templates/arc/merge-gate/README.md",
-      "reference/templates/arc/merge-gate/arc-clearance.yml",
       "system/.internal/scripts/confirm-live-change-pair.sh",
-      "system/workflows/arc/supplemental/setup-arc-clearance.md",
       "system/workflows/arc/supplemental/setup-merge-gate.md",
       "system/workflows/arc/initial-setup/01_verify-and-configure.md",
     ];
@@ -866,7 +812,7 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("offers review-source and merge-guard setup as independent default-off choices", async () => {
+  it("offers review-source and merge-lock setup as independent default-off choices", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
       ".arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
@@ -876,9 +822,10 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toContain("Optional: Choose Review Sources and Merge Guards");
     expect(packaged).toContain("Frontline sources");
     expect(packaged).toContain("Standard-review sources");
-    expect(packaged).toContain("ARC merge guard");
+    expect(packaged).toContain("Draft-state merge lock");
+    expect(packaged).toMatch(/merge\.lock:\s*draft/iu);
     expect(packaged).not.toMatch(/planning-lane-ownership/iu);
+    expect(packaged).not.toMatch(/ARC merge guard|setup-arc-clearance|arc-cleared/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
-    expect(packaged).toContain("setup-arc-clearance.md");
   });
 });

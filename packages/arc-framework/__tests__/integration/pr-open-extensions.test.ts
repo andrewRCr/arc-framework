@@ -280,7 +280,10 @@ describe("PR-open lifecycle extensions", () => {
         .replace(/\s+/gu, " ");
 
       expect(guidance).toContain("Agent-side review methods and extensions are best-effort ergonomics");
-      expect(guidance).toContain("Only a configured required host-side check structurally enforces merge safety");
+      expect(guidance).toContain("Host-side merge controls are distinct from agent-layer discipline");
+      expect(guidance).toContain("required status check is fail-closed repo configuration");
+      expect(guidance).toContain("draft-state lock");
+      expect(guidance).toMatch(/[Nn]ever infer merge safety from/);
       expect(selfReview.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
         .toContain("does not structurally enforce merge safety");
       expect(frontline.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
@@ -292,8 +295,10 @@ describe("PR-open lifecycle extensions", () => {
     const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
     expect(overview).toContain("one configured review loop through the shipped `arc review` command tree");
     expect(overview).toContain("The operating agent owns bounded judgment");
-    expect(overview).toContain("The required `arc-cleared` commit status is a thin lifecycle lock");
-    expect(overview).toContain("No GitHub App or resident review controller exists");
+    expect(overview).toContain("Draft-state lock is a per-PR structural hold");
+    expect(overview).toContain("merge.lock: draft");
+    expect(overview).not.toMatch(/arc-cleared/iu);
+    expect(overview).toMatch(/No GitHub App or resident review\s+controller exists/);
     expect(overview).not.toContain("review-gate-right-sizing");
   });
 

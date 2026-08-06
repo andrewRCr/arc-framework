@@ -145,28 +145,25 @@ check with draft lock; keep "never infer merge safety from agent-layer disciplin
 _Purpose:_ Integration and e2e pins stop treating clearance as a shipped install asset and match the reworded
 prose. This is the main red-suite failure mode if skipped.
 
-### `[ ]` **4.1 Retarget review-gate and pr-open clearance pins**
+### `[x]` **4.1 Retarget review-gate and pr-open clearance pins**
 
 - _Goal:_ Coupled tests green against the post-retirement corpus; presence cases inverted or removed; reword
   pins match new prose
 
-    - `[ ]` **4.1.a Retarget review-gate-workflows integration pins**
-        - In `packages/arc-framework/__tests__/integration/review-gate-workflows.test.ts`: retire or invert
-          "ships an installable clearance workflow" and "keeps clearance setup additive…"; drop `arc-clearance.yml`
-          / `setup-arc-clearance.md` from the byte-identical host-policy path set (keep live-pair script +
-        `setup-merge-gate.md`); update setup/README/CODEOWNERS prose pins and initial-setup offer assertions for
-        `merge.lock` opt-in
+    - `[x]` **4.1.a Retarget review-gate-workflows integration pins**
+        - Inverted installable-clearance presence cases; host-policy path set drops clearance files; auto-merge
+          and initial-setup pins match draft-lock / procedural-boundary prose
 
-    - `[ ]` **4.1.b Retarget pr-open-extensions TECHNICAL-OVERVIEW and review pins**
-        - In `packages/arc-framework/__tests__/integration/pr-open-extensions.test.ts`: update TECHNICAL-OVERVIEW
-        `arc-cleared` pin and structural-enforcement / frontline-self-review sentence pins to the new wording
+    - `[x]` **4.1.b Retarget pr-open-extensions TECHNICAL-OVERVIEW and review pins**
+        - Structural-enforcement pins distinguish required check vs draft lock; overview pins draft-hold wording
 
-    - `[ ]` **4.1.c Confirm init e2e absence assertion still holds**
-        - In `packages/arc-framework/__tests__/e2e/init.e2e.test.ts`: adjust only if the deletion path changes its
-          premise
+    - `[x]` **4.1.c Confirm init e2e absence assertion still holds**
+        - Existing `arc-cleared` absence pin still green; no premise change required
 
-    - `[ ]` **4.1.d Run touched tests until green**
-        - Touched test files and any recipe/init tests that enumerate include_files
+    - `[x]` **4.1.d Run touched tests until green**
+        - `review-gate-workflows`, `pr-open-extensions`, and `init.e2e` all green
+
+- _Outcome:_ Coupled tests certify clearance retirement rather than the retired install surface
 
 ## **Phase 5:** Verification
 
