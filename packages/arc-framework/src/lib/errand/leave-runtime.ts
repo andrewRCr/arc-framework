@@ -6,6 +6,7 @@ import type { GitExec, GitExecInput } from "../git/exec.js";
 import {
   classifyTransientWorktreeProvenance,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
 } from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { popOwnedLocusRole, validateOwnedLocusRole } from "../locus/mutation.js";
@@ -301,6 +302,7 @@ async function restorePrimaryCheckout(
   base: string,
   record: OrdinaryErrandRecord,
 ): Promise<Extract<LeaveCleanupResult, { kind: "refused" }> | null> {
+  const subject = { kind: "errand" as const, slug: record.slug, claimId: record.claimId };
   try {
     const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
     const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
@@ -313,10 +315,19 @@ async function restorePrimaryCheckout(
         return { kind: "refused", reason: "preservation-unproven", message: "Primary Errand head moved." };
       }
       await exec("git", ["checkout", base], { cwd: checkoutPath });
+      const removed = await removePrimaryTransientOccupancy(checkoutPath, subject);
+      if (removed.kind !== "removed") {
+        await exec("git", ["checkout", record.branch], { cwd: checkoutPath }).catch(() => undefined);
+        return { kind: "refused", reason: "role-conflict", message: "Primary Errand marker changed." };
+      }
       return null;
     }
     if (branch !== base) {
       return { kind: "refused", reason: "role-conflict", message: "Primary checkout restored to an unexpected branch." };
+    }
+    const removed = await removePrimaryTransientOccupancy(checkoutPath, subject);
+    if (removed.kind !== "removed" && removed.kind !== "absent") {
+      return { kind: "refused", reason: "role-conflict", message: "Primary Errand marker changed." };
     }
     return await exactBranchRef(exec, record.branch, terminalHead(record));
   } catch (error) {

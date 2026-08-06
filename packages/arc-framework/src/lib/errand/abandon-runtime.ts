@@ -6,6 +6,7 @@ import type { GitExec, GitExecInput } from "../git/exec.js";
 import {
   classifyTransientWorktreeProvenance,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
 } from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { popLocusRole } from "../locus/mutation.js";
@@ -175,7 +176,17 @@ async function releaseRetiredResidue(
           message: "The Errand checkout has uncommitted changes.",
         };
       }
-      if (row.primary === true) return null;
+      if (row.primary === true) {
+        if (role.subject.kind !== "errand" || role.subject.claimId === null) {
+          return { kind: "refused", reason: "role-conflict", message: "Primary Errand subject is incomplete." };
+        }
+        const removed = await removePrimaryTransientOccupancy(checkoutPath, {
+          kind: "errand", slug: role.subject.key, claimId: role.subject.claimId,
+        });
+        return removed.kind === "removed" || removed.kind === "absent"
+          ? null
+          : { kind: "refused", reason: "role-conflict", message: "Primary Errand marker changed." };
+      }
       const marker = await readWorktreeMarkerGeneration(checkoutPath);
       const subject = role.subject;
       const provenance = subject.claimId === null
@@ -360,7 +371,12 @@ async function cleanupResidue(
       if (row.primary === true) {
         try {
           await options.exec("git", ["checkout", options.base], { cwd: checkoutPath });
-          return null;
+          const removed = await removePrimaryTransientOccupancy(checkoutPath, {
+            kind: "errand", slug: record.slug, claimId: record.claimId,
+          });
+          if (removed.kind === "removed") return null;
+          await options.exec("git", ["checkout", record.branch], { cwd: checkoutPath }).catch(() => undefined);
+          return { kind: "refused", reason: "role-conflict", message: "Primary Errand marker changed." };
         } catch (error) {
           return { kind: "error", message: errorMessage(error) };
         }

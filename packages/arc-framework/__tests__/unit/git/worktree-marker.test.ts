@@ -20,6 +20,7 @@ import {
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
   removeWorktreeMarkerGeneration,
   renameWorktreeOwnershipMarker,
   replaceWorktreeMarkerGeneration,
@@ -148,6 +149,53 @@ describe("worktree-marker", () => {
       }
     },
   );
+
+  it("round-trips unified primary and partial transient occupancy", async () => {
+    const primary: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) },
+      provisioning: "ready",
+      parentCheckoutPath: "/repo/parent",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, primary);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: primary });
+
+    const partial: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: { kind: "partial-errand", slug: "refresh-fixtures", claimId: null },
+      provisioning: "ready",
+      parentCheckoutPath: "/repo/parent",
+      originEntry: "Refresh generated fixtures",
+      originEntrySourceDigest: `sha256:${"b".repeat(64)}`,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, partial);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: partial });
+    expect(decodeWorktreeMarkerOwnership(partial)).toEqual({
+      kind: "current",
+      subject: partial.createdFor,
+      provisioning: "ready",
+    });
+  });
+
+  it("removes only the exact ready primary transient generation", async () => {
+    const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;
+    const marker: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: subject,
+      provisioning: "ready",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, marker);
+    await expect(removePrimaryTransientOccupancy(cwd, { ...subject, claimId: "b".repeat(32) }))
+      .resolves.toEqual({ kind: "refused", reason: "subject-mismatch" });
+    await expect(removePrimaryTransientOccupancy(cwd, subject)).resolves.toEqual({ kind: "removed" });
+    await expect(removePrimaryTransientOccupancy(cwd, subject)).resolves.toEqual({ kind: "absent" });
+  });
 
   it("classifies transient provisioning and exact claim mismatches without granting authority", () => {
     const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;

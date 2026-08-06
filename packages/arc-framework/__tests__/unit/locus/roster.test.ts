@@ -327,6 +327,48 @@ describe("managed subject authority", () => {
       reasons: ["subject-unresolved"],
     });
   });
+
+  it("treats unified primary occupancy as exact transient agreement", () => {
+    const claimId = "7".repeat(32);
+    const identity: LocusIdentityV1 = {
+      kind: "errand",
+      key: "demo",
+      claimId,
+      protection: "full",
+      branch: "chore/demo",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+    };
+    expect(projectManagedSubject({
+      identity: "andrew",
+      checkout: { path: "/repo", head: "a".repeat(40), branch: "chore/demo", detached: false, primary: true },
+      record: recordAt("7", "/repo", { kind: "errand", key: "demo", claimId }),
+      marker: {
+        kind: "present",
+        marker: {
+          spawnedByArc: false,
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+          createdFor: { kind: "errand", slug: "demo", claimId },
+          provisioning: "ready",
+          parentCheckoutPath: "/repo-wu",
+        },
+      },
+      identities: {
+        kind: "complete",
+        tip: "3".repeat(40),
+        objects: new Map(),
+        records: new Map(),
+        projections: new Map([["demo", identity]]),
+        diagnostics: [],
+      },
+      meta: null,
+    })).toEqual({ kind: "resolved", authority: "transient", identity, meta: null });
+  });
 });
 
 describe("provisional roster classification", () => {

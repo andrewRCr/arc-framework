@@ -3,7 +3,10 @@
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import { readWorktreeMarker } from "../git/worktree-marker.js";
+import {
+  classifyTransientWorktreeProvenance,
+  readWorktreeMarkerGeneration,
+} from "../git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import {
@@ -205,7 +208,7 @@ async function readCloseOccupancy(
     if (currentCheckoutPath === "") throw new Error("Git returned no current checkout path.");
     const [currentBranch, currentMarker] = await Promise.all([
       options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
-      readWorktreeMarker(currentCheckoutPath),
+      readWorktreeMarkerGeneration(currentCheckoutPath),
     ]);
     const currentBranchName = currentBranch.stdout.trim();
     state = await readLocusState({
@@ -229,14 +232,22 @@ async function readCloseOccupancy(
     setFallbackCwd(state.roster.primaryPath);
     const [confirmedBranch, confirmedMarker] = await Promise.all([
       options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: currentCheckoutPath }),
-      readWorktreeMarker(currentCheckoutPath),
+      readWorktreeMarkerGeneration(currentCheckoutPath),
     ]);
     const confirmedBranchName = confirmedBranch.stdout.trim();
+    const expectedMarker = {
+      kind: "errand" as const,
+      slug: record.slug,
+      claimId: record.claimId,
+    };
     if (currentBranchName === options.base
       && confirmedBranchName === currentBranchName
       && currentBranchName !== record.branch
-      && currentMarker.kind === "absent"
-      && confirmedMarker.kind === "absent") {
+      && currentMarker.kind === "present"
+      && !currentMarker.marker.spawnedByArc
+      && classifyTransientWorktreeProvenance(currentMarker, expectedMarker)?.kind === "ready"
+      && confirmedMarker.kind === "present"
+      && currentMarker.bytes.equals(confirmedMarker.bytes)) {
       const checkoutIdentity = deriveLocusRecordId(currentCheckoutPath, pathFlavor);
       baseCheckoutProof = {
         recordId: checkoutIdentity.recordId,

@@ -11,6 +11,8 @@ const packageRoot = resolve(import.meta.dirname, "../..");
 const repositoryRoot = resolve(packageRoot, "../..");
 const phaseOneBase = "5c9e806dcda9eb04166695a0cf45e25b08435c7f";
 const phaseOneBaseTree = "77ef6977dd4f6c4b189ad2a100c2435086148812";
+const phaseOneAcceptance = "e6dc138d3bdd70cae0941b9f899cd6eae7a66a68";
+const phaseOneAcceptanceTree = "2e35e63c1fc53d5ffc7abf5cc3c0722b957ebe8a";
 const contractPath = "packages/arc-framework/__tests__/integration/locus-dormant-foundation-contract.test.ts";
 const comparisonBase = resolveComparisonBase();
 
@@ -97,11 +99,12 @@ describe("Phase 1 dormant locus foundation", () => {
     expect(dynamic).toEqual([]);
   });
 
-  it("limits the production delta to seven additive modules and one exact helper edit", () => {
+  it("records seven additive modules and one exact helper edit at the acceptance head", () => {
     if (comparisonBase === phaseOneBase) {
       expect(git("rev-parse", `${phaseOneBase}^{tree}`)).toBe(phaseOneBaseTree);
     }
-    expect(changedPaths("packages/arc-framework/src")).toEqual([
+    expect(git("rev-parse", `${phaseOneAcceptance}^{tree}`)).toBe(phaseOneAcceptanceTree);
+    expect(changedPathsBetween(comparisonBase, phaseOneAcceptance, "packages/arc-framework/src")).toEqual([
       "packages/arc-framework/src/lib/locus/derived-lifecycle-evidence.ts",
       "packages/arc-framework/src/lib/locus/derived-reader.ts",
       "packages/arc-framework/src/lib/locus/derived-roster.ts",
@@ -123,11 +126,13 @@ describe("Phase 1 dormant locus foundation", () => {
       "      activeExtensions: [],",
       "      activeExtensions: options.activeExtensions ?? [],",
     );
-    expect(readFileSync(join(repositoryRoot, subjectMetaPath), "utf8")).toBe(expectedSubjectMeta);
+    expect(git("show", `${phaseOneAcceptance}:${subjectMetaPath}`, { trim: false })).toBe(expectedSubjectMeta);
   });
 
-  it("keeps selected production, public, workflow, doctrine, marker, and golden surfaces byte-unchanged", () => {
-    expect(changedPaths(
+  it("records unchanged production, public, workflow, doctrine, marker, and golden acceptance surfaces", () => {
+    expect(changedPathsBetween(
+      comparisonBase,
+      phaseOneAcceptance,
       "packages/arc-framework/src/cli.ts",
       "packages/arc-framework/src/command-input-registrations.ts",
       "packages/arc-framework/src/handlers",
@@ -222,10 +227,9 @@ function isDormant(path: string): boolean {
   return dormantModules.includes(path as (typeof dormantModules)[number]);
 }
 
-function changedPaths(...pathspecs: string[]): string[] {
-  const tracked = git("diff", "--name-only", "--no-renames", comparisonBase, "--", ...pathspecs);
-  const untracked = git("ls-files", "--others", "--exclude-standard", "--", ...pathspecs);
-  return [...new Set([tracked, untracked].flatMap((output) => output === "" ? [] : output.split("\n")))].sort();
+function changedPathsBetween(base: string, target: string, ...pathspecs: string[]): string[] {
+  const tracked = git("diff", "--name-only", "--no-renames", base, target, "--", ...pathspecs);
+  return tracked === "" ? [] : tracked.split("\n").sort();
 }
 
 function resolveComparisonBase(): string {

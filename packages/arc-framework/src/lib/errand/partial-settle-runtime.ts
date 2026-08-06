@@ -3,6 +3,10 @@
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { GitExec } from "../git/exec.js";
+import {
+  readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
+} from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { createLocusMutationResult, popOwnedLocusRole, validateOwnedLocusRole } from "../locus/mutation.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../locus/platform-inspectors.js";
@@ -98,6 +102,21 @@ export async function settlePartialErrandAtRuntime(
         };
       },
       settleInbox: options.settleInbox,
+      removeMarker: async (binding) => {
+        const generation = await readWorktreeMarkerGeneration(binding.checkoutPath);
+        if (generation.kind === "absent") return null;
+        if (generation.kind !== "present"
+          || generation.marker.spawnedByArc
+          || generation.marker.createdFor?.kind !== "partial-errand"
+          || (generation.marker.originEntry ?? null) !== binding.originEntry
+          || (generation.marker.originEntrySourceDigest ?? null) !== binding.originEntrySourceDigest) {
+          return "Partial Errand marker origin changed before settlement.";
+        }
+        const removed = await removePrimaryTransientOccupancy(binding.checkoutPath, {
+          kind: "partial-errand", slug: options.slug, claimId: null,
+        });
+        return removed.kind === "removed" ? null : "Partial Errand marker generation changed before settlement.";
+      },
     },
   });
 }
@@ -139,4 +158,3 @@ async function verifyExactBase(exec: GitExec, cwd: string, base: string, expecte
     return error instanceof Error ? error.message : String(error);
   }
 }
-

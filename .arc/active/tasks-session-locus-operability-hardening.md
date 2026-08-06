@@ -197,45 +197,27 @@ _Purpose:_ Begin the second main-mergeable deliverable by establishing the compl
 by current-checkout consumers, then move status, session initialization, handoff, compaction, and recovery onto one
 derived frame. Compatibility scaffolding exists only inside this unmerged implementation sequence.
 
-### `[ ]` **2.1 Activate the complete unified-marker lifecycle for derived consumers**
+### `[x]` **2.1 Activate the complete unified-marker lifecycle for derived consumers**
 
 - _Goal:_ Every transient shape writes and clears the marker evidence the derived reader requires before any
   current-checkout consumer selects it, while the old record-backed path remains coherent inside the unmerged
   Deliverable 2 sequence.
 
-- _Context:_ This is the only temporary dual-write interval; it is removed before Deliverable 2 reaches `main`.
+    - `[x]` **2.1.a Activate primary and spawned occupancy evidence**
+        - The selected marker now carries exact primary/spawn provenance, warm-parent and partial-origin fields;
+          provisioning publishes primary evidence before checkout mutation and retains spawned pending-to-ready bytes.
 
-    - `[ ]` **2.1.a Activate primary and spawned occupancy evidence**
-        - Inventory every live transient producer and field-by-field marker reconstructor before wiring changes:
-          Errand, groom, housekeep, primary, spawned, rollback, leave, close, abandon, promotion, and partial
-          settlement. Assign dead declared operations to removal in Task 3.6 or Task 4.1 instead of preserving them.
-        - Write the unified marker before occupancy-visible primary changes and preserve the spawned pending-to-ready
-          provisioning receipt.
-        - Populate exact subject, warm-parent, and partial-origin fields from their current authoritative producers;
-          write identity-free partial Errands with the explicit `partial-errand` discriminant and `claimId: null`,
-          and continue writing the legacy record only as temporary internal compatibility through existing owning
-          runtimes, without adding a generic lifecycle service or second marker authority.
+    - `[x]` **2.1.b Complete compatible rollback and terminal cleanup**
+        - Provisioning restores exact marker/topology generations, and close, abandon, leave, partial settlement, and
+          promotion remove or convert primary/spawned evidence while the record-backed reader accepts primary markers.
 
-    - `[ ]` **2.1.b Complete compatible rollback and terminal cleanup**
-        - Restore exact prior marker bytes and topology on every primary or spawned provisioning failure.
-        - Remove primary markers and remove or convert spawned markers on close, abandon, leave, and promotion without
-          weakening existing identity, branch/`HEAD`, capture, or generation guards.
-        - Make the selected record-backed reader tolerate the new primary occupancy marker without treating it as
-          worktree-removal provenance.
+    - `[x]` **2.1.c Bind the temporary compatibility seam for later removal**
+        - Task 3.6 owns the remaining provisioning record half, record-backed terminal runtimes, selected-reader
+          tolerance, markerless dead `partial-housekeep` declaration, and their transition tests; Task 4.1 deletes the
+          retired record/lease substrate after those producers and consumers are gone.
 
-    - `[ ]` **2.1.c Bind the temporary compatibility seam for later removal**
-        - Inventory every dual-write, old-reader tolerance, and transitional test introduced here and assign its
-          deletion to Task 3.6 or Task 4.1.
-
-    - Build `test-first` (one behavior at a time):
-        - Every live transient producer and reconstructor has an exact inventory disposition; no declared marker
-          operation is silently assumed reachable.
-        - Marker bytes exist before primary occupancy becomes visible and rollback restores the exact prior state.
-        - Spawned provisioning retains pending-to-ready recovery and exact marker-generation checks.
-        - Warm-parent and partial-origin fields are complete and reject partial writes.
-        - Identity-free partial ownership cannot be confused with a legacy claimless Errand marker.
-        - Primary exit removes the marker; spawned exit or promotion preserves only allowed provenance.
-        - Existing record-backed entry, exit, and recovery behavior remains green during the internal interval.
+- _Outcome:_ One exact-generation marker lifecycle now covers every live transient allocation and exit shape while
+  retaining only the explicitly bounded, unshipped record compatibility needed by the remaining migration sequence.
 
 ### `[ ]` **2.2 Activate the entering-checkout frame beside the legacy internal frame**
 

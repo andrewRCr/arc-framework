@@ -5,6 +5,7 @@ import {
   classifyTransientWorktreeProvenance,
   readWorktreeMarker,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
 } from "../git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import {
@@ -261,8 +262,10 @@ async function prepareCheckout(
     if (!primary || worktree.branch !== options.base || checkoutPath !== options.currentCheckoutPath) {
       return refused("role-conflict", "The selected primary checkout is no longer on the configured base.");
     }
-    const marker = await readWorktreeMarker(checkoutPath);
-    return marker.kind === "absent"
+    const marker = await removePrimaryTransientOccupancy(checkoutPath, {
+      kind: "errand", slug: options.target.record.slug, claimId: options.target.record.claimId,
+    });
+    return marker.kind === "removed" || marker.kind === "absent"
       ? { kind: "ready", guardPath: checkoutPath }
       : refused("role-conflict", "The selected primary checkout carries unexpected ownership provenance.");
   }
@@ -273,14 +276,26 @@ async function prepareCheckout(
     return refused("preservation-unproven", "The occupied Errand checkout no longer carries the merged head.");
   }
   if (primary) {
-    const marker = await readWorktreeMarker(checkoutPath);
-    if (marker.kind !== "absent") {
+    const marker = await readWorktreeMarkerGeneration(checkoutPath);
+    const expected = {
+      kind: "errand" as const,
+      slug: options.target.record.slug,
+      claimId: options.target.record.claimId,
+    };
+    if (marker.kind !== "present"
+      || marker.marker.spawnedByArc
+      || classifyTransientWorktreeProvenance(marker, expected)?.kind !== "ready") {
       return refused("role-conflict", "The selected primary checkout carries unexpected ownership provenance.");
     }
     try {
       await options.exec("git", ["switch", options.base], { cwd: checkoutPath });
     } catch (error) {
       return { kind: "error", message: errorMessage(error) };
+    }
+    const removed = await removePrimaryTransientOccupancy(checkoutPath, expected);
+    if (removed.kind !== "removed") {
+      await options.exec("git", ["switch", options.target.record.branch], { cwd: checkoutPath }).catch(() => undefined);
+      return refused("role-conflict", "The selected primary checkout marker generation changed.");
     }
     const ready = await verifyCleanBase(options.exec, checkoutPath, options.base);
     if (ready.kind === "valid") return { kind: "ready", guardPath: checkoutPath };

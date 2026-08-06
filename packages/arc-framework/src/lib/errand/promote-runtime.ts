@@ -12,6 +12,7 @@ import { normalizeGitRejection } from "../git/process-error.js";
 import {
   decodeWorktreeMarkerOwnership,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
   replaceWorktreeMarkerGeneration,
   type WorktreeMarker,
 } from "../git/worktree-marker.js";
@@ -289,6 +290,12 @@ async function applyLocalEvidence(
       const marker = await convertSpawnedMarker(row.checkoutPath, record, options.name);
       if (marker.kind === "refused" || marker.kind === "error") return marker;
       changed ||= marker.kind === "applied";
+    } else {
+      const marker = await removePrimaryTransientOccupancy(row.checkoutPath, {
+        kind: "errand", slug: record.slug, claimId: record.claimId,
+      });
+      if (marker.kind === "refused") return refused("role-conflict", "Primary promotion marker changed.");
+      changed ||= marker.kind === "removed";
     }
     return { kind: changed ? "applied" : "idempotent" };
   } catch (error) {
