@@ -1,0 +1,1 @@
+{"edges":[],"kind":"decompose","origin":"chunked-delivery","schemaVersion":1,"successors":["delivery-integration-target","delivery-plan-record","delivery-review-cardinality","delivery-stack-topology"]}

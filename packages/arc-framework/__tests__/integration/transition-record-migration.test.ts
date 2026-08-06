@@ -11,6 +11,8 @@ import {
   validateRetirementRecordEnumeration,
   type RetirementRecordEnumerationResult,
 } from "../../src/lib/work-unit/retirement-record-enumeration.js";
+import { validateTransitionRecordEnumeration } from "../../src/lib/work-unit/transition-record-enumeration.js";
+import { parseTransitionRecord, serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
 import {
   EXCLUDED_PARK_ORACLE,
   TERMINAL_TRANSITION_ORACLE,
@@ -18,6 +20,14 @@ import {
 
 const LEGACY_FIXTURE_DIRECTORY = fileURLToPath(new URL(
   "../fixtures/transition-record-migration/legacy",
+  import.meta.url,
+));
+const REPOSITORY_RETIREMENT_DIRECTORY = fileURLToPath(new URL(
+  "../../../../.arc/system/.internal/retirement-receipts",
+  import.meta.url,
+));
+const REPOSITORY_TRANSITION_DIRECTORY = fileURLToPath(new URL(
+  "../../../../.arc/system/.internal/transitions",
   import.meta.url,
 ));
 
@@ -97,5 +107,47 @@ describe("live transition record migration fixture", () => {
         .map(({ reference }) => reference)
         .sort((left, right) => left.subject.localeCompare(right.subject)));
     expect(projected.transitions.some(({ subject }) => subject === EXCLUDED_PARK_ORACLE.origin)).toBe(false);
+  });
+
+  it("materializes exactly eight canonical lean records without changing legacy bytes", async () => {
+    const legacyFilenames = (await readdir(LEGACY_FIXTURE_DIRECTORY)).sort();
+    expect((await readdir(REPOSITORY_RETIREMENT_DIRECTORY)).sort()).toEqual(legacyFilenames);
+    for (const filename of legacyFilenames) {
+      expect(await readFile(`${REPOSITORY_RETIREMENT_DIRECTORY}/${filename}`))
+        .toEqual(await readFile(`${LEGACY_FIXTURE_DIRECTORY}/${filename}`));
+    }
+
+    const filenames = (await readdir(REPOSITORY_TRANSITION_DIRECTORY)).sort();
+    expect(filenames).toEqual(TERMINAL_TRANSITION_ORACLE
+      .map(({ origin }) => `${origin}.json`)
+      .sort());
+    expect(filenames).not.toContain(`${EXCLUDED_PARK_ORACLE.origin}.json`);
+    const contents = await Promise.all(filenames.map(async (filename) => ({
+      filename,
+      content: await readFile(`${REPOSITORY_TRANSITION_DIRECTORY}/${filename}`),
+    })));
+    const enumeration = validateTransitionRecordEnumeration(contents.map(({ filename, content }) => ({
+      filename,
+      mode: "100644",
+      type: "blob",
+      content,
+    })));
+    expect(enumeration.status).toBe("valid");
+    if (enumeration.status !== "valid") return;
+    expect(enumeration.groups).toHaveLength(8);
+    expect(enumeration.groups.map(({ origin, records }) => {
+      expect(records).toHaveLength(1);
+      const record = records[0];
+      if (record === undefined) throw new Error(`missing record for ${origin}`);
+      return { origin, kind: record.kind, successors: record.successors, edges: record.edges };
+    })).toEqual(TERMINAL_TRANSITION_ORACLE
+      .map(({ origin, kind, successors }) => ({ origin, kind, successors: [...successors], edges: [] }))
+      .sort((left, right) => left.origin.localeCompare(right.origin)));
+    for (const { filename, content } of contents) {
+      const text = content.toString("utf8");
+      const record = parseTransitionRecord(text);
+      expect(record, filename).not.toBeNull();
+      expect(record === null ? null : serializeTransitionRecord(record), filename).toBe(text);
+    }
   });
 });

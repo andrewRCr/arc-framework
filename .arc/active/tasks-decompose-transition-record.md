@@ -130,25 +130,21 @@ and after conversion, and leave the non-terminal park record for its authorizati
 - _Outcome:_ The live migration now has a byte-exact legacy input set and reader-independent semantic authority;
   both disposition and reference regressions are detectable before any repository record moves.
 
-### `[ ]` **2.2 Convert the eight terminal records to the lean namespace**
+### `[x]` **2.2 Convert the eight terminal records to the lean namespace**
 
 - _Goal:_ The repository contains exactly eight schema-v1 terminal records that losslessly project past authored
   decisions, while the park receipt remains available until its authorization consumer trace completes.
 
-    - `[ ]` **2.2.a Materialize the direct-transition records**
-        - Add origin-named transition records for the five named abandon histories and the two named rename pairs in
-          Task 2.1's literal inventory, with deterministic JSON formatting and kind-valid successor cardinality.
-        - Keep all nine old records byte-identical through the migration, authorization, and removal traces; Task
-          4.9 is their sole repository-data deletion point.
+    - `[x]` **2.2.a Materialize the direct-transition records**
+        - Added canonical origin-named records for the five abandon and two rename histories while preserving all
+          nine retirement receipts byte-for-byte for the remaining authorization and removal traces.
 
-    - `[ ]` **2.2.b Materialize the decompose transition**
-        - Convert `chunked-delivery` from its completed map and authoring projection, preserving the exact ordered
-          successor set `delivery-integration-target`, `delivery-plan-record`, `delivery-review-cardinality`, and
-          `delivery-stack-topology`, plus an empty `edges` list.
-        - Write no digest, preparation, finalization, publication, or continuation field and do not convert the
-          `decompose-extraction` park receipt.
-        - Assert the repository now has exactly eight lean files, no park transition record, and the nine unchanged
-          old files.
+    - `[x]` **2.2.b Materialize the decompose transition**
+        - Added the canonical `chunked-delivery` record with its four ordered successors and no edges or sealed
+          fields; repository assertions require exactly eight lean origins, no park record, and unchanged old bytes.
+
+- _Outcome:_ The repository now carries exactly the eight terminal decisions in canonical lean form while the
+  complete legacy namespace remains intact for equivalence and authorization cutover.
 
 ### `[ ]` **2.3 Prove live query and reconcile equivalence**
 
