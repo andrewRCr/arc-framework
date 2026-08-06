@@ -151,7 +151,11 @@ export function promoteOccupancyMarker(
   marker: TransientOccupancyMarker,
   workUnitName: string,
 ): { readonly kind: "replace-marker"; readonly marker: OccupancyMarker }
-  | { readonly kind: "remove-marker" } {
+  | { readonly kind: "remove-marker" }
+  | { readonly kind: "invalid"; readonly reason: "invalid-work-unit-name" } {
+  if (marker.spawnedByArc && !SlugSchema.safeParse(workUnitName).success) {
+    return { kind: "invalid", reason: "invalid-work-unit-name" };
+  }
   return marker.spawnedByArc
     ? {
         kind: "replace-marker",

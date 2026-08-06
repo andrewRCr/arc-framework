@@ -33,7 +33,7 @@ export type DormantMarkerGenerationEvidence =
 
 interface SelectedActiveMeta {
   readonly kind: "present";
-  readonly location: "active" | "parked";
+  readonly location: "active";
   readonly subject: DerivedWorkUnitSubject;
   readonly expectedTopology: SubjectTopologyExpectation;
   readonly metaRoot: { readonly kind: "maintainer" } | {
@@ -51,7 +51,8 @@ export type ActiveMetaEvidence =
   | { readonly kind: "conflicting"; readonly reason: string; readonly paths: readonly string[] }
   | SelectedActiveMeta;
 
-type MetaRootEvidence = { readonly kind: "listed"; readonly path: string }
+/** Injected listing evidence for one active-meta root directory. */
+export type MetaRootEvidence = { readonly kind: "listed"; readonly path: string }
   | { readonly kind: "error"; readonly path: string; readonly message: string };
 
 interface ParsedCandidate {
@@ -240,7 +241,9 @@ export function projectIdentityAuthority(
       kind: "unreadable",
       reason: diagnostic === undefined
         ? "Marker-selected transient has no exact identity entry"
-        : `Transient identity entry is ${diagnostic.kind}`,
+        : `Transient identity entry is ${diagnostic.kind}${
+          "message" in diagnostic ? `: ${diagnostic.message}` : ""
+        }`,
     };
   }
   return {

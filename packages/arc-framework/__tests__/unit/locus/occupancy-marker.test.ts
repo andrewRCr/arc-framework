@@ -133,6 +133,19 @@ describe("dormant occupancy marker projection", () => {
     expect(parseOccupancyMarker(JSON.stringify(invalid))).toMatchObject({ kind: "malformed" });
   });
 
+  it("distinguishes invalid JSON from valid non-record marker content", () => {
+    expect(parseOccupancyMarker("not JSON")).toEqual({
+      kind: "malformed",
+      message: "Occupancy marker is not valid JSON",
+    });
+    for (const content of ["[]", "null", '"text"', "12"]) {
+      expect(parseOccupancyMarker(content)).toEqual({
+        kind: "malformed",
+        message: "Occupancy marker has an invalid shape",
+      });
+    }
+  });
+
   it("validates primary-only and spawned-only provenance at topology composition", () => {
     const primary = { ...spawnedErrand, spawnedByArc: false };
     expect(validateOccupancyMarkerTopology(primary, { primary: true }))
@@ -168,5 +181,9 @@ describe("dormant occupancy marker projection", () => {
       provisioning: "ready",
     };
     expect(promoteOccupancyMarker(primary, "widget")).toEqual({ kind: "remove-marker" });
+    expect(promoteOccupancyMarker(spawnedErrand, "../invalid")).toEqual({
+      kind: "invalid",
+      reason: "invalid-work-unit-name",
+    });
   });
 });

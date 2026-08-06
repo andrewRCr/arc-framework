@@ -132,6 +132,48 @@ describe("checkout role derivation", () => {
     });
   });
 
+  it("unresolves contradictory topology from authorities selecting one subject", () => {
+    expect(deriveCheckoutRole(authorityFacts({
+      marker: {
+        kind: "present",
+        subject: { kind: "work-unit", key: "widget" },
+        expectedTopology: { branch: "feat/widget" },
+      },
+      lifecycle: {
+        kind: "present",
+        state: "active",
+        subject: { kind: "work-unit", key: "widget" },
+        expectedTopology: { branch: "feat/other" },
+      },
+    }))).toMatchObject({
+      kind: "unresolved-checkout",
+      diagnostics: [{
+        code: "authority-conflict",
+        source: "combined",
+        message: "Authority evidence assigns contradictory expected topology",
+      }],
+    });
+  });
+
+  it("merges complementary topology from authorities selecting one subject", () => {
+    expect(deriveCheckoutRole(authorityFacts({
+      marker: {
+        kind: "present",
+        subject: { kind: "work-unit", key: "widget" },
+        expectedTopology: { branch: "feat/widget" },
+      },
+      lifecycle: {
+        kind: "present",
+        state: "active",
+        subject: { kind: "work-unit", key: "widget" },
+        expectedTopology: { head: "a".repeat(40), detached: false },
+      },
+    }))).toMatchObject({
+      kind: "work-unit",
+      expectedTopology: { branch: "feat/widget", head: "a".repeat(40), detached: false },
+    });
+  });
+
   it("composes free-primary only from positive clean configured-base safety", () => {
     const unoccupied = deriveCheckoutRole(authorityFacts({
       topology: { path: "/repo", primary: true },
