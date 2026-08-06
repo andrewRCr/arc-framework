@@ -74,6 +74,8 @@ interface ModuleReference {
   readonly kind: "static" | "dynamic";
 }
 
+const referenceCache = new Map<"src" | "__tests__", readonly ModuleReference[]>();
+
 describe("Phase 1 dormant locus foundation", () => {
   it("has a closed exact incoming graph with tests as its only outside consumers", () => {
     const sourceReferences = referencesUnder("src");
@@ -149,7 +151,15 @@ describe("Phase 1 dormant locus foundation", () => {
 });
 
 function referencesUnder(root: "src" | "__tests__"): ModuleReference[] {
-  return typescriptFiles(join(packageRoot, root)).flatMap((path) => referencesOf(path));
+  const cached = referenceCache.get(root);
+  if (cached !== undefined) return [...cached];
+  const moduleNames = dormantModules.map((path) => path.split("/").at(-1)?.replace(/\.ts$/u, "") ?? path);
+  const references = typescriptFiles(join(packageRoot, root)).flatMap((path) => {
+    const content = readFileSync(path, "utf8");
+    return moduleNames.some((name) => content.includes(name)) ? referencesOf(path, content) : [];
+  });
+  referenceCache.set(root, references);
+  return references;
 }
 
 function typescriptFiles(root: string): string[] {
@@ -160,8 +170,8 @@ function typescriptFiles(root: string): string[] {
   });
 }
 
-function referencesOf(path: string): ModuleReference[] {
-  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+function referencesOf(path: string, content: string): ModuleReference[] {
+  const source = ts.createSourceFile(path, content, ts.ScriptTarget.Latest, true);
   const consumer = packageRelative(path);
   const references: ModuleReference[] = [];
   const add = (specifier: string, kind: ModuleReference["kind"]): void => {
