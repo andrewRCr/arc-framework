@@ -219,8 +219,9 @@ These choices are independently selectable and default off. Configure only the l
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
   arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
 - **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want
-  `arc merge lock` / draft-PR structural hold semantics. See ADR-031 and [Auto-Merge Lane][work-org-auto-merge]
-  for the draft-lock model; this is a config opt-in, not a required-status install ceremony.
+  `arc merge lock` / draft-PR structural hold semantics. Opens work-unit PRs locked (draft) and releases only at
+  the lifecycle-ready exact-head interlock; the classifier and integration interlock remain arming and merge
+  authorities. See [Auto-Merge Lane][work-org-auto-merge]. Config opt-in only — no install ceremony.
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -327,7 +328,7 @@ These repository choices remain independently selectable and default off:
   available.
 - **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
 - **Draft-state merge lock** — set `merge.lock: draft` (or leave `none`) for draft-PR structural hold; use
-  existing `arc merge lock` verbs and ADR-031 / work-organization doctrine for semantics.
+  existing `arc merge lock` verbs. See [Auto-Merge Lane][work-org-auto-merge] for the draft-lock model.
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation
