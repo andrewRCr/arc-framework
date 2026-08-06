@@ -175,23 +175,21 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 
 - _Note:_ The canonical `stack-to-main` delivery plan records intent only and does not construct or land this member.
 
-    - `[ ]` **1.7.a Construct the non-final delivery projection**
-        - Keep the managed checkout on the WU control branch and project only the reviewed Phase 1 payload onto a
-          disposable member ref based on the current protected-base head.
-        - Exclude `.arc/active/meta-session-locus-operability-hardening.md`,
-          `.arc/active/notes-session-locus-operability-hardening.md`,
-          `.arc/active/spec-session-locus-operability-hardening.md`, and
-          `.arc/active/tasks-session-locus-operability-hardening.md`.
-        - Exclude only `ROADMAP.md`, readiness, archive, completion, or retirement hunks attributable solely to this
-          WU's non-final lifecycle settlement; verify with ordinary Git path/hunk comparisons that the member equals
-          the reviewed implementation payload minus those exclusions.
+    - `[x]` **1.7.a Construct the non-final delivery projection**
+        - Projected the 18-file Phase 1 implementation payload from control head `bb91afcc1` onto disposable member
+          `deliver/session-locus-dormant-foundation`, excluding all four active WU artifacts and non-final lifecycle
+          settlement surfaces; normalized source/member patch IDs both resolve to `3f7a2558c50a4515a19d3a311fa9221db9a71199`.
 
-    - `[ ]` **1.7.b Prove the member against its actual base**
-        - Run the full relevant quality gates at the projected head and repeat the behavioral-dormancy checks.
-        - Confirm `main` remains supported if Deliverable 2 never lands and no shipped doctrine claims the retirement
-          has happened.
+    - `[x]` **1.7.b Prove the member against its actual base**
+        - Rebased the unpushed member onto current `main` `638c3a2bc` after PR #467 landed, then passed both lints,
+          both type checks, the production build, and the complete suite (9,785 passed, 1 skipped); the acceptance
+          contract proves the dormant reader remains unselected and protected producer, consumer, and doctrine
+          surfaces remain unchanged.
 
     - `[ ]` **1.7.c Publish and verify only the exact authorized member**
+        - Published head `abbd37e6759416cb527bb50a6ce7fc6267173c1f` (tree
+          `e1b4fb3a63f878b1c21d89f8bcd43b40777e3876`) over base `638c3a2bcd8a6cc481384359ae28c61da9471831`
+          (tree `9e1dae06d066c7e06f02de5ef1703e5c334cd50a`) in draft PR #468.
         - Push the member ref, open its pull request directly to `main`, and record exact base/head/PR coordinates on
           the control branch without treating them as ARC delivery state.
         - Recompose the exact member target through the review driver; require current checks, complete non-author
