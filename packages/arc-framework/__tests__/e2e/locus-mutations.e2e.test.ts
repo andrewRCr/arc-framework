@@ -165,18 +165,18 @@ describe("arc locus mutation commands", () => {
       recordId: first.recordId,
     });
     expect(replacement.leaseId).not.toBe(first.leaseId);
-    expect(recovered.results[1]).toMatchObject({
+    const handoff = recovered.results[1];
+    expect(handoff).toMatchObject({
       mode: "session-handoff",
       handoffLocus: {
         ok: true,
         value: {
-          kind: "release-work-unit",
-          recordId: replacement.recordId,
-          leaseId: replacement.leaseId,
-          checkoutPath: linkedCheckout,
+          checkoutPath: repository,
         },
       },
     });
+    expect(JSON.stringify(handoff)).not.toContain("recordId");
+    expect(JSON.stringify(handoff)).not.toContain("leaseId");
 
     const released = await runAnchored([
       "locus", "release", replacement.recordId, "--lease", replacement.leaseId, "--json",

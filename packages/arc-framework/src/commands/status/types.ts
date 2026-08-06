@@ -505,11 +505,11 @@ export interface HandoffPathSet {
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
-  /** CLI-precomposed narration derived from the same locus probe. */
+  /** Entering-checkout projection that exclusively selects the handoff subject. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
+  /** CLI-precomposed narration derived from the entering-checkout projection. */
   locusGuidance: LocusSessionGuidance;
-  /** Exact subject action derived from the same reader-owned locus snapshot. */
+  /** Exact subject action derived from the same entering-checkout frame. */
   handoffLocus: Probe<HandoffLocusPlan>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
@@ -572,12 +572,8 @@ export interface SessionHandoffResult {
 }
 
 /**
- * Probe slots shared by both session-scoped entry points (`session-init` and
- * `session-handoff`). The two probe interfaces below extend this base so the
- * five slots stay declared once — the orchestrator starts them through one
- * `buildSessionSharedSlots` ResultAsync source rather than re-declaring each
- * per entry point. Full mode (`StatusProbes`) shares only the `user`
- * identity-missing primitive because its `user` / `active` signatures differ.
+ * Common session-init probes retained beside its derived-frame producer while
+ * the legacy envelope slots remain selected during migration.
  */
 export interface SessionSharedProbes {
   /** Resolve the shared, network-free machine-local locus interpretation. */
@@ -774,8 +770,18 @@ export interface SessionRecoverProbes {
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
-export interface SessionHandoffProbes extends SessionSharedProbes {
-  worktreeIdentity: () => Promise<WorktreeIdentity>;
+export interface SessionHandoffProbes {
+  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  worktree: () => Promise<WorktreeSyncStatusResult>;
+  dirty: () => Promise<DirtyStateResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
+  /** Resolve the entering checkout with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
+  /** Resolve active extensions before composing the derived WU projection. */
+  extensions: () => Promise<ExtensionsSessionInitResult>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;

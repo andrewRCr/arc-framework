@@ -738,13 +738,13 @@ function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
   return {
-    locusState: vi.fn(async () => locusState()),
-    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+      derivedFrameFromActive(activeSessionInit(), identity, activeExtensions, null, null)),
+    extensions: vi.fn(async () => extensionsSessionInit()),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
     syncInterlock: vi.fn(async () => handoffSyncInterlock()),
-    active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     restateCandidates: vi.fn(async () => restateCandidates()),
@@ -775,7 +775,6 @@ describe("runStatus — orchestration", () => {
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
   });
 
@@ -917,7 +916,8 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
     expect(probes.errandState).toHaveBeenCalledTimes(1);
@@ -2950,7 +2950,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
     expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
@@ -2958,7 +2959,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.inboxState).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
-    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+    expect(probes.derivedLocusState).toHaveBeenCalledWith("andrew", []);
   });
 
   it("exposes the releaseRouting slot with ok=true on success", async () => {
@@ -3002,13 +3003,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(Object.keys(result).sort()).toEqual([
       "active",
       "branch",
+      "derivedLocusState",
       "dirty",
       "handoffLocus",
       "head",
       "identity",
       "inboxState",
       "locusGuidance",
-      "locusState",
       "mode",
       "pathSet",
       "pushability",
@@ -3032,12 +3033,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("emits resolved handoff pathSet from handler-supplied resolvers", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
+      derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+        derivedFrameFromActive(activeSessionInit({
           resolution: "single",
           path: ".arc/active/meta-example-wu.md",
           sessionType: "execution",
-        }),
+        }), identity, activeExtensions, null, null),
       ),
     });
     const sessionNotesPath = vi.fn(
@@ -3062,15 +3063,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it("nulls pathSet fields when identity is absent", async () => {
-    const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/meta-example-wu.md",
-          sessionType: "execution",
-        }),
-      ),
-    });
+    const probes = sessionHandoffProbes();
     const result = await runSessionHandoffStatus({
       identity: null,
       role: "maintainer",
@@ -3131,10 +3124,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("uses the active WU name for the handoff safe missing SESSION-NOTES sub-case", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () => activeSessionInit({
-        resolution: "single",
-        path: ".arc/active/meta-my-wu.md",
-      })),
+      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-my-wu.md" }),
+        identity,
+        activeExtensions,
+        null,
+        null,
+      )),
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -3499,14 +3495,15 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
-  it("returns the resolved active status file path from the active probe", async () => {
+  it("returns the resolved active status file path from the derived entering row", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/technical/meta-foo.md",
-        }),
-      ),
+      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+        activeSessionInit({ resolution: "single", path: ".arc/active/technical/meta-foo.md" }),
+        identity,
+        activeExtensions,
+        null,
+        null,
+      )),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -3562,7 +3559,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).not.toHaveBeenCalled();
     expect(probes.head).toHaveBeenCalledTimes(1);
   });
 
@@ -3608,7 +3605,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
       syncInterlock: tracked(handoffSyncInterlock()),
-      active: tracked(activeSessionInit()),
+      extensions: tracked(extensionsSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({

@@ -487,8 +487,12 @@ function makeResolvedReleaseModeSessionHandoffProbes(
   };
 
   return {
-    locusState: async () => locusStateFixture({ rows: [] }),
-    worktreeIdentity: async () => ({ kind: "primary" }),
+    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+      identity,
+      activeExtensions,
+    ),
+    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -497,7 +501,6 @@ function makeResolvedReleaseModeSessionHandoffProbes(
       const source = resolved.source === "yaml" ? "default" : resolved.source;
       return { value: resolved.value, source };
     },
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     head: async () => ({ hash: "abc1234" }),
     pushability: async () => ({ allowed: true, conditions: [] }),
     restateCandidates: async () => ({

@@ -441,15 +441,17 @@ export async function handleStatus(
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
-      locusState: async (id) => {
+      derivedLocusState: async (id, activeExtensions) => {
         const resolved = await resolvedSettingsP;
-        return runLocusStateProbe({
+        return runDerivedLocusStateProbe({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
+          activeExtensions,
           exec,
         });
       },
+      extensions: () => runExtensionsSessionInitStatus({ cwd }),
       dirty: () => runDirtyStateStatus({ exec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
@@ -470,7 +472,6 @@ export async function handleStatus(
         const source = resolved.source === "yaml" ? "default" : resolved.source;
         return { value: resolved.value, source };
       },
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       head: () => runHeadHashStatus({ exec }),
       pushability: () => runPushabilityStatus({
         exec,
@@ -489,7 +490,6 @@ export async function handleStatus(
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
-      worktreeIdentity: () => resolveWorktreeIdentity(exec),
     };
     // Do not await userSurfacesFor here: a rejection would abort the composite
     // before safeProbe handling. Resolution runs inside runSessionHandoffStatus

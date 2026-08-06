@@ -76,7 +76,12 @@ describe("locus methodology contracts", () => {
       );
       expect(handoff).not.toContain("`handoffLocus.kind");
       expect(handoff).toContain("Never select the handoff subject from a branch prefix");
-      expect(handoff).toContain("`release-work-unit` with null `leaseId` — release nothing");
+      expect(handoff).toContain("`derivedLocusState`      | Required entering-checkout frame");
+      expect(handoff).toContain("`release-work-unit` — write no generic locus state");
+      expect(handoff).toContain("prior result's exact\n   `parentCheckoutPath`");
+      expect(handoff).not.toContain("arc locus release");
+      expect(handoff).not.toContain("`recordId`");
+      expect(handoff).not.toContain("`leaseId`");
       expect(handoff).toContain("If the composite call itself fails, surface the failure and stop.");
       expect(handoff).not.toContain("Probe failure fallback");
 

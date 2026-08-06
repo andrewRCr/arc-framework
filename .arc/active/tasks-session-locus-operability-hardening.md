@@ -256,34 +256,22 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
 - _Outcome:_ Session initialization now projects its complete WU context and narration from one selected checkout;
   extension membership, routing fields, and failure behavior cannot drift through duplicate readers.
 
-### `[ ]` **2.4 Derive handoff from current-checkout subject facts**
+### `[x]` **2.4 Derive handoff from current-checkout subject facts**
 
 - _Goal:_ Handoff derives its action solely from the current checkout's WU, transient, partial-settlement, or
   between-WUs facts and writes no generic locus release state.
 
-    - `[ ]` **2.4.a Rewrite the handoff plan around the current row**
-        - Project resolved WUs to release-work-unit context, agreeing marker/identity transients to leave context,
-          partial markers to partial settlement, and absence to between-WUs.
-        - Preserve `groom-incomplete` and `housekeep-incomplete` for their exact transient subjects, and keep the
-          identity-free partial-Errand refusal distinct from ordinary `leave-errand` dispatch.
-        - Carry warm-parent return only from `parentCheckoutPath` on the current marker.
-        - Limit results to the exact subject, current checkout path, optional marker parent, and required
-          workflow/session projection; persist no replacement authority or generic release state.
+    - `[x]` **2.4.a Rewrite the handoff plan around the current row**
+        - Handoff now maps the exact entering row to WU preservation, ordinary Errand leave, workflow-specific
+          transient refusal, or between-WUs context; warm return comes only from the marker parent path.
 
-    - `[ ]` **2.4.b Remove record and lease handoff contracts**
-        - Delete duplicate-record, lease freshness, session-home, and generation checks whose only authority came from
-          locus state.
-        - Remove `leaseId`, `recordId`, and emitted or invoked `arc locus release`; process exit persists no locus
-          mutation.
-        - Update the package-source session-handoff workflow with the result contract and sync its self-hosting copy.
+    - `[x]` **2.4.b Remove record and lease handoff contracts**
+        - The handoff envelope, plan union, handler probes, and package/self-hosted workflow no longer expose or
+          consume record/lease identifiers or invoke generic locus release.
 
-    - Build `test-first` (one behavior at a time):
-        - WU, ordinary Errand, groom, housekeep, partial Errand, and between-WUs plans derive from cwd-local facts only.
-        - Groom, housekeep, and partial shapes return their exact workflow-specific refusal rather than an ordinary
-          Errand leave result.
-        - Warm transient handoff exposes the exact marker parent path.
-        - Malformed sibling state cannot refuse a healthy handoff.
-        - Results and rendered instructions contain no record/lease identifiers or locus-release command.
+- _Outcome:_ Session handoff now shares session-init's exact entering-checkout authority while retaining subject-owned
+  Errand settlement and WU workflow/session context; sibling state is diagnostic only and process exit writes no
+  generic occupancy state.
 
 ### `[ ]` **2.5 Reduce compaction seeds and recovery to checkout and marker-parent facts**
 

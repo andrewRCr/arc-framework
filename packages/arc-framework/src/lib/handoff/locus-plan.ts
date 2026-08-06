@@ -1,16 +1,18 @@
-/** Deterministic handoff action selected from one reader-owned locus snapshot. */
+/** Deterministic handoff action selected from the exact entering checkout row. */
 
 import { z } from "zod";
 
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import type {
+  DerivedTransientSubject,
+  DerivedWorkUnitSubject,
+} from "../locus/role-derivation.js";
 import {
   LocusAbsolutePathSchema,
-  LocusDigestSchema,
   LocusOpaqueTextSchema,
   LocusTokenSchema,
-  type LocusRowV1,
-  type LocusStateV1,
 } from "../locus/schema/index.js";
-import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
 
 const HandoffRefusalReasonSchema = z.enum([
   "locus-unresolved",
@@ -20,168 +22,166 @@ const HandoffRefusalReasonSchema = z.enum([
   "preservation-unproven",
 ]);
 
-/** Exact next operation for releasing the current session frame at handoff. */
-export const HandoffLocusPlanSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("between-work-units") }),
+const WorkUnitSubjectSchema = z.strictObject({
+  kind: z.literal("work-unit"),
+  key: LocusOpaqueTextSchema,
+});
+
+const TransientSubjectSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("partial-errand"), key: LocusOpaqueTextSchema, claimId: z.null() }),
   z.strictObject({
-    kind: z.literal("release-work-unit"),
-    recordId: LocusDigestSchema,
-    leaseId: LocusTokenSchema.nullable(),
+    kind: z.enum(["errand", "groom", "housekeep"]),
+    key: LocusOpaqueTextSchema,
+    claimId: LocusTokenSchema,
+  }),
+]);
+
+const HandoffSubjectSchema = z.union([WorkUnitSubjectSchema, TransientSubjectSchema]);
+
+/** Exact next operation for preserving or closing the current checkout at handoff. */
+export const HandoffLocusPlanSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("between-work-units"),
     checkoutPath: LocusAbsolutePathSchema,
   }),
   z.strictObject({
-    kind: z.literal("leave-errand"),
-    slug: LocusOpaqueTextSchema,
-    claimId: LocusTokenSchema,
-    recordId: LocusDigestSchema,
-    leaseId: LocusTokenSchema,
+    kind: z.literal("release-work-unit"),
+    subject: WorkUnitSubjectSchema,
     checkoutPath: LocusAbsolutePathSchema,
-    parentRecordId: LocusDigestSchema.nullable(),
+    workflow: LocusOpaqueTextSchema,
+    sessionType: z.enum(["planning", "execution", "integration"]),
+  }),
+  z.strictObject({
+    kind: z.literal("leave-errand"),
+    subject: TransientSubjectSchema.and(z.object({ kind: z.literal("errand") })),
+    checkoutPath: LocusAbsolutePathSchema,
     parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
   }),
   z.strictObject({
     kind: z.literal("refused"),
     reason: HandoffRefusalReasonSchema,
-    recordId: LocusDigestSchema.nullable(),
+    subject: HandoffSubjectSchema.nullable(),
+    checkoutPath: LocusAbsolutePathSchema,
+    parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
     recommendedPromptText: LocusOpaqueTextSchema,
   }),
 ]);
 
 export type HandoffLocusPlan = z.infer<typeof HandoffLocusPlanSchema>;
 
-/**
- * Derive handoff's subject action before any branch or active-meta heuristic.
- *
- * @param state - Reader-owned locus state for the handoff snapshot.
- * @param checkoutPath - Exact physical checkout running the handoff.
- * @returns The generation-bound handoff action or refusal.
- */
-export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string): HandoffLocusPlan {
-  if (state.current.kind === "none") {
-    if (state.recovery.kind !== "none") {
-      return refusal("locus-unresolved", null, "Resolve the retained session locus residue before handing off.");
-    }
-    const selected = selectCheckoutWorkUnit(state, checkoutPath);
-    if (selected.kind === "ambiguous") {
-      return refusal("locus-unresolved", null, "Resolve the ambiguous checkout role before handing off.");
-    }
-    if (selected.kind === "none") return { kind: "between-work-units" };
-    if (!isIdleWorkUnitRow(selected.row)) {
-      return refusal(
-        "locus-unresolved",
-        selected.row.recordId,
-        "The current work-unit checkout is not an idle managed frame.",
-      );
-    }
-    return HandoffLocusPlanSchema.parse({
-      kind: "release-work-unit",
-      recordId: selected.row.recordId,
-      leaseId: null,
-      checkoutPath: selected.row.checkoutPath,
-    });
-  }
-  if (state.current.kind === "ambiguous") {
-    return refusal("locus-unresolved", null, "Resolve the ambiguous current session locus before handing off.");
-  }
-  if (state.recovery.kind !== "resume"
-    || state.recovery.activeRecordId !== state.current.activeRecordId
-    || state.recovery.parentRecordId !== state.current.parentRecordId) {
-    return refusal("locus-unresolved", state.current.activeRecordId, "Refresh the changed session locus generation before handing off.");
-  }
-
-  const active = exactRow(state.roster.rows, state.current.activeRecordId);
-  if (active === null
-    || active.kind !== "managed-role"
-    || active.checkoutPath === null
-    || active.role === null
-    || active.lease === null
-    || active.lease.state !== "live"
-    || active.frame !== "active"
-    || active.diagnostics.length > 0) {
-    return refusal("locus-unresolved", state.current.activeRecordId, "The current session locus generation is incomplete or changed.");
-  }
-
-  if (active.role.kind === "work-unit") {
-    if (state.current.parentRecordId !== null || state.current.sessionHomeRecordId !== active.recordId) {
-      return refusal("locus-unresolved", active.recordId, "The selected work-unit frame has an invalid parent edge.");
-    }
-    return HandoffLocusPlanSchema.parse({
-      kind: "release-work-unit",
-      recordId: active.recordId,
-      leaseId: active.lease.leaseId,
-      checkoutPath: active.checkoutPath,
+/** Derive handoff solely from the reader-selected current checkout. */
+export function deriveHandoffLocusPlan(frame: DerivedLocusFrame): HandoffLocusPlan {
+  if (frame.entering.kind === "unresolved") {
+    return refusal({
+      row: null,
+      checkoutPath: frame.entering.checkoutPath,
+      reason: "locus-unresolved",
+      message: `Current checkout handoff facts are unresolved: ${diagnosticText(frame.entering.diagnostics)}`,
     });
   }
 
-  const parent = validateParent(state, active);
-  if (parent === undefined) {
-    return refusal("locus-unresolved", active.recordId, "The selected transient frame has an invalid parent edge.");
+  const row = frame.entering.row;
+  if (row.kind === "free-primary" || row.kind === "unmanaged-checkout") {
+    return HandoffLocusPlanSchema.parse({
+      kind: "between-work-units",
+      checkoutPath: row.checkout.path,
+    });
   }
-  if (active.role.kind === "housekeep") {
-    return refusal("housekeep-incomplete", active.recordId, "Complete or abandon housekeeping before handing off.");
+  if (row.kind === "unresolved-checkout" || row.kind === "retired") {
+    return refusal({
+      row,
+      reason: "locus-unresolved",
+      message: row.kind === "retired"
+        ? "The current checkout is retired and cannot be handed off as active work."
+        : `Current checkout handoff facts are unresolved: ${diagnosticText(row.diagnostics)}`,
+    });
   }
-  if (active.role.kind === "groom") {
-    return refusal("groom-incomplete", active.recordId, "Ship, close, or abandon grooming before handing off.");
+  if (row.kind === "work-unit" && row.subject.kind === "work-unit") {
+    return workUnitPlan(row, row.subject);
   }
-  if (active.role.kind !== "errand") {
-    return refusal("locus-unresolved", active.recordId, "The selected transient role is unsupported at handoff.");
+  if (row.kind === "transient" && row.subject.kind !== "work-unit") {
+    return transientPlan(row, row.subject);
   }
-  if (active.role.subject.kind === "partial-errand") {
-    return refusal(
-      "partial-handoff-forbidden",
-      active.recordId,
-      "Finish, promote, or abandon the partial Errand before handing off.",
-    );
+  return refusal({
+    row,
+    reason: "locus-unresolved",
+    message: "The current checkout subject does not match its derived role.",
+  });
+}
+
+function workUnitPlan(row: DerivedCheckoutRow, subject: DerivedWorkUnitSubject): HandoffLocusPlan {
+  const context = row.context;
+  if (context === null || context.workflow === null || context.sessionType === null) {
+    return refusal({
+      row,
+      reason: "locus-unresolved",
+      message: "The current work-unit checkout has no complete workflow/session projection.",
+    });
   }
-  const identity = active.identity;
-  if (identity?.kind !== "errand"
-    || identity.purpose !== "errand"
-    || identity.state !== "open"
-    || identity.key !== active.role.subject.key
-    || identity.claimId !== active.role.subject.claimId) {
-    return refusal("preservation-unproven", active.recordId, "The ordinary Errand identity generation is not leaveable.");
+  return HandoffLocusPlanSchema.parse({
+    kind: "release-work-unit",
+    subject,
+    checkoutPath: row.checkout.path,
+    workflow: context.workflow,
+    sessionType: context.sessionType,
+  });
+}
+
+function transientPlan(row: DerivedCheckoutRow, subject: DerivedTransientSubject): HandoffLocusPlan {
+  if (subject.kind === "housekeep") {
+    return refusal({
+      row,
+      reason: "housekeep-incomplete",
+      message: "Complete or abandon housekeeping before handing off.",
+    });
+  }
+  if (subject.kind === "groom") {
+    return refusal({
+      row,
+      reason: "groom-incomplete",
+      message: "Ship, close, or abandon grooming before handing off.",
+    });
+  }
+  if (subject.kind === "partial-errand") {
+    return refusal({
+      row,
+      reason: "partial-handoff-forbidden",
+      message: "Finish, promote, or abandon the partial Errand before handing off.",
+    });
+  }
+  const identity = row.identity;
+  if (identity?.kind !== "errand" || identity.purpose !== "errand" || identity.state !== "open"
+    || identity.key !== subject.key || identity.claimId !== subject.claimId) {
+    return refusal({
+      row,
+      reason: "preservation-unproven",
+      message: "The ordinary Errand identity generation is not leaveable.",
+    });
   }
   return HandoffLocusPlanSchema.parse({
     kind: "leave-errand",
-    slug: identity.key,
-    claimId: identity.claimId,
-    recordId: active.recordId,
-    leaseId: active.lease.leaseId,
-    checkoutPath: active.checkoutPath,
-    parentRecordId: parent?.recordId ?? null,
-    parentCheckoutPath: parent?.checkoutPath ?? null,
+    subject,
+    checkoutPath: row.checkout.path,
+    parentCheckoutPath: row.parentCheckoutPath,
   });
 }
-function exactRow(rows: readonly LocusRowV1[], recordId: string): LocusRowV1 | null {
-  const matches = rows.filter((row) => row.recordId === recordId);
-  return matches.length === 1 ? matches[0] ?? null : null;
+
+function refusal(options: {
+  row: DerivedCheckoutRow | null;
+  checkoutPath?: string;
+  reason: z.infer<typeof HandoffRefusalReasonSchema>;
+  message: string;
+}): HandoffLocusPlan {
+  return HandoffLocusPlanSchema.parse({
+    kind: "refused",
+    reason: options.reason,
+    subject: options.row?.subject ?? null,
+    checkoutPath: options.checkoutPath ?? options.row?.checkout.path,
+    parentCheckoutPath: options.row?.parentCheckoutPath ?? null,
+    recommendedPromptText: options.message,
+  });
 }
 
-function validateParent(state: LocusStateV1, active: LocusRowV1): LocusRowV1 | null | undefined {
-  if (state.current.kind !== "resolved") return undefined;
-  if (state.current.parentRecordId === null) {
-    return active.role?.parentCheckoutPath === null
-      && state.current.sessionHomeRecordId === active.recordId
-      && active.lease?.sessionHomePath === active.checkoutPath
-      ? null
-      : undefined;
-  }
-  const parent = exactRow(state.roster.rows, state.current.parentRecordId);
-  return parent?.kind === "managed-role"
-    && parent.role?.kind === "work-unit"
-    && parent.checkoutPath === active.role?.parentCheckoutPath
-    && parent.recordId === state.current.sessionHomeRecordId
-    && parent.frame === "suspended"
-    && parent.diagnostics.every((item) => item.code === "lease-dead")
-    && active.lease?.sessionHomePath === parent.checkoutPath
-    ? parent
-    : undefined;
-}
-
-function refusal(
-  reason: z.infer<typeof HandoffRefusalReasonSchema>,
-  recordId: string | null,
-  recommendedPromptText: string,
-): HandoffLocusPlan {
-  return HandoffLocusPlanSchema.parse({ kind: "refused", reason, recordId, recommendedPromptText });
+function diagnosticText(diagnostics: readonly { readonly message: string }[]): string {
+  return diagnostics.length === 0 ? "no authoritative current-checkout row" : diagnostics.map((item) => item.message).join("; ");
 }

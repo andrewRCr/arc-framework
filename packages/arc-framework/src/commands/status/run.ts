@@ -44,7 +44,6 @@ import type {
   WorktreeIdentity,
 } from "./types.js";
 import {
-  buildSessionSharedSlots,
   gatedSlot,
   locusStateSlot,
   safeProbe,
@@ -74,7 +73,10 @@ import {
 } from "../../lib/locus/session-guidance.js";
 import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
-import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
+import {
+  deriveHandoffLocusPlan,
+  type HandoffLocusPlan,
+} from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
@@ -199,7 +201,7 @@ export async function runSessionInitStatus(
     compactionAdvisoryTask,
   ]);
 
-  const derivedLocusState = identity === null
+  const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? err(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
         identity,
@@ -733,12 +735,15 @@ export async function runSessionHandoffStatus(
 ): Promise<SessionHandoffResult> {
   const { identity, role, probes } = options;
 
-  const shared = buildSessionSharedSlots({ identity, role, probes });
+  const userTask = userSlot(identity, (id) => probes.user(id));
+  const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const dirtyTask = safeProbe("dirty", () => probes.dirty());
+  const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
-  const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
+  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
@@ -751,26 +756,34 @@ export async function runSessionHandoffStatus(
     : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
-    locusState, user, worktree, dirty, active, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, worktreeIdentity, inboxState, surfaces,
+    user, worktree, dirty, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, extensions, inboxState, surfaces,
   ] = await Promise.all([
-    shared.locusState,
-    shared.user,
-    shared.worktree,
-    shared.dirty,
-    shared.active,
-    shared.releaseRouting,
+    userTask,
+    worktreeTask,
+    dirtyTask,
+    releaseRoutingTask,
     syncInterlockTask,
     headTask,
     pushabilityTask,
     restateCandidatesTask,
-    worktreeIdentityTask,
+    extensionsTask,
     inboxStateTask,
     surfacesTask,
   ]);
 
+  const derivedLocusState = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
+  const active = derivedLocusState.map(projectDerivedActiveSession);
+
   const branch = worktree.isOk() ? worktree.value.branch : null;
-  const handoffActiveWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const handoffActiveWuName = derivedLocusState.isOk()
+    ? derivedLocusState.value.active?.subject.key ?? null
+    : null;
   const handoffNotesVerdict = user.isOk() && user.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: handoffActiveWuName })
     : null;
@@ -791,15 +804,12 @@ export async function runSessionHandoffStatus(
     })
     : null;
   const deriveHandoff = fromThrowable(
-    (input: { state: LocusStateV1; identity: WorktreeIdentity }) => deriveHandoffLocusPlan(
-      input.state,
-      checkoutPathForIdentity(input.state, input.identity),
-    ),
+    (frame: DerivedLocusFrame) => deriveHandoffLocusPlan(frame),
     (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
   );
-  const handoffLocus = locusState.andThen((state) => worktreeIdentity.andThen(
-    (identityValue) => deriveHandoff({ state, identity: identityValue }),
-  ));
+  const handoffLocus: SessionResult<HandoffLocusPlan> = derivedLocusState.isErr()
+    ? err(derivedLocusState.error)
+    : deriveHandoff(derivedLocusState.value);
 
   const pathSet = composeHandoffPathSet({
     surfaces,
@@ -809,8 +819,8 @@ export async function runSessionHandoffStatus(
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
-    locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveDerivedLocusSessionGuidance(toProbe(derivedLocusState)),
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),

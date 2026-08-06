@@ -108,7 +108,7 @@ export function locusStateSlot(
     : safeProbe("locusState", () => probe(identity));
 }
 
-/** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
+/** Eager session-init slots retained beside the derived-frame producer. */
 export interface SessionSharedResults {
   locusState: ResultAsync<LocusStateV1, SessionIdentityMissingError | SessionProbeError>;
   user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
@@ -118,7 +118,7 @@ export interface SessionSharedResults {
   releaseRouting: ResultAsync<ReleaseRoutingValue, SessionProbeError>;
 }
 
-/** Declare the shared eager session probes without awaiting or aggregating them. */
+/** Declare the eager session-init probes without awaiting or aggregating them. */
 export function buildSessionSharedSlots(options: {
   identity: string | null;
   role: string | null;
