@@ -135,30 +135,35 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 - _Outcome:_ The exact additive package payload is independently buildable, mechanically unreachable from selected
   production behavior, and proven byte-invariant across every protected Phase 1 surface.
 
-### `[ ]` **1.6 Close the dormant-foundation review facet**
+### `[x]` **1.6 Close the dormant-foundation review facet**
 
 - _Goal:_ The complete Phase 1 change set receives one source-grounded non-author review proving its authority
   boundary, test adequacy, and behavioral dormancy at an exact head.
 
-    - `[ ]` **1.6.a Bind the exact dormant-foundation review scope**
-        - Record the exact base and head and enumerate every Phase 1 hunk with its declarations and tests.
-        - Confirm the scope excludes production selection, public schema/CLI/workflow changes, on-disk marker writes,
-          and WU lifecycle settlement.
+    - `[x]` **1.6.a Bind the exact dormant-foundation review scope**
+        - Bound the 19-file implementation delta from `5c9e806dc` through `23e58b1a9`: seven new dormant locus
+          modules (`role-{topology,derivation,corroboration}`, `occupancy-marker`, and
+          `derived-{lifecycle-evidence,roster,reader}`), the `subject-meta` active-extension option, nine unit or
+          integration test files, the isolated-mock inventory, and this task record. The delta leaves production
+          selection, public schemas and CLI/workflows, live marker writes, and WU settlement untouched.
 
-    - `[ ]` **1.6.b Obtain and settle complete facet review**
-        - Compose the immutable target, run `npx arc review chunking resolve -`, and dispatch only the configured
-          actions returned by `npx arc review resolve -`.
-        - Require the configured non-author lane to cover authority isolation, corroboration limits, dormant reader
-          behavior, future-marker boundaries, extension projection, and regression protection; frontline review alone
-          cannot satisfy this facet.
-        - Verify every finding against source, obtain the required disposition approval, apply accepted fixes on the
-          control branch, and rerun affected gates.
+    - `[x]` **1.6.b Obtain and settle complete facet review**
+        - Routed both below-threshold whole-target passes to the configured `delegated-agent` standard lane. The first
+          target, `sha256:fe6db425...`, returned two verified major findings: marker-scoped meta contamination and
+          missing future-marker scalar validation. Disposition set `sha256:3d4b2013...` authorized both fixes, which
+          landed together in `23e58b1a9`; the affected and complete gates were rerun before review re-entry.
 
-    - `[ ]` **1.6.c Record exact-head review closure**
-        - Record evaluator/lane, exact target, coverage, verdict, settled findings, and post-fix evidence.
-        - Invalidate and repeat affected review whenever later edits change reviewed bytes.
-        - Treat this result as supporting facet evidence; the lifecycle-artifact-free member receives fresh
-          exact-target review before landing.
+    - `[x]` **1.6.c Record exact-head review closure**
+        - Evaluator `phase1-reviewer` completed the whole-target `delegated-agent` standard lane at
+          `bbca6873085ce98ffb816706da842893a59771b8..23e58b1a9bfc1cbd2d7c6c88f7ae7f59d009b067`
+          (tree `eb680420ebdc975a7c820b38a3556442cf6caac2`, target `sha256:82452f8d...`) with a clean verdict across
+          authority isolation, corroboration, dormant-reader containment, future-marker boundaries, extension
+          projection, and regression dormancy. Receipt `arc-review-source:v1:attested-local:local-9c01c4ed...#11`
+          is supporting facet evidence; the lifecycle-artifact-free member still requires fresh exact-target review.
+
+- _Outcome:_ The source-grounded review found and settled two authority-containment gaps before delivery. The fixed
+  implementation head is clean under the configured non-author lane, while the later member review remains the
+  authoritative landing gate for the lifecycle-artifact-free projection.
 
 ### `[ ]` **1.7 Validate the dormant-foundation delivery head**
 
