@@ -3,14 +3,20 @@
   "slug": "dormant-foundation-contract-lifetime",
   "claimId": "04be9c21a28c283bf1a5316ab5a66625",
   "createdAt": "2026-08-06T12:12:27.913Z",
-  "updatedAt": "2026-08-06T12:12:27.913Z",
+  "updatedAt": "2026-08-06T12:38:58.757Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Remove historical delivery assertions from the live dormant-foundation contract while retaining temporary activation guards",
   "branch": "chore/dormant-foundation-contract-lifetime",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/dormant-foundation-contract-lifetime",
+    "headSha": "fdd44427fcaed28351bf82dec85dc9b5187fa0ea"
+  }
 }
