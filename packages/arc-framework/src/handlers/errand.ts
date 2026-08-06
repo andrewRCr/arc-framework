@@ -1057,21 +1057,12 @@ async function runErrandCloseHandler(
           recommendedPromptText: "Partial Errand close does not permit --force.",
         });
       } else {
-        const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-          cwd,
-          identity: SlugSchema.parse(identity),
-          exec: io.exec,
-        })).identityGlobalRoot;
         result = await settlePartialErrandAtRuntime({
           slug,
           action: "close",
           base,
-          cwd,
-          identity,
-          identityGlobalUserDir,
-          postCreateScript: settings["worktree.post_create"],
-          registeredHarnessDirs: settings["worktree.harness_dirs"],
           exec: io.exec,
+          readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
           settleInbox: async (binding) => {
             if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
             const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
@@ -1319,12 +1310,8 @@ async function runErrandAbandonHandler(
         slug: input.slug,
         action: "abandon",
         base,
-        cwd,
-        identity,
-        identityGlobalUserDir,
-        postCreateScript: settings["worktree.post_create"],
-        registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         settleInbox: async (binding) => {
           if (binding.originEntry === null) {
             return { kind: "idempotent", nextOffer: null };
