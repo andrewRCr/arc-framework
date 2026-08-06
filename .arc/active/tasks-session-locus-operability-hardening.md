@@ -638,35 +638,57 @@ _Purpose:_ Verify the frozen Deliverable 2 candidate and complete two-member uni
 retained trust boundaries, package mirrors, public contracts, and project quality gates before the ordinary attended
 integration and WU closeout path.
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Independent evidence establishes every success criterion and the exact stacked union is ready for the
   integration interlock; unavailable, partial, or stale evidence remains open rather than inferred clean.
+
+- _Quality gates:_ Tier 3 passed: Markdown and ARC corpus contracts, TypeScript and shell lint, both typechecks,
+  9,298 tests with one skipped, and the production build.
+
+- _Success criteria:_ Spec criteria 1–10 are met; the review-specific criteria 11–12 are superseded by the explicit
+  maintainer waiver. The task-list projection records 12 met criteria and one superseded review/seam criterion.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Healthy non-identity-backed checkout entry, handoff, recovery, and local exit tolerate every malformed or
+- `[x]` Healthy non-identity-backed checkout entry, handoff, recovery, and local exit tolerate every malformed or
   stale sibling-checkout shape plus identity-snapshot root failure, while invalid shared identity bases still block
   identity mutations.
-- `[ ]` Sandboxed sessions complete the supported lifecycle without session-authority process inspection or
+
+- `[x]` Sandboxed sessions complete the supported lifecycle without session-authority process inspection or
   machine-state repair, and own-checkout terminal operations require no extra confirmation.
-- `[ ]` Shipping, parking, archival, and husk cleanup leave no durable locus residue or corruption diagnostics.
-- `[ ]` Foreign terminal confirmation requires the exact freshly derived generation for the named verb and cannot
+
+- `[x]` Shipping, parking, archival, and husk cleanup leave no durable locus residue or corruption diagnostics.
+
+- `[x]` Foreign terminal confirmation requires the exact freshly derived generation for the named verb and cannot
   bypass any retained git, marker, identity, ancestry, lifecycle, or generation guard.
-- `[ ]` Role authority excludes branch and `HEAD`; corroboration can only preserve the exact derived subject or
+
+- `[x]` Role authority excludes branch and `HEAD`; corroboration can only preserve the exact derived subject or
   downgrade the checkout to unresolved.
-- `[ ]` Handoff and recovery preserve warm-parent return and degrade a missing parent to the configured base.
-- `[ ]` No locus record/store, lease, locus-lock, process-anchor, session-authority inspector, mutation command,
+
+- `[x]` Handoff and recovery preserve warm-parent return and degrade a missing parent to the configured base.
+
+- `[x]` No locus record/store, lease, locus-lock, process-anchor, session-authority inspector, mutation command,
   reconcile-attach, dead workflow arm, stale result field, or body-less option remains.
-- `[ ]` The two absorbed sibling work units are removed and the regenerated roadmap/readiness projection contains no
+
+- `[x]` The two absorbed sibling work units are removed and the regenerated roadmap/readiness projection contains no
   stale row or dependency.
-- `[ ]` Locus-driven workflow/schema prose shrinks, shipped doctrine describes derived roles, and user-facing text
+
+- `[x]` Locus-driven workflow/schema prose shrinks, shipped doctrine describes derived roles, and user-facing text
   remains CLI-composed.
-- `[ ]` Mechanical contracts reject durable occupancy, liveness, or branch-shape authority in role derivation.
-- `[ ]` The dormant-foundation head excludes WU lifecycle artifacts and changes no selected production behavior;
+
+- `[x]` Mechanical contracts reject durable occupancy, liveness, or branch-shape authority in role derivation.
+
+- `[~]` The dormant-foundation head excludes WU lifecycle artifacts and changes no selected production behavior;
   both ordered delivery heads pass their relevant gates; all four review facets are covered; and the final seam
   review covers the complete stacked union.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+
+    - **Superseded:** exact member ordering, lifecycle-artifact exclusion, dormant behavior, and both heads' gate
+      evidence are established. The remaining Phase 3, Phase 4, and seam review clauses were explicitly waived as
+      unnecessary for this minor/trivial batch, so they are recorded as superseded rather than inferred satisfied.
+
+- `[x]` All quality gates pass (tests, linting, type checking).
+
+- `[x]` Ready for integration.
