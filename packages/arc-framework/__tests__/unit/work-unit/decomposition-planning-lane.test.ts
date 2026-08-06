@@ -63,6 +63,26 @@ describe("decomposition planning lane", () => {
     expect(deps.assemble).not.toHaveBeenCalled();
   });
 
+  it("routes transition records through the generic planning grammar", async () => {
+    const { receipt } = exactChangeSet();
+    const transition = change(".arc/system/.internal/transitions/origin.json");
+    const planning = change(".arc/active/spec-origin.md");
+    const deps = dependencies(receipt, {
+      readReceipt: async () => {
+        throw new Error("generic planning changes must not read retirement receipts");
+      },
+    });
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [planning, transition],
+    }, BASE, HEAD, deps)).resolves.toEqual({ outcome: "planning" });
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [planning, transition, change(".arc/system/.internal/scripts/check.sh")],
+    }, BASE, HEAD, deps)).resolves.toEqual({ outcome: "reviewed" });
+  });
+
   it("admits one exact canonical receipt beside its planning transition", async () => {
     const { changeSet, receipt } = exactChangeSet();
     const deps = dependencies(receipt);

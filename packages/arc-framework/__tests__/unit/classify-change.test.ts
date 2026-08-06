@@ -205,6 +205,18 @@ describe("classify-change.sh lane", () => {
     expect(await lane([".arc/active/tasks-example.md", ".arc/backlog/planned/other/meta-other.md"])).toBe("auto");
   });
 
+  it("admits exact transition records without admitting adjacent executable content", async () => {
+    expect(await lane([
+      ".arc/active/spec-origin.md",
+      ".arc/system/.internal/transitions/origin.json",
+    ])).toBe("auto");
+    expect(await lane([
+      ".arc/active/spec-origin.md",
+      ".arc/system/.internal/transitions/origin.json",
+      ".arc/system/.internal/scripts/check.sh",
+    ])).toBe("reviewed");
+  });
+
   it("fails safe for empty, mixed, and arbitrary pathnames", async () => {
     expect(await lane([])).toBe("reviewed");
     expect(await lane([".arc/active/tasks-example.md", "README.md"])).toBe("reviewed");

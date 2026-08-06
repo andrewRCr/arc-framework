@@ -92,30 +92,22 @@ receipt consumer before migration and authorization re-derivation.
 - _Outcome:_ Reference repair and dependency discharge now have receipt-independent projection seams with lean
   multiplicity and failure semantics, while the production receipt ports remain intact for the Phase 2 switch.
 
-### `[ ]` **1.6 Admit transition records through the generic planning lane**
+### `[x]` **1.6 Admit transition records through the generic planning lane**
 
 - _Goal:_ Local and hosted review gates classify only exact transition-record leaves as planning artifacts, while
   adjacent executable `.internal` content remains review-bearing.
 
-    - `[ ]` **1.6.a Add the exact generic predicate entry**
-        - Extend `isPlanningArtifactPath()` for one slug-named JSON leaf directly under
-          `.arc/system/.internal/transitions/`; do not match the directory itself, nested paths, or sibling content.
-        - Build `test-first` (one behavior at a time):
-            - Accept a valid transition-record leaf alongside planned artifacts and `ROADMAP`.
-            - Reject wrong extensions, malformed slugs, nested leaves, hooks, scripts, skills, and other
-              `.arc/system/.internal/**` paths.
-            - Keep rename endpoint and non-regular-file classification fail-closed.
+    - `[x]` **1.6.a Add the exact generic predicate entry**
+        - Extended the shared planning predicate for one immediate slug-named transition JSON leaf, with exact
+          grammar, two-endpoint rename checks, and regular-file mode requirements preserving adjacent review scope.
 
-    - `[ ]` **1.6.b Prove one predicate governs local and hosted verdicts**
-        - Exercise `classifyPlanningLane()`, `classifyGitDecompositionPlanningLane()`,
-          `handleReviewPlanningLane()`, `scripts/classify-change.sh`, and the lane-attestation workflow contract
-          through the shared predicate path; do not target the legacy `change-facts` executable as an exact-ref CLI.
-        - Build `test-first` (one behavior at a time):
-            - Produce matching exact-ref planning admission locally and in the hosted command for the intended
-              decomposition change set.
-            - Produce matching reviewed verdicts when any adjacent executable or unclassified path is present.
-            - Keep the existing receipt-specific exception operational for old receipt changes until Task 4.3
-              removes it, while transition records take the generic fallback.
+    - `[x]` **1.6.b Prove one predicate governs local and hosted verdicts**
+        - Added real-Git, built-handler, shell-command, path-lane, and workflow-contract coverage proving exact
+          transition leaves agree on planning admission, adjacent executables force review, and legacy receipts
+          retain their specialized exception while transition records use the generic fallback.
+
+- _Outcome:_ One exact predicate now governs both local scheduling and hosted exact-ref clearance for lean
+  transition history, with executable `.internal` neighbors remaining review-bearing across every adapter.
 
 ## **Phase 2:** Convert live retirement history
 

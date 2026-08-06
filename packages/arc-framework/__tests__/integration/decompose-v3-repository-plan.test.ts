@@ -41,6 +41,8 @@ import { createNodeWorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
 import { runCli } from "../helpers/run-cli.js";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -107,6 +109,25 @@ async function repositoryDependencies(repo: string) {
     },
     cohortTemplate,
   };
+}
+
+async function genericPlanningLaneRepository() {
+  const repo = await mkdtemp(join(tmpdir(), "arc-generic-planning-lane-"));
+  roots.push(repo);
+  await git(repo, ["init", "-b", "main"]);
+  await git(repo, ["config", "user.name", "ARC Test"]);
+  await git(repo, ["config", "user.email", "arc@example.test"]);
+  await git(repo, ["commit", "--allow-empty", "-m", "base"]);
+  const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+
+  await write(repo, ".arc/active/spec-origin.md", "# Spec: origin\n");
+  await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap\n");
+  await write(repo, ".arc/system/.internal/transitions/origin.json", "{}\n");
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "add planning transition"]);
+  const planningHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+
+  return { repo, baseHead, planningHead };
 }
 
 async function startedRepository() {
@@ -455,6 +476,63 @@ describe("Git v3 repository plan", () => {
 
     expect(invalid).toMatchObject({ exitCode: 1, stdout: "reviewed\n" });
     expect(invalid.stderr).toContain("invalid retirement evidence:");
+  }, 30_000);
+
+  it("keeps local and hosted exact-ref verdicts aligned for generic transition records", async () => {
+    const { repo, baseHead, planningHead } = await genericPlanningLaneRepository();
+    const dependencies = await repositoryDependencies(repo);
+    const classify = async (head: string) => await classifyGitDecompositionPlanningLane(baseHead, head, {
+      cwd: repo,
+      exec: dependencies.exec,
+      rawExec: createRawGitExec(repo),
+      readBlob: dependencies.readObject,
+    });
+    const runHosted = async (head: string) => await runCli([
+      "review",
+      "planning-lane",
+      baseHead,
+      head,
+      "--repository",
+      repo,
+    ], { cwd: repo, timeout: 30_000 });
+    const runLocal = async (head: string) => await runScript(CLASSIFY_SCRIPT, [
+      "planning-lane",
+      baseHead,
+      head,
+    ], {
+      cwd: repo,
+      env: { ARC_PLANNING_CLI: CLI_PATH, CLASSIFY_REPOSITORY_DIR: repo },
+      timeout: 30_000,
+    });
+
+    await expect(classify(planningHead)).resolves.toEqual({ outcome: "planning" });
+    await expect(runHosted(planningHead)).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "planning\n",
+      stderr: "",
+    });
+    await expect(runLocal(planningHead)).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "planning\n",
+      stderr: "",
+    });
+
+    await write(repo, ".arc/system/.internal/scripts/check.sh", "exit 0\n");
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "add executable rider"]);
+    const reviewedHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+
+    await expect(classify(reviewedHead)).resolves.toEqual({ outcome: "reviewed" });
+    await expect(runHosted(reviewedHead)).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "reviewed\n",
+      stderr: "",
+    });
+    await expect(runLocal(reviewedHead)).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "reviewed\n",
+      stderr: "",
+    });
   }, 30_000);
 
   it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
