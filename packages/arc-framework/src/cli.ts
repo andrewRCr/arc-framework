@@ -594,12 +594,13 @@ errand
 
 errand
   .command("promote <slug>")
-  .description("Promote an errand to a work unit: rename the branch, mint the meta, retire the record")
+  .description("Promote an Errand to a receipt-backed work unit and settle its exact identity")
   .option("--name <name>", "The new work-unit name (meta filename + branch leaf); defaults to the slug")
   .option("--type <type>", "WU branch nature-type prefixing the name (default: feat)")
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

@@ -320,10 +320,16 @@ describe("ordinary Errand promotion", () => {
       expect(sequence.results[1]).toMatchObject({
         outcome: "applied",
         operation: "errand-promote",
-        allocation: { kind: "primary", checkoutPath: repository },
-        identity: null,
-        activeLocusPath: repository,
-        sessionHomePath: repository,
+        allocation: "primary",
+        checkoutPath: repository,
+        parentCheckoutPath: null,
+        subject: { kind: "errand", slug: "growing", claimId: expect.any(String) },
+        settlement: {
+          state: "commit-required",
+          identity: "retained",
+          originEntry: null,
+          originEntrySourceDigest: null,
+        },
       });
       expect(await git(repository, ["branch", "--show-current"])).toBe(branch);
       const meta = await readFile(join(repository, ".arc", "active", "meta-growth-unit.md"), "utf8");
@@ -331,9 +337,10 @@ describe("ordinary Errand promotion", () => {
       expect(meta).toContain(`\`${state}\``);
       expect(meta).toContain(`\`${branch}\``);
       if (floor === "derivation") expect(meta).toContain("draft-design");
-      await expect(
-        git(repository, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"]),
-      ).rejects.toThrow();
+      expect(JSON.parse(await git(
+        repository,
+        ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"],
+      ))).toMatchObject({ state: "open" });
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
@@ -375,14 +382,22 @@ describe("ordinary Errand promotion", () => {
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
       expect(sequence.results[1]).toMatchObject({
         outcome: "applied",
-        originEntry: "Grow this concern",
-        originEntrySourceDigest: expect.stringMatching(/^sha256:/u),
+        settlement: {
+          state: "commit-required",
+          identity: "retained",
+          originEntry: "Grow this concern",
+          originEntrySourceDigest: expect.stringMatching(/^sha256:/u),
+        },
       });
       expect(sequence.results[2]).toMatchObject({
         outcome: "applied",
         operation: "errand-promote",
-        originEntry: null,
-        originEntrySourceDigest: null,
+        settlement: {
+          state: "settled",
+          identity: "retired",
+          originEntry: null,
+          originEntrySourceDigest: null,
+        },
       });
       expect(await readFile(inboxPath, "utf8")).not.toContain("**Grow this concern**");
     } finally {

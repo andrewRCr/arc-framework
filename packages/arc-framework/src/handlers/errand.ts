@@ -81,6 +81,10 @@ import {
 import type { DerivedLocusFrame } from "../lib/locus/derived-reader.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
+  createErrandPromotionResult,
+  type ErrandPromotionResult,
+} from "../lib/errand/promotion-result.js";
+import {
   LocusGitOidSchema,
   LocusTokenSchema,
   locusErrorCode,
@@ -1585,6 +1589,8 @@ export interface ErrandPromoteOptions {
   priority?: string;
   /** WU `Class` for the minted meta. */
   class?: string;
+  /** Confirm one exact foreign Errand generation. */
+  confirmForeignGeneration?: string;
   /** Emit the producer-validated mutation result without human decoration. */
   json?: boolean;
 }
@@ -1597,6 +1603,7 @@ export const ErrandPromoteInputSchema = z.object({
   floor: z.enum(["derivation", "scale"]),
   priority: PrioritySchema.optional(),
   class: WorkClassSchema.optional(),
+  confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
   json: z.boolean().optional(),
 }).strict();
 
@@ -1684,6 +1691,7 @@ export const errandCommandInputRegistrations = [
       "option.floor": "floor",
       "option.priority": "priority",
       "option.class": "class",
+      "option.confirm-foreign-generation": "confirmForeignGeneration",
       "option.json": "json",
     },
   },
@@ -1819,6 +1827,23 @@ export const errandCommandInputPolicyDeclarations = [
     })],
   },
   {
+    commandPath: "errand promote",
+    aliases: [],
+    sites: [declareCliOptionSite("confirm-foreign-generation", {
+      acquisition: "optional",
+      schemaOwnership: "owned",
+      schemaField: "confirmForeignGeneration",
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "preserve-absent",
+        flags: ["--confirm-foreign-generation <generation>"],
+        acceptedSyntax: ["--confirm-foreign-generation <generation>"],
+      },
+      mutationBoundary: "errand promote subject-generation authority",
+      subprocess: "none",
+    })],
+  },
+  {
     commandPath: "errand open", aliases: [], sites: [1, 2].map((occurrence) => declareInteractionSite(
       { file: "lib/inbox-entry-operand.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence },
       {
@@ -1858,13 +1883,15 @@ export async function handleErrandPromote(
   }
   const input = parsed.data;
 
-  await runErrandHandlerBoundary(
-    "errand-promote",
-    opts.json === true,
-    emitErrandPromoteResult,
-    "Inspect the retained identity and local promotion evidence before retrying.",
-    () => runErrandPromoteHandler(slug, opts, input, context),
-  );
+  try {
+    await runErrandPromoteHandler(slug, opts, input, context);
+  } catch (error) {
+    emitErrandPromoteFailure(
+      "locus.errand-promote.handler",
+      error instanceof Error ? error.message : String(error),
+      opts.json === true,
+    );
+  }
 }
 
 async function runErrandPromoteHandler(
@@ -1887,9 +1914,12 @@ async function runErrandPromoteHandler(
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
-    emitErrandPromoteResult(createLocusMutationResult({
+    emitErrandPromoteResult(createErrandPromotionResult({
       outcome: "refused",
       operation: "errand-promote",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
       reason: "full-protection-required",
       recommendedPromptText: "Errand promotion requires full branch protection.",
     }), opts.json === true);
@@ -1918,12 +1948,7 @@ async function runErrandPromoteHandler(
   const wuName = rawName !== undefined && rawName !== "" ? rawName : slug;
   const type = input.type?.trim();
 
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
-    exec: io.exec,
-  })).identityGlobalRoot;
-  let result: LocusMutationResultV1;
+  let result: ErrandPromotionResult;
   try {
     result = await promoteOrdinaryErrandAtRuntime({
       slug,
@@ -1936,11 +1961,15 @@ async function runErrandPromoteHandler(
       protection: "full",
       base: settings["branch.base"],
       identity,
-      identityGlobalUserDir,
-      postCreateScript: settings["worktree.post_create"],
-      registeredHarnessDirs: settings["worktree.harness_dirs"],
       exec: io.exec,
       execInput: io.execInput,
+      readFrame: () => runDerivedLocusStateProbe({
+        cwd,
+        identity,
+        baseBranch: settings["branch.base"],
+        exec: io.exec,
+      }),
+      confirmForeignGeneration: input.confirmForeignGeneration,
       settleInbox: async (binding) => {
         try {
           const settled = await runUserInboxMutation({
@@ -1963,9 +1992,12 @@ async function runErrandPromoteHandler(
       },
     });
   } catch (error) {
-    result = createLocusMutationResult({
+    result = createErrandPromotionResult({
       outcome: "error",
       operation: "errand-promote",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
       error: {
         code: "locus.errand-promote.handler",
         message: error instanceof Error ? error.message : String(error),
@@ -1977,13 +2009,29 @@ async function runErrandPromoteHandler(
 }
 
 export function formatErrandPromoteResult(
-  result: LocusMutationResultV1,
+  result: ErrandPromotionResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
-  return formatErrandOpenResult(result, json);
+  if (json) {
+    return {
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: result.outcome === "applied" || result.outcome === "idempotent" ? 0 : 1,
+    };
+  }
+  if (result.outcome === "error") {
+    return { stream: "stderr", text: `Error [${result.error.code}]: ${result.error.message}`, exitCode: 1 };
+  }
+  if (result.outcome === "refused") {
+    return { stream: "stderr", text: `Refused [${result.reason}]: ${result.recommendedPromptText}`, exitCode: 1 };
+  }
+  if (result.outcome === "confirmation-required") {
+    return { stream: "stderr", text: result.recommendedPromptText, exitCode: 1 };
+  }
+  return { stream: "stdout", text: result.recommendedPromptText, exitCode: 0 };
 }
 
-function emitErrandPromoteResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandPromoteResult(result: ErrandPromotionResult, json: boolean): void {
   const formatted = formatErrandPromoteResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -1995,9 +2043,12 @@ function emitErrandPromoteResult(result: LocusMutationResultV1, json: boolean): 
 }
 
 function emitErrandPromoteFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
-  emitErrandPromoteResult(createLocusMutationResult({
+  emitErrandPromoteResult(createErrandPromotionResult({
     outcome: "error",
     operation: "errand-promote",
+    subject: null,
+    checkoutPath: null,
+    generation: null,
     error: { code, message },
     recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
   }), json);

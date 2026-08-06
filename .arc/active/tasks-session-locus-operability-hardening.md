@@ -356,7 +356,7 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Preserved phased re-entry through a narrow exact-identity compatibility seam whose old-reader tolerance is
           removed with the retired substrate in Task 3.6.
 
-### `[ ]` **3.2 Add immutable promotion receipts and settlement replay**
+### `[x]` **3.2 Add immutable promotion receipts and settlement replay**
 
 - _Goal:_ Promotion remains exact-generation and replay-safe across the identity/WU coexistence window, with one
   immutable receipt carrying the durable origin after identity removal and the common terminal contract governing
@@ -369,31 +369,20 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Promotion now mints the receipt from its exact identity generation and refuses missing or mismatched
           identity-backed replay evidence without introducing a second post-settlement history authority.
 
-    - `[ ]` **3.2.b Move promotion authority and settlement onto exact generation**
-        - Replace lease, `selfHeld`, process-anchor, and record-lock authority with the common own/foreign terminal
-          contract and fresh marker/identity/lifecycle/git evidence.
-        - Expose the common `--confirm-foreign-generation <generation>` option on promote and require the canonical
-          originating Errand generation after re-derivation.
-        - Commit the WU meta and receipt before retiring the identity.
-        - Keep the identity until inbox settlement succeeds and treat identity-record removal as the settlement
-          commit.
+    - `[x]` **3.2.b Move promotion authority and settlement onto exact generation**
+        - Moved promotion onto the common exact-subject/generation contract, published complete immutable meta before
+          mutation, and ordered inbox capture before identity retirement as the settlement commit.
+        - Exposed the foreign-generation confirmation option and a strict commit-required/settled public result
+          without retired locator or lease aliases.
 
-    - `[ ]` **3.2.c Complete marker conversion and lost-response replay**
-        - Remove a primary transient marker after promotion.
-        - Convert a spawned marker to WU ownership while preserving spawn provenance and dropping parent/origin
-          fields.
-        - Use the immutable receipt, not mutable marker state, for exact-generation replay after identity removal.
-        - Update the promotion paths in `run-errand.md` and `init-work-unit.md` to consume the final verb result and
-          receipt-backed settlement contract.
+    - `[x]` **3.2.c Complete marker conversion and lost-response replay**
+        - Added receipt-authorized replay after identity retirement, then settled primary or spawned occupancy only
+          after identity removal while preserving the spawned marker's allowed WU provenance.
+        - Updated both shipped promotion workflows and their project copies to consume the exact two-call result and
+          receipt-backed settlement order.
 
-    - Build `test-first` (one behavior at a time):
-        - Reject malformed or noncanonical receipts and preserve absence for ordinary WUs.
-        - Refuse receipt mutation/removal and retain it through later meta changes, relocation, and archival.
-        - Own exact promotion proceeds directly; foreign promotion requires confirmation for that exact generation
-          and cannot bypass any evidence disagreement.
-        - Before identity removal the exact marker subject wins; afterward the WU meta resolves.
-        - Lost responses replay only for the exact originating Errand generation.
-        - Primary and spawned marker conversions retain precisely their allowed final fields.
+- _Outcome:_ Promotion is now an exact-generation, crash-recoverable meta → inbox → identity → occupancy
+  transaction whose immutable receipt is the sole replay authority after identity retirement.
 
 ### `[ ]` **3.3 Switch Errand results and remaining lifecycle callers before producer shutdown**
 

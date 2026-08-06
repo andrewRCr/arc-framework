@@ -35,6 +35,7 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/errand/close-runtime.ts",
     "src/lib/errand/leave-runtime.ts",
     "src/lib/errand/partial-settle-runtime.ts",
+    "src/lib/errand/promote-runtime.ts",
     "src/lib/errand/terminal-authority.ts",
     "src/lib/handoff/locus-plan.ts",
     "src/lib/locus/derived-evidence.ts",
@@ -43,6 +44,7 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/recover/locus-context.ts",
   ],
   "src/lib/locus/derived-roster.ts": [
+    "src/lib/errand/promote-runtime.ts",
     "src/lib/errand/terminal-authority.ts",
     "src/lib/handoff/locus-plan.ts",
     "src/lib/locus/derived-reader.ts",

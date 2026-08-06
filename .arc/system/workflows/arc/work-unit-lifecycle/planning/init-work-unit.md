@@ -33,9 +33,9 @@ activate-work-unit          — Planning → Active; branch plan/<name> → <typ
 integrate-work-unit         — PR, review, merge to main
 ```
 
-Promoted errands already have implementation history on a branch. The promotion path renames the errand
-branch to `<type>/<name>`, creates the backing meta file, retires the errand record, skips
-`activate-work-unit`, backfills spec/tasks as needed, then proceeds to task execution.
+Promoted errands already have implementation history on a branch. The promotion path renames the branch to
+`<type>/<name>`, creates and commits the receipt-bearing meta, replays the verb to settle the exact originating
+identity and checkout occupancy, skips `activate-work-unit`, then backfills spec/tasks as needed.
 
 ---
 
@@ -278,27 +278,30 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 > `workflow-interlock`: Stop before promotion. Surface the floor crossed and its reason, the proposed
 > `{type}/{name}`, and the originating `USER-INBOX` capture (if any); await approval before running the verb.
 
-1. **Identify the crossing.** Confirm the branch is an in-flight errand backed by a record, and name the floor —
+1. **Identify the crossing.** Confirm the current derived subject is the in-flight Errand and name the floor —
    **derivation** or **scale**. This is the judgment `arc errand promote` cannot make; the rest is deterministic.
 
 2. **Stabilize.** The verb renames the branch, so commit any in-progress errand work as a normal errand checkpoint
    first; never fold implementation into the promotion.
 
-3. **Promote.** Pick `{name}` (may keep the errand `<slug>`) and `{type}` ([`branch-format`][branch-format]), then
-   run the verb with JSON output. It renames the branch (commits preserved), mints `meta-{name}.md` at the floor's stage
-   (derivation → `Planning` + `Current Workflow: draft-design`; scale → `Active`), retires the errand record, and
-   retains any originating capture generation in the promoted locus until post-commit settlement. The rename keeps
-   you on the branch under its new name.
+3. **Prepare promotion.** Pick `{name}` (may keep the Errand `<slug>`) and `{type}`
+   ([`branch-format`][branch-format]), then run the verb with JSON output. It renames the branch (commits preserved)
+   and mints the receipt-bearing meta at the floor's stage (derivation → `Planning` + `Current Workflow:
+   draft-design`; scale → `Active`). The exact Errand identity and checkout occupancy remain authoritative until the
+   meta is committed and the verb is replayed.
 
    ```bash
    arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale} --json
    ```
 
-   Render `recommendedPromptText`, consume the returned branch, meta, and locus coordinates, and stop on refusal
-   or error. Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 6).
+   Render `recommendedPromptText`. Continue only from an `applied` result whose exact `subject`, `generation`,
+   `branch`, `metaPath`, `checkoutPath`, allocation, and parent checkout evidence accompanies
+   `settlement.state: commit-required` with the identity retained. A `confirmation-required`, `refused`, or `error`
+   result is a stop; use only the CLI-composed retry after explicit confirmation. Pass `--priority` / `--class`
+   when known, or resolve `Class` at the planning entry (step 6).
 
-4. **Commit the meta; settle the source capture.** The verb wrote `meta-{name}.md` into the working tree without
-   committing. Stage it together with the hand-rendered ROADMAP and commit:
+4. **Commit the receipt; settle the originating generation.** Stage the exact returned `metaPath` together with the
+   hand-rendered ROADMAP and commit:
 
    > [!CAUTION]
    > `commit-interlock` release — commit as `workflowCommit`:
@@ -312,10 +315,11 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    Context: meta-{name}.md (activation)
    ```
 
-   Replay the same promotion command after the commit. The replay recognizes the committed meta, removes only the
-   retained title/source-digest generation under the notes lock, and clears that capture handle from the promoted
-   locus. An absent original is idempotent; a same-title replacement is preserved and refuses settlement. Re-run
-   the command after a lost response.
+   Replay the same promotion command after the commit. Continue only when the result carries the same exact
+   `subject` and `generation` with `settlement.state: settled` and the identity retired. The verb settles the exact
+   source-capture generation, retires the identity, then removes primary transient occupancy or converts spawned
+   occupancy to WU ownership. A same-title replacement or conflicting evidence refuses settlement. Re-run the exact
+   command after a lost response; the immutable `Promotion Receipt` supplies replay authority after identity removal.
 
    ```bash
    arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale} --json
@@ -334,7 +338,7 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    git push origin --delete <errand-branch>   # raw — destructive flag stays literal; skip if it had no upstream
    ```
 
-   The errand record was already retired by the verb; if the branch push fails, retry before relying on
+   The originating identity was retired by the settled replay; if the branch push fails, retry before relying on
    cross-machine resume.
 
 6. **Continue into the routed planning stage** — by the floor crossed. Do **not** run `activate-work-unit`;

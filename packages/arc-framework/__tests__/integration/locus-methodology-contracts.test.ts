@@ -32,7 +32,8 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain("arc errand abandon <slug> [--json]");
       expect(reference).toContain(
         "arc errand promote <slug> [--name <name>] [--type <type>] "
-          + "--floor <derivation|scale> [--json]",
+          + "--floor <derivation|scale> \\\n"
+          + "  [--confirm-foreign-generation <generation>] [--json]",
       );
       expect(reference).not.toMatch(/arc errand open <slug>[^\n]*--type/u);
       expect(reference).not.toContain("arc errand retire");
@@ -131,6 +132,28 @@ describe("locus methodology contracts", () => {
       expect(runErrand).toContain(
         "`arc errand open <slug> --from-inbox <nextOffer.key> --json`",
       );
+    }
+  });
+
+  it("binds Errand promotion to exact receipt settlement", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const runErrand = await readFile(
+        resolve(base, "system/workflows/arc/supplemental/run-errand.md"),
+        "utf8",
+      );
+      const initWorkUnit = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md"),
+        "utf8",
+      );
+
+      for (const workflow of [runErrand, initWorkUnit]) {
+        expect(workflow).toContain("`settlement.state: commit-required`");
+        expect(workflow).toContain("`settlement.state: settled`");
+      }
+      expect(initWorkUnit).toContain("same exact\n   `subject` and `generation`");
+      expect(initWorkUnit).toContain("immutable `Promotion Receipt`");
+      expect(initWorkUnit).not.toContain("retires the errand record");
+      expect(initWorkUnit).not.toContain("backed by a record");
     }
   });
 

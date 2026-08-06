@@ -44,6 +44,12 @@ identity, checkout paths, and lease evidence. For terminal `close` / `abandon` /
   authorizes only that named act in that request.
 - On `refused` / `error`, render `recommendedPromptText` and stop.
 
+Promotion is a two-call transition owned by [`init-work-unit`][promote-errand-to-wu]. Consume the typed result rather
+than inspecting the renamed branch, meta, identity, or marker: `settlement.state: commit-required` retains the exact
+identity while the returned `metaPath` is committed; rerun the same command and continue only from the same exact
+`subject` and `generation` with `settlement.state: settled`. Render `recommendedPromptText` and stop on
+`confirmation-required`, `refused`, or `error`.
+
 Never reconstruct allocation, terminal authority, preservation, cleanup, or continuation from Git branch shape.
 
 When an `open` / `materialize` result asks for directed-command confirmation, confirm that the current session can

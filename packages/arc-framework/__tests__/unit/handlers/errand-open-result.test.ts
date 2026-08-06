@@ -10,6 +10,7 @@ import {
   formatErrandPromoteResult,
 } from "../../../src/handlers/errand.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import { createErrandPromotionResult } from "../../../src/lib/errand/promotion-result.js";
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
 const refusal = createLocusMutationResult({
@@ -163,9 +164,12 @@ describe("errand abandon result rendering", () => {
 
 describe("errand promote result rendering", () => {
   it("renders the same validated result for JSON and human callers", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandPromotionResult({
       outcome: "refused",
       operation: "errand-promote",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
       reason: "promotion-source-invalid",
       recommendedPromptText: "Promotion source changed.",
     });

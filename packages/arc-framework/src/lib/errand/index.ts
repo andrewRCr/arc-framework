@@ -50,6 +50,12 @@ export {
 } from "./terminal-result.js";
 
 export {
+  createErrandPromotionResult,
+  ErrandPromotionResultSchema,
+  type ErrandPromotionResult,
+} from "./promotion-result.js";
+
+export {
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
   type SettleTerminalOccupancyOptions,
