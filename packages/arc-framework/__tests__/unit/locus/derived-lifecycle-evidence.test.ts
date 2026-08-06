@@ -151,7 +151,7 @@ describe("bounded authority projections", () => {
     })).toMatchObject({ kind: "unreadable" });
   });
 
-  it("projects marker topology and requires a partial Errand origin binding", () => {
+  it("projects marker topology and accepts direct or origin-bound partial Errands", () => {
     expect(projectMarkerAuthority(marker(workUnitMarker), { primary: false })).toMatchObject({
       kind: "present",
       subject: { kind: "work-unit", key: "demo" },
@@ -170,9 +170,9 @@ describe("bounded authority projections", () => {
       spawnedByArc: false,
       createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
       provisioning: "ready",
-    }), { primary: true })).toEqual({
-      kind: "unreadable",
-      reason: "Partial Errand marker lacks complete origin binding",
+    }), { primary: true })).toMatchObject({
+      kind: "present",
+      subject: { kind: "partial-errand", key: "repair", claimId: null },
     });
     expect(projectMarkerAuthority(marker({
       spawnedByArc: false,
