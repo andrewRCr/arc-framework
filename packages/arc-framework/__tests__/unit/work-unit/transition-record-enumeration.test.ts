@@ -8,6 +8,7 @@ import {
   serializeTransitionRecord,
   type TransitionRecord,
 } from "../../../src/lib/work-unit/transition-record.js";
+import { queryTransitionDisposition } from "../../../src/lib/work-unit/transition-disposition-query.js";
 
 const encoder = new TextEncoder();
 
@@ -31,19 +32,30 @@ function entry(
 
 describe("transition record namespace enumeration", () => {
   it("groups by authoritative content origin despite mismatched valid filenames", () => {
-    const alpha = record("alpha");
+    const alpha: TransitionRecord = {
+      schemaVersion: 1,
+      origin: "alpha",
+      kind: "rename",
+      successors: ["alpha-successor"],
+      edges: [],
+    };
     const beta = record("beta");
 
-    expect(validateTransitionRecordEnumeration([
+    const enumeration = validateTransitionRecordEnumeration([
       entry("alpha.json", beta),
       entry("beta.json", alpha),
-    ])).toEqual({
+    ]);
+    expect(enumeration).toEqual({
       status: "valid",
       groups: [
         { origin: "alpha", records: [alpha] },
         { origin: "beta", records: [beta] },
       ],
     });
+    expect(queryTransitionDisposition(enumeration, { origin: "alpha", dependentSlug: "consumer" }))
+      .toEqual({ status: "unique", disposition: { kind: "retarget", targetSlug: "alpha-successor" } });
+    expect(queryTransitionDisposition(enumeration, { origin: "beta", dependentSlug: "consumer" }))
+      .toEqual({ status: "unique", disposition: { kind: "abandoned" } });
   });
 
   it("preserves byte-identical entries as origin-local multiplicity", () => {

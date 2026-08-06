@@ -3,13 +3,23 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import { receiptId } from "../../src/lib/canonical/receipt-id.js";
 import { GitDeliveryRenameTransitionSource } from "../../src/lib/delivery/plan-resolution.js";
+import { resolveUserReferenceAuthority } from "../../src/lib/user-reference-reconcile.js";
 import { queryGitRetirementDisposition } from "../../src/lib/work-unit/git-retirement-record-enumeration.js";
+import {
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+  transitionRecordGitExec,
+} from "../../src/lib/work-unit/git-transition-record-enumeration.js";
 import type { RetirementReceipt } from "../../src/lib/work-unit/retirement-authority.js";
 import {
   RETIREMENT_RECORD_NAMESPACE,
   encodeRetirementRecordKey,
 } from "../../src/lib/work-unit/retirement-record-store.js";
-import { writeTransitionRecord } from "../../src/lib/work-unit/transition-record-store.js";
+import {
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "../../src/lib/work-unit/transition-record-store.js";
+import type { TransitionRecord } from "../../src/lib/work-unit/transition-record.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -48,6 +58,16 @@ function receipt(): RetirementReceipt {
       targetSlug: "successor",
       artifactDigest: canonicalDigest("successor"),
     },
+  };
+}
+
+function transition(targetSlug: string): TransitionRecord {
+  return {
+    schemaVersion: 1,
+    origin: "origin",
+    kind: "rename",
+    successors: [targetSlug],
+    edges: [],
   };
 }
 
@@ -127,5 +147,101 @@ describe("retirement disposition branch reachability", () => {
       status: "ok",
       value: [{ subject: "origin", outcome: { kind: "rename", targetSlug: "successor" } }],
     });
+  });
+
+  it("ignores uncommitted bytes and keeps divergent branch answers ref-local", async () => {
+    const initial = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+    await execFileAsync("git", ["switch", "-c", "unreachable", initial], { cwd: repo });
+    await writeTransitionRecord(repo, transition("unreachable-successor"));
+    await execFileAsync("git", ["add", "--", ".arc/system/.internal/transitions"], { cwd: repo });
+    await makeCommit(repo, "record unreachable transition");
+
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await writeTransitionRecord(repo, transition("head-successor"));
+    await execFileAsync("git", ["add", "--", ".arc/system/.internal/transitions"], { cwd: repo });
+    await makeCommit(repo, "record head transition");
+    await writeFile(resolveTransitionRecordPath(repo, "origin"), canonicalize(transition("worktree-successor")));
+
+    const rawExec = transitionRecordGitExec(makeGitExec(repo));
+    const query = { origin: "origin", dependentSlug: "consumer" };
+    await expect(queryGitTransitionDisposition(rawExec, "HEAD", query)).resolves.toEqual({
+      status: "unique",
+      disposition: { kind: "retarget", targetSlug: "head-successor" },
+    });
+    await expect(queryGitTransitionDisposition(rawExec, "unreachable", query)).resolves.toEqual({
+      status: "unique",
+      disposition: { kind: "retarget", targetSlug: "unreachable-successor" },
+    });
+  });
+
+  it("selects current, local-base, refreshed remote-base, and delivery refs independently", async () => {
+    const initial = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+    const commitOn = async (branch: string, targetSlug: string): Promise<string> => {
+      await execFileAsync("git", ["switch", "-c", branch, initial], { cwd: repo });
+      await writeTransitionRecord(repo, transition(targetSlug));
+      await execFileAsync("git", ["add", "--", ".arc/system/.internal/transitions"], { cwd: repo });
+      await makeCommit(repo, `record ${branch} transition`);
+      return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+    };
+    const currentCommit = await commitOn("current-wu", "head-successor");
+    await commitOn("local-base", "local-successor");
+    const remoteCommit = await commitOn("remote-base", "remote-successor");
+    await commitOn("delivery-ref", "delivery-successor");
+    await execFileAsync("git", ["branch", "-f", "main", "local-base"], { cwd: repo });
+    await execFileAsync("git", ["update-ref", "refs/remotes/origin/main", remoteCommit], { cwd: repo });
+    await execFileAsync("git", ["switch", "current-wu"], { cwd: repo });
+    expect((await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim()).toBe(currentCommit);
+
+    const exec = makeGitExec(repo);
+    const rawExec = transitionRecordGitExec(exec);
+    const query = { origin: "origin", dependentSlug: "consumer" };
+    await expect(queryGitTransitionDisposition(rawExec, "HEAD", query)).resolves.toMatchObject({
+      disposition: { targetSlug: "head-successor" },
+    });
+    const enumerateAt = (ref: string) => enumerateGitTransitionRecords(rawExec, ref);
+    await expect(resolveUserReferenceAuthority({
+      protection: "partial",
+      baseBranch: "main",
+      refreshRemoteBase: () => Promise.reject(new Error("must not refresh partial authority")),
+      enumerateAt,
+    })).resolves.toMatchObject({
+      status: "ready",
+      ref: "main",
+      transitions: [{ outcome: { targetSlug: "local-successor" } }],
+    });
+    await expect(resolveUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      refreshRemoteBase: () => Promise.resolve(true),
+      enumerateAt,
+    })).resolves.toMatchObject({
+      status: "ready",
+      ref: "origin/main",
+      transitions: [{ outcome: { targetSlug: "remote-successor" } }],
+    });
+    await expect(new GitDeliveryRenameTransitionSource(exec).enumerate("delivery-ref")).resolves.toMatchObject({
+      status: "ok",
+      value: [{ outcome: { targetSlug: "delivery-successor" } }],
+    });
+  });
+
+  it("keeps a failed full-protection refresh unavailable without consulting another authority", async () => {
+    const candidate = receipt();
+    const directory = join(repo, RETIREMENT_RECORD_NAMESPACE);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, `${encodeRetirementRecordKey(candidate.receiptId)}.json`),
+      canonicalize(candidate),
+      "utf8",
+    );
+    await execFileAsync("git", ["add", "--", RETIREMENT_RECORD_NAMESPACE], { cwd: repo });
+    await makeCommit(repo, "record legacy fallback candidate");
+    const result = await resolveUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      refreshRemoteBase: () => Promise.resolve(false),
+      enumerateAt: () => Promise.reject(new Error("must not enumerate or fall back")),
+    });
+    expect(result).toEqual({ status: "unavailable", ref: "origin/main" });
   });
 });

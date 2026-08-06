@@ -169,27 +169,24 @@ and after conversion, and leave the non-terminal park record for its authorizati
   namespace merging. Real-Git coverage also corrected ancestor-tree handling in the byte-oriented enumerator so the
   selected namespace is reachable through ordinary repository trees.
 
-### `[ ]` **2.4 Prove migration reachability and namespace failure behavior**
+### `[x]` **2.4 Prove migration reachability and namespace failure behavior**
 
 - _Goal:_ Converted history remains ref-local and fail-closed under real Git reads, while content-authoritative
   naming and same-origin ambiguity behave exactly as designed.
 
-    - `[ ]` **2.4.a Exercise converted records across divergent refs**
-        - Extend `retirement-disposition-reachability.test.ts` with committed lean records on divergent refs and
-          query each selected tree independently.
-        - Build `test-first` (one behavior at a time):
-            - Ignore uncommitted worktree bytes and unreachable branch records.
-            - Return the committed answer selected through current-WU `HEAD`, the partial-protection local base, the
-              refreshed full-protection `origin/<base>`, and an explicit delivery ref.
-            - Keep failed full-protection refresh `unavailable` without falling back to another ref or the old
-              namespace.
+    - `[x]` **2.4.a Exercise converted records across divergent refs**
+        - Proved real-Git ref locality across uncommitted bytes, divergent branches, current-WU `HEAD`, local partial
+          authority, refreshed remote authority, and an explicit delivery ref; failed refresh remains unavailable
+          without enumeration or legacy fallback.
 
-    - `[ ]` **2.4.b Exercise the migration failure matrix**
-        - Build `test-first` (one behavior at a time):
-            - Poison all queries for malformed, unknown-version, or duplicate-dependent records.
-            - Accept filename/content mismatch without changing the content-origin answer.
-            - Return ambiguity for one duplicated origin without corrupting unrelated valid origins.
-            - Assert the repository migration contains the expected eight origins and excludes park.
+    - `[x]` **2.4.b Exercise the migration failure matrix**
+        - Proved namespace-wide poisoning for malformed, unknown-version, and duplicate-dependent records;
+          content-authoritative filename mismatch; origin-local duplicate ambiguity; and the eight-origin migration
+          manifest with park excluded.
+
+- _Outcome:_ Converted history now has real-Git evidence for every production authority selection and a closed
+  corruption matrix: global record invalidity poisons the namespace, while valid same-origin multiplicity stays
+  local and does not contaminate unrelated origins.
 
 ## **Phase 3:** Re-derive retirement authorization from Git
 

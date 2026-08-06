@@ -4,7 +4,10 @@ import {
   queryTransitionDisposition,
 } from "../../../src/lib/work-unit/transition-disposition-query.js";
 import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
-import type { TransitionRecordEnumerationResult } from "../../../src/lib/work-unit/transition-record-enumeration.js";
+import {
+  validateTransitionRecordEnumeration,
+  type TransitionRecordEnumerationResult,
+} from "../../../src/lib/work-unit/transition-record-enumeration.js";
 
 function enumeration(...records: TransitionRecord[]): TransitionRecordEnumerationResult {
   return records.length === 0
@@ -77,12 +80,60 @@ describe("transition disposition query", () => {
       edges: [],
     };
     const second: TransitionRecord = { ...first, successors: ["second"] };
+    const unrelated: TransitionRecord = {
+      schemaVersion: 1,
+      origin: "unrelated",
+      kind: "abandon",
+      successors: [],
+      edges: [],
+    };
     const input = { origin: "origin", dependentSlug: "consumer" };
+    const localAmbiguity: TransitionRecordEnumerationResult = {
+      status: "valid",
+      groups: [
+        { origin: "origin", records: [first, second] },
+        { origin: "unrelated", records: [unrelated] },
+      ],
+    };
 
     expect(queryTransitionDisposition(enumeration(), input)).toEqual({ status: "absent" });
-    expect(queryTransitionDisposition(enumeration(first, second), input))
+    expect(queryTransitionDisposition(localAmbiguity, input))
       .toEqual({ status: "ambiguous" });
+    expect(queryTransitionDisposition(localAmbiguity, { origin: "unrelated", dependentSlug: "consumer" }))
+      .toEqual({ status: "unique", disposition: { kind: "abandoned" } });
     expect(queryTransitionDisposition({ status: "namespace-corrupt" }, input))
       .toEqual({ status: "namespace-corrupt" });
+  });
+
+  it.each([
+    ["malformed JSON", "{"],
+    ["unknown version", JSON.stringify({
+      schemaVersion: 2,
+      origin: "origin",
+      kind: "abandon",
+      successors: [],
+      edges: [],
+    })],
+    ["duplicate dependent", JSON.stringify({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "decompose",
+      successors: ["successor"],
+      edges: [
+        { dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["successor"] } },
+        { dependent: "consumer", disposition: { kind: "drop", reason: "retired" } },
+      ],
+    })],
+  ])("poisons every query for a reachable %s record", (_label, content) => {
+    const corrupt = validateTransitionRecordEnumeration([{
+      filename: "origin.json",
+      mode: "100644",
+      type: "blob",
+      content: new TextEncoder().encode(content),
+    }]);
+    for (const origin of ["origin", "unrelated"]) {
+      expect(queryTransitionDisposition(corrupt, { origin, dependentSlug: "consumer" }))
+        .toEqual({ status: "namespace-corrupt" });
+    }
   });
 });
