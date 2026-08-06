@@ -1,6 +1,5 @@
-/** Exact repository contract for the Phase 1 dormant locus foundation. */
+/** Live import-boundary contract for the activated locus foundation. */
 
-import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
@@ -8,13 +7,6 @@ import { describe, expect, it } from "vitest";
 import ts from "typescript";
 
 const packageRoot = resolve(import.meta.dirname, "../..");
-const repositoryRoot = resolve(packageRoot, "../..");
-const phaseOneBase = "5c9e806dcda9eb04166695a0cf45e25b08435c7f";
-const phaseOneBaseTree = "77ef6977dd4f6c4b189ad2a100c2435086148812";
-const phaseOneAcceptance = "e6dc138d3bdd70cae0941b9f899cd6eae7a66a68";
-const phaseOneAcceptanceTree = "2e35e63c1fc53d5ffc7abf5cc3c0722b957ebe8a";
-const contractPath = "packages/arc-framework/__tests__/integration/locus-dormant-foundation-contract.test.ts";
-const comparisonBase = resolveComparisonBase();
 
 const dormantModules = [
   "src/lib/locus/derived-lifecycle-evidence.ts",
@@ -156,65 +148,6 @@ describe("dormant locus foundation acceptance and activation", () => {
     expect(referencesUnder("src").filter((reference) =>
       activated.has(reference.consumer) && forbidden.has(reference.target))).toEqual([]);
   });
-
-  it("records seven additive modules and one exact helper edit at the acceptance head", () => {
-    if (comparisonBase === phaseOneBase) {
-      expect(git("rev-parse", `${phaseOneBase}^{tree}`)).toBe(phaseOneBaseTree);
-    }
-    expect(git("rev-parse", `${phaseOneAcceptance}^{tree}`)).toBe(phaseOneAcceptanceTree);
-    expect(changedPathsBetween(comparisonBase, phaseOneAcceptance, "packages/arc-framework/src")).toEqual([
-      "packages/arc-framework/src/lib/locus/derived-lifecycle-evidence.ts",
-      "packages/arc-framework/src/lib/locus/derived-reader.ts",
-      "packages/arc-framework/src/lib/locus/derived-roster.ts",
-      "packages/arc-framework/src/lib/locus/occupancy-marker.ts",
-      "packages/arc-framework/src/lib/locus/role-corroboration.ts",
-      "packages/arc-framework/src/lib/locus/role-derivation.ts",
-      "packages/arc-framework/src/lib/locus/role-topology.ts",
-      "packages/arc-framework/src/lib/locus/subject-meta.ts",
-    ]);
-
-    const subjectMetaPath = "packages/arc-framework/src/lib/locus/subject-meta.ts";
-    const baseSubjectMeta = git("show", `${comparisonBase}:${subjectMetaPath}`, { trim: false });
-    const expectedSubjectMeta = replaceExactly(
-      replaceExactly(
-        baseSubjectMeta,
-        "  candidates: readonly MetaEvidence[];\n  io: SubjectMetaIO;",
-        "  candidates: readonly MetaEvidence[];\n  activeExtensions?: readonly string[];\n  io: SubjectMetaIO;",
-      ),
-      "      activeExtensions: [],",
-      "      activeExtensions: options.activeExtensions ?? [],",
-    );
-    expect(git("show", `${phaseOneAcceptance}:${subjectMetaPath}`, { trim: false })).toBe(expectedSubjectMeta);
-  });
-
-  it("records unchanged production, public, workflow, doctrine, marker, and golden acceptance surfaces", () => {
-    expect(changedPathsBetween(
-      comparisonBase,
-      phaseOneAcceptance,
-      "packages/arc-framework/src/cli.ts",
-      "packages/arc-framework/src/command-input-registrations.ts",
-      "packages/arc-framework/src/handlers",
-      "packages/arc-framework/src/commands",
-      "packages/arc-framework/src/lib/locus/schema",
-      "packages/arc-framework/src/lib/locus/reader.ts",
-      "packages/arc-framework/src/lib/locus/roster.ts",
-      "packages/arc-framework/src/lib/locus/evidence.ts",
-      "packages/arc-framework/src/lib/locus/state.ts",
-      "packages/arc-framework/src/lib/locus/command-runtime.ts",
-      "packages/arc-framework/src/lib/locus/provisioning-marker.ts",
-      "packages/arc-framework/src/lib/locus/provisioning-runtime.ts",
-      "packages/arc-framework/src/lib/locus/provisioning-types.ts",
-      "packages/arc-framework/src/lib/git/worktree-marker.ts",
-      "packages/arc-framework/src/lib/git/index.ts",
-      "packages/arc-framework/src/lib/status",
-      "packages/arc-framework/src/lib/session-envelope",
-      "packages/arc-framework/src/lib/recover/locus-context.ts",
-      "packages/arc-framework/arc",
-      "packages/arc-framework/__tests__/fixtures/session-envelope",
-      ".arc/system",
-      ".arc/reference",
-    )).toEqual([]);
-  });
 });
 
 function referencesUnder(root: "src" | "__tests__"): ModuleReference[] {
@@ -283,39 +216,4 @@ function incoming(references: readonly ModuleReference[], target: string): strin
 
 function isDormant(path: string): boolean {
   return dormantModules.includes(path as (typeof dormantModules)[number]);
-}
-
-function changedPathsBetween(base: string, target: string, ...pathspecs: string[]): string[] {
-  const tracked = git("diff", "--name-only", "--no-renames", base, target, "--", ...pathspecs);
-  return tracked === "" ? [] : tracked.split("\n").sort();
-}
-
-function resolveComparisonBase(): string {
-  try {
-    execFileSync("git", ["merge-base", "--is-ancestor", phaseOneBase, "HEAD"], {
-      cwd: repositoryRoot,
-      stdio: "ignore",
-    });
-    return phaseOneBase;
-  } catch {
-    const introducingCommit = git("log", "--diff-filter=A", "--format=%H", "--", contractPath)
-      .split("\n")[0];
-    if (introducingCommit === undefined || introducingCommit === "") {
-      throw new Error("Dormant-foundation contract introduction commit is unavailable");
-    }
-    return git("rev-parse", `${introducingCommit}^`);
-  }
-}
-
-function git(...args: string[]): string;
-function git(...args: [...string[], { trim: boolean }]): string;
-function git(...args: Array<string | { trim: boolean }>): string {
-  const options = typeof args.at(-1) === "object" ? args.pop() as { trim: boolean } : { trim: true };
-  const output = execFileSync("git", args as string[], { cwd: repositoryRoot, encoding: "utf8" });
-  return options.trim ? output.trim() : output;
-}
-
-function replaceExactly(source: string, before: string, after: string): string {
-  expect(source.split(before)).toHaveLength(2);
-  return source.replace(before, after);
 }
