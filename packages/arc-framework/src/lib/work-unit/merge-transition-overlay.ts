@@ -11,6 +11,7 @@ import {
   type FinalizedV3DecompositionFacts,
 } from "./validate-v3-decomposition.js";
 import { v3DecomposeReceiptPath } from "./decompose-v3-preparation.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 import type { ValidatedTransitionOverlay } from "./transition-overlay.js";
 
 /** Git operation state captured with the candidate index tree. */
@@ -159,10 +160,16 @@ export function selectMergeTransitionOverlay(
       invalidAuthority = true;
       continue;
     }
-    const expectedChangedPaths = validation.authority.receipt.finalized.transitionPatch
+    const legacyChangedPaths = validation.authority.receipt.finalized.transitionPatch
       .map(({ path }) => path)
       .sort(compareUtf8);
-    if (canonicalize(substantiveChangedPaths) !== canonicalize(expectedChangedPaths)) {
+    const expectedChangedPaths = legacyChangedPaths
+      .concat(resolveTransitionRecordRelativePath(
+        validation.authority.receipt.prepared.completedMap.machine.source.origin,
+      ))
+      .sort(compareUtf8);
+    if (canonicalize(substantiveChangedPaths) !== canonicalize(legacyChangedPaths)
+      && canonicalize(substantiveChangedPaths) !== canonicalize(expectedChangedPaths)) {
       invalidAuthority = true;
       continue;
     }

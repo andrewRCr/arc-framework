@@ -26,7 +26,7 @@ receipt consumer before migration and authorization re-derivation.
 - _Outcome:_ Untrusted JSON now narrows into a closed record that can be written only at its validated origin path;
   no receipt identity, authentication, or transaction evidence crosses the new substrate.
 
-### `[ ]` **1.2 Converge terminal-transition writers on the lean record**
+### `[x]` **1.2 Converge terminal-transition writers on the lean record**
 
 - _Goal:_ Decompose, rename, and abandon persist only the historical facts their consumers need, while park
   continues without creating terminal-transition history.
@@ -35,16 +35,14 @@ receipt consumer before migration and authorization re-derivation.
         - Added validated completed-map projection and co-staged the lean record with v3 finalization; mismatch,
           occupied-origin, staging, and projection-race paths leave prior receipt history and attempted records safe.
 
-    - `[ ]` **1.2.b Converge direct terminal writers and exclude park**
-        - Define a typed `TerminalTransitionRecordWriter` result contract for `recorded`, `origin-occupied`, and
-          `unavailable`; invoke it from `verbs/rename.ts` and `verbs/abandon.ts` inside their existing terminal
-          transactions without changing legacy receipt-backed lifecycle and authorization results.
-        - Build `test-first` (one behavior at a time):
-            - Rename and abandon co-stage their exact lean record with the still-required legacy receipt.
-            - Map same-origin collision to a stable verb refusal and roll back only the attempted record on a later
-              commit failure.
-            - Park-planning retains its existing receipt-backed transition, writes nothing under `transitions/`, and
-              remains consumable by current landing and teardown authorization.
+    - `[x]` **1.2.b Converge direct terminal writers and exclude park**
+        - Added the typed direct-transition writer and wired rename and abandon to co-stage exact origin-keyed
+          history with their legacy receipts; occupied origins refuse stably, later rename commit failure removes
+          only the attempted record, and real-CLI coverage proves park-planning leaves the namespace untouched.
+
+- _Outcome:_ Every terminal writer now co-stages lean history without granting it authorization weight: legacy
+  receipt validators admit the exact companion path while preserving old candidates, teardown proofs, and park's
+  receipt-only lifecycle until their later cutover.
 
 ### `[ ]` **1.3 Enumerate origin-keyed records fail-closed from Git**
 

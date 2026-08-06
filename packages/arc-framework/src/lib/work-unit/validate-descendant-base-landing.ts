@@ -16,6 +16,7 @@ import {
   type V3DecompositionMismatch,
   type V3DecompositionMismatchKind,
 } from "./validate-v3-decomposition.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 export interface DescendantBaseLandingObjectReaders {
   resolveCommit(ref: string): Promise<string | null>;
@@ -79,13 +80,21 @@ async function transitionMatches(
 ): Promise<V3DecompositionMismatch | null> {
   const recordedBaseOid = receipt.prepared.completedMap.machine.resultBase.head;
   const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
+  const transitionPath = resolveTransitionRecordRelativePath(
+    receipt.prepared.completedMap.machine.source.origin,
+  );
   const actualPaths = await deps.objects.changedPaths(recordedBaseOid, input.candidateHeadOid);
-  const expectedPaths = [
+  const legacyPaths = [
     ...receipt.finalized.transitionPatch.map(({ path }) => path),
     receiptPath,
   ].sort(comparePath);
+  const expectedPaths = [
+    ...legacyPaths,
+    transitionPath,
+  ].sort(comparePath);
   if (actualPaths === null) return readFailure("patch");
-  if (canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
+  if (canonicalize(actualPaths) !== canonicalize(legacyPaths)
+    && canonicalize(actualPaths) !== canonicalize(expectedPaths)) {
     const firstDifference = actualPaths.find((path, index) => path !== expectedPaths[index])
       ?? expectedPaths.find((path, index) => path !== actualPaths[index]);
     return { kind: "patch", locus: firstDifference ?? receiptPath };

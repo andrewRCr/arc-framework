@@ -5,6 +5,7 @@ import { validateManagedPath } from "../../../../src/lib/kernel/canonical/manage
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
 import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
 import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
 import {
   runRename,
   type RenamePlan,
@@ -38,9 +39,15 @@ function buildContext(options: {
   shape?: RenamePlan["shape"];
   resuming?: boolean;
   failAt?: string;
-} = {}): { ctx: RunRenameContext; calls: string[]; recordedReceipts: RetirementReceipt[] } {
+} = {}): {
+  ctx: RunRenameContext;
+  calls: string[];
+  recordedReceipts: RetirementReceipt[];
+  recordedTransitions: TransitionRecord[];
+} {
   const calls: string[] = [];
   const recordedReceipts: RetirementReceipt[] = [];
+  const recordedTransitions: TransitionRecord[] = [];
   const selected = plan(options.shape ?? "spawned", options.resuming ?? false);
   const source = {
     scope: {
@@ -102,6 +109,23 @@ function buildContext(options: {
   } satisfies RenameRetirementContext;
   const ctx: RunRenameContext = {
     retirement,
+    transitionWriter: {
+      record: async (record) => {
+        calls.push("transition-record");
+        if (options.failAt === "transition-origin-occupied") return { status: "origin-occupied" };
+        if (options.failAt === "transition-unavailable") {
+          return { status: "unavailable", diagnostic: "transition store unavailable" };
+        }
+        recordedTransitions.push(record);
+        return { status: "recorded" };
+      },
+      rollback: async (record) => {
+        calls.push("transition-rollback");
+        const index = recordedTransitions.indexOf(record);
+        if (index >= 0) recordedTransitions.splice(index, 1);
+        return { status: "rolled-back" };
+      },
+    },
     preflight: async () => {
       calls.push("preflight");
       return selected;
@@ -170,7 +194,7 @@ function buildContext(options: {
       return "renamed";
     },
   };
-  return { ctx, calls, recordedReceipts };
+  return { ctx, calls, recordedReceipts, recordedTransitions };
 }
 
 describe("runRename", () => {
@@ -195,7 +219,7 @@ describe("runRename", () => {
   });
 
   it("records the composed inventory quality", async () => {
-    const { ctx, recordedReceipts } = buildContext();
+    const { ctx, recordedReceipts, recordedTransitions } = buildContext();
 
     await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
 
@@ -221,6 +245,13 @@ describe("runRename", () => {
       status: "unique",
       disposition: { kind: "retarget", targetSlug: "new-name" },
     });
+    expect(recordedTransitions).toEqual([{
+      schemaVersion: 1,
+      origin: "old-name",
+      kind: "rename",
+      successors: ["new-name"],
+      edges: [],
+    }]);
   });
 
   it("commits the tracked sweep before all five spawned identity legs", async () => {
@@ -229,7 +260,8 @@ describe("runRename", () => {
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "renamed", shape: "spawned", trackedCommit: "created" });
     expect(calls).toEqual([
-      "preflight", "capture", "snapshot", "mutate", "stage", "roadmap", "patch", "artifact-digest", "record", "commit",
+      "preflight", "capture", "snapshot", "mutate", "stage", "roadmap", "patch", "artifact-digest", "record",
+      "transition-record", "commit",
       "branch", "notes", "remote", "marker", "resolve-worktree", "rekey-locus",
     ]);
   });
@@ -277,12 +309,25 @@ describe("runRename", () => {
   });
 
   it("rolls back the patch and record when the commit is refused", async () => {
-    const { ctx, calls } = buildContext({ failAt: "commit" });
+    const { ctx, calls, recordedTransitions } = buildContext({ failAt: "commit" });
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "rejected", reason: expect.stringMatching(/commit refused/iu) });
     expect(calls).toContain("rollback-refused");
+    expect(calls).toContain("transition-rollback");
+    expect(recordedTransitions).toEqual([]);
     expect(calls).not.toContain("branch");
+  });
+
+  it("maps an occupied transition origin to a stable refusal and rolls back the tracked attempt", async () => {
+    const { ctx, calls } = buildContext({ failAt: "transition-origin-occupied" });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" })).resolves.toEqual({
+      status: "rejected",
+      reason: "rename transition recording refused: origin-occupied",
+    });
+    expect(calls).toContain("rollback-refused");
+    expect(calls).not.toContain("commit");
   });
 
   it("returns a resumable partial outcome at an identity-leg boundary", async () => {

@@ -61,6 +61,8 @@ import {
   type RetirementLifecycleResult,
 } from "../retirement-lifecycle-result.js";
 import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
+import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
+import type { TransitionRecord } from "../transition-record.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -81,6 +83,7 @@ export interface AbandonContext {
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
   retirement: AbandonRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
   composed?: ComposedLifecycleIndexResult;
 }
@@ -107,8 +110,17 @@ export interface AbandonRetirementContext {
   }): Promise<AbandonSourceEvidence>;
   stageTransition(source: AbandonSourceEvidence): Promise<void>;
   rollbackTransition(source: AbandonSourceEvidence): Promise<void>;
+  rollbackRefusedCommit(
+    source: AbandonSourceEvidence,
+    receiptId: RetirementReceipt["receiptId"],
+  ): Promise<AbandonRollbackResult>;
   readTransitionPatch(source: AbandonSourceEvidence): Promise<readonly PatchOperation[]>;
 }
+
+/** Outcome of restoring a refused abandon recording to its captured source. */
+export type AbandonRollbackResult =
+  | { status: "rolled-back" }
+  | { status: "refused"; reason: "authority-unavailable"; diagnostic: string };
 
 /** The judgment + operational inputs an `abandon` supplies. */
 export interface AbandonParams {
@@ -323,6 +335,24 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
         + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+    };
+  }
+  const transitionRecord: TransitionRecord = {
+    schemaVersion: 1,
+    origin: name,
+    kind: "abandon",
+    successors: [],
+    edges: [],
+  };
+  const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
+  if (transitionRecorded.status !== "recorded") {
+    const rollback = await retirement.rollbackRefusedCommit(source, receipt.receiptId);
+    return {
+      status: "rejected",
+      reason: "The abandon transition was rolled back because transition history could not be recorded: "
+        + `${transitionRecorded.status}.`
+        + (transitionRecorded.status === "unavailable" ? ` ${transitionRecorded.diagnostic}` : "")
+        + (rollback.status === "rolled-back" ? "" : ` Rollback was incomplete: ${rollback.diagnostic}`),
     };
   }
   const pendingLifecycle = projectPendingRetirementLifecycle({

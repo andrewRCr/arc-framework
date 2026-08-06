@@ -8,6 +8,7 @@
 import { canonicalize, type CanonicalDigest } from "../canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../canonical/content-digest.js";
 import type { RetirementReceipt, TeardownAuthorizationRefusal } from "./retirement-authority.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Committed Git facts needed to validate one receipt relation. */
 export interface RetirementRelationContext {
@@ -61,7 +62,13 @@ export async function validateRetirementReceiptRelation(
     ]);
     if (recordAtParent !== null || recordAtCommit === null) return "evidence-mismatch";
     if (!recordMatchesReceipt(recordAtCommit, receipt)) return "evidence-mismatch";
-    if (patchDigest(operations) !== receipt.transitionPatchDigest) return "evidence-mismatch";
+    const transitionPath = receipt.subject.kind === "work-unit"
+      ? resolveTransitionRecordRelativePath(receipt.subject.name)
+      : null;
+    const receiptOperations = transitionPath === null
+      ? operations
+      : operations.filter(({ path }) => path !== transitionPath);
+    if (patchDigest(receiptOperations) !== receipt.transitionPatchDigest) return "evidence-mismatch";
     return null;
   } catch {
     return "authority-unavailable";

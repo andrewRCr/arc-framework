@@ -19,6 +19,7 @@ import {
 } from "../lib/work-unit/retirement-record-store.js";
 import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
+import { createDecomposeTransitionRecord } from "../lib/work-unit/decompose-transition-record.js";
 import {
   v3DecomposeReceiptPath,
   type V3DecomposePreparation,
@@ -33,6 +34,11 @@ import { v3SourceArtifactDigest } from "../lib/work-unit/decompose-v3-schema.js"
 import type { V3SourceArtifactEntry } from "../lib/work-unit/decompose-v3-schema.js";
 import { validateFinalizedV3Decomposition } from "../lib/work-unit/validate-v3-decomposition.js";
 import { readGitV3DecomposeTreeSnapshot } from "../lib/work-unit/git-decompose-v3-preflight.js";
+import { serializeTransitionRecord, type TransitionRecord } from "../lib/work-unit/transition-record.js";
+import {
+  resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
+} from "../lib/work-unit/transition-record-store.js";
 
 /** Closed-stdin subprocess policies owned by the decompose-record hook adapter. */
 export const validateDecomposeRecordInputPolicyDeclarations = [{
@@ -130,6 +136,53 @@ interface ReceiptCoverage {
   errors: string[];
 }
 
+function transitionRecordValidation(
+  changes: readonly StagedPathChange[],
+  readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
+  readHeadBytes: DecomposeCommitGateInput["readHeadBytes"],
+  expected: TransitionRecord,
+): { path: string | null; error: string | null } {
+  const candidates = changes.filter((change) =>
+    change.path.startsWith(`${TRANSITION_RECORD_NAMESPACE}/`));
+  if (candidates.length === 0) return { path: null, error: null };
+  const expectedPath = resolveTransitionRecordRelativePath(expected.origin);
+  const change = candidates.length === 1 ? candidates[0] : undefined;
+  if (change === undefined
+    || change.path !== expectedPath
+    || change.status !== "A"
+    || readHeadBytes(expectedPath) !== null) {
+    return { path: null, error: `terminal transition record mismatch for: ${expected.origin}` };
+  }
+  const bytes = readIndexBytes(expectedPath);
+  if (bytes === null || !Buffer.from(bytes).equals(Buffer.from(serializeTransitionRecord(expected), "utf8"))) {
+    return { path: null, error: `terminal transition record content mismatch for: ${expected.origin}` };
+  }
+  return { path: expectedPath, error: null };
+}
+
+function stagedPatchDigest(
+  changes: readonly StagedPathChange[],
+  readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
+  excludedPaths: ReadonlySet<string>,
+): string | null {
+  const operations: PatchOperation[] = [];
+  try {
+    for (const change of changes) {
+      if (excludedPaths.has(change.path)) continue;
+      const path = validateManagedPath(change.path);
+      if (change.status === "D") operations.push({ operation: "delete", path });
+      else {
+        const staged = readIndexBytes(change.path);
+        if (staged === null) return null;
+        operations.push({ operation: "write", path, contentDigest: contentDigest(staged) });
+      }
+    }
+  } catch {
+    return null;
+  }
+  return patchDigest(operations);
+}
+
 function receiptCoveredRetirements(
   changes: readonly StagedPathChange[],
   readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
@@ -139,22 +192,6 @@ function receiptCoveredRetirements(
   const failedSubjects = new Set<string>();
   const errors: string[] = [];
   const recordPaths = new Set(changes.filter((change) => RECORD_PATTERN.test(change.path)).map((change) => change.path));
-  const operations: PatchOperation[] = [];
-  try {
-    for (const change of changes) {
-      if (recordPaths.has(change.path)) continue;
-      const path = validateManagedPath(change.path);
-      if (change.status === "D") operations.push({ operation: "delete", path });
-      else {
-        const staged = readIndexBytes(change.path);
-        if (staged === null) return { covered, failedSubjects, errors };
-        operations.push({ operation: "write", path, contentDigest: contentDigest(staged) });
-      }
-    }
-  } catch {
-    return { covered, failedSubjects, errors };
-  }
-  const stagedPatchDigest = patchDigest(operations);
   for (const change of changes) {
     const pathMatch = RECORD_PATTERN.exec(change.path);
     if (pathMatch?.[1] === undefined) continue;
@@ -172,6 +209,32 @@ function receiptCoveredRetirements(
           sourceBranch: receipt.source.branch,
           sourceHead: receipt.source.head,
         })) continue;
+
+      const expectedTransition: TransitionRecord = receipt.transition === "rename"
+        ? {
+            schemaVersion: 1,
+            origin: receipt.subject.name,
+            kind: "rename",
+            successors: receipt.result.kind === "rename" ? [receipt.result.targetSlug] : [],
+            edges: [],
+          }
+        : {
+            schemaVersion: 1,
+            origin: receipt.subject.name,
+            kind: "abandon",
+            successors: [],
+            edges: [],
+          };
+      const transition = transitionRecordValidation(changes, readIndexBytes, readHeadBytes, expectedTransition);
+      if (transition.error !== null) {
+        failedSubjects.add(receipt.subject.name);
+        errors.push(transition.error);
+        continue;
+      }
+      const excludedPaths = new Set(recordPaths);
+      if (transition.path !== null) excludedPaths.add(transition.path);
+      const stagedDigest = stagedPatchDigest(changes, readIndexBytes, excludedPaths);
+      if (stagedDigest === null) continue;
 
       if (receipt.transition === "rename") {
         const subject = receipt.subject.name;
@@ -194,7 +257,7 @@ function receiptCoveredRetirements(
           fail(`rename artifact correspondence mismatch: ${subject} -> ${targetSlug}`);
           continue;
         }
-        if (receipt.transitionPatchDigest !== stagedPatchDigest) {
+        if (receipt.transitionPatchDigest !== stagedDigest) {
           fail(`rename finalized record patch digest mismatch for: ${subject}`);
           continue;
         }
@@ -203,7 +266,7 @@ function receiptCoveredRetirements(
       }
       if (change.status === "A"
         && readHeadBytes(change.path) === null
-        && receipt.transitionPatchDigest === stagedPatchDigest) {
+        && receipt.transitionPatchDigest === stagedDigest) {
         covered.add(receipt.subject.name);
       }
     } catch {
@@ -270,9 +333,14 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-function expectedV3Changes(receipt: V3DecomposeReceipt, recordPath: string): StagedPathChange[] {
+function expectedV3Changes(
+  receipt: V3DecomposeReceipt,
+  recordPath: string,
+  transitionPath: string | null,
+): StagedPathChange[] {
   return [
     { status: "A", path: recordPath } satisfies StagedPathChange,
+    ...(transitionPath === null ? [] : [{ status: "A" as const, path: transitionPath }]),
     ...receipt.finalized.transitionPatch.map(({ path, before, after }): StagedPathChange => ({
       status: before.kind === "absent" ? "A" : after.kind === "absent" ? "D" : "M",
       path,
@@ -355,7 +423,16 @@ function validateV3CommitAddition(
   if (change.path !== v3DecomposeReceiptPath(receipt.receiptId)) {
     return ["v3 decompose retirement record identity does not match its deterministic path"];
   }
-  const expectedChanges = expectedV3Changes(receipt, change.path);
+  const projectedTransition = createDecomposeTransitionRecord(receipt.prepared.completedMap);
+  if (projectedTransition === null) return ["v3 decompose terminal transition record projection failed"];
+  const transition = transitionRecordValidation(
+    changes,
+    (path) => input.readIndexBytes(path),
+    (path) => input.readHeadBytes(path),
+    projectedTransition,
+  );
+  if (transition.error !== null) return [transition.error];
+  const expectedChanges = expectedV3Changes(receipt, change.path, transition.path);
   // An advancing merge is diffed from the already-finalized candidate, so unchanged transition paths are
   // inherited rather than repeated in this write set. The canonical validation below still proves every managed
   // path from the sole result-base merge parent to the staged index; this check only rejects riders and bad statuses.

@@ -137,6 +137,27 @@ describe("unchanged receipt relation", () => {
 });
 
 describe("transition write set", () => {
+  it("keeps co-staged terminal history outside the legacy receipt patch digest", async () => {
+    const expected = [{ operation: "delete", path: metaPath }] as const;
+    const actual = [
+      ...expected,
+      {
+        operation: "write",
+        path: validateManagedPath(".arc/system/.internal/transitions/sample.json"),
+        contentDigest: contentDigest(new TextEncoder().encode("transition")),
+      },
+    ] as const;
+    const receipt = directReceipt(expected);
+    const ctx = relationContext(receipt, actual);
+
+    await expect(
+      validateRetirementReceiptRelation(ctx, receipt, {
+        retiringHead: resultHead,
+        resultHead: "e".repeat(40),
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("rejects unrelated content because the complete non-record patch digest changes", async () => {
     const expected = [{ operation: "delete", path: metaPath }] as const;
     const actual = [

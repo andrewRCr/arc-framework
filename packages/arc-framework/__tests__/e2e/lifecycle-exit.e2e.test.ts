@@ -1228,6 +1228,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ])).split("\n").filter(Boolean).sort();
     expect(changedPaths).toEqual([
       receiptPath,
+      ".arc/system/.internal/transitions/origin.json",
       ...finalizedResult.receipt.finalized.transitionPatch.map(({ path }) => path),
     ].sort());
 
@@ -1351,6 +1352,8 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const staged = await git(worktree!, ["diff", "--cached", "--name-only"]);
     expect(staged).toContain(".arc/backlog/planned/solo/meta-solo.md");
     expect(staged).toContain(`.arc/system/.internal/retirement-receipts/${receiptFiles[0]}`);
+    expect(staged).not.toContain(".arc/system/.internal/transitions/solo.json");
+    expect(await pathExists(join(worktree!, ".arc/system/.internal/transitions/solo.json"))).toBe(false);
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/`arc teardown solo`/);

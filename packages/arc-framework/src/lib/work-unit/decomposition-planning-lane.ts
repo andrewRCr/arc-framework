@@ -9,6 +9,10 @@ import {
 } from "../change-facts.js";
 import { v3DecomposeReceiptPath } from "./decompose-v3-preparation.js";
 import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
+import {
+  resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
+} from "./transition-record-store.js";
 import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 import type {
   DescendantBaseLandingResult,
@@ -105,7 +109,10 @@ export async function classifyDecompositionPlanningLane(
     || receiptChange.newMode !== "100644") {
     return { outcome: "invalid-retirement", locus: firstReceiptPath };
   }
-  const planningChanges = changeSet.changes.filter((candidate) => candidate !== receiptChange);
+  const planningChanges = changeSet.changes.filter((candidate) =>
+    candidate !== receiptChange
+    && candidate.path !== TRANSITION_RECORD_NAMESPACE
+    && !candidate.path.startsWith(`${TRANSITION_RECORD_NAMESPACE}/`));
   if (classifyPlanningLane({ changeSet: "known", changes: planningChanges }) !== "planning") {
     return { outcome: "reviewed" };
   }
@@ -120,11 +127,18 @@ export async function classifyDecompositionPlanningLane(
     return { outcome: "invalid-retirement", locus: receiptChange.path };
   }
   const actualPaths = affectedPaths(changeSet.changes).sort(comparePath);
-  const expectedPaths = [
+  const legacyPaths = [
     ...read.receipt.finalized.transitionPatch.map(({ path }) => path),
     canonicalPath,
   ].sort(comparePath);
-  if (canonicalize(actualPaths) !== canonicalize(expectedPaths)) return { outcome: "reviewed" };
+  const expectedPaths = [
+    ...legacyPaths,
+    resolveTransitionRecordRelativePath(
+      read.receipt.prepared.completedMap.machine.source.origin,
+    ),
+  ].sort(comparePath);
+  if (canonicalize(actualPaths) !== canonicalize(legacyPaths)
+    && canonicalize(actualPaths) !== canonicalize(expectedPaths)) return { outcome: "reviewed" };
 
   const assembled = await dependencies.assemble(read.receipt, head);
   if (assembled.status === "unreadable") return { outcome: "reviewed" };

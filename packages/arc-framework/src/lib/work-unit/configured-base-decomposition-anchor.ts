@@ -24,6 +24,7 @@ import {
   encodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
 } from "./retirement-record-store.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 export interface ConfiguredBaseDecompositionAnchorDependencies {
   exec: GitExec;
@@ -50,11 +51,17 @@ async function transitionMatches(
 ): Promise<boolean> {
   const preparedBase = receipt.prepared.completedMap.machine.resultBase.head;
   const actualPaths = await changedPaths(deps.exec, preparedBase, candidate.head);
-  const expectedPaths = [
+  const legacyPaths = [
     ...receipt.finalized.transitionPatch.map(({ path }) => path),
     v3DecomposeReceiptPath(receipt.receiptId),
   ].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
-  if (actualPaths === null || canonicalize(actualPaths) !== canonicalize(expectedPaths)) return false;
+  const expectedPaths = [
+    ...legacyPaths,
+    resolveTransitionRecordRelativePath(receipt.prepared.completedMap.machine.source.origin),
+  ].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  if (actualPaths === null
+    || (canonicalize(actualPaths) !== canonicalize(legacyPaths)
+      && canonicalize(actualPaths) !== canonicalize(expectedPaths))) return false;
   const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
   const beforeReceipt = await readTreeEntry(deps.exec, preparedBase, receiptPath);
   const afterReceipt = await readTreeEntry(deps.exec, candidate.head, receiptPath);
@@ -180,9 +187,16 @@ async function descendantMergeCompositionMatches(
   const firstParent = landing.parents[0];
   if (firstParent === undefined) return false;
   const receiptPath = v3DecomposeReceiptPath(receipt.receiptId);
-  const touched = new Set([
+  const transitionPath = resolveTransitionRecordRelativePath(
+    receipt.prepared.completedMap.machine.source.origin,
+  );
+  const legacyTouched = new Set([
     ...receipt.finalized.transitionPatch.map(({ path }) => path),
     receiptPath,
+  ]);
+  const touched = new Set([
+    ...legacyTouched,
+    transitionPath,
   ]);
   const changed = await changedPaths(deps.exec, firstParent, landing.head);
   if (changed === null || changed.some((path) => !touched.has(path))) return false;

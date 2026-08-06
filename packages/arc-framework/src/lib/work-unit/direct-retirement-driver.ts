@@ -349,6 +349,13 @@ export function createInRepoAbandonRetirementContext(
     captureSource: (params) => direct.captureSource({ ...params, resultDir: null }),
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
+    rollbackRefusedCommit: (source, receiptId) => rollbackRefusedDirectCommit(
+      deps,
+      direct,
+      source,
+      receiptId,
+      "Abandon",
+    ),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
   };
 }
@@ -429,36 +436,50 @@ export function createInRepoRenameRetirementContext(
     },
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
-    rollbackRefusedCommit: async (source, receiptId) => {
-      const failures: string[] = [];
-      const recordPath = resolveRetirementRecordRelativePath(receiptId);
-      try {
-        await direct.rollbackTransition(source);
-      } catch (error) {
-        failures.push(`tree restore failed: ${errorMessage(error)}`);
-      }
-      try {
-        await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", recordPath], { cwd: deps.cwd });
-      } catch (error) {
-        failures.push(`record index cleanup failed: ${errorMessage(error)}`);
-      }
-      try {
-        await deps.removeRecord(receiptId);
-      } catch (error) {
-        failures.push(`record removal failed: ${errorMessage(error)}`);
-      }
-      if (failures.length === 0) return { status: "rolled-back" };
-
-      return {
-        status: "refused",
-        reason: "authority-unavailable",
-        diagnostic: `Rename rollback was incomplete for record ${recordPath}: ${failures.join("; ")}. `
-          + `Discard residual evidence with \`git rm -f --cached --ignore-unmatch -- ${recordPath}\` and remove `
-          + `the file before retrying.`,
-      };
-    },
+    rollbackRefusedCommit: (source, receiptId) => rollbackRefusedDirectCommit(
+      deps,
+      direct,
+      source,
+      receiptId,
+      "Rename",
+    ),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
     readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
+  };
+}
+
+async function rollbackRefusedDirectCommit(
+  deps: InRepoDirectRetirementDeps,
+  direct: DirectTransitionRetirementContext,
+  source: DirectTransitionSourceEvidence,
+  receiptId: RetirementReceipt["receiptId"],
+  label: "Abandon" | "Rename",
+): Promise<RenameRollbackResult> {
+  const failures: string[] = [];
+  const recordPath = resolveRetirementRecordRelativePath(receiptId);
+  try {
+    await direct.rollbackTransition(source);
+  } catch (error) {
+    failures.push(`tree restore failed: ${errorMessage(error)}`);
+  }
+  try {
+    await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", recordPath], { cwd: deps.cwd });
+  } catch (error) {
+    failures.push(`record index cleanup failed: ${errorMessage(error)}`);
+  }
+  try {
+    await deps.removeRecord(receiptId);
+  } catch (error) {
+    failures.push(`record removal failed: ${errorMessage(error)}`);
+  }
+  if (failures.length === 0) return { status: "rolled-back" };
+
+  return {
+    status: "refused",
+    reason: "authority-unavailable",
+    diagnostic: `${label} rollback was incomplete for record ${recordPath}: ${failures.join("; ")}. `
+      + `Discard residual evidence with \`git rm -f --cached --ignore-unmatch -- ${recordPath}\` and remove `
+      + "the file before retrying.",
   };
 }
 

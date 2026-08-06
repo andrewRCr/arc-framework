@@ -120,6 +120,11 @@ import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
 } from "../lib/work-unit/retirement-record-store.js";
+import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
+import {
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "../lib/work-unit/transition-record-store.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
@@ -288,6 +293,16 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
     createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
     removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
   };
+}
+
+/** Bind exclusive terminal-history creation and index staging. */
+function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRepoTerminalTransitionRecordWriter> {
+  return createInRepoTerminalTransitionRecordWriter({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    createRecord: (record) => writeTransitionRecord(base.cwd, record),
+    removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin)),
+  });
 }
 
 /** Surface a transition's success note plus any side-effect advisories. */
@@ -945,6 +960,7 @@ export async function handleRename(
     baseBranch: settings["branch.base"],
     io: base.io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+    transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
       for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
@@ -1832,6 +1848,7 @@ export async function handleAbandon(
       executor,
       fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
       retirement,
+      transitionWriter: terminalTransitionWriter(base),
       composed,
     },
     { name: target, confirmed: true },

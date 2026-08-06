@@ -656,9 +656,13 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         if (receipt === null) {
           return refused("receipt-derivation-mismatch", { kind: "mechanical-repreflight" });
         }
+        const stagedTransition = storedReceipt === null
+          ? null
+          : await deps.readBlob(null, validateManagedPath(transitionPath));
         const expectedStagedPaths = [...new Set([
           receiptPath,
           ...receipt.finalized.transitionPatch.map(({ path }) => path),
+          ...(stagedTransition === null ? [] : [transitionPath]),
         ])].sort(compareUtf8);
         try {
           await requireExactV3StagedPaths(deps, expectedStagedPaths);

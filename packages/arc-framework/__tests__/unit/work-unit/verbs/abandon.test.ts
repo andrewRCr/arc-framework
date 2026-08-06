@@ -34,6 +34,7 @@ import {
   type RetirementReceipt,
 } from "../../../../src/lib/work-unit/retirement-authority.js";
 import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
@@ -113,6 +114,7 @@ interface Harness {
   removed: string[];
   rmdirs: string[];
   recordedReceipts: RetirementReceipt[];
+  recordedTransitions: TransitionRecord[];
 }
 
 function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
@@ -120,6 +122,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   const removed: string[] = [];
   const rmdirs: string[] = [];
   const recordedReceipts: RetirementReceipt[] = [];
+  const recordedTransitions: TransitionRecord[] = [];
   const sourceArtifactDigest = canonicalDigest({ artifact: "foo-source" });
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
@@ -218,10 +221,38 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     rollbackTransition: async () => {
       calls.push("retirement:rollback-transition");
     },
+    rollbackRefusedCommit: async () => {
+      calls.push("retirement:rollback-refused");
+      return { status: "rolled-back" };
+    },
     readTransitionPatch: async () => TRANSITION_OPERATIONS,
   };
 
-  return { ctx: { executor, fs, retirement }, calls, removed, rmdirs, recordedReceipts };
+  return {
+    ctx: {
+      executor,
+      fs,
+      retirement,
+      transitionWriter: {
+        record: async (transition) => {
+          calls.push("transition:record");
+          recordedTransitions.push(transition);
+          return { status: "recorded" };
+        },
+        rollback: async (transition) => {
+          calls.push("transition:rollback");
+          const index = recordedTransitions.indexOf(transition);
+          if (index >= 0) recordedTransitions.splice(index, 1);
+          return { status: "rolled-back" };
+        },
+      },
+    },
+    calls,
+    removed,
+    rmdirs,
+    recordedReceipts,
+    recordedTransitions,
+  };
 }
 
 const BASE: AbandonParams = { name: "foo", confirmed: true };
@@ -293,14 +324,34 @@ describe("runAbandon — started WU (active)", () => {
   });
 
   it("stages the transition before recording the receipt for the same commit", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+    const { ctx, calls, recordedReceipts, recordedTransitions } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
     expect(calls).toContain("retirement:record");
     expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
+    expect(calls.indexOf("retirement:record")).toBeLessThan(calls.indexOf("transition:record"));
     expect(recordedReceipts).toHaveLength(1);
+    expect(recordedTransitions).toEqual([{
+      schemaVersion: 1,
+      origin: "foo",
+      kind: "abandon",
+      successors: [],
+      edges: [],
+    }]);
+  });
+
+  it("maps an occupied transition origin to a stable refusal and rolls back the receipt-backed transition", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.transitionWriter.record = async () => ({ status: "origin-occupied" });
+
+    await expect(runAbandon(ctx, BASE)).resolves.toEqual({
+      status: "rejected",
+      reason: "The abandon transition was rolled back because transition history could not be recorded: "
+        + "origin-occupied.",
+    });
+    expect(calls).toContain("retirement:rollback-refused");
   });
 
   it("rolls back the transition and leaves destructive cleanup deferred when recording refuses", async () => {

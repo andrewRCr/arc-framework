@@ -24,6 +24,8 @@ import type {
   RenameTransitionSourceEvidence,
 } from "../direct-retirement-driver.js";
 import type { InventoryRead, RetirementReceipt } from "../retirement-authority.js";
+import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
+import type { TransitionRecord } from "../transition-record.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
 export type RenameSubjectShape = "spawned" | "in-place" | "stub";
@@ -73,6 +75,7 @@ export interface RenameLocusRekeyReport {
 /** Injected operations driven by {@link runRename}. */
 export interface RunRenameContext {
   retirement: RenameRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
   onPrepared?(plan: RenamePlan): Promise<void>;
   mutateTracked(plan: RenamePlan): Promise<void>;
@@ -270,14 +273,34 @@ async function runTrackedRename(
     };
   }
 
+  const transitionRecord: TransitionRecord = {
+    schemaVersion: 1,
+    origin: plan.sourceSlug,
+    kind: "rename",
+    successors: [plan.targetSlug],
+    edges: [],
+  };
+  const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
+  if (transitionRecorded.status !== "recorded") {
+    const rollback = await ctx.retirement.rollbackRefusedCommit(source, id);
+    return {
+      status: "rejected",
+      reason: `rename transition recording refused: ${transitionRecorded.status}`
+        + (transitionRecorded.status === "unavailable" ? `; ${transitionRecorded.diagnostic}` : "")
+        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`),
+    };
+  }
+
   try {
     await ctx.commitTracked(plan, receipt);
   } catch (error) {
+    const transitionRollback = await ctx.transitionWriter.rollback(transitionRecord);
     const rollback = await ctx.retirement.rollbackRefusedCommit(source, id);
     return {
       status: "rejected",
       reason: `rename commit refused: ${errorMessage(error)}`
-        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`),
+        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`)
+        + (transitionRollback.status === "rolled-back" ? "" : `; ${transitionRollback.diagnostic}`),
     };
   }
   return {
