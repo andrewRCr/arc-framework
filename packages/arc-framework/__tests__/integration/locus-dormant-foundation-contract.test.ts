@@ -33,10 +33,16 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/locus/derived-roster.ts",
   ],
   "src/lib/locus/derived-reader.ts": [
+    "src/commands/status/run.ts",
+    "src/commands/status/types.ts",
     "src/handlers/derived-locus-state-probe.ts",
     "src/lib/locus/derived-evidence.ts",
+    "src/lib/locus/session-guidance.ts",
   ],
-  "src/lib/locus/derived-roster.ts": ["src/lib/locus/derived-reader.ts"],
+  "src/lib/locus/derived-roster.ts": [
+    "src/lib/locus/derived-reader.ts",
+    "src/lib/locus/session-guidance.ts",
+  ],
   "src/lib/locus/occupancy-marker.ts": [
     "src/lib/locus/derived-evidence.ts",
     "src/lib/locus/derived-lifecycle-evidence.ts",
@@ -62,8 +68,11 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/unit/locus/derived-roster.test.ts",
   ],
   "src/lib/locus/derived-reader.ts": [
+    "__tests__/integration/status.test.ts",
     "__tests__/unit/locus/derived-evidence.test.ts",
     "__tests__/unit/locus/derived-reader.test.ts",
+    "__tests__/unit/locus/session-guidance.test.ts",
+    "__tests__/unit/status/run.test.ts",
   ],
   "src/lib/locus/derived-roster.ts": ["__tests__/unit/locus/derived-roster.test.ts"],
   "src/lib/locus/occupancy-marker.ts": [

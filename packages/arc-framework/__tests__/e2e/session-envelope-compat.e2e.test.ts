@@ -78,6 +78,23 @@ describe("session envelope normalization contract", () => {
       expect(path.startsWith(primary), path).toBe(true);
     }
   });
+
+  it("keeps randomized SHA-256 generations stable and parseable", () => {
+    const normalized = normalizeSessionEnvelope(
+      {
+        first: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        repeated: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        second: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+      { roots: [] },
+    );
+
+    expect(normalized).toEqual({
+      first: `sha256:${"1".padStart(64, "0")}`,
+      repeated: `sha256:${"1".padStart(64, "0")}`,
+      second: `sha256:${"2".padStart(64, "0")}`,
+    });
+  });
 });
 
 describe("session envelope wire compatibility", () => {

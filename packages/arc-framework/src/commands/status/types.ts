@@ -65,6 +65,7 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
+import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
@@ -214,6 +215,8 @@ export interface SessionInitProbeResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** Worktree-derived migration frame selected for session-init consumers. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
   /** CLI-precomposed narration derived from the same locus probe. */
   locusGuidance: LocusSessionGuidance;
   user: Probe<SessionInitUserValue>;
@@ -597,6 +600,11 @@ export interface SessionSharedProbes {
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes extends SessionSharedProbes {
+  /** Resolve the entering-checkout frame with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
   /** Inspect one resolved active WU through the shared read-only reconcile planner. */
   currentWuReconcile: (
     input: { slug: string; metaPath: string },

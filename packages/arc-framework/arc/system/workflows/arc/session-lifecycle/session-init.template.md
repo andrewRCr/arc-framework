@@ -25,9 +25,9 @@ pwd && arc status --session-init --json
 ```
 
 `pwd` should be the current repository root — the directory containing `.arc/`.
-The probe returns a single JSON envelope. Its required `locusState: Probe<LocusStateV1>` is the sole session-frame
-and checkout-role authority; `locusGuidance` carries CLI-composed narration from that same read. The remaining
-slots provide sync, notes, base, configuration, active-artifact, load-set, discovery, and advisory projections.
+The probe returns a single JSON envelope. Its required `derivedLocusState` slot is the sole session-frame and
+checkout-role authority; `locusGuidance` carries CLI-composed narration from that same read. The remaining slots
+provide sync, notes, base, configuration, active-artifact, load-set, discovery, and advisory projections.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -42,36 +42,19 @@ warning in orientation. Sessions without identity cannot perform handoff.
 **Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
 for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
 
-**Resolve the selected entry row before dispatch.** Dispatch only on `locusState.value.current`,
-`locusState.value.recovery`, `locusState.value.reconciliation`, `locusState.value.primaryAvailability`, and the
-exact role row registered at the entering checkout.
-Never select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES. Resolve the entering
-checkout path from `worktree.value.identity` (`linked.path` for a linked checkout, otherwise
-`locusState.value.roster.primaryPath`).
+**Resolve the selected entry row before dispatch.** Dispatch only on `derivedLocusState.value.entering` and the
+exact selected row. Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES.
 
-- `locusState.ok !== true`, `locusState.value.current.kind === "ambiguous"`,
-  `locusState.value.recovery.kind === "stop"`, or `locusState.value.reconciliation.kind === "stop"` → render the
-  matching `locusGuidance` text and stop.
-- `locusState.value.recovery.kind === "residue"` → render `locusGuidance.recovery` and offer only the listed
-  actions through `arc locus resolve <record-id> --action resume|abandon`; render the command's
-  `recommendedPromptText` verbatim, then re-run the probe on success.
-- `locusState.value.reconciliation.kind === "apply"` → render `locusGuidance.reconciliation`. An
-  `adopt-work-unit` or `adopt-transient` action dispatches to
-  `arc locus attach --checkout <checkout-path> --json` on approval; every other action stays an explicit operator
-  choice until its owning CLI verb is selected.
-- `locusState.value.current.kind === "resolved"` → find the one row whose `recordId` equals
-  `locusState.value.current.activeRecordId`, then run
-  `arc locus attach --checkout <row.checkoutPath> --json`. Render the result's `recommendedPromptText` verbatim;
-  refusal or error stops. Re-run the probe after success so the lease, frame, derived workflow, task cursor, and
-  load set all come from the attached generation.
-- `locusState.value.current.kind === "none"` → attach nothing. Select the exact managed WU role at the entering
-  checkout when its frame is `idle`; a null lease is the normal ordinary-session state. Multiple matching rows or
-  a non-idle WU row stop. When no WU role matches, continue from
-  `locusState.value.primaryAvailability` and the identity tails.
-
-When an attach or open result asks for directed-command confirmation, confirm that the current session can run
-subsequent commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session at
-that checkout and stop before loading or executing the returned frame.
+- `derivedLocusState.ok !== true` or `locusGuidance.kind === "unavailable"` → render the CLI-composed message and
+  stop.
+- `entering.kind === "unresolved"` or `entering.row.kind === "unresolved-checkout"` → render the matching
+  `locusGuidance` message and stop only this entry operation.
+- `entering.row.kind === "work-unit"` → require `derivedLocusState.value.active.context`; select its workflow,
+  session type, task cursor, cohort, and load set without another meta or load-set read.
+- `entering.row.kind === "transient"` → dispatch from its exact subject and marker/identity facts to the owning
+  transient workflow. Partial Errands remain marker-derived and identity-independent.
+- `entering.row.kind === "free-primary" | "unmanaged-checkout" | "retired"` → select no active WU or transient;
+  continue to the between-WUs or cleanup guidance carried by the frame.
 
 **Composite probe failure:** If the composite call itself fails, surface the failure and stop. Direct diagnostic
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
@@ -221,8 +204,8 @@ here; the arms below are the **signal-absent** path.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If
-      `locusState.value.inFlightIdentities`, `errandState.value.materializable.candidates`, or
-      `materializableWorkUnits` carry available routes, surface them in Step 6.
+      `errandState.value.materializable.candidates` or `materializableWorkUnits` carry available routes, surface
+      them in Step 6.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
@@ -411,7 +394,7 @@ second load set from branch or meta discovery.
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
-**Transient-resume mode**: a transient row carries no `derived` projection, and top-level `loadSet` is projected
+**Transient-resume mode**: a transient row carries no WU context, and top-level `loadSet` is projected
 from the entering checkout's active-meta resolution rather than the transient role — consume neither as this arm's
 load set. Read items 1–6 and WORKING-MEMORY (item 8.2), skip every WU artifact, then load
 [run-errand][run-errand] in resume mode. A selected transient row carrying a `derived` projection stops as a probe
@@ -470,7 +453,7 @@ contract failure.
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
 > § Person-to-Person Task Handoff for the incoming bootstrap protocol.
 
-**Resolve session type** — use the selected row's `derived.sessionType` and `derived.workflow`. These are reader
+**Resolve session type** — use `derivedLocusState.value.active.context.sessionType` and `.workflow`. These are reader
 projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
 expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
 
@@ -486,13 +469,13 @@ freshness-check commands below), not from SESSION-NOTES prose.
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** the selected row's `derived.sessionType === "planning"`, its load set has no task-list entry,
-    `derived.taskCursor.status === "missing"`, or the anchor-source rules below resolve to no current task.
+    **Skip if** the selected WU context's `sessionType === "planning"`, its load set has no task-list entry,
+    `taskCursor.value.status === "missing"`, or the anchor-source rules below resolve to no current task.
 
     - Path: use the task-list path emitted in the selected row's load set. Do not reconstruct it from raw meta.
     - **Anchor source**: Choose an anchor before any partial read. Prefer the `**Next Task:**`
       triple-anchor when it carries usable task id, title, and line hint. If it is absent or incomplete,
-      require `derived.taskCursor.status === "found"`; use its `cursor.section` as the lookup anchor for the
+      require `taskCursor.value.status === "found"`; use its `cursor.section` as the lookup anchor for the
       section read, and keep `cursor.leaf` only as the in-section current executable. If the cursor reports
       `no-open-task`, skip the partial read and surface that no executable checkbox is currently open.
       If the cursor is malformed or the `taskCursor` probe failed, skip the partial read and surface the
@@ -517,10 +500,7 @@ freshness-check commands below), not from SESSION-NOTES prose.
     - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or
       equivalent phase-heading marker) — one grep returns all phase positions, sufficient to compute
       Read offsets for header (above first phase), current phase preamble, and current task section.
-    - **Companion file awareness**: From `active.value.companions` — note their existence so
-      references during execution resolve immediately. **Do not read these at init**
-
-10. **Lifecycle workflow** — **read in full** from the selected row's derived workflow/load-set entry. A null
+10. **Lifecycle workflow** — **read in full** from the selected WU context's workflow/load-set entry. A null
     workflow with no selected entry row skips the read; a null workflow on a selected active role is a mismatch.
 
     Load later if the session pivots to a different lifecycle phase.
@@ -696,9 +676,6 @@ tracked source documents the work.
   when no lines remain. The composer suppresses unmanaged-sibling diagnostics and every expected/no-action frame,
   availability, recovery, reconciliation, and cleanup fact. Render remaining strings verbatim; do not reconstruct
   their evidence or deletion conditions.
-- `locusState.value.recovery.kind === "residue"` — pair `locusGuidance.recovery` with the exact
-  `arc locus resolve <record-id> --action resume|abandon` choices. Never infer an action from branch shape.
-
 - `worktree.value.state == "diverged"` — branch on `worktree.value.supersession`:
     - `supersession.superseded === true` — the local-ahead commits are patch-equal to a rebased remote
       prefix (the branch was rebased and force-pushed elsewhere), so a hard reset to the remote loses no
@@ -962,11 +939,6 @@ tracked source documents the work.
   **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
   - `{slug}` — created {created} ({ageDays}d ago)
   ```
-
-- `locusState.value.inFlightIdentities` non-empty: render each `locusGuidance.identities` line and offer only an
-  action backed by a registered owning verb. A local ordinary Errand may resume, finalize, or abandon; a
-  remote-only identity outside `errandState.value.materializable.candidates` and any unsupported identity remains
-  retained evidence. Never derive availability or state from a `chore/` branch name.
 
 - `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,

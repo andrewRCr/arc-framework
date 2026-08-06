@@ -440,6 +440,57 @@ export const StatusIdentitySchema = z.strictObject({
   role: NON_EMPTY_TEXT.nullable(),
 });
 
+const DerivedSubjectViewSchema = z.object({
+  kind: z.enum(["work-unit", "errand", "partial-errand", "groom", "housekeep"]),
+  key: NON_EMPTY_TEXT,
+}).loose();
+
+const DerivedCheckoutRowViewSchema = z.object({
+  kind: z.enum([
+    "free-primary",
+    "unmanaged-checkout",
+    "work-unit",
+    "retired",
+    "transient",
+    "unresolved-checkout",
+  ]),
+  checkout: z.object({ path: NON_EMPTY_TEXT, primary: z.boolean() }).loose(),
+  subject: DerivedSubjectViewSchema.nullable(),
+  context: z.object({
+    metaPath: LoadSetPathSchema,
+    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+    workflow: z.string().nullable(),
+    stage: z.string().nullable(),
+    taskListPath: LoadSetPathSchema.nullable(),
+    taskCursor: TaskListCursorFileResultSchema.nullable(),
+    cohortDocPath: LoadSetPathSchema.nullable(),
+    loadSet: LoadSetManifestSchema,
+  }).loose().nullable(),
+  diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
+}).loose();
+
+/** Routing view of the worktree-derived entering-checkout frame. */
+export const DerivedLocusFrameValueViewSchema = z.object({
+  roster: z.array(DerivedCheckoutRowViewSchema),
+  entering: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("selected"), row: DerivedCheckoutRowViewSchema }),
+    z.strictObject({
+      kind: z.literal("unresolved"),
+      checkoutPath: NON_EMPTY_TEXT,
+      diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
+    }),
+  ]),
+  primaryAvailability: z.object({
+    kind: z.enum(["free", "occupied", "unsafe"]),
+  }).loose(),
+  identityDiscovery: z.object({ kind: z.enum(["absent", "error", "complete"]) }).loose(),
+  active: z.object({
+    checkoutPath: NON_EMPTY_TEXT,
+    subject: DerivedSubjectViewSchema,
+    context: DerivedCheckoutRowViewSchema.shape.context.unwrap(),
+  }).strict().nullable(),
+}).loose();
+
 /** Complete invocation-only compaction-seed write result. */
 export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("written"), path: NON_EMPTY_TEXT }),
@@ -458,6 +509,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
   locusState: probe(LocusStateV1Schema),
+  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueViewSchema),

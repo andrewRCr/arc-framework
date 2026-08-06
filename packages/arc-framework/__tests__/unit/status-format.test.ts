@@ -138,6 +138,7 @@ function makeSessionInitResult(
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
     locusState: { ok: true, value: locusStateFixture({ rows: [] }) },
+    derivedLocusState: { ok: false, error: { kind: "runtime", message: "fixture unavailable" } },
     locusGuidance: {
       kind: "ready",
       identities: [],

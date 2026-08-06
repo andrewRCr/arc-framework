@@ -239,28 +239,22 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
 - _Outcome:_ Migrated consumers can now select one canonical entering row from a contained repository roster while
   unrelated malformed or identity-dependent sibling evidence remains localized to the rows that require it.
 
-### `[ ]` **2.3 Collapse session guidance and load-set projection onto the selected checkout**
+### `[x]` **2.3 Collapse session guidance and load-set projection onto the selected checkout**
 
 - _Goal:_ One extension-aware current-checkout WU projection supplies active context, task cursor, cohort, load set,
   and session guidance without duplicating or inventing authority.
 
-    - `[ ]` **2.3.a Select the shared subject projection in production**
-        - Pass the active extension set into `projectCheckoutSubjectMeta()` and remove empty-extension or duplicate
-          load-set producers from status/session-init consumers.
-        - Derive the top-level `active` view, task cursor, cohort, and load set from the already-selected entering WU
-          row rather than re-reading active meta or lifecycle state.
+    - `[x]` **2.3.a Select the shared subject projection in production**
+        - Session-init now invokes one extension-aware derived probe and copies active context, workflow, stage, task
+          cursor, cohort, and load set from its exact entering WU row without invoking legacy active/meta producers.
 
-    - `[ ]` **2.3.b Reduce guidance to current-row facts**
-        - Replace `current`/primary/recovery/reconciliation guidance with derived-row diagnostics and cleanup offers.
-        - Ensure non-WU and unresolved current rows expose no invented active meta, cursor, cohort, or load set.
-        - Update package-source session-init and probe-envelope workflows with the contract they consume and sync the
-          self-hosting copies; do not defer operationally consumed fields to the final doctrine sweep.
+    - `[x]` **2.3.b Reduce guidance to current-row facts**
+        - Guidance now fails closed on an unresolved entering row, contains malformed siblings to diagnostics and
+          cleanup offers, and exposes no invented WU context for non-WU rows; package and self-hosted workflows consume
+          the same contract.
 
-    - Build `test-first` (one behavior at a time):
-        - Identical WU facts yield one manifest with every active extension exactly once.
-        - Malformed siblings do not suppress the current WU load set.
-        - Unresolved current-WU facts fail closed through a CLI-composed diagnostic.
-        - Session type, stage, task cursor, and cohort binding remain consistent with the exact active meta.
+- _Outcome:_ Session initialization now projects its complete WU context and narration from one selected checkout;
+  extension membership, routing fields, and failure behavior cannot drift through duplicate readers.
 
 ### `[ ]` **2.4 Derive handoff from current-checkout subject facts**
 

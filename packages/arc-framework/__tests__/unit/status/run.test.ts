@@ -75,7 +75,10 @@ import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-in
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
+import type { TaskListCursorFileResult } from "../../../src/lib/task-list/file-cursor.js";
+import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import { assertLoadSetPath, resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 
 // --- Fixtures ---
 
@@ -414,6 +417,98 @@ function activeSessionInit(
   };
 }
 
+function derivedFrameFromActive(
+  active: ActiveSessionInitResult,
+  identity: string,
+  activeExtensions: readonly string[],
+  cohortDocPath: string | null,
+  taskCursor: TaskListCursorFileResult | null,
+): DerivedLocusFrame {
+  if (active.resolution !== "single" || active.path === null) {
+    const row = {
+      kind: "free-primary" as const,
+      checkout: {
+        path: "/repo",
+        head: "a".repeat(40),
+        branch: "main",
+        detached: false,
+        primary: true,
+      },
+      subject: null,
+      markerGeneration: null,
+      parentCheckoutPath: null,
+      origin: null,
+      identity: null,
+      context: null,
+      lifecycleLocation: null,
+      diagnostics: [],
+    };
+    return {
+      roster: [row],
+      entering: { kind: "selected", row },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    };
+  }
+  const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "x";
+  const subject = { kind: "work-unit" as const, key };
+  const context = {
+    kind: "resolved" as const,
+    metaPath: active.path,
+    owner: null,
+    branch: null,
+    sessionType: active.sessionType,
+    workflow: active.sessionType === "execution"
+      ? "process-task-loop"
+      : active.sessionType === "integration"
+        ? "integrate-work-unit"
+        : active.sessionType === "planning"
+          ? "planning"
+          : null,
+    stage: active.planningStage,
+    taskListPath: active.taskListPath ?? null,
+    taskCursor,
+    cohortDocPath,
+    loadSet: resolveLoadSetManifest({
+      identity,
+      workingMemoryPath: null,
+      activeWorkUnit: key,
+      metaPath: active.path,
+      sessionType: active.sessionType,
+      planningStage: active.planningStage,
+      taskListPath: active.taskListPath ?? null,
+      activeExtensions,
+      cohortDocPath,
+    }),
+  };
+  const row = {
+    kind: "work-unit" as const,
+    checkout: {
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: `feat/${key}`,
+      detached: false,
+      primary: true,
+    },
+    subject,
+    markerGeneration: "b".repeat(64),
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context,
+    lifecycleLocation: "active" as const,
+    diagnostics: [],
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "occupied", checkoutPath: "/repo", subject },
+    identityDiscovery: { kind: "absent" },
+    active: { checkoutPath: "/repo", subject, context },
+  };
+}
+
 function domainRulesSessionInit(
   overrides: Partial<DomainRulesSessionInitResult> = {},
 ): DomainRulesSessionInitResult {
@@ -522,8 +617,28 @@ const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceR
 });
 
 function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
+  const active = overrides.active ?? vi.fn(async () => activeSessionInit());
+  const cohortDoc = overrides.cohortDoc ?? vi.fn(async (): Promise<string | null> => null);
+  const taskCursor = overrides.taskCursor
+    ?? vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" }));
   return {
     locusState: vi.fn(async () => locusState()),
+    derivedLocusState: vi.fn(async (identity, activeExtensions) => {
+      const activeResult = await active(identity, "maintainer");
+      const cohortDocPath = activeResult.resolution === "single" && activeResult.path !== null
+        ? await cohortDoc(activeResult.path)
+        : null;
+      let cursor: TaskListCursorFileResult | null = null;
+      if (activeResult.taskListPath !== undefined && activeResult.taskListPath !== null) {
+        try {
+          assertLoadSetPath(activeResult.taskListPath);
+          cursor = await taskCursor(activeResult.taskListPath);
+        } catch {
+          cursor = null;
+        }
+      }
+      return derivedFrameFromActive(activeResult, identity, activeExtensions, cohortDocPath, cursor);
+    }),
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
@@ -534,7 +649,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
-    active: vi.fn(async () => activeSessionInit()),
+    active,
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
@@ -560,8 +675,8 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     partialPushMarker: vi.fn(
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
-    cohortDoc: vi.fn(async (): Promise<string | null> => null),
-    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
+    cohortDoc,
+    taskCursor,
     ...overrides,
   };
 }
@@ -953,6 +1068,57 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
+  it("uses one extension-aware derived WU context without invoking the legacy active probe", async () => {
+    const active = vi.fn(async (): Promise<ActiveSessionInitResult> => {
+      throw new Error("legacy active probe must not run");
+    });
+    const cursor: TaskListCursorResult = {
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    };
+    const derivedLocusState = vi.fn(async (identity: string, activeExtensions: readonly string[]) =>
+      derivedFrameFromActive(activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-x.md",
+        sessionType: "execution",
+        planningStage: null,
+        taskListPath: ".arc/active/tasks-x.md",
+      }), identity, activeExtensions, ".arc/backlog/planned/x/cohort-x.md", cursor));
+    const probes = sessionInitProbes({
+      active,
+      derivedLocusState,
+      extensions: vi.fn(async () => extensionsSessionInit({ active: ["post-context-load"] })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(active).not.toHaveBeenCalled();
+    expect(derivedLocusState).toHaveBeenCalledOnce();
+    expect(derivedLocusState).toHaveBeenCalledWith("andrew", ["post-context-load"]);
+    expect(result.active).toMatchObject({
+      ok: true,
+      value: {
+        resolution: "single",
+        path: ".arc/active/meta-x.md",
+        sessionType: "execution",
+        currentWorkflow: "process-task-loop",
+        planningStage: null,
+        taskListPath: ".arc/active/tasks-x.md",
+      },
+    });
+    expect(result.loadSet).toMatchObject({
+      ok: true,
+      value: { entries: expect.arrayContaining([
+        { path: ".arc/active/tasks-x.md", readMode: { kind: "partial-strategic" } },
+        { path: ".arc/backlog/planned/x/cohort-x.md", readMode: { kind: "full" } },
+      ]) },
+    });
+    expect(result.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
+  });
+
   it("propagates session-init cohort-doc probe failures into loadSet", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
@@ -979,15 +1145,16 @@ describe("runSessionInitStatus — orchestration", () => {
       probes,
     });
 
-    expect(result.active.ok).toBe(true);
+    expect(result.active.ok).toBe(false);
+    expect(result.derivedLocusState.ok).toBe(false);
     expect(result.loadSet.ok).toBe(false);
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.kind).toBe("runtime");
       expect(result.loadSet.error.message).toBe("cohort boom");
     }
     expect(result).not.toHaveProperty("cohortDocPath");
-    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
-    expect(result.taskCursor?.ok).toBe(true);
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 
   it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
@@ -1051,12 +1218,17 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
-  it("short-circuits the user slot with identity-missing when identity is null", async () => {
+  it("short-circuits identity-scoped slots with identity-missing when identity is null", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({ identity: null, role: null, probes });
     expect(probes.user).not.toHaveBeenCalled();
+    expect(probes.derivedLocusState).not.toHaveBeenCalled();
     expect(result.user.ok).toBe(false);
     if (!result.user.ok) expect(result.user.error.kind).toBe("identity-missing");
+    expect(result.derivedLocusState.ok).toBe(false);
+    if (!result.derivedLocusState.ok) {
+      expect(result.derivedLocusState.error.kind).toBe("identity-missing");
+    }
   });
 
   it("wraps a rejecting session-init probe as ok=false runtime error", async () => {
@@ -1867,6 +2039,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "baseDistance",
       "config",
       "currentWuReconcile",
+      "derivedLocusState",
       "dirty",
       "domainRules",
       "errandState",

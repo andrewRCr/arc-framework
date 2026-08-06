@@ -169,12 +169,16 @@ async function writeStatusFixture(
   stem: string,
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
+  await git(arcRoot, ["add", "-A"]);
+  await git(arcRoot, ["commit", "-m", "initialize fixture"]);
+  await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
   const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
     `# Metadata: ${stem}`,
     "",
     "- **State:** Active",
+    "- **Owner:** test-user",
     `- **Branch:** ${category}/${stem}`,
   ];
   if (fields.taskList !== undefined) {
@@ -272,7 +276,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     );
   });
 
-  it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {
+  it("does not invent a planning session from a branch-shaped unoccupied checkout", async () => {
     // Seed a commit and check out a planning branch so `git rev-parse --abbrev-ref HEAD`
     // can resolve. `--no-verify` skips the project pre-commit hooks (installed by
     // `arc init`) which validate the project's own files, not test fixtures.
@@ -295,7 +299,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.mode).toBe("session-init");
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("none");
-    expect(envelope.active.value?.sessionType).toBe("planning");
+    expect(envelope.active.value?.sessionType).toBeNull();
   });
 
   it("writes the compaction seed sidecar when requested with session-init", async () => {
@@ -311,6 +315,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",
@@ -372,6 +377,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",
@@ -470,6 +476,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",

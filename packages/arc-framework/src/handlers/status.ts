@@ -89,6 +89,7 @@ import {
   type CurrentWuLocusRoleState,
 } from "../lib/session-init/current-wu-reconcile.js";
 import { runLocusStateProbe } from "./locus-state-probe.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -648,6 +649,16 @@ export async function handleStatus(
     };
     const probes: SessionInitProbes = {
       locusState: getLocusState,
+      derivedLocusState: async (id, activeExtensions) => {
+        const resolved = await resolvedSettingsP;
+        return runDerivedLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          activeExtensions,
+          exec,
+        });
+      },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";

@@ -62,6 +62,8 @@ import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminde
 import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
+import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { locusStateFixture } from "../fixtures/locus-state.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
@@ -187,6 +189,107 @@ function stubUserSessionInit(
   };
 }
 
+function freePrimaryDerivedFrame(): DerivedLocusFrame {
+  const row = {
+    kind: "free-primary" as const,
+    checkout: {
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: "main",
+      detached: false,
+      primary: true,
+    },
+    subject: null,
+    markerGeneration: null,
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context: null,
+    lifecycleLocation: null,
+    diagnostics: [],
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    identityDiscovery: { kind: "absent" },
+    active: null,
+  };
+}
+
+function derivedFrameFromActive(
+  active: Awaited<ReturnType<typeof runActiveSessionInitStatus>>,
+  identity: string,
+  activeExtensions: readonly string[],
+): DerivedLocusFrame {
+  if (active.resolution === "single" && active.path !== null) {
+    const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "fixture";
+    const subject = { kind: "work-unit" as const, key };
+    const context = {
+      kind: "resolved" as const,
+      metaPath: active.path,
+      owner: null,
+      branch: null,
+      sessionType: active.sessionType,
+      workflow: active.sessionType === "execution"
+        ? "process-task-loop"
+        : active.sessionType === "integration"
+          ? "integrate-work-unit"
+          : active.sessionType === "planning"
+            ? "planning"
+            : null,
+      stage: active.planningStage,
+      taskListPath: active.taskListPath ?? null,
+      taskCursor: null,
+      cohortDocPath: null,
+      loadSet: resolveLoadSetManifest({
+        identity,
+        workingMemoryPath: null,
+        activeWorkUnit: key,
+        metaPath: active.path,
+        sessionType: active.sessionType,
+        planningStage: active.planningStage,
+        taskListPath: active.taskListPath ?? null,
+        activeExtensions,
+        cohortDocPath: null,
+      }),
+    };
+    const row = {
+      ...freePrimaryDerivedFrame().roster[0]!,
+      kind: "work-unit" as const,
+      subject,
+      context,
+      lifecycleLocation: "active" as const,
+    };
+    return {
+      roster: [row],
+      entering: { kind: "selected", row },
+      primaryAvailability: { kind: "occupied", checkoutPath: "/repo", subject },
+      identityDiscovery: { kind: "absent" },
+      active: { checkoutPath: "/repo", subject, context },
+    };
+  }
+  if (active.resolution === "multiple") {
+    const row = {
+      ...freePrimaryDerivedFrame().roster[0]!,
+      kind: "unresolved-checkout" as const,
+      diagnostics: [{ code: "subject-unresolved", message: "Multiple active subjects occupy this checkout" }],
+    };
+    return {
+      roster: [row],
+      entering: { kind: "selected", row },
+      primaryAvailability: {
+        kind: "unsafe",
+        checkoutPath: "/repo",
+        reasons: ["subject-unresolved"],
+      },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    };
+  }
+  return freePrimaryDerivedFrame();
+}
+
 function makeProbes(fixture: Fixture): StatusProbes {
   return {
     user: async (identity) => stubUserResult(identity),
@@ -227,6 +330,11 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     locusState: async () => locusStateFixture({ rows: [] }),
+    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+      identity,
+      activeExtensions,
+    ),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -300,6 +408,11 @@ function makeResolvedReleaseModeSessionInitProbes(
 
   return {
     locusState: async () => locusStateFixture({ rows: [] }),
+    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+      identity,
+      activeExtensions,
+    ),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -462,7 +575,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("carries the session-init candidate list through for disambiguation", async () => {
+  it("fails the entering checkout closed instead of exposing repository-wide candidates", async () => {
     const probes = makeSessionInitProbes(fixture);
     const result = await runSessionInitStatus({
       identity: "andrew",
@@ -473,11 +586,14 @@ describe("runSessionInitStatus — multi-WU state", () => {
     expect(result.mode).toBe("session-init");
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
-      expect(result.active.value.resolution).toBe("multiple");
-      expect(result.active.value.candidates).toHaveLength(2);
-      const filenames = result.active.value.candidates.map((c) => c.filename).sort();
-      expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
+      expect(result.active.value.resolution).toBe("none");
+      expect(result.active.value.candidates).toEqual([]);
     }
+    expect(result.derivedLocusState).toMatchObject({
+      ok: true,
+      value: { entering: { kind: "selected", row: { kind: "unresolved-checkout" } } },
+    });
+    expect(result.locusGuidance.kind).toBe("unavailable");
     expect(result.extensions.ok).toBe(true);
     if (result.extensions.ok) {
       expect(result.extensions.value.active).toEqual(["pre-merge"]);
@@ -509,7 +625,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("propagates active.value.companions through the composite envelope unchanged", async () => {
+  it("derives the active WU without a second companion-file projection", async () => {
     const probes = makeSessionInitProbes(fixture);
     const result = await runSessionInitStatus({
       identity: "andrew",
@@ -520,10 +636,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.companions).toEqual({
-        notes: ".arc/active/notes-foo.md",
-        atomic: ".arc/active/atomic-foo.md",
-      });
+      expect(result.active.value.companions).toBeUndefined();
     }
   });
 });
@@ -553,9 +666,19 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("resolves active under .arc/user/{identity}/active/ when role=contributor and surfaces companions", async () => {
+  it("resolves the contributor WU from its entering-checkout context", async () => {
     const probes: SessionInitProbes = {
       locusState: async () => locusStateFixture({ rows: [] }),
+      derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+        await runActiveSessionInitStatus({
+          cwd: fixture.root,
+          identity,
+          role: "contributor",
+          exec: makeGitExec(fixture.root),
+        }),
+        identity,
+        activeExtensions,
+      ),
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       worktreeIdentity: async () => ({ kind: "primary" }),
@@ -613,10 +736,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
       expect(result.active.value.path).toBe(".arc/user/alice/active/meta-foo.md");
-      expect(result.active.value.companions).toEqual({
-        notes: ".arc/user/alice/active/notes-foo.md",
-        atomic: null,
-      });
+      expect(result.active.value.companions).toBeUndefined();
     }
   });
 });
@@ -745,6 +865,11 @@ function makeRealWorktreeProbes(
   const userState = opts.userState ?? "clean";
   return {
     locusState: async () => locusStateFixture({ rows: [] }),
+    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+      identity,
+      activeExtensions,
+    ),
     user: async (identity) => stubUserSessionInit(identity, userState),
     worktree: () =>
       runWorktreeSyncStatus({
@@ -974,7 +1099,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     }
   });
 
-  it("carries sessionType=null through the composite when resolution is multiple (defer until disambiguation)", async () => {
+  it("projects no active WU when the entering checkout has multiple subject metas", async () => {
     await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
       state: "Active",
@@ -997,7 +1122,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
 
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
-      expect(result.active.value.resolution).toBe("multiple");
+      expect(result.active.value.resolution).toBe("none");
       expect(result.active.value.sessionType).toBeNull();
     }
   });

@@ -49,10 +49,10 @@ import {
   locusStateSlot,
   safeProbe,
   SessionCompositionError,
+  SessionIdentityMissingError,
   toProbe,
   userSlot,
   type SessionResult,
-  type SessionStatusError,
 } from "./result-composition.js";
 import type { ActiveSessionInitResult } from "../active/types.js";
 import { resolveCleanArmNotesVerdict } from "../user/drift.js";
@@ -68,18 +68,23 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
-import { deriveLocusSessionGuidance } from "../../lib/locus/session-guidance.js";
+import {
+  deriveDerivedLocusSessionGuidance,
+  deriveLocusSessionGuidance,
+} from "../../lib/locus/session-guidance.js";
+import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
 import {
   fromThrowable,
   err,
+  ok,
   okAsync,
-  type ResultAsync,
 } from "../../lib/kernel/index.js";
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
@@ -133,7 +138,11 @@ export async function runSessionInitStatus(
     import("../../lib/session-init/errand-state.js").ErrandStateResult
   >;
 
-  const shared = buildSessionSharedSlots({ identity, role, probes });
+  const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
+  const userTask = userSlot(identity, (id) => probes.user(id));
+  const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const dirtyTask = safeProbe("dirty", () => probes.dirty());
+  const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const baseDistanceTask = safeProbe("baseDistance", () => probes.baseDistance());
   const baseBranchSyncTask = safeProbe("baseBranchSync", () => probes.baseBranchSync());
@@ -168,16 +177,15 @@ export async function runSessionInitStatus(
     : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
-    locusState, user, worktree, dirty, active, releaseRouting,
+    locusState, user, worktree, dirty, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
-    shared.locusState,
-    shared.user,
-    shared.worktree,
-    shared.dirty,
-    shared.active,
-    shared.releaseRouting,
+    locusStateTask,
+    userTask,
+    worktreeTask,
+    dirtyTask,
+    releaseRoutingTask,
     worktreeIdentityTask,
     baseDistanceTask,
     baseBranchSyncTask,
@@ -190,6 +198,14 @@ export async function runSessionInitStatus(
     partialPushMarkerTask,
     compactionAdvisoryTask,
   ]);
+
+  const derivedLocusState = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
+  const active = derivedLocusState.map(projectDerivedActiveSession);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
   // to "primary" (surface nothing) rather than masking the whole worktree slot.
@@ -429,34 +445,36 @@ export async function runSessionInitStatus(
       ? (resolveInFlightComposition(roster.value.entries) ?? undefined)
       : undefined;
 
-  // Cohort-doc resolution — when a single active WU resolved, locate its
-  // coordinating `cohort-<leaf>.md` so context-load can read it. Probe failures
-  // propagate through loadSet because recovery must not silently drop context.
-  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
-  const cohortDocPath = cohortDoc.isOk() ? cohortDoc.value : null;
-  const loadSet = active.andThen((activeValue) => loadSetFromState({
+  const derivedContext = derivedLocusState.isOk()
+    ? derivedLocusState.value.active?.context ?? null
+    : null;
+  const cohortDocPath = derivedContext?.cohortDocPath ?? null;
+  const loadSet: SessionResult<LoadSetManifest> = derivedLocusState.isErr()
+    ? err(derivedLocusState.error)
+    : derivedLocusState.value.active !== null
+      ? ok(derivedLocusState.value.active.context.loadSet)
+      : loadSetFromState({
       identity,
-      activeWorkUnit: activeWuName,
-      metaPath: activeValue.path,
-      sessionType: activeValue.sessionType,
-      planningStage: activeValue.planningStage,
-      taskListPath: activeValue.taskListPath ?? null,
+      activeWorkUnit: null,
+      metaPath: null,
+      sessionType: null,
+      planningStage: null,
+      taskListPath: null,
       activeExtensions: extensions.isOk() ? extensions.value.active : [],
-      cohortDocPath,
-      cohortDoc,
+      cohortDocPath: null,
+      cohortDoc: ok(null),
       workingMemoryPath: workingMemoryPath ?? null,
-    }));
-  const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    active.isOk() && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
-      ? await safeProbe("taskCursor", () => probes.taskCursor(taskListPath))
-      : undefined;
+    });
+  const taskCursor = derivedContext?.taskCursor === null || derivedContext === null
+    ? undefined
+    : derivedLocusState.map(() => derivedContext.taskCursor as NonNullable<typeof derivedContext.taskCursor>);
 
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveDerivedLocusSessionGuidance(toProbe(derivedLocusState)),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -589,15 +607,33 @@ function metaWorkUnitNameFromActive(path: string | null): string | null {
   return match?.[1] ?? null;
 }
 
-function resolveCohortDoc(
-  active: SessionResult<ActiveSessionInitResult>,
-  probe: (metaPath: string) => Promise<string | null>,
-): ResultAsync<string | null, SessionStatusError> {
-  if (!active.isOk() || active.value.resolution !== "single" || active.value.path === null) {
-    return okAsync(null);
+function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionInitResult {
+  const context = frame.active?.context ?? null;
+  if (context === null) {
+    return {
+      mode: "session-init",
+      layout: "full",
+      resolution: "none",
+      path: null,
+      candidates: [],
+      sessionType: null,
+      currentWorkflow: null,
+      planningStage: null,
+      warnings: [],
+    };
   }
-  const metaPath = active.value.path;
-  return safeProbe("cohortDocPath", () => probe(metaPath));
+  return {
+    mode: "session-init",
+    layout: "full",
+    resolution: "single",
+    path: context.metaPath,
+    candidates: [],
+    taskListPath: context.taskListPath,
+    sessionType: context.sessionType,
+    currentWorkflow: context.workflow,
+    planningStage: context.stage,
+    warnings: [],
+  };
 }
 
 function loadSetFromState(options: {
@@ -628,15 +664,6 @@ function loadSetFromState(options: {
     (cause) => new SessionCompositionError("resolve-load-set", "loadSet", cause),
   );
   return resolve();
-}
-
-function taskListPathIsLoadSetSafe(taskListPath: string): boolean {
-  try {
-    assertLoadSetPath(taskListPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

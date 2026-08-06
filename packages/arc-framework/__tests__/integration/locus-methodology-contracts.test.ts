@@ -56,13 +56,12 @@ describe("locus methodology contracts", () => {
         "utf8",
       );
 
-      expect(init).toContain("locusState: Probe<LocusStateV1>");
-      expect(init).toContain("Dispatch only on `locusState.value.current`");
-      expect(init).toContain("exact role row registered at the entering checkout");
-      expect(init).toContain("`locusState.value.current.kind === \"none\"` → attach nothing");
-      expect(init).toContain("a null lease is the normal ordinary-session state");
+      expect(init).toContain("required `derivedLocusState` slot is the sole session-frame");
+      expect(init).toContain("Dispatch only on `derivedLocusState.value.entering`");
+      expect(init).toContain("require `derivedLocusState.value.active.context`");
+      expect(init).toContain("free-primary\" | \"unmanaged-checkout\" | \"retired");
       expect(init).toContain(
-        "select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES",
+        "Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES",
       );
       expect(init).toContain("If the composite call itself fails, surface the failure and stop.");
       expect(init).toContain(

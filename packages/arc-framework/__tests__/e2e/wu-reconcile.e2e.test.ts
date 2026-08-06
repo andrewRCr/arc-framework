@@ -40,6 +40,7 @@ async function waitForFile(path: string, timeoutMs = 5_000): Promise<string> {
 function meta(slug: string, branch: string, dependsOn: string): string {
   return `# Metadata: ${slug}\n\n`
     + "- **State:** Active\n"
+    + "- **Owner:** test-user\n"
     + `- **Branch:** \`${branch}\`\n`
     + `- **Depends On:** ${dependsOn}\n`;
 }
