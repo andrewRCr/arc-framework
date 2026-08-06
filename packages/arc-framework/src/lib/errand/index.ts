@@ -50,6 +50,15 @@ export {
 } from "./terminal-result.js";
 
 export {
+  createTerminalOccupancyIO,
+  settleTerminalOccupancy,
+  type SettleTerminalOccupancyOptions,
+  type TerminalOccupancyIO,
+  type TerminalOccupancyInspection,
+  type TerminalOccupancySettlement,
+} from "./terminal-occupancy.js";
+
+export {
   readTransientIdentitySnapshot,
   readTransientIdentitySnapshotAtRef,
   type IdentitySnapshotIO,

@@ -237,4 +237,35 @@ describe("Errand terminal authority", () => {
       subject: SUBJECT,
     })).toMatchObject({ kind: "refused", reason: "authority-unresolved" });
   });
+
+  it("requires the identity generation when a retained Errand has no local checkout", () => {
+    const entering = foreignEnteringRow();
+    const identityOnly: DerivedLocusFrame = {
+      ...frame(entering, entering),
+      roster: [entering],
+    };
+
+    expect(authorizeErrandTerminal({
+      frame: identityOnly,
+      operation: "close",
+      subject: SUBJECT,
+    })).toMatchObject({
+      kind: "confirmation-required",
+      subject: SUBJECT,
+      checkoutPath: null,
+      generation: GENERATION,
+    });
+    expect(authorizeErrandTerminal({
+      frame: identityOnly,
+      operation: "close",
+      subject: SUBJECT,
+      confirmForeignGeneration: GENERATION,
+    })).toMatchObject({
+      kind: "authorized",
+      authority: "confirmed-foreign",
+      checkoutPath: null,
+      generation: GENERATION,
+      row: null,
+    });
+  });
 });

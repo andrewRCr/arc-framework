@@ -14,16 +14,16 @@ export type ErrandTerminalAuthority =
       readonly kind: "authorized";
       readonly authority: "current-checkout" | "confirmed-foreign";
       readonly subject: ErrandTerminalSubject;
-      readonly checkoutPath: string;
+      readonly checkoutPath: string | null;
       readonly parentCheckoutPath: string | null;
       readonly generation: string;
-      readonly row: DerivedCheckoutRow;
+      readonly row: DerivedCheckoutRow | null;
     }
   | {
       readonly kind: "confirmation-required";
       readonly operation: ErrandTerminalOperation;
       readonly subject: ErrandTerminalSubject;
-      readonly checkoutPath: string;
+      readonly checkoutPath: string | null;
       readonly generation: string;
       readonly destructiveEffect: string;
       readonly recommendedPromptText: string;
@@ -53,7 +53,10 @@ export function authorizeErrandTerminal(
   }
   const matches = options.frame.roster.filter((row) => sameSubject(row, options.subject));
   const row = matches.length === 1 ? matches[0] : undefined;
-  if (row === undefined || row.kind !== "transient") {
+  if (row === undefined) {
+    return authorizeIdentityOnly(options);
+  }
+  if (row.kind !== "transient") {
     return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
   }
   const generation = terminalGeneration(row, options.subject);
@@ -96,6 +99,48 @@ export function authorizeErrandTerminal(
     operation: options.operation,
     subject: options.subject,
     checkoutPath: row.checkout.path,
+    generation,
+    destructiveEffect: destructiveEffect(options.operation),
+    recommendedPromptText: renderRetry(options, generation),
+  };
+}
+
+function authorizeIdentityOnly(options: AuthorizeErrandTerminalOptions): ErrandTerminalAuthority {
+  if (options.subject.kind !== "errand" || options.frame.identityDiscovery.kind !== "complete") {
+    return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
+  }
+  const identities = options.frame.identityDiscovery.identities.filter((identity) =>
+    identity.kind === "errand"
+    && identity.purpose === "errand"
+    && identity.key === options.subject.slug
+    && identity.claimId === options.subject.claimId);
+  if (identities.length !== 1) {
+    return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
+  }
+  const generation = `errand-v1/${options.subject.slug}/${options.subject.claimId}`;
+  if (options.confirmForeignGeneration === generation) {
+    return {
+      kind: "authorized",
+      authority: "confirmed-foreign",
+      subject: options.subject,
+      checkoutPath: null,
+      parentCheckoutPath: null,
+      generation,
+      row: null,
+    };
+  }
+  if (options.confirmForeignGeneration !== undefined) {
+    return {
+      kind: "refused",
+      reason: "generation-mismatch",
+      message: "The supplied foreign confirmation does not match the current Errand generation.",
+    };
+  }
+  return {
+    kind: "confirmation-required",
+    operation: options.operation,
+    subject: options.subject,
+    checkoutPath: null,
     generation,
     destructiveEffect: destructiveEffect(options.operation),
     recommendedPromptText: renderRetry(options, generation),

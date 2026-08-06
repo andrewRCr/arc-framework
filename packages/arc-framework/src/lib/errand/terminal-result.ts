@@ -65,7 +65,7 @@ export const ErrandTerminalResultSchema = z.discriminatedUnion("outcome", [
     outcome: z.literal("confirmation-required"),
     ...common,
     subject: ErrandTerminalSubjectSchema,
-    checkoutPath: LocusAbsolutePathSchema,
+    checkoutPath: LocusAbsolutePathSchema.nullable(),
     generation: ErrandTerminalGenerationSchema,
     destructiveEffect: LocusOpaqueTextSchema,
   }),

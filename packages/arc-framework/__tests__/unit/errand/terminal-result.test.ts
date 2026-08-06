@@ -13,7 +13,7 @@ describe("Errand terminal results", () => {
       outcome: "confirmation-required",
       operation: "errand-close",
       subject: SUBJECT,
-      checkoutPath: "/repo/repair",
+      checkoutPath: null,
       generation: GENERATION,
       destructiveEffect: "close and retire this Errand",
       recommendedPromptText: `Retry with: arc errand close repair --confirm-foreign-generation ${GENERATION}`,
