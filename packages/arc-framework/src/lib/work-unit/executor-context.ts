@@ -230,7 +230,6 @@ export function buildExecutorContext(
       }, op);
     },
     atomicGraduate: (transaction) => {
-      const workUnitLocus = resolveWorkUnitLocus();
       return atomicGraduate(transaction, {
         cwd,
         exec,
@@ -239,7 +238,6 @@ export function buildExecutorContext(
           { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
           op,
         ),
-        ...(workUnitLocus === undefined ? {} : { workUnitLocus }),
       });
     },
 

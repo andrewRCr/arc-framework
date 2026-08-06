@@ -390,12 +390,12 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
   marker, identity, and topology contracts while only the temporary record production still required by unmigrated
   rename or teardown consumers remains.
 
-    - `[ ]` **3.3.a Move lifecycle callers to marker-owned results**
-        - Remove `attachSession` and record result plumbing from start, materialize, park/resume, graduation, and
-          reconcile paths, including `work-unit-locus.ts`, their mutators, and related command/handler composition.
-        - Update the affected `init-work-unit.md` and `resume-work-unit.md` paths with the matching final lifecycle
-          results and no attach/reconcile-attach dispatch.
-        - Preserve provisioning receipts, marker-generation compare-and-swap, exact topology, and rollback behavior.
+    - `[x]` **3.3.a Move lifecycle callers to marker-owned results**
+        - Removed record creation and `attachSession` plumbing from start, materialize, park/resume, graduation,
+          reconcile, and session-init's current-WU repair projection while retaining the teardown-only retirement
+          seam for its later migration.
+        - Updated both shipped workflow copies and command continuations to reconcile tracked WU references without
+          attach dispatch, preserving marker provisioning, topology, staging, and rollback behavior.
 
     - `[ ]` **3.3.b Migrate Errand open, materialize, and link success results**
         - Reshape the existing operation result in place before record production stops. Retain `operation`,

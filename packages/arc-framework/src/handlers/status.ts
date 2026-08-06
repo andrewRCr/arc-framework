@@ -81,9 +81,7 @@ import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
 import {
-  classifyCurrentWuLocusRole,
   runCurrentWuReconcileSessionProbe,
-  type CurrentWuLocusRoleState,
 } from "../lib/session-init/current-wu-reconcile.js";
 import { runLocusStateProbe } from "./locus-state-probe.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -715,17 +713,8 @@ export async function handleStatus(
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      currentWuReconcile: async ({ slug, metaPath }) => {
-        let locusRoleState: CurrentWuLocusRoleState = "unknown";
-        if (identity !== null) {
-          try {
-            const locusState = await getLocusState(identity);
-            locusRoleState = await classifyCurrentWuLocusRole(locusState, cwd, slug);
-          } catch {
-            // Reconcile planning remains available when the shared locus read degrades.
-          }
-        }
-        return runCurrentWuReconcileSessionProbe(
+      currentWuReconcile: async ({ slug, metaPath }) =>
+        runCurrentWuReconcileSessionProbe(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
             queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
@@ -734,9 +723,8 @@ export async function handleStatus(
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
           },
-          { slug, metaPath, locusRoleState },
-        );
-      },
+          { slug, metaPath },
+        ),
       userReferenceReconcile: async ({ slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;

@@ -1,6 +1,6 @@
 /**
  * Unit tests for the `reconcile-work-unit-worktree` mutator — the worktree-axis leg of the
- * WU relocation bundle. Git is mocked at the exec seam and the locus-hop is an
+ * WU relocation bundle. Git is mocked at the exec seam and the checkout hop is an
  * injected `chdir` spy; the filesystem is real (temp dirs) so the spawn leg's
  * ownership marker is written and read back, matching the sibling worktree-lib
  * tests.
@@ -37,8 +37,6 @@ interface MockOptions {
   failOccupiedMove?: boolean;
   /** Primary-side directories that should appear present to the harness-dir copy seam. */
   existingDirs?: readonly string[];
-  /** Record role-composition calls in the event stream. */
-  trackLocus?: boolean;
 }
 
 /**
@@ -81,16 +79,6 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
       mkdir: async () => {},
       readDir: async () => [],
     },
-    ...(opts.trackLocus === true
-      ? {
-          locus: {
-            reconcile: async (options) => {
-              events.push(["locus", options.checkoutPath, options.wuName, String(options.attachSession)]);
-              return { recordId: "sha256:test", leaseId: null, roleCreated: true };
-            },
-          },
-        }
-      : {}),
   };
   return { ctx, events };
 }
@@ -159,7 +147,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("creates the branch + worktree at the templated path and writes the ownership marker", async () => {
-    const { ctx, events } = buildCtx({ trackLocus: true });
+    const { ctx, events } = buildCtx();
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,
@@ -183,7 +171,6 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
-      ["locus", expectedPath, "demo-wu", "false"],
     ]);
 
     const marker = await readWorktreeMarker(expectedPath);
@@ -291,7 +278,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("fails loud and writes no marker when the configured post-create script fails", async () => {
-    const { ctx, events } = buildCtx({ failPostCreate: true, trackLocus: true });
+    const { ctx, events } = buildCtx({ failPostCreate: true });
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,
@@ -465,30 +452,6 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(events).toEqual([]);
   });
 
-  it("compensates a fresh worktree and its newly created branch when locus composition fails", async () => {
-    const { ctx, events } = buildCtx({ trackLocus: true });
-    const template = join(root, "{repo}.{name}");
-    const expectedPath = resolveWorktreeLocation({
-      template,
-      repo: "demo",
-      name: "demo-wu",
-      branch: "plan/demo-wu",
-    });
-    if (ctx.locus === undefined) throw new Error("locus fixture missing");
-    ctx.locus.reconcile = async () => { throw new Error("locus failed"); };
-
-    await expect(reconcileWorkUnitWorktree(ctx, {
-      mutation: "spawn",
-      branch: "plan/demo-wu",
-      base: "main",
-      locationTemplate: template,
-      repo: "demo",
-      wuName: "demo-wu",
-      spawningIdentity: "andrew",
-    })).rejects.toThrow(/locus failed/iu);
-    expect(events).toContainEqual(["git", "worktree", "remove", "--force", expectedPath]);
-    expect(events).toContainEqual(["git", "branch", "-D", "plan/demo-wu"]);
-  });
 });
 
 describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
@@ -500,7 +463,6 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
       inPlace: true,
       branch: "plan/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: true,
     });
 
@@ -519,7 +481,6 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
       inPlace: true,
       branch: "feat/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: false,
     });
 
@@ -530,20 +491,17 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
     ]);
   });
 
-  it("returns the in-place locus receipt needed by later compensation", async () => {
-    const { ctx } = buildCtx({ toplevel: "/work/primary", trackLocus: true });
+  it("returns no retired locus receipt for in-place placement", async () => {
+    const { ctx } = buildCtx({ toplevel: "/work/primary" });
 
-    await expect(reconcileWorkUnitWorktree(ctx, {
+    const result = await reconcileWorkUnitWorktree(ctx, {
       mutation: "spawn",
       inPlace: true,
       branch: "plan/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: true,
-    })).resolves.toMatchObject({
-      mutation: "spawn",
-      locus: { recordId: "sha256:test", roleCreated: true },
     });
+    expect(result).not.toHaveProperty("locus");
   });
 });
 

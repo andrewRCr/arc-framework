@@ -50,8 +50,8 @@ in-place escape hatch.
   scope overlap and never gates.
 - **In-place** — `arc start --here` converts the current checkout into the WU-owned checkout. When that checkout is the
   physical primary, the primary is occupied for the WU's lifetime: it is not also the launchpad or available to an
-  Errand, grooming pass, housekeep drain, or another WU. Only exact WU teardown restores record-free base and makes
-  it the free primary again.
+  Errand, grooming pass, housekeep drain, or another WU. Only exact WU teardown removes the WU marker, restores base,
+  and makes it the free primary again.
 
 **Default mode selection.** Resolve the mode per protection mode ([§ Branch Protection Modes][work-org-protection]):
 

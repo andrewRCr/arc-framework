@@ -59,7 +59,7 @@ import {
   reconcileLinkedIdentityGlobalUserSurfaces,
   type UserSurfaceMigrationDirent,
 } from "../../user-surface-migration.js";
-import type { WorkUnitLocusDriver, WorkUnitLocusReceipt } from "../work-unit-locus.js";
+import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
 import type { TeardownLocusDriver } from "../teardown-locus.js";
 import type { TeardownOccupancyDecision } from "../teardown-occupancy.js";
 import type { WorktreeSubject } from "../../git/worktree-marker.js";
@@ -74,7 +74,7 @@ export interface ReconcileWorkUnitWorktreeContext {
   readCurrentLocus?: () => string;
   /** Filesystem seam for post-create harness-dir provisioning. */
   fs: ReconcileWorkUnitWorktreeFs;
-  /** Machine-local role composer; production always binds it. */
+  /** Temporary retired-state cleanup seam used only by teardown. */
   locus?: WorkUnitLocusDriver;
   /** Target-lock driver for physical teardown; production teardown always binds it. */
   teardownLocus?: TeardownLocusDriver;
@@ -174,8 +174,6 @@ export type ReconcileWorkUnitWorktreeOp =
       branch: string;
       /** Work-unit whose trusted transition owns this checkout. */
       wuName: string;
-      /** Attach the entering session; false for spawn-anchored internal replay. */
-      attachSession: boolean;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch: boolean;
       /**
@@ -224,8 +222,6 @@ export type ReconcileWorkUnitWorktreeResult =
       worktreePath: string;
       branch: string;
       postCreateNotice?: string;
-      /** Role this spawn established — the generation a rollback must compensate. */
-      locus?: WorkUnitLocusReceipt;
     }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
   | {
@@ -399,19 +395,10 @@ export async function reconcileWorkUnitWorktree(
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
     const worktreePath = stdout.trim();
-    const locus = ctx.locus === undefined || op.deferCheckout
-      ? undefined
-      : await ctx.locus.reconcile({
-        checkoutPath: worktreePath,
-        branch: op.branch,
-        wuName: op.wuName,
-        attachSession: op.attachSession,
-      });
     return {
       mutation: "spawn",
       worktreePath,
       branch: op.branch,
-      ...(locus === undefined ? {} : { locus }),
     };
   }
 
@@ -441,19 +428,11 @@ export async function reconcileWorkUnitWorktree(
     const { worktreePath } = creation.receipt;
     try {
       const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
-      const locus = await ctx.locus?.reconcile({
-        checkoutPath: worktreePath,
-        branch: op.branch,
-        wuName: op.wuName,
-        attachSession: false,
-        ...(op.now === undefined ? {} : { establishedAt: new Date(op.now).toISOString() }),
-      });
       return {
         mutation: "spawn",
         worktreePath,
         branch: op.branch,
         ...(postCreateNotice === null ? {} : { postCreateNotice }),
-        ...(locus === undefined ? {} : { locus }),
       };
     } catch (error) {
       const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);

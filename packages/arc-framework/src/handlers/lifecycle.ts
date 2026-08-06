@@ -1418,7 +1418,7 @@ export async function handleResume(
         ``,
         `Pointer-record removed (staged, not committed). Commit it on the tracked branch,`,
         `then continue in this checkout:  git checkout ${result.branch} && `
-          + `arc wu reconcile ${target} --attach-session --apply --json`,
+          + `arc wu reconcile ${target} --apply --json`,
       ],
       result.outcome,
     );

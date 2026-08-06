@@ -644,7 +644,6 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
           inPlace: true,
           branch,
           wuName: name,
-          attachSession: true,
           createBranch: false,
           deferCheckout: true,
         }

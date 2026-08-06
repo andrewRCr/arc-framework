@@ -15,16 +15,8 @@ import {
   type CurrentWuReconcilePrepareContext,
   type DependencyReconcileConflictReason,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
-import type { LocusStateV1 } from "../locus/schema/index.js";
-import { canonicalLocalPath } from "../local-path-identity.js";
-
-/** Reader-owned role state for the exact checkout entering a work-unit session. */
-export type CurrentWuLocusRoleState = "managed" | "missing" | "unknown";
-
-/** Current-WU reconcile probe input, including the read-only locus classification when available. */
-export interface CurrentWuReconcileSessionOp extends Omit<CurrentWuReconcileOp, "apply"> {
-  locusRoleState?: CurrentWuLocusRoleState;
-}
+/** Current-WU reconcile probe input. */
+export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply">;
 
 /** Session-entry projection of one current-WU reconcile inspection. */
 export interface CurrentWuReconcileSessionResult {
@@ -51,9 +43,7 @@ export async function runCurrentWuReconcileSessionProbe(
   op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
   const result = await prepareCurrentWuReconcile(ctx, op);
-  const roleMissing = op.locusRoleState === "missing";
   if (result.status === "clean") {
-    if (roleMissing) return missingRoleResult(op, result.prepared.plan);
     return {
       status: "clean",
       slug: op.slug,
@@ -74,14 +64,10 @@ export async function runCurrentWuReconcileSessionProbe(
       trackedReferences: result.prepared.plan.trackedReferences,
       advisories: result.prepared.plan.advisories,
       recommendedAction: "surface",
-      recommendedCommand: hasTrackedEdits || roleMissing
+      recommendedCommand: hasTrackedEdits
         ? ["arc", "wu", "reconcile", op.slug, "--apply", "--json"]
         : ["arc", "wu", "reconcile", op.slug, "--json"],
-      recommendedPromptText: roleMissing
-        ? `Current work unit \`${op.slug}\` has no durable work-unit session role for this checkout. `
-          + `Establish it${hasTrackedEdits ? " and apply its pending tracked reconcile edits" : ""} with `
-          + `\`arc wu reconcile ${op.slug} --apply --json\`.`
-        : hasTrackedEdits
+      recommendedPromptText: hasTrackedEdits
         ? `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
           + `Apply them in its own review increment with `
           + `\`arc wu reconcile ${op.slug} --apply --json\`.`
@@ -101,48 +87,5 @@ export async function runCurrentWuReconcileSessionProbe(
     recommendedPromptText:
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,
-  };
-}
-
-/** Classify only the exact current checkout; sibling rows cannot authorize or suppress its repair. */
-export async function classifyCurrentWuLocusRole(
-  state: LocusStateV1,
-  checkoutPath: string,
-  slug: string,
-): Promise<CurrentWuLocusRoleState> {
-  const canonicalCheckoutPath = await canonicalLocalPath(checkoutPath);
-  const candidates = await Promise.all(state.roster.rows.map(async (row) => ({
-    row,
-    canonicalPath: row.checkoutPath === null ? null : await canonicalLocalPath(row.checkoutPath),
-  })));
-  const matches = candidates
-    .filter((candidate) => candidate.canonicalPath === canonicalCheckoutPath)
-    .map((candidate) => candidate.row);
-  if (matches.length !== 1) return "unknown";
-  const row = matches[0];
-  if (row?.kind === "free-primary" || row?.kind === "unmanaged-checkout") return "missing";
-  return row?.kind === "managed-role"
-    && row.role?.kind === "work-unit"
-    && row.role.subject.kind === "work-unit"
-    && row.role.subject.key === slug
-    ? "managed"
-    : "unknown";
-}
-
-function missingRoleResult(
-  op: CurrentWuReconcileSessionOp,
-  plan: CurrentWuReconcilePlan,
-): CurrentWuReconcileSessionResult {
-  return {
-    status: "pending",
-    slug: op.slug,
-    dependency: plan.dependency,
-    trackedReferences: plan.trackedReferences,
-    advisories: plan.advisories,
-    recommendedAction: "surface",
-    recommendedCommand: ["arc", "wu", "reconcile", op.slug, "--apply", "--json"],
-    recommendedPromptText:
-      `Current work unit \`${op.slug}\` has no durable work-unit session role for this checkout. `
-      + `Establish it with \`arc wu reconcile ${op.slug} --apply --json\`.`,
   };
 }

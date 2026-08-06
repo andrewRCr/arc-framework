@@ -698,7 +698,6 @@ describe("runResume — the inverse", () => {
       inPlace: true,
       branch: "feat/foo",
       wuName: "foo",
-      attachSession: true,
       deferCheckout: true,
     });
   });

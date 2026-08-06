@@ -12,7 +12,6 @@ import { createPlatformProcessInspector } from "../../../src/lib/locus/platform-
 import { mintLocusRecord, readLocusRecord } from "../../../src/lib/locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../../../src/lib/locus/root.js";
 import { createNodeTeardownLocusDriver } from "../../../src/lib/work-unit/teardown-locus.js";
-import { createNodeWorkUnitLocusDriver } from "../../../src/lib/work-unit/work-unit-locus.js";
 
 const removals: string[] = [];
 
@@ -26,7 +25,7 @@ async function harness(options: { record?: boolean; head?: string } = {}) {
   removals.push(primary, target);
   const head = options.head ?? "a".repeat(40);
   const calls: string[][] = [];
-  let targetPresent = true;
+  const targetPresent = true;
   const exec: GitExec = async (_command, args) => {
     calls.push([...args]);
     if (args[0] !== "worktree" || args[1] !== "list") throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -77,13 +76,6 @@ async function harness(options: { record?: boolean; head?: string } = {}) {
     recordPath,
     lockPath: locusLockPath(root, identity.digest),
     driver: createNodeTeardownLocusDriver({ exec, identity: "andrew", mutationAnchor }),
-    attachDriver: createNodeWorkUnitLocusDriver({ exec, identity: "andrew", mutationAnchor }),
-    foreignAttachDriver: createNodeWorkUnitLocusDriver({
-      exec,
-      identity: "andrew",
-      mutationAnchor: { ...mutationAnchor, selector: "foreign-vitest" },
-    }),
-    removeFromRoster: () => { targetPresent = false; },
     expectedOccupancy: {
       kind: "clear" as const,
       recordId: options.record === false ? null : identity.recordId,
@@ -212,99 +204,6 @@ describe("teardown target-lock transaction", () => {
     await expect(readFile(h.recordPath)).resolves.toBeInstanceOf(Buffer);
   });
 
-  it("lets an attached live lease linearize first and veto retirement", async () => {
-    const h = await harness({ record: false });
-    await h.foreignAttachDriver.reconcile({
-      checkoutPath: h.target,
-      branch: "feat/demo",
-      wuName: "demo",
-      attachSession: true,
-    });
-    const current = await readLocusRecord({
-      path: h.recordPath,
-      expectedDigest: deriveLocusRecordId(h.target, process.platform === "win32" ? "windows" : "posix").digest,
-      pathFlavor: process.platform === "win32" ? "windows" : "posix",
-    });
-    if (current.kind !== "valid" || current.record.lease === null) throw new Error("attached fixture lease missing");
-    let removed = false;
-    await expect(h.driver.retire({
-      checkoutPath: h.target,
-      expectedHead: h.head,
-      subject: { kind: "work-unit", name: "demo" },
-      expectedOccupancy: {
-        ...h.expectedOccupancy,
-        recordId: current.record.recordId,
-        leaseId: current.record.lease.leaseId,
-        leaseState: "dead",
-        recordGeneration: digest(current.bytes),
-      },
-      revalidateLocal: async () => {},
-      retireProjection: async () => { removed = true; },
-    })).rejects.toThrow(/lease is live/iu);
-    expect(removed).toBe(false);
-  });
-
-  it("allows the exact invoking session to retire its own live lease", async () => {
-    const h = await harness({ record: false });
-    await h.attachDriver.reconcile({
-      checkoutPath: h.target,
-      branch: "feat/demo",
-      wuName: "demo",
-      attachSession: true,
-    });
-    const current = await readLocusRecord({
-      path: h.recordPath,
-      expectedDigest: deriveLocusRecordId(h.target, process.platform === "win32" ? "windows" : "posix").digest,
-      pathFlavor: process.platform === "win32" ? "windows" : "posix",
-    });
-    if (current.kind !== "valid" || current.record.lease === null) throw new Error("attached fixture lease missing");
-    let removed = false;
-
-    await expect(h.driver.retire({
-      checkoutPath: h.target,
-      expectedHead: h.head,
-      subject: { kind: "work-unit", name: "demo" },
-      expectedOccupancy: {
-        ...h.expectedOccupancy,
-        recordId: current.record.recordId,
-        leaseId: current.record.lease.leaseId,
-        leaseState: "self",
-        recordGeneration: digest(current.bytes),
-      },
-      revalidateLocal: async () => {},
-      retireProjection: async () => { removed = true; },
-    })).resolves.toEqual({ roleRemoved: true });
-    expect(removed).toBe(true);
-  });
-
-  it("lets removal linearize first and makes a waiting attach fail the fresh roster check", async () => {
-    const h = await harness();
-    let enteredRevalidation!: () => void;
-    const revalidationEntered = new Promise<void>((resolve) => { enteredRevalidation = resolve; });
-    let allowRemoval!: () => void;
-    const removalAllowed = new Promise<void>((resolve) => { allowRemoval = resolve; });
-    const teardown = h.driver.retire({
-      checkoutPath: h.target,
-      expectedHead: h.head,
-      subject: { kind: "work-unit", name: "demo" },
-      expectedOccupancy: h.expectedOccupancy,
-      revalidateLocal: async () => {
-        enteredRevalidation();
-        await removalAllowed;
-      },
-      retireProjection: async () => { h.removeFromRoster(); },
-    });
-    await revalidationEntered;
-    const attach = h.attachDriver.reconcile({
-      checkoutPath: h.target,
-      branch: "feat/demo",
-      wuName: "demo",
-      attachSession: true,
-    });
-    allowRemoval();
-    await expect(teardown).resolves.toEqual({ roleRemoved: true });
-    await expect(attach).rejects.toThrow(/roster generation changed under lock/iu);
-  });
 });
 
 function digest(bytes: Uint8Array): string {

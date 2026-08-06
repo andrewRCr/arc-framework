@@ -898,7 +898,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       `Meta:      ${result.metaPath}`,
       "",
       `After the pointer removal lands, continue: git checkout ${result.branch} && `
-        + `arc wu reconcile ${wuName} --attach-session --apply --json`,
+        + `arc wu reconcile ${wuName} --apply --json`,
     ].join("\n"), "Resumed (in place)");
     reportAdvisories(result.outcome);
     p.outro("Done.");

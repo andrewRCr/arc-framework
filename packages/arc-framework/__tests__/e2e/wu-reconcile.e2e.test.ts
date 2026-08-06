@@ -1,13 +1,11 @@
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { assertCliBuilt, CLI_PATH } from "../helpers/cli-spawn.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 const DIGEST = `sha256:${"0".repeat(64)}`;
 
@@ -22,19 +20,6 @@ function canonicalize(value: unknown): string {
 
 function canonicalDigest(value: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalize(value)).digest("hex")}`;
-}
-
-async function waitForFile(path: string, timeoutMs = 5_000): Promise<string> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      return await readFile(path, "utf8");
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-    }
-    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
-  }
-  throw new Error(`Timed out waiting for fixture file: ${path}`);
 }
 
 function meta(slug: string, branch: string, dependsOn: string): string {
@@ -130,156 +115,20 @@ describe("arc wu reconcile", () => {
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
   });
 
-  it("attaches the entering session only when the post-entry flag is explicit", async () => {
-    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-    const passive = await runArc(["wu", "reconcile", "dependent", "--json"], repo);
+  it("rejects the retired session-attachment option", async () => {
+    const result = await runArc(["wu", "reconcile", "dependent", "--attach-session", "--json"], repo);
 
-    expect(passive.exitCode).toBe(0);
-    expect(JSON.parse(passive.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
-    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
-
-    const result = await runArcAnchored(
-      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-      repo,
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
-    const records = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-    expect(records).toHaveLength(1);
-    const record = JSON.parse(await readFile(join(lociRoot, records[0] as string), "utf8"));
-    expect(record).toMatchObject({
-      checkoutPath: repo,
-      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
-      lease: { sessionHomePath: repo, anchor: { kind: "process" } },
-    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/unknown option '--attach-session'/u);
   });
 
-  it("keeps an adopted work-unit leaseless when explicit attachment has no durable session ancestor", async () => {
-    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-
-    const result = await runArc(
-      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-      repo,
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
-    const records = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-    expect(records).toHaveLength(1);
-    const record = JSON.parse(await readFile(join(lociRoot, records[0] as string), "utf8"));
-    expect(record).toMatchObject({
-      checkoutPath: repo,
-      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
-      lease: null,
-    });
-  });
-
-  it.runIf(process.platform !== "win32")(
-    "reclaims an interrupted unanchored attachment lock from its command-process holder",
-    async () => {
-      assertCliBuilt();
-      const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-      const locksRoot = join(lociRoot, ".locks");
-      const gitBin = await mkdtemp(join(tmpdir(), "arc-wu-reconcile-git-"));
-      const blockedPath = join(gitBin, "worktree-list-blocked");
-      const gitWrapper = [
-        "#!/bin/sh",
-        "set -eu",
-        "if [ \"$#\" -eq 4 ] && [ \"$1\" = worktree ] && [ \"$2\" = list ] \\",
-        "    && [ \"$3\" = --porcelain ] && [ \"$4\" = -z ]; then",
-        "  for lock_path in \"$ARC_TEST_LOCK_ROOT\"/locus-*.lock; do",
-        "    if [ -f \"$lock_path\" ]; then",
-        "      printf '%s' \"$$\" >\"$ARC_TEST_GIT_BLOCKED\"",
-        "      while :; do sleep 1; done",
-        "    fi",
-        "  done",
-        "fi",
-        "PATH=$ARC_TEST_ORIGINAL_PATH",
-        "export PATH",
-        "exec git \"$@\"",
-        "",
-      ].join("\n");
-      await writeFile(join(gitBin, "git"), gitWrapper, "utf8");
-      await chmod(join(gitBin, "git"), 0o755);
-      const env = {
-        PATH: `${gitBin}:${process.env.PATH ?? ""}`,
-        ARC_TEST_ORIGINAL_PATH: process.env.PATH ?? "",
-        ARC_TEST_LOCK_ROOT: locksRoot,
-        ARC_TEST_GIT_BLOCKED: blockedPath,
-      };
-      const child = spawn(
-        process.execPath,
-        [CLI_PATH, "wu", "reconcile", "dependent", "--attach-session", "--json"],
-        { cwd: repo, env: { ...process.env, NO_COLOR: "1", ...env }, stdio: "ignore" },
-      );
-      const closed = new Promise<void>((resolveClose) => child.once("close", () => resolveClose()));
-      let lockAnchor: unknown;
-      let blockerPid: number | null = null;
-      try {
-        blockerPid = Number.parseInt(await waitForFile(blockedPath), 10);
-        if (!Number.isInteger(blockerPid)) throw new Error("fixture Git blocker PID is invalid");
-        const [lockName] = (await readdir(locksRoot)).filter((name) => /^locus-[0-9a-f]{64}\.lock$/u.test(name));
-        if (lockName === undefined) throw new Error("fixture locus lock missing");
-        lockAnchor = JSON.parse(await readFile(join(locksRoot, lockName), "utf8")).anchor;
-      } finally {
-        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-        if (blockerPid !== null) {
-          try {
-            process.kill(blockerPid, "SIGKILL");
-          } catch (error) {
-            expect(error).toMatchObject({ code: "ESRCH" });
-          }
-        }
-        await closed;
-        await cleanupTempDir(gitBin);
-      }
-
-      const retry = await runArc(
-        ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-        repo,
-      );
-
-      expect(lockAnchor).toMatchObject({ kind: "process", selector: "arc-command" });
-      expect(retry.exitCode, retry.stdout + retry.stderr).toBe(0);
-      expect(JSON.parse(retry.stdout)).toMatchObject({ status: "pending", slug: "dependent" });
-      const remainingLocks = (await readdir(locksRoot)).filter((name) => name.endsWith(".lock"));
-      expect(remainingLocks).toEqual([]);
-    },
-    15_000,
-  );
-
-  it("clears a dead work-unit lease when the next attachment has no durable session ancestor", async () => {
-    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-    const attached = await runArcAnchored(
-      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-      repo,
-    );
-    expect(attached.exitCode).toBe(0);
-    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-    if (recordName === undefined) throw new Error("fixture locus record missing");
-    const recordPath = join(lociRoot, recordName);
-    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({
-      lease: { anchor: { kind: "process" } },
-    });
-
-    const result = await runArc(
-      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-      repo,
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(await readFile(recordPath, "utf8"))).toMatchObject({ lease: null });
-  });
-
-  it("returns one JSON conflict and does not reconcile when identity resolution fails", async () => {
+  it("applies without an identity because reconciliation is checkout-owned", async () => {
     await git(repo, ["config", "--unset", "arc.identity"]);
     await git(repo, ["config", "--unset", "user.name"]);
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
-    const before = await readFile(metaPath, "utf8");
 
     const result = await runArc(
-      ["wu", "reconcile", "dependent", "--apply", "--attach-session", "--json"],
+      ["wu", "reconcile", "dependent", "--apply", "--json"],
       repo,
       {
         env: {
@@ -289,47 +138,10 @@ describe("arc wu reconcile", () => {
       },
     );
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout.trim().split("\n")).toHaveLength(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      status: "conflict",
-      slug: "dependent",
-      reason: expect.stringMatching(/identity resolution failed/iu),
-    });
-    expect(await readFile(metaPath, "utf8")).toBe(before);
-    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
-  });
-
-  it("returns one JSON conflict and does not reconcile when locus attachment is refused", async () => {
-    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-    const attached = await runArcAnchored(
-      ["wu", "reconcile", "dependent", "--attach-session", "--json"],
-      repo,
-    );
-    expect(attached.exitCode).toBe(0);
-    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-    if (recordName === undefined) throw new Error("fixture locus record missing");
-    const recordPath = join(lociRoot, recordName);
-    const record = JSON.parse(await readFile(recordPath, "utf8"));
-    record.role.subject.key = "another-work-unit";
-    await writeFile(recordPath, `${JSON.stringify(record)}\n`, "utf8");
-    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
-    const before = await readFile(metaPath, "utf8");
-
-    const result = await runArcAnchored(
-      ["wu", "reconcile", "dependent", "--apply", "--attach-session", "--json"],
-      repo,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout.trim().split("\n")).toHaveLength(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      status: "conflict",
-      slug: "dependent",
-      reason: expect.stringMatching(/incompatible role generation/iu),
-    });
-    expect(await readFile(metaPath, "utf8")).toBe(before);
-    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "applied", slug: "dependent" });
+    expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
   });
 
   it("surfaces and applies reference-only reconcile through the shared command", async () => {
@@ -513,12 +325,7 @@ describe("arc wu reconcile", () => {
       expect(await readFile(siblingMeta, "utf8")).toBe(before);
       expect(await git(sibling, ["status", "--porcelain"])).toBe("");
       const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
-      const records = await Promise.all(
-        (await readdir(lociRoot))
-          .filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name))
-          .map((name) => readFile(join(lociRoot, name), "utf8").then((content) => JSON.parse(content))),
-      );
-      expect(records.map((record) => record.checkoutPath)).toEqual([repo]);
+      await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await git(repo, ["worktree", "remove", "--force", sibling]);
     }
@@ -617,7 +424,7 @@ describe("arc wu reconcile", () => {
     expect(JSON.parse(drift.stdout)).toMatchObject({ diskState: "different" });
   });
 
-  it("backfills a missing work-unit role on applied reconcile, then stays clean", async () => {
+  it("keeps a clean checkout-owned reconcile silent without minting a locus record", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
     await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
@@ -633,10 +440,10 @@ describe("arc wu reconcile", () => {
       currentWuReconcile: {
         ok: true,
         value: {
-          status: "pending",
-          recommendedAction: "surface",
-          recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--apply", "--json"],
-          recommendedPromptText: expect.stringContaining("work-unit session role"),
+          status: "clean",
+          recommendedAction: "skip",
+          recommendedCommand: null,
+          recommendedPromptText: "",
         },
       },
     });
@@ -646,24 +453,16 @@ describe("arc wu reconcile", () => {
 
     expect(applied.exitCode).toBe(0);
     expect(JSON.parse(applied.stdout)).toMatchObject({
-      status: "applied",
+      status: "clean",
       stagedPaths: [],
     });
-    const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-    if (recordName === undefined) throw new Error("applied reconcile did not persist its work-unit role");
-    const recordPath = join(lociRoot, recordName);
-    const firstGeneration = await readFile(recordPath, "utf8");
-    expect(JSON.parse(firstGeneration)).toMatchObject({
-      checkoutPath: repo,
-      role: { kind: "work-unit", subject: { kind: "work-unit", key: "dependent", claimId: null } },
-      lease: null,
-    });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const replay = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
 
     expect(replay.exitCode).toBe(0);
     expect(JSON.parse(replay.stdout)).toMatchObject({ status: "clean", stagedPaths: [] });
-    expect(await readFile(recordPath, "utf8")).toBe(firstGeneration);
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(metaPath, "utf8")).toBe(before);
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(beforeHead);

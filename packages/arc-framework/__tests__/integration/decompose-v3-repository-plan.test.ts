@@ -12,8 +12,6 @@ import { createRawGitExec, type RawGitExec } from "../../src/lib/change-facts.js
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
-import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
-import { locusRecordPath, resolveLocusRoot } from "../../src/lib/locus/root.js";
 import {
   resolveConfiguredBaseDecompositionAnchor,
   resolveConfiguredBaseDecompositionAnchorByReceiptId,
@@ -37,7 +35,6 @@ import {
 } from "../../src/lib/work-unit/git-decomposition-local-cleanup.js";
 import { createNodeTeardownLocusDriver } from "../../src/lib/work-unit/teardown-locus.js";
 import { createNodeTeardownOccupancyReader } from "../../src/lib/work-unit/teardown-occupancy.js";
-import { createNodeWorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit-locus.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
 import { runCli } from "../helpers/run-cli.js";
@@ -1127,27 +1124,11 @@ describe("Git v3 repository plan", () => {
       spawningIdentity: "andrew",
       now: Date.parse("2026-07-21T00:00:00.000Z"),
     });
-    const workUnitLocus = createNodeWorkUnitLocusDriver({ exec, identity: "andrew" });
-    await workUnitLocus.reconcile({
-      checkoutPath: sourceWorktree,
-      branch: "plan/origin",
-      wuName: "origin",
-      attachSession: false,
-    });
-    const root = await resolveLocusRoot({ identity: "andrew", scan: () => scanRegisteredWorktrees(exec) });
-    if (!root.ok) throw new Error(root.message);
-    const sourceIdentity = deriveLocusRecordId(
-      sourceWorktree,
-      process.platform === "win32" ? "windows" : "posix",
-    );
-    const sourceRecordPath = locusRecordPath(root, sourceIdentity.digest);
-
     const cleaned = await cleanupGitLandedDecompositionLocally("main", "origin", {
       cwd: repo,
       exec,
       readBlob: dependencies.readObject,
       closeUserWorkspace: async () => undefined,
-      workUnitLocus,
       readLocusOccupancy: createNodeTeardownOccupancyReader({ exec, identity: "andrew" }),
       teardownLocus: createNodeTeardownLocusDriver({ exec, identity: "andrew" }),
     });
@@ -1159,7 +1140,6 @@ describe("Git v3 repository plan", () => {
       source: { branchOutcome: "deleted", worktreeOutcome: "removed" },
     });
     await expect(lstat(sourceWorktree)).rejects.toMatchObject({ code: "ENOENT" });
-    await expect(readFile(sourceRecordPath)).rejects.toMatchObject({ code: "ENOENT" });
     const [claimName] = await claimFiles(repo);
     expect(claimName).toBeDefined();
     expect(JSON.parse(await readFile(

@@ -708,7 +708,6 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     });
     let retired = false;
     ctx.workUnitLocus = {
-      reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: false }),
       retire: async (options) => {
         expect(options).toMatchObject({ checkoutPath: "/repo", wuName: "demo" });
         await options.removeCheckout();

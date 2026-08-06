@@ -20,7 +20,6 @@
 
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
-import type { WorkUnitLocusDriver } from "../work-unit/work-unit-locus.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
 import { MetaRecordSchema } from "../active/meta-schema.js";
 import {
@@ -58,8 +57,6 @@ export interface SpawnWorktreeContext {
   io: UserIOContext;
   /** Internal template directory for the SESSION-NOTES seed; production passes `getInternalTemplatePath()`. */
   internalTemplateDir: string;
-  /** Optional work-unit locus seam for lower-layer callers and tests. */
-  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
