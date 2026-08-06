@@ -50,15 +50,7 @@ describe("checkout role authority boundary", () => {
   });
 
   it("keeps derivation free of durable locus storage and liveness imports", () => {
-    const imports = importsOf("src/lib/locus/role-derivation.ts");
-    expect(imports.filter((specifier) => [
-      "./record-store.js",
-      "./schema/record.js",
-      "./lock.js",
-      "./process-inspector.js",
-      "./platform-inspectors.js",
-      "./process-exec.js",
-      "./evidence.js",
-    ].includes(specifier))).toEqual([]);
+    expect(importsOf("src/lib/locus/role-derivation.ts"))
+      .toEqual(["../git/worktree-roster.js"]);
   });
 });

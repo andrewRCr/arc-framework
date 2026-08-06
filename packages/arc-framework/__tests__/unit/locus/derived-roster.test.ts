@@ -90,6 +90,7 @@ describe("dormant derived checkout rows", () => {
     })).toMatchObject({
       kind: "work-unit",
       lifecycleLocation: "parked",
+      markerGeneration: `sha256:${"b".repeat(64)}`,
     });
   });
 

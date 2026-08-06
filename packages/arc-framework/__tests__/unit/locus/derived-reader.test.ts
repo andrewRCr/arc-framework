@@ -2,7 +2,7 @@
 
 import { posix } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/index.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
@@ -76,7 +76,9 @@ function wuEvidence(path: string, key = "demo"): DormantCheckoutReadEvidence {
   };
 }
 
-function baseOptions(overrides: Record<string, unknown> = {}) {
+type ReaderOptions = Parameters<typeof readDerivedLocusRoster>[0];
+
+function baseOptions(overrides: Partial<ReaderOptions> = {}) {
   const path = "/repo/demo";
   const candidate = meta(path);
   const files = new Map([
@@ -107,8 +109,11 @@ function baseOptions(overrides: Record<string, unknown> = {}) {
 }
 
 describe("dormant derived roster reader", () => {
-  it("forwards active extensions once into a stable rich WU context", async () => {
+  beforeEach(() => {
     projectorInputs.length = 0;
+  });
+
+  it("forwards active extensions once into a stable rich WU context", async () => {
     const activeExtensions = ["release-notes", "security-review"] as const;
     const result = await readDerivedLocusRoster(baseOptions({ activeExtensions }));
 
@@ -135,7 +140,7 @@ describe("dormant derived roster reader", () => {
       topology: {
         ok: true,
         worktrees: [
-          healthy.topology.worktrees[0],
+          healthy.topology.worktrees[0]!,
           { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
@@ -167,7 +172,7 @@ describe("dormant derived roster reader", () => {
       topology: {
         ok: true,
         worktrees: [
-          baseOptions().topology.worktrees[0],
+          baseOptions().topology.worktrees[0]!,
           { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
         ],
       },

@@ -35,4 +35,32 @@ describe("checkout role corroboration", () => {
       }],
     });
   });
+
+  it.each([
+    {
+      kind: "unresolved-checkout",
+      topology: { path: "/repo/widget", primary: false },
+      diagnostics: [],
+    },
+    { kind: "unoccupied-primary", topology: { path: "/repo", primary: true } },
+    { kind: "unmanaged-checkout", topology: { path: "/repo/widget", primary: false } },
+  ] as const)("preserves subjectless role $kind regardless of observations", (role) => {
+    expect(corroborateCheckoutRole(role, {
+      branch: "feat/other",
+      head: "b".repeat(40),
+      detached: false,
+    })).toBe(role);
+  });
+
+  it("ignores observation keys omitted from authority expectations", () => {
+    const partial: AuthorityDerivedCheckoutRole = {
+      ...derived,
+      expectedTopology: { branch: "feat/widget" },
+    };
+    expect(corroborateCheckoutRole(partial, {
+      branch: "feat/widget",
+      head: "b".repeat(40),
+      detached: false,
+    })).toBe(partial);
+  });
 });

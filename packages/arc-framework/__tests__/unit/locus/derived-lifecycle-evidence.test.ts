@@ -22,8 +22,8 @@ function meta(key: string, owner = "andrew", branch = `feat/${key}`) {
   };
 }
 
-function marker(marker: OccupancyMarker): DormantMarkerGenerationEvidence {
-  return { kind: "present", marker, generation: `sha256:${"a".repeat(64)}` };
+function marker(occupancy: OccupancyMarker): DormantMarkerGenerationEvidence {
+  return { kind: "present", marker: occupancy, generation: `sha256:${"a".repeat(64)}` };
 }
 
 const workUnitMarker: OccupancyMarker = {
@@ -66,6 +66,14 @@ describe("active-meta lifecycle evidence", () => {
       candidates: [meta("demo"), meta("other")],
       metaRoots: [],
     })).toMatchObject({ kind: "conflicting" });
+    expect(projectActiveMetaEvidence({
+      ...base,
+      candidates: [
+        meta("demo"),
+        { ...meta("demo", "andrew", "feat/demo-alt"), path: "/repo/.arc/user/andrew/active/meta-demo.md" },
+      ],
+      metaRoots: [],
+    })).toMatchObject({ kind: "conflicting" });
   });
 
   it("contains owner-eligible metas outside the marker-selected subject", () => {
@@ -87,6 +95,22 @@ describe("active-meta lifecycle evidence", () => {
     })).toMatchObject({
       kind: "present",
       subject: { kind: "work-unit", key: "demo" },
+    });
+    expect(projectActiveMetaEvidence({
+      cwd: "/repo",
+      identity: "andrew",
+      expectedSubjectKey: "demo",
+      candidates: [{
+        kind: "error",
+        name: "meta-demo.md",
+        path: "/repo/.arc/active/meta-demo.md",
+        message: "permission denied",
+      }],
+      metaRoots: [],
+    })).toEqual({
+      kind: "unreadable",
+      path: ".arc/active/meta-demo.md",
+      reason: "permission denied",
     });
   });
 
@@ -133,17 +157,23 @@ describe("bounded authority projections", () => {
       subject: { kind: "work-unit", key: "demo" },
     });
     expect(projectMarkerAuthority(marker(workUnitMarker), { primary: true }))
-      .toMatchObject({ kind: "unreadable" });
+      .toEqual({ kind: "unreadable", reason: "Marker spawn provenance conflicts with physical topology" });
     expect(projectMarkerAuthority(marker({
       spawnedByArc: true,
       createdFor: { kind: "errand", slug: "repair", claimId: "claim-1" },
       provisioning: "pending",
-    }), { primary: false })).toMatchObject({ kind: "unreadable" });
+    }), { primary: false })).toEqual({
+      kind: "unreadable",
+      reason: "Transient occupancy marker is not ready",
+    });
     expect(projectMarkerAuthority(marker({
       spawnedByArc: false,
       createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
       provisioning: "ready",
-    }), { primary: true })).toMatchObject({ kind: "unreadable" });
+    }), { primary: true })).toEqual({
+      kind: "unreadable",
+      reason: "Partial Errand marker lacks complete origin binding",
+    });
     expect(projectMarkerAuthority(marker({
       spawnedByArc: false,
       createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
@@ -184,13 +214,19 @@ describe("bounded authority projections", () => {
       subject,
       expectedTopology: { branch: "chore/repair", detached: false },
     });
-    expect(projectIdentityAuthority({ kind: "absent" }, subject)).toMatchObject({ kind: "unreadable" });
+    expect(projectIdentityAuthority({ kind: "absent" }, subject)).toEqual({
+      kind: "unreadable",
+      reason: "Transient identity snapshot is absent",
+    });
     expect(projectIdentityAuthority({ kind: "error", stage: "tree", message: "bad tree" }, subject))
-      .toMatchObject({ kind: "unreadable" });
+      .toEqual({ kind: "unreadable", reason: "bad tree" });
     expect(projectIdentityAuthority({
       ...complete,
       projections: new Map(),
       diagnostics: [{ kind: "malformed", key: "repair", message: "bad JSON" }],
-    }, subject)).toMatchObject({ kind: "unreadable" });
+    }, subject)).toEqual({
+      kind: "unreadable",
+      reason: "Transient identity entry is malformed: bad JSON",
+    });
   });
 });

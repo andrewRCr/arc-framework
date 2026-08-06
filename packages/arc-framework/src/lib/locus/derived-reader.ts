@@ -14,6 +14,7 @@ import {
   type ActiveMetaEvidence,
   type DormantMetaEvidence,
   type DormantMarkerGenerationEvidence,
+  type MetaRootEvidence,
 } from "./derived-lifecycle-evidence.js";
 import {
   projectDerivedCheckoutRow,
@@ -30,10 +31,7 @@ import {
 export interface DormantCheckoutReadEvidence {
   readonly checkoutPath: string;
   readonly marker: DormantMarkerGenerationEvidence;
-  readonly metaRoots: readonly (
-    { readonly kind: "listed"; readonly path: string }
-    | { readonly kind: "error"; readonly path: string; readonly message: string }
-  )[];
+  readonly metaRoots: readonly MetaRootEvidence[];
   readonly metas: readonly DormantMetaEvidence[];
 }
 
@@ -133,7 +131,7 @@ export async function readDerivedLocusRoster(options: {
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
-    if (row.kind === "work-unit" && activeMeta.kind === "present" && activeMeta.location === "active") {
+    if (row.kind === "work-unit" && activeMeta.kind === "present") {
       const context = await projectCheckoutSubjectMeta({
         cwd: item.original.path,
         subjectKey: activeMeta.subject.key,

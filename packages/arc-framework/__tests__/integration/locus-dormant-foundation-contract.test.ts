@@ -163,7 +163,7 @@ function referencesUnder(root: "src" | "__tests__"): ModuleReference[] {
     return moduleNames.some((name) => content.includes(name)) ? referencesOf(path, content) : [];
   });
   referenceCache.set(root, references);
-  return references;
+  return [...references];
 }
 
 function typescriptFiles(root: string): string[] {
@@ -223,8 +223,9 @@ function isDormant(path: string): boolean {
 }
 
 function changedPaths(...pathspecs: string[]): string[] {
-  const output = git("diff", "--name-only", "--no-renames", comparisonBase, "--", ...pathspecs);
-  return output === "" ? [] : output.split("\n").sort();
+  const tracked = git("diff", "--name-only", "--no-renames", comparisonBase, "--", ...pathspecs);
+  const untracked = git("ls-files", "--others", "--exclude-standard", "--", ...pathspecs);
+  return [...new Set([tracked, untracked].flatMap((output) => output === "" ? [] : output.split("\n")))].sort();
 }
 
 function resolveComparisonBase(): string {
