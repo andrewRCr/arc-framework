@@ -226,19 +226,60 @@ With those settled, the lane's behavior is:
 The existing `vehicle-unresolved` refusal — raised when a work unit and an Errand are both absent or both present
 — keeps its current meaning for the no-selector path.
 
-> **Unsettled — routed to `draft-design`.** How a member's **review target** is composed is _not_ settled by this
-> spec, and the local lane is not buildable until it is. Local target derivation resolves `HEAD` and the merge
-> base against the configured base ref, and — decisively — the lane re-confirms that target by re-deriving it the
-> same way at prepare, attest, resume, respond, and reduce, returning `stale-target` on any difference. A target
-> built from a member's coordinates would therefore be refused as stale at the control locus every time, because
-> `HEAD` there is the control branch by construction. Compounding it, a member's recorded coordinates supply only
-> three of the six target fields; `diffBaseTree` and `baseRef` have no delivery source, and `baseRef` is
-> identity-bearing in the target-id preimage while delivery ref naming remains an open item in
-> `delivery-stack-topology`. Choosing among the credible answers — parameterizing the shipped derivation by base
-> and head revisions so confirmation composes, changing what `stale-target` means for a member, or accepting a
-> second delivery read — is design authoring, not crystallization. It returns here once drafting settles it.
+**A member's review target composes from the coordinates delivery already records.** `baseRef` carries the
+configured base, and drift detection stays with the authentication this lane already runs rather than with target
+staleness:
 
-Everything above the marker is settled and survived two adversarial passes; only target composition is open.
+- **Five of the six target fields have a delivery or local source.** The D6 port supplies the member's recorded
+  head and base commits, filling `headSha` and `diffBaseSha`; `headTree` and `diffBaseTree` are local `rev-parse`
+  reads over those two commits; `repositoryId` is the composition root's, as today. Only `baseRef` has no delivery
+  source.
+- **`baseRef` is filled with the configured base ref** — `branch.base`, the base the stack lands to. Outside
+  derivation itself every consumer of the field compares or copies it: it is one of the identity-bearing fields in
+  the target-id preimage, and the carrier snapshot equality, fix authorization, and lifecycle-tail proof all read
+  it that way. A deterministic, resolvable value satisfies them all, and exactness rides the shas. The
+  kind-conditional invariant this creates is recorded rather than left to the field name: **for a member target,
+  `diffBaseSha` is the member's recorded base — its predecessor's head — not the merge base of `HEAD` and
+  `baseRef`.**
+- **No member ref is consumed anywhere in the lane.** The target carries commits and trees, never a member ref,
+  which dissolves the coupling to `delivery-stack-topology`'s open ref naming: ref name and namespace stay that
+  work unit's free choice, and this work unit routes an **informational** note rather than a constraint. The
+  predecessor-ref alternative was rejected — it would have constrained naming, namespace (derivation admits
+  `refs/heads/` only), and binding non-nullability at successor-review time, three couplings for a label whose
+  identity contribution the shas already supply.
+- **Derivation parameterizes by base and head revisions**, defaulting to the configured base and `HEAD`. The
+  shipped derivation hardcodes both, so parameterization is mandatory infrastructure for any member formulation
+  rather than one option among several; the member path feeds it the recorded shas. Object-existence checks are
+  retained on both paths. **The worktree-cleanliness guard is scoped to the inputs that read the worktree** — it
+  exists because the ordinary path derives from `HEAD` and the working tree, and a member target derives from
+  neither. Retaining it uniformly would refuse the supported path for an unrelated reason: the control locus is
+  where authoring and review-driven fixes land, so an uncommitted edit is the normal state there, and a member
+  already pushed would be unreviewable while its successor is being written. Nothing is lost — the evaluator's
+  materialization checks cleanliness of the detached worktree it creates at the pinned head, which is the
+  cleanliness the review actually depends on.
+- **The target carries its own kind, and confirmation branches on it.** The review target gains a
+  `delivery-member` kind alongside `change-set`, and confirmation verifies a member target's objects rather than
+  re-deriving it. All five verbs consume one injected confirm port — attest, resume, respond, and reduce delegate
+  to prepare's — and confirmation re-derives from the carried target rather than from fresh configuration. Without
+  a discriminator a member target is indistinguishable from an ordinary one by inspection (same `baseRef` value,
+  same kind), so confirm would re-derive against the control branch's `HEAD` and refuse `stale-target` on every
+  member operation. Widening the existing `kind` literal costs one schema line and one branch, leaves ordinary
+  targets' identity byte-identical, and — the deciding reason — makes the kind-conditional `diffBaseSha`
+  semantics below **declared** rather than a hidden property two competent readers could miss. The alternative
+  considered was threading the operation's vehicle context through the confirm port's signature; it was rejected
+  as the larger change (the port is declared across five dependency interfaces) that leaves the invariant
+  undeclared.
+- **`stale-target` keeps one semantics.** For a member, confirmation verifies that the pinned coordinates still
+  resolve; it does not re-derive, so it does not manufacture a member-specific staleness meaning. **Binding drift
+  is caught at admission, not at confirmation.** The D6-port authentication runs wherever authority is
+  re-resolved — prepare and attest — and again at readiness when the merge lock is released
+  (`delivery-member-unbound`, `delivery-member-mismatch`). Resume and reduce re-confirm the target but do not
+  re-resolve authority, so they operate on the head the operation was prepared against. That is deliberate and
+  consistent with this spec's exact-head evidence rule: an operation reviews the head it was admitted for, and a
+  rebased or rebound member is a new head that must be admitted again.
+- **Lane boundaries hold unchanged.** The evaluator's source materialization consumes the pinned exact head
+  without re-deriving a target, so it serves member targets as-is. Frontline self-review remains the no-selector
+  path over the work unit's own change set; member review does not run it.
 
 ### D8 — Vehicle composition callsites stay with the consumer
 
@@ -272,7 +313,8 @@ are not admission on their own.
 - **No change to `work-unit` or `errand` vehicle semantics** — not widened, not parameterized, not shared-field
   refactored beyond what adding a union member mechanically requires. The branch-check scoping in D3 and the
   optional selector in D7 are exactly that mechanical requirement: with no selector supplied, both lanes behave
-  as they do today.
+  as they do today. D7's derivation parameterization and target-kind widening are held to the same standard — an
+  ordinary target keeps its `change-set` kind, its byte-identical id, and today's derivation and confirmation.
 - **No new rubric, guidance, or assurance model for members.** A member's assurance is the owning work unit's,
   composed by the existing function from the existing two fields (D7).
 - **No aggregate or terminal review pass, review groups, or request-cardinality mechanics** — that pressure routes
@@ -280,9 +322,10 @@ are not admission on their own.
 - **No contact with the review protocol chain** (convergence, source authority, activity/request contracts) —
   those surfaces are pending right-sizing and this work unit must not deepen them.
 - **No new stores, verbs, host surfaces, or workflow prose** beyond the readiness branch, the narrow delivery
-  read, the local-lane selector threaded to the existing authority-resolution sites, and the existing merge-lock
-  release path. No revival of any retired clearance install surface (D8). In particular, no member-enumeration
-  or plan-listing command: the selector is a head the caller already holds (D7).
+  read, the local-lane selector threaded to the existing authority-resolution sites, the target-derivation
+  parameterization and target-kind widening D7 settles, and the existing merge-lock release path. No revival of
+  any retired clearance install surface (D8). In particular, no member-enumeration or plan-listing command: the
+  selector is a head the caller already holds (D7).
 - **No member-checkout review path.** Local member review is supported from the owning work unit's control locus
   only, per `delivery-stack-topology`'s ref and session boundaries.
 
@@ -322,10 +365,29 @@ are not admission on their own.
   a member from a member checkout, D7's resolution path does not serve it — the meta would be absent there. This
   is recorded as a bounded assumption grounded in `delivery-stack-topology`'s stated boundaries, not an
   invariant this work unit enforces.
-- **The local lane's selector touches four resolution sites, not one.** Carrying member selection through
-  prepare, attest, resume, and re-entrant admission is the cost of admitting the kind into a lane that
-  deliberately re-derives authority and compares it against persisted state. Accepted: the re-derivation is the
-  lane's integrity mechanism, so the selector must satisfy it rather than bypass it.
+- **The local lane's selector reaches past prepare.** Authority is re-resolved at prepare and at attest, respond
+  reaches the same resolution for actor identities, and re-entrant admission compares the persisted vehicle
+  against a fresh admission inside prepare. A selector honored only at prepare therefore yields an operation that
+  can be prepared and never attested. Accepted: the re-resolution is the lane's integrity mechanism, so the
+  selector must satisfy it rather than bypass it.
+- **The review target's schema changes, and it is a registered contract.** `ReviewTargetSchema` and its id
+  preimage are registered at version 2 under a `strict-current` migration posture, so widening the `kind` literal
+  is a contract change rather than an additive one. Accepted under the pre-public-release posture: ordinary
+  targets keep byte-identical ids because their `kind` value is unchanged, and no consumer branches on the
+  literal today. The alternative — leaving the target opaque and threading vehicle context through the confirm
+  port — was rejected in D7 as the larger change that also leaves the `diffBaseSha` invariant undeclared.
+- **A member target's `diffBaseSha` is not a merge base.** For member targets the field carries the member's
+  recorded base — its predecessor's head — while `baseRef` carries the configured base the stack lands to. The two
+  are consistent by construction on the ordinary path and deliberately decoupled on the member path. The target's
+  own kind declares which reading applies, so a consumer inferring merge-base semantics from the field name is
+  contradicted by the record rather than by convention alone.
+- **Resume and reduce do not re-resolve authority, so they cannot catch binding drift.** Both re-confirm the
+  target; neither re-resolves authority, and a member's confirmation verifies pinned coordinates rather than
+  re-deriving. A member rebased or unbound after prepare therefore resumes and reduces against the head it was
+  admitted for. Accepted rather than closed: that is the exact-head evidence rule working, and admission
+  (prepare, attest) plus readiness at merge-lock release re-authenticate the binding. Recorded because the
+  work-unit path gets an incidental drift signal here — its confirmation re-derives from `HEAD` — and the member
+  path deliberately does not.
 - **Storage forward-compatibility is preserved, not merely unharmed.** The delivery read reaches its data through
   the `DeliveryPlanStore` / `DeliveryStateStore` interfaces, with the repository-backed classes as one
   implementation — so it satisfies the storage strategy's treat-storage-as-an-abstraction principle rather than
@@ -356,21 +418,26 @@ are not admission on their own.
 7. A member operation prepared with a selector can be attested: authority re-resolution at attest and at
    re-entrant admission derives the same `delivery-member` vehicle as the persisted state, so neither the
    vehicle-mismatch nor the operation-key-mismatch refusal fires on the supported path.
-8. Local prepare invoked with no selector produces exactly the vehicle, target, and assurance it produces today,
-   for both a work-unit and an Errand context.
-9. Local prepare refuses a selector whose bound head resolves to a work unit other than the one resolved at the
-   control locus, and refuses a selector naming the plan's final member.
-10. No workflow file, dispatch payload, template, or host permission is added or revived by this work unit.
-11. The readiness module's documented contract states the delivery read and its repository binding.
-12. Tier 3 quality gates pass.
-
-Criteria 6–9 are contingent on the unsettled target composition marked in D7 and are not validatable until it
-returns from drafting. Criteria 1–5 and 10–12 stand on the settled readiness lane.
+8. A member operation's target carries the `delivery-member` kind, the member's recorded head and base as
+   `headSha` and `diffBaseSha`, the trees resolved from those two commits, and the configured base ref as
+   `baseRef`; confirmation at prepare, attest, resume, respond, and reduce returns `current` for that target while
+   the control locus's `HEAD` remains the control branch and its worktree is dirty. An ordinary target's kind,
+   id, derivation, and confirmation are unchanged.
+9. A member whose binding has drifted — rebased, rebound, or unbound — is refused at admission by the delivery
+   authentication (`delivery-member-unbound` or `delivery-member-mismatch`) and again at merge-lock release, not
+   by `stale-target`; a missing object still refuses on the member path.
+10. Local prepare invoked with no selector produces exactly the vehicle, target, and assurance it produces today,
+    for both a work-unit and an Errand context.
+11. Local prepare refuses a selector whose bound head resolves to a work unit other than the one resolved at the
+    control locus, and refuses a selector naming the plan's final member.
+12. No workflow file, dispatch payload, template, or host permission is added or revived by this work unit.
+13. The readiness module's documented contract states the delivery read and its repository binding.
+14. Tier 3 quality gates pass.
 
 ## Open items
 
 - The exact ordering of the delivery authentication relative to tree-root resolution — behaviourally equivalent
   because neither reads the other's inputs, settled during implementation for diagnostic clarity.
-- How the member selector is threaded to each of the four authority-resolution sites — as an added parameter on
-  the existing resolution dependency, or as operation context those sites already receive. A structural choice
-  within D7's settled rule that all four derive the same vehicle, not a question about what they derive.
+- How the member selector reaches the authority resolution at prepare and attest — as an added parameter on the
+  existing resolution dependency, or as operation context those sites already receive. A structural choice within
+  D7's settled rule that both derive the same vehicle, not a question about what they derive.

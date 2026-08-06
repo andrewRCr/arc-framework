@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-delivery-slice-review-vehicle.md`
+- **Design:** `spec-delivery-slice-review-vehicle.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** `draft-design` — local-lane target composition settled; draft formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
