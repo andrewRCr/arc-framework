@@ -1,15 +1,14 @@
 /** Exact merged-tail finalization for ordinary v3 Errands. */
 
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusMutationErrorCode,
-} from "../locus/schema/index.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
+import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+import {
+  createTerminalOperationOutcome,
+  type TerminalOperationOutcome,
+} from "./terminal-result.js";
 
 type IdentityRead =
   | { kind: "ready"; record: TransientIdentityRecord | null }
@@ -31,18 +30,18 @@ export interface CloseTarget {
 
 export type CloseTargetResolution =
   | { kind: "resolved"; changeRequest: LocusChangeRequestV1 }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 export type CloseRefCleanupResult =
   | { kind: "applied" | "idempotent" }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 export type CloseInboxResult =
   | {
       kind: "removed" | "absent";
-      nextOffer: Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }>["nextOffer"];
+      nextOffer: Extract<TerminalOperationOutcome, { outcome: "applied" | "idempotent" }>["nextOffer"];
     }
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
@@ -55,10 +54,10 @@ type RetirementResult =
 /** Renewable proof that a base-context close still occupies its authorized checkout state. */
 export type CloseAuthorityResult =
   | { kind: "valid" }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
-export type CloseAuthorityLeaseResult =
+export type CloseAuthorityLockResult =
   | { kind: "acquired"; release(): Promise<void> }
   | Extract<CloseAuthorityResult, { kind: "refused" | "error" }>;
 
@@ -66,21 +65,17 @@ export interface CloseAuthorityGuard {
   /** Registered checkout whose HEAD lock this guard owns while acquired. */
   readonly checkoutPath: string;
   revalidate(): Promise<CloseAuthorityResult>;
-  acquire(): Promise<CloseAuthorityLeaseResult>;
+  acquire(): Promise<CloseAuthorityLockResult>;
 }
-
-type SuccessfulCloseResult = Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }>;
 
 /** Checkout and role settlement completed before identity-bearing state may retire. */
 export type CloseLocusSettlementResult =
   | {
       kind: "applied" | "idempotent";
       guard: CloseAuthorityGuard | null;
-      recordId: string | null;
-      sessionHomePath: string | null;
-      restoredParent: SuccessfulCloseResult["restoredParent"];
+      parentCheckoutPath: string | null;
     }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 /**
@@ -91,7 +86,7 @@ export type CloseLocusSettlementResult =
  */
 export type CloseOccupancyResult =
   | { kind: "clear"; settle(): Promise<CloseLocusSettlementResult> }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 export interface CloseOrdinaryErrandDependencies {
@@ -100,25 +95,23 @@ export interface CloseOrdinaryErrandDependencies {
   readLifecycle(target: CloseTarget): Promise<ChangeRequestLifecycleEvidence>;
   readOccupancy(target: CloseTarget): Promise<CloseOccupancyResult>;
   cleanupRefs(target: CloseTarget, guard: CloseAuthorityGuard | null): Promise<CloseRefCleanupResult>;
-  removeInbox(record: OrdinaryErrandRecord, sessionHomePath: string | null): Promise<CloseInboxResult>;
+  removeInbox(record: OrdinaryErrandRecord, parentCheckoutPath: string | null): Promise<CloseInboxResult>;
   retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
 }
 
 export interface CloseOrdinaryErrandOptions {
   slug: string;
   protection: "full" | "partial";
-  force: boolean;
   dependencies: CloseOrdinaryErrandDependencies;
 }
 
 /** Finalize one identity-only merged tail without treating branch shape as merge proof. */
 export async function closeOrdinaryErrand(
   options: CloseOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<TerminalOperationOutcome> {
   if (options.protection !== "full") {
     return refusal("full-protection-required", "Errand close requires full branch protection.");
   }
-  if (options.force) return refusal("identity-conflict", "Current v3 Errands never permit close --force.");
   const slug = options.slug.trim();
   if (slug === "") return refusal("identity-conflict", "Errand slug must be non-empty.");
 
@@ -198,7 +191,7 @@ async function finalizeAuthorizedClose(input: {
   record: OrdinaryErrandRecord;
   settlement: Extract<CloseLocusSettlementResult, { kind: "applied" | "idempotent" }>;
   slug: string;
-}): Promise<LocusMutationResultV1> {
+}): Promise<TerminalOperationOutcome> {
   const { options, target, lifecycle, record, settlement, slug } = input;
   const guard = settlement.guard;
 
@@ -221,7 +214,7 @@ async function finalizeAuthorizedClose(input: {
 
   let inbox: CloseInboxResult;
   try {
-    inbox = await options.dependencies.removeInbox(record, settlement.sessionHomePath);
+    inbox = await options.dependencies.removeInbox(record, settlement.parentCheckoutPath);
   } catch (error) {
     return failure("locus.errand-close.inbox", message(error));
   }
@@ -253,17 +246,10 @@ async function finalizeAuthorizedClose(input: {
     || inbox.kind === "removed" || retired.kind === "applied"
     ? "applied"
     : "idempotent";
-  return createLocusMutationResult({
+  return createTerminalOperationOutcome({
     outcome,
     operation: "errand-close",
-    allocation: null,
-    recordId: settlement.recordId,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: settlement.sessionHomePath,
     identity: null,
-    originEntry: record.originEntry,
-    restoredParent: settlement.restoredParent,
     nextOffer: inbox.nextOffer,
     recommendedPromptText: `Finalized merged Errand '${slug}' and retired its identity.`,
   });
@@ -271,10 +257,10 @@ async function finalizeAuthorizedClose(input: {
 
 async function runWithCloseAuthority(
   guard: CloseAuthorityGuard | null,
-  operation: () => Promise<LocusMutationResultV1>,
-): Promise<LocusMutationResultV1> {
+  operation: () => Promise<TerminalOperationOutcome>,
+): Promise<TerminalOperationOutcome> {
   if (guard === null) return operation();
-  let acquired: CloseAuthorityLeaseResult;
+  let acquired: CloseAuthorityLockResult;
   try {
     acquired = await guard.acquire();
   } catch (error) {
@@ -283,7 +269,7 @@ async function runWithCloseAuthority(
   if (acquired.kind === "refused") return refusal(acquired.reason, acquired.message);
   if (acquired.kind === "error") return failure("locus.errand-close.occupancy", acquired.message);
 
-  let result: LocusMutationResultV1;
+  let result: TerminalOperationOutcome;
   try {
     result = await operation();
   } catch (error) {
@@ -329,25 +315,18 @@ function sameChangeRequest(
     && left.headSha === changeRequest.headSha;
 }
 
-function alreadyFinalized(slug: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function alreadyFinalized(slug: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "idempotent",
     operation: "errand-close",
-    allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: null,
     identity: null,
-    originEntry: null,
-    restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Errand '${slug}' is already finalized.`,
   });
 }
 
-function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function refusal(reason: ErrandRefusalReason, text: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "refused",
     operation: "errand-close",
     reason,
@@ -355,8 +334,8 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   });
 }
 
-function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function failure(code: ErrandErrorCode, text: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "error",
     operation: "errand-close",
     error: { code, message: text || "Errand close failed" },

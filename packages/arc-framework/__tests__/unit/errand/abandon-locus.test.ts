@@ -62,35 +62,12 @@ describe("abandonOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "applied", operation: "errand-abandon", identity: null });
   });
 
-  it("releases the session locus a retired identity left behind", async () => {
-    const cleanupResidue = vi.fn();
-    const retire = vi.fn();
+  it("reports idempotent when the identity is already retired", async () => {
     const result = await abandonOrdinaryErrand({
       slug: "retired",
       protection: "full",
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record: null }),
-        releaseRetiredResidue: async () => ({ kind: "applied" }),
-        cleanupResidue,
-        readLifecycle: vi.fn(),
-        clearExecuteBound: vi.fn(),
-        retire,
-      },
-    });
-
-    expect(result).toMatchObject({ outcome: "applied", operation: "errand-abandon" });
-    // The identity is already gone: neither the record-keyed cleanup nor retirement may run.
-    expect(cleanupResidue).not.toHaveBeenCalled();
-    expect(retire).not.toHaveBeenCalled();
-  });
-
-  it("reports idempotent when a retired identity left no occupancy behind", async () => {
-    const result = await abandonOrdinaryErrand({
-      slug: "retired",
-      protection: "full",
-      dependencies: {
-        readIdentity: async () => ({ kind: "ready", record: null }),
-        releaseRetiredResidue: async () => ({ kind: "idempotent" }),
         cleanupResidue: vi.fn(),
         readLifecycle: vi.fn(),
         clearExecuteBound: vi.fn(),
@@ -99,27 +76,6 @@ describe("abandonOrdinaryErrand", () => {
     });
 
     expect(result).toMatchObject({ outcome: "idempotent", operation: "errand-abandon" });
-  });
-
-  it("surfaces a refused residue release instead of reporting the errand abandoned", async () => {
-    const result = await abandonOrdinaryErrand({
-      slug: "retired",
-      protection: "full",
-      dependencies: {
-        readIdentity: async () => ({ kind: "ready", record: null }),
-        releaseRetiredResidue: async () => ({
-          kind: "refused",
-          reason: "lease-live",
-          message: "The Errand session locus still has a live lease.",
-        }),
-        cleanupResidue: vi.fn(),
-        readLifecycle: vi.fn(),
-        clearExecuteBound: vi.fn(),
-        retire: vi.fn(),
-      },
-    });
-
-    expect(result).toMatchObject({ outcome: "refused", reason: "lease-live" });
   });
 
   it("requires exact closed-unmerged host truth for an awaiting tail", async () => {
@@ -188,7 +144,7 @@ describe("abandonOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "refused", reason: "change-request-unverifiable" });
   });
 
-  it.each(["lease-live", "lease-unknown", "preservation-unproven"] as const)(
+  it.each(["role-conflict", "topology-unknown", "preservation-unproven"] as const)(
     "retains identity when residue cleanup refuses with %s",
     async (reason) => {
       const value = record("paused");
@@ -220,12 +176,12 @@ describe("abandonOrdinaryErrand", () => {
         cleanupResidue: async () => ({ kind: "idempotent" }),
         readLifecycle: vi.fn(),
         clearExecuteBound: async () => ({
-          kind: "refused", reason: "record-malformed", message: "malformed inbox entry",
+          kind: "refused", reason: "identity-conflict", message: "malformed inbox entry",
         }),
         retire,
       },
     });
-    expect(raced).toMatchObject({ outcome: "refused", reason: "record-malformed" });
+    expect(raced).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
     expect(retire).not.toHaveBeenCalled();
 
     const replay = await abandonOrdinaryErrand({

@@ -83,7 +83,6 @@ import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-com
 import {
   runCurrentWuReconcileSessionProbe,
 } from "../lib/session-init/current-wu-reconcile.js";
-import { runLocusStateProbe } from "./locus-state-probe.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -155,7 +154,6 @@ import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import type { LocusStateV1 } from "../lib/locus/schema/index.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -533,27 +531,6 @@ export async function handleStatus(
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
-    let locusStatePromise: Promise<LocusStateV1> | undefined;
-    const getLocusState = (id: string): Promise<LocusStateV1> => {
-      locusStatePromise ??= (async () => {
-        const resolved = await resolvedSettingsP;
-        return runLocusStateProbe({
-          cwd,
-          identity: id,
-          baseBranch: resolved.settings["branch.base"],
-          exec,
-        });
-      })();
-      return locusStatePromise;
-    };
-    const getOptionalLocusState = async (): Promise<LocusStateV1 | null> => {
-      if (identity === null) return null;
-      try {
-        return await getLocusState(identity);
-      } catch {
-        return null;
-      }
-    };
     const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
     const getDerivedLocusState = (
       id: string,
@@ -886,10 +863,9 @@ export async function handleStatus(
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
-        const [transientRead, locusState] = await Promise.all([
-          input.includeDiscovery ? getDiscoveryTransientIndexes() : getTransientIndexes(),
-          getOptionalLocusState(),
-        ]);
+        const transientRead = await (input.includeDiscovery
+          ? getDiscoveryTransientIndexes()
+          : getTransientIndexes());
         const transientState = projectTransientInFlightRead(transientRead);
         const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
@@ -914,7 +890,6 @@ export async function handleStatus(
           records: transientIndexes.records,
           recordsComplete: transientState.complete,
           remoteTips,
-          locusState,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),

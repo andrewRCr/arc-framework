@@ -45,9 +45,9 @@ branch to re-attach. Any other state is not resumable.
 - **Spawn** (full-protection default) — re-attach the preserved branch in a fresh WU-owned worktree.
 - **`--here`** — explicitly convert the current checkout into the WU-owned checkout. The session locus occupancy
   guard refuses an occupied checkout rather than displacing its role. When this is the physical primary, it is
-  unavailable to
-  transient work and other WUs until exact WU teardown restores record-free base. Physical branch checkout is
-  deferred until after the ship commit; follow the continuation emitted by the verb in Step 4.
+  unavailable to transient work and other WUs until exact WU teardown removes its marker and restores the configured
+  base. Physical branch checkout is deferred until after the ship commit; follow the continuation emitted by the verb
+  in Step 4.
 
 ### 3) Run `arc resume` from a base checkout
 

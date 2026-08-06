@@ -205,13 +205,13 @@ describe("promoteOrdinaryErrand", () => {
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record: value }),
         recoverPromoted: vi.fn(),
-        replaceFrame: async () => ({ kind: "refused", reason: "lease-live", message: "parent changed" }),
+        replaceFrame: async () => ({ kind: "refused", reason: "role-conflict", message: "parent changed" }),
         retire,
         settleInbox: async (value) => value,
         settleOccupancy: async (value) => value,
       },
     });
-    expect(refused).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    expect(refused).toMatchObject({ outcome: "refused", reason: "role-conflict" });
     expect(retire).not.toHaveBeenCalled();
 
     const failed = await promoteOrdinaryErrand({

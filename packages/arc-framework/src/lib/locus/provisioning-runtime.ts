@@ -17,31 +17,16 @@ import {
   removeWorktreeMarkerGeneration,
   replaceWorktreeMarkerGeneration,
 } from "../git/worktree-marker.js";
-import { acquireLocusLock, releaseLocusLock, type LocusLockHandle } from "./lock.js";
-import { deriveLocusRecordId, type PathFlavor } from "./path-identity.js";
-import type { ProcessInspector } from "./process-inspector.js";
 import { readPrimarySafety } from "./primary-safety.js";
 import {
   PrimaryCheckoutResidueError,
   type PrimaryCheckoutReceipt,
   type ProvisionTransientLocusDependencies,
-  type ProvisioningRecordLock,
 } from "./provisioning-types.js";
-import {
-  mintLocusRecord,
-  readLocusRecord,
-  removeLocusRecord,
-  replaceLocusRecord,
-} from "./record-store.js";
-import { locusLockPath, locusRecordPath, resolveLocusRoot } from "./root.js";
-import type { LocusAnchor } from "./schema/index.js";
+import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 
 export interface NodeProvisioningRuntimeOptions {
   readonly exec: GitExec;
-  readonly identity: string;
-  readonly anchor: LocusAnchor;
-  readonly inspector: ProcessInspector;
-  readonly pathFlavor: PathFlavor;
   readonly base: string;
   readonly branch: string | null;
   readonly postCreateScript: string;
@@ -52,7 +37,6 @@ export interface NodeProvisioningRuntimeOptions {
 export function createNodeProvisioningDependencies(
   options: NodeProvisioningRuntimeOptions,
 ): ProvisionTransientLocusDependencies {
-  const heldLocks = new Map<string, HeldProvisioningLock>();
   return {
     createLinkedWorktree: (request) => createLinkedWorktree({
       exec: options.exec,
@@ -85,37 +69,12 @@ export function createNodeProvisioningDependencies(
         registeredHarnessDirs: options.registeredHarnessDirs,
       });
     },
-    acquireRecordLock: async (checkoutPath) => {
-      const location = await recordLocation(options, checkoutPath);
-      if (location.kind === "error") throw new Error(location.message);
-      const acquired = await acquireLocusLock({
-        path: location.lockPath,
-        anchor: options.anchor,
-        inspector: options.inspector,
-      });
-      if (acquired.kind !== "acquired") return acquired;
-      heldLocks.set(acquired.handle.token, {
-        lock: acquired.handle,
-        recordId: location.recordId,
-        recordPath: location.recordPath,
-      });
-      return {
-        kind: "acquired",
-        handle: {
-          recordId: location.recordId,
-          recordPath: location.recordPath,
-          token: acquired.handle.token,
-        },
-      };
-    },
-    releaseRecordLock: async (handle) => {
-      const held = requireHeldLock(heldLocks, handle);
-      const released = await releaseLocusLock(held.lock);
-      if (released.kind !== "released") throw new Error(`Could not release session locus lock: ${released.kind}`);
-      heldLocks.delete(handle.token);
-    },
-    revalidateTarget: async ({ proposal, checkoutPath, handle }) => {
-      requireHeldLock(heldLocks, handle);
+    withOperationLock: (cwd, operation) => withWorktreeOperationLock({
+      exec: options.exec,
+      cwd,
+      operation: async () => operation(),
+    }),
+    revalidateTarget: async ({ proposal, checkoutPath }) => {
       const topology = await scanRegisteredWorktrees(options.exec);
       if (!topology.ok) return { kind: "refused", reason: "topology-unknown" };
       const matches = topology.worktrees.filter((entry) => entry.path === checkoutPath);
@@ -142,69 +101,9 @@ export function createNodeProvisioningDependencies(
     checkoutPrimary: (checkoutPath, branch, expectedBranchHead) =>
       checkoutPrimary(options.exec, checkoutPath, branch, expectedBranchHead),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
-    readRecord: (path, handle) => {
-      requireHeldLock(heldLocks, handle);
-      return readLocusRecord({
-        path,
-        expectedDigest: digestFromRecordId(handle.recordId),
-        pathFlavor: options.pathFlavor,
-      });
-    },
-    mintRecord: (path, record, handle) => {
-      const held = requireHeldLock(heldLocks, handle);
-      return mintLocusRecord({ path, record, lock: held.lock });
-    },
-    replaceRecord: (path, expectedBytes, record, handle) => {
-      const held = requireHeldLock(heldLocks, handle);
-      return replaceLocusRecord({ path, expectedBytes, record, lock: held.lock });
-    },
-    removeRecord: (path, expectedBytes, handle) => {
-      const held = requireHeldLock(heldLocks, handle);
-      return removeLocusRecord({ path, expectedBytes, lock: held.lock });
-    },
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
   };
-}
-
-async function recordLocation(
-  options: Pick<NodeProvisioningRuntimeOptions, "exec" | "identity" | "pathFlavor">,
-  checkoutPath: string,
-): Promise<
-  { kind: "ready"; recordId: string; recordPath: string; lockPath: string }
-  | { kind: "error"; message: string }
-> {
-  const root = await resolveLocusRoot({ identity: options.identity, exec: options.exec });
-  if (!root.ok) return { kind: "error", message: root.message };
-  let identity;
-  try {
-    identity = deriveLocusRecordId(checkoutPath, options.pathFlavor);
-  } catch (error) {
-    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
-  }
-  return {
-    kind: "ready",
-    recordId: identity.recordId,
-    recordPath: locusRecordPath(root, identity.digest),
-    lockPath: locusLockPath(root, identity.digest),
-  };
-}
-
-function requireHeldLock(
-  locks: ReadonlyMap<string, HeldProvisioningLock>,
-  handle: ProvisioningRecordLock,
-): HeldProvisioningLock {
-  const held = locks.get(handle.token);
-  if (held === undefined || held.recordId !== handle.recordId || held.recordPath !== handle.recordPath) {
-    throw new Error("Provisioning record lock is not owned by this invocation");
-  }
-  return held;
-}
-
-interface HeldProvisioningLock {
-  readonly lock: LocusLockHandle;
-  readonly recordId: string;
-  readonly recordPath: string;
 }
 
 async function checkoutPrimary(
@@ -308,10 +207,4 @@ async function rollbackSpawned(
   await pinnedExec("git", ["worktree", "remove", receipt.worktreePath]);
   if (receipt.branchCreated) await pinnedExec("git", ["branch", "-D", receipt.branch]);
   return { kind: "rolled-back" };
-}
-
-function digestFromRecordId(recordId: string): string {
-  const match = /^sha256:([0-9a-f]{64})$/u.exec(recordId);
-  if (match?.[1] === undefined) throw new Error("Invalid session locus record ID");
-  return match[1];
 }

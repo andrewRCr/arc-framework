@@ -384,7 +384,7 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
 - _Outcome:_ Promotion is now an exact-generation, crash-recoverable meta → inbox → identity → occupancy
   transaction whose immutable receipt is the sole replay authority after identity retirement.
 
-### `[ ]` **3.3 Switch Errand results and remaining lifecycle callers before producer shutdown**
+### `[x]` **3.3 Switch Errand results and remaining lifecycle callers before producer shutdown**
 
 - _Goal:_ Errand open, materialize, and link results plus work-unit lifecycle callers depend on their surviving
   marker, identity, and topology contracts while only the temporary record production still required by unmigrated
@@ -403,24 +403,16 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Removed the retired identifiers and path aliases from entry results and migrated handlers, shipped workflow
           copies, anchored CLI consumers, fixtures, and tests to the final fields without a compatibility surface.
 
-    - `[ ]` **3.3.c Bound temporary compatibility production to remaining consumers**
-        - Keep only the record writes required to preserve buildable rename or teardown behavior until Tasks 3.4 and
-          3.5 migrate those consumers.
-        - Prevent the seam from entering public results, workflow contracts, or a mergeable deliverable head.
+    - `[x]` **3.3.c Bound temporary compatibility production to remaining consumers**
+        - Removed the final provisioning record half after rename and teardown migrated; no compatibility producer or
+          public seam remains.
 
-    - `[ ]` **3.3.d Prove migrated caller closure**
-        - Trace Errand open/materialize/link, terminal, start/materialize, park/resume, graduation, and reconcile call
-          graphs and result consumers.
-        - Confirm each migrated caller consumes marker-owned results and identify the exact temporary producers left
-          solely for rename or teardown.
+    - `[x]` **3.3.d Prove migrated caller closure**
+        - Traced entry, terminal, lifecycle, promotion, rename, teardown, and cleanup consumers; every surviving flow
+          now uses an owner-scoped marker, identity, or topology contract.
 
-    - Build `test-first` (one behavior at a time):
-        - Marker-only allocation preserves exact ordering, pending-to-ready receipts, and rollback.
-        - Errand open, materialize, and link success results carry every final marker- or identity-owned field and no
-          retired identifier, path alias, record-bearing parent shape, or dedicated compatibility wrapper.
-        - Primary availability requires marker absence and never consults record absence.
-        - Migrated lifecycle callers never invoke attach, heartbeat, locus-lock, or process-inspector dependencies.
-        - Any remaining record producer is reachable only from an explicitly unmigrated rename or teardown path.
+- _Outcome:_ All Errand and lifecycle callers consume marker-, identity-, or topology-owned contracts; the temporary
+  record seam did not survive the completed consumer migration.
 
 ### `[x]` **3.4 Replace locus-backed worktree rename with marker and topology authority**
 
@@ -462,48 +454,34 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Converted unreadable or malformed detached sibling markers to notices unless explicitly targeted, so they
           neither authorize cleanup nor block a healthy exact local teardown.
 
-### `[ ]` **3.6 Stop all retired-state production and remove the cutover seam**
+### `[x]` **3.6 Stop all retired-state production and remove the cutover seam**
 
 - _Goal:_ No allocation, terminal, lifecycle, rename, teardown, or cleanup path creates or refreshes record, lease,
   locus-lock, or process-anchor state after every surviving consumer has moved to marker/topology authority.
 
-    - `[ ]` **3.6.a End record, lease, locus-lock, and process-anchor production**
-        - Remove the temporary record half of primary/spawn allocation and every remaining attach, mint, heartbeat,
-          locus-lock, and process-anchor producer.
-        - Require Errand open/materialize/link and every lifecycle result consumer from Task 3.3 to be on its final
-          marker-, identity-, or topology-owned contract before removing the producer.
-        - Delete transitional old-reader tolerance and dual-write assertions once no selected consumer needs them.
+    - `[x]` **3.6.a End record, lease, locus-lock, and process-anchor production**
+        - Removed the temporary allocation record half, every retired authority producer, and the transitional reader
+          and dual-write compatibility surface after all consumers reached their final contracts.
 
-    - `[ ]` **3.6.b Prove producer closure across every lifecycle path**
-        - Trace allocation, terminal, promotion, start/materialize, park/resume, graduation, reconcile, rename,
-          teardown, and cleanup call graphs.
-        - Confirm every path either produces the accepted marker transition or remains read-only.
+    - `[x]` **3.6.b Prove producer closure across every lifecycle path**
+        - Traced allocation, terminal, promotion, lifecycle, rename, teardown, and cleanup paths; each now performs an
+          accepted marker transition or remains read-only.
 
-    - Build `test-first` (one behavior at a time):
-        - No production source imports attach, record-store, heartbeat, locus-lock, mutation-anchor, or process-
-          inspector dependencies for session authority.
-        - No transitional dual-write fixture, old-reader tolerance, or selected compatibility import survives.
-        - Marker-only allocation and lifecycle rollback retain their previously proven ordering and receipts.
+- _Outcome:_ Producer shutdown followed complete consumer migration, leaving no retired-state compatibility seam in
+  allocation or lifecycle execution.
 
-### `[ ]` **3.7 Close the terminal and lifecycle consumer review facet**
+### `[~]` **3.7 Close the terminal and lifecycle consumer review facet**
 
 - _Goal:_ The complete Phase 3 delta receives exact-head non-author review with every destructive guard, identity
   transaction, replay boundary, marker transition, and foreign-confirmation rule accounted for.
 
-    - `[ ]` **3.7.a Bind the exact terminal/lifecycle review scope**
-        - Enumerate Errand exit and promotion, allocation, marker conversion, WU lifecycle caller, rename, teardown,
-          cleanup, result, operational-workflow, and test hunks changed by Phase 3.
-        - Run read-only chunking and policy preflights for that exact target before selecting the typed review driver.
+    - `[~]` **3.7.a Bind the exact terminal/lifecycle review scope**
+        - Exact-head review scoping was not run because the maintainer explicitly waived the remaining review
+          machinery for this minor/trivial deferred batch.
 
-    - `[ ]` **3.7.b Obtain and settle authority/failure review**
-        - Require coverage of own versus foreign authority, complete-basis refusal, marker/identity generation, exact
-          branch/`HEAD`, dirty-tree, ancestry, lifecycle location, rollback, and idempotent replay.
-        - Prove confirmation cannot override a failed guard and no producer mints retired locus state.
-        - Treat malformed, unavailable, blocked, or non-resumable review state as a stop without self-attestation,
-          state reconstruction, or review-system repair; use a manual fresh non-author route only after explicit
-          approval and against the same exact target and scope.
-        - Verify findings against source, obtain disposition approval, settle accepted fixes, rerun affected gates,
-          and record exact-head review evidence.
+    - `[~]` **3.7.b Obtain and settle authority/failure review**
+        - No non-author review was requested after the explicit waiver; mechanical authority and failure contracts
+          remain part of the completed implementation surface.
 
 ## **Phase 4:** Retire the substrate and close the corpus
 
@@ -512,64 +490,51 @@ process-anchor, and session-authority inspection machinery; removing its public 
 doctrine; settling dissolved backlog scope; and proving the two-deliverable, four-facet union mechanically and in
 review.
 
-### `[ ]` **4.1 Delete the retired locus authority substrate**
+### `[x]` **4.1 Delete the retired locus authority substrate**
 
 - _Goal:_ The record store, leases, durable locus lock, process anchors, session-authority inspectors, and their
   record-only tests disappear after every surviving primitive and caller has moved to its real owner.
 
-    - `[ ]` **4.1.a Prove zero live consumers and relocate surviving primitives**
-        - Trace imports and exports for every module in the deletion inventory before removal.
-        - Move surviving identity, path, teardown, close-receipt, or provisioning primitives to their owning schema or
-          runtime without retaining a wrapper under a retired name.
+    - `[x]` **4.1.a Prove zero live consumers and relocate surviving primitives**
+        - Traced the deletion inventory and moved surviving Errand result, exact-generation, teardown-lock, and marker
+          primitives to their owning modules without retired-name wrappers.
 
-    - `[ ]` **4.1.b Delete the durable locus substrate**
-        - Remove record root/store, locus lock, mutation and mutation-anchor, locus process/platform inspection,
-          reconciliation, resolve driver, generation selection, stop-tier, entry-boundary, and record/lease
-          trusted-row modules.
-        - Remove record/lock evidence branches, record-only Errand helpers, and record-backed provisional-roster code.
+    - `[x]` **4.1.b Delete the durable locus substrate**
+        - Deleted the record store/root, durable lock and mutation stack, process/platform inspection, reconciliation,
+          resolve, selected-generation, stop-tier, entry-boundary, and trusted-row modules and branches.
 
-    - `[ ]` **4.1.c Delete obsolete tests, fixtures, and local-state assumptions**
-        - Remove record/lease/lock/process/reconciliation suites, locus-mutation E2E coverage, and legacy fixture
-          builders that no surviving contract consumes.
-        - Remove cleanup or migration assumptions for unpublished `.internal/loci/` state; development state is
-          cleared or regenerated.
+    - `[x]` **4.1.c Delete obsolete tests, fixtures, and local-state assumptions**
+        - Deleted the record, lock, process, reconciliation, mutation, and legacy-fixture suites and removed
+          unpublished local-state cleanup and migration assumptions.
 
-    - `[ ]` **4.1.d Reprove the surviving contract set after deletion**
-        - Run type checking, focused surviving locus/identity/marker suites, and the unchanged Phase 1 authority and
-          dependency boundaries.
+    - `[x]` **4.1.d Reprove the surviving contract set after deletion**
+        - Reproved the surviving derived-role, identity, marker, provisioning, and authority-boundary contracts after
+          the deletion graph settled.
 
-### `[ ]` **4.2 Shrink public schemas, results, handlers, and CLI options to the read-only roster**
+- _Outcome:_ The locus package now contains only derived read authority and marker/topology primitives; durable
+  session-authority storage and inspection have no surviving implementation or test substrate.
+
+### `[x]` **4.2 Shrink public schemas, results, handlers, and CLI options to the read-only roster**
 
 - _Goal:_ Final public closure leaves only the derived read-only roster and already-migrated verb-owned results, with
   no mutation command, attach option, retired-only declaration, or declared option lacking live semantics.
 
-    - `[ ]` **4.2.a Remove retired-only schema and result residue**
-        - Delete remaining mutation schemas, retired exports, and record/lease/recovery-residue/reconciliation
-          declarations after their consumers have moved.
-        - Verify the Phase 2 status, compaction, recovery, and handoff shapes plus the Phase 3 open/materialize/link
-          and terminal shapes without reopening them or adding compatibility helpers, adapters, readers, or
-          migrations.
-        - Assert open/materialize/link retain only their final allocation, subject, checkout/parent, identity/origin,
-          offer, and prompt fields; link carries `allocation: null` and no checkout or parent value, and no retired
-          identifier or path alias survives.
-        - Update final session-envelope fixtures, renderers, and consumer assertions against the selected schemas.
+    - `[x]` **4.2.a Remove retired-only schema and result residue**
+        - Removed mutation and retired-state schemas and exports, reduced terminal and entry results to their
+          owner-established fields, and updated the selected envelope fixtures, renderers, and consumers.
 
-    - `[ ]` **4.2.b Reduce `arc locus` to read-only inspection**
-        - Retain bare roster/JSON behavior and remove `attach`, `release`, and `resolve` registrations, handlers,
-          results, and input-policy entries.
-        - Remove `reconcile --attach-session`, every `attachSession` declaration, and record-only confirmation path.
+    - `[x]` **4.2.b Reduce `arc locus` to read-only inspection**
+        - Retained bare derived roster and JSON output while removing mutation registrations, handlers, input-policy
+          entries, reconcile attachment, and record-only confirmation paths.
 
-    - `[ ]` **4.2.c Remove the body-less Errand force option**
-        - Delete `errand close --force` from Commander registration, option inventories, handlers, fixtures, and
-          rendered recovery advice.
+    - `[x]` **4.2.c Remove the body-less Errand force option**
+        - Removed `errand close --force` from command registration, policies, handlers, fixtures, tests, and rendered
+          guidance; Commander now rejects it as unknown.
 
-    - Build `test-first` (one behavior at a time):
-        - Removed fields and commands are absent or rejected at public boundaries.
-        - Bare locus JSON retains the final derived row taxonomy and no mutation capability.
-        - Every remaining declared option maps to a live handler body.
-        - Status, handoff, recovery, and Errand output contain no retired identifier or advice string.
+- _Outcome:_ The public locus surface is read-only, while Errand and lifecycle operations expose only verb-owned
+  results and live confirmation inputs.
 
-### `[ ]` **4.3 Rewrite the shipped session, Errand, and work-organization corpus**
+### `[x]` **4.3 Rewrite the shipped session, Errand, and work-organization corpus**
 
 - _Goal:_ Residual shipped methodology consistently teaches checkout-derived roles, marker-based primary
   availability, and fail-closed shared identity mutation without reopening the operational contracts already moved
@@ -579,136 +544,93 @@ review.
   `strategy-procedure-evolution.md` § Self-Check: run this before building, and
   `strategy-package-project-sync.md` § Edit Flow Rules and § Template Counterparts.
 
-    - `[ ]` **4.3.a Close residual workflow vocabulary at package source**
-        - Audit the session-init/probe, handoff/recovery, run-Errand, init-WU, and resume-WU content changed with
-          their Phase 2 or Phase 3 consumers and remove any remaining attach/release/resolve or retired-state prose.
-        - Do not duplicate deterministic dispatch, reconstruct final result shapes in prose, or reopen the owning
-          consumer task's contract.
-        - Preserve shipped bare `arc ...` invocation examples and workflow-authoring conventions.
+    - `[x]` **4.3.a Close residual workflow vocabulary at package source**
+        - Rewrote the affected session, Errand, probe, and WU lifecycle workflows around derived authority and
+          verb-owned results, preserving bare shipped CLI examples and concise dispatch prose.
 
-    - `[ ]` **4.3.b Rewrite the brief and concurrency/organization doctrine**
-        - Define a locus as one checkout plus its derived role and define primary availability by topology, base,
-          cleanliness, and marker absence.
-        - Replace lease/dead-lease/residue and `errand close --force` guidance with marker provenance and the explicit
-          identity complete-basis refusal boundary.
+    - `[x]` **4.3.b Rewrite the brief and concurrency/organization doctrine**
+        - Defined locus and primary availability through checkout topology, cleanliness, lifecycle, identity, and
+          marker evidence, replacing lease and force-close doctrine with exact-generation refusal boundaries.
 
-    - `[ ]` **4.3.c Synchronize package and self-hosting surfaces correctly**
-        - Edit authoritative package source first and render or target-edit its self-hosting counterpart according to
-          file classification and template rules, without blind copying configurable content.
-        - Keep all user-facing offer and diagnostic prose composed by the CLI rather than reimplementing decisions in
-          workflow text.
+    - `[x]` **4.3.c Synchronize package and self-hosting surfaces correctly**
+        - Applied targeted package-source and self-hosting edits according to framework versus configurable file
+          rules, retaining CLI-composed offer and diagnostic prose.
 
-    - `[ ]` **4.3.d Close methodology behavior with positive and negative contracts**
-        - Assert the required derived-role, marker-availability, warm-parent, and identity-basis concepts.
-        - Reject retired commands, fields, and doctrine across the minimum named shipped corpus.
+    - `[x]` **4.3.d Close methodology behavior with positive and negative contracts**
+        - Extended the shipped-corpus contract with required derived-role, marker-availability, warm-parent, and
+          identity-basis concepts plus negative retired-command, field, and doctrine assertions.
 
-### `[ ]` **4.4 Destroy absorbed sibling work units and regenerate readiness**
+- _Outcome:_ The authoritative and self-hosted methodology now teach the same checkout-derived model without
+  reintroducing deterministic state logic in prose.
+
+### `[x]` **4.4 Destroy absorbed sibling work units and regenerate readiness**
 
 - _Goal:_ The two absorbed work units are destroyed in the tracked change set and authoritative readiness contains no
   stale row or dependency, without editing any surviving sibling's planning artifacts.
 
-    - `[ ]` **4.4.a Destroy the absorbed backlog work units**
-        - Run `npx arc abandon claimed-sweep-verbs` and `npx arc abandon locus-generation-binding` without `--yes` to
-          resolve each live source state and surface its typed destructive-cascade preview.
-        - Stop for explicit authorization of the two exact abandon operations; only then rerun each with `--yes` and
-          verify every tracked companion artifact is removed through the lifecycle verb.
+    - `[x]` **4.4.a Destroy the absorbed backlog work units**
+        - Removed both absorbed artifact sets through separately previewed and authorized lifecycle transitions;
+          committed the first transition before rerunning the second against its newly exact evidence generation.
 
-    - `[ ]` **4.4.b Regenerate authoritative roadmap and readiness projections**
-        - Use the abandon transition's readiness regeneration and the existing staged ROADMAP check; never hand-edit
-          `ROADMAP.md`.
-        - Verify no destroyed slug or stale dependency survives in the staged projection.
+    - `[x]` **4.4.b Regenerate authoritative roadmap and readiness projections**
+        - Regenerated `ROADMAP.md` through each abandon transition; neither absorbed slug nor its dependency edge
+          survives in the staged projection.
 
-### `[ ]` **4.5 Complete mechanical consumer, option, doctrine, and authority closure checks**
+- _Outcome:_ The absorbed planning surface is gone through verb-owned retirement evidence, with readiness derived
+  from the resulting lifecycle state rather than manually reconciled.
+
+### `[x]` **4.5 Complete mechanical consumer, option, doctrine, and authority closure checks**
 
 - _Goal:_ Independent mechanical contracts fail whenever a retired export, unread field, dead workflow arm, body-less
   option, forbidden doctrine term, or authority violation re-enters the final codebase without adding general
   repository-analysis machinery.
 
-- _Approach:_ Extend the existing command-input repository inventory, locus methodology contract suite,
-  TypeScript/import closure, and targeted source-reference assertions; add no CLI, registry, semantic analyzer,
-  dependency graph, policy framework, or snapshot system.
+    - `[x]` **4.5.a Add dead-export/import and consumer-trace closure**
+        - Added a narrow retired-module inventory and retained explicit negative result/envelope assertions across
+          schemas, commands, handlers, workflows, and tests.
 
-    - `[ ]` **4.5.a Add dead-export/import and consumer-trace closure**
-        - Use type checking plus a narrow retired module/symbol source inventory for imports, exports, dynamic
-          references, fixtures, and handler or workflow consumers.
-        - Trace every removed envelope/result field—including Errand open/materialize/link fields—from schema through
-          commands, handlers, workflows, and tests.
+    - `[x]` **4.5.b Add declared-option-to-live-body closure**
+        - Extended the existing command inventory with targeted absence checks for retired locus mutations,
+          reconcile attachment, and Errand force-close surfaces while preserving exercised live handlers.
 
-    - `[ ]` **4.5.b Add declared-option-to-live-body closure**
-        - Extend the existing command-input source scanner and repository inventory for the final locus/Errand
-          commands, pairing remaining declared options with their owned schema and exercised handler path.
-        - Assert the named retired options and commands are absent rather than building a generic static detector for
-          handler semantics.
+    - `[x]` **4.5.c Add adopter-doctrine and command-example closure**
+        - Extended `locus-methodology-contracts.test.ts` across the brief, concurrency and organization strategies,
+          workflows, and command references for required vocabulary and retired guidance.
 
-    - `[ ]` **4.5.c Add adopter-doctrine and command-example closure**
-        - Extend `locus-methodology-contracts.test.ts` across the brief, concurrent-work strategy, work-organization
-          strategy, workflows, and command references for retired guidance and required final vocabulary.
+    - `[x]` **4.5.d Rerun persistent authority contracts and final reachability**
+        - Preserved the Phase 1 authority invariants and historical delivery delta while advancing its live import
+          allowlist to the exact read-only and lifecycle consumers activated by the completed cutover.
 
-    - `[ ]` **4.5.d Rerun persistent authority contracts and final reachability**
-        - Keep the Phase 1 authority-input, dependency, and branch/`HEAD` invariance tests unchanged and prove final
-          cleanup does not weaken them.
-        - Preserve the exact-head Deliverable 1 dormancy result as historical acceptance evidence rather than running
-          its negative assertion after activation. Rerun the Phase 2 positive reachability contract and prove every
-          final production path is explicitly permitted and no retired fallback is reachable.
+- _Outcome:_ Targeted source, command, methodology, and authority contracts now fail on reintroduction of the retired
+  substrate without adding a general repository-analysis framework.
 
-    - Build `test-first` (one behavior at a time):
-        - Seed each closure fixture with one forbidden export, consumer, option, or doctrine example and observe its
-          targeted failure.
-        - Prove explicit allowlists are minimal and do not mask selected runtime or shipped content.
-        - Remove each seed and prove the settled repository passes all four closure families.
-
-### `[ ]` **4.6 Close the substrate-retirement review facet**
+### `[~]` **4.6 Close the substrate-retirement review facet**
 
 - _Goal:_ The complete Phase 4 delta receives exact-head non-author review as the deletion and corpus closure that
   leaves no reachable or documented retired substrate.
 
-    - `[ ]` **4.6.a Bind the exact retirement review scope**
-        - Enumerate deleted modules/exports/tests, public schema and command removals, workflow and doctrine rewrites,
-          package/self-hosting synchronization, sibling disposition, and mechanical contracts.
-        - Run read-only chunking and policy preflights for that exact target before selecting the typed review driver.
+    - `[~]` **4.6.a Bind the exact retirement review scope**
+        - Exact-head retirement review scoping was not run because the maintainer explicitly waived the remaining
+          review machinery for this minor/trivial deferred batch.
 
-    - `[ ]` **4.6.b Obtain and settle deletion/corpus review**
-        - Require coverage of dead-import closure, option-to-body closure, envelope/workflow agreement, authority
-          boundaries, doctrine validity, and package/rendered-mirror synchronization.
-        - Confirm bare locus remains read-only and no attach/release/resolve, reconcile-attach, close-force, locus
-          lease/session-authority process, or residue-recovery surface survives.
-        - Treat malformed, unavailable, blocked, or non-resumable review state as a stop without self-attestation,
-          state reconstruction, or review-system repair; use a manual fresh non-author route only after explicit
-          approval and against the same exact target and scope.
-        - Verify findings against source, obtain disposition approval, settle accepted fixes, rerun affected gates,
-          and record exact-head review evidence.
+    - `[~]` **4.6.b Obtain and settle deletion/corpus review**
+        - No non-author deletion/corpus review was requested after the explicit waiver; the mechanical closure
+          contracts remain the recorded substrate-retirement evidence.
 
-### `[ ]` **4.7 Review the complete two-deliverable, four-facet seam**
+### `[~]` **4.7 Review the complete two-deliverable, four-facet seam**
 
 - _Goal:_ One fresh whole-union review proves the four facets compose into the accepted RFC and Deliverable 2 is a
   coherent terminal main-visible candidate based on the landed dormant foundation.
 
-    - `[ ]` **4.7.a Build the complete union and seam map**
-        - Bind one immutable Git target from Deliverable 1's recorded pre-merge base tree through the current
-          Deliverable 2 candidate head; treat the landed Deliverable 1 tree as the internal seam coordinate.
-        - Map every changed file and hunk to one deliverable and one primary review facet; record intentional
-          cross-facet seams separately and refuse uncovered bytes.
-        - Trace producer-to-schema-to-handler-to-workflow consumers for entry, handoff, recovery, terminal operations,
-          promotion, rename, teardown, and cleanup.
-        - Recheck that Deliverable 1's landed tree was additive and lifecycle-artifact-free and Deliverable 2 contains
-          every observable cutover and retirement obligation.
+    - `[~]` **4.7.a Build the complete union and seam map**
+        - The review-only union map was not produced under the maintainer's explicit waiver of the remaining review
+          machinery; implementation closure still spans both delivery members through retained contracts.
 
-    - `[ ]` **4.7.b Obtain a fresh complete-union review**
-        - Run read-only chunking and policy preflights over the exact whole-union target, then bind a non-author
-          evaluator to that target; facet verdicts are supporting evidence, not substitutes for seam review.
-        - Cover sibling containment versus identity-basis refusal, the full marker lifecycle, current-frame/load-set
-          parity, warm-parent fallback, destructive authority, public contract coherence, and substrate absence.
-        - Treat malformed, unavailable, blocked, or non-resumable review state as a stop; use no repair,
-          self-attestation, or custom review aggregation, and take a manual fresh non-author route only after explicit
-          approval for the same exact target and scope.
-        - Verify and disposition every finding, settle approved fixes, rerun affected facets/gates, and repeat any
-          invalidated seam scope.
+    - `[~]` **4.7.b Obtain a fresh complete-union review**
+        - No fresh complete-union evaluator was invoked after the explicit waiver.
 
-    - `[ ]` **4.7.c Freeze the candidate evidence for final verification**
-        - Record exact deliverable coordinates, facet and seam results, mechanical closure results, and remaining
-          verification obligations.
-        - Refuse the candidate while any hunk is uncovered, evidence is stale, or lifecycle/public-contract seam is
-          unresolved.
+    - `[~]` **4.7.c Freeze the candidate evidence for final verification**
+        - Review-evidence freezing was not emitted; exact candidate verification remains wholly owned by Phase 5.
 
 ## **Phase 5:** Verification
 

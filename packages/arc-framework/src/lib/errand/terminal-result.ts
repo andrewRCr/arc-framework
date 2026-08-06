@@ -7,13 +7,12 @@ import {
   LocusAbsolutePathSchema,
   LocusChangeRequestV1Schema,
   LocusDigestSchema,
-  LocusMutationErrorCodeSchema,
+  LocusIdentityV1Schema,
   LocusOpaqueTextSchema,
-  LocusRefusalReasonSchema,
   LocusTokenSchema,
-  type LocusMutationResultV1,
 } from "../locus/schema/index.js";
 import type { ErrandTerminalAuthority } from "./terminal-authority.js";
+import { ErrandErrorCodeSchema, ErrandRefusalReasonSchema } from "./result-common.js";
 
 export const ErrandTerminalOperationSchema = z.enum(["errand-close", "errand-abandon", "errand-leave"]);
 export const ErrandTerminalSubjectSchema = z.discriminatedUnion("kind", [
@@ -29,10 +28,7 @@ const common = {
   operation: ErrandTerminalOperationSchema,
   recommendedPromptText: LocusOpaqueTextSchema,
 };
-const terminalRefusalReason = z.union([
-  LocusRefusalReasonSchema,
-  z.enum(["authority-unresolved", "generation-mismatch"]),
-]);
+const terminalRefusalReason = ErrandRefusalReasonSchema;
 
 const nextOffer = z.strictObject({
   kind: z.literal("errand"),
@@ -106,10 +102,44 @@ export const ErrandTerminalResultSchema = z.union([
     subject: ErrandTerminalSubjectSchema.nullable(),
     checkoutPath: LocusAbsolutePathSchema.nullable(),
     generation: ErrandTerminalGenerationSchema.nullable(),
-    error: z.strictObject({ code: LocusMutationErrorCodeSchema, message: LocusOpaqueTextSchema }),
+    error: z.strictObject({ code: ErrandErrorCodeSchema, message: LocusOpaqueTextSchema }),
   }),
 ]);
 export type ErrandTerminalResult = z.infer<typeof ErrandTerminalResultSchema>;
+
+const terminalOperationOutcomeCommon = {
+  operation: ErrandTerminalOperationSchema,
+  recommendedPromptText: LocusOpaqueTextSchema,
+};
+
+const TerminalOperationOutcomeSchema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.enum(["applied", "idempotent"]),
+    ...terminalOperationOutcomeCommon,
+    identity: LocusIdentityV1Schema.nullable(),
+    nextOffer,
+  }),
+  z.strictObject({
+    outcome: z.literal("refused"),
+    ...terminalOperationOutcomeCommon,
+    reason: ErrandRefusalReasonSchema,
+  }),
+  z.strictObject({
+    outcome: z.literal("error"),
+    ...terminalOperationOutcomeCommon,
+    error: z.strictObject({ code: ErrandErrorCodeSchema, message: LocusOpaqueTextSchema }),
+  }),
+]);
+
+/** Private composition outcome consumed only while constructing the public terminal result. */
+export type TerminalOperationOutcome = z.infer<typeof TerminalOperationOutcomeSchema>;
+
+/** Validate an internal terminal composition outcome. */
+export function createTerminalOperationOutcome(
+  value: z.input<typeof TerminalOperationOutcomeSchema>,
+): TerminalOperationOutcome {
+  return TerminalOperationOutcomeSchema.parse(value);
+}
 
 /** Validate one complete terminal-operation result at its producer boundary. */
 export function createErrandTerminalResult(
@@ -118,8 +148,8 @@ export function createErrandTerminalResult(
   return ErrandTerminalResultSchema.parse(value);
 }
 
-export interface AdaptErrandTerminalResultOptions {
-  readonly result: LocusMutationResultV1;
+export interface CompleteErrandTerminalResultOptions {
+  readonly result: TerminalOperationOutcome;
   readonly authority: ErrandTerminalAuthority | null;
   readonly evidence: {
     readonly subject: z.input<typeof ErrandTerminalSubjectSchema>;
@@ -130,9 +160,9 @@ export interface AdaptErrandTerminalResultOptions {
   } | null;
 }
 
-/** Adapt one legacy internal composition result at the terminal public boundary. */
-export function adaptErrandTerminalResult(
-  options: AdaptErrandTerminalResultOptions,
+/** Complete one terminal result from its operation outcome and exact authority evidence. */
+export function completeErrandTerminalResult(
+  options: CompleteErrandTerminalResultOptions,
 ): ErrandTerminalResult {
   const operation = ErrandTerminalOperationSchema.parse(options.result.operation);
   const commonResult = {
@@ -210,7 +240,7 @@ export function adaptErrandTerminalResult(
 
 function terminalHandlerErrorCode(
   operation: z.infer<typeof ErrandTerminalOperationSchema>,
-): z.infer<typeof LocusMutationErrorCodeSchema> {
+): z.infer<typeof ErrandErrorCodeSchema> {
   switch (operation) {
     case "errand-close": return "locus.errand-close.handler";
     case "errand-abandon": return "locus.errand-abandon.handler";

@@ -16,8 +16,8 @@ import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-res
 const refusal = createErrandOperationResult({
   outcome: "refused",
   operation: "errand-open",
-  reason: "lease-unknown",
-  recommendedPromptText: "The existing lease cannot be verified.",
+  reason: "topology-unknown",
+  recommendedPromptText: "The checkout topology cannot be verified.",
 });
 
 describe("errand leave result rendering", () => {
@@ -70,7 +70,7 @@ describe("errand open result rendering", () => {
   it("renders the same refusal reason and narration for humans", () => {
     expect(formatErrandOpenResult(refusal, false)).toEqual({
       stream: "stderr",
-      text: "Refused [lease-unknown]: The existing lease cannot be verified.",
+      text: "Refused [topology-unknown]: The checkout topology cannot be verified.",
       exitCode: 1,
     });
   });

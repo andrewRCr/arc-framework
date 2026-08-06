@@ -76,12 +76,6 @@ export async function leaveOrdinaryErrandAtRuntime(
         }
         return {
           kind: settled.kind,
-          allocation: settled.checkoutPath === null ? null : {
-            kind: authority.row?.checkout.primary === true ? "primary" : "spawned",
-            checkoutPath: settled.checkoutPath,
-          },
-          recordId: null,
-          restoredParent: null,
           parentCheckoutPath: settled.parentCheckoutPath,
         };
       },

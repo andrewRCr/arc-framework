@@ -17,11 +17,6 @@ import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "../../src/li
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { promoteOrdinaryErrandAtRuntime } from "../../src/lib/errand/promote-runtime.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
-import { createPlatformProcessInspector } from "../../src/lib/locus/platform-inspectors.js";
-import { mintLocusRecord } from "../../src/lib/locus/record-store.js";
-import { locusRecordPath, resolveLocusRoot, type LocusRoot } from "../../src/lib/locus/root.js";
-import type { LocusProcessAnchor, LocusRecordV1 } from "../../src/lib/locus/schema/index.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -59,16 +54,12 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("keeps identity through meta commit and retries retirement without converting occupancy early", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
-
-    const options = runtimeOptions(primary, exec, execInput, root, anchor);
+    const options = runtimeOptions(primary, exec, execInput);
     const prepared = await promoteOrdinaryErrandAtRuntime(options);
 
     expect(prepared).toMatchObject({
@@ -124,7 +115,7 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     expect(await readIdentity(exec, execInput)).toBeNull();
     expect(await readMarkerSubject(primary)).toBeNull();
 
-    const replay = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const replay = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
     expect(replay).toMatchObject({
       outcome: "idempotent",
       operation: "errand-promote",
@@ -135,24 +126,20 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("binds identity-absent replay to the originating Errand slug", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
-
-    const promoted = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const promoted = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
     expect(promoted).toMatchObject({ outcome: "applied", operation: "errand-promote" });
     await exec("git", ["add", ".arc/active/meta-growth.md"]);
     await makeCommit(primary, "promote errand");
-    await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
     expect(await readIdentity(exec, execInput)).toBeNull();
 
     const wrongSlugReplay = await promoteOrdinaryErrandAtRuntime({
-      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      ...runtimeOptions(primary, exec, execInput),
       slug: "different-errand",
     });
 
@@ -168,15 +155,12 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("recovers a lost response after identity retirement but before primary marker removal", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord("description");
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
-    const options = runtimeOptions(primary, exec, execInput, root, anchor);
+    const options = runtimeOptions(primary, exec, execInput);
 
     expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "applied" });
     await exec("git", ["add", ".arc/active/meta-growth.md"]);
@@ -205,15 +189,12 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   ] as const)("refuses an identity-backed replay with a %s promotion receipt", async (_case, tamper) => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
-    const options = runtimeOptions(primary, exec, execInput, root, anchor);
+    const options = runtimeOptions(primary, exec, execInput);
 
     expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "applied" });
     const metaPath = join(primary, ".arc/active/meta-growth.md");
@@ -232,17 +213,14 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("settles the retained capture only after the promoted meta is committed", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
     const settled: Array<{ originEntry: string; originEntrySourceDigest: string }> = [];
     const options = {
-      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      ...runtimeOptions(primary, exec, execInput),
       settleInbox: async (binding: { originEntry: string; originEntrySourceDigest: string }) => {
         settled.push(binding);
         return { kind: "applied" as const };
@@ -320,17 +298,14 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("routes a derivation-floor promotion through planning and replays the exact frame", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const preservedHead = (await exec("git", ["rev-parse", "HEAD"])).stdout;
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
     const options = {
-      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      ...runtimeOptions(primary, exec, execInput),
       name: "growth-plan",
       floor: "derivation" as const,
     };
@@ -371,7 +346,6 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("converts a warm spawned marker and role while releasing the parent lease", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await mkdir(join(primary, ".arc/active"), { recursive: true });
     await writeFile(join(primary, ".arc/active/meta-parent.md"), renderMetaFile("parent", {
       state: "Active", owner: IDENTITY, branch: "main",
@@ -383,7 +357,6 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     await makeCommit(spawned, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
-    const root = await requireRoot(exec);
     await ensureWorktreeMarkerIgnored(spawned, exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeMarker(spawned, {
       spawnedByArc: true,
@@ -392,11 +365,8 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
       spawningIdentity: IDENTITY,
       createdAt: CREATED_AT,
     });
-    await writeRecord(root, primary, workUnitLocusRecord(primary, "parent", anchor));
-    await writeRecord(root, spawned, errandLocusRecord(spawned, identity, anchor, primary));
-
     const result = await promoteOrdinaryErrandAtRuntime(
-      runtimeOptions(primary, exec, execInput, root, anchor, spawned),
+      runtimeOptions(primary, exec, execInput, spawned),
     );
 
     expect(result, JSON.stringify(result)).toMatchObject({
@@ -411,7 +381,7 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
     await exec("git", ["add", ".arc/active/meta-growth.md"], { cwd: spawned });
     await makeCommit(spawned, "promote errand");
     const settled = await promoteOrdinaryErrandAtRuntime(
-      runtimeOptions(primary, exec, execInput, root, anchor, spawned),
+      runtimeOptions(primary, exec, execInput, spawned),
     );
     expect(settled).toMatchObject({ outcome: "applied", operation: "errand-promote" });
     expect(JSON.parse(await readFile(join(spawned, ".arc/system/.internal/worktree-marker.json"), "utf8")))
@@ -427,21 +397,17 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("refuses recovery when the meta carries index state the promotion never produced", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
-
-    const prepared = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const prepared = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
     expect(prepared).toMatchObject({ outcome: "applied" });
 
     // The promotion leaves its meta untracked; staging it is the user's own index state.
     await exec("git", ["add", ".arc/active/meta-growth.md"]);
-    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
 
     expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
     expect(await readIdentity(exec, execInput)).toMatchObject({ slug: "growing", state: "open" });
@@ -450,17 +416,13 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("refuses an unrelated work unit that merely shares the requested name", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     // The requested name belongs to a work unit this session already holds, and the Errand's own
     // locus record is absent locally — so the work-unit row is the only candidate the target search sees.
     await exec("git", ["switch", "-c", "feat/growth"]);
     await makeCommit(primary, "unrelated work-unit work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, workUnitLocusRecord(primary, "growth", anchor));
-
-    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
 
     expect(result).toMatchObject({ outcome: "confirmation-required" });
     await expect(readFile(join(primary, ".arc/active/meta-growth.md"), "utf8")).rejects.toThrow();
@@ -470,16 +432,13 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   it("refuses a dirty source without renaming the branch or retiring identity", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
     await writeFile(join(primary, "dirty.txt"), "uncommitted\n");
 
-    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput));
 
     expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
     expect((await exec("git", ["branch", "--show-current"])).stdout).toBe("chore/growing");
@@ -492,17 +451,14 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
   ] as const)("rejects an invalid %s before any rename (no half-applied promotion)", async (_field, override) => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);
-    const anchor = await currentAnchor();
     await exec("git", ["switch", "-c", "chore/growing"]);
     await makeCommit(primary, "errand work");
     const identity = ordinaryRecord();
     await writeIdentity(exec, execInput, identity);
     await writeTransientMarker(primary, identity, false);
-    const root = await requireRoot(exec);
-    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
 
     const result = await promoteOrdinaryErrandAtRuntime({
-      ...runtimeOptions(primary, exec, execInput, root, anchor),
+      ...runtimeOptions(primary, exec, execInput),
       ...override,
     });
 
@@ -530,84 +486,6 @@ function ordinaryRecord(origin: "inbox" | "description" = "inbox"): OrdinaryErra
     savedHead: null,
     changeRequest: null,
   }) as OrdinaryErrandRecord;
-}
-
-async function currentAnchor(): Promise<LocusProcessAnchor> {
-  const inspector = createPlatformProcessInspector();
-  const inspected = await inspector.inspect(process.pid);
-  if (inspected.kind !== "present") throw new Error("Current test process is not inspectable");
-  return {
-    kind: "process",
-    pid: process.pid,
-    startToken: inspected.startToken,
-    inspector: inspector.kind,
-    selector: "integration-test",
-  };
-}
-
-async function requireRoot(exec: ReturnType<typeof makeGitExec>): Promise<LocusRoot> {
-  const root = await resolveLocusRoot({ identity: IDENTITY, exec });
-  if (!root.ok) throw new Error(root.message);
-  return root;
-}
-
-function lease(sessionHomePath: string, anchor: LocusProcessAnchor) {
-  return {
-    leaseId: "e".repeat(32),
-    sessionHomePath,
-    anchor,
-    attachedAt: UPDATED_AT,
-    heartbeatAt: UPDATED_AT,
-  };
-}
-
-function errandLocusRecord(
-  checkoutPath: string,
-  identity: OrdinaryErrandRecord,
-  anchor: LocusProcessAnchor,
-  parentCheckoutPath: string | null,
-): LocusRecordV1 {
-  const derived = deriveLocusRecordId(checkoutPath, "posix");
-  return {
-    schemaVersion: 1,
-    recordId: derived.recordId,
-    checkoutPath,
-    role: {
-      kind: "errand",
-      subject: { kind: "errand", key: identity.slug, claimId: identity.claimId },
-      establishedAt: UPDATED_AT,
-      parentCheckoutPath,
-      originEntry: null,
-    },
-    lease: lease(parentCheckoutPath ?? checkoutPath, anchor),
-  };
-}
-
-function workUnitLocusRecord(
-  checkoutPath: string,
-  name: string,
-  anchor: LocusProcessAnchor,
-): LocusRecordV1 {
-  const derived = deriveLocusRecordId(checkoutPath, "posix");
-  return {
-    schemaVersion: 1,
-    recordId: derived.recordId,
-    checkoutPath,
-    role: {
-      kind: "work-unit",
-      subject: { kind: "work-unit", key: name, claimId: null },
-      establishedAt: UPDATED_AT,
-      parentCheckoutPath: null,
-      originEntry: null,
-    },
-    lease: lease(checkoutPath, anchor),
-  };
-}
-
-async function writeRecord(root: LocusRoot, checkoutPath: string, record: LocusRecordV1): Promise<void> {
-  const digest = deriveLocusRecordId(checkoutPath, "posix").digest;
-  const result = await mintLocusRecord({ path: locusRecordPath(root, digest), record });
-  if (result.kind !== "created") throw new Error("Locus record already exists");
 }
 
 async function writeIdentity(
@@ -676,8 +554,6 @@ function runtimeOptions(
   cwd: string,
   exec: ReturnType<typeof makeGitExec>,
   execInput: ReturnType<typeof makeGitExecInput>,
-  _root: LocusRoot,
-  _anchor: LocusProcessAnchor,
   checkoutPath = cwd,
 ) {
   return {

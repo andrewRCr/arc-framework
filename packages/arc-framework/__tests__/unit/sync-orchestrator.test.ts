@@ -633,7 +633,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       action: "reconcile",
       result: "failed",
       detail:
-        "conflict:slugs=clash,other:recovery=arc errand close --force <slug> on discarded side:marker-not-recorded",
+        "conflict:slugs=clash,other:recovery=resolve the same-slug identity conflict before retrying:marker-not-recorded",
     });
   });
 

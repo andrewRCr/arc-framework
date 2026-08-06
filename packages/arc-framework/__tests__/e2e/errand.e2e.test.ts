@@ -7,10 +7,9 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { access, chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -18,7 +17,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runArc, runArcAnchored, runArcAnchoredSequence, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -122,27 +120,6 @@ async function setPartialProtection(cwd: string): Promise<void> {
   const updated = yaml.replace("branch.protection: full", "branch.protection: partial");
   if (updated === yaml) throw new Error("setPartialProtection: expected full protection");
   await writeFile(path, updated, "utf-8");
-}
-
-async function createCodexHarness(): Promise<{ directory: string; executable: string }> {
-  const directory = await mkdtemp(join(tmpdir(), "arc-real-npx-codex-"));
-  const executable = join(directory, "codex");
-  await copyFile("/bin/bash", executable);
-  await chmod(executable, 0o755);
-  return { directory, executable };
-}
-
-async function installLocalArcBin(cwd: string): Promise<void> {
-  const binDir = join(cwd, "node_modules", ".bin");
-  await writeFile(join(cwd, ".git", "info", "exclude"), "node_modules/\n", { flag: "a" });
-  await mkdir(binDir, { recursive: true });
-  const arcBin = join(binDir, "arc");
-  await writeFile(arcBin, [
-    "#!/usr/bin/env node",
-    `import(${JSON.stringify(pathToFileURL(CLI_PATH).href)});`,
-    "",
-  ].join("\n"));
-  await chmod(arcBin, 0o755);
 }
 
 async function createBareRemote(cwd: string, suffix: string): Promise<string> {
@@ -383,42 +360,6 @@ describe("arc errand open", () => {
       );
       expect(residueWarnings).toEqual([]);
     } finally {
-      await cleanupTempDir(remoteDir);
-    }
-  });
-
-  it.runIf(process.platform === "linux")("persists a durable anchor through the real npx wrapper chain", async () => {
-    await git(tmpDir, ["add", "-A"]);
-    await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
-    await setFullProtection(tmpDir);
-    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
-    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    const remoteDir = `${tmpDir}-real-npx.git`;
-    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
-    await git(tmpDir, ["remote", "add", "origin", remoteDir]);
-    await git(tmpDir, ["push", "-u", "origin", "main"]);
-    await installLocalArcBin(tmpDir);
-    expect((await git(tmpDir, ["status", "--porcelain"])).trim()).toBe("");
-    const harness = await createCodexHarness();
-    try {
-      const result = await runArcAnchoredSequence([
-        { command: ["npx", "arc", "errand", "open", "real-npx-anchor", "--json"] },
-      ], tmpDir, { anchorShellPath: harness.executable, timeout: 60_000 });
-
-      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "errand-open" });
-      const locus = deriveLocusRecordId(tmpDir, "posix");
-      const record = JSON.parse(await readFile(
-        join(tmpDir, ".arc", "user", "test-user", ".internal", "loci", `locus-${locus.digest}.json`),
-        "utf8",
-      )) as { lease?: { anchor?: unknown } };
-      expect(record.lease?.anchor).toMatchObject({
-        kind: "process",
-        inspector: "linux-proc",
-        selector: "codex",
-      });
-    } finally {
-      await cleanupTempDir(harness.directory);
       await cleanupTempDir(remoteDir);
     }
   });
@@ -673,15 +614,13 @@ describe("arc errand close", () => {
     await git(tmpDir, ["commit", "--no-verify", "-m", "establish parent work unit"]);
     try {
       const result = await runArcAnchoredSequence([
-        ["locus", "attach", "--json"],
         ["errand", "open", slug, "--json"],
         { args: ["errand", "close", slug, "--json"], cwdFromPreviousJson: "allocation.checkoutPath" },
       ], tmpDir, { env: host.env, timeout: 60_000 });
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(result.results).toHaveLength(3);
-      expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "locus-attach" });
-      const opened = result.results[1] as { allocation?: { checkoutPath?: unknown } };
+      expect(result.results).toHaveLength(2);
+      const opened = result.results[0] as { allocation?: { checkoutPath?: unknown } };
       expect(opened, JSON.stringify(result.results)).toMatchObject({
         outcome: "applied",
         operation: "errand-open",
@@ -689,7 +628,7 @@ describe("arc errand close", () => {
       });
       spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
       expect(spawnedPath).not.toBeNull();
-      expect(result.results[2], JSON.stringify(result.results)).toMatchObject({
+      expect(result.results[1], JSON.stringify(result.results)).toMatchObject({
         outcome: "applied",
         operation: "errand-close",
         subject: { kind: "errand", slug, claimId: expect.any(String) },
@@ -947,50 +886,6 @@ describe("arc errand close", () => {
     }
   });
 
-  it("refuses base-context finalization when the record path is only normalization-equivalent", async () => {
-    const slug = "merged-v3-aliased-record-path";
-    const locus = deriveLocusRecordId(tmpDir, "posix");
-    const recordPath = join(
-      tmpDir,
-      ".arc",
-      "user",
-      "test-user",
-      ".internal",
-      "loci",
-      `locus-${locus.digest}.json`,
-    );
-    const aliasRecordPath = [
-      `const fs = require("node:fs");`,
-      `const path = ${JSON.stringify(recordPath)};`,
-      `const record = JSON.parse(fs.readFileSync(path, "utf8"));`,
-      `record.checkoutPath = ${JSON.stringify(`${tmpDir}/.`)};`,
-      `fs.writeFileSync(path, JSON.stringify(record) + "\\n");`,
-    ].join(" ");
-    await setFullProtection(tmpDir);
-    await git(tmpDir, ["add", "-A"]);
-    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    const host = await createMergedGhFixture(tmpDir, slug);
-    try {
-      const result = await runArcAnchoredSequence([
-        ["errand", "open", slug, "--json"],
-        { command: ["git", "switch", "main"] },
-        { command: [process.execPath, "-e", aliasRecordPath] },
-        ["errand", "close", slug, "--json"],
-      ], tmpDir, { env: host.env, timeout: 60_000 });
-
-      expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-      expect(result.results.at(-1)).toMatchObject({
-        outcome: "refused", operation: "errand-close", reason: "authority-unresolved",
-      });
-      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
-      expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
-        .toContain('"state": "open"');
-    } finally {
-      await cleanupTempDir(host.ghDir);
-      await cleanupTempDir(host.remoteDir);
-    }
-  });
-
   it("refuses merged v3 finalization from outside its occupied checkout", async () => {
     const slug = "occupied-v3";
     const observerDir = `${tmpDir}-observer`;
@@ -1034,19 +929,15 @@ describe("arc errand close", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("returns one JSON refusal when --force targets a v3 tail", async () => {
+  it("rejects the removed --force option before mutating a v3 tail", async () => {
     await setFullProtection(tmpDir);
     await seedAwaitingV3Errand(tmpDir, "exact-tail");
 
     const result = await runArc(["errand", "close", "exact-tail", "--force", "--json"], tmpDir);
 
     expect(result.exitCode).toBe(1);
-    expect(JSON.parse(result.stdout.trim())).toMatchObject({
-      outcome: "refused",
-      operation: "errand-close",
-      reason: "identity-conflict",
-    });
-    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toMatch(/unknown option '--force'/u);
     expect(JSON.parse(
       await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:exact-tail"]),
     )).toMatchObject({ state: "awaiting-merge" });

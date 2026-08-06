@@ -9,7 +9,7 @@ import {
   type WorktreeMarker,
 } from "../git/worktree-marker.js";
 import { isSlugSafe } from "../kernel/index.js";
-import type { LocusRoleAuthority } from "./mutation.js";
+import type { ProvisioningAuthority } from "./provisioning-authority.js";
 import type {
   ProvisioningEvidence,
   ProvisioningMarkerReadResult,
@@ -141,10 +141,9 @@ export async function establishReadyMarker(
       kind: "refused",
       reason: "marker-conflict",
       evidence: {
-        kind: "marker-record-mismatch",
+        kind: "marker-residue",
         checkoutPath,
         markerBytes: observed.bytes,
-        recordBytes: null,
       },
     };
   }
@@ -160,7 +159,7 @@ export function transientMarkerSubject(proposal: ProvisioningProposal): Transien
 /** Project a primary transient proposal and its authority into unified marker ownership. */
 export function readyPrimaryMarker(
   options: ProvisionTransientLocusOptions,
-  authority: LocusRoleAuthority,
+  authority: ProvisioningAuthority,
 ): WorktreeMarker | null {
   const subject = primaryMarkerSubject(options.proposal);
   if (subject === null) return null;
@@ -198,7 +197,7 @@ function primaryMarkerSubject(
 }
 
 function partialOrigin(
-  authority: LocusRoleAuthority,
+  authority: ProvisioningAuthority,
 ): { originEntry?: string; originEntrySourceDigest?: string } | null {
   if (authority.kind !== "partial-errand") return null;
   if (authority.originEntry === null && authority.originEntrySourceDigest === null) return {};
@@ -242,10 +241,9 @@ function markerMismatchEvidence(
   result: ProvisioningMarkerReadResult,
 ): ProvisioningEvidence {
   return {
-    kind: "marker-record-mismatch",
+    kind: "marker-residue",
     checkoutPath,
     markerBytes: result.kind === "present" ? result.bytes : null,
-    recordBytes: null,
   };
 }
 

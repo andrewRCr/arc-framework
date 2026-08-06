@@ -699,21 +699,22 @@ contains exactly the spawning WU's meta file plus its companions, and nothing el
 
 ## Main-on-Main Pattern
 
-The **physical primary** — the checkout the repository was cloned into — rests on the configured base while it is
-record-free. In that state it is the stable reference spawned worktrees use (see
+The **physical primary** — the checkout the repository was cloned into — rests on the configured base while its
+marker is absent. In that state it is the stable reference spawned worktrees use (see
 [§ Per-Worktree Isolation](#per-worktree-isolation)) and the free launchpad for planning entry, cleanup, grooming,
 housekeeping, and Errand allocation (see [§ Errand Work Class](#errand-work-class)).
 
 ARC defines no permanent administrative worktree. Allocation uses the free primary first and, under full
 protection, may provision a transient worktree when the primary is occupied or isolation is requested. The pattern
 composes with externally spawned worktrees: whatever checkout Git identifies as the physical primary is the
-launchpad when its locus state is free.
+launchpad when its derived role is free.
 
-Two disciplines keep the launchpad dependable. **Base is the record-free resting state:** a transient role may
-occupy the primary as a bounded excursion, and its close returns the checkout to base before the role pops. **WU
-ownership is exclusive:** full protection spawns WUs by default; explicit `--here` converts the physical primary
-into a WU-owned occupied locus until exact teardown restores record-free base. While occupied by a WU, the primary
-is not available to any transient or another WU. Allocation refuses rather than displacing an existing role.
+Two disciplines keep the launchpad dependable. **Base with no marker is the resting state:** a transient role may
+occupy the primary as a bounded excursion, and its close returns the checkout to base before removing its marker.
+**WU ownership is exclusive:** full protection spawns WUs by default; explicit `--here` converts the physical primary
+into a WU-owned occupied locus until exact teardown removes the marker and restores the configured base. While
+occupied by a WU, the primary is not available to any transient or another WU. Allocation refuses rather than
+displacing an existing role.
 
 ### Operational constraint
 
@@ -1365,10 +1366,10 @@ Either way, the work is tracked by its commit's `standalone (...)` context foote
 by an `active/` entry.
 
 Under full protection, a paused exact WIP head or an exact awaiting-merge change request retains the Errand
-identity, role, lease, and checkout. These are operational re-entry states for the same atomic concern, not a
-durable plan: they create no WU meta, task list, SESSION-NOTES, or planning branch. A later session resumes the same
-checkout after resolving a dead lease; a transient role without a live or provably dead lease is residue. Work that
-needs cross-session decomposition promotes to a WU instead.
+identity and exact saved head or change-request evidence after local occupancy ends. These are operational re-entry
+states for the same atomic concern, not a durable plan: they create no WU meta, task list, SESSION-NOTES, or
+planning branch. A later session materializes or resumes the exact generation; unmatched marker or identity
+evidence is residue. Work that needs cross-session decomposition promotes to a WU instead.
 
 ### The cut→occupy invariant
 

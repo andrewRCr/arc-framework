@@ -2,9 +2,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 import {
-  adaptErrandTerminalResult,
+  completeErrandTerminalResult,
+  createTerminalOperationOutcome,
   ErrandTerminalResultSchema,
 } from "../../../src/lib/errand/terminal-result.js";
 
@@ -76,18 +76,11 @@ describe("Errand terminal results", () => {
   });
 
   it("projects internal settlement without leaking retired locus fields", () => {
-    const result = adaptErrandTerminalResult({
-      result: createLocusMutationResult({
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
         outcome: "applied",
         operation: "errand-close",
-        allocation: null,
-        recordId: `sha256:${"b".repeat(64)}`,
-        leaseId: null,
-        activeLocusPath: null,
-        sessionHomePath: "/repo",
         identity: null,
-        originEntry: "Repair capture",
-        restoredParent: null,
         nextOffer: null,
         recommendedPromptText: "Closed Errand 'repair'.",
       }),
@@ -114,9 +107,9 @@ describe("Errand terminal results", () => {
     });
   });
 
-  it("preserves an exact authority refusal instead of collapsing it into a legacy reason", () => {
-    const result = adaptErrandTerminalResult({
-      result: createLocusMutationResult({
+  it("preserves the exact authority refusal", () => {
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
         outcome: "refused",
         operation: "errand-close",
         reason: "identity-conflict",

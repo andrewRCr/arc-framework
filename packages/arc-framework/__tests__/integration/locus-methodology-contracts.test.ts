@@ -28,7 +28,10 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain(
         "arc errand leave <slug> --state <paused|awaiting-merge> [--json]",
       );
-      expect(reference).toContain("arc errand close <slug> [--force] [--json]");
+      expect(reference).toContain(
+        "arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]",
+      );
+      expect(reference).not.toContain("arc errand close <slug> [--force]");
       expect(reference).toContain("arc errand abandon <slug> [--json]");
       expect(reference).toContain(
         "arc errand promote <slug> [--name <name>] [--type <type>] "
@@ -194,16 +197,37 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("describes the ordinary work-unit locus as normally unleased", async () => {
+  it("defines locus authority from checkout topology, markers, lifecycle, and identity", async () => {
     for (const base of [packageArc, projectArc]) {
       const briefing = await readFile(
         resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"),
         "utf8",
       );
 
-      expect(briefing).toContain("optional, verb-scoped lease");
-      expect(briefing).toContain("an ordinary live WU role is\n  normally unleased");
-      expect(briefing).not.toContain("session-scoped lease");
+      expect(briefing).toContain("One registered checkout plus the ARC role derived from its marker");
+      expect(briefing).toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
+      expect(briefing).toContain("The physical primary is the launchpad only while its marker is absent");
+      expect(briefing).not.toMatch(/locus record|record-free|optional, verb-scoped lease|normally unleased/u);
+    }
+  });
+
+  it("contains no retired locus mutation or liveness instructions", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const surfaces = await Promise.all([
+        readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
+        readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
+        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"), "utf8"),
+        readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
+        readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
+        readFile(resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`), "utf8"),
+      ]);
+
+      for (const surface of surfaces) {
+        expect(surface).not.toMatch(
+          /arc locus (?:attach|release|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+        );
+      }
     }
   });
 });

@@ -1,4 +1,4 @@
-/** Durable ownership and retry cleanup for Errand close checkout locks. */
+/** Durable retry cleanup for Errand close checkout locks. */
 
 import { randomUUID } from "node:crypto";
 import { link, open, readFile, unlink } from "node:fs/promises";
@@ -9,10 +9,9 @@ import {
   scanRegisteredWorktrees,
   type RegisteredWorktree,
 } from "../git/worktree-roster.js";
-import type { ProcessInspection, ProcessInspector } from "../locus/process-inspector.js";
 import type {
   CloseAuthorityGuard,
-  CloseAuthorityLeaseResult,
+  CloseAuthorityLockResult,
   CloseAuthorityResult,
 } from "./close-locus.js";
 
@@ -29,11 +28,7 @@ interface ErrandCloseHeadLockReceiptV1 extends ErrandCloseHeadLockIdentity {
   readonly version: 1;
   readonly kind: typeof RECEIPT_KIND;
   readonly checkoutPath: string;
-  readonly holder: {
-    readonly pid: number;
-    readonly startToken: string;
-    readonly inspector: string;
-  };
+  readonly generation: string;
 }
 
 interface CloseHeadLockHandle {
@@ -64,7 +59,7 @@ export type FinalizedCloseHeadLockRecovery =
   | { kind: "error"; message: string };
 
 /** Authority held over every registered checkout during local Errand-ref deletion. */
-export type ErrandCloseBranchDeletionLeaseResult =
+export type ErrandCloseBranchDeletionLockResult =
   | { kind: "acquired"; release(): Promise<void> }
   | { kind: "refused"; message: string }
   | { kind: "error"; message: string };
@@ -73,29 +68,25 @@ export type ErrandCloseBranchDeletionLeaseResult =
  * Acquire the checkout HEAD lock and persist the exact Errand generation it protects.
  *
  * @param options - Checkout, generation, authority proof, and optional file boundary.
- * @returns A caller-owned authority lease, a concurrent-lock refusal, or an operational error.
+ * @returns A caller-owned authority lock, a concurrent-lock refusal, or an operational error.
  */
 export async function acquireErrandCloseHeadLock(options: {
   exec: GitExec;
   checkoutPath: string;
   identity: ErrandCloseHeadLockIdentity;
   revalidate: CloseAuthorityGuard["revalidate"];
-  inspector: ProcessInspector;
   fileIO?: CloseHeadLockFileIO;
-}): Promise<CloseAuthorityLeaseResult> {
+}): Promise<CloseAuthorityLockResult> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
   if (lockPath.kind === "error") return lockPath;
-  const holder = await inspectCurrentHolder(options.inspector);
-  if (holder.kind === "error") return holder;
-
   const receipt: ErrandCloseHeadLockReceiptV1 = {
     version: 1,
     kind: RECEIPT_KIND,
     slug: options.identity.slug,
     claimId: options.identity.claimId,
     checkoutPath: options.checkoutPath,
-    holder: holder.value,
+    generation: randomUUID(),
   };
   const published = await publishInitializedHeadLock(
     lockPath.path,
@@ -144,8 +135,6 @@ export async function acquireErrandCloseHeadLock(options: {
 export async function recoverFinalizedErrandCloseHeadLock(options: {
   exec: GitExec;
   slug: string;
-  claimId?: string;
-  inspector: ProcessInspector;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
@@ -169,16 +158,15 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
  * Lock every registered checkout while one exact Errand branch is deleted locally.
  *
  * @param options - Exact Errand generation, target branch, and any already-held checkout guard.
- * @returns A roster-wide lease, an occupancy refusal, or an operational failure.
+ * @returns Roster-wide locks, an occupancy refusal, or an operational failure.
  */
 export async function acquireErrandCloseBranchDeletionHeadLocks(options: {
   exec: GitExec;
   identity: ErrandCloseHeadLockIdentity;
   branch: string;
   guard: CloseAuthorityGuard | null;
-  inspector: ProcessInspector;
   fileIO?: CloseHeadLockFileIO;
-}): Promise<ErrandCloseBranchDeletionLeaseResult> {
+}): Promise<ErrandCloseBranchDeletionLockResult> {
   const initial = await readBranchDeletionAuthority(options);
   if (initial.kind !== "ready") return initial;
   const excludedPath = options.guard?.checkoutPath;
@@ -187,7 +175,7 @@ export async function acquireErrandCloseBranchDeletionHeadLocks(options: {
     return { kind: "error", message: "The guarded checkout is absent from the registered worktree topology." };
   }
 
-  const leases: Array<{ release(): Promise<void> }> = [];
+  const locks: Array<{ release(): Promise<void> }> = [];
   for (const worktree of initial.worktrees) {
     if (worktree.path === excludedPath) continue;
     const acquired = await acquireErrandCloseHeadLock({
@@ -198,22 +186,21 @@ export async function acquireErrandCloseBranchDeletionHeadLocks(options: {
         const authority = await readBranchDeletionAuthority(options);
         return authority.kind === "ready" ? { kind: "valid" } : authorityToCloseResult(authority);
       },
-      inspector: options.inspector,
       ...(options.fileIO === undefined ? {} : { fileIO: options.fileIO }),
     });
     if (acquired.kind !== "acquired") {
-      const releaseError = await releaseHeadLockLeases(leases);
+      const releaseError = await releaseHeadLocks(locks);
       return releaseError === null
         ? { kind: acquired.kind, message: acquired.message }
         : { kind: "error", message: releaseError };
     }
-    leases.push(acquired);
+    locks.push(acquired);
   }
 
   const confirmed = await readBranchDeletionAuthority(options);
   if (confirmed.kind !== "ready"
     || !sameRegisteredPaths(initial.worktrees, confirmed.worktrees)) {
-    const releaseError = await releaseHeadLockLeases(leases);
+    const releaseError = await releaseHeadLocks(locks);
     if (releaseError !== null) return { kind: "error", message: releaseError };
     return confirmed.kind === "ready"
       ? { kind: "refused", message: "Registered worktree topology changed during local branch deletion." }
@@ -224,7 +211,7 @@ export async function acquireErrandCloseBranchDeletionHeadLocks(options: {
     kind: "acquired",
     release: async () => {
       if (released) return;
-      const releaseError = await releaseHeadLockLeases(leases);
+      const releaseError = await releaseHeadLocks(locks);
       if (releaseError !== null) throw new Error(releaseError);
       released = true;
     },
@@ -274,11 +261,11 @@ function sameRegisteredPaths(
   return left.every((worktree) => rightPaths.has(worktree.path));
 }
 
-async function releaseHeadLockLeases(leases: readonly { release(): Promise<void> }[]): Promise<string | null> {
+async function releaseHeadLocks(locks: readonly { release(): Promise<void> }[]): Promise<string | null> {
   let failure: string | null = null;
-  for (const lease of [...leases].reverse()) {
+  for (const lock of [...locks].reverse()) {
     try {
-      await lease.release();
+      await lock.release();
     } catch (error) {
       failure ??= errorMessage(error);
     }
@@ -290,8 +277,6 @@ async function recoverCheckoutHeadLock(options: {
   exec: GitExec;
   checkoutPath: string;
   slug: string;
-  claimId?: string;
-  inspector: ProcessInspector;
   fileIO: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
@@ -307,14 +292,11 @@ async function recoverCheckoutHeadLock(options: {
   const receipt = parseReceipt(bytes);
   if (receipt === null
     || receipt.slug !== options.slug
-    || (options.claimId !== undefined && receipt.claimId !== options.claimId)
     || receipt.checkoutPath !== options.checkoutPath) {
     return { kind: "absent" };
   }
-  const holderLiveness = await inspectHolder(receipt, options.inspector);
-  if (holderLiveness.kind === "blocked") return holderLiveness;
-  // A proven-dead holder cannot concurrently remove this generation and expose a replacement
-  // after this recheck. Identity absence independently proves the close terminal.
+  // Identity absence proves the close is terminal. Exact bytes prevent cleanup from
+  // removing a replacement lock generation published after this read.
   let currentBytes: string;
   try {
     currentBytes = await options.fileIO.read(lockPath.path);
@@ -395,63 +377,10 @@ function parseReceipt(bytes: string): ErrandCloseHeadLockReceiptV1 | null {
     && typeof candidate.claimId === "string"
     && CLAIM_ID_PATTERN.test(candidate.claimId)
     && typeof candidate.checkoutPath === "string"
-    && isReceiptHolder(candidate.holder)
+    && typeof candidate.generation === "string"
+    && candidate.generation.trim() !== ""
     ? candidate as unknown as ErrandCloseHeadLockReceiptV1
     : null;
-}
-
-async function inspectCurrentHolder(
-  inspector: ProcessInspector,
-): Promise<
-  | { kind: "ready"; value: ErrandCloseHeadLockReceiptV1["holder"] }
-  | { kind: "error"; message: string }
-> {
-  let inspected: ProcessInspection;
-  try {
-    inspected = await inspector.inspect(process.pid);
-  } catch (error) {
-    return { kind: "error", message: `Could not inspect checkout-lock holder: ${errorMessage(error)}` };
-  }
-  if (inspected.kind !== "present" || inspected.pid !== process.pid || inspected.startToken.trim() === "") {
-    return { kind: "error", message: "Could not establish the checkout-lock holder generation." };
-  }
-  return {
-    kind: "ready",
-    value: { pid: inspected.pid, startToken: inspected.startToken, inspector: inspector.kind },
-  };
-}
-
-async function inspectHolder(
-  receipt: ErrandCloseHeadLockReceiptV1,
-  inspector: ProcessInspector,
-): Promise<{ kind: "dead" } | { kind: "blocked"; message: string }> {
-  if (receipt.holder.inspector !== inspector.kind) {
-    return { kind: "blocked", message: "Checkout-lock holder liveness cannot be verified by this runtime." };
-  }
-  let inspected: ProcessInspection;
-  try {
-    inspected = await inspector.inspect(receipt.holder.pid);
-  } catch (error) {
-    return { kind: "blocked", message: `Checkout-lock holder liveness is unavailable: ${errorMessage(error)}` };
-  }
-  if (inspected.kind === "absent") return { kind: "dead" };
-  if (inspected.kind === "unverifiable") {
-    return { kind: "blocked", message: `Checkout-lock holder liveness is unavailable: ${inspected.reason}` };
-  }
-  return inspected.pid === receipt.holder.pid && inspected.startToken === receipt.holder.startToken
-    ? { kind: "blocked", message: "Checkout-lock cleanup is still owned by the live close process; retry later." }
-    : { kind: "dead" };
-}
-
-function isReceiptHolder(value: unknown): value is ErrandCloseHeadLockReceiptV1["holder"] {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return Number.isSafeInteger(candidate.pid)
-    && (candidate.pid as number) > 0
-    && typeof candidate.startToken === "string"
-    && candidate.startToken.trim() !== ""
-    && typeof candidate.inspector === "string"
-    && candidate.inspector.trim() !== "";
 }
 
 function errorCode(error: unknown): string | undefined {

@@ -7,7 +7,7 @@ import {
   type OrdinaryErrandRecord,
   type OrdinaryErrandTransition,
 } from "./identity-transitions.js";
-import type { LocusMutationErrorCode } from "../locus/schema/index.js";
+import type { ErrandErrorCode } from "./result-common.js";
 import {
   createErrandOperationResult,
   type ErrandOperationResult,
@@ -113,7 +113,7 @@ function linkRefusal(
   });
 }
 
-function linkError(code: LocusMutationErrorCode, message: string): ErrandOperationResult {
+function linkError(code: ErrandErrorCode, message: string): ErrandOperationResult {
   return createErrandOperationResult({
     outcome: "error",
     operation: "errand-link",

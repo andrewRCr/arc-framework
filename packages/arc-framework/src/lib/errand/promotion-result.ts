@@ -6,12 +6,11 @@ import { SlugSchema } from "../kernel/index.js";
 import {
   LocusAbsolutePathSchema,
   LocusDigestSchema,
-  LocusMutationErrorCodeSchema,
   LocusOpaqueTextSchema,
-  LocusRefusalReasonSchema,
   LocusTokenSchema,
 } from "../locus/schema/index.js";
 import { ErrandTerminalGenerationSchema } from "./terminal-result.js";
+import { ErrandErrorCodeSchema, ErrandRefusalReasonSchema } from "./result-common.js";
 
 const operation = z.literal("errand-promote");
 const subject = z.strictObject({
@@ -47,10 +46,7 @@ const settlement = z.union([
     originEntrySourceDigest: z.null(),
   }),
 ]);
-const refusalReason = z.union([
-  LocusRefusalReasonSchema,
-  z.enum(["authority-unresolved", "generation-mismatch"]),
-]);
+const refusalReason = ErrandRefusalReasonSchema;
 
 export const ErrandPromotionResultSchema = z.union([
   z.strictObject({ outcome: z.enum(["applied", "idempotent"]), ...exact, settlement }),
@@ -76,7 +72,7 @@ export const ErrandPromotionResultSchema = z.union([
     subject: subject.nullable(),
     checkoutPath: LocusAbsolutePathSchema.nullable(),
     generation: ErrandTerminalGenerationSchema.nullable(),
-    error: z.strictObject({ code: LocusMutationErrorCodeSchema, message: LocusOpaqueTextSchema }),
+    error: z.strictObject({ code: ErrandErrorCodeSchema, message: LocusOpaqueTextSchema }),
   }),
 ]);
 

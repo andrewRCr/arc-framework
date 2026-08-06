@@ -349,7 +349,7 @@ async function settlePromotedInbox(
   frame: PromotionFrameReceipt,
 ): Promise<PromotionFrameResult> {
   if (frame.originEntry !== null && frame.originEntrySourceDigest === null) {
-    return refused("record-malformed", "Promoted capture settlement is missing its source digest.");
+    return refused("authority-unresolved", "Promoted capture settlement is missing its source digest.");
   }
 
   let settlementKind: "applied" | "idempotent" = "idempotent";
