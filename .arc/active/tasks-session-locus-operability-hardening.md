@@ -57,11 +57,11 @@ producer, consumer, public contract, workflow, or on-disk behavior.
 
 - _Context:_ This is the sole behavior-preserving shared-helper edit permitted in Deliverable 1.
 
-    - `[ ]` **1.3.a Add an optional active-extension input**
-        - Extend `projectCheckoutSubjectMeta()` with an optional active-extension projection whose omission supplies
-          the current empty value.
-        - Keep its existing identity, meta-evidence, workflow, stage, task-cursor, cohort, and load-set ownership intact;
-          do not introduce a wrapper hierarchy or adjacent type migration.
+    - `[x]` **1.3.a Add an optional active-extension input**
+        - Added a readonly optional active-extension input that passes the supplied projection unchanged to the
+          existing load-set resolver and defaults omission to the current empty value.
+        - Preserved the helper's identity, meta-evidence, workflow, stage, task-cursor, cohort, and load-set ownership
+          without a wrapper or adjacent type migration.
 
     - `[ ]` **1.3.b Preserve selected callers and supply the dormant reader**
         - Leave current `reader.ts` and `recover/locus-context.ts` call shapes unchanged so they retain the empty
