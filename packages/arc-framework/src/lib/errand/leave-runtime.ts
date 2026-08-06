@@ -162,6 +162,7 @@ async function readAuthority(
     operation: "leave",
     subject,
     confirmForeignGeneration: options.confirmForeignGeneration,
+    retryArguments: ["--state", options.state],
   });
 }
 

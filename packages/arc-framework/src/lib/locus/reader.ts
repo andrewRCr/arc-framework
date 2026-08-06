@@ -87,6 +87,8 @@ function normalizeEvidenceErrorMessage(
 export async function readLocusState(options: ReadLocusEnvelopeOptions & {
   enteringAnchor: LocusAnchor;
   readPrimarySafety(primaryPath: string): Promise<PrimarySafetyResult>;
+  /** Ignore the exact record retired by marker-owned Errand leave while the old allocation reader remains. */
+  tolerateMarkerRetiredTerminalRecord?: boolean;
 }): Promise<LocusStateV1> {
   const scheduler = createLocusEvidenceScheduler(options.concurrency);
   const evidence = await acquireLocusEvidence({
@@ -96,34 +98,69 @@ export async function readLocusState(options: ReadLocusEnvelopeOptions & {
     scheduler,
   });
   if (evidence.kind === "error") throw new Error(`${evidence.code}: ${evidence.message}`);
-  const subjects = await projectSubjects(evidence, options, scheduler);
-  const provisional = projectProvisionalRoster({ evidence, subjects });
+  const mutationEvidence = options.tolerateMarkerRetiredTerminalRecord === true
+    ? tolerateMarkerRetiredTerminalRecords(evidence)
+    : evidence;
+  const subjects = await projectSubjects(mutationEvidence, options, scheduler);
+  const provisional = projectProvisionalRoster({ evidence: mutationEvidence, subjects });
   const frames = deriveLocusFrames({ rows: provisional.rows, enteringAnchor: options.enteringAnchor });
-  const safety = await options.readPrimarySafety(evidence.root.primaryPath);
+  const safety = await options.readPrimarySafety(mutationEvidence.root.primaryPath);
   if (safety.kind === "error") throw new Error(`${safety.code}: ${safety.message}`);
   const operational = deriveLocusOperationalState({
-    primaryPath: evidence.root.primaryPath,
+    primaryPath: mutationEvidence.root.primaryPath,
     rows: frames.rows,
     current: frames.current,
     primarySafety: safety,
-    primaryLock: primaryLockState(evidence, options.pathFlavor),
+    primaryLock: primaryLockState(mutationEvidence, options.pathFlavor),
   });
   const reconciliation = deriveLocusReconciliation({
-    primaryPath: evidence.root.primaryPath,
+    primaryPath: mutationEvidence.root.primaryPath,
     rows: frames.rows,
     diagnostics: provisional.diagnostics,
     current: frames.current,
     adoptionCandidates: [],
-    records: evidence.records,
-    locks: evidence.locks,
+    records: mutationEvidence.records,
+    locks: mutationEvidence.locks,
   });
   return LocusStateV1Schema.parse(assembleLocusState({
-    primaryPath: evidence.root.primaryPath,
+    primaryPath: mutationEvidence.root.primaryPath,
     frames,
     diagnostics: provisional.diagnostics,
     ...operational,
     reconciliation: reconciliation.reconciliation,
   }));
+}
+
+function tolerateMarkerRetiredTerminalRecords(
+  evidence: Extract<LocusEvidenceResult, { kind: "complete" }>,
+): Extract<LocusEvidenceResult, { kind: "complete" }> {
+  if (evidence.identities.kind !== "complete") return evidence;
+  const identities = evidence.identities;
+  const retiredDigests = new Set(evidence.records.flatMap((entry) => {
+    if (entry.result.kind !== "valid" || entry.canonical?.kind !== "resolved") return [];
+    const canonicalPath = entry.canonical.path;
+    const role = entry.result.record.role;
+    if (role.kind !== "errand" || role.subject.kind !== "errand" || role.subject.claimId === null) return [];
+    const identity = identities.projections.get(role.subject.key);
+    if (identity?.kind !== "errand"
+      || identity.purpose !== "errand"
+      || identity.claimId !== role.subject.claimId
+      || (identity.state !== "paused" && identity.state !== "awaiting-merge")) return [];
+    const checkouts = evidence.checkouts.filter((checkout) => checkout.canonical.kind === "resolved"
+      && checkout.canonical.path === canonicalPath);
+    const checkout = checkouts.length === 1 ? checkouts[0] : undefined;
+    return checkout?.marker.kind === "absent" ? [entry.digest] : [];
+  }));
+  if (retiredDigests.size === 0) return evidence;
+  return {
+    ...evidence,
+    recordEntries: evidence.recordEntries.filter((entry) =>
+      entry.kind !== "record" || !retiredDigests.has(entry.digest)),
+    records: evidence.records.filter((entry) => !retiredDigests.has(entry.digest)),
+    lockEntries: evidence.lockEntries.filter((entry) =>
+      entry.kind !== "lock" || !retiredDigests.has(entry.digest)),
+    locks: evidence.locks.filter((entry) => !retiredDigests.has(entry.digest)),
+  };
 }
 
 function primaryLockState(

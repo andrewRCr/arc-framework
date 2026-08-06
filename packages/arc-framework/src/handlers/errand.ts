@@ -66,13 +66,26 @@ import {
 } from "../lib/errand/close-runtime.js";
 import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
-import { ErrandTerminalGenerationSchema } from "../lib/errand/terminal-result.js";
+import {
+  adaptErrandTerminalResult,
+  ErrandTerminalGenerationSchema,
+  ErrandTerminalResultSchema,
+  type AdaptErrandTerminalResultOptions,
+  type ErrandTerminalResult,
+} from "../lib/errand/terminal-result.js";
+import {
+  authorizeErrandTerminal,
+  type ErrandTerminalOperation,
+  type ErrandTerminalSubject,
+} from "../lib/errand/terminal-authority.js";
+import type { DerivedLocusFrame } from "../lib/locus/derived-reader.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
   LocusGitOidSchema,
   LocusTokenSchema,
   locusErrorCode,
   type LocusErrorStage,
+  type LocusIdentityV1,
   type LocusMutationErrorCode,
   type LocusMutationResultV1,
 } from "../lib/locus/schema/index.js";
@@ -95,6 +108,8 @@ import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 type ErrandHandlerOperation = "errand-open" | "errand-materialize" | "errand-leave" | "errand-close" | "errand-abandon" | "errand-promote";
 type ErrandResultEmitter = (result: LocusMutationResultV1, json: boolean) => void;
+type TerminalProjection = Omit<AdaptErrandTerminalResultOptions, "result">;
+type OrdinaryTerminalIdentity = Extract<LocusIdentityV1, { kind: "errand"; purpose: "errand" }>;
 
 async function runErrandHandlerBoundary(
   operation: ErrandHandlerOperation,
@@ -116,6 +131,85 @@ async function runErrandHandlerBoundary(
       recommendedPromptText,
     }), json);
   }
+}
+
+function prepareTerminalProjection(options: {
+  readonly frame: DerivedLocusFrame;
+  readonly operation: ErrandTerminalOperation;
+  readonly subject: ErrandTerminalSubject;
+  readonly confirmForeignGeneration?: string;
+  readonly retryArguments?: readonly string[];
+  readonly settlement: NonNullable<TerminalProjection["evidence"]>["settlement"];
+}): TerminalProjection {
+  const authority = authorizeErrandTerminal(options);
+  return {
+    authority,
+    evidence: authority.kind === "refused" ? null : {
+      subject: authority.subject,
+      generation: authority.generation,
+      checkoutPath: authority.checkoutPath,
+      parentCheckoutPath: authority.kind === "authorized" ? authority.parentCheckoutPath : null,
+      settlement: options.settlement,
+    },
+  };
+}
+
+function formatTerminalResult(
+  result: ErrandTerminalResult,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  const success = result.outcome === "applied" || result.outcome === "idempotent";
+  return {
+    stream: json || success ? "stdout" : "stderr",
+    text: json ? `${JSON.stringify(result)}\n` : result.recommendedPromptText,
+    exitCode: success ? 0 : 1,
+  };
+}
+
+function normalizeTerminalResult(
+  result: LocusMutationResultV1 | ErrandTerminalResult,
+): ErrandTerminalResult {
+  const parsed = ErrandTerminalResultSchema.safeParse(result);
+  return parsed.success
+    ? parsed.data
+    : adaptErrandTerminalResult({ result: result as LocusMutationResultV1, authority: null, evidence: null });
+}
+
+function ordinaryTerminalIdentity(frame: DerivedLocusFrame, slug: string): OrdinaryTerminalIdentity | null {
+  if (frame.identityDiscovery.kind !== "complete") return null;
+  const matches = frame.identityDiscovery.identities.filter(
+    (candidate): candidate is OrdinaryTerminalIdentity => candidate.kind === "errand"
+      && candidate.purpose === "errand" && candidate.key === slug,
+  );
+  const identity = matches.length === 1 ? matches[0] : undefined;
+  return identity ?? null;
+}
+
+function ordinaryTerminalSubject(frame: DerivedLocusFrame, slug: string): ErrandTerminalSubject | null {
+  const rows = frame.roster.filter((row) => row.subject?.kind === "errand"
+    && row.subject.key === slug);
+  const rowSubject = rows.length === 1 ? rows[0]?.subject : undefined;
+  if (rowSubject?.kind === "errand") {
+    return { kind: "errand", slug, claimId: rowSubject.claimId };
+  }
+  const identity = ordinaryTerminalIdentity(frame, slug);
+  return identity === null ? null : { kind: "errand", slug, claimId: identity.claimId };
+}
+
+function partialCaptureSettlement(
+  frame: DerivedLocusFrame,
+  slug: string,
+  disposition: "removed" | "retained",
+): NonNullable<TerminalProjection["evidence"]>["settlement"] {
+  const matches = frame.roster.filter((row) => row.subject?.kind === "partial-errand"
+    && row.subject.key === slug);
+  const origin = matches.length === 1 ? matches[0]?.origin ?? null : null;
+  return {
+    kind: "capture",
+    disposition: origin === null ? "absent" : disposition,
+    originEntry: origin?.entry ?? null,
+    originEntrySourceDigest: origin?.sourceDigest ?? null,
+  };
 }
 
 export interface ErrandCheckOptions {
@@ -850,6 +944,8 @@ function emitMaterializeError(stage: LocusErrorStage, message: string, json: boo
 export interface ErrandLeaveOptions {
   /** Durable identity tail to retain after local occupancy closes. */
   state: string;
+  /** Exact foreign subject generation authorizing this leave request. */
+  confirmForeignGeneration?: string;
   /** Emit the producer-validated mutation result without human decoration. */
   json?: boolean;
 }
@@ -858,6 +954,7 @@ export interface ErrandLeaveOptions {
 export const ErrandLeaveInputSchema = z.object({
   slug: SlugSchema,
   state: z.enum(["paused", "awaiting-merge"]),
+  confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
   json: z.boolean().optional(),
 }).strict();
 
@@ -915,6 +1012,8 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
+      const projectionFrame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
+      const subject = ordinaryTerminalSubject(projectionFrame, parsed.data.slug);
       const result = await leaveOrdinaryErrandAtRuntime({
         slug: parsed.data.slug,
         state: parsed.data.state,
@@ -925,20 +1024,47 @@ export async function handleErrandLeave(
         exec: io.exec,
         execInput: io.execInput,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        confirmForeignGeneration: parsed.data.confirmForeignGeneration,
       });
-      emitErrandLeaveResult(result, opts.json === true);
+      const settlementIdentity = result.outcome === "applied" || result.outcome === "idempotent"
+        ? result.identity
+        : null;
+      const ordinarySettlementIdentity = settlementIdentity?.kind === "errand"
+        && settlementIdentity.purpose === "errand"
+        ? settlementIdentity
+        : null;
+      const projection = subject === null ? { authority: null, evidence: null } : prepareTerminalProjection({
+        frame: projectionFrame,
+        operation: "leave",
+        subject,
+        confirmForeignGeneration: parsed.data.confirmForeignGeneration,
+        retryArguments: ["--state", parsed.data.state],
+        settlement: {
+          kind: "identity-tail",
+          state: parsed.data.state,
+          savedHead: ordinarySettlementIdentity?.state === "paused" ? ordinarySettlementIdentity.savedHead : null,
+          changeRequest: ordinarySettlementIdentity?.state === "awaiting-merge"
+            ? ordinarySettlementIdentity.changeRequest
+            : null,
+          originEntry: ordinarySettlementIdentity?.originEntry ?? null,
+          originEntrySourceDigest: ordinarySettlementIdentity?.origin === "inbox"
+            ? ordinarySettlementIdentity.originEntrySourceDigest
+            : null,
+        },
+      });
+      emitErrandLeaveResult(adaptErrandTerminalResult({ result, ...projection }), opts.json === true);
     },
   );
 }
 
 export function formatErrandLeaveResult(
-  result: LocusMutationResultV1,
+  result: LocusMutationResultV1 | ErrandTerminalResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
-  return formatErrandOpenResult(result, json);
+  return formatTerminalResult(normalizeTerminalResult(result), json);
 }
 
-function emitErrandLeaveResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandLeaveResult(result: LocusMutationResultV1 | ErrandTerminalResult, json: boolean): void {
   const formatted = formatErrandLeaveResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -1055,6 +1181,7 @@ async function runErrandCloseHandler(
   }
 
   let result: LocusMutationResultV1;
+  let projection: TerminalProjection = { authority: null, evidence: null };
   try {
     if (protection === "partial") {
       if (opts.force === true) {
@@ -1065,6 +1192,14 @@ async function runErrandCloseHandler(
           recommendedPromptText: "Partial Errand close does not permit --force.",
         });
       } else {
+        const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
+        projection = prepareTerminalProjection({
+          frame,
+          operation: "close",
+          subject: { kind: "partial-errand", slug, claimId: null },
+          confirmForeignGeneration: opts.confirmForeignGeneration,
+          settlement: partialCaptureSettlement(frame, slug, "removed"),
+        });
         result = await settlePartialErrandAtRuntime({
           slug,
           action: "close",
@@ -1110,6 +1245,22 @@ async function runErrandCloseHandler(
           recommendedPromptText: "Inspect the retained Errand identity before retrying.",
         });
       } else {
+        if (identityRead.record?.kind === "errand" && identityRead.record.purpose === "errand") {
+          const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
+          const record = identityRead.record;
+          projection = prepareTerminalProjection({
+            frame,
+            operation: "close",
+            subject: { kind: "errand", slug, claimId: record.claimId },
+            confirmForeignGeneration: opts.confirmForeignGeneration,
+            settlement: {
+              kind: "capture",
+              disposition: record.originEntry === null ? "absent" : "removed",
+              originEntry: record.originEntry,
+              originEntrySourceDigest: record.origin === "inbox" ? record.originEntrySourceDigest : null,
+            },
+          });
+        }
         const identityGlobalUserDir = (await resolveUserSurfaceResolver({
           cwd,
           identity: SlugSchema.parse(identity),
@@ -1164,7 +1315,7 @@ async function runErrandCloseHandler(
       recommendedPromptText: "Inspect the retained Errand identity and exact ref evidence before retrying.",
     });
   }
-  emitErrandCloseResult(result, opts.json === true);
+  emitErrandCloseResult(adaptErrandTerminalResult({ result, ...projection }), opts.json === true);
 }
 
 async function resolveCurrentWorkUnitPath(
@@ -1202,13 +1353,13 @@ async function resolveCurrentWorkUnitPath(
 }
 
 export function formatErrandCloseResult(
-  result: LocusMutationResultV1,
+  result: LocusMutationResultV1 | ErrandTerminalResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
-  return formatErrandOpenResult(result, json);
+  return formatTerminalResult(normalizeTerminalResult(result), json);
 }
 
-function emitErrandCloseResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandCloseResult(result: LocusMutationResultV1 | ErrandTerminalResult, json: boolean): void {
   const formatted = formatErrandCloseResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -1313,9 +1464,18 @@ async function runErrandAbandonHandler(
     return;
   }
   let result: LocusMutationResultV1;
+  let projection: TerminalProjection = { authority: null, evidence: null };
   try {
-    result = protection === "partial"
-      ? await settlePartialErrandAtRuntime({
+    const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
+    if (protection === "partial") {
+      projection = prepareTerminalProjection({
+        frame,
+        operation: "abandon",
+        subject: { kind: "partial-errand", slug: input.slug, claimId: null },
+        confirmForeignGeneration: input.confirmForeignGeneration,
+        settlement: partialCaptureSettlement(frame, input.slug, "retained"),
+      });
+      result = await settlePartialErrandAtRuntime({
         slug: input.slug,
         action: "abandon",
         base,
@@ -1334,8 +1494,26 @@ async function runErrandAbandonHandler(
           });
           return { kind: cleared.changed ? "applied" : "idempotent", nextOffer: null };
         },
-      })
-      : await abandonOrdinaryErrandAtRuntime({
+      });
+    } else {
+      const terminalIdentity = ordinaryTerminalIdentity(frame, input.slug);
+      if (terminalIdentity !== null) {
+        projection = prepareTerminalProjection({
+          frame,
+          operation: "abandon",
+          subject: { kind: "errand", slug: input.slug, claimId: terminalIdentity.claimId },
+          confirmForeignGeneration: input.confirmForeignGeneration,
+          settlement: {
+            kind: "capture",
+            disposition: terminalIdentity.originEntry === null ? "absent" : "retained",
+            originEntry: terminalIdentity.originEntry,
+            originEntrySourceDigest: terminalIdentity.origin === "inbox"
+              ? terminalIdentity.originEntrySourceDigest
+              : null,
+          },
+        });
+      }
+      result = await abandonOrdinaryErrandAtRuntime({
         slug: input.slug,
         protection: "full",
         base,
@@ -1356,6 +1534,7 @@ async function runErrandAbandonHandler(
           return { kind: cleared.changed ? "applied" : "idempotent" };
         },
       });
+    }
   } catch (error) {
     result = createLocusMutationResult({
       outcome: "error",
@@ -1364,17 +1543,17 @@ async function runErrandAbandonHandler(
       recommendedPromptText: "Inspect the retained Errand identity, residue, refs, and inbox binding before retrying.",
     });
   }
-  emitErrandAbandonResult(result, opts.json === true);
+  emitErrandAbandonResult(adaptErrandTerminalResult({ result, ...projection }), opts.json === true);
 }
 
 export function formatErrandAbandonResult(
-  result: LocusMutationResultV1,
+  result: LocusMutationResultV1 | ErrandTerminalResult,
   json: boolean,
 ): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
-  return formatErrandOpenResult(result, json);
+  return formatTerminalResult(normalizeTerminalResult(result), json);
 }
 
-function emitErrandAbandonResult(result: LocusMutationResultV1, json: boolean): void {
+function emitErrandAbandonResult(result: LocusMutationResultV1 | ErrandTerminalResult, json: boolean): void {
   const formatted = formatErrandAbandonResult(result, json);
   if (json) process.stdout.write(formatted.text);
   else if (formatted.stream === "stderr") p.log.error(formatted.text);
@@ -1469,7 +1648,12 @@ export const errandCommandInputRegistrations = [
   {
     commandPath: "errand leave",
     schema: ErrandLeaveInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.state": "state", "option.json": "json" },
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.state": "state",
+      "option.confirm-foreign-generation": "confirmForeignGeneration",
+      "option.json": "json",
+    },
   },
   {
     commandPath: "errand abandon",
@@ -1575,15 +1759,30 @@ export const errandCommandInputPolicyDeclarations = [
   {
     commandPath: "errand leave",
     aliases: [],
-    sites: [declareCliOptionSite("state", {
-      acquisition: "handler-required",
-      schemaOwnership: "owned",
-      schemaField: "state",
-      cancellation: "not-applicable",
-      automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--state <value>"] },
-      mutationBoundary: "errand leave input preflight",
-      subprocess: "none",
-    })],
+    sites: [
+      declareCliOptionSite("state", {
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "state",
+        cancellation: "not-applicable",
+        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--state <value>"] },
+        mutationBoundary: "errand leave input preflight",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("confirm-foreign-generation", {
+        acquisition: "optional",
+        schemaOwnership: "owned",
+        schemaField: "confirmForeignGeneration",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "preserve-absent",
+          flags: ["--confirm-foreign-generation <generation>"],
+          acceptedSyntax: ["--confirm-foreign-generation <generation>"],
+        },
+        mutationBoundary: "errand leave subject-generation authority",
+        subprocess: "none",
+      }),
+    ],
   },
   {
     commandPath: "errand abandon",

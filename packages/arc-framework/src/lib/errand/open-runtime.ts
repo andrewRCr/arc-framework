@@ -121,6 +121,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           },
           identityGlobalUserDir: options.identityGlobalUserDir,
           enteringAnchor: selectedAnchor,
+          tolerateMarkerRetiredTerminalRecord: true,
           readPrimarySafety: (path) => readPrimarySafety({
             primaryPath: path,
             baseBranch: options.base,

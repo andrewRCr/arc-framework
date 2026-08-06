@@ -553,6 +553,7 @@ errand
   .addOption(new Option("--state <state>", "Tail state")
     .choices(["paused", "awaiting-merge"])
     .makeOptionMandatory())
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

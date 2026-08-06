@@ -426,7 +426,7 @@ describe("arc locus mutation commands", () => {
     }
   });
 
-  it("abandons an identity-backed primary Errand from its confirmed self-held session", async () => {
+  it("refuses a confirmed identity-backed primary Errand after topology stops corroborating it", async () => {
     const slug = "confirmed-primary";
     remote = await createBareRemote(repository);
     await git(repository, ["push", "-u", "origin", "main"]);
@@ -439,18 +439,17 @@ describe("arc locus mutation commands", () => {
       `${cli} locus resolve "$record_id" --action abandon --confirm-no-live-session --json`,
     ], repository);
 
-    expect(resolved.exitCode, JSON.stringify(resolved)).toBe(0);
+    expect(resolved.exitCode, JSON.stringify(resolved)).toBe(1);
     expect(resolved.results).toHaveLength(2);
     expect(resolved.results[1]).toMatchObject({
-      outcome: "applied",
+      outcome: "refused",
       operation: "locus-resolve",
-      recordId: null,
-      leaseId: null,
+      reason: "identity-conflict",
     });
     expect(await git(repository, ["branch", "--show-current"])).toBe("main");
     expect(await git(repository, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
-    await expect(git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
-      .rejects.toThrow();
+    expect(await git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+      .toContain(`"slug": "${slug}"`);
   });
 
   it("releases an identity-retired primary Errand from its self-held session", async () => {

@@ -109,6 +109,16 @@ function authorizeIdentityOnly(options: AuthorizeErrandTerminalOptions): ErrandT
   if (options.subject.kind !== "errand" || options.frame.identityDiscovery.kind !== "complete") {
     return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
   }
+  const enteringMarkerUnreadable = options.frame.entering.kind === "selected"
+    && options.frame.entering.row.diagnostics.some((diagnostic) =>
+      diagnostic.code === "authority-evidence-unreadable" && diagnostic.source === "marker");
+  if (options.frame.entering.kind !== "selected" || enteringMarkerUnreadable) {
+    return {
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: "The entering checkout cannot prove terminal absence.",
+    };
+  }
   const identities = options.frame.identityDiscovery.identities.filter((identity) =>
     identity.kind === "errand"
     && identity.purpose === "errand"

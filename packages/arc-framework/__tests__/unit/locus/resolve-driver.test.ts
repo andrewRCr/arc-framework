@@ -66,6 +66,7 @@ describe("locus resolve driver", () => {
         });
         expect(run).toHaveBeenCalledWith({
           subject, action, key: "subject",
+          generation: subject === "errand" ? `errand-v1/subject/${"2".repeat(32)}` : null,
           selected: { recordId: `sha256:${"1".repeat(64)}`, leaseId: "3".repeat(32) },
           confirmedNoLiveSession: false,
         });

@@ -272,6 +272,13 @@ describe("arc errand leave", () => {
     await cleanupTempDir(repository);
   });
 
+  it("exposes exact foreign-generation confirmation on the owning verb", async () => {
+    const result = await runArc(["errand", "leave", "--help"], repository);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--confirm-foreign-generation <generation>");
+  });
+
   it("refuses partial mode through the shared JSON result", async () => {
     const result = await runArc([
       "errand", "leave", "anything", "--state", "paused", "--json",
@@ -514,12 +521,18 @@ describe("arc errand close", () => {
       ], tmpDir);
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(result.results.at(-1)).toMatchObject({
+      const settled = result.results.at(-1);
+      expect(settled).toMatchObject({
         outcome: "applied",
         operation: "errand-close",
-        identity: null,
-        activeLocusPath: null,
+        subject: { kind: "partial-errand", slug: "direct-fix", claimId: null },
+        generation: expect.stringMatching(/^sha256:/u),
+        checkoutPath: tmpDir,
+        settlement: { kind: "capture", disposition: "absent", originEntry: null },
       });
+      expect(settled).not.toHaveProperty("recordId");
+      expect(settled).not.toHaveProperty("leaseId");
+      expect(settled).not.toHaveProperty("sessionHomePath");
     } finally {
       await cleanupTempDir(remoteDir);
     }
@@ -673,9 +686,10 @@ describe("arc errand close", () => {
       expect(result.results[3]).toMatchObject({
         outcome: "applied",
         operation: "errand-close",
-        activeLocusPath: null,
-        sessionHomePath: tmpDir,
-        restoredParent: null,
+        subject: { kind: "errand", slug, claimId: expect.any(String) },
+        checkoutPath: spawnedPath,
+        parentCheckoutPath: tmpDir,
+        settlement: { kind: "capture", disposition: "absent", originEntry: null },
       });
       if (spawnedPath === null) throw new Error("Errand open returned no spawned checkout path.");
       await expect(access(spawnedPath)).rejects.toMatchObject({ code: "ENOENT" });
@@ -881,7 +895,7 @@ describe("arc errand close", () => {
 
         expect(result.exitCode, result.stdout + result.stderr).toBe(1);
         expect(result.results.at(-1)).toMatchObject({
-          outcome: "refused", operation: "errand-close", reason: "identity-conflict",
+          outcome: "refused", operation: "errand-close", reason: "authority-unresolved",
         });
         expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
         expect(await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toContain(branch);
@@ -916,7 +930,7 @@ describe("arc errand close", () => {
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(1);
       expect(result.results.at(-1)).toMatchObject({
-        outcome: "refused", operation: "errand-close", reason: "role-conflict",
+        outcome: "refused", operation: "errand-close", reason: "authority-unresolved",
       });
       expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
       expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
@@ -960,7 +974,7 @@ describe("arc errand close", () => {
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(1);
       expect(result.results.at(-1)).toMatchObject({
-        outcome: "refused", operation: "errand-close", reason: "identity-conflict",
+        outcome: "refused", operation: "errand-close", reason: "authority-unresolved",
       });
       expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
       expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
@@ -991,7 +1005,11 @@ describe("arc errand close", () => {
 
       expect(result.exitCode, JSON.stringify(result.results)).toBe(1);
       expect(result.results[0]).toMatchObject({
-        outcome: "refused", operation: "errand-close", reason: "role-conflict",
+        outcome: "confirmation-required",
+        operation: "errand-close",
+        subject: { kind: "errand", slug, claimId: expect.any(String) },
+        generation: expect.stringMatching(new RegExp(`^errand-v1/${slug}/`, "u")),
+        destructiveEffect: "close and retire this Errand",
       });
       expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
         .toContain('"state": "open"');
@@ -1254,12 +1272,18 @@ describe("arc errand abandon", () => {
       ], tmpDir);
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(result.results.at(-1)).toMatchObject({
+      const settled = result.results.at(-1);
+      expect(settled).toMatchObject({
         outcome: "applied",
         operation: "errand-abandon",
-        identity: null,
-        activeLocusPath: null,
+        subject: { kind: "partial-errand", slug: "discard-direct", claimId: null },
+        generation: expect.stringMatching(/^sha256:/u),
+        checkoutPath: tmpDir,
+        settlement: { kind: "capture", disposition: "absent", originEntry: null },
       });
+      expect(settled).not.toHaveProperty("recordId");
+      expect(settled).not.toHaveProperty("leaseId");
+      expect(settled).not.toHaveProperty("sessionHomePath");
     } finally {
       await cleanupTempDir(remoteDir);
     }

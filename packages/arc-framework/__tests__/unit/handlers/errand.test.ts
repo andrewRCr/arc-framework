@@ -5,7 +5,7 @@ import {
   formatErrandCheckCaveats,
   formatErrandCloseResult,
 } from "../../../src/handlers/errand.js";
-import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
 describe("formatErrandCheckCaveats", () => {
   it("renders caveat lines for skipped marked entries and indeterminate probes", () => {
@@ -69,16 +69,19 @@ describe("buildErrandCheckJsonEnvelope", () => {
 
 describe("formatErrandCloseResult", () => {
   it("renders the same validated result as human narration and JSON", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandTerminalResult({
       outcome: "refused",
       operation: "errand-close",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
       reason: "preservation-unproven",
       recommendedPromptText: "The recorded head moved.",
     });
 
     expect(formatErrandCloseResult(result, false)).toEqual({
       stream: "stderr",
-      text: "Refused [preservation-unproven]: The recorded head moved.",
+      text: "The recorded head moved.",
       exitCode: 1,
     });
     expect(formatErrandCloseResult(result, true)).toEqual({

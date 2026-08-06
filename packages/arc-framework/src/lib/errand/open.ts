@@ -260,6 +260,9 @@ export async function openOrdinaryErrand(
       proposal,
       protection: options.protection,
       identity: record === null ? null : projectLocusIdentity(record),
+      ...(previousRecord === null
+        ? {}
+        : { retiredCompatibilityIdentity: projectLocusIdentity(previousRecord) }),
       ...(record === null ? {
         authority: {
           kind: "partial-errand" as const,

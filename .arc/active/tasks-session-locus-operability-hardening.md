@@ -334,7 +334,7 @@ derived frame. Compatibility scaffolding exists only inside this unmerged implem
 _Purpose:_ Move subject-ending operations, promotion, allocation, work-unit lifecycle callers, rename, teardown,
 and cleanup onto marker, identity, lifecycle, and git authority before the retired substrate is deleted.
 
-### `[ ]` **3.1 Move Errand terminal operations to subject-scoped confirmation**
+### `[x]` **3.1 Move Errand terminal operations to subject-scoped confirmation**
 
 - _Goal:_ Close, abandon, leave, and partial settlement authorize the exact current-checkout subject directly, while
   foreign acts use the same exact-generation confirmation contract promotion can consume without overriding evidence
@@ -349,24 +349,12 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Reworked close, abandon, leave, and partial settlement around fresh derived checkout authority, identity
           transactions, or marker-origin binding while retaining exact Git, capture, replay, and `HEAD.lock` guards.
 
-    - `[ ]` **3.1.c Expose confirmation on the owning Errand verbs**
-        - Expose `--confirm-foreign-generation <generation>` on close, abandon, leave, and partial settlement, and
-          thread the typed input through commands, handlers, results, and rendering.
-        - Export the shared contract for promotion while keeping each verb responsible for fresh evidence
-          revalidation.
-        - Update `run-errand.md` close, abandon, leave, and partial-settlement consumption with the matching final
-          results and verb-owned confirmation path.
-        - Remove `recordId`, `leaseId`, and `sessionHomePath` from exit contracts; leave declared option cleanup to
-          Task 4.2.
-
-    - Build `test-first` (one behavior at a time):
-        - Own exact subject succeeds without confirmation; foreign exact subject returns the named confirmation.
-        - The exact supplied generation authorizes only the command's named act in that request; a missing, malformed,
-          stale, or different generation refuses after fresh evidence derivation.
-        - Dirty, branch/`HEAD`, generation, marker, identity, capture, or lifecycle disagreement refuses identically
-          before and after confirmation.
-        - Malformed sibling checkout facts do not block local exit, while malformed shared identity basis does.
-        - Results carry only subject, checkout/parent, identity generation, and verb-owned settlement evidence.
+    - `[x]` **3.1.c Expose confirmation on the owning Errand verbs**
+        - Exposed verb-owned foreign-generation confirmation and strict terminal results across close, abandon,
+          leave, partial settlement, CLI rendering, and both shipped workflow copies, with retired locator fields
+          contained behind the public boundary.
+        - Preserved phased re-entry through a narrow exact-identity compatibility seam whose old-reader tolerance is
+          removed with the retired substrate in Task 3.6.
 
 ### `[ ]` **3.2 Add immutable promotion receipts and settlement replay**
 

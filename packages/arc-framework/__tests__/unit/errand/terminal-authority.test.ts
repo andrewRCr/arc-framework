@@ -268,4 +268,27 @@ describe("Errand terminal authority", () => {
       row: null,
     });
   });
+
+  it("does not treat an unresolved entering checkout as an absent local occupancy", () => {
+    const unresolvedEntering: DerivedCheckoutRow = {
+      ...foreignEnteringRow(),
+      kind: "unresolved-checkout",
+      subject: null,
+      diagnostics: [{ code: "authority-evidence-unreadable", source: "marker", message: "bad entering marker" }],
+    };
+    const unresolvedFrame: DerivedLocusFrame = {
+      ...frame(unresolvedEntering, unresolvedEntering),
+      roster: [unresolvedEntering],
+    };
+
+    expect(authorizeErrandTerminal({
+      frame: unresolvedFrame,
+      operation: "close",
+      subject: SUBJECT,
+    })).toEqual({
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: "The entering checkout cannot prove terminal absence.",
+    });
+  });
 });

@@ -116,7 +116,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
       };
       return resolveLocusAtRuntime({
         ...common,
-        abandon: async ({ subject, key, selected, confirmedNoLiveSession }) => {
+        abandon: async ({ subject, key, generation, selected, confirmedNoLiveSession }) => {
           if (subject !== "errand") {
             return createLocusMutationResult({
               outcome: "refused",
@@ -127,6 +127,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
           }
           return abandonOrdinaryErrandAtRuntime({
             slug: key, protection: "full", base: common.base, identity, exec: io.exec, execInput, selected,
+            confirmForeignGeneration: generation ?? undefined,
             readFrame: () => runDerivedLocusStateProbe({
               cwd, identity, baseBranch: common.base, exec: io.exec,
             }),

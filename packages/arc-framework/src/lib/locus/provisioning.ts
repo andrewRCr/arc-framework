@@ -313,6 +313,16 @@ async function applyRecordGeneration(
       options.dependencies.replaceRecord(lock.recordPath, expectedBytes, record, lock),
   };
   try {
+    const retiredCompatibility = await retireMarkerOwnedCompatibilityRecord({
+      authority,
+      retiredIdentity: options.retiredCompatibilityIdentity,
+      checkoutPath,
+      lock,
+      dependencies: options.dependencies,
+    });
+    if (retiredCompatibility === "generation-mismatch") {
+      return refused("role-conflict", evidenceFor(spawn, primary, null, checkoutPath));
+    }
     const role = await mintDurableLocusRole({
       recordId: lock.recordId,
       checkoutPath,
@@ -392,6 +402,34 @@ async function applyRecordGeneration(
     }
     return failure(error, evidenceFor(spawn, primary, null, checkoutPath));
   }
+}
+
+async function retireMarkerOwnedCompatibilityRecord(options: {
+  readonly authority: LocusRoleAuthority;
+  readonly retiredIdentity?: ProvisionTransientLocusOptions["retiredCompatibilityIdentity"];
+  readonly checkoutPath: string;
+  readonly lock: ProvisioningRecordLock;
+  readonly dependencies: ProvisionTransientLocusOptions["dependencies"];
+}): Promise<"ready" | "generation-mismatch"> {
+  const retiredIdentity = options.retiredIdentity;
+  if (options.authority.kind !== "identity"
+    || options.authority.identity.kind !== "errand"
+    || options.authority.identity.purpose !== "errand"
+    || retiredIdentity?.kind !== "errand"
+    || retiredIdentity.purpose !== "errand"
+    || (retiredIdentity.state !== "paused" && retiredIdentity.state !== "awaiting-merge")
+    || retiredIdentity.key !== options.authority.identity.key
+    || retiredIdentity.claimId !== options.authority.identity.claimId) return "ready";
+  const existing = await options.dependencies.readRecord(options.lock.recordPath, options.lock);
+  if (existing.kind !== "valid") return "ready";
+  const role = existing.record.role;
+  if (existing.record.checkoutPath !== options.checkoutPath
+    || role.kind !== "errand"
+    || role.subject.kind !== "errand"
+    || role.subject.key !== options.authority.identity.key
+    || role.subject.claimId !== options.authority.identity.claimId) return "ready";
+  const removed = await options.dependencies.removeRecord(options.lock.recordPath, existing.bytes, options.lock);
+  return removed.kind === "removed" ? "ready" : "generation-mismatch";
 }
 
 async function acquire(

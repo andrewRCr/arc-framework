@@ -10,6 +10,7 @@ import {
   formatErrandPromoteResult,
 } from "../../../src/handlers/errand.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
 const refusal = createLocusMutationResult({
   outcome: "refused",
@@ -19,9 +20,12 @@ const refusal = createLocusMutationResult({
 });
 
 describe("errand leave result rendering", () => {
-  const leaveRefusal = createLocusMutationResult({
+  const leaveRefusal = createErrandTerminalResult({
     outcome: "refused",
     operation: "errand-leave",
+    subject: null,
+    checkoutPath: null,
+    generation: null,
     reason: "preservation-unproven",
     recommendedPromptText: "Push the exact Errand head before leaving.",
   });
@@ -32,7 +36,7 @@ describe("errand leave result rendering", () => {
     expect(json).toMatchObject({ stream: "stdout", exitCode: 1 });
     expect(formatErrandLeaveResult(leaveRefusal, false)).toEqual({
       stream: "stderr",
-      text: "Refused [preservation-unproven]: Push the exact Errand head before leaving.",
+      text: "Push the exact Errand head before leaving.",
       exitCode: 1,
     });
   });
@@ -132,17 +136,14 @@ describe("errand link result rendering", () => {
 
 describe("errand abandon result rendering", () => {
   it("uses the shared result renderer in JSON and human modes", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandTerminalResult({
       outcome: "idempotent",
       operation: "errand-abandon",
-      allocation: null,
-      recordId: null,
-      leaseId: null,
-      activeLocusPath: null,
-      sessionHomePath: null,
-      identity: null,
-      originEntry: null,
-      restoredParent: null,
+      subject: null,
+      generation: null,
+      checkoutPath: null,
+      parentCheckoutPath: null,
+      settlement: { kind: "capture", disposition: "absent", originEntry: null },
       nextOffer: null,
       recommendedPromptText: "Already abandoned.",
     });

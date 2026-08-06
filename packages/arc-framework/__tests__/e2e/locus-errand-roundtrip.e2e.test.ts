@@ -151,8 +151,18 @@ describe("ordinary Errand promotion", () => {
       expect(left).toMatchObject({
         outcome: "applied",
         operation: "errand-leave",
-        identity: { state: "awaiting-merge" },
+        subject: { kind: "errand", slug, claimId: expect.any(String) },
+        generation: expect.any(String),
+        settlement: {
+          kind: "identity-tail",
+          state: "awaiting-merge",
+          changeRequest: expect.any(Object),
+        },
       });
+      expect(left).not.toHaveProperty("identity");
+      expect(left).not.toHaveProperty("recordId");
+      expect(left).not.toHaveProperty("leaseId");
+      expect(left).not.toHaveProperty("sessionHomePath");
       expect(materialized).toMatchObject({
         outcome: "applied",
         operation: "errand-materialize",
@@ -259,9 +269,20 @@ describe("ordinary Errand promotion", () => {
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
       expect(sequence.results).toMatchObject([
         { outcome: "applied", operation: "errand-open", identity: { state: "open" } },
-        { outcome: "applied", operation: "errand-leave", identity: { state: "awaiting-merge" } },
+        {
+          outcome: "applied",
+          operation: "errand-leave",
+          subject: { kind: "errand", slug, claimId: expect.any(String) },
+          generation: expect.any(String),
+          settlement: {
+            kind: "identity-tail",
+            state: "awaiting-merge",
+            changeRequest: expect.any(Object),
+          },
+        },
         { outcome: "applied", operation: "errand-open", identity: { state: "open", changeRequest: null } },
       ]);
+      expect(sequence.results[1]).not.toHaveProperty("identity");
       await expect(readFile(join(repository, ".arc", "active", `meta-${slug}.md`))).rejects.toThrow();
       await expect(readFile(join(repository, ".arc", "active", `tasks-${slug}.md`))).rejects.toThrow();
       await expect(readFile(
