@@ -142,13 +142,12 @@ export const CurrentHuskAdvisoryViewSchema = z
   })
   .loose();
 
-const LOCUS_VETO_REASONS = ["locus-occupied", "locus-unverified"] as const;
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("removable") }).loose(),
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "user-surfaces", "unmerged", ...LOCUS_VETO_REASONS]),
+      reason: z.enum(["uncommitted", "user-surfaces", "unmerged"]),
     })
     .loose(),
   z.object({ action: z.literal("external") }).loose(),
@@ -158,7 +157,7 @@ const HuskCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch", ...LOCUS_VETO_REASONS]),
+      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch"]),
     })
     .loose(),
   z

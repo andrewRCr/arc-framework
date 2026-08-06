@@ -65,6 +65,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
   const ctx: ReconcileWorkUnitWorktreeContext = {
     exec,
     chdir: (dir) => events.push(["chdir", dir]),
+    serializeWorktreeOperation: async (_checkoutPath, operation) => operation(),
     fs: {
       pathExists: async () => false,
       directoryExists: async (path) => {
@@ -724,15 +725,18 @@ describe("reconcileWorkUnitWorktree — rename move", () => {
 });
 
 describe("reconcileWorkUnitWorktree — teardown", () => {
-  const clearOccupancy = {
+  const clearSelection = (path: string) => ({
     kind: "clear" as const,
-    recordId: null,
-    leaseId: null,
-    leaseState: "absent" as const,
-    recordGeneration: null,
-    lockGeneration: null,
+    checkout: {
+      path,
+      head: "2".repeat(40),
+      branch: "feat/demo",
+      detached: false,
+      primary: false,
+    },
+    subject: { kind: "work-unit" as const, name: "demo" },
     markerGeneration: null,
-  };
+  });
 
   it("removes an oracle-approved husk from outside after reconciling final user surfaces", async () => {
     const worktreePath = "/work/wt/demo";
@@ -831,11 +835,10 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       if (args[0] === "status" && statusReads++ > 0) return { stdout: " M changed.ts" };
       return await baseExec(command, args, options);
     };
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -844,9 +847,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: "/work/primary",
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/dirty worktree/iu);
     expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -856,11 +857,10 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const worktreePath = "/work/wt/demo";
     const { ctx, events } = buildCtx({ worktreeList: porcelain("/work/primary", worktreePath) });
     ctx.readCurrentLocus = () => `${worktreePath}/nested`;
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -869,9 +869,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: "/work/primary",
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/current worktree/iu);
     expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -902,12 +900,11 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const worktreePath = "/work/wt/demo";
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         expect(events).toContainEqual(["chdir", primary]);
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -916,9 +913,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: join(worktreePath, "packages/arc-framework"),
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).resolves.toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
     expect(events).toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -930,16 +925,14 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
     ctx.fs.pathExists = async (path) => path === worktreePath;
-    ctx.teardownLocus = { retire: async () => { throw new Error("lock refused"); } };
+    ctx.teardownWorktree = { retire: async () => { throw new Error("lock refused"); } };
 
     await expect(reconcileWorkUnitWorktree(ctx, {
       mutation: "teardown",
       worktreePath,
       currentLocus,
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/lock refused/iu);
     expect(events).toContainEqual(["chdir", primary]);
@@ -951,7 +944,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const currentLocus = join(worktreePath, "packages/arc-framework");
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
@@ -964,9 +957,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus,
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(new RegExp(`role pop failed; process locus remains at ${primary}`, "u"));
     expect(events.filter(([event]) => event === "chdir")).toEqual([["chdir", primary]]);

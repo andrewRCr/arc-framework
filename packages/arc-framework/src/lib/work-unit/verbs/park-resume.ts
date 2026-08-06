@@ -515,7 +515,12 @@ async function parkActive(
   // The pointer is valid before teardown. The teardown clean guard then gates
   // every filesystem effect, so dirty work still rejects without a pointer.
   try {
-    await ctx.executor.reconcileWorkUnitWorktree({ mutation: "teardown", worktreePath, currentLocus, wuName: name });
+    await ctx.executor.reconcileWorkUnitWorktree({
+      mutation: "teardown",
+      worktreePath,
+      currentLocus,
+      subject: { kind: "work-unit", name },
+    });
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }

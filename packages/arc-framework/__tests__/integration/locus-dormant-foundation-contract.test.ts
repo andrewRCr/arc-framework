@@ -46,10 +46,14 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
   "src/lib/locus/derived-roster.ts": [
     "src/lib/errand/promote-runtime.ts",
     "src/lib/errand/terminal-authority.ts",
+    "src/lib/git/in-flight-derivation.ts",
     "src/lib/handoff/locus-plan.ts",
     "src/lib/locus/derived-reader.ts",
     "src/lib/locus/session-guidance.ts",
     "src/lib/recover/locus-context.ts",
+    "src/lib/session-init/locus-classification.ts",
+    "src/lib/session-init/orphan-branch-sweep.ts",
+    "src/lib/session-init/stale-worktree-sweep.ts",
   ],
   "src/lib/locus/occupancy-marker.ts": [
     "src/lib/locus/derived-evidence.ts",
@@ -98,6 +102,8 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/unit/locus/derived-roster.test.ts",
     "__tests__/unit/recover/audit.test.ts",
     "__tests__/unit/recover/locus-context.test.ts",
+    "__tests__/unit/session-init/locus-classification.test.ts",
+    "__tests__/unit/session-init/stale-worktree-sweep.test.ts",
   ],
   "src/lib/locus/occupancy-marker.ts": [
     "__tests__/unit/locus/derived-lifecycle-evidence.test.ts",

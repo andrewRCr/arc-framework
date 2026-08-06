@@ -422,7 +422,7 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Migrated lifecycle callers never invoke attach, heartbeat, locus-lock, or process-inspector dependencies.
         - Any remaining record producer is reachable only from an explicitly unmigrated rename or teardown path.
 
-### `[ ]` **3.4 Replace locus-backed worktree rename with marker and topology authority**
+### `[x]` **3.4 Replace locus-backed worktree rename with marker and topology authority**
 
 - _Goal:_ Worktree rename preserves serialization, exact race detection, physical move ordering, and rollback using
   topology plus marker generation rather than records or lease liveness.
@@ -431,64 +431,36 @@ and cleanup onto marker, identity, lifecycle, and git authority before the retir
         - Replaced record and lease snapshots with exact pre/under-lock/post topology plus marker generations,
           retaining only role-conflict, roster-changed, and generation-changed refusals.
 
-    - `[ ]` **3.4.b Preserve the physical move transaction**
-        - Reuse the existing advisory-lock primitive at the single canonical
-          `<git-common-dir>/arc-worktree-operation.lock` path shared with teardown. Its holder bookkeeping and
-          stale-holder handling supply bounded serialization only and never role, occupancy, liveness, confirmation,
-          or destructive authority.
-        - Acquire no per-path lock set: the one repository-wide mutex serializes rename-versus-rename and
-          rename-versus-teardown without a lock-ordering protocol.
-        - Retain `git worktree move` ordering, deferred rename marker behavior, post-move path proof, and rollback,
-          re-deriving topology, marker generation, subject, and exact `HEAD` under the mutex.
-        - Do not sweep sibling markers to rewrite stale warm-parent paths.
+    - `[x]` **3.4.b Preserve the physical move transaction**
+        - Bound rename and teardown to the one Git-common advisory mutex, retaining exact topology, marker, `HEAD`,
+          move-order, rollback, and deferred-self-move proofs without treating lock ownership as authority or
+          rewriting sibling parent markers.
 
     - `[x]` **3.4.c Migrate rename callers and results**
         - Replaced `rename-locus.ts` with the marker/topology transaction and migrated rename coordinates, verb,
           command, handler, result, integration, E2E, and unit consumers without a compatibility surface.
 
-    - Build `test-first` (one behavior at a time):
-        - Inject roster and marker-generation races at each transaction boundary.
-        - Prove rename and teardown contend on the same Git-common mutex and a timeout changes no authority evidence
-          or checkout state.
-        - Refuse any mismatch before physical mutation.
-        - Roll back exact marker/path state on move or post-move failure.
-        - Leave a stale parent path untouched for recovery's non-destructive fallback.
-
-### `[ ]` **3.5 Remove lease vetoes while retaining teardown and cleanup guards**
+### `[x]` **3.5 Remove lease vetoes while retaining teardown and cleanup guards**
 
 - _Goal:_ Teardown and cleanup remain confirmation-gated and least-destructive with physical retirement serialized
   and every git, provenance, marker-generation, and lifecycle guard retained except lease-derived occupancy.
 
-    - `[ ]` **3.5.a Rebase teardown selection and cleanup planning on derived roster facts**
-        - Replace `teardown-occupancy.ts` record/lease selection with exact subject, topology, marker generation, and
-          checkout evidence; remove record, lease, record-generation, and locus-lock fields from the decision.
-        - Remove locus occupancy state from stale-worktree and orphan-branch planning.
-        - Retain `locusOwnsBranch` and `locusWorkUnitAtPath` against the derived roster and delete
-          `locusOccupancyAtPath` plus its state parameter.
+    - `[x]` **3.5.a Rebase teardown selection and cleanup planning on derived roster facts**
+        - Replaced record/lease occupancy with exact checkout, subject, and marker-byte selection; moved cleanup and
+          in-flight branch ownership to the derived roster and removed occupancy vetoes and their public reasons.
 
-    - `[ ]` **3.5.b Migrate the physical teardown transaction**
-        - Replace `teardown-locus.ts` record lock, record removal, lease check, and process-anchor transaction with the
-          same `<git-common-dir>/arc-worktree-operation.lock` advisory mutex used by rename.
-        - Revalidate exact topology, marker generation, subject, and `HEAD` under the mutex before retirement; keep
-          rollback and caller composition in teardown, reconciliation cleanup, and decomposition-local cleanup.
+    - `[x]` **3.5.b Migrate the physical teardown transaction**
+        - Replaced record-pop retirement with the shared Git-common transaction, reselecting exact topology, marker,
+          subject, and `HEAD` under the mutex and immediately before mutation across teardown, lifecycle rollback,
+          reconciliation, and decomposition cleanup.
 
-    - `[ ]` **3.5.c Preserve each destructive authorization input**
-        - Keep shipped/retired evidence, clean worktree, exact expected `HEAD`, ancestry or remote proof, marker
-          provenance, lifecycle-location match, and dirty-worktree refusal.
-        - Keep confirmation separate from every evidence guard.
+    - `[x]` **3.5.c Preserve each destructive authorization input**
+        - Retained shipped/retired evidence, cleanliness, exact `HEAD`, ancestry/remote proof, marker provenance,
+          lifecycle location, user-surface safety, and confirmation as independent non-overriding guards.
 
-    - `[ ]` **3.5.d Contain degraded sibling cleanup evidence**
-        - Convert unreadable sibling facts to diagnostics or suppressed offers, never permission or a stop for the
-          current checkout.
-
-    - Build `test-first` (one behavior at a time):
-        - An otherwise identical candidate has the same offer regardless of former lease shape.
-        - Each retained guard independently suppresses or refuses destruction.
-        - Confirmation cannot override dirty, `HEAD`, ancestry, provenance, or lifecycle failure.
-        - Marker/topology generation races refuse under the operation mutex before physical removal.
-        - Rename and teardown of the same or different checkouts serialize through the one repository-wide mutex;
-          lock acquisition alone never makes a target eligible.
-        - A malformed sibling does not affect healthy checkout-local teardown.
+    - `[x]` **3.5.d Contain degraded sibling cleanup evidence**
+        - Converted unreadable or malformed detached sibling markers to notices unless explicitly targeted, so they
+          neither authorize cleanup nor block a healthy exact local teardown.
 
 ### `[ ]` **3.6 Stop all retired-state production and remove the cutover seam**
 

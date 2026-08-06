@@ -139,9 +139,8 @@ import {
 } from "../lib/session-init/materializable-work-units.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
-import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
-import { createNodeTeardownOccupancyReader } from "../lib/work-unit/teardown-occupancy.js";
-import { createNodeTeardownLocusDriver } from "../lib/work-unit/teardown-locus.js";
+import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
@@ -2017,9 +2016,8 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
-  const readLocusOccupancy = createNodeTeardownOccupancyReader({ exec, identity: base.identity });
-  const teardownLocus = createNodeTeardownLocusDriver({ exec, identity: base.identity });
-  const workUnitLocus = createNodeWorkUnitLocusDriver({ exec, identity: base.identity });
+  const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
+  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
@@ -2029,8 +2027,8 @@ export async function handleTeardown(
         chdir: (dir) => { process.chdir(dir); locus = dir; },
         readCurrentLocus: () => locus,
         readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-        readLocusOccupancy,
-        teardownLocus,
+        readTeardownSelection,
+        teardownWorktree,
       },
       { branch: branchArg, base: baseBranch },
     );
@@ -2067,9 +2065,8 @@ export async function handleTeardown(
         },
         chdir: (dir) => { process.chdir(dir); locus = dir; },
         readCurrentLocus: () => locus,
-        workUnitLocus,
-        readLocusOccupancy,
-        teardownLocus,
+        readTeardownSelection,
+        teardownWorktree,
       },
     );
     if (decomposition.status === "refused") {
@@ -2112,9 +2109,8 @@ export async function handleTeardown(
       chdir: (dir) => { process.chdir(dir); locus = dir; },
       readCurrentLocus: () => locus,
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-      workUnitLocus,
-      readLocusOccupancy,
-      teardownLocus,
+      readTeardownSelection,
+      teardownWorktree,
     },
     {
       name: wuName ?? "",

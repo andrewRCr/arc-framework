@@ -12,11 +12,6 @@
  * decision (removable / blocked / external) — worktrees are only ever
  * surfaced, never auto-removed without the marker-gated clean-and-merged guard.
  *
- * Those predicates read the worktree, not who is on it, so every offer is first
- * vetoed by locus occupancy at that checkout: a live lease suppresses removal,
- * and occupancy whose authority is unestablished stays manual. The veto rides
- * ahead of the surface's own verdict for both branched and husk reports.
- *
  * @module
  */
 
@@ -38,7 +33,7 @@ import {
 } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
-import type { LocusStateV1 } from "../locus/schema/index.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import {
   resolvePrimaryWorktreePath,
   scanRegisteredWorktrees,
@@ -62,7 +57,7 @@ import {
   type LandedRetirementResidue,
   type RenameMoveResidue,
 } from "./lifecycle-residue-sweep.js";
-import { locusOccupancyAtPath, locusWorkUnitAtPath } from "./locus-classification.js";
+import { locusWorkUnitAtPath } from "./locus-classification.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -103,23 +98,13 @@ export function findStaleWorktreeCandidates(
   };
 }
 
-/**
- * Disposition the locus occupancy veto imposes, overriding whatever the surface's
- * own predicates concluded: `locus-occupied` for a live lease, `locus-unverified`
- * for occupancy whose authority is not established.
- */
-export type LocusVetoDecision = {
-  action: "blocked";
-  reason: "locus-occupied" | "locus-unverified";
-};
-
 /** One swept worktree paired with its marker-gated cleanup disposition. */
 export type StaleWorktreeReport =
   | {
       kind: "branched";
       worktreePath: string;
       branch: string;
-      decision: WorktreeCleanupDecision | LocusVetoDecision;
+      decision: WorktreeCleanupDecision;
     }
   | {
       kind: "husk";
@@ -129,7 +114,7 @@ export type StaleWorktreeReport =
       stampedBranch: string;
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
-      decision: HuskCleanupDecision | LocusVetoDecision;
+      decision: HuskCleanupDecision;
     };
 
 export interface StaleWorktreeSweepResult {
@@ -172,21 +157,8 @@ export interface RunStaleWorktreeSweepOptions {
     stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,
     decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
   ) => Promise<boolean>;
-  /**
-   * Complete locus projection; null suppresses cleanup offers. Required so no
-   * caller can reach a removable decision without the occupancy veto below.
-   */
-  locusState: LocusStateV1 | null;
-}
-
-/** The occupancy veto over one checkout, or null when occupancy permits the surface's own verdict. */
-function locusVeto(state: LocusStateV1, checkoutPath: string): LocusVetoDecision | null {
-  const occupancy = locusOccupancyAtPath(state, checkoutPath);
-  if (occupancy === "clear") return null;
-  return {
-    action: "blocked",
-    reason: occupancy === "suppress" ? "locus-occupied" : "locus-unverified",
-  };
+  /** Complete derived checkout roster; null suppresses cleanup offers. */
+  derivedRoster: readonly DerivedCheckoutRow[] | null;
 }
 
 /**
@@ -208,8 +180,8 @@ export async function runStaleWorktreeSweep(
   const integrationTarget = `origin/${baseBranch}`;
   const evidenceBaseRef = options.protection === "full" ? integrationTarget : baseBranch;
 
-  const locusState = options.locusState;
-  if (locusState === null) {
+  const derivedRoster = options.derivedRoster;
+  if (derivedRoster === null) {
     return { worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
@@ -230,7 +202,7 @@ export async function runStaleWorktreeSweep(
   const retainedRoleCandidates = worktreeIdentity.kind === "primary" && scan.ok
     ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
         if (entry.primary || entry.branch === null) return [];
-        const owned = locusWorkUnitAtPath(locusState, entry.path);
+        const owned = locusWorkUnitAtPath(derivedRoster, entry.path);
         return owned !== null && shipped.has(owned.name)
           ? [{ worktreePath: entry.path, branch: entry.branch }]
           : [];
@@ -243,15 +215,6 @@ export async function runStaleWorktreeSweep(
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(
     candidates.map(async (entry) => {
-      const veto = locusVeto(locusState, entry.worktreePath);
-      if (veto !== null) {
-        return {
-          kind: "branched" as const,
-          worktreePath: entry.worktreePath,
-          branch: entry.branch,
-          decision: veto,
-        };
-      }
       const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
         readMarker(entry.worktreePath),
         isWorktreeClean({ exec, cwd: entry.worktreePath }),
@@ -363,7 +326,7 @@ export async function runStaleWorktreeSweep(
         stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
           ? stamp.subject.name
           : null,
-      decision: locusVeto(locusState, entry.path) ?? decision,
+      decision,
     });
   }
 

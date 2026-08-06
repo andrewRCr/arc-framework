@@ -33,8 +33,8 @@ import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompos
 import {
   cleanupGitLandedDecompositionLocally,
 } from "../../src/lib/work-unit/git-decomposition-local-cleanup.js";
-import { createNodeTeardownLocusDriver } from "../../src/lib/work-unit/teardown-locus.js";
-import { createNodeTeardownOccupancyReader } from "../../src/lib/work-unit/teardown-occupancy.js";
+import { createNodeTeardownSelectionReader } from "../../src/lib/work-unit/teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-conflict.js";
 import { runCli } from "../helpers/run-cli.js";
@@ -1129,8 +1129,8 @@ describe("Git v3 repository plan", () => {
       exec,
       readBlob: dependencies.readObject,
       closeUserWorkspace: async () => undefined,
-      readLocusOccupancy: createNodeTeardownOccupancyReader({ exec, identity: "andrew" }),
-      teardownLocus: createNodeTeardownLocusDriver({ exec, identity: "andrew" }),
+      readTeardownSelection: createNodeTeardownSelectionReader({ exec, identity: "andrew" }),
+      teardownWorktree: createNodeTeardownWorktreeTransactionDriver({ exec, identity: "andrew" }),
     });
     expect(cleaned, JSON.stringify(cleaned)).toMatchObject({
       status: "cleaned",

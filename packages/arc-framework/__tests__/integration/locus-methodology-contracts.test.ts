@@ -187,9 +187,9 @@ describe("locus methodology contracts", () => {
       expect(init).toMatch(
         /returned `identity\.key`,\s+`identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
       );
-      expect(init).toMatch(/non-null\s+`activeLocusPath`/u);
+      expect(init).toMatch(/non-null\s+`allocation`/u);
       expect(init).toMatch(
-        /row's checkout path equals the returned `activeLocusPath` and its role subject carries the same claim ID/u,
+        /row's checkout path equals the returned `allocation\.checkoutPath` and its role subject carries the same claim ID/u,
       );
     }
   });

@@ -21,8 +21,8 @@ import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
-import { deriveTeardownMarkerGeneration } from "../../../../src/lib/work-unit/teardown-occupancy.js";
-import type { RetireCheckoutLocusOptions } from "../../../../src/lib/work-unit/teardown-locus.js";
+import type { TeardownSelection } from "../../../../src/lib/work-unit/teardown-selection.js";
+import type { RetireWorktreeOptions } from "../../../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 
 const CWD = "/repo";
@@ -233,6 +233,7 @@ function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownCon
       exec,
       indexFs: buildIndexFs(metas),
       chdir: () => {},
+      serializeWorktreeOperation: async (_checkoutPath, operation) => operation(),
       authority,
       readBlob: async (_ref, path) => {
         const content = committedFiles.get(path);
@@ -346,26 +347,35 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
   };
 }
 
-function installLockedRemoval(ctx: TeardownContext, marker: WorktreeMarker): RetireCheckoutLocusOptions[] {
-  const calls: RetireCheckoutLocusOptions[] = [];
-  ctx.readLocusOccupancy = async () => ({
-    kind: "clear",
-    recordId: null,
-    leaseId: null,
-    leaseState: "absent",
-    recordGeneration: null,
-    lockGeneration: null,
-    markerGeneration: deriveTeardownMarkerGeneration({ kind: "present", marker }),
-  });
-  ctx.teardownLocus = {
+function installLockedRemoval(ctx: TeardownContext): RetireWorktreeOptions[] {
+  const calls: RetireWorktreeOptions[] = [];
+  ctx.readTeardownSelection = async (request) => selection(request.checkoutPath, request.subject);
+  ctx.teardownWorktree = {
     retire: async (options) => {
       calls.push(options);
       await options.revalidateLocal();
       await options.retireProjection();
-      return { roleRemoved: false };
     },
   };
   return calls;
+}
+
+function selection(
+  checkoutPath: string,
+  subject: TeardownSelection["subject"],
+): TeardownSelection {
+  return {
+    kind: "clear",
+    checkout: {
+      path: checkoutPath,
+      head: checkoutPath === "/repo" ? "abc" : "def",
+      branch: checkoutPath === "/repo" ? "main" : "feat/demo",
+      detached: false,
+      primary: checkoutPath === "/repo",
+    },
+    subject,
+    markerGeneration: `sha256:${"d".repeat(64)}`,
+  };
 }
 
 function markerWithCurrentHusk(
@@ -557,86 +567,55 @@ describe("runTeardown — branch resolution", () => {
 describe("runTeardown — worktree dispatch (presence guard)", () => {
   const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
 
-  it("suppresses a live locus before removing an otherwise authorized linked worktree", async () => {
+  it("refuses unresolved selection before removing an otherwise authorized linked worktree", async () => {
     const porcelain = PRIMARY_PORCELAIN
       + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
     });
-    ctx.readLocusOccupancy = async () => ({
-      kind: "suppress",
-      reason: "lease-live",
-      message: "The teardown target has a live session lease.",
+    ctx.readTeardownSelection = async () => ({
+      kind: "manual",
+      reason: "cross-identity",
+      message: "The teardown target belongs to another identity.",
     });
 
     await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/live session lease/iu),
+      reason: expect.stringMatching(/another identity/iu),
     });
     expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
   });
 
-  it("surfaces a locus generation change from locked pre-removal revalidation", async () => {
+  it("surfaces a selection generation change from locked pre-removal revalidation", async () => {
     const porcelain = PRIMARY_PORCELAIN
       + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
     });
-    ctx.readLocusOccupancy = async () => ({
-      kind: "clear",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "a".repeat(32),
-      leaseState: "dead",
-      recordGeneration: `sha256:${"c".repeat(64)}`,
-      lockGeneration: null,
-      markerGeneration: `sha256:${"d".repeat(64)}`,
-    });
-    ctx.teardownLocus = {
-      retire: async () => { throw new Error("role or lease generation changed under lock"); },
+    ctx.readTeardownSelection = async (request) => selection(request.checkoutPath, request.subject);
+    ctx.teardownWorktree = {
+      retire: async () => { throw new Error("target selection changed under lock"); },
     };
 
     await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/generation changed under lock/iu),
+      reason: expect.stringMatching(/selection changed under lock/iu),
     });
     expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
   });
 
-  it("revalidates marker evidence inside the target-lock callback", async () => {
+  it("surfaces marker evidence failure from the serialized transaction", async () => {
     const porcelain = PRIMARY_PORCELAIN
       + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
     });
-    const marker: WorktreeMarker = {
-      spawnedByArc: true,
-      wuName: "demo",
-      createdFor: { kind: "work-unit", name: "demo" },
-      spawningIdentity: "andrew",
-      createdAt: "2026-07-21T00:00:00.000Z",
-    };
-    ctx.readLocusOccupancy = async () => ({
-      kind: "clear",
-      recordId: null,
-      leaseId: null,
-      leaseState: "absent",
-      recordGeneration: null,
-      lockGeneration: null,
-      markerGeneration: deriveTeardownMarkerGeneration({ kind: "present", marker }),
-    });
-    ctx.readMarker = async () => ({
-      kind: "present",
-      marker: { ...marker, createdAt: "2026-07-21T01:00:00.000Z" },
-    });
-    ctx.teardownLocus = {
-      retire: async (options) => {
-        await options.revalidateLocal();
-        await options.retireProjection();
-        return { roleRemoved: false };
-      },
+    ctx.readTeardownSelection = async (request) => selection(request.checkoutPath, request.subject);
+    ctx.teardownWorktree = {
+      retire: async () => { throw new Error("ownership marker generation changed under lock"); },
     };
 
     await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
@@ -660,15 +639,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       spawningIdentity: "andrew",
       createdAt: "2026-07-21T00:00:00.000Z",
     };
-    ctx.readLocusOccupancy = async () => ({
-      kind: "clear",
-      recordId: null,
-      leaseId: null,
-      leaseState: "absent",
-      recordGeneration: null,
-      lockGeneration: null,
-      markerGeneration: deriveTeardownMarkerGeneration({ kind: "present", marker }),
-    });
+    ctx.readTeardownSelection = async (request) => selection(request.checkoutPath, request.subject);
     ctx.readMarker = async () => ({ kind: "present", marker });
     const baseExec = ctx.exec;
     let insideLock = false;
@@ -679,13 +650,12 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       if (insideLock && args[0] === "ls-tree") return { stdout: "" };
       return await baseExec(command, args, options);
     };
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         insideLock = true;
         try {
           await options.revalidateLocal();
           await options.retireProjection();
-          return { roleRemoved: false };
         } finally {
           insideLock = false;
         }
@@ -707,12 +677,12 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       worktreePorcelain: porcelain,
     });
     let retired = false;
-    ctx.workUnitLocus = {
+    ctx.readTeardownSelection = async (request) => selection(request.checkoutPath, request.subject);
+    ctx.teardownWorktree = {
       retire: async (options) => {
-        expect(options).toMatchObject({ checkoutPath: "/repo", wuName: "demo" });
-        await options.removeCheckout();
+        expect(options.expectedSelection).toMatchObject({ checkout: { path: "/repo" } });
+        await options.retireProjection();
         retired = true;
-        return { recordId: "sha256:test", roleRemoved: true };
       },
     };
 
@@ -771,7 +741,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       createdAt: "2026-07-21T00:00:00.000Z",
     };
     ctx.readMarker = async () => ({ kind: "present", marker });
-    const retirementCalls = installLockedRemoval(ctx, marker);
+    const retirementCalls = installLockedRemoval(ctx);
 
     await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
       status: "torn-down",
@@ -779,12 +749,10 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     });
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
     expect(retirementCalls[0]).toMatchObject({
-      expectedHead: "def",
-      subject: { kind: "work-unit", name: "demo" },
-      expectedOccupancy: {
+      expectedSelection: {
         kind: "clear",
-        recordId: null,
-        leaseState: "absent",
+        checkout: { path: "/repo-feat-demo", head: "def" },
+        subject: { kind: "work-unit", name: "demo" },
       },
     });
   });
@@ -838,46 +806,38 @@ describe("runTeardown — linked self-husk", () => {
     );
   });
 
-  it("allows abandoned self-teardown only for the invoking session's exact lease", async () => {
+  it("selects abandoned self-teardown by exact checkout subject without lease evidence", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META], {
       branches: ["feat/demo"],
       worktreePorcelain: SELF_PORCELAIN,
     });
     enableSelfHusk(ctx);
     let request: unknown;
-    ctx.readLocusOccupancy = async (input) => {
+    ctx.readTeardownSelection = async (input) => {
       request = input;
-      return {
-        kind: "clear",
-        recordId: `sha256:${"a".repeat(64)}`,
-        leaseId: "a".repeat(32),
-        leaseState: "self",
-        recordGeneration: `sha256:${"b".repeat(64)}`,
-        lockGeneration: null,
-        markerGeneration: null,
-      };
+      return selection(input.checkoutPath, input.subject);
     };
 
     await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
       .resolves.toMatchObject({ status: "torn-down", husk: { outcome: "created" } });
-    expect(request).toMatchObject({ checkoutPath: "/repo", allowOwnLease: true });
+    expect(request).toMatchObject({ checkoutPath: "/repo", subject: { kind: "work-unit", name: "demo" } });
     expect(calls).toContainEqual(["git", "switch", "--detach", "def"]);
   });
 
-  it("still refuses an unrelated live lease during abandoned self-teardown", async () => {
+  it("refuses unrelated ownership during abandoned self-teardown", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META], {
       branches: ["feat/demo"],
       worktreePorcelain: SELF_PORCELAIN,
     });
     enableSelfHusk(ctx);
-    ctx.readLocusOccupancy = async () => ({
-      kind: "suppress",
-      reason: "lease-live",
-      message: "The teardown target has a live session lease.",
+    ctx.readTeardownSelection = async () => ({
+      kind: "manual",
+      reason: "subject-mismatch",
+      message: "The teardown target belongs to a different subject.",
     });
 
     await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
-      .resolves.toMatchObject({ status: "rejected", reason: expect.stringMatching(/live session lease/iu) });
+      .resolves.toMatchObject({ status: "rejected", reason: expect.stringMatching(/different subject/iu) });
     expect(calls).not.toContainEqual(["git", "switch", "--detach", "def"]);
   });
 
@@ -1068,6 +1028,24 @@ describe("runTeardown — detached husk replay", () => {
     if (result.status !== "torn-down") return;
     expect(result.worktreeRemoved).toBe("/repo.husk");
     expect(result.husk?.outcome).toBe("already-husked");
+    expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk"]);
+  });
+
+  it("contains a malformed sibling marker without blocking healthy local teardown", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n\n"
+      + "worktree /repo.broken\nHEAD bad\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
+    ctx.readMarker = async (path) => path === "/repo.broken"
+      ? { kind: "malformed", message: "invalid marker", path: `${path}/marker.json` }
+      : { kind: "present", marker: markerWithHusk() };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", huskPath: "/repo.husk" });
+
+    expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk" });
+    if (result.status !== "torn-down") return;
+    expect(result.notices).toContainEqual(expect.stringMatching(/skipped malformed.*repo\.broken/iu));
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk"]);
   });
 
@@ -1570,7 +1548,7 @@ describe("runBranchTeardown — recordless cheap branches", () => {
       createdAt: "2026-07-21T00:00:00.000Z",
     };
     ctx.readMarker = async () => ({ kind: "present", marker });
-    installLockedRemoval(ctx, marker);
+    installLockedRemoval(ctx);
 
     await expect(runBranchTeardown(ctx, { branch, base: "main" })).resolves.toMatchObject({
       status: "torn-down",
@@ -1644,7 +1622,7 @@ describe("runBranchTeardown — recordless cheap branches", () => {
     const { ctx, calls } = buildCtx([], { branches: [], worktreePorcelain: porcelain });
     const marker = branchMarkerWithHusk(branch);
     ctx.readMarker = async () => ({ kind: "present", marker });
-    installLockedRemoval(ctx, marker);
+    installLockedRemoval(ctx);
 
     const result = await runBranchTeardown(ctx, { branch, base: "main" });
 

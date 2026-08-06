@@ -187,13 +187,7 @@ async function startInPlace(fixture: RenameFixture): Promise<void> {
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
   const lociRoot = join(fixture.repo, ".arc", "user", "test-user", ".internal", "loci");
-  const [recordName] = (await readdir(lociRoot)).filter((name) => /^locus-[0-9a-f]{64}\.json$/u.test(name));
-  if (recordName === undefined) throw new Error("cold start did not persist its work-unit locus");
-  expect(JSON.parse(await readFile(join(lociRoot, recordName), "utf8"))).toMatchObject({
-    checkoutPath: fixture.repo,
-    role: { kind: "work-unit", subject: { kind: "work-unit", key: "old-name", claimId: null } },
-    lease: { sessionHomePath: fixture.repo, anchor: { kind: "process" } },
-  });
+  expect(await exists(lociRoot)).toBe(false);
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
   await git(fixture.repo, ["add", "."]);
   await git(fixture.repo, ["commit", "-m", "chore(test): start work unit"]);
@@ -398,7 +392,7 @@ describe("arc rename", () => {
     expect(movedMarker.renameMovePending).toBeUndefined();
   }, 30_000);
 
-  it("does not project a deferred move action from a foreign worktree marker", async () => {
+  it("refuses rename from a foreign worktree marker without projecting a move action", async () => {
     const fixture = await createFixture();
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
@@ -418,10 +412,9 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
 
-    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
-    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("role-conflict");
     expect(renamed.stdout).not.toContain("`git worktree move");
-    expect(renamed.stdout).toContain("no move action projected");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };

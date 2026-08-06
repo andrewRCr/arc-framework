@@ -554,6 +554,36 @@ export async function handleStatus(
         return null;
       }
     };
+    const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
+    const getDerivedLocusState = (
+      id: string,
+      activeExtensions: readonly string[] = [],
+    ): ReturnType<typeof runDerivedLocusStateProbe> => {
+      const key = `${id}:${JSON.stringify(activeExtensions)}`;
+      let pending = derivedLocusStatePromises.get(key);
+      if (pending === undefined) {
+        pending = (async () => {
+          const resolved = await resolvedSettingsP;
+          return runDerivedLocusStateProbe({
+            cwd,
+            identity: id,
+            baseBranch: resolved.settings["branch.base"],
+            activeExtensions,
+            exec,
+          });
+        })();
+        derivedLocusStatePromises.set(key, pending);
+      }
+      return pending;
+    };
+    const getOptionalDerivedRoster = async () => {
+      if (identity === null) return null;
+      try {
+        return (await getDerivedLocusState(identity)).roster;
+      } catch {
+        return null;
+      }
+    };
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -596,10 +626,10 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [transientRead, parkedSlugs, locusState] = await Promise.all([
+        const [transientRead, parkedSlugs, derivedRoster] = await Promise.all([
           getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         const transient = projectTransientInFlightRead(transientRead);
         const transientIndexes = transient.indexes;
@@ -614,7 +644,7 @@ export async function handleStatus(
           expectedTransientByBranch: transientIndexes.expectedByBranch,
           errandRecordsComplete: transient.complete,
           parkedSlugs,
-          locusState,
+          derivedRoster,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
@@ -642,14 +672,7 @@ export async function handleStatus(
     };
     const probes: SessionInitProbes = {
       derivedLocusState: async (id, activeExtensions) => {
-        const resolved = await resolvedSettingsP;
-        return runDerivedLocusStateProbe({
-          cwd,
-          identity: id,
-          baseBranch: resolved.settings["branch.base"],
-          activeExtensions,
-          exec,
-        });
+        return getDerivedLocusState(id, activeExtensions);
       },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -804,9 +827,9 @@ export async function handleStatus(
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const [resolved, locusState] = await Promise.all([
+        const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         return runStaleWorktreeSweep({
           roster,
@@ -818,13 +841,13 @@ export async function handleStatus(
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-          locusState,
+          derivedRoster,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
-        const [resolved, locusState] = await Promise.all([
+        const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         // Identity-carrying transient branches are excluded because their own
         // lifecycle surfaces own cleanup. An incomplete identity basis declines
@@ -840,7 +863,7 @@ export async function handleStatus(
               ? null
               : new Set(transient.indexes.slugByBranch.keys()),
           exec,
-          locusState,
+          derivedRoster,
         });
       },
       retiredSubdirs: async (id) => {
