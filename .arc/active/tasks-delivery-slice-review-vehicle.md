@@ -222,35 +222,32 @@ declared rather than hidden, and so confirmation can verify pinned objects inste
 gains an optional member-coordinate input while retaining the base ref it already writes into the target; the
 worktree-cleanliness guard is scoped to the inputs that actually read the worktree.
 
-### `[ ]` **3.1 Widen the review target kind to `delivery-member`**
+### `[x]` **3.1 Widen the review target kind to `delivery-member`**
 
 - _Goal:_ A review target can declare that it pins a member's recorded coordinates, while every ordinary target
   keeps the identity it has today.
 
-- _Rationale:_ Without a discriminator a member target is indistinguishable from an ordinary one by inspection —
-  same base ref, same shape — so confirmation would re-derive against the control branch and report every member
-  operation stale. The kind is also what makes the member-specific diff-base reading declared rather than a
-  hidden property two competent readers could miss.
+    - `[x]` **3.1.a Widen the kind on the target identity preimage and schema**
 
-    - `[ ]` **3.1.a Widen the kind on the target identity preimage and schema**
+        - `ReviewTargetKindSchema` replaces the `z.literal("change-set")` on `ReviewTargetIdPreimageSchema`, so
+          the widening reaches the input and target schemas that derive from it — one line, one exported type,
+          no branch anywhere yet.
+        - the ordinary target's identity is pinned against its literal digest rather than a recomputation, so a
+          change to the preimage's shape or field order fails the assertion instead of moving with it.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **3.1.b Carry the widened contract through registration**
 
-        - both kinds parse, and an unrecognized kind is rejected
-        - an ordinary target's id is byte-identical to the id the same inputs produce today
-        - two targets differing only by kind produce different ids
+        - both registrations already reference the widened schema objects, so neither version moved: this is a
+          contract change under a strict-current posture, and the pre-public-release posture changes it in place
+          with no compatibility alias or migration reader.
+        - coverage retrieves both schemas from a freshly composed registry rather than importing them, which is
+          what makes the registration itself the thing under test, and reproduces each kind's `targetId` from
+          the registered preimage.
 
-    - `[ ]` **3.1.b Carry the widened contract through registration**
-
-        - two registrations are in scope, not one: the target and its id preimage are registered separately, both
-          at version 2 under a strict-current posture. That makes this a contract change rather than an additive
-          one; under the pre-public-release posture it changes in place, with no compatibility alias or migration
-          reader
-
-        Build `test-first` (one behavior at a time):
-
-        - a member target round-trips through the registry
-        - registered ordinary targets are unaffected
+- _Outcome:_ Ordinary and member targets are now distinguishable by inspection and by identity, with the
+  member kind carried but not yet produced anywhere — derivation (Task 3.2) is what first sets it. Task 3.1.b
+  changes no production line; its behaviors were reconstructed against a registration narrowed back to the
+  single kind, and 3.1.a's identity pin against a preimage that rewrites the ordinary kind.
 
 ### `[ ]` **3.2 Parameterize local target derivation by optional member coordinates**
 
