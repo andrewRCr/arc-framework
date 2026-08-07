@@ -1,4 +1,4 @@
-/** Pure planning-lane policy for one canonical decomposition receipt claim. */
+/** Planning-lane policy for retirement records and one canonical decomposition receipt claim. */
 
 import { canonicalize } from "../canonical/canonical-json.js";
 import {
@@ -96,15 +96,22 @@ export async function classifyDecompositionPlanningLane(
     return { outcome: classifyPlanningLane(changeSet) };
   }
   const firstReceiptPath = receiptChanges[0]?.path ?? RETIREMENT_RECORD_NAMESPACE;
-  if (receiptChanges.length !== 1) {
-    return { outcome: "invalid-retirement", locus: firstReceiptPath };
+  const invalidShape = receiptChanges.find((change) =>
+    change.status !== "added" || change.newMode !== "100644");
+  if (invalidShape !== undefined) {
+    return { outcome: "invalid-retirement", locus: invalidShape.path };
+  }
+  if (receiptChanges.length > 1) {
+    for (const change of receiptChanges) {
+      const read = await dependencies.readReceipt(head, change.path);
+      if (read.status === "malformed" || read.status === "read") {
+        return { outcome: "invalid-retirement", locus: change.path };
+      }
+    }
+    return { outcome: "reviewed" };
   }
   const receiptChange = receiptChanges[0];
-  if (receiptChange === undefined
-    || receiptChange.status !== "added"
-    || receiptChange.newMode !== "100644") {
-    return { outcome: "invalid-retirement", locus: firstReceiptPath };
-  }
+  if (receiptChange === undefined) return { outcome: "invalid-retirement", locus: firstReceiptPath };
   const planningChanges = changeSet.changes.filter((candidate) => candidate !== receiptChange);
   if (classifyPlanningLane({ changeSet: "known", changes: planningChanges }) !== "planning") {
     return { outcome: "reviewed" };
