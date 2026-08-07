@@ -187,6 +187,25 @@ describe("analyzeSupersessionSnapshot", () => {
     });
   });
 
+  it("uses the upstream branch name when a local tracking branch was renamed", async () => {
+    const advertisedOid = "1111111111111111111111111111111111111111";
+    const supersededOid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const { exec } = buildExec({
+      cherry: { stdout: `- ${supersededOid}\n`, stderr: "" },
+    });
+
+    const result = await analyzeSupersessionSnapshot({
+      exec,
+      branch: "remote-topic",
+      snapshot: { kind: "available", scope: "all-heads", tips: { "remote-topic": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+    });
+
+    expect(result.remoteEvidence).toBe("exact");
+    expect(result.superseded).toBe(true);
+  });
+
   it("suppresses supersession when advertised branch evidence is unreachable", async () => {
     const { exec } = buildExec({});
 
@@ -224,6 +243,32 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
+  });
+
+  it("refuses analysis when advertised commit availability is unavailable", async () => {
+    const advertisedOid = "1111111111111111111111111111111111111111";
+    const { exec } = buildExec({});
+
+    await expect(analyzeSupersessionSnapshot({
+      exec,
+      branch: "feat/x",
+      snapshot: { kind: "available", scope: "exact", tips: { "feat/x": advertisedOid } },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "complete" },
+    })).rejects.toThrow("Advertised commit availability could not be inspected.");
+  });
+
+  it("refuses analysis when the advertised commit has no availability fact", async () => {
+    const advertisedOid = "1111111111111111111111111111111111111111";
+    const { exec } = buildExec({});
+
+    await expect(analyzeSupersessionSnapshot({
+      exec,
+      branch: "feat/x",
+      snapshot: { kind: "available", scope: "exact", tips: { "feat/x": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: {} },
+      history: { kind: "complete" },
+    })).rejects.toThrow("The advertised branch commit has no local availability fact.");
   });
 
   it("rejects malformed cherry output", async () => {
