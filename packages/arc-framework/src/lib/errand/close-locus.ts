@@ -1,7 +1,7 @@
 /** Exact merged-tail finalization for ordinary v3 Errands. */
 
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
@@ -249,7 +249,7 @@ async function finalizeAuthorizedClose(input: {
   return createTerminalOperationOutcome({
     outcome,
     operation: "errand-close",
-    identity: null,
+    identity: projectLocusIdentity(record),
     nextOffer: inbox.nextOffer,
     recommendedPromptText: `Finalized merged Errand '${slug}' and retired its identity.`,
   });

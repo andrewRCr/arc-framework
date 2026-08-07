@@ -10,6 +10,19 @@ import {
 
 const SUBJECT = { kind: "errand", slug: "repair", claimId: "a".repeat(32) } as const;
 const GENERATION = `errand-v1/${SUBJECT.slug}/${SUBJECT.claimId}`;
+const IDENTITY = {
+  kind: "errand" as const,
+  key: SUBJECT.slug,
+  claimId: SUBJECT.claimId,
+  protection: "full" as const,
+  branch: "chore/repair",
+  purpose: "errand" as const,
+  origin: "description" as const,
+  originEntry: null,
+  state: "open" as const,
+  savedHead: null,
+  changeRequest: null,
+};
 
 describe("Errand terminal results", () => {
   it("carries the exact foreign authority evidence in a typed confirmation result", () => {
@@ -80,7 +93,7 @@ describe("Errand terminal results", () => {
       result: createTerminalOperationOutcome({
         outcome: "applied",
         operation: "errand-close",
-        identity: null,
+        identity: IDENTITY,
         nextOffer: null,
         recommendedPromptText: "Closed Errand 'repair'.",
       }),
@@ -104,6 +117,31 @@ describe("Errand terminal results", () => {
       settlement: { kind: "capture", disposition: "removed", originEntry: "Repair capture" },
       nextOffer: null,
       recommendedPromptText: "Closed Errand 'repair'.",
+    });
+  });
+
+  it("rejects evidence projected from a different generation than runtime consumed", () => {
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
+        outcome: "applied",
+        operation: "errand-close",
+        identity: IDENTITY,
+        nextOffer: null,
+        recommendedPromptText: "Closed Errand 'repair'.",
+      }),
+      authority: null,
+      evidence: {
+        subject: { ...SUBJECT, claimId: "b".repeat(32) },
+        generation: `errand-v1/${SUBJECT.slug}/${"b".repeat(32)}`,
+        checkoutPath: "/repo/repair",
+        parentCheckoutPath: "/repo",
+        settlement: { kind: "capture", disposition: "removed", originEntry: "Repair capture" },
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { message: expect.stringContaining("runtime-consumed identity generation") },
     });
   });
 

@@ -6,6 +6,7 @@ import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { errandErrorCode, type ErrandRefusalReason } from "./result-common.js";
 import {
   authorizeErrandTerminal,
+  type ErrandTerminalAuthority,
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
@@ -36,6 +37,7 @@ export interface SettlePartialErrandRuntimeOptions {
   readonly exec: GitExec;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ErrandTerminalAuthority) => void;
   readonly settleInbox: (binding: {
     readonly originEntry: string | null;
     readonly parentCheckoutPath: string | null;
@@ -51,13 +53,25 @@ export async function settlePartialErrandAtRuntime(
   const subject: ErrandTerminalSubject = { kind: "partial-errand", slug: options.slug, claimId: null };
   const matches = frame.roster.filter((row) => row.subject?.kind === subject.kind
     && row.subject.key === subject.slug);
-  if (matches.length === 0) return success(options, "idempotent", null);
+  if (matches.length > 1) {
+    return refusal(operation, "authority-unresolved", "Multiple checkouts claim the partial Errand subject.");
+  }
+  if (matches.length === 0) {
+    return currentPrimaryProvesAbsence(frame)
+      ? success(options, "idempotent", null)
+      : refusal(
+          operation,
+          "authority-unresolved",
+          "The current primary checkout cannot prove that partial Errand occupancy is absent.",
+        );
+  }
   const authority = authorizeErrandTerminal({
     frame,
     operation: options.action,
     subject,
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return refusal(operation, "role-conflict", authority.recommendedPromptText);
   }
@@ -141,4 +155,14 @@ function failure(
 
 function primaryPath(frame: DerivedLocusFrame): string | null {
   return frame.roster.find((row) => row.checkout.primary)?.checkout.path ?? null;
+}
+
+function currentPrimaryProvesAbsence(frame: DerivedLocusFrame): boolean {
+  if (frame.entering.kind !== "selected") return false;
+  const primaryRows = frame.roster.filter((row) => row.checkout.primary);
+  const primary = primaryRows.length === 1 ? primaryRows[0] : undefined;
+  return primary !== undefined
+    && primary.kind === "free-primary"
+    && primary.markerGeneration === null
+    && frame.entering.row.checkout.path === primary.checkout.path;
 }

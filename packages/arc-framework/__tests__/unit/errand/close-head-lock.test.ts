@@ -105,6 +105,32 @@ describe("Errand close HEAD lock", () => {
     expect(runtime.files.has(LOCK_PATH)).toBe(false);
   });
 
+  it("recovers an abandoned receipt for the exact retained claim", async () => {
+    const runtime = fakeFileIO();
+    await acquire(runtime);
+
+    await expect(recoverFinalizedErrandCloseHeadLock({
+      exec: fakeGit(),
+      slug: "done",
+      claimId: "c".repeat(32),
+      fileIO: runtime.fileIO,
+    })).resolves.toEqual({ kind: "recovered" });
+    expect(runtime.files.has(LOCK_PATH)).toBe(false);
+  });
+
+  it("preserves an abandoned receipt for a different retained claim generation", async () => {
+    const runtime = fakeFileIO();
+    await acquire(runtime);
+
+    await expect(recoverFinalizedErrandCloseHeadLock({
+      exec: fakeGit(),
+      slug: "done",
+      claimId: "d".repeat(32),
+      fileIO: runtime.fileIO,
+    })).resolves.toEqual({ kind: "absent" });
+    expect(runtime.files.has(LOCK_PATH)).toBe(true);
+  });
+
   it("preserves a receipt owned by another Errand", async () => {
     const runtime = fakeFileIO();
     await acquire(runtime, "other");

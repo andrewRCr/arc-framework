@@ -52,6 +52,13 @@ export function authorizeErrandTerminal(
     };
   }
   const matches = options.frame.roster.filter((row) => sameSubject(row, options.subject));
+  if (matches.length > 1) {
+    return {
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: "Multiple checkouts claim the exact Errand subject.",
+    };
+  }
   const row = matches.length === 1 ? matches[0] : undefined;
   if (row === undefined) {
     return authorizeIdentityOnly(options);

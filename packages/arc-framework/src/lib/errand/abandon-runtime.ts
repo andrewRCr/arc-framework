@@ -25,6 +25,7 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
   readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
 }
 
@@ -90,6 +91,7 @@ async function cleanupOccupancy(
     subject: { kind: "errand", slug: record.slug, claimId: record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return { kind: "refused", reason: "role-conflict", message: authority.recommendedPromptText };
   }

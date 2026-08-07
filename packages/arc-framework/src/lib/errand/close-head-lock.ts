@@ -135,6 +135,8 @@ export async function acquireErrandCloseHeadLock(options: {
 export async function recoverFinalizedErrandCloseHeadLock(options: {
   exec: GitExec;
   slug: string;
+  /** When present, recover only a receipt for this exact still-retained claim. */
+  claimId?: string;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
@@ -277,6 +279,7 @@ async function recoverCheckoutHeadLock(options: {
   exec: GitExec;
   checkoutPath: string;
   slug: string;
+  claimId?: string;
   fileIO: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
@@ -292,6 +295,7 @@ async function recoverCheckoutHeadLock(options: {
   const receipt = parseReceipt(bytes);
   if (receipt === null
     || receipt.slug !== options.slug
+    || (options.claimId !== undefined && receipt.claimId !== options.claimId)
     || receipt.checkoutPath !== options.checkoutPath) {
     return { kind: "absent" };
   }

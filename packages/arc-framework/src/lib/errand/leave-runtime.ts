@@ -31,6 +31,7 @@ export interface LeaveOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ErrandTerminalAuthority) => void;
 }
 
 /** Run one ordinary Errand leave from identity and derived checkout authority. */
@@ -151,13 +152,15 @@ async function readAuthority(
   record: OrdinaryErrandRecord,
 ): Promise<ErrandTerminalAuthority> {
   const subject: ErrandTerminalSubject = { kind: "errand", slug: record.slug, claimId: record.claimId };
-  return authorizeErrandTerminal({
+  const authority = authorizeErrandTerminal({
     frame: await options.readFrame(),
     operation: "leave",
     subject,
     confirmForeignGeneration: options.confirmForeignGeneration,
     retryArguments: ["--state", options.state],
   });
+  options.onAuthority?.(authority);
+  return authority;
 }
 
 function authorityFailure(

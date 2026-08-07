@@ -30,7 +30,6 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/commands/status/run.ts",
     "src/commands/status/types.ts",
     "src/handlers/derived-locus-state-probe.ts",
-    "src/handlers/errand.ts",
     "src/lib/compaction-seed/emitter.ts",
     "src/lib/compaction-seed/schema.ts",
     "src/lib/errand/abandon-runtime.ts",
@@ -90,6 +89,7 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/integration/recovery-locus.test.ts",
     "__tests__/integration/status.test.ts",
     "__tests__/unit/compaction-seed/emitter.test.ts",
+    "__tests__/unit/errand/partial-settle-runtime.test.ts",
     "__tests__/unit/errand/terminal-authority.test.ts",
     "__tests__/unit/handoff/locus-plan.test.ts",
     "__tests__/unit/locus/allocator.test.ts",
@@ -102,6 +102,7 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
   ],
   "src/lib/locus/derived-roster.ts": [
     "__tests__/integration/recovery-locus.test.ts",
+    "__tests__/unit/errand/partial-settle-runtime.test.ts",
     "__tests__/unit/errand/terminal-authority.test.ts",
     "__tests__/unit/errand/terminal-occupancy.test.ts",
     "__tests__/unit/handoff/locus-plan.test.ts",

@@ -43,30 +43,15 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
   readonly removeInbox: (record: OrdinaryErrandRecord, parentCheckoutPath: string | null) => Promise<CloseInboxResult>;
 }
 
-/** Boundaries required to read the authoritative identity generation used by close dispatch. */
-export interface ReadCloseIdentityRuntimeOptions {
-  readonly slug: string;
-  readonly identity: string;
-  readonly exec: GitExec;
-  readonly execInput: GitExecInput;
-}
-
 /** Authoritative identity read outcome for close dispatch. */
-export type CloseIdentityRuntimeRead =
+type CloseIdentityRuntimeRead =
   | { kind: "ready"; record: TransientIdentityRecord | null }
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
-
-/** Reconcile local and configured-remote identity state before selecting close dispatch. */
-export async function readCloseIdentityAtRuntime(
-  options: ReadCloseIdentityRuntimeOptions,
-): Promise<CloseIdentityRuntimeRead> {
-  const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  return readReconciledCloseIdentity(io, options.slug, await configuredIdentityRemote(options.exec));
-}
 
 /** Finalize an ordinary Errand from identity, lifecycle, and derived checkout authority. */
 export async function closeOrdinaryErrandAtRuntime(
@@ -141,10 +126,11 @@ async function readReconciledCloseIdentity(
       : result.value.kind === "errand" && result.value.purpose === "errand"
         ? { slug, claimId: result.value.claimId }
         : null;
-    if (recoveryIdentity !== null && result.value === null) {
+    if (recoveryIdentity !== null) {
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
         slug: recoveryIdentity.slug,
+        ...(recoveryIdentity.claimId === undefined ? {} : { claimId: recoveryIdentity.claimId }),
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
@@ -168,6 +154,7 @@ async function readCloseOccupancy(
     subject: { kind: "errand", slug: target.record.slug, claimId: target.record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return { kind: "refused", reason: "role-conflict", message: authority.recommendedPromptText };
   }

@@ -10,6 +10,7 @@ import {
   LocusIdentityV1Schema,
   LocusOpaqueTextSchema,
   LocusTokenSchema,
+  type LocusIdentityV1,
 } from "../locus/schema/index.js";
 import type { ErrandTerminalAuthority } from "./terminal-authority.js";
 import { ErrandErrorCodeSchema, ErrandRefusalReasonSchema } from "./result-common.js";
@@ -195,6 +196,20 @@ export function completeErrandTerminalResult(
         nextOffer: options.result.nextOffer,
       });
     }
+    if (options.result.identity !== null
+      && !terminalEvidenceMatchesIdentity(options.evidence, options.result.identity)) {
+      return createErrandTerminalResult({
+        outcome: "error",
+        ...commonResult,
+        subject: null,
+        checkoutPath: null,
+        generation: null,
+        error: {
+          code: terminalHandlerErrorCode(operation),
+          message: "Terminal result evidence does not match the runtime-consumed identity generation.",
+        },
+      });
+    }
     return createErrandTerminalResult({
       outcome: options.result.outcome,
       ...commonResult,
@@ -236,6 +251,17 @@ export function completeErrandTerminalResult(
     generation: options.evidence?.generation ?? null,
     error: options.result.error,
   });
+}
+
+function terminalEvidenceMatchesIdentity(
+  evidence: NonNullable<CompleteErrandTerminalResultOptions["evidence"]>,
+  identity: LocusIdentityV1,
+): boolean {
+  if (identity.kind !== "errand" || identity.purpose !== "errand") return false;
+  return evidence.subject.kind === "errand"
+    && evidence.subject.slug === identity.key
+    && evidence.subject.claimId === identity.claimId
+    && evidence.generation === `errand-v1/${identity.key}/${identity.claimId}`;
 }
 
 function terminalHandlerErrorCode(

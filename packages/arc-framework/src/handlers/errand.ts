@@ -57,7 +57,6 @@ import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
 import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
 import {
   closeOrdinaryErrandAtRuntime,
-  readCloseIdentityAtRuntime,
 } from "../lib/errand/close-runtime.js";
 import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
@@ -71,11 +70,8 @@ import {
   type TerminalOperationOutcome,
 } from "../lib/errand/terminal-result.js";
 import {
-  authorizeErrandTerminal,
-  type ErrandTerminalOperation,
-  type ErrandTerminalSubject,
+  type ErrandTerminalAuthority,
 } from "../lib/errand/terminal-authority.js";
-import type { DerivedLocusFrame } from "../lib/locus/derived-reader.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import {
   createErrandPromotionResult,
@@ -163,17 +159,13 @@ async function runErrandEntryHandlerBoundary(
 }
 
 function prepareTerminalProjection(options: {
-  readonly frame: DerivedLocusFrame;
-  readonly operation: ErrandTerminalOperation;
-  readonly subject: ErrandTerminalSubject;
-  readonly confirmForeignGeneration?: string;
-  readonly retryArguments?: readonly string[];
+  readonly authority: ErrandTerminalAuthority | null;
   readonly settlement: NonNullable<TerminalProjection["evidence"]>["settlement"];
 }): TerminalProjection {
-  const authority = authorizeErrandTerminal(options);
+  const { authority } = options;
   return {
     authority,
-    evidence: authority.kind === "refused" ? null : {
+    evidence: authority === null || authority.kind === "refused" ? null : {
       subject: authority.subject,
       generation: authority.generation,
       checkoutPath: authority.checkoutPath,
@@ -195,41 +187,24 @@ function formatTerminalResult(
   };
 }
 
-function ordinaryTerminalIdentity(frame: DerivedLocusFrame, slug: string): OrdinaryTerminalIdentity | null {
-  if (frame.identityDiscovery.kind !== "complete") return null;
-  const matches = frame.identityDiscovery.identities.filter(
-    (candidate): candidate is OrdinaryTerminalIdentity => candidate.kind === "errand"
-      && candidate.purpose === "errand" && candidate.key === slug,
-  );
-  const identity = matches.length === 1 ? matches[0] : undefined;
-  return identity ?? null;
-}
-
-function ordinaryTerminalSubject(frame: DerivedLocusFrame, slug: string): ErrandTerminalSubject | null {
-  const rows = frame.roster.filter((row) => row.subject?.kind === "errand"
-    && row.subject.key === slug);
-  const rowSubject = rows.length === 1 ? rows[0]?.subject : undefined;
-  if (rowSubject?.kind === "errand") {
-    return { kind: "errand", slug, claimId: rowSubject.claimId };
-  }
-  const identity = ordinaryTerminalIdentity(frame, slug);
-  return identity === null ? null : { kind: "errand", slug, claimId: identity.claimId };
-}
-
 function partialCaptureSettlement(
-  frame: DerivedLocusFrame,
-  slug: string,
+  authority: ErrandTerminalAuthority | null,
   disposition: "removed" | "retained",
 ): NonNullable<TerminalProjection["evidence"]>["settlement"] {
-  const matches = frame.roster.filter((row) => row.subject?.kind === "partial-errand"
-    && row.subject.key === slug);
-  const origin = matches.length === 1 ? matches[0]?.origin ?? null : null;
+  const origin = authority?.kind === "authorized" ? authority.row?.origin ?? null : null;
   return {
     kind: "capture",
     disposition: origin === null ? "absent" : disposition,
     originEntry: origin?.entry ?? null,
     originEntrySourceDigest: origin?.sourceDigest ?? null,
   };
+}
+
+function ordinaryOutcomeIdentity(result: TerminalOperationOutcome): OrdinaryTerminalIdentity | null {
+  if ((result.outcome !== "applied" && result.outcome !== "idempotent")
+    || result.identity?.kind !== "errand"
+    || result.identity.purpose !== "errand") return null;
+  return result.identity;
 }
 
 export interface ErrandCheckOptions {
@@ -1034,8 +1009,7 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
-      const projectionFrame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
-      const subject = ordinaryTerminalSubject(projectionFrame, parsed.data.slug);
+      let observedAuthority: ErrandTerminalAuthority | null = null;
       const result = await leaveOrdinaryErrandAtRuntime({
         slug: parsed.data.slug,
         state: parsed.data.state,
@@ -1047,6 +1021,7 @@ export async function handleErrandLeave(
         execInput: io.execInput,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: parsed.data.confirmForeignGeneration,
+        onAuthority: (authority) => { observedAuthority = authority; },
       });
       const settlementIdentity = result.outcome === "applied" || result.outcome === "idempotent"
         ? result.identity
@@ -1055,12 +1030,8 @@ export async function handleErrandLeave(
         && settlementIdentity.purpose === "errand"
         ? settlementIdentity
         : null;
-      const projection = subject === null ? { authority: null, evidence: null } : prepareTerminalProjection({
-        frame: projectionFrame,
-        operation: "leave",
-        subject,
-        confirmForeignGeneration: parsed.data.confirmForeignGeneration,
-        retryArguments: ["--state", parsed.data.state],
+      const projection = prepareTerminalProjection({
+        authority: observedAuthority,
         settlement: {
           kind: "identity-tail",
           state: parsed.data.state,
@@ -1203,17 +1174,9 @@ async function runErrandCloseHandler(
   }
 
   let result: TerminalOperationOutcome;
-  let projection: TerminalProjection = { authority: null, evidence: null };
+  let observedAuthority: ErrandTerminalAuthority | null = null;
   try {
     if (protection === "partial") {
-      const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
-      projection = prepareTerminalProjection({
-        frame,
-        operation: "close",
-        subject: { kind: "partial-errand", slug, claimId: null },
-        confirmForeignGeneration: opts.confirmForeignGeneration,
-        settlement: partialCaptureSettlement(frame, slug, "removed"),
-      });
       result = await settlePartialErrandAtRuntime({
         slug,
         action: "close",
@@ -1221,6 +1184,7 @@ async function runErrandCloseHandler(
         exec: io.exec,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
+        onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
           if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
           const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
@@ -1237,76 +1201,39 @@ async function runErrandCloseHandler(
         },
       });
     } else {
-      const identityRead = await readCloseIdentityAtRuntime({
+      result = await closeOrdinaryErrandAtRuntime({
         slug,
+        base,
+        protection: "full",
         identity,
         exec: io.exec,
         execInput: io.execInput,
-      });
-      if (identityRead.kind === "refused") {
-        result = createTerminalOperationOutcome({
-          outcome: "refused",
-          operation: "errand-close",
-          reason: "identity-conflict",
-          recommendedPromptText: identityRead.reason,
-        });
-      } else if (identityRead.kind === "error") {
-        result = createTerminalOperationOutcome({
-          outcome: "error",
-          operation: "errand-close",
-          error: { code: "locus.errand-close.identity-read", message: identityRead.message },
-          recommendedPromptText: "Inspect the retained Errand identity before retrying.",
-        });
-      } else {
-        if (identityRead.record?.kind === "errand" && identityRead.record.purpose === "errand") {
-          const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
-          const record = identityRead.record;
-          projection = prepareTerminalProjection({
-            frame,
-            operation: "close",
-            subject: { kind: "errand", slug, claimId: record.claimId },
-            confirmForeignGeneration: opts.confirmForeignGeneration,
-            settlement: {
-              kind: "capture",
-              disposition: record.originEntry === null ? "absent" : "removed",
-              originEntry: record.originEntry,
-              originEntrySourceDigest: record.origin === "inbox" ? record.originEntrySourceDigest : null,
-            },
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        confirmForeignGeneration: opts.confirmForeignGeneration,
+        onAuthority: (authority) => { observedAuthority = authority; },
+        removeInbox: async (record, parentCheckoutPath) => {
+          if (record.originEntry === null) return { kind: "absent", nextOffer: null };
+          const removed = await removeCurrentInboxEntry({
+            cwd: parentCheckoutPath ?? cwd,
+            io,
+            identity,
+            title: record.originEntry,
           });
-        }
-        result = await closeOrdinaryErrandAtRuntime({
-          slug,
-          base,
-          protection: "full",
-          identity,
-          exec: io.exec,
-          execInput: io.execInput,
-          readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
-          confirmForeignGeneration: opts.confirmForeignGeneration,
-          removeInbox: async (record, parentCheckoutPath) => {
-            if (record.originEntry === null) return { kind: "absent", nextOffer: null };
-            const removed = await removeCurrentInboxEntry({
-              cwd: parentCheckoutPath ?? cwd,
-              io,
-              identity,
-              title: record.originEntry,
-            });
-            if (removed.postImage.state !== "present") {
-              return { kind: removed.removed ? "removed" : "absent", nextOffer: null };
-            }
-            const offer = resolveExecutionNextOffer({
-              content: removed.postImage.content,
-              completedTitle: record.originEntry,
-              parentCheckoutPath,
-            });
-            if (offer.kind === "refused") return offer;
-            return {
-              kind: removed.removed ? "removed" : "absent",
-              nextOffer: offer.nextOffer,
-            };
-          },
-        });
-      }
+          if (removed.postImage.state !== "present") {
+            return { kind: removed.removed ? "removed" : "absent", nextOffer: null };
+          }
+          const offer = resolveExecutionNextOffer({
+            content: removed.postImage.content,
+            completedTitle: record.originEntry,
+            parentCheckoutPath,
+          });
+          if (offer.kind === "refused") return offer;
+          return {
+            kind: removed.removed ? "removed" : "absent",
+            nextOffer: offer.nextOffer,
+          };
+        },
+      });
     }
   } catch (err) {
     result = createTerminalOperationOutcome({
@@ -1316,6 +1243,20 @@ async function runErrandCloseHandler(
       recommendedPromptText: "Inspect the retained Errand identity and exact ref evidence before retrying.",
     });
   }
+  const terminalIdentity = ordinaryOutcomeIdentity(result);
+  const projection = prepareTerminalProjection({
+    authority: observedAuthority,
+    settlement: protection === "partial"
+      ? partialCaptureSettlement(observedAuthority, "removed")
+      : {
+          kind: "capture",
+          disposition: terminalIdentity?.originEntry === null ? "absent" : "removed",
+          originEntry: terminalIdentity?.originEntry ?? null,
+          originEntrySourceDigest: terminalIdentity?.origin === "inbox"
+            ? terminalIdentity.originEntrySourceDigest
+            : null,
+        },
+  });
   emitErrandCloseResult(completeErrandTerminalResult({ result, ...projection }), opts.json === true);
 }
 
@@ -1434,17 +1375,9 @@ async function runErrandAbandonHandler(
     return;
   }
   let result: TerminalOperationOutcome;
-  let projection: TerminalProjection = { authority: null, evidence: null };
+  let observedAuthority: ErrandTerminalAuthority | null = null;
   try {
-    const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec });
     if (protection === "partial") {
-      projection = prepareTerminalProjection({
-        frame,
-        operation: "abandon",
-        subject: { kind: "partial-errand", slug: input.slug, claimId: null },
-        confirmForeignGeneration: input.confirmForeignGeneration,
-        settlement: partialCaptureSettlement(frame, input.slug, "retained"),
-      });
       result = await settlePartialErrandAtRuntime({
         slug: input.slug,
         action: "abandon",
@@ -1452,6 +1385,7 @@ async function runErrandAbandonHandler(
         exec: io.exec,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: input.confirmForeignGeneration,
+        onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
           if (binding.originEntry === null) {
             return { kind: "idempotent", nextOffer: null };
@@ -1466,23 +1400,6 @@ async function runErrandAbandonHandler(
         },
       });
     } else {
-      const terminalIdentity = ordinaryTerminalIdentity(frame, input.slug);
-      if (terminalIdentity !== null) {
-        projection = prepareTerminalProjection({
-          frame,
-          operation: "abandon",
-          subject: { kind: "errand", slug: input.slug, claimId: terminalIdentity.claimId },
-          confirmForeignGeneration: input.confirmForeignGeneration,
-          settlement: {
-            kind: "capture",
-            disposition: terminalIdentity.originEntry === null ? "absent" : "retained",
-            originEntry: terminalIdentity.originEntry,
-            originEntrySourceDigest: terminalIdentity.origin === "inbox"
-              ? terminalIdentity.originEntrySourceDigest
-              : null,
-          },
-        });
-      }
       result = await abandonOrdinaryErrandAtRuntime({
         slug: input.slug,
         protection: "full",
@@ -1492,6 +1409,7 @@ async function runErrandAbandonHandler(
         execInput: io.execInput,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: input.confirmForeignGeneration,
+        onAuthority: (authority) => { observedAuthority = authority; },
         clearExecuteBound: async (record) => {
           if (record.originEntry === null) return { kind: "idempotent" };
           const cleared = await unmarkCurrentInboxEntry({
@@ -1512,6 +1430,20 @@ async function runErrandAbandonHandler(
       recommendedPromptText: "Inspect the retained Errand identity, residue, refs, and inbox binding before retrying.",
     });
   }
+  const terminalIdentity = ordinaryOutcomeIdentity(result);
+  const projection = prepareTerminalProjection({
+    authority: observedAuthority,
+    settlement: protection === "partial"
+      ? partialCaptureSettlement(observedAuthority, "retained")
+      : {
+          kind: "capture",
+          disposition: terminalIdentity?.originEntry === null ? "absent" : "retained",
+          originEntry: terminalIdentity?.originEntry ?? null,
+          originEntrySourceDigest: terminalIdentity?.origin === "inbox"
+            ? terminalIdentity.originEntrySourceDigest
+            : null,
+        },
+  });
   emitErrandAbandonResult(completeErrandTerminalResult({ result, ...projection }), opts.json === true);
 }
 

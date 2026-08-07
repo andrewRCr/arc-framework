@@ -1,7 +1,7 @@
 /** Safety-gated ordinary-v3 Errand abandonment after local occupancy is gone. */
 
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 import {
@@ -98,7 +98,7 @@ export async function abandonOrdinaryErrand(
   return createTerminalOperationOutcome({
     outcome,
     operation: "errand-abandon",
-    identity: null,
+    identity: projectLocusIdentity(record),
     nextOffer: null,
     recommendedPromptText: `Abandoned Errand '${slug}', retained its capture, and retired its identity.`,
   });

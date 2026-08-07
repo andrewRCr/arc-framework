@@ -59,7 +59,11 @@ describe("abandonOrdinaryErrand", () => {
     });
 
     expect(events).toEqual(["cleanup", "inbox", "identity"]);
-    expect(result).toMatchObject({ outcome: "applied", operation: "errand-abandon", identity: null });
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-abandon",
+      identity: { kind: "errand", key: value.slug, claimId: value.claimId },
+    });
   });
 
   it("reports idempotent when the identity is already retired", async () => {
