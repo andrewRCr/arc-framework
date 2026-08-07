@@ -181,6 +181,7 @@ async function emit(overrides: {
     cwd: "/repo",
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
+      branch: "feat/compaction-recovery",
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
       uncommittedFiles: overrides.uncommittedFiles ?? [],
     },
@@ -411,6 +412,19 @@ describe("emitCompactionSeed", () => {
     }
   });
 
+  it("keeps the local snapshot branch when the remote-dependent worktree probe is unavailable", async () => {
+    const result = await emit({
+      envelope: {
+        worktree: { ok: false, error: new Error("remote snapshot unavailable") },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.branch).toBe("feat/compaction-recovery");
+    }
+  });
+
   it("uses currentWorkflow from the resolved active envelope without rereading the meta", async () => {
     const result = await emit({
       envelope: {
@@ -500,6 +514,7 @@ describe("emitCompactionSeed", () => {
       cwd: "/repo",
       envelope: envelope({ identity: { identity: null } }),
       gitSnapshot: {
+        branch: "feat/compaction-recovery",
         head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
         uncommittedFiles: [],
       },

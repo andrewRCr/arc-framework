@@ -459,6 +459,9 @@ export interface FetchRefBoundedOptions {
 /**
  * Bounded-fetch a candidate ref so a never-seen-locally branch's objects become
  * present and readable (the meta of a WU in flight only on another machine).
+ * Explicit acquisition disables any partial-clone filter for this fetch: the
+ * candidate's commit alone is insufficient when classification must read its
+ * tree and metadata blob without a later implicit fetch.
  * On success the fetched tip is at `FETCH_HEAD`. Degrades to `false` on timeout
  * or unreachable remote; the caller owns the resulting quality posture.
  *
@@ -467,7 +470,7 @@ export interface FetchRefBoundedOptions {
  */
 export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<boolean> {
   const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return (await runBounded(exec, ["fetch", remote, branch], timeoutMs)).ok;
+  return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs)).ok;
 }
 
 /** Inputs for {@link readMetaAtRef}. */

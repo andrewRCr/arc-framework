@@ -44,9 +44,17 @@ import type {
   WorktreeSnapshotAnalysisResult,
   WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
-import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
-import type { BaseBranchSyncStatusResult } from "../../lib/git/base-branch-sync.js";
-import type { SupersessionResult } from "../../lib/git/supersession.js";
+import type {
+  BaseDistanceSnapshotAnalysisResult,
+  BaseDistanceStatusResult,
+} from "../../lib/git/base-distance.js";
+import type {
+  BaseBranchSnapshotAnalysisResult,
+} from "../../lib/git/base-branch-sync.js";
+import type {
+  SupersessionResult,
+  SupersessionSnapshotAnalysisResult,
+} from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type {
@@ -61,7 +69,9 @@ import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-s
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { NotesCompactionSessionAdvisoryResult } from "../../lib/session-init/notes-compaction-advisory.js";
-import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
+import type {
+  MaterializableWorkUnitDiscoveryResult,
+} from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { ClassComposition } from "../../lib/status/class-composition.js";
@@ -76,6 +86,7 @@ import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
+import type { SessionRemoteContext } from "../../handlers/status-remote-context.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -83,7 +94,9 @@ export type { RecommendedAction, WorktreeIdentity };
  * Worktree slot in the session-init envelope. Extends the raw probe result
  * with a precomputed action + prompt text the workflow renders directly.
  */
-export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
+export type SessionInitWorktreeValue = (
+  WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult
+) & {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
   recommendedPromptText: string;
@@ -102,7 +115,7 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
    * `recommendedPromptText`.
    */
   supersession: SupersessionResult | null;
-}
+};
 
 /**
  * Base-distance slot in the session-init envelope. Extends the raw probe
@@ -110,11 +123,13 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
  * text pair as the worktree slot, so the workflow renders a behind-base
  * reconcile offer without re-deriving it from state.
  */
-export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
+export type SessionInitBaseDistanceValue = (
+  BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult
+) & {
   recommendedAction: RecommendedAction;
   /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
   recommendedPromptText: string;
-}
+};
 
 /**
  * Base-branch-sync slot in the session-init envelope. Extends the raw probe
@@ -124,7 +139,7 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
  * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
  * base; `skip` a current base or when this worktree holds the base.
  */
-export type SessionInitBaseBranchSyncValue = BaseBranchSyncStatusResult & {
+export type SessionInitBaseBranchSyncValue = BaseBranchSnapshotAnalysisResult & {
   recommendedAction: RecommendedAction;
   /** Composed offer text when `recommendedAction ∈ {prompt, surface}`; empty string otherwise. */
   recommendedPromptText: string;
@@ -330,7 +345,7 @@ export interface SessionInitProbeResult {
    * means the oracle ran and found none (or the remote was unreachable); absence
    * of the slot means it never ran.
    */
-  materializableWorkUnits?: Probe<MaterializableWorkUnitsResult>;
+  materializableWorkUnits?: Probe<MaterializableWorkUnitDiscoveryResult>;
   /**
    * Pre-computed work-unit completion sweep — owned in-flight (`Integrating`)
    * WUs classified across the completion tail (`awaiting-review` / `mergeable` /
@@ -576,7 +591,6 @@ export interface SessionHandoffResult {
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
-  worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
   /** Resolve the entering-checkout frame with the exact active extension set. */
@@ -584,12 +598,19 @@ export interface SessionInitProbes {
     identity: string,
     activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
+  /** Acquire the immutable request-scoped code-repository remote context. */
+  remoteContext: () => Promise<SessionRemoteContext>;
+  /** Analyze worktree sync from the supplied request context. */
+  worktree: (
+    context: SessionRemoteContext,
+  ) => Promise<WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult>;
   /** Inspect one resolved active WU through the shared read-only reconcile planner. */
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
   ) => Promise<CurrentWuReconcileSessionResult>;
   /** Inspect permitted current-user surfaces against protection-aware base evidence. */
   userReferenceReconcile: (
+    context: SessionRemoteContext,
     input: { slug: string },
   ) => Promise<UserReferenceReconcileSessionResult>;
   /**
@@ -602,27 +623,37 @@ export interface SessionInitProbes {
    * Resolve terminal husk orientation for the current linked worktree. Called
    * only when the worktree sync slot reports `branch: null`.
    */
-  currentHusk: (worktreePath: string) => Promise<CurrentHuskAdvisory | null>;
+  currentHusk: (
+    context: SessionRemoteContext,
+    worktreePath: string,
+  ) => Promise<CurrentHuskAdvisory | null>;
   /**
    * Shared base-drift analyzer in advisory mode. Session-init-only (not a
    * shared slot); the handler binds the semantic adapters, resolved base, and
    * advisory remote-sync policy.
    */
-  baseDistance: () => Promise<BaseDistanceStatusResult>;
+  baseDistance: (
+    context: SessionRemoteContext,
+  ) => Promise<BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult>;
   /**
    * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
    * (a between-WU resume is where a silently-stale local base matters). The
    * handler binds the resolved `branch.base` and remote-sync flag, mirroring the
    * base-distance probe.
    */
-  baseBranchSync: () => Promise<BaseBranchSyncStatusResult>;
+  baseBranchSync: (
+    context: SessionRemoteContext,
+  ) => Promise<BaseBranchSnapshotAnalysisResult>;
   /**
    * Patch-equal supersession detector — `git cherry` over the local-ahead set,
    * receiving the current branch from the orchestrator. Called ONLY when the
    * worktree slot resolved to `diverged` (a bounded read on the one state where
    * supersession is meaningful), so the common resume path pays nothing.
    */
-  supersession: (branch: string) => Promise<SupersessionResult>;
+  supersession: (
+    context: SessionRemoteContext,
+    branch: string,
+  ) => Promise<SupersessionResult | SupersessionSnapshotAnalysisResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
@@ -644,6 +675,7 @@ export interface SessionInitProbes {
    * ONLY on the branch-gone arm when the roster resolved.
    */
   recovery: (
+    context: SessionRemoteContext,
     roster: WorktreeRosterResult,
     currentBranch: string | null,
   ) => Promise<CascadeResolution>;
@@ -654,6 +686,7 @@ export interface SessionInitProbes {
    * roster resolved.
    */
   sweep: (
+    context: SessionRemoteContext,
     roster: WorktreeRosterResult,
     worktreeIdentity: WorktreeIdentity,
   ) => Promise<StaleWorktreeSweepResult>;
@@ -663,13 +696,19 @@ export interface SessionInitProbes {
    * Called ONLY in the primary worktree — it enumerates gone-upstream local
    * branches itself (no roster dependency).
    */
-  orphanBranchSweep: (worktreeIdentity: WorktreeIdentity) => Promise<OrphanBranchSweepResult>;
+  orphanBranchSweep: (
+    context: SessionRemoteContext,
+    worktreeIdentity: WorktreeIdentity,
+  ) => Promise<OrphanBranchSweepResult>;
   /**
    * Retired-subdir detection resolver. Receives the resolved identity and reads
    * `user/{identity}/` + `.arc/completed/` (cheap) plus a gated recent-notes
    * read. Fired in the eager phase whenever identity resolved; read-only.
    */
-  retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
+  retiredSubdirs: (
+    context: SessionRemoteContext,
+    identity: string,
+  ) => Promise<RetiredSubdirDetectionResult>;
   /**
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
    * resolves the candidate entries and the `inbox.remind_after_days` threshold,
@@ -683,7 +722,7 @@ export interface SessionInitProbes {
    * shared in-flight oracle (errand discovery derives from it), config, and
    * nudge-marker reads.
    */
-  errandState: (input: {
+  errandState: (context: SessionRemoteContext, input: {
     currentBranch: string | null;
     hasBackingMeta: boolean;
     includeDiscovery: boolean;
@@ -696,7 +735,9 @@ export interface SessionInitProbes {
    * calls this ONLY on the no-active-WU arm so the resume path pays no oracle
    * cost. An unreachable remote degrades to an empty candidate list.
    */
-  materializableWorkUnits: () => Promise<MaterializableWorkUnitsResult>;
+  materializableWorkUnits: (
+    context: SessionRemoteContext,
+  ) => Promise<MaterializableWorkUnitDiscoveryResult>;
   /**
    * Work-unit completion-sweep resolver. Receives the already-resolved roster
    * and a sharpening gate from the orchestrator; the handler binds the git
@@ -705,7 +746,7 @@ export interface SessionInitProbes {
    * no-active-WU / branch-gone); sharpening is requested only on the
    * no-active-WU arm.
    */
-  workUnitState: (input: {
+  workUnitState: (context: SessionRemoteContext, input: {
     roster: WorktreeRosterResult;
     includeSharpening: boolean;
   }) => Promise<WorkUnitStateResult>;

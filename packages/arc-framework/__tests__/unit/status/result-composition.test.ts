@@ -7,6 +7,7 @@ import {
   SessionCompositionError,
   SessionIdentityMissingError,
   SessionProbeError,
+  buildSessionRemoteContextSlot,
   gatedSlot,
   safeProbe,
   toProbe,
@@ -92,6 +93,61 @@ describe("safeProbe and gatedSlot", () => {
     expect(gatedSlot(false, "fixture", probe)).toBeUndefined();
     expect(probe).not.toHaveBeenCalled();
     expect((await gatedSlot(true, "fixture", probe)!).isOk()).toBe(true);
+  });
+});
+
+describe("session remote-context staging", () => {
+  it("passes one unreachable context identity to every dependent probe", async () => {
+    const context = {
+      kind: "unreachable" as const,
+      snapshot: { kind: "unreachable" as const, failureReason: "network" as const },
+    };
+    let acquisitions = 0;
+    const slot = buildSessionRemoteContextSlot(async () => {
+      acquisitions += 1;
+      return context;
+    });
+    const observed: unknown[] = [];
+
+    const [worktree, baseDistance] = await Promise.all([
+      slot.run("worktree", async (value) => {
+        observed.push(value);
+        return "worktree-degraded";
+      }),
+      slot.run("baseDistance", async (value) => {
+        observed.push(value);
+        return "base-degraded";
+      }),
+    ]);
+
+    expect(acquisitions).toBe(1);
+    expect(observed).toEqual([context, context]);
+    expect(worktree.isOk() && worktree.value).toBe("worktree-degraded");
+    expect(baseDistance.isOk() && baseDistance.value).toBe("base-degraded");
+  });
+
+  it("isolates one unavailable prerequisite as a runtime error on each dependent slot", async () => {
+    const slot = buildSessionRemoteContextSlot(async () => ({
+      kind: "unavailable",
+      prerequisite: "remote-configuration",
+    }));
+    const independent = safeProbe("dirty", async () => "local-clean");
+
+    const [worktree, baseDistance, dirty] = await Promise.all([
+      slot.run("worktree", async () => "must-not-resolve"),
+      slot.run("baseDistance", async () => "must-not-resolve"),
+      independent,
+    ]);
+
+    expect(worktree.isErr() && worktree.error).toMatchObject({
+      slot: "worktree",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
+      slot: "baseDistance",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(dirty.isOk() && dirty.value).toBe("local-clean");
   });
 });
 

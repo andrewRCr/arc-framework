@@ -327,7 +327,7 @@ describe("readLiveRemoteBranchTip", () => {
 describe("fetchRefBounded", () => {
   it("fetches the candidate ref with an abort signal and reports success", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
-      expect(args).toEqual(["fetch", "origin", "feat/remote-only"]);
+      expect(args).toEqual(["fetch", "--no-filter", "origin", "feat/remote-only"]);
       expect(options?.signal).toBeInstanceOf(AbortSignal);
       return { stdout: "", stderr: "" };
     });
@@ -339,7 +339,7 @@ describe("fetchRefBounded", () => {
 
   it("uses the configured remote for bounded fetches", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-      expect(args).toEqual(["fetch", "upstream", "feat/remote-only"]);
+      expect(args).toEqual(["fetch", "--no-filter", "upstream", "feat/remote-only"]);
       return { stdout: "", stderr: "" };
     });
 

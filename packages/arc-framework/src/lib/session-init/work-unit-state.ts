@@ -7,8 +7,9 @@
  * classifies them from tracked state alone — no network. A committer-date read
  * failure degrades to age 0 plus a soft warning rather than blocking the sweep.
  *
- * This is the WU-side analog of {@link runErrandState}; the mergeable-sharpening
- * tier (live PR state via an injected source) layers on top in a later step.
+ * This is the WU-side analog of {@link runErrandState}; immutable advertised
+ * base evidence supplies the behind-base overlay, while an optional live PR
+ * source sharpens the completion state.
  *
  * @module
  */
@@ -30,6 +31,7 @@ import {
   type BehindBaseRelation,
 } from "./in-flight-work-unit-sweep.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
+import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 /** Live PR disposition facts for one branch, sharpening a presence-tier leaf. */
 export type WorkUnitPrFacts = Pick<
@@ -70,6 +72,8 @@ export interface RunWorkUnitStateOptions {
   identity: string | null;
   /** Resolved `branch.base` — the integration base each WU's behind-base fact is read against. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /** Whole-day threshold for classifying an awaiting-review WU as stale. */
   staleThresholdDays: number;
   /** Once-per-day marker state for the batched `stale` nudge, threaded onto the result. */
@@ -162,14 +166,14 @@ function relationsFor(
 }
 
 /**
- * Compose the session-init work-unit completion-sweep state — presence tier.
+ * Compose the session-init work-unit completion-sweep state.
  *
  * Reads branch-tip committer dates, enumerates the operator's owned
  * `Integrating` work units from the roster, projects them onto the classifier's
  * fact shape using tracked state alone, overlays a network-free behind-base read
- * against the local `origin/<base>` ref, and classifies the completion tail. No
- * network in the presence path: every WU classifies as `awaiting-review` (or
- * `stale` past the threshold) until a PR source sharpens it.
+ * against supplied advertised evidence when present, and classifies the
+ * completion tail. Every WU remains `awaiting-review` (or `stale` past the
+ * threshold) until a PR source sharpens it.
  *
  * @param options - Git adapter, roster, identity, base branch, staleness threshold, nudge, and reference time.
  * @returns The composed work-unit completion-sweep state.
@@ -191,7 +195,9 @@ export async function runWorkUnitState(
   const warnings = [...committerDates.warnings];
 
   const sharpened = await sharpenFromPrState(facts, options.prSource, warnings);
-  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch, warnings);
+  const withBase = options.baseEvidence === undefined
+    ? await overlayBehindBase(sharpened, options.exec, options.baseBranch, warnings)
+    : await overlayBehindBaseSnapshot(sharpened, options.exec, options.baseBranch, options.baseEvidence);
   const inFlight = classifyInFlightWorkUnits({
     workUnits: withBase,
     staleThresholdDays: options.staleThresholdDays,
@@ -200,8 +206,33 @@ export async function runWorkUnitState(
   return { inFlight, nudge: options.nudge, warnings };
 }
 
+async function overlayBehindBaseSnapshot(
+  facts: readonly InFlightWorkUnitFacts[],
+  exec: GitExec,
+  baseBranch: string,
+  evidence: CleanupBaseEvidence,
+): Promise<InFlightWorkUnitFacts[]> {
+  const relations = await analyzeBehindBaseSnapshot({
+    exec,
+    branches: facts.map((fact) => fact.branch),
+    baseBranch,
+    remoteSyncEnabled: evidence.remoteSyncEnabled,
+    snapshot: evidence.snapshot,
+    objectAvailability: evidence.objectAvailability,
+    history: evidence.history,
+  });
+  return facts.map((fact) => {
+    const behindBase = relations.get(fact.branch);
+    if (behindBase === undefined) {
+      throw new Error(`Behind-base analysis omitted branch ${JSON.stringify(fact.branch)}.`);
+    }
+    return { ...fact, behindBase };
+  });
+}
+
 /**
- * Overlay each WU's behind-base fact — the integration base carries commits the
+ * Compatibility overlay for callers that have not supplied advertised evidence.
+ * The integration base carries commits the
  * branch lacks, so a merge needs the base folded in first. Reuses the shared
  * ahead/behind distance primitive against the *local* `origin/<base>` tracking
  * ref (no fetch), keeping this an always-on, network-free read. A missing base

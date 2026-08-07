@@ -3,18 +3,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { TransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
-import type { InFlightErrand, InFlightWorkUnit } from "../../../src/lib/git/in-flight-derivation.js";
 import { findMaterializableErrands } from "../../../src/lib/session-init/materializable-errands.js";
 
 const HEAD = "a".repeat(40);
-
-const errand = (over: Partial<InFlightErrand> = {}): InFlightErrand => ({
-  kind: "errand", slug: "fix-typo", branch: "chore/fix-typo", remoteOnly: true, ...over,
-});
-const wu = (): InFlightWorkUnit => ({
-  kind: "work-unit", name: "feature-x", branch: "feat/feature-x", state: "Active",
-  remoteOnly: true, dependsOn: [],
-});
 
 function paused(over: Record<string, unknown> = {}): TransientIdentityRecord {
   return {
@@ -36,12 +27,12 @@ describe("findMaterializableErrands", () => {
       },
     });
     const result = findMaterializableErrands({
-      entries: [errand(), errand({ slug: "review", branch: "chore/review" })],
       records: [paused(), awaiting],
       remoteTips: new Map([
         ["chore/fix-typo", HEAD],
         ["chore/review", "b".repeat(40)],
       ]),
+      locallyPresentBranches: new Set(),
     });
 
     expect(result.candidates).toEqual([
@@ -56,11 +47,8 @@ describe("findMaterializableErrands", () => {
     ]);
   });
 
-  it("excludes open, malformed awaiting, local, and work-unit bases", () => {
+  it("excludes open, malformed awaiting, and locally present identities", () => {
     const result = findMaterializableErrands({
-      entries: [errand(), errand({
-        slug: "local", branch: "chore/local", remoteOnly: false,
-      }), wu()],
       records: [paused({ state: "open", savedHead: null }), paused({
         state: "awaiting-merge", savedHead: null,
         changeRequest: {
@@ -69,6 +57,7 @@ describe("findMaterializableErrands", () => {
         },
       })],
       remoteTips: new Map([["chore/fix-typo", HEAD]]),
+      locallyPresentBranches: new Set(["chore/fix-typo"]),
     });
 
     expect(result.candidates).toEqual([]);
@@ -76,13 +65,12 @@ describe("findMaterializableErrands", () => {
 
   it("does not derive a recordless candidate and sorts projections stably by slug", () => {
     const result = findMaterializableErrands({
-      entries: [errand({ slug: "recordless", branch: "chore/recordless" }),
-        errand({ slug: "z", branch: "chore/z" }), errand({ slug: "a", branch: "chore/a" })],
       records: [paused({ slug: "z", branch: "chore/z" }), paused({ slug: "a", branch: "chore/a" })],
       remoteTips: new Map([
         ["chore/z", HEAD],
         ["chore/a", HEAD],
       ]),
+      locallyPresentBranches: new Set(),
     });
 
     expect(result.candidates.map((candidate) => candidate.slug)).toEqual(["a", "z"]);
@@ -90,9 +78,9 @@ describe("findMaterializableErrands", () => {
 
   it("excludes an identity whose expected head differs from the live remote tip", () => {
     const result = findMaterializableErrands({
-      entries: [errand()],
       records: [paused()],
       remoteTips: new Map([["chore/fix-typo", "b".repeat(40)]]),
+      locallyPresentBranches: new Set(),
     });
 
     expect(result.candidates).toEqual([]);

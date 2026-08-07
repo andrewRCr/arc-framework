@@ -143,6 +143,8 @@ export interface RunOrphanBranchSweepOptions {
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /**
    * Branches carrying an errand record — excluded from the sweep; the errand
    * surfaces (resume, close replay) own their cleanup. `null` when the records
@@ -184,6 +186,15 @@ export async function runOrphanBranchSweep(
   );
   if (goneBranches.length === 0) {
     return { orphans: [], remoteEvidence: "not-applicable" };
+  }
+
+  if (options.baseEvidence !== undefined) {
+    return analyzeOrphanBranchesSnapshot({
+      ...options.baseEvidence,
+      exec,
+      branches: goneBranches,
+      baseBranch,
+    });
   }
 
   const integrationTarget = `origin/${baseBranch}`;

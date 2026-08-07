@@ -10,9 +10,16 @@
  */
 
 import type { DirtyStateResult } from "../git/dirty-state.js";
-import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
-import type { BaseDistanceStatusResult } from "../git/base-distance.js";
 import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../git/worktree-sync.js";
+import type {
+  BaseDistanceSnapshotAnalysisResult,
+  BaseDistanceStatusResult,
+} from "../git/base-distance.js";
+import type {
+  BaseBranchSnapshotAnalysisResult,
   BaseBranchSyncStatusResult,
   BaseCheckoutLocus,
 } from "../git/base-branch-sync.js";
@@ -25,6 +32,10 @@ import type {
   CascadeResolution,
   SessionInitRecoveryValue,
 } from "./branch-gone-cascade.js";
+
+type SessionWorktreeStatus = WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult;
+type SessionBaseDistanceStatus = BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult;
+type SessionBaseBranchStatus = BaseBranchSyncStatusResult | BaseBranchSnapshotAnalysisResult;
 
 /**
  * Action verb the session-init workflow performs on a sync-pull channel.
@@ -113,7 +124,7 @@ export function inferBranchGoneRecovery(
 
 /** Inputs to {@link inferSessionInitRecommendations}. */
 export interface RecommendationInput {
-  worktree: WorktreeSyncStatusResult;
+  worktree: SessionWorktreeStatus;
   /** Resolved user session-init result, or null when identity missing or probe failed. */
   user: UserSessionInitStatusResult | null;
   worktreePullPolicy: WorktreePullPolicy;
@@ -184,7 +195,7 @@ export function composeMergeabilityGuidance(relation: BehindBaseRelation): strin
  * offer; the workflow swaps to it. Genuine divergence keeps the empty text.
  */
 function inferWorktree(
-  worktree: WorktreeSyncStatusResult,
+  worktree: SessionWorktreeStatus,
   policy: WorktreePullPolicy,
   dirty: DirtyStateResult,
   supersession: SupersessionResult | null,
@@ -245,7 +256,7 @@ function composeSupersessionPromptText(branch: string | null): string {
  * Returns skip when `baseDistance` is null (slot failed to resolve).
  */
 export function inferBaseDistance(
-  baseDistance: BaseDistanceStatusResult | null,
+  baseDistance: SessionBaseDistanceStatus | null,
 ): ChannelRecommendation {
   if (baseDistance === null) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
@@ -285,7 +296,7 @@ export function inferBaseDistance(
  * (slot failed to resolve).
  */
 export function inferBaseBranchSync(
-  baseBranchSync: BaseBranchSyncStatusResult | null,
+  baseBranchSync: SessionBaseBranchStatus | null,
   policy: BaseBranchSyncPullPolicy,
 ): ChannelRecommendation {
   if (baseBranchSync === null) {
@@ -293,6 +304,24 @@ export function inferBaseBranchSync(
   }
 
   const checkout = baseBranchSync.checkout;
+
+  if ("remoteEvidence" in baseBranchSync) {
+    if (baseBranchSync.remoteEvidence === "unreachable") {
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: baseBranchSync.guidance,
+      };
+    }
+    if (baseBranchSync.remoteEvidence === "not-applicable") {
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+    }
+    if (baseBranchSync.state === "remote-unavailable") {
+      if (baseBranchSync.refreshRemedy !== null) {
+        return mapBaseBranchRefreshRemedy(baseBranchSync.refreshRemedy.text, checkout, policy);
+      }
+      return { recommendedAction: "surface", recommendedPromptText: baseBranchSync.guidance };
+    }
+  }
 
   // This worktree holds the base — worktree channel owns pull, dirty, and
   // divergence for HEAD. The base-ref channel would only double-report.
@@ -317,9 +346,27 @@ export function inferBaseBranchSync(
   return mapBaseBranchSyncWhenFree(baseBranchSync, decision);
 }
 
+function mapBaseBranchRefreshRemedy(
+  remedyText: string,
+  checkout: BaseCheckoutLocus,
+  policy: BaseBranchSyncPullPolicy,
+): ChannelRecommendation {
+  if (checkout.kind === "current") {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  if (checkout.kind !== "not-checked-out" || policy === "manual") {
+    return { recommendedAction: "surface", recommendedPromptText: remedyText };
+  }
+  if (policy === "always") {
+    return { recommendedAction: "pull", recommendedPromptText: "" };
+  }
+  const promptText = remedyText.endsWith(".") ? remedyText.slice(0, -1) : remedyText;
+  return { recommendedAction: "prompt", recommendedPromptText: `${promptText}?` };
+}
+
 /** Map the inbound-pull decision when fetch-into-ref is viable. */
 function mapBaseBranchSyncWhenFree(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   decision: ReturnType<typeof decideInboundPull>,
 ): ChannelRecommendation {
   switch (decision) {
@@ -361,7 +408,7 @@ function mapBaseBranchSyncWhenFree(
  * locus could not be read). Never returns `pull` / `prompt`.
  */
 function mapBaseBranchSyncWhenCheckedOut(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
   decision: ReturnType<typeof decideInboundPull>,
 ): ChannelRecommendation {
@@ -386,7 +433,7 @@ function mapBaseBranchSyncWhenCheckedOut(
   }
 }
 
-function composeBaseBranchSyncBehindText(baseBranchSync: BaseBranchSyncStatusResult): string {
+function composeBaseBranchSyncBehindText(baseBranchSync: SessionBaseBranchStatus): string {
   const base = baseBranchSync.base;
   return (
     `Local base \`${base}\` is behind \`origin/${base}\` by ` +
@@ -395,7 +442,7 @@ function composeBaseBranchSyncBehindText(baseBranchSync: BaseBranchSyncStatusRes
 }
 
 function composeBaseBranchSyncCheckedOutText(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
 ): string {
   const behind = composeBaseBranchSyncBehindText(baseBranchSync);
@@ -413,7 +460,7 @@ function composeBaseBranchSyncCheckedOutText(
   );
 }
 
-function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusResult): string {
+function composeBaseBranchSyncDivergedText(baseBranchSync: SessionBaseBranchStatus): string {
   const base = baseBranchSync.base;
   return (
     `Local base \`${base}\` has diverged from \`origin/${base}\` ` +
@@ -555,7 +602,7 @@ function composeNotesPromptText(
 }
 
 function composeCombinedPrompt(
-  worktree: WorktreeSyncStatusResult,
+  worktree: SessionWorktreeStatus,
   dirty: DirtyStateResult,
 ): string {
   const lines = [

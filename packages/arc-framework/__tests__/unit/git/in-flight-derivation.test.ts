@@ -386,6 +386,27 @@ describe("deriveInFlight", () => {
     })).rejects.toThrow("requires complete local history");
   });
 
+  it("preserves exact base-only absence without object or graph prerequisites", async () => {
+    const baseOid = "d".repeat(40);
+    const result = await analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "shallow" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result).toMatchObject({
+      entries: [],
+      residue: [],
+      reachable: true,
+      pendingBranchCount: 0,
+    });
+  });
+
   it("returns entries with no warnings and reachable true for a healthy derivation", async () => {
     const exec = makeExec({
       metas: {

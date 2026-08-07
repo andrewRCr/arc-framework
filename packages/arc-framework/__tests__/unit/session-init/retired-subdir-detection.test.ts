@@ -94,6 +94,32 @@ describe("runRetiredSubdirDetection", () => {
 
     expect(result.candidates).toEqual(["old-wu"]);
   });
+
+  it("reads shipped state from the supplied advertised base OID", async () => {
+    const baseOid = "2".repeat(40);
+    const exec: GitExec = async (_command, args, options) => {
+      if (args[0] !== "ls-tree" || args[4] !== baseOid) {
+        throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
+      }
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      return { stdout: shippedPaths(["old-wu"]).join("\n") };
+    };
+
+    const result = await runRetiredSubdirDetection({
+      ...baseArgs,
+      exec,
+      readDir: readDirOf(["old-wu/SESSION-NOTES.md"]),
+      readFile: readFileOf({ "old-wu/SESSION-NOTES.md": "saved" }),
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result).toEqual({ candidates: ["old-wu"] });
+  });
 });
 
 describe("analyzeRetiredSubdirSnapshot", () => {

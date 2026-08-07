@@ -201,6 +201,9 @@ function makeSessionInitResult(
         behind: 0,
         base: "main",
         checkout: { kind: "not-checked-out" },
+        refreshRemedy: null,
+        guidance: null,
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
       },
@@ -421,6 +424,28 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("remote unavailable (timeout)");
+  });
+
+  it("distinguishes pending worktree evidence from remote reachability failures", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: {
+            state: "remote-unavailable",
+            ahead: 0,
+            behind: 0,
+            branch: "main",
+            remoteEvidence: "pending-fetch",
+            recommendedAction: "prompt",
+            recommendedPromptText: "Refresh branch evidence?",
+            identity: { kind: "primary" },
+            supersession: null,
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("remote object pending explicit refresh");
   });
 
   it("renders worktree branch-gone with a deleted-upstream summary", () => {

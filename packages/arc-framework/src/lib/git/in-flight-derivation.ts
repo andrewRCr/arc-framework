@@ -519,31 +519,35 @@ function resolveSuppliedSnapshotInputs(
   if (options.snapshot.kind === "available" && options.snapshot.scope !== "all-heads") {
     throw new Error("In-flight snapshot analysis requires all-heads evidence.");
   }
-  if (options.objectAvailability.kind !== "complete") {
-    throw new Error("Advertised in-flight object availability could not be inspected.");
-  }
   if (!options.localRefs.ok) throw new Error("Local in-flight refs could not be inspected.");
   if (!options.worktrees.ok) throw new Error("Local worktrees could not be inspected.");
   if (options.errandRecordsComplete === false) {
     throw new Error("Transient identity records could not be inspected completely.");
   }
-  const objectAvailability = options.objectAvailability;
 
   const errandBranches = new Set(options.errandSlugByBranch?.keys() ?? []);
   const eligibleTips = options.snapshot.kind === "available"
-    ? Object.fromEntries(Object.entries(options.snapshot.tips).filter(([branch, oid]) => {
+    ? Object.fromEntries(Object.entries(options.snapshot.tips).filter(([branch]) => {
         if (branch === (options.baseBranch ?? "main") || errandBranches.has(branch)) return false;
-        if (objectAvailability.commits[oid] === undefined) {
-          throw new Error(`Advertised branch ${branch} has no local availability fact.`);
-        }
         return true;
       }))
     : {};
-  const availableTips = Object.fromEntries(
-    Object.entries(eligibleTips).filter(([, oid]) => objectAvailability.commits[oid] === true),
-  );
-  if (Object.keys(availableTips).length > 0 && options.history.kind !== "complete") {
-    throw new Error("In-flight graph classification requires complete local history.");
+  const eligibleTipEntries = Object.entries(eligibleTips);
+  let availableTips: RefTipMap = {};
+  if (eligibleTipEntries.length > 0) {
+    if (options.objectAvailability.kind !== "complete") {
+      throw new Error("Advertised in-flight object availability could not be inspected.");
+    }
+    const commits = options.objectAvailability.commits;
+    availableTips = Object.fromEntries(eligibleTipEntries.filter(([branch, oid]) => {
+      if (commits[oid] === undefined) {
+        throw new Error(`Advertised branch ${branch} has no local availability fact.`);
+      }
+      return commits[oid];
+    }));
+    if (Object.keys(availableTips).length > 0 && options.history.kind !== "complete") {
+      throw new Error("In-flight graph classification requires complete local history.");
+    }
   }
   const pendingBranchCount = Object.keys(eligibleTips).length - Object.keys(availableTips).length;
   const eligibleBranches = new Set(Object.keys(availableTips));

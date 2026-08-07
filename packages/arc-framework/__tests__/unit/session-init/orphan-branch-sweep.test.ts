@@ -193,6 +193,39 @@ describe("runOrphanBranchSweep", () => {
     expect(invokedSubcommands).toEqual(["for-each-ref"]);
   });
 
+  it("classifies surviving orphans against the supplied advertised base OID", async () => {
+    const baseOid = "3".repeat(40);
+    const exec: GitExec = async (_command, args, options) => {
+      if (args[0] === "for-each-ref") {
+        return { stdout: `feat/shipped${NUL}gone${NUL}`, stderr: "" };
+      }
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      if (args[0] === "ls-tree" && args[4] === baseOid) {
+        return { stdout: ".arc/completed/2026-q2/01_shipped/meta-shipped.md", stderr: "" };
+      }
+      if (args[0] === "cherry" && args[1] === baseOid) return { stdout: "", stderr: "" };
+      throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
+    };
+
+    const result = await runOrphanBranchSweep({
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      errandBranches: new Set(),
+      derivedRoster: [],
+      exec,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.orphans).toEqual([
+      { branch: "feat/shipped", merged: true, shippedWorkUnit: "shipped" },
+    ]);
+  });
+
   it("partitions a mixed set — only reapable gone branches swept, verdicts attached", async () => {
     const result = await runSweep(
       {

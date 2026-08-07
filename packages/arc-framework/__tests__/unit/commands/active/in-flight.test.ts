@@ -142,7 +142,7 @@ function makeExpansionIO(opts: {
       };
     }
     if (args[0] === "fetch") {
-      const branch = args[2] ?? "";
+      const branch = args[3] ?? "";
       const fetchedOid = opts.fetchedOids?.[branch];
       if (fetchedOid === undefined) throw new Error(`fetch failed for ${branch}`);
       available.add(fetchedOid);
@@ -200,7 +200,11 @@ describe("runActiveInFlight", () => {
       candidateExpansion: { status: "complete", pendingBranchCount: 0 },
       entries: [expect.objectContaining({ kind: "work-unit", name: "remote-only", branch })],
     });
-    expect(io.exec).toHaveBeenCalledWith("git", ["fetch", "origin", branch], expect.any(Object));
+    expect(io.exec).toHaveBeenCalledWith(
+      "git",
+      ["fetch", "--no-filter", "origin", branch],
+      expect.any(Object),
+    );
   });
 
   it("reports a positive partial count when candidate fetches fail after the snapshot", async () => {
