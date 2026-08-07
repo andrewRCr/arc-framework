@@ -1,6 +1,7 @@
 /** End-to-end bounded-termination proof for interaction-capable CLI commands. */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -56,6 +57,13 @@ describe("command-input no-input matrix", () => {
         expect(stubbed.exitCode, JSON.stringify(stubbed)).toBe(0);
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: add matrix work unit"]);
+      }
+      if (entry.commandPath === "start") {
+        const origin = await mkdtemp(join(tmpdir(), "arc-command-input-origin-"));
+        repositories.push(origin);
+        await git(origin, ["init", "--bare", "--initial-branch=main"]);
+        await git(cwd, ["remote", "add", "origin", origin]);
+        await git(cwd, ["push", "-u", "origin", "main"]);
       }
       const before = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       const result = await run(cwd);

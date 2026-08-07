@@ -107,5 +107,8 @@ describe("handleErrandCheck", () => {
 
     const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
     expect(JSON.parse(output)).toMatchObject({ overlaps: [], reachable: true });
+    expect(mockRunActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      localOnly: false,
+    }));
   });
 });

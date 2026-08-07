@@ -470,6 +470,34 @@ export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<
   return (await runBounded(exec, ["fetch", remote, branch], timeoutMs)).ok;
 }
 
+/** Inputs for {@link fetchRefsBounded}. */
+export interface FetchRefsBoundedOptions {
+  /** Injectable git executor. */
+  exec: GitExec;
+  /** Remote to fetch from. Defaults to `origin`. */
+  remote?: string;
+  /** Remote branches to fetch so their objects become readable via `git show`. */
+  branches: readonly string[];
+  /** Network timeout in ms for the single invocation. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
+/**
+ * Bounded-fetch several candidate refs in one invocation, so a caller with many
+ * unavailable branches does not spawn one process per branch. The whole request
+ * shares a single timeout, and the boolean reports only whether that invocation
+ * succeeded — callers establish per-branch availability by re-reading the
+ * objects, never by trusting this result.
+ *
+ * @param options - Executor, branches to fetch, and optional timeout.
+ * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
+ */
+export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promise<boolean> {
+  const { exec, remote = DEFAULT_REMOTE, branches, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  if (branches.length === 0) return true;
+  return (await runBounded(exec, ["fetch", remote, ...branches], timeoutMs)).ok;
+}
+
 /** Inputs for {@link readMetaAtRef}. */
 export interface ReadMetaAtRefOptions {
   /** Injectable git executor. */

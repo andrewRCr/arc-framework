@@ -13,6 +13,7 @@ const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
+const mockIoExecInput = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
@@ -37,6 +38,7 @@ vi.mock("../../../src/lib/io-context.js", () => ({
     mockCreateUserIOContext(...args);
     return {
       exec: mockIoExec,
+      execInput: mockIoExecInput,
       readFile: vi.fn(async () => "meta"),
       writeFile: vi.fn(),
       mkdir: vi.fn(),
@@ -204,6 +206,13 @@ vi.mock("../../../src/lib/git/remote-ref-reader.js", () => ({
 const mockDeriveInFlight = vi.fn();
 vi.mock("../../../src/lib/git/in-flight-derivation.js", () => ({
   deriveInFlight: (...a: unknown[]) => mockDeriveInFlight(...a),
+}));
+
+const mockExpandActiveInFlight = vi.fn();
+const mockRunActiveInFlightExpansion = vi.fn();
+vi.mock("../../../src/commands/active.js", () => ({
+  expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
+  runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
@@ -427,12 +436,19 @@ beforeEach(() => {
     liveRefs: { "origin/feat/foo": "abc123" },
     reachable: true,
   });
-  mockDeriveInFlight.mockResolvedValue({
+  const completeExpansion = {
     entries: [{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }],
+    residue: [],
     warnings: [],
     snapshot: { refs: { "origin/feat/foo": "abc123" }, worktrees: {} },
+    liveRefs: { "origin/feat/foo": "abc123" },
     reachable: true,
-  });
+    pendingBranchCount: 0,
+    remoteEvidence: "exact",
+    candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+  };
+  mockExpandActiveInFlight.mockResolvedValue(completeExpansion);
+  mockRunActiveInFlightExpansion.mockResolvedValue(completeExpansion);
   mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "foo", branch: "feat/foo" }] });
 });
 
@@ -884,6 +900,19 @@ describe("handlePark", () => {
 describe("handleResume", () => {
   it("dispatches runResume with the spawn config", async () => {
     await handleResume("foo");
+    expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockIoExec,
+      execInput: mockIoExecInput,
+      identity: "andrew",
+      teamMode: false,
+      baseBranch: "main",
+    }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      oracle: expect.objectContaining({
+        acquisitionPolicy: "materialized-live",
+        suppliedResult: expect.objectContaining({ remoteEvidence: "exact" }),
+      }),
+    }));
     expect(mockRunResume).toHaveBeenCalledTimes(1);
     expect(mockRunResume.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
@@ -904,6 +933,11 @@ describe("handleMaterialize", () => {
   it("fetches the selected remote ref and dispatches runMaterialize with the spawn config", async () => {
     await handleMaterialize("foo");
 
+    expect(mockRunActiveInFlightExpansion).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockIoExec,
+      execInput: mockIoExecInput,
+      localOnly: false,
+    }));
     expect(mockIoExec).toHaveBeenCalledWith(
       "git",
       ["fetch", "origin", "+refs/heads/feat/foo:refs/remotes/origin/feat/foo"],

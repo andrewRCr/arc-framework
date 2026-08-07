@@ -415,6 +415,11 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     );
     expect(init.exitCode).toBe(0);
     await commitFixtureBypassingHooks(repo, "arc init");
+    const origin = await mkdtemp(join(tmpdir(), "arc-exit-origin-"));
+    externalDirs.push(origin);
+    await git(origin, ["init", "--bare", "--initial-branch=main"]);
+    await git(repo, ["remote", "add", "origin", origin]);
+    await git(repo, ["push", "-u", "origin", "main"]);
   });
 
   afterEach(async () => {
@@ -453,7 +458,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const remote = await mkdtemp(join(tmpdir(), "arc-decompose-remote-"));
     externalDirs.push(remote);
     await execFileAsync("git", ["init", "--bare", remote]);
-    await git(repo, ["remote", "add", "origin", remote]);
+    await git(repo, ["remote", "set-url", "origin", remote]);
 
     const hookPath = await createBuiltCliHookPath();
     externalDirs.push(hookPath.directory);
@@ -1414,7 +1419,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   it("partial-protection park landing round-trips to a stamped planning husk", async () => {
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
-    await git(repo, ["remote", "add", "origin", origin]);
+    await git(repo, ["remote", "set-url", "origin", origin]);
     await git(repo, ["push", "-u", "origin", "main"]);
     try {
       const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");

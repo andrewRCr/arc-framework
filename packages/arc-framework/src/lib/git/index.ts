@@ -149,6 +149,7 @@ export {
   readLiveRemoteHeads,
   listPrunedRemoteTrackingBranches,
   fetchRefBounded,
+  fetchRefsBounded,
   readMetaAtRef,
   type ListLiveRemoteBranchesOptions,
   type LiveRemoteHeadsResult,
@@ -158,6 +159,7 @@ export {
   type ReadLiveRemoteHeadsOptions,
   type ListPrunedRemoteTrackingBranchesOptions,
   type FetchRefBoundedOptions,
+  type FetchRefsBoundedOptions,
   type ReadMetaAtRefOptions,
 } from "./remote-ref-reader.js";
 
@@ -175,7 +177,11 @@ export {
 } from "./history-completeness.js";
 
 export {
+  analyzeInFlightSnapshot,
   deriveInFlight,
+  isEligibleInFlightBranch,
+  type AnalyzeInFlightSnapshotOptions,
+  type AnalyzeInFlightSnapshotResult,
   type DeriveInFlightOptions,
   type InFlightEntry,
   type InFlightWorkUnit,

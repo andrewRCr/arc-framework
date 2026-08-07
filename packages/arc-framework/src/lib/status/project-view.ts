@@ -169,15 +169,11 @@ export interface ProjectReadinessProspectiveInput {
   currentBranch: string;
 }
 
-/** In-flight oracle inputs for project-readiness renders. */
-export interface ProjectReadinessOracleOptions {
+/** Shared in-flight oracle inputs for project-readiness renders. */
+interface ProjectReadinessOracleOptionsBase {
   exec: GitExec;
   /** Repository checkout used to resolve repository-common candidate claims. */
   decompositionClaimCwd?: string;
-  /** `true` skips the network read and renders from last-known local refs. */
-  localOnly?: boolean;
-  /** Fetch and classify live membership branches absent from local remote-tracking refs. */
-  expandLiveOnly?: boolean;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
   /**
@@ -191,8 +187,17 @@ export interface ProjectReadinessOracleOptions {
   timeoutMs?: number;
 }
 
+/** In-flight oracle inputs with an explicit acquisition policy. */
+export type ProjectReadinessOracleOptions = ProjectReadinessOracleOptionsBase & (
+  | { acquisitionPolicy: "local"; suppliedResult?: never }
+  | { acquisitionPolicy: "passive-live"; suppliedResult?: never }
+  | { acquisitionPolicy: "materialized-live"; suppliedResult: DeriveInFlightResult }
+);
+
 /** Local-ref oracle inputs for tracked project-readiness renders. */
-export type ProjectReadinessLocalRefsOptions = Omit<ProjectReadinessOracleOptions, "localOnly">;
+export type ProjectReadinessLocalRefsOptions = ProjectReadinessOracleOptionsBase & {
+  acquisitionPolicy?: "local";
+};
 
 /** Options for the tree-backed resolver. */
 export interface ResolveProjectReadinessViewInputOptions {
@@ -596,19 +601,21 @@ async function resolveOracleCandidates(
       result: null,
     };
   }
-  const result = await deriveInFlight({
-    exec: options.exec,
-    localOnly: options.localOnly ?? false,
-    expandLiveOnly: options.expandLiveOnly ?? false,
-    baseBranch: options.baseBranch,
-    timeoutMs: options.timeoutMs,
-    identity: null,
-    teamMode: false,
-    errandSlugByBranch: options.errandSlugByBranch,
-    errandRecordsComplete: options.errandRecordsComplete,
-    parkedSlugs: options.parkedSlugs,
-    decompositionClaimCwd: options.decompositionClaimCwd,
-  });
+  const result = options.acquisitionPolicy === "materialized-live"
+    ? options.suppliedResult
+    : await deriveInFlight({
+      exec: options.exec,
+      localOnly: options.acquisitionPolicy === "local",
+      expandLiveOnly: false,
+      baseBranch: options.baseBranch,
+      timeoutMs: options.timeoutMs,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: options.errandSlugByBranch,
+      errandRecordsComplete: options.errandRecordsComplete,
+      parkedSlugs: options.parkedSlugs,
+      decompositionClaimCwd: options.decompositionClaimCwd,
+    });
   const entries = prospective === undefined && transitionOverlay === undefined
     ? result.entries
     : result.entries.filter((entry) =>
@@ -687,7 +694,7 @@ async function resolveOracleCandidates(
       });
     }
   }
-  if (!options.localOnly && !result.reachable) {
+  if (options.acquisitionPolicy !== "local" && !result.reachable) {
     sourceWarnings.unshift({
       code: "oracle-degraded",
       rendered: "Remote unreachable; rendering project view from local refs only.",
@@ -714,7 +721,7 @@ function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): Pro
   // `oracle` is the full live/local input contract; `localRefs` is only the tracked-render shorthand.
   if (options.oracle !== undefined) return options.oracle;
   if (options.localRefs === undefined) return undefined;
-  return { ...options.localRefs, localOnly: true };
+  return { ...options.localRefs, acquisitionPolicy: "local" };
 }
 
 /** Resolve the shared tree + oracle record set used by project rendering and lifecycle queries. */
