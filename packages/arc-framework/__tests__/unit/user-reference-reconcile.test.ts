@@ -12,6 +12,7 @@ import {
   resolveUserReferenceAuthority,
   runUserReferenceReconcile,
 } from "../../src/lib/user-reference-reconcile.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const BASE_OID = "b".repeat(40);
 
@@ -241,9 +242,13 @@ describe("planUserReferenceReconcile", () => {
   it("supplies exact authority after explicit full-protection materialization", async () => {
     const calls: string[][] = [];
     const authority = await materializeUserReferenceAuthority({
-      exec: async (_command, args) => {
+      exec: async (_command, args, options) => {
         calls.push(args);
-        if (args[0] === "fetch") return { stdout: "" };
+        if (args[0] === "check-ref-format") return { stdout: "" };
+        if (args[0] === "fetch") {
+          expect(options?.diagnosticLocale).toBe("stable");
+          return { stdout: "" };
+        }
         if (args[0] === "rev-parse") return { stdout: `${BASE_OID}\n` };
         throw new Error(`unexpected git invocation: ${args.join(" ")}`);
       },
@@ -256,9 +261,55 @@ describe("planUserReferenceReconcile", () => {
 
     expect(authority).toMatchObject({ status: "ready", ref: BASE_OID, remoteEvidence: "exact" });
     expect(calls).toEqual([
-      ["fetch", "origin", "main"],
+      ["check-ref-format", "refs/heads/main"],
+      ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"],
       ["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"],
     ]);
+  });
+
+  it("preserves exact remote-base absence without reading a stale tracking ref", async () => {
+    const calls: string[][] = [];
+    const result = await materializeUserReferenceAuthority({
+      exec: async (_command, args) => {
+        calls.push(args);
+        if (args[0] === "check-ref-format") return { stdout: "" };
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args,
+          exitCode: 128,
+          expectedOutcome: "absent-remote-ref",
+        });
+      },
+      protection: "full",
+      baseBranch: "main",
+      enumerateAt: () => Promise.reject(new Error("must not enumerate")),
+    });
+
+    expect(result).toEqual({
+      status: "unavailable",
+      ref: "origin/main",
+      reason: "remote-base-absent",
+      remoteEvidence: "exact",
+    });
+    expect(calls).toEqual([
+      ["check-ref-format", "refs/heads/main"],
+      ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"],
+    ]);
+  });
+
+  it("rejects an unsafe configured base before any Git invocation", async () => {
+    let invoked = false;
+    await expect(materializeUserReferenceAuthority({
+      exec: async () => {
+        invoked = true;
+        return { stdout: "" };
+      },
+      protection: "full",
+      baseBranch: "-unsafe",
+      enumerateAt: async () => ({ status: "valid", records: [] }),
+    })).rejects.toThrow("Unsafe base ref");
+    expect(invoked).toBe(false);
   });
 
   it.each([
@@ -278,6 +329,7 @@ describe("planUserReferenceReconcile", () => {
     let enumerated = false;
     const result = await materializeUserReferenceAuthority({
       exec: async (_command, args, options) => {
+        if (args[0] === "check-ref-format") return { stdout: "" };
         if (args[0] !== "fetch") throw new Error(`unexpected git invocation: ${args.join(" ")}`);
         return fail(args, options?.signal);
       },

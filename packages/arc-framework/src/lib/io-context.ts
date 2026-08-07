@@ -23,6 +23,7 @@ import {
   MAX_GIT_OUTPUT_BYTES,
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
+import { isGitObjectId } from "../lib/git/object-id.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
 
@@ -83,13 +84,17 @@ export async function readGitBlobBytes(
       ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
       execOptions,
     );
-    const stdout = decode(stdoutBytes);
-    if (stdout === "") return null;
-    const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1
-      ? /^\d+ ([0-9a-f]{40,64}) 0\t/u.exec(entries[0] ?? "")
-      : null;
-    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    if (stdoutBytes.length === 0) return null;
+    const nul = stdoutBytes.indexOf(0);
+    const tab = stdoutBytes.indexOf(9);
+    if (nul !== stdoutBytes.length - 1 || tab < 0 || tab > nul) {
+      throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    }
+    const metadata = decode(stdoutBytes.subarray(0, tab));
+    const match = /^\d+ ([0-9a-f]+) 0$/u.exec(metadata);
+    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+      throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    }
     oid = match[1];
   } else {
     const { stdout: stdoutBytes } = await exec(
@@ -99,8 +104,10 @@ export async function readGitBlobBytes(
     const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1 ? /^blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "") : null;
-    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    const match = entries.length === 1 ? /^blob ([0-9a-f]+)$/u.exec(entries[0] ?? "") : null;
+    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+      throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    }
     oid = match[1];
   }
   return (await exec(["cat-file", "blob", oid], execOptions)).stdout;
@@ -119,7 +126,7 @@ export async function readGitObjectBytes(
   oid: string,
   objectKind = "blob",
 ): Promise<Uint8Array> {
-  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) {
+  if (!isGitObjectId(oid)) {
     throw new Error("Cannot read an invalid Git object id.");
   }
   const gitObjectKind = objectKind === "gitlink"
@@ -154,7 +161,7 @@ export async function prepareGitRefVerification(
   ref: string,
   expectedOid: string,
 ): Promise<GitRefVerificationLease> {
-  if (/[\0\r\n]/u.test(ref) || !/^[0-9a-f]{40,64}$/u.test(expectedOid)) {
+  if (/[\0\r\n]/u.test(ref) || !isGitObjectId(expectedOid)) {
     throw new Error("Cannot prepare an invalid Git ref verification.");
   }
   const args = ["update-ref", "--stdin"];

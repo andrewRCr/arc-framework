@@ -16,6 +16,30 @@ import type {
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
 
+const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CONFIG",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_IMPLICIT_WORK_TREE",
+  "GIT_GRAFT_FILE",
+  "GIT_INDEX_FILE",
+  "GIT_NO_REPLACE_OBJECTS",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_PREFIX",
+  "GIT_SHALLOW_FILE",
+  "GIT_COMMON_DIR",
+]);
+
+function environmentForRawGit(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
+  );
+}
+
 /** Stable union of every affected path, including both move and copy endpoints. */
 export function affectedPaths(
   changes: readonly { path: string; previousPath?: string }[],
@@ -239,11 +263,14 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
       const effectiveArgs = options?.objectAccess === "local-only"
         ? ["--no-lazy-fetch", ...args]
         : args;
+      const effectiveCwd = options?.cwd ?? cwd;
+      const environment = environmentForRawGit();
+      const env = options?.objectAccess === "local-only"
+        ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
+        : environment;
       const child = spawn("git", effectiveArgs, {
-        cwd: options?.cwd ?? cwd,
-        ...(options?.objectAccess === "local-only"
-          ? { env: { ...process.env, GIT_NO_LAZY_FETCH: "1" } }
-          : {}),
+        cwd: effectiveCwd,
+        env,
         stdio: ["pipe", "pipe", "pipe"],
       });
       const stdout: Buffer[] = [];
@@ -259,7 +286,14 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
           resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
           return;
         }
-        reject(new Error(`git diff failed with exit code ${code ?? "unknown"}`));
+        reject(Object.assign(
+          new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`),
+          {
+            ...(code === null ? {} : { exitCode: code }),
+            stdout: stdoutBytes,
+            stderr: stderrBytes,
+          },
+        ));
       });
       child.stdin.end(options?.input);
     });

@@ -69,6 +69,20 @@ describe("change-facts executable", () => {
     await expect(access(join(repo, "should-not-exist"))).rejects.toThrow();
   });
 
+  it("lets cwd select the repository despite inherited Git-local environment", async () => {
+    const result = await execFileAsync(process.execPath, [MODULE_PATH, base, head], {
+      cwd: repo,
+      env: {
+        ...process.env,
+        GIT_DIR: join(repo, "does-not-exist"),
+        GIT_WORK_TREE: join(repo, "also-does-not-exist"),
+        GIT_INDEX_FILE: join(repo, "hostile-index"),
+      },
+    });
+
+    expect(JSON.parse(result.stdout)).toMatchObject({ changeSet: "known" });
+  });
+
   it("emits the unknown record when a coordinate cannot be resolved", async () => {
     const result = await execFileAsync(process.execPath, [MODULE_PATH, base, "missing-ref"], {
       cwd: repo,
