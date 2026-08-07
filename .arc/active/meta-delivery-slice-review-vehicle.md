@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.2 — Repository-backed default lookup implementation
-- **Next Task:** Task 2.1 — Admit the `delivery-member` variant and scope the branch-slug check (line ~71)
+- **Last Completed:** Task 2.5 — Gate merge-lock release on a member's readiness result (Phase 2 complete)
+- **Next Task:** Task 3.1 — Widen the review target kind to `delivery-member` (line ~225)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — Admit the `delivery-member` variant and scope the branch-slug check
+- **Next Action:** Begin Task 3.1 — Widen the review target kind to `delivery-member`
 
 - **PR URL:** [none]
 - **Completed:** [none]
