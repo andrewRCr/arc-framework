@@ -9,6 +9,9 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type {
   DeliveryMemberBinding,
 } from "../../src/scripts/review-gate/core/delivery-member-lookup.js";
+import type {
+  ReviewTarget,
+} from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import {
   composeDeliveryMemberTarget,
   confirmLocalReviewTarget,
@@ -323,6 +326,62 @@ describe("member-coordinate target derivation", () => {
         baseRef: "main",
         repositoryId,
         member: binding({ base: absent, head: memberSha }),
+      })).rejects.toMatchObject({ code: "invalid-input", reason: "unresolved-base" });
+    });
+  });
+
+  describe("confirmation of a member target", () => {
+    async function memberTarget(): Promise<{
+      root: string;
+      predecessorSha: string;
+      memberSha: string;
+      target: ReviewTarget;
+    }> {
+      const stack = await createStack();
+      return {
+        ...stack,
+        target: await deriveLocalReviewTarget({
+          exec,
+          cwd: stack.root,
+          baseRef: "main",
+          repositoryId,
+          memberCoordinates: { headSha: stack.memberSha, diffBaseSha: stack.predecessorSha },
+        }),
+      };
+    }
+
+    it("confirms current over a moved, dirty control checkout without re-deriving", async () => {
+      const { root, target } = await memberTarget();
+      await writeFile(join(root, "tracked.txt"), "successor\n", "utf8");
+      await git(root, "commit", "-am", "successor");
+      await writeFile(join(root, "tracked.txt"), "uncommitted\n", "utf8");
+      const recording = recordingExec();
+
+      await expect(confirmLocalReviewTarget({
+        exec: recording.exec,
+        cwd: root,
+        attemptedTarget: target,
+      })).resolves.toEqual({ state: "current", target });
+
+      const issued = recording.invocations.map((args) => args.join(" "));
+      expect(issued.some((command) => command.includes("merge-base"))).toBe(false);
+      expect(issued.some((command) => command.includes("status"))).toBe(false);
+      expect(issued.some((command) => command.includes("HEAD"))).toBe(false);
+    });
+
+    it("refuses a member target whose recorded objects are gone", async () => {
+      const { root, target } = await memberTarget();
+      const absent = "0".repeat(40);
+
+      await expect(confirmLocalReviewTarget({
+        exec,
+        cwd: root,
+        attemptedTarget: { ...target, headSha: absent },
+      })).rejects.toMatchObject({ code: "invalid-input", reason: "non-commit-head" });
+      await expect(confirmLocalReviewTarget({
+        exec,
+        cwd: root,
+        attemptedTarget: { ...target, diffBaseSha: absent },
       })).rejects.toMatchObject({ code: "invalid-input", reason: "unresolved-base" });
     });
   });

@@ -304,42 +304,30 @@ worktree-cleanliness guard is scoped to the inputs that actually read the worktr
   behaviors were reconstructed against a mutated precondition switch, and the composer's own refusals fail
   first through the derivation they delegate to.
 
-### `[ ]` **3.4 Branch target confirmation on the carried kind**
+### `[x]` **3.4 Branch target confirmation on the carried kind**
 
 - _Goal:_ Confirming a member target verifies its pinned coordinates still resolve, so a member operation stays
   current while the control locus moves on, and every verb reaches that behavior through the confirm port it
   already injects.
 
-- _Note:_ Staleness keeps one meaning — confirmation does not re-derive for a member, so it manufactures no
-  member-specific staleness. Binding drift is not confirmation's concern; it is caught at admission and again at
-  merge-lock release.
+    - `[x]` **3.4.a Confirm a member target by verifying its objects**
 
-    - `[ ]` **3.4.a Confirm a member target by verifying its objects**
+        - the object verification Task 3.2 introduced was extracted so confirmation and derivation share it
+          verbatim; confirmation stops there, re-checking neither the recorded trees nor anything about the
+          checkout, and reuses the head and base reasons rather than adding a refusal shape.
+        - coverage runs against a control checkout that has moved past the member and is dirty — the state this
+          branch exists for — and asserts the absence directly: no merge base, no status read, no HEAD read.
 
-        - verification is existence and commit type for the two recorded commits, and stops there. The recorded
-          trees are not re-checked against their commits: they were resolved from exactly those commits when the
-          target was composed, and the operation record is local state this lane already trusts for every other
-          field it reads back. The target's own identity recomputation does not establish the correspondence
-          either — it is a digest over the record's own fields and performs no repository read — so trust is the
-          honest basis here, not a proof that already ran.
-        - object failures reuse the derivation reasons Task 3.3.b settles. Confirmation has no refusal shape of
-          its own to widen: its result type carries only current and stale, and the stale shape requires a
-          re-derived current target that a member path never produces.
+    - `[x]` **3.4.b Keep ordinary confirmation unchanged**
 
-        Build `test-first` (one behavior at a time):
+        - `confirm-delegation.test.ts` stubs the preparation composition and pins that attest, resume, respond,
+          and reduce all reach it for both kinds, which is what keeps one confirmation behavior across the five
+          verbs rather than four re-implementations that could drift apart.
 
-        - a member target whose objects resolve confirms current with the control branch checked out and its
-          worktree dirty
-        - a member target whose recorded head or base object is gone refuses, reporting the derivation reason for
-          that object
-        - confirmation never re-derives against the checkout for this kind
-
-    - `[ ]` **3.4.b Keep ordinary confirmation unchanged**
-
-        Build `test-first` (one behavior at a time):
-
-        - an ordinary target re-derives and reports staleness exactly as today
-        - the four delegating verbs reach the same confirmation behavior as prepare, for both kinds
+- _Outcome:_ A member operation now survives the control locus moving on, which is the behavior the whole kind
+  exists to buy: staleness keeps one meaning because the member path produces none. Task 3.4.b changes no
+  production line; its behaviors were reconstructed against a resume composition rewired to confirm on its own,
+  and the ordinary-staleness pin against a confirmation branch widened to every kind.
 
 ---
 

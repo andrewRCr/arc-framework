@@ -56,8 +56,13 @@ export type LocalTargetConfirmation =
       currentTarget: ReviewTarget;
     };
 
+interface GitBoundary {
+  exec: GitExec;
+  cwd: string;
+}
+
 async function readGit(
-  input: LocalTargetDerivationInput,
+  input: GitBoundary,
   args: string[],
   reason: LocalTargetInvalidReason,
 ): Promise<string> {
@@ -69,7 +74,7 @@ async function readGit(
 }
 
 async function resolveObject(
-  input: LocalTargetDerivationInput,
+  input: GitBoundary,
   revision: string,
   reason: LocalTargetInvalidReason,
 ): Promise<{ oid: string; type: string }> {
@@ -104,22 +109,32 @@ async function deriveFromCheckout(
   return { diffBaseSha, diffBaseTree, headSha: head.oid, headTree };
 }
 
-/** Resolve the two supplied commits and their trees, reading neither HEAD nor the working tree. */
-async function resolveMemberCoordinates(
-  input: LocalTargetDerivationInput,
+/** Verify that both recorded commits are present and are commits, reusing the derivation reasons. */
+async function verifyMemberCommits(
+  input: GitBoundary,
   coordinates: DeliveryMemberCoordinates,
-): Promise<DerivedCoordinates> {
+): Promise<{ head: string; base: string }> {
   const head = await resolveObject(input, coordinates.headSha, "non-commit-head");
   if (head.type !== "commit") throw new LocalTargetDerivationError("non-commit-head");
 
   const base = await resolveObject(input, coordinates.diffBaseSha, "unresolved-base");
   if (base.type !== "commit") throw new LocalTargetDerivationError("unresolved-base");
 
+  return { head: head.oid, base: base.oid };
+}
+
+/** Resolve the two supplied commits and their trees, reading neither HEAD nor the working tree. */
+async function resolveMemberCoordinates(
+  input: LocalTargetDerivationInput,
+  coordinates: DeliveryMemberCoordinates,
+): Promise<DerivedCoordinates> {
+  const { head, base } = await verifyMemberCommits(input, coordinates);
+
   const [diffBaseTree, headTree] = await Promise.all([
-    readGit(input, ["rev-parse", `${base.oid}^{tree}`], "unresolved-base"),
-    readGit(input, ["rev-parse", `${head.oid}^{tree}`], "non-commit-head"),
+    readGit(input, ["rev-parse", `${base}^{tree}`], "unresolved-base"),
+    readGit(input, ["rev-parse", `${head}^{tree}`], "non-commit-head"),
   ]);
-  return { diffBaseSha: base.oid, diffBaseTree, headSha: head.oid, headTree };
+  return { diffBaseSha: base, diffBaseTree, headSha: head, headTree };
 }
 
 /**
@@ -188,6 +203,16 @@ export async function composeDeliveryMemberTarget(input: {
 /**
  * Re-derives local coordinates immediately before publication.
  *
+ * A `delivery-member` target is verified rather than re-derived: its pinned commits must still
+ * resolve, and nothing about the checkout is read. Re-deriving one would produce the control
+ * branch's own change set and report every member operation stale. The recorded trees are not
+ * re-checked against those commits — they were resolved from exactly these commits when the target
+ * was composed, and the operation record is local state this lane already trusts.
+ *
+ * Staleness therefore keeps one meaning. The member path manufactures none: a stale result requires
+ * a re-derived current target, which verification never produces. Drift in what the head is bound
+ * to is caught at admission and at merge-lock release, not here.
+ *
  * @param input - The attempted target plus the same Git boundary used to derive it.
  * @returns The unchanged target or an attempted/current stale pair.
  */
@@ -197,6 +222,13 @@ export async function confirmLocalReviewTarget(input: {
   attemptedTarget: ReviewTarget;
 }): Promise<LocalTargetConfirmation> {
   const attemptedTarget = ReviewTargetSchema.parse(input.attemptedTarget);
+  if (attemptedTarget.kind === "delivery-member") {
+    await verifyMemberCommits(input, {
+      headSha: attemptedTarget.headSha,
+      diffBaseSha: attemptedTarget.diffBaseSha,
+    });
+    return { state: "current", target: attemptedTarget };
+  }
   const currentTarget = await deriveLocalReviewTarget({
     exec: input.exec,
     cwd: input.cwd,
