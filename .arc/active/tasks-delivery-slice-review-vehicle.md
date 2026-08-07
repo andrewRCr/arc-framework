@@ -26,54 +26,35 @@ reads the last element of the state's plan-ordered member list.
   store accepts is deliberately absent from the contract. The core/adapter split mirrors the lane's existing
   `local-review-authority` pair, so the adapter lands beside the Git-common-state boundary it is built from.
 
-### `[ ]` **1.2 Repository-backed default lookup implementation**
+### `[x]` **1.2 Repository-backed default lookup implementation**
 
 - _Goal:_ A caller holding a repository root gets real member resolutions, and every way the underlying store
   can fail arrives as a closed, non-throwing unavailability.
 
-- _Note:_ The plan's final member is the last element of the state's member list, which holds because the
-  delivery module keeps state plan-ordered and refuses a sequence mismatch. Reading the plan to learn it would
-  buy nothing and introduce a hazard: a plan published ahead of its state rebinding would answer the terminal
-  question against a plan the state is not bound to.
+    - `[x]` **1.2.a Resolve a member from repository-common delivery state**
 
-- _Note:_ These behaviors exercise real repository-common state, so they belong at the integration tier
-  alongside the existing delivery state-store suite rather than as unit tests over a substituted publisher.
+        - `RepositoryDeliveryMemberLookup` selects by exact head through `RepositoryDeliveryStateStore`, then
+          reads the matched member's recorded base and head off the returned state and marks the list's last
+          member final. The selector already skips members holding no coordinates, so the type-required
+          coordinate fallback is unreachable and folds into the port's totality rather than guarding a case.
 
-    - `[ ]` **1.2.a Resolve a member from repository-common delivery state**
+    - `[x]` **1.2.b Map every store failure onto the port's closed unavailability**
 
-        - the underlying selector matches on recorded coordinates and skips any member holding none, so a head
-          match always carries a base and a head — a member bound only by an opened change request is simply
-          unselectable this way, and needs no defensive branch
+        - Typed refusals — ambiguous match, malformed record, corrupt namespace, identity mismatch — map to
+          `unavailable`, and a `try`/`catch` around the store call contains the two failures it does not return:
+          the snapshot read's I/O errors and the throw raised when the state namespace resolves outside a
+          repository.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **1.2.c Bind the store to an explicitly injected working directory**
 
-        - a head bound to a member returns the owning plan, deliverable, and work unit, plus that member's
-          recorded base and head
-        - a head bound to no member returns unbound, distinct from unavailable
-        - the last member of the state's member list resolves as final; every earlier member does not
+        - The publisher is constructed from the supplied root, so two ports over different repositories resolve
+          independently and neither reads the process working directory.
 
-    - `[ ]` **1.2.b Map every store failure onto the port's closed unavailability**
-
-        - the underlying lookup returns typed refusals but does not contain thrown failures: its snapshot read
-          propagates I/O errors, and resolving the state namespace throws outside a repository altogether. The
-          adapter is what makes the port total, so an unreadable state directory fails closed instead of
-          crashing the caller.
-
-        Build `test-first` (one behavior at a time):
-
-        - an ambiguous match surfaces as unavailable rather than resolving to one candidate
-        - a malformed record, a corrupt namespace, and an identity mismatch each surface as unavailable
-        - an unreadable state directory surfaces as unavailable
-        - a root that is not a repository surfaces as unavailable rather than throwing
-
-    - `[ ]` **1.2.c Bind the store to an explicitly injected working directory**
-
-        - constructed from a supplied root, never from a process-working-directory read — a module-internal
-          read would ignore the checkout the rest of the lane is bound to and defeat test substitution
-
-        Build `test-first` (one behavior at a time):
-
-        - two ports constructed against different roots each resolve against their own repository
+- _Outcome:_ `hosts/local/delivery-member-lookup.ts` supplies the port's only implementation, wrapping the
+  delivery state store alone — no plan read, so the terminal answer stays with the state revision the record is
+  bound to. Coverage is one integration suite over real repository-common state
+  (`review-delivery-member-lookup.test.ts`), which is where the store's own failure modes are reachable at all:
+  the namespace and permission faults have no faithful unit-tier form.
 
 ---
 
