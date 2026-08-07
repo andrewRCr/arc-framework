@@ -2,24 +2,33 @@
 
 import type { GitExec } from "../git/exec.js";
 import { pinGroomOpenedBaseHead } from "./identity-claims.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import {
-  locusErrorCode,
-  type LocusMutationResultV1,
-  type LocusRefusalReason,
-} from "../locus/schema/index.js";
+import { errandErrorCode, type ErrandRefusalReason } from "./result-common.js";
 import {
   authorizeErrandTerminal,
+  type ErrandTerminalAuthority,
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
 } from "./terminal-occupancy.js";
-import type { PartialErrandInboxSettlement } from "./partial-settle.js";
+import {
+  createTerminalOperationOutcome,
+  type TerminalOperationOutcome,
+} from "./terminal-result.js";
 
-export type { PartialErrandInboxSettlement } from "./partial-settle.js";
+export type PartialErrandInboxSettlement =
+  | {
+      readonly kind: "applied" | "idempotent";
+      readonly nextOffer: {
+        readonly kind: "errand";
+        readonly key: string;
+        readonly parentCheckoutPath: string | null;
+      } | null;
+    }
+  | { readonly kind: "refused"; readonly reason: string }
+  | { readonly kind: "error"; readonly message: string };
 
 export interface SettlePartialErrandRuntimeOptions {
   readonly slug: string;
@@ -28,6 +37,7 @@ export interface SettlePartialErrandRuntimeOptions {
   readonly exec: GitExec;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ErrandTerminalAuthority) => void;
   readonly settleInbox: (binding: {
     readonly originEntry: string | null;
     readonly parentCheckoutPath: string | null;
@@ -37,25 +47,37 @@ export interface SettlePartialErrandRuntimeOptions {
 /** Settle one exact partial-Errand marker generation and its capture binding. */
 export async function settlePartialErrandAtRuntime(
   options: SettlePartialErrandRuntimeOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<TerminalOperationOutcome> {
   const operation = options.action === "close" ? "errand-close" : "errand-abandon";
   const frame = await options.readFrame();
   const subject: ErrandTerminalSubject = { kind: "partial-errand", slug: options.slug, claimId: null };
   const matches = frame.roster.filter((row) => row.subject?.kind === subject.kind
     && row.subject.key === subject.slug);
-  if (matches.length === 0) return success(options, "idempotent", null, null, null);
+  if (matches.length > 1) {
+    return refusal(operation, "authority-unresolved", "Multiple checkouts claim the partial Errand subject.");
+  }
+  if (matches.length === 0) {
+    return currentPrimaryProvesAbsence(frame)
+      ? success(options, "idempotent", null)
+      : refusal(
+          operation,
+          "authority-unresolved",
+          "The current primary checkout cannot prove that partial Errand occupancy is absent.",
+        );
+  }
   const authority = authorizeErrandTerminal({
     frame,
     operation: options.action,
     subject,
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return refusal(operation, "role-conflict", authority.recommendedPromptText);
   }
   if (authority.kind === "refused") return refusal(operation, "role-conflict", authority.message);
   if (authority.row === null || authority.checkoutPath === null || !authority.row.checkout.primary) {
-    return refusal(operation, "record-malformed", "Partial Errand occupancy is incomplete or not primary-owned.");
+    return refusal(operation, "authority-unresolved", "Partial Errand occupancy is incomplete or not primary-owned.");
   }
   const pinned = await pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base });
   if (pinned.kind !== "pinned") {
@@ -90,8 +112,6 @@ export async function settlePartialErrandAtRuntime(
   return success(
     options,
     settled.kind === "applied" || inbox.kind === "applied" ? "applied" : "idempotent",
-    authority.row.origin?.entry ?? null,
-    settled.parentCheckoutPath,
     inbox.nextOffer,
   );
 }
@@ -99,21 +119,12 @@ export async function settlePartialErrandAtRuntime(
 function success(
   options: SettlePartialErrandRuntimeOptions,
   outcome: "applied" | "idempotent",
-  originEntry: string | null,
-  parentCheckoutPath: string | null,
-  nextOffer: Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }>["nextOffer"],
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
+  nextOffer: Extract<TerminalOperationOutcome, { outcome: "applied" | "idempotent" }>["nextOffer"],
+): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome,
     operation: options.action === "close" ? "errand-close" : "errand-abandon",
-    allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: parentCheckoutPath,
     identity: null,
-    originEntry,
-    restoredParent: null,
     nextOffer,
     recommendedPromptText: options.action === "close"
       ? `Completed partial Errand '${options.slug}' on the configured base.`
@@ -123,25 +134,35 @@ function success(
 
 function refusal(
   operation: "errand-close" | "errand-abandon",
-  reason: LocusRefusalReason,
+  reason: ErrandRefusalReason,
   text: string,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({ outcome: "refused", operation, reason, recommendedPromptText: text });
+): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({ outcome: "refused", operation, reason, recommendedPromptText: text });
 }
 
 function failure(
   operation: "errand-close" | "errand-abandon",
   suffix: "inbox" | "cleanup",
   message: string,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
+): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "error",
     operation,
-    error: { code: locusErrorCode(operation, suffix), message },
+    error: { code: errandErrorCode(operation, suffix), message },
     recommendedPromptText: "Inspect the retained partial Errand marker and exact base evidence before retrying.",
   });
 }
 
 function primaryPath(frame: DerivedLocusFrame): string | null {
   return frame.roster.find((row) => row.checkout.primary)?.checkout.path ?? null;
+}
+
+function currentPrimaryProvesAbsence(frame: DerivedLocusFrame): boolean {
+  if (frame.entering.kind !== "selected") return false;
+  const primaryRows = frame.roster.filter((row) => row.checkout.primary);
+  const primary = primaryRows.length === 1 ? primaryRows[0] : undefined;
+  return primary !== undefined
+    && primary.kind === "free-primary"
+    && primary.markerGeneration === null
+    && frame.entering.row.checkout.path === primary.checkout.path;
 }

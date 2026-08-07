@@ -143,18 +143,6 @@ function recover(overrides: Partial<RecoveryAuditProbeState> = {}): RecoveryAudi
   return {
     derivedLocusState: ok(derivedFrame()),
     recoveryFrame: ok(recoveryFrame()),
-    active: ok({
-      mode: "session-init",
-      layout: "full",
-      resolution: "single",
-      path: ".arc/active/meta-demo.md",
-      candidates: [],
-      taskListPath: ".arc/active/tasks-demo.md",
-      sessionType: "execution",
-      currentWorkflow: "process-task-loop",
-      planningStage: null,
-      warnings: [],
-    }),
     dirty: ok({ state: "dirty", fileCount: 1 }),
     loadSet: ok(LOAD_SET),
     taskCursor: ok(CURSOR),

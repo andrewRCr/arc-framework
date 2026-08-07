@@ -1,7 +1,7 @@
 /** Real CLI ordinary-Errand lifecycle and promotion coverage. */
 
 import { execFile } from "node:child_process";
-import { chmod, copyFile, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -83,16 +83,6 @@ async function readMaterializedMarker(checkoutPath: string): Promise<unknown> {
     join(checkoutPath, ".arc", "system", ".internal", "worktree-marker.json"),
     "utf8",
   ));
-}
-
-async function readLocusRecordForCheckout(repository: string, checkoutPath: string): Promise<unknown> {
-  const root = join(repository, ".arc", "user", "test-user", ".internal", "loci");
-  for (const name of await readdir(root)) {
-    if (!name.endsWith(".json")) continue;
-    const record = JSON.parse(await readFile(join(root, name), "utf8")) as { checkoutPath?: string };
-    if (record.checkoutPath === checkoutPath) return record;
-  }
-  throw new Error(`Could not find locus record for ${checkoutPath}`);
 }
 
 describe("ordinary Errand promotion", () => {
@@ -178,13 +168,6 @@ describe("ordinary Errand promotion", () => {
         createdFor: { kind: "errand", slug, claimId: result.identity.claimId },
         provisioning: "ready",
       });
-      expect(await readLocusRecordForCheckout(repository, result.allocation.checkoutPath)).toMatchObject({
-        checkoutPath: result.allocation.checkoutPath,
-        role: {
-          kind: "errand",
-          subject: { kind: "errand", key: slug, claimId: result.identity.claimId },
-        },
-      });
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
@@ -223,10 +206,14 @@ describe("ordinary Errand promotion", () => {
         { outcome: "applied", operation: "errand-open", identity: { state: "open" } },
         { outcome: "refused", operation: "errand-leave", reason: "preservation-unproven" },
       ]);
-      const opened = sequence.results[0] as { allocation: { checkoutPath: string } };
-      expect(await readLocusRecordForCheckout(repository, opened.allocation.checkoutPath)).toMatchObject({
-        checkoutPath: opened.allocation.checkoutPath,
-        role: { subject: { kind: "errand", key: slug } },
+      const opened = sequence.results[0] as {
+        allocation: { checkoutPath: string };
+        identity: { claimId: string };
+      };
+      expect(await readMaterializedMarker(opened.allocation.checkoutPath)).toMatchObject({
+        spawnedByArc: false,
+        createdFor: { kind: "errand", slug, claimId: opened.identity.claimId },
+        provisioning: "ready",
       });
       expect(JSON.parse(await git(repository, ["show", `refs/arc/user/test-user/errands:${slug}`])))
         .toMatchObject({ state: "open", branch: errandBranch });

@@ -5,8 +5,6 @@ import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import {
   LocusIdentityV1Schema,
-  LocusMutationErrorCodeSchema,
-  LocusRefusalReasonSchema,
 } from "../locus/schema/index.js";
 import {
   LocusAbsolutePathSchema,
@@ -14,6 +12,7 @@ import {
   LocusOpaqueTextSchema,
   LocusTokenSchema,
 } from "../locus/schema/limits.js";
+import { ErrandErrorCodeSchema, ErrandRefusalReasonSchema } from "./result-common.js";
 
 export const ErrandOperationSchema = z.enum(["errand-open", "errand-materialize", "errand-link"]);
 
@@ -46,11 +45,11 @@ const success = {
 
 export const ErrandOperationResultSchema = z.discriminatedUnion("outcome", [
   z.strictObject({ outcome: z.enum(["applied", "idempotent"]), ...success }),
-  z.strictObject({ outcome: z.literal("refused"), ...common, reason: LocusRefusalReasonSchema }),
+  z.strictObject({ outcome: z.literal("refused"), ...common, reason: ErrandRefusalReasonSchema }),
   z.strictObject({
     outcome: z.literal("error"),
     ...common,
-    error: z.strictObject({ code: LocusMutationErrorCodeSchema, message: LocusOpaqueTextSchema }),
+    error: z.strictObject({ code: ErrandErrorCodeSchema, message: LocusOpaqueTextSchema }),
   }),
 ]).superRefine((value, context) => {
   if (value.outcome !== "applied" && value.outcome !== "idempotent") return;

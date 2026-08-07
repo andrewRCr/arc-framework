@@ -26,10 +26,16 @@ describe("locus methodology contracts", () => {
         "arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]",
       );
       expect(reference).toContain(
-        "arc errand leave <slug> --state <paused|awaiting-merge> [--json]",
+        "arc errand leave <slug> --state <paused|awaiting-merge> "
+          + "[--confirm-foreign-generation <generation>] [--json]",
       );
-      expect(reference).toContain("arc errand close <slug> [--force] [--json]");
-      expect(reference).toContain("arc errand abandon <slug> [--json]");
+      expect(reference).toContain(
+        "arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]",
+      );
+      expect(reference).not.toContain("arc errand close <slug> [--force]");
+      expect(reference).toContain(
+        "arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]",
+      );
       expect(reference).toContain(
         "arc errand promote <slug> [--name <name>] [--type <type>] "
           + "--floor <derivation|scale> \\\n"
@@ -59,7 +65,7 @@ describe("locus methodology contracts", () => {
 
       expect(init).toContain("required `derivedLocusState` slot is the sole session-frame");
       expect(init).toContain("Dispatch only on `derivedLocusState.value.entering`");
-      expect(init).toContain("require `derivedLocusState.value.active.context`");
+      expect(init).toContain("with `derivedLocusState.value.active.context`");
       expect(init).toContain("free-primary\" | \"unmanaged-checkout\" | \"retired");
       expect(init).toContain(
         "Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES",
@@ -70,6 +76,9 @@ describe("locus methodology contracts", () => {
       );
       expect(init).not.toContain("Probe failure fallback");
       expect(init).not.toContain("`locusState.inFlightIdentities`");
+      expect(init).toContain("whose subject is `groom` dispatches to");
+      expect(init).toContain("whose subject is `housekeep` dispatches to");
+      expect(init).not.toContain("partial-housekeep");
 
       expect(handoff).toContain("dispatch only on `handoffLocus.value`");
       expect(handoff).toContain(
@@ -79,7 +88,7 @@ describe("locus methodology contracts", () => {
       expect(handoff).toContain("Never select the handoff subject from a branch prefix");
       expect(handoff).toContain("`derivedLocusState`      | Required entering-checkout frame");
       expect(handoff).toContain("`release-work-unit` — write no generic locus state");
-      expect(handoff).toContain("prior result's exact\n   `parentCheckoutPath`");
+      expect(handoff).toContain("direct subsequent commands to the retained surviving checkout");
       expect(handoff).not.toContain("arc locus release");
       expect(handoff).not.toContain("`recordId`");
       expect(handoff).not.toContain("`leaseId`");
@@ -91,6 +100,16 @@ describe("locus methodology contracts", () => {
       expect(recovery).toContain("emits a return-to-base diagnostic");
       expect(recovery).not.toMatch(/recordId|leaseId|sessionHomePath|activeLocusPath/u);
       expect(recovery).toContain("dispatching only on `report.recover.recoveryFrame.value`");
+    }
+  });
+
+  it("keeps handoff guidance free of retired lease doctrine", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const skill = await readFile(resolve(base, "system/.internal/skills/arc-handoff/SKILL.md"), "utf8");
+
+      expect(skill).toContain("exact terminal result");
+      expect(skill).toContain("surviving checkout");
+      expect(skill).not.toMatch(/lease|arc locus release/u);
     }
   });
 
@@ -194,16 +213,37 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("describes the ordinary work-unit locus as normally unleased", async () => {
+  it("defines locus authority from checkout topology, markers, lifecycle, and identity", async () => {
     for (const base of [packageArc, projectArc]) {
       const briefing = await readFile(
         resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"),
         "utf8",
       );
 
-      expect(briefing).toContain("optional, verb-scoped lease");
-      expect(briefing).toContain("an ordinary live WU role is\n  normally unleased");
-      expect(briefing).not.toContain("session-scoped lease");
+      expect(briefing).toContain("One registered checkout plus the ARC role derived from its marker");
+      expect(briefing).toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
+      expect(briefing).toContain("The physical primary is the launchpad only while its marker is absent");
+      expect(briefing).not.toMatch(/locus record|record-free|optional, verb-scoped lease|normally unleased/u);
+    }
+  });
+
+  it("contains no retired locus mutation or liveness instructions", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const surfaces = await Promise.all([
+        readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
+        readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
+        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"), "utf8"),
+        readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
+        readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
+        readFile(resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`), "utf8"),
+      ]);
+
+      for (const surface of surfaces) {
+        expect(surface).not.toMatch(
+          /arc locus (?:attach|release|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+        );
+      }
     }
   });
 });

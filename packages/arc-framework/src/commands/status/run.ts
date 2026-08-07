@@ -518,7 +518,6 @@ export async function runRecoverStatus(
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
-  const activeTask = safeProbe("active", () => probes.active(identity, role));
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
   const [
@@ -527,7 +526,6 @@ export async function runRecoverStatus(
     dirty,
     extensions,
     config,
-    active,
     releaseRouting,
   ] = await Promise.all([
     worktreeTask,
@@ -535,7 +533,6 @@ export async function runRecoverStatus(
     dirtyTask,
     extensionsTask,
     configTask,
-    activeTask,
     releaseRoutingTask,
   ]);
 
@@ -559,6 +556,7 @@ export async function runRecoverStatus(
       state,
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
+      activeExtensions: extensions.isOk() ? extensions.value.active : [],
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
@@ -579,7 +577,6 @@ export async function runRecoverStatus(
     dirty: toProbe(dirty),
     extensions: toProbe(extensions),
     config: toProbe(config),
-    active: toProbe(active),
     releaseRouting: toProbe(releaseRouting),
     loadSet: toProbe(loadSet),
     ...(taskCursor !== undefined ? { taskCursor: toProbe(taskCursor) } : {}),

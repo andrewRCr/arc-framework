@@ -1,26 +1,29 @@
-/** Recoverable transient locus provisioning across checkout, marker, and record generations. */
+/** Marker-owned transient checkout provisioning and exact rollback. */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   provisionTransientLocus,
   type ProvisionTransientLocusDependencies,
   type ProvisionTransientLocusOptions,
 } from "../../../src/lib/locus/provisioning.js";
-import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
 import type { LocusAllocationPlan } from "../../../src/lib/locus/allocator.js";
-import type { LocusIdentityV1, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
+import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
 
 const CLAIM_ID = "a".repeat(32);
 const BRANCH = "chore/demo";
 const WORKTREE_PATH = "/worktrees/demo";
+const HEAD = "1".repeat(40);
 
-const proposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
+const spawnedProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
   kind: "proposal",
   allocation: { kind: "spawn", primaryPath: "/repo" },
   subject: { kind: "errand", key: "demo", claimId: CLAIM_ID },
 };
-
+const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
+  ...spawnedProposal,
+  allocation: { kind: "primary", checkoutPath: "/repo" },
+};
 const identity: LocusIdentityV1 = {
   kind: "errand",
   key: "demo",
@@ -40,7 +43,7 @@ function options(
   overrides: Partial<ProvisionTransientLocusOptions> = {},
 ): ProvisionTransientLocusOptions {
   return {
-    proposal,
+    proposal: spawnedProposal,
     protection: "full",
     identity,
     branch: BRANCH,
@@ -50,38 +53,40 @@ function options(
     repo: "arc-framework",
     spawningIdentity: "andrew",
     parentCheckoutPath: "/repo-wu",
-    sessionHomePath: "/repo-wu",
     establishedAt: "2026-07-20T00:00:00.000Z",
-    anchor: { kind: "process", pid: 10, startToken: "start", inspector: "linux", selector: "codex" },
-    leaseId: "b".repeat(32),
     dependencies,
     ...overrides,
   };
 }
 
-function testHarness(
-  events: string[],
-  overrides: Partial<ProvisionTransientLocusDependencies> = {},
-): {
-  dependencies: ProvisionTransientLocusDependencies;
-  marker(): Awaited<ReturnType<ProvisionTransientLocusDependencies["readMarker"]>>;
-  record(): LocusRecordV1 | null;
-} {
+function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
+  const events: string[] = [];
   let marker: Awaited<ReturnType<ProvisionTransientLocusDependencies["readMarker"]>> = { kind: "absent" };
-  let record: { value: LocusRecordV1; bytes: Buffer } | null = null;
-  const base: ProvisionTransientLocusDependencies = {
+  let creationCount = 0;
+  const dependencies: ProvisionTransientLocusDependencies = {
+    withOperationLock: async (_cwd, operation) => {
+      events.push("lock");
+      try {
+        return await operation();
+      } finally {
+        events.push("unlock");
+      }
+    },
     createLinkedWorktree: async () => {
       events.push("create-worktree");
-      return {
-        kind: "created",
-        receipt: {
-          worktreePath: WORKTREE_PATH,
-          branch: BRANCH,
-          worktreeCreated: true,
-          branchCreated: true,
-          base: "main",
-        },
-      };
+      creationCount += 1;
+      return creationCount === 1
+        ? {
+            kind: "created",
+            receipt: {
+              worktreePath: WORKTREE_PATH,
+              branch: BRANCH,
+              worktreeCreated: true,
+              branchCreated: true,
+              base: "main",
+            },
+          }
+        : { kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH };
     },
     scanWorktrees: async () => {
       events.push("scan-roster");
@@ -89,12 +94,16 @@ function testHarness(
         ok: true,
         worktrees: [{
           path: WORKTREE_PATH,
-          head: "1".repeat(40),
+          head: HEAD,
           branch: BRANCH,
           detached: false,
           primary: false,
         }],
       };
+    },
+    revalidateTarget: async () => {
+      events.push("revalidate");
+      return { kind: "ready" };
     },
     readMarker: async () => marker,
     createMarker: async (_path, value) => {
@@ -104,18 +113,18 @@ function testHarness(
       marker = { kind: "present", marker: value, bytes };
       return { kind: "created", bytes };
     },
-    replaceMarker: async (_path, expectedBytes, value) => {
+    replaceMarker: async (_path, expected, value) => {
       events.push("replace-marker");
-      if (marker.kind !== "present" || !marker.bytes.equals(expectedBytes)) {
+      if (marker.kind !== "present" || !marker.bytes.equals(expected)) {
         return { kind: "generation-mismatch" };
       }
       const bytes = Buffer.from(JSON.stringify(value));
       marker = { kind: "present", marker: value, bytes };
       return { kind: "replaced", bytes };
     },
-    removeMarker: async (_path, expectedBytes) => {
+    removeMarker: async (_path, expected) => {
       events.push("remove-marker");
-      if (marker.kind !== "present" || !marker.bytes.equals(expectedBytes)) {
+      if (marker.kind !== "present" || !marker.bytes.equals(expected)) {
         return { kind: "generation-mismatch" };
       }
       marker = { kind: "absent" };
@@ -124,645 +133,151 @@ function testHarness(
     setupWorktree: async () => {
       events.push("setup-worktree");
     },
-    acquireRecordLock: async () => ({
-      kind: "acquired",
-      handle: { recordId: `sha256:${"c".repeat(64)}`, recordPath: "/loci/demo.json", token: "lock" },
-    }),
-    releaseRecordLock: async () => {
-      events.push("release-lock");
+    checkoutPrimary: async () => {
+      events.push("checkout-primary");
+      return {
+        kind: "applied",
+        branchCreated: true,
+        branch: BRANCH,
+        previousBranch: "main",
+        head: HEAD,
+      };
     },
-    revalidateTarget: async () => ({ kind: "ready" }),
-    checkoutPrimary: async () => ({
-      kind: "applied", branchCreated: true, branch: BRANCH, previousBranch: "main", head: "1".repeat(40),
-    }),
     rollbackPrimary: async () => ({ kind: "rolled-back" }),
-    readRecord: async () => record === null
-      ? { kind: "absent" }
-      : { kind: "valid", record: record.value, bytes: record.bytes },
-    mintRecord: async (_path, value) => {
-      events.push("mint-record");
-      if (record !== null) return { kind: "exists" };
-      const bytes = Buffer.from(JSON.stringify(value));
-      record = { value, bytes };
-      return { kind: "created", bytes };
-    },
-    replaceRecord: async (_path, expectedBytes, value) => {
-      events.push("replace-record");
-      if (record === null || !record.bytes.equals(expectedBytes)) {
-        return { kind: "generation-mismatch" };
-      }
-      const bytes = Buffer.from(JSON.stringify(value));
-      record = { value, bytes };
-      return { kind: "replaced", bytes };
-    },
-    removeRecord: async (_path, expectedBytes) => {
-      events.push("remove-record");
-      if (record === null || !record.bytes.equals(expectedBytes)) {
-        return { kind: "generation-mismatch" };
-      }
-      record = null;
-      return { kind: "removed" };
-    },
     rollbackSpawned: async () => {
       events.push("rollback-worktree");
       return { kind: "rolled-back" };
     },
+    ...overrides,
   };
-  return {
-    dependencies: { ...base, ...overrides },
-    marker: () => marker,
-    record: () => record?.value ?? null,
-  };
+  return { dependencies, events, marker: () => marker };
 }
 
 describe("provisionTransientLocus", () => {
-  it("reuses an exact retained branch when provisioning a resumed spawned locus", async () => {
-    const events: string[] = [];
-    const createLinkedWorktree = vi.fn(async () => ({
-      kind: "created" as const,
-      receipt: {
-        worktreePath: WORKTREE_PATH,
-        branch: BRANCH,
-        worktreeCreated: true as const,
-        branchCreated: false,
-        base: null,
-      },
-    }));
-    const harness = testHarness(events, { createLinkedWorktree });
+  it("publishes a spawned checkout through its ready marker without durable record state", async () => {
+    const test = harness();
 
-    const result = await provisionTransientLocus(options(harness.dependencies, {
-      expectedBranchHead: "1".repeat(40),
-    }));
+    const result = await provisionTransientLocus(options(test.dependencies));
 
-    expect(createLinkedWorktree).toHaveBeenCalledWith(expect.objectContaining({
-      branch: BRANCH,
-      createBranch: false,
-    }));
     expect(result).toMatchObject({
       kind: "provisioned",
-      receipt: { branch: { created: false, head: "1".repeat(40), base: null } },
+      receipt: {
+        disposition: "applied",
+        allocation: "spawned",
+        marker: { state: "ready" },
+      },
     });
+    expect(result.kind === "provisioned" ? Object.keys(result.receipt) : []).not.toContain("record");
+    expect(result.kind === "provisioned" ? Object.keys(result.receipt) : []).not.toContain("leaseToken");
+    expect(test.events).toEqual([
+      "lock",
+      "create-worktree",
+      "scan-roster",
+      "revalidate",
+      "create-marker",
+      "setup-worktree",
+      "replace-marker",
+      "unlock",
+    ]);
   });
 
-  it("rolls back a resumed spawned checkout whose retained branch head changed", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      createLinkedWorktree: async () => ({
-        kind: "created",
-        receipt: {
-          worktreePath: WORKTREE_PATH,
-          branch: BRANCH,
-          worktreeCreated: true,
-          branchCreated: false,
-          base: null,
-        },
-      }),
+  it("replays an exact ready marker without rerunning checkout setup", async () => {
+    const test = harness();
+
+    const first = await provisionTransientLocus(options(test.dependencies));
+    const second = await provisionTransientLocus(options(test.dependencies));
+
+    expect(first).toMatchObject({ kind: "provisioned", receipt: { disposition: "applied" } });
+    expect(second).toMatchObject({ kind: "provisioned", receipt: { disposition: "idempotent" } });
+    expect(test.events.filter((event) => event === "setup-worktree")).toHaveLength(1);
+    expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+  });
+
+  it("rolls back its pending marker and created worktree when setup fails", async () => {
+    const test = harness({
+      setupWorktree: async () => {
+        test.events.push("setup-worktree");
+        throw new Error("setup failed");
+      },
     });
 
-    const result = await provisionTransientLocus(options(harness.dependencies, {
+    const result = await provisionTransientLocus(options(test.dependencies));
+
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
+    expect(test.events).toContain("remove-marker");
+    expect(test.events).toContain("rollback-worktree");
+    expect(test.marker()).toEqual({ kind: "absent" });
+  });
+
+  it("refuses and rolls back when a retained spawned branch changed head", async () => {
+    const test = harness();
+
+    const result = await provisionTransientLocus(options(test.dependencies, {
       expectedBranchHead: "2".repeat(40),
     }));
 
     expect(result).toMatchObject({ kind: "refused", reason: "identity-conflict" });
-    expect(events).toContain("rollback-worktree");
+    expect(test.events).toContain("rollback-worktree");
   });
 
-  it("rolls back an unchanged created checkout when pending marker creation fails", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      createMarker: async () => {
-        events.push("create-marker");
-        throw new Error("marker write failed");
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "error",
-      error: { message: "marker write failed" },
-      evidence: { kind: "identity-only" },
-    });
-    expect(events).toEqual(["create-worktree", "scan-roster", "create-marker", "rollback-worktree"]);
-  });
-
-  it("rolls back the spawned checkout when the raced marker re-read fails", async () => {
-    const events: string[] = [];
-    let reads = 0;
-    const harness = testHarness(events, {
-      readMarker: async () => {
-        events.push("read-marker");
-        reads += 1;
-        if (reads === 1) return { kind: "absent" };
-        throw new Error("raced marker re-read failed");
-      },
-      createMarker: async () => {
-        events.push("create-marker");
-        return { kind: "exists" };
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "error",
-      error: { message: "raced marker re-read failed" },
-      evidence: { kind: "identity-only" },
-    });
-    // The marker belongs to whichever session won the create, so the rollback
-    // removes only this session's checkout.
-    expect(events).toEqual([
-      "create-worktree", "scan-roster", "read-marker", "create-marker", "read-marker", "rollback-worktree",
-    ]);
-  });
-
-  it("does not rerun setup for a matching pending marker owned by another invocation", async () => {
-    const events: string[] = [];
-    const pending = {
-      spawnedByArc: true,
-      createdFor: { kind: "errand" as const, slug: "demo", claimId: CLAIM_ID },
-      provisioning: "pending",
-      spawningIdentity: "andrew",
-      createdAt: "2026-07-20T00:00:00.000Z",
-    };
-    const bytes = Buffer.from(JSON.stringify(pending));
-    const harness = testHarness(events, {
-      createLinkedWorktree: async () => {
-        events.push("create-worktree");
-        return { kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH };
-      },
-      readMarker: async () => ({ kind: "present", marker: pending, bytes }),
-      setupWorktree: async () => {
-        events.push("setup-worktree");
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toEqual({
-      kind: "refused",
-      reason: "marker-conflict",
-      evidence: { kind: "pending-marker", checkoutPath: WORKTREE_PATH, markerBytes: bytes },
-    });
-    expect(events).toEqual(["create-worktree", "scan-roster"]);
-  });
-
-  it("makes pending provenance visible during setup and removes it on an exact setup failure rollback", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events);
-    harness.dependencies.setupWorktree = async () => {
-      events.push("setup-worktree");
-      expect(harness.marker()).toMatchObject({
-        kind: "present",
-        marker: { provisioning: "pending", createdFor: { claimId: CLAIM_ID } },
-      });
-      throw new Error("harness copy failed");
-    };
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "error",
-      error: { message: "harness copy failed" },
-      evidence: { kind: "identity-only" },
-    });
-    expect(harness.marker()).toEqual({ kind: "absent" });
-    expect(events).toEqual([
-      "create-worktree", "scan-roster", "create-marker", "setup-worktree", "remove-marker", "rollback-worktree",
-    ]);
-  });
-
-  it("preserves changed marker evidence and refuses to remove the created checkout", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      setupWorktree: async () => {
-        events.push("setup-worktree");
-        throw new Error("setup failed after a marker race");
-      },
-      removeMarker: async () => {
-        events.push("remove-marker");
-        return { kind: "generation-mismatch" };
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "error",
-      evidence: { kind: "marker-record-mismatch", checkoutPath: WORKTREE_PATH },
-    });
-    expect(events).not.toContain("rollback-worktree");
-  });
-
-  it.each([
-    ["live", "lock-live"], ["unknown", "lock-unknown"],
-  ] as const)("leaves the spawned checkout in place when the record lock is %s", async (reason, expected) => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      acquireRecordLock: async () => ({ kind: "refused", reason }),
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({ kind: "refused", reason: expected });
-    expect(events).not.toContain("rollback-worktree");
-    expect(events).not.toContain("remove-marker");
-  });
-
-  it("preserves a conflicting role generation instead of adopting the same checkout", async () => {
-    const events: string[] = [];
-    const conflicting = {
-      schemaVersion: 1,
-      recordId: `sha256:${"c".repeat(64)}`,
-      checkoutPath: WORKTREE_PATH,
-      role: {
-        kind: "errand",
-        subject: { kind: "errand", key: "demo", claimId: "d".repeat(32) },
-        establishedAt: "2026-07-19T00:00:00.000Z",
-        parentCheckoutPath: null,
-        originEntry: null,
-      },
-      lease: null,
-    } satisfies LocusRecordV1;
-    const bytes = Buffer.from(JSON.stringify(conflicting));
-    const harness = testHarness(events, {
-      readRecord: async () => ({ kind: "valid", record: conflicting, bytes }),
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "refused",
-      reason: "role-conflict",
-      evidence: { kind: "marker-record-mismatch" },
-    });
-    expect(events).not.toContain("remove-record");
-    expect(events).not.toContain("rollback-worktree");
-  });
-
-  it("cleans its exact role, marker, and checkout generations after a lease race", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      replaceRecord: async () => {
-        events.push("replace-record");
-        return { kind: "generation-mismatch" };
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "refused",
-      reason: "lease-generation-mismatch",
-      evidence: { kind: "identity-only" },
-    });
-    expect(harness.record()).toBeNull();
-    expect(harness.marker()).toEqual({ kind: "absent" });
-    expect(events).toContain("rollback-worktree");
-  });
-
-  it("reports incomplete cleanup when its exact role generation changes before removal", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events, {
-      replaceRecord: async () => ({ kind: "generation-mismatch" }),
-      removeRecord: async () => {
-        events.push("remove-record");
-        return { kind: "generation-mismatch" };
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(result).toMatchObject({
-      kind: "refused",
-      reason: "lease-generation-mismatch",
-      evidence: { kind: "marker-record-mismatch", recordBytes: expect.any(Buffer) },
-    });
-    expect(events).not.toContain("remove-marker");
-    expect(events).not.toContain("rollback-worktree");
-  });
-
-  it("holds the primary record lock across checkout failure and leaves identity-only evidence", async () => {
-    const events: string[] = [];
-    const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      ...proposal,
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-    };
-    const harness = testHarness(events, {
-      acquireRecordLock: async () => {
-        events.push("acquire-lock");
-        return {
-          kind: "acquired",
-          handle: { recordId: `sha256:${"e".repeat(64)}`, recordPath: "/loci/primary.json", token: "lock" },
-        };
-      },
+  it("reports spawned residue truth when target revalidation throws", async () => {
+    const test = harness({
       revalidateTarget: async () => {
-        events.push("revalidate");
-        return { kind: "ready" };
+        test.events.push("revalidate");
+        throw new Error("revalidation failed");
       },
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies));
+
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
+    expect(test.events).toContain("rollback-worktree");
+  });
+
+  it("reports a created checkout residue when revalidation rollback fails", async () => {
+    const test = harness({
+      revalidateTarget: async () => {
+        throw new Error("revalidation failed");
+      },
+      rollbackSpawned: async () => ({ kind: "generation-mismatch" }),
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies));
+
+    expect(result).toMatchObject({
+      kind: "error",
+      evidence: { kind: "marker-residue", checkoutPath: WORKTREE_PATH, markerBytes: null },
+    });
+  });
+
+  it("publishes a primary checkout through a ready marker under the operation lock", async () => {
+    const test = harness({
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
+      }),
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: primaryProposal }));
+
+    expect(result).toMatchObject({
+      kind: "provisioned",
+      receipt: { allocation: "primary", checkoutPath: "/repo", marker: { state: "ready" } },
+    });
+    expect(test.events[0]).toBe("lock");
+    expect(test.events.at(-1)).toBe("unlock");
+  });
+
+  it("removes its primary marker when checkout mutation fails", async () => {
+    const test = harness({
       checkoutPrimary: async () => {
-        events.push("checkout-primary");
         throw new Error("checkout failed");
       },
     });
 
-    const result = await provisionTransientLocus(options(harness.dependencies, { proposal: primaryProposal }));
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: primaryProposal }));
 
-    expect(result).toMatchObject({
-      kind: "error",
-      error: { message: "checkout failed" },
-      evidence: { kind: "identity-only" },
-    });
-    expect(harness.marker()).toEqual({ kind: "absent" });
-    expect(events).toEqual([
-      "acquire-lock", "revalidate", "create-marker", "checkout-primary", "remove-marker", "release-lock",
-    ]);
-  });
-
-  it("carries an unreconciled primary checkout into marker-record-mismatch evidence", async () => {
-    const events: string[] = [];
-    const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      ...proposal,
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-    };
-    const harness = testHarness(events, {
-      acquireRecordLock: async () => {
-        events.push("acquire-lock");
-        return {
-          kind: "acquired",
-          handle: { recordId: `sha256:${"e".repeat(64)}`, recordPath: "/loci/primary.json", token: "lock" },
-        };
-      },
-      revalidateTarget: async () => {
-        events.push("revalidate");
-        return { kind: "ready" };
-      },
-      checkoutPrimary: async () => {
-        events.push("checkout-primary");
-        throw new PrimaryCheckoutResidueError("/repo", new Error("fatal: cannot switch branches"));
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies, { proposal: primaryProposal }));
-
-    expect(result).toMatchObject({
-      kind: "error",
-      evidence: {
-        kind: "marker-record-mismatch",
-        checkoutPath: "/repo",
-        markerBytes: expect.any(Buffer),
-        recordBytes: null,
-      },
-    });
-    expect(harness.marker()).toMatchObject({ kind: "present", marker: { spawnedByArc: false } });
-    expect(events).toEqual([
-      "acquire-lock", "revalidate", "create-marker", "checkout-primary", "release-lock",
-    ]);
-  });
-
-  it("establishes primary occupancy before checkout and retains its exact ready generation", async () => {
-    const events: string[] = [];
-    const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      ...proposal,
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-    };
-    const harness = testHarness(events, {
-      acquireRecordLock: async () => {
-        events.push("acquire-lock");
-        return {
-          kind: "acquired",
-          handle: { recordId: `sha256:${"e".repeat(64)}`, recordPath: "/loci/primary.json", token: "lock" },
-        };
-      },
-      revalidateTarget: async () => {
-        events.push("revalidate");
-        return { kind: "ready" };
-      },
-      checkoutPrimary: async () => {
-        events.push("checkout-primary");
-        return {
-          kind: "applied", branchCreated: true, branch: BRANCH, previousBranch: "main", head: "1".repeat(40),
-        };
-      },
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies, { proposal: primaryProposal }));
-
-    expect(result).toMatchObject({
-      kind: "provisioned",
-      receipt: {
-        allocation: "primary",
-        checkoutPath: "/repo",
-        marker: { state: "ready", bytes: expect.any(Buffer) },
-        branch: { name: BRANCH, created: true },
-        worktree: { path: "/repo", created: false },
-      },
-    });
-    expect(harness.marker()).toMatchObject({
-      kind: "present",
-      marker: {
-        spawnedByArc: false,
-        createdFor: { kind: "errand", slug: "demo", claimId: CLAIM_ID },
-        provisioning: "ready",
-        parentCheckoutPath: "/repo-wu",
-      },
-    });
-    expect(events).toEqual([
-      "acquire-lock", "revalidate", "create-marker", "checkout-primary", "mint-record", "replace-record",
-      "release-lock",
-    ]);
-  });
-
-  it("restores primary topology and marker absence when record publication fails", async () => {
-    const events: string[] = [];
-    const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      ...proposal,
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-    };
-    const harness = testHarness(events, {
-      checkoutPrimary: async () => {
-        events.push("checkout-primary");
-        return {
-          kind: "applied", branchCreated: true, branch: BRANCH, previousBranch: "main", head: "1".repeat(40),
-        };
-      },
-      mintRecord: async () => {
-        events.push("mint-record");
-        throw new Error("record publication failed");
-      },
-      rollbackPrimary: async () => {
-        events.push("rollback-primary");
-        return { kind: "rolled-back" };
-      },
-    });
-
-    await expect(provisionTransientLocus(options(harness.dependencies, { proposal: primaryProposal })))
-      .resolves.toMatchObject({ kind: "error", error: { message: "record publication failed" } });
-    expect(harness.marker()).toEqual({ kind: "absent" });
-    expect(events).toEqual([
-      "create-marker", "checkout-primary", "mint-record", "rollback-primary", "remove-marker", "release-lock",
-    ]);
-  });
-
-  it("provisions a partial housekeep role on the markerless base checkout", async () => {
-    const events: string[] = [];
-    const partialProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      kind: "proposal",
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-      subject: { kind: "housekeep", key: "inbox-drain", claimId: null },
-    };
-    const harness = testHarness(events, {
-      checkoutPrimary: async () => ({
-        kind: "idempotent", branchCreated: false, branch: "main", previousBranch: "main", head: "1".repeat(40),
-      }),
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies, {
-      proposal: partialProposal,
-      protection: "partial",
-      identity: null,
-      authority: {
-        kind: "partial-housekeep",
-        key: "inbox-drain",
-      },
-      branch: null,
-    }));
-
-    expect(result).toMatchObject({
-      kind: "provisioned",
-      receipt: {
-        allocation: "primary",
-        marker: null,
-        branch: { name: null, created: false },
-      },
-    });
-    expect(harness.record()?.role).toMatchObject({
-      kind: "housekeep",
-      subject: { kind: "housekeep", key: "inbox-drain", claimId: null },
-    });
-  });
-
-  it("binds identity-free partial Errand occupancy to its exact capture origin", async () => {
-    const events: string[] = [];
-    const sourceDigest = `sha256:${"d".repeat(64)}` as const;
-    const partialProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
-      kind: "proposal",
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-      subject: { kind: "errand", key: "repair-index", claimId: null },
-    };
-    const harness = testHarness(events, {
-      checkoutPrimary: async () => ({
-        kind: "idempotent", branchCreated: false, branch: "main", previousBranch: "main", head: "1".repeat(40),
-      }),
-    });
-
-    const result = await provisionTransientLocus(options(harness.dependencies, {
-      proposal: partialProposal,
-      protection: "partial",
-      identity: null,
-      authority: {
-        kind: "partial-errand",
-        key: "repair-index",
-        originEntry: "Repair the index",
-        originEntrySourceDigest: sourceDigest,
-      },
-      branch: null,
-    }));
-
-    expect(result).toMatchObject({
-      kind: "provisioned",
-      receipt: { allocation: "primary", marker: { state: "ready", bytes: expect.any(Buffer) } },
-    });
-    expect(harness.marker()).toMatchObject({
-      kind: "present",
-      marker: {
-        createdFor: { kind: "partial-errand", slug: "repair-index", claimId: null },
-        originEntry: "Repair the index",
-        originEntrySourceDigest: sourceDigest,
-      },
-    });
-  });
-
-  it("refuses the same stable key with a different claimed generation before local effects", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events);
-    const staleIdentity = { ...identity, claimId: "f".repeat(32) };
-
-    const result = await provisionTransientLocus(options(harness.dependencies, { identity: staleIdentity }));
-
-    expect(result).toEqual({
-      kind: "refused",
-      reason: "identity-conflict",
-      evidence: { kind: "identity-only" },
-    });
-    expect(events).toEqual([]);
-  });
-
-  it("refuses a path-unsafe identity key before creating a spawned checkout", async () => {
-    const events: string[] = [];
-    const harness = testHarness(events);
-    const unsafeProposal = {
-      ...proposal,
-      subject: { ...proposal.subject, key: "../outside" },
-    };
-    const unsafeIdentity = { ...identity, key: "../outside" };
-
-    const result = await provisionTransientLocus(options(harness.dependencies, {
-      proposal: unsafeProposal,
-      identity: unsafeIdentity,
-    }));
-
-    expect(result).toEqual({
-      kind: "refused",
-      reason: "identity-conflict",
-      evidence: { kind: "identity-only" },
-    });
-    expect(events).toEqual([]);
-  });
-
-  it("replays an exact ready marker, role, and lease without recreating owned state", async () => {
-    const events: string[] = [];
-    let creationCount = 0;
-    const harness = testHarness(events, {
-      createLinkedWorktree: async () => {
-        creationCount += 1;
-        events.push("create-worktree");
-        return creationCount === 1
-          ? {
-              kind: "created",
-              receipt: {
-                worktreePath: WORKTREE_PATH,
-                branch: BRANCH,
-                worktreeCreated: true,
-                branchCreated: true,
-                base: "main",
-              },
-            }
-          : { kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH };
-      },
-    });
-
-    const first = await provisionTransientLocus(options(harness.dependencies));
-    const second = await provisionTransientLocus(options(harness.dependencies));
-
-    expect(first).toMatchObject({
-      kind: "provisioned",
-      receipt: { disposition: "applied", worktree: { created: true } },
-    });
-    expect(second).toMatchObject({
-      kind: "provisioned",
-      receipt: {
-        disposition: "idempotent",
-        worktree: { created: false },
-        branch: { created: false },
-        leaseToken: "b".repeat(32),
-      },
-    });
-    expect(harness.marker()).toMatchObject({
-      kind: "present",
-      marker: { provisioning: "ready", parentCheckoutPath: "/repo-wu" },
-    });
-    expect(events.filter((event) => event === "setup-worktree")).toHaveLength(1);
-    expect(events.filter((event) => event === "mint-record")).toHaveLength(1);
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
+    expect(test.marker()).toEqual({ kind: "absent" });
   });
 });

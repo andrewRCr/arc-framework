@@ -96,10 +96,12 @@ export async function readDerivedLocusFrame(
     canonical.set(path, pending);
     return pending;
   };
-  const [roster, enteringPath] = await Promise.all([
-    readDerivedLocusRoster({ ...rosterOptions, canonicalizePath }),
-    canonicalizePath(enteringCheckoutPath),
-  ]);
+  const enteringPath = await canonicalizePath(enteringCheckoutPath);
+  const roster = await readDerivedLocusRoster({
+    ...rosterOptions,
+    canonicalizePath,
+    strictCheckoutPath: enteringPath,
+  });
   const matches = roster.rows.filter((row) => row.checkout.path === enteringPath);
   const selected = matches.length === 1 ? matches[0] : undefined;
   const entering: DerivedEnteringCheckout = selected === undefined
@@ -135,6 +137,8 @@ export async function readDerivedLocusRoster(options: {
   identity: string;
   identityGlobalUserDir?: string | null;
   activeExtensions?: readonly string[];
+  /** Checkout whose context projection failures must remain operation-blocking. */
+  strictCheckoutPath?: string;
   topology: Extract<RegisteredWorktreeScanResult, { ok: true }>;
   checkouts: readonly DormantCheckoutReadEvidence[];
   completed: CompletedEvidenceRead;
@@ -211,16 +215,32 @@ export async function readDerivedLocusRoster(options: {
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
     if (row.kind === "work-unit" && activeMeta.kind === "present") {
-      const context = await projectCheckoutSubjectMeta({
-        cwd: item.original.path,
-        subjectKey: activeMeta.subject.key,
-        identity: options.identity,
-        identityGlobalUserDir: options.identityGlobalUserDir,
-        metaRoot: activeMeta.metaRoot,
-        candidates: activeMeta.candidates,
-        activeExtensions: options.activeExtensions ?? [],
-        io: options.subjectMetaIO,
-      });
+      let context: Awaited<ReturnType<typeof projectCheckoutSubjectMeta>>;
+      try {
+        context = await projectCheckoutSubjectMeta({
+          cwd: item.original.path,
+          subjectKey: activeMeta.subject.key,
+          identity: options.identity,
+          identityGlobalUserDir: options.identityGlobalUserDir,
+          metaRoot: activeMeta.metaRoot,
+          candidates: activeMeta.candidates,
+          activeExtensions: options.activeExtensions ?? [],
+          io: options.subjectMetaIO,
+        });
+      } catch (error) {
+        if (options.strictCheckoutPath === undefined
+          || item.checkout.path === options.strictCheckoutPath) throw error;
+        rows.push({
+          ...row,
+          kind: "unresolved-checkout",
+          context: null,
+          diagnostics: [...row.diagnostics, {
+            code: "subject-context-unavailable",
+            message: error instanceof Error ? error.message : String(error),
+          }],
+        });
+        continue;
+      }
       row = context.kind === "resolved"
         ? { ...row, context }
         : {

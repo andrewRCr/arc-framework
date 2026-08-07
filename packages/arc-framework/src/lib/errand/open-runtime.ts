@@ -1,19 +1,9 @@
 /** Production authority, reader, and provisioning composition for ordinary Errand open. */
 
-import { access, lstat, readFile, realpath } from "node:fs/promises";
-
 import type { GitExecInput } from "../git/exec.js";
-import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
-import { readLocusState } from "../locus/reader.js";
-import {
-  createPlatformProcessAncestryInspector,
-  createPlatformProcessInspector,
-} from "../locus/platform-inspectors.js";
-import { acquireSessionAnchor } from "../locus/process-inspector.js";
-import { readPrimarySafety } from "../locus/primary-safety.js";
-import type { LocusAnchor } from "../locus/schema/index.js";
+import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
@@ -39,6 +29,7 @@ import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
 import type { ErrandOperationResult } from "./operation-result.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions {
+  readonly cwd: string;
   readonly slug: string;
   readonly intent?: string;
   readonly inbox: InspectedInboxEntry | null;
@@ -48,7 +39,6 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly identity: string;
   readonly locationTemplate: string;
   readonly repo: string;
-  readonly leaseId: string;
   readonly isolation?: "prefer-primary" | "require-isolation";
   readonly changeRequestReentry?: "advisory" | "strict";
   readonly pausedHeadReentry?: "ancestry" | "exact";
@@ -82,10 +72,6 @@ export async function openOrdinaryErrandAtRuntime(
 export async function openOrdinaryErrandAtRuntimeWithDisposition(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<OpenOrdinaryErrandExecution> {
-  const inspector = createPlatformProcessInspector();
-  const ancestry = createPlatformProcessAncestryInspector();
-  const pathFlavor = process.platform === "win32" ? "windows" : "posix";
-  let selectedAnchor: LocusAnchor | null = null;
   return openOrdinaryErrandWithDisposition({
     slug: options.slug,
     intent: options.intent,
@@ -96,40 +82,14 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
     identityName: options.identity,
     locationTemplate: options.locationTemplate,
     repo: options.repo,
-    leaseId: options.leaseId,
     isolation: options.isolation,
     dependencies: {
-      acquireAnchor: async () => {
-        const anchor = await acquireSessionAnchor(process.pid, ancestry);
-        selectedAnchor = anchor;
-        return anchor;
-      },
-      readState: async () => {
-        if (selectedAnchor === null) throw new Error("Entering process anchor is unavailable");
-        return readLocusState({
-          identity: options.identity,
-          pathFlavor,
-          evidenceIO: createLocusEvidenceIO({
-            exec: options.exec,
-            identity: options.identity,
-            inspector,
-          }),
-          subjectMetaIO: {
-            readFile: (path) => readFile(path, "utf8"),
-            pathExists: async (path) => access(path).then(() => true, () => false),
-            realpath,
-            lstat,
-          },
-          identityGlobalUserDir: options.identityGlobalUserDir,
-          enteringAnchor: selectedAnchor,
-          tolerateMarkerRetiredTerminalRecord: true,
-          readPrimarySafety: (path) => readPrimarySafety({
-            primaryPath: path,
-            baseBranch: options.base,
-            exec: options.exec,
-          }),
-        });
-      },
+      readFrame: () => runDerivedLocusStateProbe({
+        cwd: options.cwd,
+        identity: options.identity,
+        baseBranch: options.base,
+        exec: options.exec,
+      }),
       readIdentity: async () => {
         const read = await transactTransientIdentities({
           exec: options.exec,
@@ -228,10 +188,6 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           ...request,
           dependencies: createNodeProvisioningDependencies({
             exec: options.exec,
-            identity: options.identity,
-            anchor: request.anchor,
-            inspector,
-            pathFlavor,
             base: options.base,
             branch: request.branch,
             postCreateScript: options.postCreateScript,

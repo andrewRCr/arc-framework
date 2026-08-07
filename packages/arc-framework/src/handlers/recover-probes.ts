@@ -4,7 +4,6 @@
  * @module
  */
 
-import { runActiveSessionInitStatus } from "../commands/active.js";
 import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
@@ -56,7 +55,6 @@ export function createRecoverStatusProbes(
     dirty,
     extensions: () => extensionsP,
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-    active: (identity, role) => runActiveSessionInitStatus({ cwd, identity, role, exec }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
   };
 }

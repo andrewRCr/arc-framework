@@ -3,8 +3,6 @@
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import type { LocusMutationResultV1 } from "../locus/schema/index.js";
-import { createPlatformProcessInspector } from "../locus/platform-inspectors.js";
 import {
   createGhChangeRequestLifecyclePort,
   observeExactChangeRequest,
@@ -13,7 +11,7 @@ import {
 import {
   resolveOptionalCommit,
   tearDownExactBranchGeneration,
-  type ExactBranchTeardownLeaseResult,
+  type ExactBranchTeardownLockResult,
 } from "./exact-branch-generation.js";
 import {
   acquireErrandCloseBranchDeletionHeadLocks,
@@ -40,41 +38,25 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly slug: string;
   readonly base: string;
   readonly protection: "full" | "partial";
-  readonly force: boolean;
   readonly identity: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
-  readonly removeInbox: (record: OrdinaryErrandRecord, sessionHomePath: string | null) => Promise<CloseInboxResult>;
-}
-
-/** Boundaries required to read the authoritative identity generation used by close dispatch. */
-export interface ReadCloseIdentityRuntimeOptions {
-  readonly slug: string;
-  readonly identity: string;
-  readonly exec: GitExec;
-  readonly execInput: GitExecInput;
+  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
+  readonly removeInbox: (record: OrdinaryErrandRecord, parentCheckoutPath: string | null) => Promise<CloseInboxResult>;
 }
 
 /** Authoritative identity read outcome for close dispatch. */
-export type CloseIdentityRuntimeRead =
+type CloseIdentityRuntimeRead =
   | { kind: "ready"; record: TransientIdentityRecord | null }
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
-/** Reconcile local and configured-remote identity state before selecting close dispatch. */
-export async function readCloseIdentityAtRuntime(
-  options: ReadCloseIdentityRuntimeOptions,
-): Promise<CloseIdentityRuntimeRead> {
-  const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  return readReconciledCloseIdentity(io, options.slug, await configuredIdentityRemote(options.exec));
-}
-
 /** Finalize an ordinary Errand from identity, lifecycle, and derived checkout authority. */
 export async function closeOrdinaryErrandAtRuntime(
   options: CloseOrdinaryErrandRuntimeOptions,
-): Promise<LocusMutationResultV1> {
+): ReturnType<typeof closeOrdinaryErrand> {
   let fallbackCwd: string | null = null;
   const exec: GitExec = (command, args, execOptions) => options.exec(command, args, {
     ...execOptions,
@@ -124,7 +106,6 @@ export async function closeOrdinaryErrandAtRuntime(
   return closeOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
-    force: options.force,
     dependencies,
   });
 }
@@ -140,16 +121,10 @@ async function readReconciledCloseIdentity(
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
-    const recoveryIdentity = result.value === null
-      ? { slug }
-      : result.value.kind === "errand" && result.value.purpose === "errand"
-        ? { slug, claimId: result.value.claimId }
-        : null;
-    if (recoveryIdentity !== null) {
+    if (result.value === null) {
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
-        ...recoveryIdentity,
-        inspector: createPlatformProcessInspector(),
+        slug,
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
@@ -173,6 +148,7 @@ async function readCloseOccupancy(
     subject: { kind: "errand", slug: target.record.slug, claimId: target.record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return { kind: "refused", reason: "role-conflict", message: authority.recommendedPromptText };
   }
@@ -204,9 +180,7 @@ async function readCloseOccupancy(
       return {
         kind: settled.kind,
         guard: createPostSettlementCloseGuard(options.exec, target, primaryCheckoutPath),
-        recordId: null,
-        sessionHomePath: settled.parentCheckoutPath,
-        restoredParent: null,
+        parentCheckoutPath: settled.parentCheckoutPath,
       };
     },
   };
@@ -261,13 +235,12 @@ export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
   guard: CloseAuthorityGuard | null = null,
-  acquireLocalDelete: () => Promise<ExactBranchTeardownLeaseResult> = () =>
+  acquireLocalDelete: () => Promise<ExactBranchTeardownLockResult> = () =>
     acquireErrandCloseBranchDeletionHeadLocks({
       exec,
       identity: { slug: target.record.slug, claimId: target.record.claimId },
       branch: target.record.branch,
       guard,
-      inspector: createPlatformProcessInspector(),
     }),
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
@@ -334,7 +307,6 @@ function createPostSettlementCloseGuard(
         identity: { slug: target.record.slug, claimId: target.record.claimId },
         branch: target.record.branch,
         guard: null,
-        inspector: createPlatformProcessInspector(),
       });
       return acquired.kind === "refused"
         ? { kind: "refused", reason: "role-conflict", message: acquired.message }

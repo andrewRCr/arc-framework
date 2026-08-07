@@ -19,7 +19,7 @@ import {
   resolveTaskListCursorFromFile,
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
-import type { MetaEvidence } from "./evidence.js";
+import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
 
 export interface SubjectMetaIO {
   readFile(path: string): Promise<string>;
@@ -51,7 +51,7 @@ export async function projectCheckoutSubjectMeta(options: {
   identity: string;
   identityGlobalUserDir?: string | null;
   metaRoot: { kind: "maintainer" } | { kind: "contributor"; identity: string };
-  candidates: readonly MetaEvidence[];
+  candidates: readonly DormantMetaEvidence[];
   activeExtensions?: readonly string[];
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {

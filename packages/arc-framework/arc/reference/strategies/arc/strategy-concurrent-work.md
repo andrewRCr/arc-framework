@@ -78,7 +78,7 @@ Worktrees are cheap to create and therefore easy to accumulate. Two habits keep 
   that surface rather than letting stale directories pile up.
 
 - **Know which locus you are in.** With several worktrees live, "which worktree am I in, and which role owns it?"
-  becomes a genuine question. `arc locus` and session initialization render the durable checkout role; the WU meta
+  becomes a genuine question. `arc locus` and session initialization render the derived checkout role; the WU meta
   supplies its project state. Confirm both match the work unit you intend to touch before acting — especially after
   switching context.
 
@@ -298,22 +298,22 @@ makes this routine: you advance other work while one waits. Soft conventions for
 
 ## The primary worktree rests on the base
 
-The **physical primary** — the checkout the repository was cloned into — is the launchpad only while it is
-record-free, clean, and resting on the configured base ([Work Organization Strategy][work-org] § Main-on-Main
+The **physical primary** — the checkout the repository was cloned into — is the launchpad only while its marker is
+absent, it is clean, and it rests on the configured base ([Work Organization Strategy][work-org] § Main-on-Main
 Pattern). In that free state it supplies the stable reference for spawned worktrees and the first allocation for
 base ceremonies, grooming, inbox drains, and Errands.
 
 - **Spawn WUs by default under full protection.** Each WU normally owns a dedicated worktree from start through
   teardown. `--here` is the explicit single-checkout escape hatch: it converts the physical primary into that WU's
   occupied locus. While the WU role exists, the checkout is not also a launchpad and cannot host transient work or
-  another WU. Only exact WU teardown restores record-free base.
+  another WU. Only exact WU teardown removes the marker and restores the configured base.
 - **Transient work allocates; it never displaces.** An Errand, grooming pass, or housekeep drain uses the free
   primary when the allocation verb proves it safe. Under full protection, occupied-primary or requested-isolation
   cases spawn a transient worktree; under partial protection, an unavailable primary refuses. No operation switches
   a WU-owned checkout onto a transient branch.
-- **One transient session per checkout.** Roles and leases serialize occupancy; two sessions never share HEAD,
-  index, or per-checkout state. A full-mode close returns the primary to base or tears down the spawned transient
-  locus before popping the role.
+- **One transient session per checkout.** Derived roles and exact marker generations serialize occupancy; two
+  sessions never share HEAD, index, or per-checkout state. A full-mode close returns the primary to base or tears
+  down the spawned transient checkout before retiring the identity.
 - **"Go to the free primary" includes the state proof.** Record absence alone is insufficient: dirty, off-base,
   malformed, duplicate, or live/unknown lock evidence makes the primary unavailable or unsafe. Re-probe and consume
   the CLI guidance rather than inferring availability from the branch name.
@@ -498,9 +498,9 @@ conventions above (append-only, primary-on-base, one session per checkout).
   Restore what was lost from the pre-load backups kept beside the user files; going forward, pull before writing
   and serialize entry edits through one allocated drain locus.
 
-- **An errand-record push reports a same-slug conflict.** The same errand slug was opened on two machines; the
-  per-identity record ref wedges behind the collision (later record pushes queue behind it). Keep one record and
-  run `arc errand close --force <slug>` on the discarded side; the next push reconciles and releases the queue.
+- **An Errand identity push reports a same-slug conflict.** The same slug was claimed on two machines, so the shared
+  identity basis is incomplete and later identity mutations fail closed. Preserve the discarded work, choose the
+  surviving generation, and resolve the conflict before retrying; no terminal confirmation option bypasses it.
 
 - **Session start shows a "notes lag" line for a sibling machine.** A sibling's paired push didn't finish its
   notes leg — lag, not loss: the work is safe on its own machine. Proceed with context; let the owning machine

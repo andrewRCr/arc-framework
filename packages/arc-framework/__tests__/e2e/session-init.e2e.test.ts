@@ -400,8 +400,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.baseBranchSync).toBeUndefined();
     expect(envelope.domainRules).toBeUndefined();
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
-    expect(envelope.active.ok).toBe(true);
-    expect(envelope.active.value?.resolution).toBe("single");
+    expect(envelope.active).toBeUndefined();
     expect(envelope.derivedLocusState?.ok).toBe(true);
     expect(envelope).not.toHaveProperty("locusState");
     expect(envelope.recoveryFrame).toMatchObject({

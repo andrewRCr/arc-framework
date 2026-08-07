@@ -2,14 +2,27 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 import {
-  adaptErrandTerminalResult,
+  completeErrandTerminalResult,
+  createTerminalOperationOutcome,
   ErrandTerminalResultSchema,
 } from "../../../src/lib/errand/terminal-result.js";
 
 const SUBJECT = { kind: "errand", slug: "repair", claimId: "a".repeat(32) } as const;
 const GENERATION = `errand-v1/${SUBJECT.slug}/${SUBJECT.claimId}`;
+const IDENTITY = {
+  kind: "errand" as const,
+  key: SUBJECT.slug,
+  claimId: SUBJECT.claimId,
+  protection: "full" as const,
+  branch: "chore/repair",
+  purpose: "errand" as const,
+  origin: "description" as const,
+  originEntry: null,
+  state: "open" as const,
+  savedHead: null,
+  changeRequest: null,
+};
 
 describe("Errand terminal results", () => {
   it("carries the exact foreign authority evidence in a typed confirmation result", () => {
@@ -76,18 +89,11 @@ describe("Errand terminal results", () => {
   });
 
   it("projects internal settlement without leaking retired locus fields", () => {
-    const result = adaptErrandTerminalResult({
-      result: createLocusMutationResult({
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
         outcome: "applied",
         operation: "errand-close",
-        allocation: null,
-        recordId: `sha256:${"b".repeat(64)}`,
-        leaseId: null,
-        activeLocusPath: null,
-        sessionHomePath: "/repo",
-        identity: null,
-        originEntry: "Repair capture",
-        restoredParent: null,
+        identity: IDENTITY,
         nextOffer: null,
         recommendedPromptText: "Closed Errand 'repair'.",
       }),
@@ -114,9 +120,34 @@ describe("Errand terminal results", () => {
     });
   });
 
-  it("preserves an exact authority refusal instead of collapsing it into a legacy reason", () => {
-    const result = adaptErrandTerminalResult({
-      result: createLocusMutationResult({
+  it("rejects evidence projected from a different generation than runtime consumed", () => {
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
+        outcome: "applied",
+        operation: "errand-close",
+        identity: IDENTITY,
+        nextOffer: null,
+        recommendedPromptText: "Closed Errand 'repair'.",
+      }),
+      authority: null,
+      evidence: {
+        subject: { ...SUBJECT, claimId: "b".repeat(32) },
+        generation: `errand-v1/${SUBJECT.slug}/${"b".repeat(32)}`,
+        checkoutPath: "/repo/repair",
+        parentCheckoutPath: "/repo",
+        settlement: { kind: "capture", disposition: "removed", originEntry: "Repair capture" },
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: { message: expect.stringContaining("runtime-consumed identity generation") },
+    });
+  });
+
+  it("preserves the exact authority refusal", () => {
+    const result = completeErrandTerminalResult({
+      result: createTerminalOperationOutcome({
         outcome: "refused",
         operation: "errand-close",
         reason: "identity-conflict",

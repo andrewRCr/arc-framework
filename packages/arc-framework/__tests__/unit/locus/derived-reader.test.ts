@@ -170,6 +170,45 @@ describe("dormant derived roster reader", () => {
     expect(unresolved.active).toBeNull();
   });
 
+  it("contains sibling subject-context I/O failure but keeps entering-checkout failure strict", async () => {
+    const badPath = "/repo/bad";
+    const demo = meta("/repo/demo");
+    const bad = meta(badPath, "bad");
+    const files = new Map([
+      [demo.path, demo.text],
+      ["/repo/demo/.arc/active/tasks-demo.md", "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
+      [bad.path, bad.text],
+    ]);
+    const io = subjectIO(files);
+    const subjectMetaIO: SubjectMetaIO = {
+      ...io,
+      readFile: async (path) => {
+        if (path === `${badPath}/.arc/active/tasks-bad.md`) throw new Error("bad sibling task I/O");
+        return io.readFile(path);
+      },
+    };
+    const options = baseOptions({
+      topology: {
+        ok: true,
+        worktrees: [
+          baseOptions().topology.worktrees[0]!,
+          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+        ],
+      },
+      checkouts: [wuEvidence("/repo/demo"), wuEvidence(badPath, "bad")],
+      subjectMetaIO,
+    });
+
+    const healthy = await readDerivedLocusFrame({ ...options, enteringCheckoutPath: "/repo/demo" });
+    expect(healthy.entering).toMatchObject({ kind: "selected", row: { kind: "work-unit" } });
+    expect(healthy.roster.find((row) => row.checkout.path === badPath)).toMatchObject({
+      kind: "unresolved-checkout",
+      diagnostics: [{ code: "subject-context-unavailable", message: "bad sibling task I/O" }],
+    });
+    await expect(readDerivedLocusFrame({ ...options, enteringCheckoutPath: badPath }))
+      .rejects.toThrow("bad sibling task I/O");
+  });
+
   it("forwards active extensions once into a stable rich WU context", async () => {
     const activeExtensions = ["release-notes", "security-review"] as const;
     const result = await readDerivedLocusRoster(baseOptions({ activeExtensions }));

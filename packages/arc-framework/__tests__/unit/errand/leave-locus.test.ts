@@ -51,9 +51,7 @@ describe("leaveOrdinaryErrand", () => {
         persist: vi.fn().mockResolvedValue({ kind: "applied", value: paused, tip: "c".repeat(40) }),
         cleanup: vi.fn().mockResolvedValue({
           kind: "applied",
-          allocation: { kind: "spawned", checkoutPath: "/repo-locus" },
-          recordId: `sha256:${"d".repeat(64)}`,
-          restoredParent: { recordId: `sha256:${"e".repeat(64)}`, checkoutPath: "/repo-wu" },
+          parentCheckoutPath: "/repo-wu",
         }),
       },
     });
@@ -62,9 +60,7 @@ describe("leaveOrdinaryErrand", () => {
       outcome: "applied",
       operation: "errand-leave",
       identity: { state: "paused", claimId: record.claimId },
-      restoredParent: { checkoutPath: "/repo-wu" },
-      activeLocusPath: null,
-      sessionHomePath: "/repo-wu",
+      recommendedPromptText: expect.stringContaining("restored session home '/repo-wu'"),
     });
   });
 
@@ -126,9 +122,7 @@ describe("leaveOrdinaryErrand", () => {
     });
     const cleanup = vi.fn().mockResolvedValue({
       kind: "applied",
-      allocation: { kind: "spawned", checkoutPath: "/repo-locus" },
-      recordId: `sha256:${"d".repeat(64)}`,
-      restoredParent: null,
+      parentCheckoutPath: null,
     });
     const result = await leaveOrdinaryErrand({
       slug: resumed.slug,
@@ -186,13 +180,13 @@ describe("leaveOrdinaryErrand", () => {
         persist: vi.fn().mockResolvedValue({ kind: "applied", value: paused, tip: "c".repeat(40) }),
         cleanup: vi.fn().mockResolvedValue({
           kind: "refused",
-          reason: "lease-generation-mismatch",
-          message: "The local lease generation changed.",
+          reason: "role-conflict",
+          message: "The local marker generation changed.",
         }),
       },
     });
 
-    expect(result).toMatchObject({ outcome: "refused", reason: "lease-generation-mismatch" });
+    expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
   });
 
   it("replays an already-persisted tail and already-cleaned occupancy idempotently", async () => {
@@ -209,9 +203,7 @@ describe("leaveOrdinaryErrand", () => {
         persist: vi.fn(),
         cleanup: vi.fn().mockResolvedValue({
           kind: "idempotent",
-          allocation: null,
-          recordId: null,
-          restoredParent: null,
+          parentCheckoutPath: null,
         }),
       },
     });
@@ -219,7 +211,7 @@ describe("leaveOrdinaryErrand", () => {
     expect(result).toMatchObject({
       outcome: "idempotent",
       identity: { state: "paused", claimId: record.claimId },
-      restoredParent: null,
+      recommendedPromptText: expect.stringContaining("no parent session was restored"),
     });
   });
 
@@ -237,18 +229,14 @@ describe("leaveOrdinaryErrand", () => {
         persist: vi.fn(),
         cleanup: vi.fn().mockResolvedValue({
           kind: "applied",
-          allocation: { kind: "primary", checkoutPath: "/repo" },
-          recordId: `sha256:${"d".repeat(64)}`,
-          restoredParent: null,
+          parentCheckoutPath: null,
         }),
       },
     });
 
     expect(result).toMatchObject({
       outcome: "applied",
-      allocation: { kind: "primary", checkoutPath: "/repo" },
-      restoredParent: null,
-      sessionHomePath: null,
+      recommendedPromptText: expect.stringContaining("no parent session was restored"),
     });
   });
 
@@ -287,9 +275,7 @@ describe("leaveOrdinaryErrand", () => {
         persist: vi.fn().mockResolvedValue({ kind: "applied", value: awaiting, tip: "c".repeat(40) }),
         cleanup: vi.fn().mockResolvedValue({
           kind: "applied",
-          allocation: { kind: "spawned", checkoutPath: "/repo-locus" },
-          recordId: `sha256:${"d".repeat(64)}`,
-          restoredParent: null,
+          parentCheckoutPath: null,
         }),
       },
     });

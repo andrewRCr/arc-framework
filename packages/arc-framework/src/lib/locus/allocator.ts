@@ -6,8 +6,7 @@ import {
   type LinkedWorktreeCreationResult,
 } from "../git/linked-worktree.js";
 import { isSlugSafe } from "../kernel/index.js";
-import type { PrimarySafetyResult } from "./primary-safety.js";
-import type { LocusStateV1, LocusStopReason } from "./schema/index.js";
+import type { DerivedLocusFrame, DerivedPrimaryAvailability } from "./derived-reader.js";
 
 export interface LocusAllocationSubject {
   readonly kind: "errand" | "groom" | "housekeep";
@@ -19,11 +18,7 @@ export type LocusAllocationRefusalReason =
   | "primary-occupied"
   | "primary-dirty"
   | "primary-off-base"
-  | "lease-live"
-  | "lease-unknown"
   | "topology-unknown"
-  | "record-malformed"
-  | "duplicate-locus"
   | "role-conflict"
   | "identity-conflict"
   | "primary-not-proposed"
@@ -46,7 +41,7 @@ export type LocusAllocationPlan =
 
 /** Reduce one fresh locus state to a non-authoritative placement proposal. */
 export function planLocusAllocation(options: {
-  state: LocusStateV1;
+  frame: DerivedLocusFrame;
   protection: "full" | "partial";
   isolation: "prefer-primary" | "require-isolation" | "parallelize";
   subject: LocusAllocationSubject;
@@ -57,13 +52,13 @@ export function planLocusAllocation(options: {
   if (!subjectClaimMatchesProtection(options.subject, options.protection)) {
     return { kind: "refused", reason: "identity-conflict" };
   }
-  const globalStop = stateStopReason(options.state);
+  const globalStop = frameStopReason(options.frame);
   if (globalStop !== null) return { kind: "refused", reason: globalStop };
-  const availability = options.state.primaryAvailability;
+  const availability = options.frame.primaryAvailability;
   const isolationRequested = options.isolation !== "prefer-primary";
   if (isolationRequested) {
     return options.protection === "full"
-      ? spawnProposal(options.state, options.subject)
+      ? spawnProposal(availability, options.subject)
       : { kind: "refused", reason: "full-protection-required" };
   }
   if (availability.kind === "free") {
@@ -74,9 +69,7 @@ export function planLocusAllocation(options: {
     };
   }
   if (availability.kind === "occupied") {
-    if (options.protection === "full") return spawnProposal(options.state, options.subject);
-    if (availability.leaseState === "live") return { kind: "refused", reason: "lease-live" };
-    if (availability.leaseState === "unknown") return { kind: "refused", reason: "lease-unknown" };
+    if (options.protection === "full") return spawnProposal(availability, options.subject);
     return { kind: "refused", reason: "primary-occupied" };
   }
   const reason = unsafeReason(availability.reasons);
@@ -91,10 +84,14 @@ function subjectClaimMatchesProtection(
   return subject.kind === "groom" ? subject.claimId !== null : subject.claimId === null;
 }
 
-function spawnProposal(state: LocusStateV1, subject: LocusAllocationSubject): LocusAllocationPlan {
+function spawnProposal(
+  availability: DerivedPrimaryAvailability,
+  subject: LocusAllocationSubject,
+): LocusAllocationPlan {
+  if (availability.checkoutPath === null) return { kind: "refused", reason: "topology-unknown" };
   return {
     kind: "proposal",
-    allocation: { kind: "spawn", primaryPath: state.roster.primaryPath },
+    allocation: { kind: "spawn", primaryPath: availability.checkoutPath },
     subject,
   };
 }
@@ -146,144 +143,17 @@ export async function createSpawnedLocusWorktree(
   });
 }
 
-function stateStopReason(state: LocusStateV1): LocusAllocationPlanningRefusalReason | null {
-  if (state.current.kind === "ambiguous") return "role-conflict";
-  if (state.recovery.kind === "stop") return unsafeReason(state.recovery.reasons);
-  if (state.reconciliation.kind === "stop") return unsafeReason(state.reconciliation.reasons);
-  return null;
+function frameStopReason(frame: DerivedLocusFrame): LocusAllocationPlanningRefusalReason | null {
+  return frame.entering.kind === "unresolved" ? "role-conflict" : null;
 }
 
-function unsafeReason(reasons: readonly LocusStopReason[]): LocusAllocationPlanningRefusalReason {
+function unsafeReason(reasons: readonly string[]): LocusAllocationPlanningRefusalReason {
   for (const reason of reasons) {
     switch (reason) {
       case "primary-dirty":
       case "primary-off-base":
-      case "lease-live":
-      case "lease-unknown":
-      case "role-conflict":
-      case "record-malformed":
-      case "duplicate-locus":
         return reason;
-      case "lock-live":
-      case "lock-unknown":
-      case "unsupported-version":
-      case "identity-malformed":
-      case "path-unavailable":
-      case "cross-identity":
-      case "marker-missing":
-      case "subject-unresolved":
-        return "topology-unknown";
     }
   }
   return "topology-unknown";
-}
-
-export interface LocusAllocationLock {
-  release(): Promise<void>;
-}
-
-export interface PrimaryAllocationDependencies<Remote, Value> {
-  prepareRemote(): Promise<Remote>;
-  rollbackRemote(prepared: Remote): Promise<void>;
-  acquireLock(checkoutPath: string): Promise<LocusAllocationLock>;
-  readState(): Promise<LocusStateV1>;
-  readGitSafety(checkoutPath: string): Promise<PrimarySafetyResult>;
-  applyLocal(options: {
-    proposal: Extract<LocusAllocationPlan, { kind: "proposal" }>;
-    prepared: Remote;
-    lock: LocusAllocationLock;
-  }): Promise<Value>;
-}
-
-export type PrimaryAllocationResult<Value> =
-  | { readonly kind: "allocated"; readonly value: Value }
-  | { readonly kind: "refused"; readonly reason: LocusAllocationRefusalReason }
-  | { readonly kind: "error"; readonly error: Error };
-
-/** Linearize one primary proposal after remote preparation and under its exact record lock. */
-export async function linearizePrimaryAllocation<Remote, Value>(options: {
-  proposal: Extract<LocusAllocationPlan, { kind: "proposal" }>;
-  protection: "full" | "partial";
-  isolation: "prefer-primary";
-  dependencies: PrimaryAllocationDependencies<Remote, Value>;
-}): Promise<PrimaryAllocationResult<Value>> {
-  if (options.proposal.allocation.kind !== "primary") {
-    return { kind: "refused", reason: "primary-not-proposed" };
-  }
-  let prepared: Remote;
-  try {
-    prepared = await options.dependencies.prepareRemote();
-  } catch (error) {
-    return { kind: "error", error: toError(error) };
-  }
-  let lock: LocusAllocationLock | null = null;
-  let committed = false;
-  let result: PrimaryAllocationResult<Value>;
-  try {
-    lock = await options.dependencies.acquireLock(options.proposal.allocation.checkoutPath);
-    const [state, safety] = await Promise.all([
-      options.dependencies.readState(),
-      options.dependencies.readGitSafety(options.proposal.allocation.checkoutPath),
-    ]);
-    const fresh = planLocusAllocation({
-      state,
-      protection: options.protection,
-      isolation: options.isolation,
-      subject: options.proposal.subject,
-    });
-    if (fresh.kind !== "proposal"
-      || fresh.allocation.kind !== "primary"
-      || fresh.allocation.checkoutPath !== options.proposal.allocation.checkoutPath) {
-      result = fresh.kind === "refused"
-        ? fresh
-        : { kind: "refused", reason: primaryRevalidationReason(state.primaryAvailability) };
-    } else if (safety.kind === "error") {
-      result = { kind: "refused", reason: "topology-unknown" };
-    } else if (!safety.clean) {
-      result = { kind: "refused", reason: "primary-dirty" };
-    } else if (!safety.onBase) {
-      result = { kind: "refused", reason: "primary-off-base" };
-    } else {
-      const value = await options.dependencies.applyLocal({
-        proposal: options.proposal,
-        prepared,
-        lock,
-      });
-      committed = true;
-      result = { kind: "allocated", value };
-    }
-  } catch (error) {
-    result = { kind: "error", error: toError(error) };
-  } finally {
-    if (lock !== null) {
-      try {
-        await lock.release();
-      } catch (error) {
-        result = { kind: "error", error: toError(error) };
-      }
-    }
-  }
-  if (!committed) {
-    try {
-      await options.dependencies.rollbackRemote(prepared);
-    } catch (error) {
-      return { kind: "error", error: toError(error) };
-    }
-  }
-  return result;
-}
-
-function primaryRevalidationReason(
-  availability: LocusStateV1["primaryAvailability"],
-): LocusAllocationRefusalReason {
-  if (availability.kind === "occupied") {
-    if (availability.leaseState === "live") return "lease-live";
-    if (availability.leaseState === "unknown") return "lease-unknown";
-    return "primary-occupied";
-  }
-  return availability.kind === "unsafe" ? unsafeReason(availability.reasons) : "topology-unknown";
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

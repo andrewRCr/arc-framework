@@ -610,6 +610,9 @@ async function teardownBranchProjection(
       if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
         return { status: "rejected", reason: "retirement authority is unavailable" };
       }
+      const lockedAuthority = authority;
+      const lockedAuthorizationRequest = authorizationRequest;
+      const lockedDirectionalAuthorization = directionalAuthorization;
       const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
       if (revalidation.status === "refused") {
         return {
@@ -629,36 +632,82 @@ async function teardownBranchProjection(
       if (reconciliation.status === "blocked") {
         return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
       }
+      const terminalStamp = {
+        sha: registered.head,
+        at: new Date((ctx.now ?? Date.now)()).toISOString(),
+        subject,
+        branch,
+        authorization: lockedDirectionalAuthorization.authorization,
+        remoteRef: lockedDirectionalAuthorization.refs.remote,
+        evidence: lockedDirectionalAuthorization.evidence,
+      };
       let stamped = false;
-      try {
-        const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, {
-          sha: registered.head,
-          at: new Date((ctx.now ?? Date.now)()).toISOString(),
-          subject,
-          branch,
-          authorization: directionalAuthorization.authorization,
-          remoteRef: directionalAuthorization.refs.remote,
-          evidence: directionalAuthorization.evidence,
-        });
-        stamped = stampResult.kind === "stamped";
-        if (!stamped && mode !== "shipped") {
+      const expectedSelection = teardownSelections.get(registered.path);
+      if (ctx.teardownWorktree?.husk !== undefined && expectedSelection !== undefined) {
+        try {
+          await ctx.teardownWorktree.husk({
+            expectedSelection,
+            revalidateLocal: async () => {
+              if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
+                throw new Error(`cannot husk a dirty worktree: ${registered.path}`);
+              }
+              const authorization = await lockedAuthority.revalidate(
+                lockedAuthorizationRequest,
+                lockedDirectionalAuthorization,
+              );
+              if (authorization.status === "refused") {
+                throw new Error(describeTeardownAuthorizationRefusal(authorization.reason));
+              }
+              await revalidateLocalPredicates(registered.path);
+            },
+            stamp: terminalStamp,
+            detachProjection: () => exec(
+              "git",
+              ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid],
+              { cwd: registered.path },
+            ).then(() => undefined),
+          });
+          stamped = true;
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+            reason: `cannot prepare terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-      } catch (err) {
-        if (mode !== "shipped") {
+      } else {
+        try {
+          const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, terminalStamp);
+          stamped = stampResult.kind === "stamped";
+          if (!stamped && mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+        } catch (err) {
+          if (mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+          notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
+        }
+        try {
+          await exec("git", ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid], {
+            cwd: registered.path,
+          });
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+            reason: `cannot detach terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-        notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
       }
-      await exec("git", ["switch", "--detach", directionalAuthorization.refs.localOid], { cwd: registered.path });
       husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
       teardownSelections.delete(registered.path);
       if (!selfTeardown) pendingCreatedHuskRemoval = registered.path;

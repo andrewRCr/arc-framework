@@ -15,7 +15,6 @@ import {
 import { transactTransientIdentities } from "./identity-transaction.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
-import type { SelectedLocusGeneration } from "../locus/selected-generation.js";
 
 export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly slug: string;
@@ -26,11 +25,8 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
+  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
   readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
-  /** Retained only until the legacy locus resolve command is removed. */
-  readonly selected?: SelectedLocusGeneration;
-  /** Retained only until the legacy locus resolve command is removed. */
-  readonly confirmedNoLiveSession?: boolean;
 }
 
 /** Abandon one exact ordinary identity and its marker-derived local occupancy. */
@@ -95,6 +91,7 @@ async function cleanupOccupancy(
     subject: { kind: "errand", slug: record.slug, claimId: record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
+  options.onAuthority?.(authority);
   if (authority.kind === "confirmation-required") {
     return { kind: "refused", reason: "role-conflict", message: authority.recommendedPromptText };
   }

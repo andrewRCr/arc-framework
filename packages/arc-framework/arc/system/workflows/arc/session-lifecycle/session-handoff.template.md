@@ -139,10 +139,13 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     Context: standalone (<kind>)
     ```
 
-3. **Preserve and leave the exact Errand** — push the checkpoint through the normal Errand path, then invoke
+3. **Preserve and leave the exact Errand** — before leaving, retain the exact surviving return checkout from the
+   same derived frame: the marker parent when it resolves to one registered checkout, otherwise the physical primary
+   row. Push the checkpoint through the normal Errand path, then invoke
    `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
    the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
-   `parentCheckoutPath`. Refusal or error stops; never hand-build the sequence.
+   `parentCheckoutPath`. Require that field to match the retained parent when one existed. Refusal or error stops;
+   never hand-build the sequence.
 
     - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
       (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
@@ -156,15 +159,16 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     git push                      # upstream already exists
     ```
 
-4. **Refresh probe** — re-run the composite probe:
+4. **Return and refresh** — direct subsequent commands to the retained surviving checkout before re-running the
+   composite probe. Do not probe from the removed Errand checkout.
 
     ```bash
     arc status --session-handoff --json
     ```
 
-   Require the new `handoffLocus.value` to be `release-work-unit` at the prior result's exact
-   `parentCheckoutPath`, or `between-work-units` when the Errand was cold. Any other result stops. Continue through
-   the matching WU or between-WUs path; do not end handoff at the transient.
+   Require the new `handoffLocus.value` to be `release-work-unit` at the result's exact `parentCheckoutPath`, or
+   `between-work-units` at the retained primary checkout when the Errand was cold. Any other result stops. Continue
+   through the matching WU or between-WUs path; do not end handoff at the transient.
 
 ## Between-WUs Handoff Path
 

@@ -4,7 +4,7 @@ import { isAbsolute as isNativeAbsolute, posix, win32 } from "node:path";
 
 import { z } from "zod";
 
-/** Maximum persisted locus JSON payload. */
+/** Maximum persisted ARC JSON payload shared by the surviving scalar schemas. */
 export const MAX_LOCUS_JSON_BYTES = 256 * 1024;
 /** Maximum serialized checkout-path length. */
 export const MAX_LOCUS_PATH_CHARS = 32_768;

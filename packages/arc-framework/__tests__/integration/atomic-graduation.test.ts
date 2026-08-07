@@ -11,9 +11,6 @@ import { digestBytes } from "../../src/lib/canonical/canonical-json.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
-import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
-import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
-import { locusRecordPath as resolveRecordPath, resolveLocusRoot } from "../../src/lib/locus/root.js";
 import {
   nodeReconcileWorkUnitWorktreeFs,
   provisionSpawnedWorktree,
@@ -28,16 +25,6 @@ import {
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
-
-async function locusRecordPath(exec: GitExec, checkout: string): Promise<string> {
-  const root = await resolveLocusRoot({
-    identity: "andrew",
-    scan: () => scanRegisteredWorktrees(exec),
-  });
-  if (!root.ok) throw new Error(root.message);
-  const identity = deriveLocusRecordId(checkout, process.platform === "win32" ? "windows" : "posix");
-  return resolveRecordPath(root, identity.digest);
-}
 
 async function createInPlaceFixture(): Promise<{
   repo: string;
@@ -205,7 +192,6 @@ describe("atomicGraduate", () => {
     expect(branch.trim()).toBe("plan/widget");
     const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"]);
     expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
-    await expect(readFile(await locusRecordPath(exec, repo))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("graduates into a spawned worktree with exact meta authority and ownership", async () => {
@@ -301,7 +287,6 @@ describe("atomicGraduate", () => {
     await expect(readFile(resolveWorktreeMarkerPath(worktreePath), "utf8")).resolves.toContain("\"wuName\": \"widget\"");
     const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"], { cwd: worktreePath });
     expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
-    await expect(readFile(await locusRecordPath(exec, worktreePath))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it.each(["branch", "first-move", "second-move", "meta-write", "index-stage"] as const)(
@@ -363,8 +348,7 @@ describe("atomicGraduate", () => {
       expect(created).toBe("");
       const { stdout: tree } = await fixture.exec("git", ["write-tree"]);
       expect(tree.trim()).toBe(fixture.indexTree);
-      await expect(readFile(await locusRecordPath(fixture.exec, fixture.repo)))
-        .rejects.toMatchObject({ code: "ENOENT" });
+      await expect(readFile(resolveWorktreeMarkerPath(fixture.repo))).rejects.toMatchObject({ code: "ENOENT" });
     },
   );
 

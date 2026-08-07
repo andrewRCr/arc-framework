@@ -291,4 +291,22 @@ describe("Errand terminal authority", () => {
       message: "The entering checkout cannot prove terminal absence.",
     });
   });
+
+  it("refuses duplicate exact checkout subjects instead of treating them as identity-only", () => {
+    const duplicate = transientRow("/repo/repair-copy");
+    const duplicateFrame: DerivedLocusFrame = {
+      ...frame(),
+      roster: [transientRow(), duplicate],
+    };
+
+    expect(authorizeErrandTerminal({
+      frame: duplicateFrame,
+      operation: "close",
+      subject: SUBJECT,
+    })).toEqual({
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: "Multiple checkouts claim the exact Errand subject.",
+    });
+  });
 });

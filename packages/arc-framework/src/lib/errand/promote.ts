@@ -1,7 +1,7 @@
 /** Recoverable ordinary-v3 Errand-to-work-unit promotion composition. */
 
 import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
-import type { LocusRefusalReason, LocusMutationErrorCode } from "../locus/schema/index.js";
+import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import {
@@ -43,7 +43,7 @@ export type PromotionFrameResult = PromotionFrameReceipt
   | { kind: "refused"; reason: PromotionRefusalReason; message: string }
   | { kind: "error"; message: string };
 
-export type PromotionRefusalReason = LocusRefusalReason | "authority-unresolved" | "generation-mismatch";
+export type PromotionRefusalReason = ErrandRefusalReason;
 
 type RetirementResult =
   | { kind: "applied" | "idempotent" }
@@ -163,7 +163,7 @@ async function settleCommittedFrame(
 }
 
 async function runFrame(
-  code: LocusMutationErrorCode,
+  code: ErrandErrorCode,
   operation: () => Promise<PromotionFrameResult | null>,
 ): Promise<{ frame: PromotionFrameReceipt } | { result: ErrandPromotionResult } | null> {
   let frame: PromotionFrameResult | null;
@@ -240,7 +240,7 @@ function refusal(reason: PromotionRefusalReason, text: string): ErrandPromotionR
   });
 }
 
-function failure(code: LocusMutationErrorCode, text: string): ErrandPromotionResult {
+function failure(code: ErrandErrorCode, text: string): ErrandPromotionResult {
   return createErrandPromotionResult({
     outcome: "error",
     operation: "errand-promote",
