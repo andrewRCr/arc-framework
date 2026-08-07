@@ -91,6 +91,7 @@ import {
   type TeardownBlobReader,
 } from "../teardown-retirement-driver.js";
 import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
+import { resolveParkProofTarget, type ParkProofTarget } from "../park-retirement-proof.js";
 import type {
   TeardownOccupancyDecision,
   TeardownOccupancyReader,
@@ -337,6 +338,7 @@ interface TeardownBranchProjectionParams {
   remote?: string;
   mode: TeardownMode;
   protection?: ProtectionMode;
+  proofTarget?: ParkProofTarget;
   suggestion?: string;
   huskPath?: string;
 }
@@ -435,7 +437,8 @@ async function teardownBranchProjection(
   const baseRef = mode === "shipped" || protection === "full"
     ? await refreshBase(exec, base, remote)
     : base;
-  const evidenceBaseRef = mode === "abandoned" && protection === "partial" ? base : baseRef;
+  const evidenceBaseRef = params.proofTarget?.head
+    ?? (mode === "abandoned" && protection === "partial" ? base : baseRef);
 
   // Worktree arm: shipped non-self cleanup retains the legacy physical-removal
   // choreography. Non-shipped linked projections instead become stamped detached
@@ -580,7 +583,11 @@ async function teardownBranchProjection(
         remote: remote ?? "origin",
         requestedMode: mode,
       };
-      authority = ctx.authority ?? createTeardownRetirementAuthority(exec, evidenceBaseRef, ctx.readBlob);
+      authority = ctx.authority ?? createTeardownRetirementAuthority(
+        exec,
+        params.proofTarget ?? evidenceBaseRef,
+        ctx.readBlob,
+      );
       const authorization = await authority.authorize(authorizationRequest);
       if (authorization.status === "refused") {
         return {
@@ -1153,27 +1160,36 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
   let shipped: boolean;
+  let proofTarget: ParkProofTarget | undefined;
   if (params.protection === undefined) {
     shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
   } else {
     const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
-    if (params.protection === "full") {
-      try {
-        await exec("git", ["fetch", remote ?? "origin", base]);
-      } catch {
-        return {
-          status: "rejected",
-          reason: `Could not refresh lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
-        };
-      }
-    }
-    if (await readRefTip(exec, authorityRef) === null) {
+    try {
+      proofTarget = await resolveParkProofTarget({
+        refreshRemoteBase: async (remoteName, baseBranch) => {
+          await exec("git", ["fetch", remoteName, baseBranch]);
+          const head = await readRefTip(exec, `${remoteName}/${baseBranch}`);
+          if (head === null) throw new Error("remote base is unavailable");
+          return head;
+        },
+        readLocalBase: async (baseBranch) => {
+          const head = await readRefTip(exec, baseBranch);
+          if (head === null) throw new Error("local base is unavailable");
+          return head;
+        },
+      }, {
+        protection: params.protection,
+        remote: remote ?? "origin",
+        baseBranch: base,
+      });
+    } catch {
       return {
         status: "rejected",
         reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
       };
     }
-    shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
+    shipped = (await readShippedWorkUnitsFromRef(exec, proofTarget.head)).has(name);
   }
   const mode: TeardownMode = params.mode ?? (shipped ? "shipped" : "abandoned");
   if (params.mode === "shipped" && !shipped) {
@@ -1208,6 +1224,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     remote,
     mode,
     protection: params.protection,
+    proofTarget,
     huskPath: params.huskPath,
     suggestion,
   });

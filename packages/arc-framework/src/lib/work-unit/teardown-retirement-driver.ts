@@ -7,6 +7,7 @@ import type {
   WorktreeHuskStamp,
 } from "../git/worktree-marker.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
+import type { ParkProofTarget } from "./park-retirement-proof.js";
 import {
   createGitRetirementAuthorizationContext,
   readCompletedProjectionDigest,
@@ -27,10 +28,10 @@ export type TeardownBlobReader = (ref: string, path: ManagedPath) => Promise<Uin
 /** Build the Git-backed authorize/revalidate port consumed by directional teardown. */
 export function createTeardownRetirementAuthority(
   exec: GitExec,
-  baseRef: string,
+  baseTarget: string | ParkProofTarget,
   readBlob: TeardownBlobReader,
 ): Pick<RetirementAuthorityPort, "authorize" | "revalidate"> {
-  const context = createGitRetirementAuthorizationContext(exec, baseRef, readBlob);
+  const context = createGitRetirementAuthorizationContext(exec, baseTarget, readBlob);
   return {
     authorize: async (request) => await authorizeRetirement(context, request),
     revalidate: async (request, proof) => await revalidateRetirementAuthorization(context, request, proof),

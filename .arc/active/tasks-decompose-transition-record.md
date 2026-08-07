@@ -225,28 +225,22 @@ coverage before any receipt-consuming predecessor is removed.
 - _Outcome:_ Partial-protection landing now materializes only the commit-proven planned artifact group and rejects
   content, conservation, topology, ownership, or concurrency drift without consulting or copying receipt state.
 
-### `[ ]` **3.3 Re-derive park teardown from planned-artifact bytes**
+### `[x]` **3.3 Re-derive park teardown from planned-artifact bytes**
 
 - _Goal:_ Park teardown authorizes only when the retiring head and effective base contain complete, cohort-correct,
   byte-identical planned artifact groups computed at proof time.
 
-    - `[ ]` **3.3.a Make the park proof receipt-independent**
-        - Remove receipt bytes from `ParkRetirementProjection` and make `validateParkRetirementProof()` consume the
-          subject, retiring head, and selected result head rather than a `RetirementReceipt`.
-        - Compare the canonical planned path set and exact `Uint8Array` content on both sides, producing a canonical
-          result inventory that the later stamp digest can bind without reconstructing a receipt shape.
-        - Build `test-first` (one behavior at a time):
-            - Accept identical complete projections and derive a deterministic canonical result inventory.
-            - Reject lifecycle mismatch, invalid cohort/path, missing, duplicate, or extra artifacts, and any byte
-              difference including trailing bytes.
+    - `[x]` **3.3.a Make the park proof receipt-independent**
+        - Removed receipt bytes and receipt-shaped inputs from the pure park proof; matching complete planned groups
+          now yield one path-sorted content inventory and every lifecycle, placement, membership, or byte mismatch
+          closes as a semantic refusal.
 
-    - `[ ]` **3.3.b Preserve protection-mode target selection**
-        - Have `verbs/teardown.ts` and `lifecycle-residue-sweep.ts` select and pin the refreshed remote base under
-          full protection or local integrating base under partial protection before calling the pure proof; remove
-          or wire the currently isolated `resolveParkProofTarget()` so no second authority selector survives.
-        - Build `test-first` (one behavior at a time):
-            - Pass the correct exact ref and head into the proof for each protection mode.
-            - Fail authority-unavailable on refresh or Git read failure and ignore transition-record presence.
+    - `[x]` **3.3.b Preserve protection-mode target selection**
+        - Wired teardown and lifecycle residue discovery through one protection-aware selector that pins the exact
+          refreshed remote or local integrating base head before proof, and fails closed when that head is unreadable.
+
+- _Outcome:_ Park authorization now depends only on identical committed planned-artifact bytes at two pinned heads;
+  transition-record presence and the retired receipt payload cannot affect the proof or its canonical result.
 
 ### `[ ]` **3.4 Replace receipt-backed husk stamp evidence**
 

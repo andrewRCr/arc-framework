@@ -1,13 +1,10 @@
-/** Authorization proof tests for a conserved park-at-Planning result. */
+/** Receipt-independent authorization proof tests for a conserved park result. */
 
 import { describe, expect, it } from "vitest";
 
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
-import { artifactGroupDigest } from "../../../src/lib/canonical/receipt-id.js";
-import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   resolveParkProofTarget,
   validateParkRetirementProof,
@@ -18,197 +15,110 @@ const retiringHead = "a".repeat(40);
 const resultHead = "b".repeat(40);
 const metaPath = validateManagedPath(".arc/backlog/planned/sample/meta-sample.md");
 const draftPath = validateManagedPath(".arc/backlog/planned/sample/draft-sample.md");
-const metaBytes = new TextEncoder().encode("meta");
-const draftBytes = new TextEncoder().encode("draft");
+const metaBytes = new TextEncoder().encode(renderMetaProjectionFile("sample", { Cohort: "[none]" }));
+const draftBytes = new TextEncoder().encode("draft\n");
 
-const receipt: RetirementReceipt = {
-  schemaVersion: 1,
-  receiptId: contentDigest(new TextEncoder().encode("receipt")),
-  subject: { kind: "work-unit", name: "sample" },
-  transition: "park-planning",
-  source: {
-    branch: "plan/sample",
-    head: "0".repeat(40),
-    artifactDigest: contentDigest(new TextEncoder().encode("source")),
-  },
-  transitionPatchDigest: contentDigest(new TextEncoder().encode("patch")),
-  retiringProjection: { kind: "direct-transition" },
-  authorization: "planning-relocated",
-  result: {
-    kind: "relocate",
-    plannedArtifactDigest: contentDigest(new TextEncoder().encode("placeholder")),
-  },
-};
-
-const receiptBytes = new TextEncoder().encode(canonicalize(receipt));
-
-function projection(overrides: Partial<ParkRetirementProjection> = {}): ParkRetirementProjection {
-  return {
-    lifecycle: "planned",
-    receiptBytes,
-    artifacts: [
-      { path: metaPath, bytes: metaBytes },
-      { path: draftPath, bytes: draftBytes },
-    ],
-    ...overrides,
-  };
+function projection(artifacts: ParkRetirementProjection["artifacts"]): ParkRetirementProjection {
+  return { lifecycle: "planned", artifacts };
 }
 
-describe("validateParkRetirementProof", () => {
-  it("accepts only when retiring and effective-base projections both derive planned", async () => {
-    const candidate = {
-      ...receipt,
-      result: {
-        kind: "relocate" as const,
-        plannedArtifactDigest: artifactGroupDigest([
-          { path: metaPath, state: "present", contentDigest: contentDigest(metaBytes) },
+const exactArtifacts = [
+  { path: metaPath, bytes: metaBytes },
+  { path: draftPath, bytes: draftBytes },
+] as const;
+
+async function prove(
+  retiring: ParkRetirementProjection,
+  result: ParkRetirementProjection,
+) {
+  return await validateParkRetirementProof(
+    { readProjection: async (head) => head === retiringHead ? retiring : result },
+    { subject: "sample", retiringHead, resultHead },
+  );
+}
+
+describe("receipt-independent park retirement proof", () => {
+  it("derives one path-sorted result inventory from identical complete planned projections", async () => {
+    const retiring = projection([
+      { path: metaPath, bytes: metaBytes },
+      { path: draftPath, bytes: draftBytes },
+    ]);
+    const result = projection([
+      { path: draftPath, bytes: draftBytes },
+      { path: metaPath, bytes: metaBytes },
+    ]);
+    await expect(prove(retiring, result)).resolves.toEqual({
+      status: "proved",
+      proof: {
+        lifecycle: "planned",
+        resultInventory: [
           { path: draftPath, state: "present", contentDigest: contentDigest(draftBytes) },
-        ]),
+          { path: metaPath, state: "present", contentDigest: contentDigest(metaBytes) },
+        ],
       },
-    };
-    const candidateReceiptBytes = new TextEncoder().encode(canonicalize(candidate));
-    const retiring = projection({ receiptBytes: candidateReceiptBytes });
-    const effectiveBase = projection({ receiptBytes: candidateReceiptBytes });
-
-    const result = await validateParkRetirementProof(
-      {
-        readProjection: async (head) => head === retiringHead ? retiring : effectiveBase,
-      },
-      candidate,
-      { retiringHead, resultHead },
-    );
-
-    expect(result).toBeNull();
+    });
   });
 
   it.each([
     ["retiring", "active", "planned"],
-    ["effective base", "planned", "provisional"],
-  ] as const)("rejects when the %s projection does not derive planned", async (_label, retiringState, baseState) => {
-    const result = await validateParkRetirementProof(
-      {
-        readProjection: async (head) => head === retiringHead
-          ? projection({ lifecycle: retiringState })
-          : projection({ lifecycle: baseState }),
-      },
-      receipt,
-      { retiringHead, resultHead },
-    );
-
-    expect(result).toBe("projection-mismatch");
+    ["result", "planned", "provisional"],
+  ] as const)("rejects a %s projection outside planned lifecycle", async (_label, retiringState, resultState) => {
+    await expect(prove(
+      { lifecycle: retiringState, artifacts: exactArtifacts },
+      { lifecycle: resultState, artifacts: exactArtifacts },
+    )).resolves.toEqual({ status: "refused", reason: "projection-mismatch" });
   });
 
-  it("rejects a stale planned stub whose effective base lacks the receipt", async () => {
-    const result = await validateParkRetirementProof(
+  it.each([
+    ["missing artifact", exactArtifacts, [exactArtifacts[0]]],
+    ["duplicate artifact", exactArtifacts, [...exactArtifacts, exactArtifacts[1]]],
+    ["extra artifact", exactArtifacts, [
+      ...exactArtifacts,
       {
-        readProjection: async (head) => head === retiringHead
-          ? projection()
-          : projection({ receiptBytes: null }),
+        path: validateManagedPath(".arc/backlog/planned/sample/notes-sample.md"),
+        bytes: new TextEncoder().encode("notes\n"),
       },
-      receipt,
-      { retiringHead, resultHead },
-    );
-
-    expect(result).toBe("evidence-missing");
-  });
-
-  it("rejects a planned base whose artifact bytes differ from the retiring result", async () => {
-    const candidate = {
-      ...receipt,
-      result: {
-        kind: "relocate" as const,
-        plannedArtifactDigest: artifactGroupDigest([
-          { path: metaPath, state: "present", contentDigest: contentDigest(metaBytes) },
-          { path: draftPath, state: "present", contentDigest: contentDigest(draftBytes) },
-        ]),
-      },
-    };
-    const exactReceipt = new TextEncoder().encode(canonicalize(candidate));
-    const changedDraft = new TextEncoder().encode("changed draft");
-
-    const result = await validateParkRetirementProof(
-      {
-        readProjection: async (head) => head === retiringHead
-          ? projection({ receiptBytes: exactReceipt })
-          : projection({
-              receiptBytes: exactReceipt,
-              artifacts: [
-                { path: metaPath, bytes: metaBytes },
-                { path: draftPath, bytes: changedDraft },
-              ],
-            }),
-      },
-      candidate,
-      { retiringHead, resultHead },
-    );
-
-    expect(result).toBe("conservation-unproven");
-  });
-
-  it.each(["core", "core/sub"])("accepts a conserved park result in cohort %s", async (cohort) => {
-    const cohortMetaPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/meta-sample.md`);
-    const cohortDraftPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/draft-sample.md`);
-    const cohortMetaBytes = new TextEncoder().encode(renderMetaProjectionFile("sample", { Cohort: cohort }));
-    const candidate = {
-      ...receipt,
-      result: {
-        kind: "relocate" as const,
-        plannedArtifactDigest: artifactGroupDigest([
-          { path: cohortMetaPath, state: "present", contentDigest: contentDigest(cohortMetaBytes) },
-          { path: cohortDraftPath, state: "present", contentDigest: contentDigest(draftBytes) },
-        ]),
-      },
-    };
-    const exactReceipt = new TextEncoder().encode(canonicalize(candidate));
-    const cohortProjection = projection({
-      receiptBytes: exactReceipt,
-      artifacts: [
-        { path: cohortMetaPath, bytes: cohortMetaBytes },
-        { path: cohortDraftPath, bytes: draftBytes },
-      ],
+    ]],
+    ["changed bytes", exactArtifacts, [
+      exactArtifacts[0],
+      { path: draftPath, bytes: new TextEncoder().encode("changed\n") },
+    ]],
+    ["trailing bytes", exactArtifacts, [
+      exactArtifacts[0],
+      { path: draftPath, bytes: new TextEncoder().encode("draft\n\n") },
+    ]],
+  ] as const)("rejects %s between the two artifact groups", async (_label, retiring, result) => {
+    await expect(prove(projection(retiring), projection(result))).resolves.toEqual({
+      status: "refused",
+      reason: "conservation-unproven",
     });
-
-    await expect(validateParkRetirementProof(
-      { readProjection: async () => cohortProjection },
-      candidate,
-      { retiringHead, resultHead },
-    )).resolves.toBeNull();
   });
 
-  it("rejects a cohort directory that disagrees with the unique meta record", async () => {
+  it("rejects artifact placement that disagrees with the cohort declared by meta", async () => {
     const cohortMetaPath = validateManagedPath(".arc/backlog/planned/core/sample/meta-sample.md");
     const cohortDraftPath = validateManagedPath(".arc/backlog/planned/core/sample/draft-sample.md");
     const mismatchedMeta = new TextEncoder().encode(renderMetaProjectionFile("sample", { Cohort: "other" }));
-    const mismatchedReceipt = {
-      ...receipt,
-      result: {
-        kind: "relocate" as const,
-        plannedArtifactDigest: artifactGroupDigest([
-          { path: cohortMetaPath, state: "present", contentDigest: contentDigest(mismatchedMeta) },
-          { path: cohortDraftPath, state: "present", contentDigest: contentDigest(draftBytes) },
-        ]),
-      },
-    };
-    const exactReceipt = new TextEncoder().encode(canonicalize(mismatchedReceipt));
+    const invalid = projection([
+      { path: cohortMetaPath, bytes: mismatchedMeta },
+      { path: cohortDraftPath, bytes: draftBytes },
+    ]);
 
+    await expect(prove(invalid, invalid)).resolves.toEqual({
+      status: "refused",
+      reason: "conservation-unproven",
+    });
+  });
+
+  it("maps a failed committed projection read to authority unavailable", async () => {
     await expect(validateParkRetirementProof(
-      {
-        readProjection: async () => projection({
-          receiptBytes: exactReceipt,
-          artifacts: [
-            { path: cohortMetaPath, bytes: mismatchedMeta },
-            { path: cohortDraftPath, bytes: draftBytes },
-          ],
-        }),
-      },
-      mismatchedReceipt,
-      { retiringHead, resultHead },
-    )).resolves.toBe("conservation-unproven");
+      { readProjection: async () => { throw new Error("git read failed"); } },
+      { subject: "sample", retiringHead, resultHead },
+    )).resolves.toEqual({ status: "refused", reason: "authority-unavailable" });
   });
 });
 
 describe("resolveParkProofTarget", () => {
-  it("refreshes origin/base under full protection and reads local base under partial protection", async () => {
+  it("selects the refreshed remote head for full protection and the local base for partial protection", async () => {
     const calls: string[] = [];
     const ctx = {
       refreshRemoteBase: async (remote: string, base: string) => {

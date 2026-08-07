@@ -11,6 +11,7 @@ import type {
   WorktreeRosterResult,
 } from "../git/worktree-roster.js";
 import type { GitExec } from "../git/exec.js";
+import { readRefTip } from "../git/ref-tree.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { enumerateGitRetirementRecords } from "../work-unit/git-retirement-record-enumeration.js";
 import {
@@ -27,6 +28,7 @@ import {
   createTeardownRetirementAuthority,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
+import { resolveParkProofTarget, type ParkProofTarget } from "../work-unit/park-retirement-proof.js";
 
 /** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
@@ -151,23 +153,40 @@ export async function runLandedRetirementSweep(
 
   const remote = options.remote ?? "origin";
   const baseRef = options.protection === "full" ? `${remote}/${options.baseBranch}` : options.baseBranch;
-  if (options.protection === "full") {
-    const fetched = options.fetchBase === undefined
-      ? await fetchAuthorityBase(options.exec, remote, options.baseBranch)
-      : await options.fetchBase();
-    if (!fetched) {
-      return {
-        retirements: [],
-        warnings: [`Could not refresh lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
-      };
-    }
+  let proofTarget: ParkProofTarget;
+  try {
+    proofTarget = await resolveParkProofTarget({
+      refreshRemoteBase: async (remoteName, baseBranch) => {
+        const fetched = options.fetchBase === undefined
+          ? await fetchAuthorityBase(options.exec, remoteName, baseBranch)
+          : await options.fetchBase();
+        if (!fetched) throw new Error("remote base refresh failed");
+        const head = await readRefTip(options.exec, `${remoteName}/${baseBranch}`);
+        if (head === null) throw new Error("remote base read failed");
+        return head;
+      },
+      readLocalBase: async (baseBranch) => {
+        const head = await readRefTip(options.exec, baseBranch);
+        if (head === null) throw new Error("local base read failed");
+        return head;
+      },
+    }, {
+      protection: options.protection,
+      remote,
+      baseBranch: options.baseBranch,
+    });
+  } catch {
+    return {
+      retirements: [],
+      warnings: [`Could not resolve lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
+    };
   }
 
   let enumeration: RetirementRecordEnumerationResult;
   try {
     enumeration = await (options.enumerateRecords === undefined
-      ? enumerateGitRetirementRecords(options.exec, baseRef)
-      : options.enumerateRecords(baseRef));
+      ? enumerateGitRetirementRecords(options.exec, proofTarget.head)
+      : options.enumerateRecords(proofTarget.head));
   } catch (error) {
     return {
       retirements: [],
@@ -182,7 +201,7 @@ export async function runLandedRetirementSweep(
   }
 
   const authority = options.authorize === undefined
-    ? createTeardownRetirementAuthority(options.exec, baseRef, options.readBlob).authorize
+    ? createTeardownRetirementAuthority(options.exec, proofTarget, options.readBlob).authorize
     : options.authorize;
   const clean = options.isClean
     ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));

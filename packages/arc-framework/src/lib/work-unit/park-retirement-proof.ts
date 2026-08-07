@@ -2,25 +2,19 @@
  * Result-projection proof for park-at-Planning retirement authorization.
  *
  * A derived `planned` state is necessary but not sufficient: the retiring
- * transition and effective base must contain the same canonical receipt and
- * byte-identical complete planned artifact group.
+ * transition and effective base must contain the same byte-identical complete
+ * planned artifact group.
  */
 
 import { posix } from "node:path";
 
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { canonicalize } from "../canonical/canonical-json.js";
 import { contentDigest, type ArtifactSetEntry } from "../canonical/content-digest.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
-import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import {
-  validateReceiptMatrix,
-  type RetirementReceipt,
-  type TeardownAuthorizationRefusal,
-} from "./retirement-authority.js";
+import type { TeardownAuthorizationRefusal } from "./retirement-authority.js";
 import type { LifecycleState } from "./lifecycle-resolver.js";
 
 /** One exact artifact read from a committed planned projection. */
@@ -32,14 +26,24 @@ export interface ParkRetirementArtifact {
 /** Committed facts needed from either side of the park proof. */
 export interface ParkRetirementProjection {
   lifecycle: LifecycleState;
-  receiptBytes: Uint8Array | null;
   artifacts: readonly ParkRetirementArtifact[];
 }
 
 /** Projection reader used by the pure park proof gate. */
 export interface ParkRetirementProofContext {
-  readProjection(head: string, receipt: RetirementReceipt): Promise<ParkRetirementProjection>;
+  readProjection(head: string, subject: string): Promise<ParkRetirementProjection>;
 }
+
+/** Canonical result established by matching committed park projections. */
+export interface ParkRetirementProof {
+  lifecycle: "planned";
+  resultInventory: readonly ArtifactSetEntry[];
+}
+
+/** Closed result of proving a receipt-independent park transition. */
+export type ParkRetirementProofResult =
+  | { status: "proved"; proof: ParkRetirementProof }
+  | { status: "refused"; reason: TeardownAuthorizationRefusal };
 
 /** Protection-mode boundaries for resolving the effective base proof target. */
 export interface ParkProofTargetContext {
@@ -71,48 +75,36 @@ export async function resolveParkProofTarget(
 /**
  * Prove a conserved park result across the retiring branch and effective base.
  *
- * @returns `null` when both projections prove the same planned result, otherwise
+ * @returns The canonical planned result when both projections prove it, otherwise
  * a closed retirement-authorization refusal.
  */
 export async function validateParkRetirementProof(
   ctx: ParkRetirementProofContext,
-  receipt: RetirementReceipt,
-  projection: { retiringHead: string; resultHead: string },
-): Promise<TeardownAuthorizationRefusal | null> {
-  if (
-    receipt.transition !== "park-planning"
-    || receipt.result.kind !== "relocate"
-    || validateReceiptMatrix(receipt, "planned") !== null
-    || receipt.subject.kind !== "work-unit"
-  ) return "evidence-mismatch";
-
+  projection: { subject: string; retiringHead: string; resultHead: string },
+): Promise<ParkRetirementProofResult> {
   try {
     const [retiring, effectiveBase] = await Promise.all([
-      ctx.readProjection(projection.retiringHead, receipt),
-      ctx.readProjection(projection.resultHead, receipt),
+      ctx.readProjection(projection.retiringHead, projection.subject),
+      ctx.readProjection(projection.resultHead, projection.subject),
     ]);
     if (retiring.lifecycle !== "planned" || effectiveBase.lifecycle !== "planned") {
-      return "projection-mismatch";
+      return { status: "refused", reason: "projection-mismatch" };
     }
-    if (retiring.receiptBytes === null || effectiveBase.receiptBytes === null) {
-      return "evidence-missing";
-    }
-    if (
-      !bytesEqual(retiring.receiptBytes, effectiveBase.receiptBytes)
-      || !recordMatchesReceipt(retiring.receiptBytes, receipt)
-    ) return "evidence-mismatch";
 
-    const retiringArtifacts = validateArtifactGroup(receipt.subject.name, retiring.artifacts);
-    const baseArtifacts = validateArtifactGroup(receipt.subject.name, effectiveBase.artifacts);
-    if (retiringArtifacts === null || baseArtifacts === null) return "conservation-unproven";
-    if (
-      artifactGroupDigest(retiringArtifacts.inventory) !== receipt.result.plannedArtifactDigest
-      || artifactGroupDigest(baseArtifacts.inventory) !== receipt.result.plannedArtifactDigest
-      || !artifactMapsEqual(retiringArtifacts.byPath, baseArtifacts.byPath)
-    ) return "conservation-unproven";
-    return null;
+    const retiringArtifacts = validateArtifactGroup(projection.subject, retiring.artifacts);
+    const baseArtifacts = validateArtifactGroup(projection.subject, effectiveBase.artifacts);
+    if (retiringArtifacts === null || baseArtifacts === null) {
+      return { status: "refused", reason: "conservation-unproven" };
+    }
+    if (!artifactMapsEqual(retiringArtifacts.byPath, baseArtifacts.byPath)) {
+      return { status: "refused", reason: "conservation-unproven" };
+    }
+    return {
+      status: "proved",
+      proof: { lifecycle: "planned", resultInventory: baseArtifacts.inventory },
+    };
   } catch {
-    return "authority-unavailable";
+    return { status: "refused", reason: "authority-unavailable" };
   }
 }
 
@@ -163,11 +155,13 @@ function validateArtifactGroup(
   if (!byPath.has(`${dir}/${metaName}` as ManagedPath)) return null;
   return {
     byPath,
-    inventory: [...byPath].map(([path, bytes]) => ({
-      path,
-      state: "present" as const,
-      contentDigest: contentDigest(bytes),
-    })),
+    inventory: [...byPath]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([path, bytes]) => ({
+        path,
+        state: "present" as const,
+        contentDigest: contentDigest(bytes),
+      })),
   };
 }
 
@@ -181,15 +175,6 @@ function artifactMapsEqual(
     if (candidate === undefined || !bytesEqual(bytes, candidate)) return false;
   }
   return true;
-}
-
-function recordMatchesReceipt(bytes: Uint8Array, receipt: RetirementReceipt): boolean {
-  try {
-    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return canonicalize(JSON.parse(content) as unknown) === canonicalize(receipt);
-  } catch {
-    return false;
-  }
 }
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {

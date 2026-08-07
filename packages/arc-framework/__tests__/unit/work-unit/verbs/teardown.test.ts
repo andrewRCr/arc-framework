@@ -443,12 +443,12 @@ describe("runTeardown — arc-state authority gate", () => {
       "--full-tree",
       "-r",
       "--name-only",
-      "origin/main",
+      "deadbeef",
       "--",
       ".arc/completed/",
     ]);
     const fetchIndex = calls.findIndex((call) => call.join(" ") === "git fetch origin main");
-    const authorityReadIndex = calls.findIndex((call) => call[1] === "ls-tree" && call[5] === "origin/main");
+    const authorityReadIndex = calls.findIndex((call) => call[1] === "ls-tree" && call[5] === "deadbeef");
     expect(fetchIndex).toBeGreaterThanOrEqual(0);
     expect(authorityReadIndex).toBeGreaterThan(fetchIndex);
   });
@@ -486,7 +486,7 @@ describe("runTeardown — arc-state authority gate", () => {
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/could not refresh lifecycle authority ref `origin\/main`/i),
+      reason: expect.stringMatching(/could not resolve lifecycle authority ref `origin\/main`/i),
     });
     expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });
@@ -1388,7 +1388,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       "--full-tree",
       "-r",
       "--name-only",
-      "origin/main",
+      "deadbeef",
       "--",
       ".arc/completed/",
     ]);

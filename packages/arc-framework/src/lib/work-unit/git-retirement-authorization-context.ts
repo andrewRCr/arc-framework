@@ -23,6 +23,7 @@ import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-i
 import { resolveSlugState } from "./lifecycle-resolver.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { validateParkRetirementProof } from "./park-retirement-proof.js";
+import type { ParkProofTarget } from "./park-retirement-proof.js";
 import type {
   RetirementAuthorizationContext,
   RetirementReceiptCandidate,
@@ -226,9 +227,10 @@ function isAllowedAbandonSidecar(change: NameStatusEntry, name: string): boolean
 /** Create the production Git context consumed by the strict authorization core. */
 export function createGitRetirementAuthorizationContext(
   exec: GitExec,
-  baseRef: string,
+  baseTarget: string | ParkProofTarget,
   readBlob: RetirementAuthorizationBlobReader,
 ): RetirementAuthorizationContext {
+  const baseRef = typeof baseTarget === "string" ? baseTarget : baseTarget.head;
   const relationContext = createRelationContext(exec, readBlob);
 
   return {
@@ -475,29 +477,25 @@ async function validateReceiptResult(
   switch (receipt.transition) {
     case "abandon":
       return await validateAbandonResult(exec, receipt, projection, readBlob);
-    case "park-planning":
-      return await validateParkRetirementProof(
+    case "park-planning": {
+      const proof = await validateParkRetirementProof(
         {
-          readProjection: async (head, candidate) => {
+          readProjection: async (head, subject) => {
             const index = await readLifecycleIndex(exec, head);
-            const entry = index.get(candidate.subject.kind === "work-unit" ? candidate.subject.name : "");
+            const entry = index.get(subject);
             const artifacts = entry === undefined
               ? []
               : await readArtifactGroup(exec, head, posix.dirname(entry.path), entry.slug, readBlob);
-            const stored = await readHistoricalRecord(exec, head, candidate.receiptId);
-            const record = stored === null ? null : new TextEncoder().encode(stored.content);
             return {
-              lifecycle: candidate.subject.kind === "work-unit"
-                ? resolveSlugState(index, candidate.subject.name)
-                : "nonexistent",
-              receiptBytes: record,
+              lifecycle: resolveSlugState(index, subject),
               artifacts: artifacts.map((artifact) => ({ path: artifact.path, bytes: artifact.bytes })),
             };
           },
         },
-        receipt,
-        projection,
+        { subject: receipt.subject.name, ...projection },
       );
+      return proof.status === "proved" ? null : proof.reason;
+    }
     case "rename":
       return "unsupported-transition";
   }

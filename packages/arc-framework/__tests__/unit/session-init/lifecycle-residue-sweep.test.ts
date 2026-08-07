@@ -114,7 +114,10 @@ function noRecords(): RetirementRecordEnumerationResult {
   return { status: "valid", records: [] };
 }
 
-const exec: GitExec = async () => ({ stdout: "", stderr: "" });
+const exec: GitExec = async (_command, args) => ({
+  stdout: args[0] === "rev-parse" ? `${HEAD}\n` : "",
+  stderr: "",
+});
 
 function authorizedDecision() {
   return {
@@ -185,7 +188,9 @@ describe("projectRenameMoveRemedy", () => {
 
 describe("runLandedRetirementSweep", () => {
   it("lets landed retirement authority supersede stale branch-local active metadata", async () => {
-    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+    const enumerateRecords = async (ref: string) => ref === HEAD
+      ? enumerated(abandonReceipt())
+      : noRecords();
 
     const result = await runLandedRetirementSweep({
       roster: {
@@ -213,7 +218,6 @@ describe("runLandedRetirementSweep", () => {
       status: "actionable",
       lifecycle: { subject: { slug: "retired", branch: "feat/retired" } },
     });
-    expect(enumerateRecords).toHaveBeenCalledWith("origin/main");
   });
 
   it("offers ordinary teardown only from unique base-reachable receipt authority", async () => {
@@ -234,7 +238,6 @@ describe("runLandedRetirementSweep", () => {
       isClean: async () => true,
     });
 
-    expect(enumerateRecords).toHaveBeenCalledWith("origin/main");
     expect(result.retirements).toEqual([{
       status: "actionable",
       worktreePath: "/wt/retired",
@@ -338,10 +341,11 @@ describe("runLandedRetirementSweep", () => {
   });
 
   it("reads the local integrating base under partial protection without fetching", async () => {
-    const fetchBase = vi.fn(async () => true);
-    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+    const enumerateRecords = async (ref: string) => ref === HEAD
+      ? enumerated(abandonReceipt())
+      : noRecords();
 
-    await runLandedRetirementSweep({
+    const result = await runLandedRetirementSweep({
       roster: { entries: [], warnings: [] },
       topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
       markers: new Map([["/wt/retired", ownedMarker()]]),
@@ -349,15 +353,44 @@ describe("runLandedRetirementSweep", () => {
       protection: "partial",
       exec,
       readBlob: async () => null,
-      fetchBase,
+      fetchBase: async () => { throw new Error("must not fetch partial authority"); },
       enumerateRecords,
       authorize: async () => authorizedDecision(),
       isClean: async () => true,
     });
 
-    expect(fetchBase).not.toHaveBeenCalled();
-    expect(enumerateRecords).toHaveBeenCalledWith("main");
+    expect(result.retirements).toHaveLength(1);
   });
+
+  it.each(["full", "partial"] as const)(
+    "keeps %s-protection cleanup manual when the selected base head is unreadable",
+    async (protection) => {
+      const result = await runLandedRetirementSweep({
+        roster: { entries: [], warnings: [] },
+        topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+        markers: new Map([["/wt/retired", ownedMarker()]]),
+        baseBranch: "main",
+        protection,
+        exec: async (_command, args) => {
+          if (args[0] === "rev-parse") throw new Error("unreadable base");
+          return { stdout: "", stderr: "" };
+        },
+        readBlob: async () => null,
+        fetchBase: async () => true,
+        enumerateRecords: async () => { throw new Error("must not enumerate an unpinned base"); },
+        authorize: async () => authorizedDecision(),
+        isClean: async () => true,
+      });
+
+      expect(result).toEqual({
+        retirements: [],
+        warnings: [
+          `Could not resolve lifecycle authority ref \`${protection === "full" ? "origin/main" : "main"}\`; `
+            + "retirement cleanup remains manual.",
+        ],
+      });
+    },
+  );
 
   it("keeps dirty receipt-backed residue blocked and grants no teardown", async () => {
     const authorize = vi.fn(async () => authorizedDecision());
@@ -444,9 +477,11 @@ describe("runLandedRetirementSweep", () => {
       markers: new Map([["/wt/retired", ownedMarker()]]),
       baseBranch: "main",
       protection: "partial",
-      exec: async (_command, args) => args[0] === "rev-list"
-        ? { stdout: `${HEAD} ${parent}\n`, stderr: "" }
-        : { stdout: "", stderr: "" },
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
+        if (args[0] === "rev-list") return { stdout: `${HEAD} ${parent}\n`, stderr: "" };
+        return { stdout: "", stderr: "" };
+      },
       readBlob: async () => null,
       enumerateRecords: async () => enumerated(receipt),
       authorize: async () => ({ status: "refused", reason }),
