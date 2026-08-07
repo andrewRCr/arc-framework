@@ -17,6 +17,7 @@ import {
   ensureLocalReviewSourceMaterialized,
 } from "../hosts/local/review-materialization.js";
 import {
+  composeDeliveryMemberTarget,
   deriveLocalReviewTarget,
   confirmLocalReviewTarget,
 } from "../hosts/local/repository-target.js";
@@ -100,14 +101,17 @@ export function createLocalPrepareDependencies(input: {
     },
     readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
-    deriveTarget: async (repositoryId) => {
+    deriveTarget: async (repositoryId, member) => {
       const config = await readConfigSettings(input.cwd);
-      return deriveLocalReviewTarget({
+      const boundary = {
         exec: input.exec,
         cwd: input.cwd,
         baseRef: config.settings["branch.base"],
         repositoryId,
-      });
+      };
+      return member === undefined
+        ? deriveLocalReviewTarget(boundary)
+        : composeDeliveryMemberTarget({ ...boundary, member });
     },
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,

@@ -189,7 +189,7 @@ export async function composeDeliveryMemberTarget(input: {
   cwd: string;
   baseRef: string;
   repositoryId: string;
-  member: DeliveryMemberBinding;
+  member: Pick<DeliveryMemberBinding, "base" | "head">;
 }): Promise<ReviewTarget> {
   return deriveLocalReviewTarget({
     exec: input.exec,

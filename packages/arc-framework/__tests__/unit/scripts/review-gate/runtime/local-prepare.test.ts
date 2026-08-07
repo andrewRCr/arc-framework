@@ -116,6 +116,259 @@ describe("local review preparation request", () => {
     })).toThrow();
   });
 
+  describe("member preparation", () => {
+    const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+
+    function fixture() {
+      const targetOf = (kind: "change-set" | "delivery-member", seed: string) => createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind,
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: objectId(seed),
+        diffBaseTree: objectId("b"),
+        headSha: objectId(seed === "a" ? "c" : "f"),
+        headTree: objectId("d"),
+      });
+      const changeSetTarget = targetOf("change-set", "a");
+      const memberTarget = targetOf("delivery-member", "e");
+      const memberCoordinates = {
+        base: memberTarget.diffBaseSha,
+        head: memberTarget.headSha,
+      };
+
+      let persistedVersion = 0;
+      let persistedState: ReviewOperationState | null = null;
+      let persistedSource: LocalReviewSource | null = null;
+      let clockTick = 0;
+
+      const authorityOf = (vehicle: { kind: string; identity: string }) => ({
+        vehicle,
+        authorIdentity: "author-1",
+        evaluatorIdentity: "evaluator-1",
+        attestationRuntimeKind: "arc-cli",
+        runtimeIdentity: "arc-cli/0.1.0",
+        attestationMechanism: "local-attestation" as const,
+      });
+      const resolveAuthority = vi.fn(async (
+        _evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ) => (memberHeadObjectId === undefined
+        ? { authority: authorityOf({ kind: "work-unit", identity: "review-surface-binding" }), member: null }
+        : { authority: authorityOf({ kind: "delivery-member", identity: DELIVERABLE_ID }), member: memberCoordinates }
+      ));
+      const deriveTarget = vi.fn(async (
+        _repositoryId: string,
+        member?: { base: string; head: string },
+      ) => (member === undefined ? changeSetTarget : memberTarget));
+      const describeSource = vi.fn(async (operationId: string, target: typeof memberTarget) => (
+        createLocalReviewSource({
+          schemaVersion: 1,
+          semanticsVersion: "git-object-range/v1",
+          repositoryId: target.repositoryId,
+          targetId: target.targetId,
+          objectFormat: "sha1",
+          diffBaseSha: target.diffBaseSha,
+          diffBaseTree: target.diffBaseTree,
+          headSha: target.headSha,
+          headTree: target.headTree,
+          reachabilityRef: `refs/arc/review/local/${operationId}`,
+          materializationRef: "/tmp/review-root",
+        })
+      ));
+      const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
+
+      const dependencies = {
+        sweep: async () => undefined,
+        withSourceLock: async <T>(action: () => Promise<T>) => action(),
+        resolveRepositoryId: async () => "repo-1",
+        deriveTarget,
+        confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
+        resolveAuthority,
+        composeAssurance: async () => ({
+          status: "resolved" as const,
+          assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
+          activity: { selfReview: true, frontlineReview: true },
+          guidance: projectLocalReviewGuidance(),
+          diagnostics: [],
+        }),
+        resolvePolicy: () => ({
+          status: "resolved" as const,
+          binding: DEFAULT_LOCAL_REVIEW_POLICY_BINDING,
+          diagnostics: [] as [],
+        }),
+        validatePolicySelection: () => undefined,
+        operationStore: {
+          readOperation: async () => ({ version: persistedVersion, state: persistedState }),
+          publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
+            if (persistedVersion !== expectedVersion) {
+              throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+            }
+            persistedVersion += 1;
+            persistedState = state;
+            return { version: persistedVersion };
+          },
+        },
+        sourceStore: {
+          readSource: async () => persistedSource,
+          appendSource: async (source: LocalReviewSource) => {
+            persistedSource = source;
+            return { sourceRef: "sources/local.json" };
+          },
+        },
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        describeSource,
+        materialize,
+        now: () => `2026-08-06T17:00:0${clockTick++}Z`,
+      } as unknown as Parameters<typeof prepareLocalReview>[1];
+
+      return {
+        dependencies,
+        memberTarget,
+        changeSetTarget,
+        memberCoordinates,
+        deriveTarget,
+        describeSource,
+        materialize,
+        resolveAuthority,
+        published: () => persistedState,
+      };
+    }
+
+    const request = {
+      schemaVersion: 1 as const,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+    };
+
+    it("publishes a member vehicle over a member target when a selector is supplied", async () => {
+      const context = fixture();
+
+      await expect(prepareLocalReview(
+        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        context.dependencies,
+      )).resolves.toMatchObject({ state: "ready", nextAction: "launch-review" });
+
+      const state = context.published();
+      expect(state).toMatchObject({
+        kind: "local-review",
+        vehicle: { kind: "delivery-member", identity: DELIVERABLE_ID },
+        targetId: context.memberTarget.targetId,
+        target: { kind: "delivery-member" },
+      });
+    });
+
+    it("feeds the resolution's recorded shas to derivation, and none without a selector", async () => {
+      const context = fixture();
+
+      await prepareLocalReview(
+        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        context.dependencies,
+      );
+      expect(context.deriveTarget).toHaveBeenCalledWith("repo-1", context.memberCoordinates);
+
+      const plain = fixture();
+      await prepareLocalReview(request, plain.dependencies);
+      expect(plain.deriveTarget).toHaveBeenCalledWith("repo-1", undefined);
+    });
+
+    it("refuses an unresolvable vehicle before a dirty worktree", async () => {
+      const context = fixture();
+      const deriveTarget = vi.fn(async () => {
+        throw new Error("dirty-worktree");
+      });
+      const resolveAuthority = vi.fn(async () => {
+        throw new Error("vehicle-unresolved");
+      });
+
+      await expect(prepareLocalReview(request, {
+        ...context.dependencies,
+        deriveTarget,
+        resolveAuthority,
+      } as unknown as Parameters<typeof prepareLocalReview>[1]))
+        .rejects.toThrow(/vehicle-unresolved/u);
+      expect(deriveTarget).not.toHaveBeenCalled();
+    });
+
+    it("carries the member's pinned head through the source descriptor and materialization", async () => {
+      const context = fixture();
+
+      await prepareLocalReview(
+        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        context.dependencies,
+      );
+
+      expect(context.describeSource).toHaveBeenCalledWith(expect.any(String), context.memberTarget);
+      expect(context.materialize).toHaveBeenCalledWith(expect.objectContaining({
+        headSha: context.memberTarget.headSha,
+        diffBaseSha: context.memberTarget.diffBaseSha,
+      }));
+    });
+
+    it("snapshots the member's base ref and recorded diff base into the admission carrier", async () => {
+      const context = fixture();
+
+      await prepareLocalReview(
+        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        context.dependencies,
+      );
+
+      const state = context.published();
+      expect(state).toMatchObject({
+        target: {
+          baseRef: "main",
+          diffBaseSha: context.memberCoordinates.base,
+          headSha: context.memberCoordinates.head,
+        },
+      });
+      // The carrier's snapshot is built from that same target, so a request bound
+      // to it carries the member's coordinates rather than the control branch's.
+      expect(state?.kind === "local-review" && state.request.targetId)
+        .toBe(context.memberTarget.targetId);
+    });
+
+    it("preserves the no-selector path in a work-unit context", async () => {
+      const context = fixture();
+
+      await expect(prepareLocalReview(request, context.dependencies))
+        .resolves.toMatchObject({ state: "ready" });
+
+      expect(context.published()).toMatchObject({
+        vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+        targetId: context.changeSetTarget.targetId,
+        target: { kind: "change-set" },
+      });
+    });
+
+    it("preserves the no-selector path in an Errand context", async () => {
+      const context = fixture();
+      const resolveAuthority = vi.fn(async () => ({
+        authority: {
+          vehicle: { kind: "errand" as const, identity: "repair-review-state" },
+          authorIdentity: "author-1",
+          evaluatorIdentity: "evaluator-1",
+          attestationRuntimeKind: "arc-cli",
+          runtimeIdentity: "arc-cli/0.1.0",
+          attestationMechanism: "local-attestation" as const,
+        },
+        member: null,
+      }));
+
+      await expect(prepareLocalReview(request, {
+        ...context.dependencies,
+        resolveAuthority,
+      } as unknown as Parameters<typeof prepareLocalReview>[1]))
+        .resolves.toMatchObject({ state: "ready" });
+
+      expect(context.published()).toMatchObject({
+        vehicle: { kind: "errand", identity: "repair-review-state" },
+        target: { kind: "change-set" },
+      });
+      expect(context.deriveTarget).toHaveBeenCalledWith("repo-1", undefined);
+    });
+  });
+
   it("converges concurrent identical preparations on the admitted operation", async () => {
     const target = createReviewTarget({
       schemaVersion: 2,

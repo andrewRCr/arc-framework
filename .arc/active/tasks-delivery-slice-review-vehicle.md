@@ -411,35 +411,25 @@ class.
   byte-identical assurance. Refusals follow for free: an absent meta and an unresolvable rubric each refuse for a
   member exactly as for a work unit, which is what keeps the guidance digest stable across prepare and attest.
 
-### `[ ]` **4.4 Prepare a member operation end to end**
+### `[x]` **4.4 Prepare a member operation end to end**
 
 - _Goal:_ Prepare at the control locus with a selector publishes an operation whose vehicle, target, and
   assurance all describe the named member, and prepare without one produces exactly what it produces today.
 
-    - `[ ]` **4.4.a Resolve authority before deriving, and feed the resolution to derivation**
+    - `[x]` **4.4.a Resolve authority before deriving, and feed the resolution to derivation**
 
-        - prepare derives its target before resolving authority today, which leaves the recorded coordinates
-          unavailable at the moment derivation needs them. Invert the two steps and pass the resolution's
-          recorded shas into derivation as its member coordinates; with no selector, derivation receives none and
-          behaves exactly as it does now.
-        - the inversion moves which refusal surfaces first when two would fire at once — a dirty worktree and an
-          unresolvable vehicle, say. No successful outcome changes, and no existing test pins the old order, but
-          the new order is pinned below so it is a decision rather than a drift.
+        - the two steps are inverted, and `deriveTarget` takes the resolution's recorded coordinates as a second
+          optional argument. The composition root routes them to `composeDeliveryMemberTarget`, which Phase 3
+          built and nothing had yet called; its parameter narrowed to the two shas it actually reads, so the
+          coordinates satisfy it without carrying a whole binding
+        - the inversion is what makes an unresolvable vehicle refuse ahead of a dirty worktree, now pinned. No
+          successful outcome changes: the published state's vehicle, target, source descriptor, materialization,
+          and carrier snapshot all describe the member's pinned commits rather than the control branch's
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **4.4.b Preserve the no-selector path exactly**
 
-        - a selector produces a member vehicle and a member target in the published operation state
-        - derivation receives the resolution's recorded shas, and receives no coordinates without a selector
-        - an unresolvable vehicle refuses before a dirty worktree does
-        - the source descriptor and materialization consume the pinned head unchanged
-        - the admission carrier's snapshot carries the member's base ref and its recorded diff base
-
-    - `[ ]` **4.4.b Preserve the no-selector path exactly**
-
-        Build `test-first` (one behavior at a time):
-
-        - prepare with no selector yields today's vehicle, target, and assurance in a work-unit context
-        - the same holds in an Errand context
+        - with no selector, derivation is called with no coordinates and yields today's change-set target,
+          vehicle, and assurance — proven in both the work-unit and Errand contexts
 
 ---
 
