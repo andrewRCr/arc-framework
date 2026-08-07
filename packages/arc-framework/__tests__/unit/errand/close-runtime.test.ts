@@ -1,11 +1,20 @@
 /** Exact recorded-head cleanup for ordinary v3 Errand finalization. */
 
-import { describe, expect, it } from "vitest";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { cleanupOrdinaryErrandRefs } from "../../../src/lib/errand/close-runtime.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  cleanupOrdinaryErrandRefs,
+  closeOrdinaryErrandAtRuntime,
+} from "../../../src/lib/errand/close-runtime.js";
+import { acquireErrandCloseHeadLock } from "../../../src/lib/errand/close-head-lock.js";
 import type { CloseAuthorityGuard, CloseTarget } from "../../../src/lib/errand/close-locus.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
+import * as identityTransaction from "../../../src/lib/errand/identity-transaction.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
@@ -102,6 +111,90 @@ const BASE_GUARD: CloseAuthorityGuard = {
 const LOCAL_DELETE_LEASE = async () => ({
   kind: "acquired" as const,
   release: async () => undefined,
+});
+
+const TEMP_DIRS: string[] = [];
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await Promise.all(TEMP_DIRS.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+async function closeLockRuntime() {
+  const checkoutPath = await mkdtemp(join(tmpdir(), "arc-close-runtime-"));
+  TEMP_DIRS.push(checkoutPath);
+  const gitDir = join(checkoutPath, ".git");
+  await mkdir(gitDir);
+  const lockPath = join(gitDir, "HEAD.lock");
+  const exec: GitExec = async (_command, args) => {
+    if (args.join(" ") === "rev-parse --git-path HEAD") {
+      return { stdout: `${join(gitDir, "HEAD")}\n`, stderr: "" };
+    }
+    if (args.join(" ") === "worktree list --porcelain -z") {
+      return {
+        stdout: worktreePorcelainZ(`worktree ${checkoutPath}\nHEAD ${EXPECTED}\nbranch refs/heads/main`),
+        stderr: "",
+      };
+    }
+    throw gitError(`unsupported test operation: ${args.join(" ")}`, 1);
+  };
+  const acquired = await acquireErrandCloseHeadLock({
+    exec,
+    checkoutPath,
+    identity: { slug: "done", claimId: "c".repeat(32) },
+    revalidate: async () => ({ kind: "valid" }),
+  });
+  if (acquired.kind !== "acquired") throw new Error("expected acquired close lock");
+  return { acquired, checkoutPath, exec, lockPath };
+}
+
+function reconcileIdentity(records: ReadonlyMap<string, OrdinaryErrandRecord>): void {
+  vi.spyOn(identityTransaction, "transactTransientIdentities").mockImplementation(async (_io, params) => {
+    const decision = await params.transform(records);
+    if (decision.kind === "refused") return decision;
+    return decision.kind === "applied"
+      ? { kind: "applied", value: decision.value, tip: EXPECTED }
+      : { kind: "idempotent", value: decision.value, tip: null };
+  });
+}
+
+async function dispatchClose(exec: GitExec) {
+  return closeOrdinaryErrandAtRuntime({
+    slug: "done",
+    base: "main",
+    protection: "full",
+    identity: "tester",
+    exec,
+    execInput: async () => { throw new Error("identity transaction should be mocked"); },
+    readFrame: async () => { throw new Error("close should stop before occupancy"); },
+    removeInbox: async () => ({ kind: "absent", nextOffer: null }),
+  });
+}
+
+describe("closeOrdinaryErrandAtRuntime lock recovery", () => {
+  it("preserves a live close receipt while reconciliation retains the identity", async () => {
+    const runtime = await closeLockRuntime();
+    reconcileIdentity(new Map([["done", awaiting()]]));
+
+    await expect(dispatchClose(runtime.exec)).resolves.toMatchObject({
+      outcome: "refused",
+      operation: "errand-close",
+    });
+    await expect(readFile(runtime.lockPath, "utf8")).resolves.toContain("arc-errand-close-head-lock");
+
+    await runtime.acquired.release();
+  });
+
+  it("recovers a close receipt only after reconciliation proves identity absence", async () => {
+    const runtime = await closeLockRuntime();
+    reconcileIdentity(new Map());
+
+    await expect(dispatchClose(runtime.exec)).resolves.toMatchObject({
+      outcome: "idempotent",
+      operation: "errand-close",
+    });
+    await expect(readFile(runtime.lockPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
 
 describe("cleanupOrdinaryErrandRefs", () => {
