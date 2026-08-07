@@ -14,6 +14,7 @@ import {
   type ArtifactSetEntry,
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { isSlugSafe } from "../kernel/schema/slug.js";
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
@@ -77,7 +78,9 @@ export async function locateAbandonTransition(
   request: TeardownAuthorizationRequest,
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<AbandonTransitionLocation> {
-  if (request.subject.kind !== "work-unit") return { status: "absent" };
+  if (request.subject.kind !== "work-unit" || !isSlugSafe(request.subject.name)) {
+    return { status: "absent" };
+  }
   try {
     const directParents = await readCommitParents(exec, request.head);
     if (directParents.length === 1 && directParents[0] !== undefined) {
@@ -94,7 +97,7 @@ export async function locateAbandonTransition(
 
     const baseHead = await resolveCommit(exec, baseRef);
     const matches: AbandonTransitionProof[] = [];
-    for (const resultHead of await listAbandonCandidates(exec, baseHead)) {
+    for (const resultHead of await listAbandonCandidates(exec, baseHead, request.subject.name)) {
       const parents = await readCommitParents(exec, resultHead);
       const sourceHead = parents.length === 1 ? parents[0] : undefined;
       if (sourceHead === undefined) continue;
@@ -117,7 +120,12 @@ export async function locateAbandonTransition(
   }
 }
 
-async function listAbandonCandidates(exec: GitExec, baseHead: string): Promise<readonly string[]> {
+async function listAbandonCandidates(
+  exec: GitExec,
+  baseHead: string,
+  slug: string,
+): Promise<readonly string[]> {
+  const metaName = `meta-${slug}.md`;
   const { stdout } = await exec("git", [
     "log",
     "--format=%H",
@@ -125,9 +133,9 @@ async function listAbandonCandidates(exec: GitExec, baseHead: string): Promise<r
     "--no-renames",
     baseHead,
     "--",
-    ".arc/active",
-    ".arc/backlog/planned",
-    ".arc/backlog/provisional",
+    `:(glob).arc/active/**/${metaName}`,
+    `:(glob).arc/backlog/planned/**/${metaName}`,
+    `:(glob).arc/backlog/provisional/**/${metaName}`,
   ]);
   return [...new Set(stdout.split("\n").map((value) => value.trim()).filter(Boolean))];
 }
@@ -144,8 +152,8 @@ async function validateAbandonTransition(
   const [sourceArtifacts, resultArtifacts, sourceIndex, resultIndex] = await Promise.all([
     readAllSubjectArtifacts(exec, sourceHead, name, readBlob),
     readAllSubjectArtifacts(exec, resultHead, name, readBlob),
-    readLifecycleIndex(exec, sourceHead),
-    readLifecycleIndex(exec, resultHead),
+    readSlugLifecycleIndex(exec, sourceHead, name),
+    readSlugLifecycleIndex(exec, resultHead, name),
   ]);
   const sourceEntry = sourceIndex.get(name);
   if (sourceEntry === undefined || resultIndex.has(name) || resultArtifacts.length > 0) return null;
@@ -286,7 +294,7 @@ export function createGitRetirementAuthorizationContext(
       const park = await validateParkRetirementProof(
         {
           readProjection: async (head, subject) => {
-            const index = await readLifecycleIndex(exec, head);
+            const index = await readSlugLifecycleIndex(exec, head, subject);
             const entry = index.get(subject);
             const artifacts = entry === undefined
               ? []
@@ -419,13 +427,18 @@ function toArtifactEntries(artifacts: readonly StoredArtifact[]): ArtifactSetEnt
   }));
 }
 
-async function readLifecycleIndex(exec: GitExec, ref: string): Promise<LifecycleIndex> {
+async function readSlugLifecycleIndex(
+  exec: GitExec,
+  ref: string,
+  slug: string,
+): Promise<LifecycleIndex> {
+  const metaName = `meta-${slug}.md`;
   const paths = (await listPaths(exec, ref, [
     ".arc/active",
     ".arc/backlog/planned",
     ".arc/backlog/provisional",
     ".arc/completed",
-  ])).filter((path) => /^meta-.+\.md$/u.test(posix.basename(path)));
+  ])).filter((path) => posix.basename(path) === metaName);
   const metas = await Promise.all(paths.map(async (path) => ({
     path,
     content: await requireTextAt(exec, ref, path),
@@ -441,7 +454,7 @@ export async function readCompletedProjectionDigest(
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<CanonicalDigest | null> {
   if (subject.kind !== "work-unit") return canonicalDigest({ subject });
-  const index = await readLifecycleIndex(exec, baseRef);
+  const index = await readSlugLifecycleIndex(exec, baseRef, subject.name);
   const entry = index.get(subject.name);
   if (entry === undefined || entry.location !== "completed") return null;
   const artifacts = await readArtifactGroup(exec, baseRef, posix.dirname(entry.path), subject.name, readBlob);

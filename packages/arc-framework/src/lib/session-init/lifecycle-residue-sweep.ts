@@ -181,12 +181,13 @@ export async function runLandedRetirementSweep(
     : options.authorize;
   const clean = options.isClean
     ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));
-  const retirements: LandedRetirementResidue[] = [];
-  for (const candidate of candidates) {
+  const projected = await Promise.all(candidates.map(async (
+    candidate,
+  ): Promise<LandedRetirementResidue | null> => {
     const marker = options.markers.get(candidate.path);
-    if (marker?.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit") continue;
+    if (marker?.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit") return null;
     const slug = marker.marker.createdFor.name;
-    if (candidate.branch === null) continue;
+    if (candidate.branch === null) return null;
     const decision = await authority({
       subject: { kind: "work-unit", name: slug },
       branch: candidate.branch,
@@ -196,28 +197,27 @@ export async function runLandedRetirementSweep(
     });
     if (decision.status !== "authorized") {
       if (decision.reason !== "evidence-missing" && decision.reason !== "unsupported-transition") {
-        retirements.push({
+        return {
           status: "blocked",
           worktreePath: candidate.path,
           subject: { slug, branch: candidate.branch },
           reason: decision.reason,
-        });
+        };
       }
-      continue;
+      return null;
     }
     const evidence = decision.evidence;
-    if (evidence.kind !== "git-transition" || evidence.transition !== "abandon") continue;
+    if (evidence.kind !== "git-transition" || evidence.transition !== "abandon") return null;
     if (!await clean(candidate.path)) {
-      retirements.push({
+      return {
         status: "blocked",
         worktreePath: candidate.path,
         subject: { slug, branch: candidate.branch },
         reason: "uncommitted",
-      });
-      continue;
+      };
     }
     const pending = { status: "pending" } as const;
-    retirements.push({
+    return {
       status: "actionable",
       worktreePath: candidate.path,
       lifecycle: {
@@ -234,8 +234,9 @@ export async function runLandedRetirementSweep(
         argv: ["arc", "teardown", slug],
         text: `arc teardown ${slug}`,
       },
-    });
-  }
+    };
+  }));
+  const retirements = projected.filter((entry): entry is LandedRetirementResidue => entry !== null);
   return { retirements, warnings: [] };
 }
 

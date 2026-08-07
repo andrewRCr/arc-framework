@@ -27,12 +27,15 @@ async function createRepository(options: {
   cohort?: string;
   malformedMeta?: boolean;
   duplicateMetaPath?: string;
+  irrelevantMetaPath?: string;
+  deleteIrrelevantAfterResult?: boolean;
   keepSpec?: boolean;
   extraResultPath?: string;
 } = {}): Promise<{
   root: string;
   sourceHead: string;
   resultHead: string;
+  baseHead: string;
   metaPath: string;
   specPath: string;
   exec: ReturnType<typeof createExecaGitExec>;
@@ -65,6 +68,13 @@ async function createRepository(options: {
     await mkdir(join(root, options.duplicateMetaPath, ".."), { recursive: true });
     await writeFile(join(root, options.duplicateMetaPath), meta);
   }
+  if (options.irrelevantMetaPath !== undefined) {
+    await mkdir(join(root, options.irrelevantMetaPath, ".."), { recursive: true });
+    await writeFile(join(root, options.irrelevantMetaPath), renderMetaProjectionFile("unrelated", {
+      State: "Provisional",
+      Branch: "[none]",
+    }));
+  }
   await mkdir(join(root, ".arc/backlog"), { recursive: true });
   await writeFile(join(root, roadmapPath), "- sample\n");
   await exec("git", ["add", "."]);
@@ -90,7 +100,13 @@ async function createRepository(options: {
   await exec("git", ["add", "."]);
   await exec("git", ["commit", "-m", "abandon"]);
   const resultHead = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
-  return { root, sourceHead, resultHead, metaPath: sourceMetaPath, specPath: sourceSpecPath, exec };
+  if (options.deleteIrrelevantAfterResult && options.irrelevantMetaPath !== undefined) {
+    await unlink(join(root, options.irrelevantMetaPath));
+    await exec("git", ["add", "."]);
+    await exec("git", ["commit", "-m", "delete unrelated work unit"]);
+  }
+  const baseHead = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  return { root, sourceHead, resultHead, baseHead, metaPath: sourceMetaPath, specPath: sourceSpecPath, exec };
 }
 
 async function locate(
@@ -191,6 +207,73 @@ describe("structural abandon transition location", () => {
     const repo = await createRepository();
 
     await expect(locate(repo, { head: repo.sourceHead })).resolves.toMatchObject({
+      status: "unique",
+      proof: {
+        topology: "landed",
+        sourceHead: repo.sourceHead,
+        resultHead: repo.resultHead,
+      },
+    });
+  });
+
+  it("authenticates the target without reading unrelated lifecycle metas", async () => {
+    const irrelevantMetaPath = ".arc/backlog/provisional/unrelated/meta-unrelated.md";
+    const repo = await createRepository({ irrelevantMetaPath });
+    const targetOnlyExec: typeof repo.exec = async (cmd, args, options) => {
+      if (args[0] === "show" && args[1]?.endsWith(`:${irrelevantMetaPath}`)) {
+        throw new Error("unrelated lifecycle meta is unreadable");
+      }
+      return await repo.exec(cmd, args, options);
+    };
+
+    await expect(locateAbandonTransition(
+      targetOnlyExec,
+      repo.resultHead,
+      {
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        head: repo.sourceHead,
+        remote: "origin",
+        requestedMode: "abandoned",
+      },
+      readRepoBlob(repo),
+    )).resolves.toMatchObject({
+      status: "unique",
+      proof: {
+        topology: "landed",
+        sourceHead: repo.sourceHead,
+        resultHead: repo.resultHead,
+      },
+    });
+  });
+
+  it("authenticates the target without inspecting unrelated deletion commits", async () => {
+    const repo = await createRepository({
+      irrelevantMetaPath: ".arc/backlog/provisional/unrelated/meta-unrelated.md",
+      deleteIrrelevantAfterResult: true,
+    });
+    const targetOnlyExec: typeof repo.exec = async (cmd, args, options) => {
+      if (
+        (args[0] === "ls-tree" || args[0] === "show")
+        && args.some((arg) => arg === repo.baseHead || arg.startsWith(`${repo.baseHead}:`))
+      ) {
+        throw new Error("unrelated deletion tree is unreadable");
+      }
+      return await repo.exec(cmd, args, options);
+    };
+
+    await expect(locateAbandonTransition(
+      targetOnlyExec,
+      repo.baseHead,
+      {
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        head: repo.sourceHead,
+        remote: "origin",
+        requestedMode: "abandoned",
+      },
+      readRepoBlob(repo),
+    )).resolves.toMatchObject({
       status: "unique",
       proof: {
         topology: "landed",

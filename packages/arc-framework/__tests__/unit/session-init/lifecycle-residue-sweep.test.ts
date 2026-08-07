@@ -174,6 +174,48 @@ describe("runLandedRetirementSweep", () => {
     expect(result.retirements[0]).not.toHaveProperty("lifecycle.authority");
   });
 
+  it("starts independent retirement proofs without waiting for an earlier candidate", async () => {
+    let releaseFirst: (() => void) | undefined;
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let secondStarted = false;
+    const sweep = runLandedRetirementSweep({
+      ...options(),
+      topology: [
+        registered({ path: "/wt/first", branch: "feat/first" }),
+        registered({ path: "/wt/second", branch: "feat/second" }),
+      ],
+      markers: new Map([
+        ["/wt/first", ownedMarker("first")],
+        ["/wt/second", ownedMarker("second")],
+      ]),
+      authorize: async (request) => {
+        if (request.subject.kind === "work-unit" && request.subject.name === "first") {
+          await firstBlocked;
+        } else {
+          secondStarted = true;
+          releaseFirst?.();
+        }
+        return authorizedDecision();
+      },
+    });
+
+    try {
+      const result = await Promise.race([
+        sweep,
+        new Promise<never>((_resolve, reject) => {
+          setTimeout(() => reject(new Error("independent proof did not start")), 100);
+        }),
+      ]);
+      expect(secondStarted).toBe(true);
+      expect(result.retirements).toHaveLength(2);
+    } finally {
+      releaseFirst?.();
+      await sweep;
+    }
+  });
+
   it("reads the local integrating base under partial protection without fetching", async () => {
     const fetchBase = vi.fn(async () => true);
     const result = await runLandedRetirementSweep({ ...options(), fetchBase });

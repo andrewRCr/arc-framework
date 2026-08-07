@@ -273,6 +273,11 @@ coverage before any receipt-consuming predecessor is removed.
         - Routed decoded husks through the receipt-free replay result so status falls back to detached orientation,
           stale sweeps block as manual-only, and teardown preserves the husk whenever committed proof fails.
 
+    - `[x]` **3.5.c Bound session-entry replay to the target transition**
+        - Restricted deletion-history and lifecycle reads to the exact subject meta, then evaluated independent
+          worktree proofs concurrently. Full structural validation remains fail-closed while session-init returned
+          from 50.09 seconds to 7.42 seconds against a 6.07-second pre-change baseline.
+
 - _Outcome:_ A structurally valid non-shipped stamp is now only a replay request; cleanup authority emerges again
   from immutable Git topology and bytes, and every detached-husk consumer shares the same fail-closed verdict.
 
