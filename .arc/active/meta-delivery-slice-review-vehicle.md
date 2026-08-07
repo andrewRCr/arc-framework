@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.5 — Gate merge-lock release on a member's readiness result (Phase 2 complete)
-- **Next Task:** Task 3.1 — Widen the review target kind to `delivery-member` (line ~225)
+- **Last Completed:** Task 3.4 — Branch target confirmation on the carried kind (Phase 3 complete)
+- **Next Task:** Task 4.1 — Admit the `delivery-member` variant into the local authority (line ~344)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — Widen the review target kind to `delivery-member`
+- **Next Action:** Begin Task 4.1 — admit the variant into the local authority and operation-state
+  vehicle unions
 
 - **PR URL:** [none]
 - **Completed:** [none]
