@@ -230,7 +230,10 @@ export async function boundedFetch(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
+    await exec("git", ["fetch", "origin", ref], {
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args: ["fetch", "origin", ref] });
@@ -256,7 +259,7 @@ export async function boundedGitInvocation(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", args, { signal: controller.signal });
+    await exec("git", args, { signal: controller.signal, diagnosticLocale: "stable" });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });

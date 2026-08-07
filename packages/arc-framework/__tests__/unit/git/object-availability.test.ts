@@ -6,6 +6,24 @@ import type { GitExecInput } from "../../../src/lib/git/exec.js";
 const oid = (seed: string): string => seed.padEnd(40, "0");
 
 describe("readObjectAvailability", () => {
+  it("rejects invalid object ids without invoking Git", async () => {
+    const execInput: GitExecInput = vi.fn(async () => "");
+    await expect(readObjectAvailability({ execInput, oids: ["a".repeat(41)] })).resolves.toEqual({
+      kind: "unavailable",
+      reason: "malformed",
+    });
+    expect(execInput).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty complete map without invoking Git", async () => {
+    const execInput: GitExecInput = vi.fn(async () => "");
+    await expect(readObjectAvailability({ execInput, oids: [] })).resolves.toEqual({
+      kind: "complete",
+      commits: {},
+    });
+    expect(execInput).not.toHaveBeenCalled();
+  });
+
   it("reports a locally available commit by advertised object id", async () => {
     const commit = oid("a1");
     const execInput: GitExecInput = vi.fn(async () => `${commit} commit 123\n`);

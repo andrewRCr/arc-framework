@@ -6,6 +6,7 @@ import {
   runBaseDistanceStatus,
 } from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 const BASE_OID = "b".repeat(40);
 const MERGE_OID = "c".repeat(40);
@@ -145,6 +146,23 @@ describe("snapshot-driven base distance", () => {
     });
   });
 
+  it.each([
+    ["execution", /inspection failed/u],
+    ["malformed", /malformed output/u],
+  ] as const)("propagates %s base object-availability prerequisite failure", async (reason, message) => {
+    const exec: GitExec = async (_command, args) => {
+      throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "unavailable", reason },
+      history: { kind: "complete" },
+    })).rejects.toThrow(message);
+  });
+
   it("returns exact remote-base absence without running local object or graph reads", async () => {
     const exec: GitExec = async (_command, args) => {
       throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
@@ -244,7 +262,11 @@ describe("base drift raw-distance boundary", () => {
       mode: "authoritative",
     });
     expect(calls).toContainEqual(["check-ref-format", "refs/heads/main"]);
-    expect(calls).toContainEqual(["fetch", "origin", "main"]);
+    expect(calls).toContainEqual([
+      "fetch",
+      "origin",
+      "+refs/heads/main:refs/remotes/origin/main",
+    ]);
     expect(calls).toContainEqual([
       "rev-parse",
       "--verify",
@@ -252,6 +274,30 @@ describe("base drift raw-distance boundary", () => {
     ]);
     expect(calls.some((args) => args[0] === "update-ref")).toBe(false);
     expect(calls.some((args) => args.join(" ").includes("refs/arc/base-drift"))).toBe(false);
+  });
+
+  it("preserves an absent authoritative remote base without resolving a stale tracking ref", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      calls.push(args);
+      if (args[0] === "check-ref-format") return { stdout: "" };
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") return { stdout: "feat/example" };
+      if (args.join(" ") === "remote get-url origin") return { stdout: "remote" };
+      throw new GitProcessError({
+        kind: "nonzero-exit",
+        command: "git",
+        args,
+        exitCode: 128,
+        expectedOutcome: "absent-remote-ref",
+      });
+    };
+
+    await expect(runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" }))
+      .resolves.toMatchObject({
+        verdict: "unavailable",
+        unavailableReason: "remote-base-absent",
+      });
+    expect(calls.some((args) => args.includes("--verify"))).toBe(false);
   });
 
   it("keeps raw distance authoritative for reconcile", async () => {
