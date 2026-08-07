@@ -11,7 +11,7 @@ import type { ParkProofTarget } from "./park-retirement-proof.js";
 import {
   createGitRetirementAuthorizationContext,
   readCompletedProjectionDigest,
-  validateGitRetirementReceiptEvidence,
+  validateGitTransitionRetirementEvidence,
 } from "./git-retirement-authorization-context.js";
 import {
   authorizeRetirement,
@@ -78,7 +78,7 @@ export async function revalidateHuskRetirementEvidence(
       return false;
     }
   }
-  return await validateGitRetirementReceiptEvidence(exec, baseRef, {
+  return await validateGitTransitionRetirementEvidence(exec, baseRef, {
     subject: stamp.subject,
     branch: stamp.branch,
     retiringHead: stamp.sha,

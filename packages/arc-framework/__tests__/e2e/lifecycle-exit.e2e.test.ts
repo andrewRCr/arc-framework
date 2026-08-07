@@ -1429,6 +1429,18 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
     expect(await branchExists(repo, "plan/solo")).toBe(false);
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+
+    const replay = await runArc(["teardown", "solo", "--husk", worktree!], worktree!);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+
+    const plannedMeta = join(repo, ".arc/backlog/planned/solo/meta-solo.md");
+    await writeFile(plannedMeta, `${await readFile(plannedMeta, "utf8")}\n`);
+    await commitFixtureBypassingHooks(repo, "change parked bytes");
+
+    const changedReplay = await runArc(["teardown", "solo", "--husk", worktree!], worktree!);
+    expect(changedReplay.exitCode, changedReplay.stdout + changedReplay.stderr).toBe(1);
+    expect(changedReplay.stdout + changedReplay.stderr).toMatch(/retirement evidence mismatch/iu);
+    expect(await pathExists(worktree!)).toBe(true);
   });
 
   it("partial-protection park landing preserves receipt-free teardown authority", async () => {
@@ -1651,8 +1663,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(sessionNotes)).toBe(false);
 
     const replay = await runArc(["teardown", "mono", "--husk", worktree!], worktree!);
-    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(1);
-    expect(replay.stdout + replay.stderr).toMatch(/retirement evidence mismatch/iu);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     expect(await pathExists(worktree!)).toBe(true);
   });
 

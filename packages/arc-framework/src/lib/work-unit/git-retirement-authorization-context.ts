@@ -23,11 +23,12 @@ import type { ParkProofTarget } from "./park-retirement-proof.js";
 import type {
   RetirementAuthorizationContext,
 } from "./retirement-authorization.js";
-import type {
-  HuskAuthorization,
-  RetirementEvidenceRef,
-  TeardownAuthorizationRefusal,
-  TeardownAuthorizationRequest,
+import {
+  gitTransitionResultDigest,
+  type HuskAuthorization,
+  type RetirementEvidenceRef,
+  type TeardownAuthorizationRefusal,
+  type TeardownAuthorizationRequest,
 } from "./retirement-authority.js";
 import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
@@ -314,8 +315,16 @@ export function createGitRetirementAuthorizationContext(
   };
 }
 
-/** Revalidate one detached husk's receipt against the same strict Git proof as live authorization. */
-export function validateGitRetirementReceiptEvidence(
+/**
+ * Revalidate one detached husk against the same strict Git proof as live authorization.
+ *
+ * @param exec - Git executor for committed topology and projection reads.
+ * @param baseRef - Selected base authority whose commit is pinned before replay.
+ * @param input - Stamped subject, branch, retiring head, authorization, and digest evidence.
+ * @param readBlob - Exact committed-blob reader preserving trailing bytes.
+ * @returns Whether replay proves the same transition result encoded by the stamp.
+ */
+export async function validateGitTransitionRetirementEvidence(
   exec: GitExec,
   baseRef: string,
   input: {
@@ -327,11 +336,37 @@ export function validateGitRetirementReceiptEvidence(
   },
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
-  void exec;
-  void baseRef;
-  void input;
-  void readBlob;
-  return Promise.resolve(false);
+  try {
+    const pinnedBase = await resolveCommit(exec, baseRef);
+    const context = createGitRetirementAuthorizationContext(exec, pinnedBase, readBlob);
+    const replay = await context.readGitTransitionProof({
+      subject: input.subject,
+      branch: input.branch,
+      head: input.retiringHead,
+      remote: "origin",
+      requestedMode: "abandoned",
+    });
+    if (replay.status === "refused") return false;
+    const { proof } = replay;
+    const authorization = proof.transition === "park-planning"
+      ? "planning-relocated"
+      : "discard-confirmed";
+    if (
+      proof.transition !== input.evidence.transition
+      || proof.retiringHead !== input.retiringHead
+      || authorization !== input.authorization
+    ) return false;
+    return gitTransitionResultDigest({
+      transition: proof.transition,
+      subject: input.subject,
+      branch: input.branch,
+      retiringHead: proof.retiringHead,
+      resultHead: proof.resultHead,
+      resultInventory: proof.resultInventory,
+    }) === input.evidence.resultDigest;
+  } catch {
+    return false;
+  }
 }
 
 interface StoredArtifact {

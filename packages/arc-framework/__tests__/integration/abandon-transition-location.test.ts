@@ -5,11 +5,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
+import { gitTransitionResultDigest } from "../../src/lib/work-unit/retirement-authority.js";
 import type { ManagedPath } from "../../src/lib/canonical/managed-path.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   abandonTransitionLocationRefusal,
   locateAbandonTransition,
+  validateGitTransitionRetirementEvidence,
 } from "../../src/lib/work-unit/git-retirement-authorization-context.js";
 
 const branch = "feat/sample";
@@ -116,6 +118,17 @@ async function locate(
   );
 }
 
+function readRepoBlob(repo: Awaited<ReturnType<typeof createRepository>>) {
+  return async (ref: string, path: ManagedPath): Promise<Uint8Array | null> => {
+    try {
+      const { stdout } = await repo.exec("git", ["show", `${ref}:${path}`]);
+      return new TextEncoder().encode(stdout);
+    } catch {
+      return null;
+    }
+  };
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })));
 });
@@ -182,6 +195,75 @@ describe("structural abandon transition location", () => {
         resultHead: repo.resultHead,
       },
     });
+  });
+
+  it("replays a valid abandon stamp from its pinned transition heads", async () => {
+    const repo = await createRepository();
+    const evidence = {
+      kind: "git-transition" as const,
+      transition: "abandon" as const,
+      resultDigest: gitTransitionResultDigest({
+        transition: "abandon",
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        retiringHead: repo.resultHead,
+        resultHead: repo.resultHead,
+        resultInventory: [],
+      }),
+    };
+
+    await expect(validateGitTransitionRetirementEvidence(
+      repo.exec,
+      repo.resultHead,
+      {
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        retiringHead: repo.resultHead,
+        authorization: "discard-confirmed",
+        evidence,
+      },
+      readRepoBlob(repo),
+    )).resolves.toBe(true);
+  });
+
+  it("rejects abandon replay copied across any stamped identity or proof field", async () => {
+    const repo = await createRepository();
+    const resultDigest = gitTransitionResultDigest({
+      transition: "abandon",
+      subject: { kind: "work-unit", name: "sample" },
+      branch,
+      retiringHead: repo.resultHead,
+      resultHead: repo.resultHead,
+      resultInventory: [],
+    });
+    const valid = {
+      subject: { kind: "work-unit", name: "sample" } as const,
+      branch,
+      retiringHead: repo.resultHead,
+      authorization: "discard-confirmed" as const,
+      evidence: { kind: "git-transition" as const, transition: "abandon" as const, resultDigest },
+    };
+    const cases = [
+      { ...valid, subject: { kind: "work-unit", name: "other" } as const },
+      { ...valid, branch: "feat/other" },
+      { ...valid, retiringHead: repo.sourceHead },
+      { ...valid, authorization: "planning-relocated" as const },
+      { ...valid, evidence: { ...valid.evidence, resultDigest: `sha256:${"f".repeat(64)}` as const } },
+      {
+        ...valid,
+        authorization: "planning-relocated" as const,
+        evidence: { ...valid.evidence, transition: "park-planning" as const },
+      },
+    ];
+
+    for (const candidate of cases) {
+      await expect(validateGitTransitionRetirementEvidence(
+        repo.exec,
+        repo.resultHead,
+        candidate,
+        readRepoBlob(repo),
+      )).resolves.toBe(false);
+    }
   });
 
   it.each([
@@ -251,6 +333,22 @@ describe("structural abandon transition location", () => {
     await expect(locate(repo, { baseRef: secondResult, head: repo.sourceHead })).resolves.toEqual({
       status: "ambiguous",
     });
+    await expect(validateGitTransitionRetirementEvidence(
+      repo.exec,
+      secondResult,
+      {
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        retiringHead: repo.sourceHead,
+        authorization: "discard-confirmed",
+        evidence: {
+          kind: "git-transition",
+          transition: "abandon",
+          resultDigest: `sha256:${"a".repeat(64)}`,
+        },
+      },
+      readRepoBlob(repo),
+    )).resolves.toBe(false);
   });
 });
 

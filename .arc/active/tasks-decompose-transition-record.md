@@ -260,28 +260,21 @@ coverage before any receipt-consuming predecessor is removed.
 - _Outcome:_ Non-shipped husks now persist a minimal replay pointer whose digest is wholly determined by pinned Git
   proof; transition-record content, receipt identity, mutable worktree bytes, and caller-supplied lifecycle are absent.
 
-### `[ ]` **3.5 Revalidate husks from stamped Git state**
+### `[x]` **3.5 Revalidate husks from stamped Git state**
 
 - _Goal:_ A decoded non-shipped husk stamp grants cleanup authority only after its transition-specific structural
   proof and shared result digest are recomputed from pinned Git state.
 
-    - `[ ]` **3.5.a Replace receipt evidence validation with proof replay**
-        - Replace `validateGitRetirementReceiptEvidence()` with abandon-locator and park-proof replay in
-          `git-retirement-authorization-context.ts` and `teardown-retirement-driver.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Recompute topology, lifecycle, canonical result inventory, and digest from the stamped and selected
-              authority heads.
-            - Refuse copied stamps, wrong subject/branch/transition, changed bytes, missing or ambiguous transitions,
-              cross-kind replay, and a mismatched result digest.
+    - `[x]` **3.5.a Replace receipt evidence validation with proof replay**
+        - Replaced receipt validation with exact-base abandon or park replay and shared digest recomputation, rejecting
+          missing, ambiguous, cross-kind, copied, mismatched, or byte-divergent evidence without record reads.
 
-    - `[ ]` **3.5.b Preserve each replay consumer's failure behavior**
-        - Update `stale-worktree-sweep.ts`, `handlers/status.ts` current-husk resolution, and teardown to consume the
-          receipt-free replay result; do not treat the still-branched lifecycle residue sweep as a detached-husk
-          consumer.
-        - Build `test-first` (one behavior at a time):
-            - Keep the current-husk status probe on ordinary detached orientation when proof fails.
-            - Project stale swept husks as manual-only and blocked, and grant teardown no destructive authority after
-              any replay failure.
+    - `[x]` **3.5.b Preserve each replay consumer's failure behavior**
+        - Routed decoded husks through the receipt-free replay result so status falls back to detached orientation,
+          stale sweeps block as manual-only, and teardown preserves the husk whenever committed proof fails.
+
+- _Outcome:_ A structurally valid non-shipped stamp is now only a replay request; cleanup authority emerges again
+  from immutable Git topology and bytes, and every detached-husk consumer shares the same fail-closed verdict.
 
 ### `[ ]` **3.6 Prove receipt-free authorization parity across lifecycle seams**
 
