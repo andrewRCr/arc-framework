@@ -505,59 +505,67 @@ drift is consequently caught at admission and at merge-lock release, never by st
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, the three ARC contract checks, code lint, shell lint, both type checks,
+  the full suite (9,426 passed, 1 skipped), and build — all green.
+- _Success criteria:_ 16 criteria, all met. An adversarial verify pass confirmed conformance on every one and
+  found no scope-boundary crossing; its two findings were both verification gaps rather than defects, and both
+  were fixed here — a composition-root test now executes the local lane's member adapters against real delivery
+  state (mutation-checked against dropping the selector forward, the lookup injection, or the member-target
+  route), and one misleading test comment was corrected.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A `delivery-member` vehicle whose asserted `planId`, `deliverableId`, and `workUnitSlug` match the
+- `[x]` A `delivery-member` vehicle whose asserted `planId`, `deliverableId`, and `workUnitSlug` match the
   delivery-state resolution for the pull request's exact live head evaluates `ready`, with no work-unit lifecycle
   artifact present in the supplied tree
 
-- `[ ]` A head bound to no delivery member refuses with `delivery-member-unbound`; an asserted field disagreeing
+- `[x]` A head bound to no delivery member refuses with `delivery-member-unbound`; an asserted field disagreeing
   with the resolution refuses with `delivery-member-mismatch` naming that field's path; an unavailable or
   ambiguous lookup refuses with `delivery-state-unavailable`
 
-- `[ ]` A vehicle naming the plan's final member refuses with `delivery-member-terminal` in both lanes, and the
+- `[x]` A vehicle naming the plan's final member refuses with `delivery-member-terminal` in both lanes, and the
   same change presented under a `work-unit` vehicle is evaluated by the unchanged work-unit path
 
-- `[ ]` A `delivery-member` vehicle is never refused with `vehicle-branch-mismatch` regardless of head branch
+- `[x]` A `delivery-member` vehicle is never refused with `vehicle-branch-mismatch` regardless of head branch
   name, while the existing work-unit and Errand readiness tests pass with unchanged expectations
 
-- `[ ]` `releaseMergeLock` admits a `delivery-member` vehicle and gates it on the readiness result, with no edit
+- `[x]` `releaseMergeLock` admits a `delivery-member` vehicle and gates it on the readiness result, with no edit
   to `merge-lock.ts`
 
-- `[ ]` Local prepare at the owning work unit's control locus with a member selector produces a review state
+- `[x]` Local prepare at the owning work unit's control locus with a member selector produces a review state
   carrying the `delivery-member` vehicle, with assurance composed from the owning work unit's `workClass` and
   `reviewRubric` by the existing composition function — not the Errand arm
 
-- `[ ]` A member operation prepared with a selector can be attested: authority re-resolution at attest and at
+- `[x]` A member operation prepared with a selector can be attested: authority re-resolution at attest and at
   re-entrant admission derives the same `delivery-member` vehicle as the persisted state, so neither the
   vehicle-mismatch nor the operation-key-mismatch refusal fires on the supported path
 
-- `[ ]` A member operation's target carries the `delivery-member` kind, the member's recorded head and base as
+- `[x]` A member operation's target carries the `delivery-member` kind, the member's recorded head and base as
   `headSha` and `diffBaseSha`, the trees resolved from those two commits, and the configured base ref as
   `baseRef`; confirmation at prepare, attest, resume, respond, and reduce returns `current` for that target while
   the control locus's `HEAD` remains the control branch and its worktree is dirty
 
-- `[ ]` An ordinary target's kind, id, derivation, and confirmation are unchanged
+- `[x]` An ordinary target's kind, id, derivation, and confirmation are unchanged
 
-- `[ ]` A member whose binding has drifted — rebased, rebound, or unbound — is refused at admission by the
+- `[x]` A member whose binding has drifted — rebased, rebound, or unbound — is refused at admission by the
   delivery authentication and again at merge-lock release, not by `stale-target`; a missing object still refuses
   on the member path
 
-- `[ ]` Local prepare invoked with no selector produces exactly the vehicle, target, and assurance it produces
+- `[x]` Local prepare invoked with no selector produces exactly the vehicle, target, and assurance it produces
   today, for both a work-unit and an Errand context
 
-- `[ ]` Local prepare refuses a selector whose bound head resolves to a work unit other than the one resolved at
+- `[x]` Local prepare refuses a selector whose bound head resolves to a work unit other than the one resolved at
   the control locus, refuses a selector naming the plan's final member, and refuses a selector supplied where no
   work unit resolves at all
 
-- `[ ]` No workflow file, dispatch payload, template, or host permission is added or revived
+- `[x]` No workflow file, dispatch payload, template, or host permission is added or revived
 
-- `[ ]` The readiness module's documented contract states the delivery read and its repository binding
+- `[x]` The readiness module's documented contract states the delivery read and its repository binding
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
