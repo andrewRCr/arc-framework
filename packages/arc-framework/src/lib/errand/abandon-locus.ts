@@ -1,11 +1,13 @@
 /** Safety-gated ordinary-v3 Errand abandonment after local occupancy is gone. */
 
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1, LocusRefusalReason,
-  LocusMutationErrorCode } from "../locus/schema/index.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+import {
+  createTerminalOperationOutcome,
+  type TerminalOperationOutcome,
+} from "./terminal-result.js";
 
 type IdentityRead =
   | { kind: "ready"; record: TransientIdentityRecord | null }
@@ -14,7 +16,7 @@ type IdentityRead =
 
 export type AbandonStepResult =
   | { kind: "applied" | "idempotent" }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 type RetirementResult =
@@ -24,15 +26,6 @@ type RetirementResult =
 
 export interface AbandonOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
-  /**
-   * Release occupancy whose identity is already retired.
-   *
-   * Finalizing an Errand in its own checkout retires the identity but leaves the locus role and
-   * lease behind, so a retired identity is not proof that the checkout was released. Runs only on
-   * the identity-absent arm, and only against a caller-selected generation; idempotent when no
-   * such occupancy remains.
-   */
-  releaseRetiredResidue?: () => Promise<AbandonStepResult>;
   cleanupResidue(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
   clearExecuteBound(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
@@ -48,7 +41,7 @@ export interface AbandonOrdinaryErrandOptions {
 /** Abandon one exact identity generation without interpreting absence as permission. */
 export async function abandonOrdinaryErrand(
   options: AbandonOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<TerminalOperationOutcome> {
   const slug = options.slug.trim();
   if (slug === "") return refusal("identity-conflict", "Errand slug must be non-empty.");
 
@@ -60,17 +53,7 @@ export async function abandonOrdinaryErrand(
   }
   if (read.kind === "refused") return refusal("identity-conflict", read.reason);
   if (read.kind === "error") return failure("locus.errand-abandon.identity-read", read.message);
-  if (read.record === null) {
-    const dependencies = options.dependencies;
-    if (dependencies.releaseRetiredResidue === undefined) return alreadyAbandoned(slug, "idempotent");
-    const releaseRetiredResidue = dependencies.releaseRetiredResidue;
-    const released = await runStep(
-      "locus.errand-abandon.residue",
-      () => releaseRetiredResidue(),
-    );
-    if ("result" in released) return released.result;
-    return alreadyAbandoned(slug, released.step.kind);
-  }
+  if (read.record === null) return alreadyAbandoned(slug);
   if (!isOrdinary(read.record) || read.record.slug !== slug) {
     return refusal("identity-conflict", `Identity '${slug}' is not an ordinary v3 Errand.`);
   }
@@ -112,26 +95,22 @@ export async function abandonOrdinaryErrand(
   const outcome = cleanup.step.kind === "applied" || inbox.step.kind === "applied" || retired.kind === "applied"
     ? "applied"
     : "idempotent";
-  return createLocusMutationResult({
+  return createTerminalOperationOutcome({
     outcome,
     operation: "errand-abandon",
-    allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: null,
-    identity: null,
-    originEntry: record.originEntry,
-    restoredParent: null,
+    identity: projectLocusIdentity(record),
     nextOffer: null,
     recommendedPromptText: `Abandoned Errand '${slug}', retained its capture, and retired its identity.`,
   });
 }
 
 async function runStep(
-  code: LocusMutationErrorCode,
+  code: ErrandErrorCode,
   operation: () => Promise<AbandonStepResult>,
-): Promise<{ step: Extract<AbandonStepResult, { kind: "applied" | "idempotent" }> } | { result: LocusMutationResultV1 }> {
+): Promise<
+  { step: Extract<AbandonStepResult, { kind: "applied" | "idempotent" }> }
+  | { result: TerminalOperationOutcome }
+> {
   let step: AbandonStepResult;
   try {
     step = await operation();
@@ -158,23 +137,22 @@ function sameChangeRequest(evidence: ChangeRequestLifecycleEvidence, record: Ord
     && observed.headSha === expected.headSha;
 }
 
-function alreadyAbandoned(slug: string, outcome: "applied" | "idempotent"): LocusMutationResultV1 {
-  return createLocusMutationResult({
-    outcome, operation: "errand-abandon", allocation: null, recordId: null, leaseId: null,
-    activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null,
-    restoredParent: null, nextOffer: null,
-    recommendedPromptText: outcome === "applied"
-      ? `Errand '${slug}' was already retired; released the session locus it left behind.`
-      : `Errand '${slug}' is already abandoned.`,
+function alreadyAbandoned(slug: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
+    outcome: "idempotent",
+    operation: "errand-abandon",
+    identity: null,
+    nextOffer: null,
+    recommendedPromptText: `Errand '${slug}' is already abandoned.`,
   });
 }
 
-function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({ outcome: "refused", operation: "errand-abandon", reason, recommendedPromptText: text });
+function refusal(reason: ErrandRefusalReason, text: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({ outcome: "refused", operation: "errand-abandon", reason, recommendedPromptText: text });
 }
 
-function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function failure(code: ErrandErrorCode, text: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "error",
     operation: "errand-abandon",
     error: { code, message: text || "Errand abandonment failed" },

@@ -7,29 +7,26 @@ import {
 } from "./identity-record.js";
 import type { IdentityTransactionOutcome } from "./identity-transaction.js";
 import type { OrdinaryErrandRecord, OrdinaryErrandTransition } from "./identity-transitions.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusMutationErrorCode,
-} from "../locus/schema/index.js";
+import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+import {
+  createTerminalOperationOutcome,
+  type TerminalOperationOutcome,
+} from "./terminal-result.js";
 
 type LeaveTransition = Extract<OrdinaryErrandTransition, { kind: "pause" | "await-merge" }>;
 
 export type LeaveAuthorization =
-  | { kind: "authorized"; occupancyEstablishedAt: string; transition: LeaveTransition }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
-  | { kind: "error"; code: LocusMutationErrorCode; message: string };
+  | { kind: "authorized"; transition: LeaveTransition }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
+  | { kind: "error"; code: ErrandErrorCode; message: string };
 
 export type LeaveCleanupResult =
   | {
       kind: "applied" | "idempotent";
-      allocation: { kind: "primary" | "spawned"; checkoutPath: string } | null;
-      recordId: string | null;
-      restoredParent: { recordId: string; checkoutPath: string } | null;
+      parentCheckoutPath: string | null;
     }
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
-  | { kind: "error"; code: LocusMutationErrorCode; message: string };
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
+  | { kind: "error"; code: ErrandErrorCode; message: string };
 
 export interface LeaveOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityTransactionOutcome<TransientIdentityRecord | null>>;
@@ -48,7 +45,7 @@ export interface LeaveOrdinaryErrandOptions {
 /** Persist an exact ordinary-Errand tail, then close only its exact local occupancy. */
 export async function leaveOrdinaryErrand(
   options: LeaveOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<TerminalOperationOutcome> {
   if (options.protection !== "full") {
     return leaveRefusal("full-protection-required", "Errand leave requires full branch protection.");
   }
@@ -81,9 +78,6 @@ export async function leaveOrdinaryErrand(
     }
     if (authorization.kind === "refused") return leaveRefusal(authorization.reason, authorization.message);
     if (authorization.kind === "error") return leaveError(authorization.code, authorization.message);
-    if (authorization.occupancyEstablishedAt !== basis.value.updatedAt) {
-      return leaveRefusal("role-conflict", "Leave authorization does not match the open occupancy generation.");
-    }
     if (authorization.transition.kind !== transitionKind(options.state)
       || serializeTransientIdentityRecord(authorization.transition.previous)
         !== serializeTransientIdentityRecord(basis.value)) {
@@ -111,21 +105,14 @@ export async function leaveOrdinaryErrand(
   if (cleanup.kind === "refused") return leaveRefusal(cleanup.reason, cleanup.message);
   if (cleanup.kind === "error") return leaveError(cleanup.code, cleanup.message);
   const outcome = identityOutcome === "applied" || cleanup.kind === "applied" ? "applied" : "idempotent";
-  return createLocusMutationResult({
+  return createTerminalOperationOutcome({
     outcome,
     operation: "errand-leave",
-    allocation: cleanup.allocation,
-    recordId: cleanup.recordId,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: cleanup.restoredParent?.checkoutPath ?? null,
     identity: projectLocusIdentity(target),
-    originEntry: target.originEntry,
-    restoredParent: cleanup.restoredParent,
     nextOffer: null,
-    recommendedPromptText: cleanup.restoredParent === null
+    recommendedPromptText: cleanup.parentCheckoutPath === null
       ? `Left Errand '${slug}' ${options.state}; no parent session was restored.`
-      : `Left Errand '${slug}' ${options.state}; restored session home '${cleanup.restoredParent.checkoutPath}'.`,
+      : `Left Errand '${slug}' ${options.state}; restored session home '${cleanup.parentCheckoutPath}'.`,
   });
 }
 
@@ -144,8 +131,8 @@ function isOrdinaryErrand(record: TransientIdentityRecord): record is OrdinaryEr
   return record.kind === "errand" && record.purpose === "errand";
 }
 
-function leaveRefusal(reason: LocusRefusalReason, message: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function leaveRefusal(reason: ErrandRefusalReason, message: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "refused",
     operation: "errand-leave",
     reason,
@@ -153,12 +140,12 @@ function leaveRefusal(reason: LocusRefusalReason, message: string): LocusMutatio
   });
 }
 
-function leaveError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function leaveError(code: ErrandErrorCode, message: string): TerminalOperationOutcome {
+  return createTerminalOperationOutcome({
     outcome: "error",
     operation: "errand-leave",
     error: { code, message: message || "Errand leave failed" },
-    recommendedPromptText: "Inspect the preserved identity tail and local session locus residue before retrying.",
+    recommendedPromptText: "Inspect the preserved identity tail and local marker evidence before retrying.",
   });
 }
 

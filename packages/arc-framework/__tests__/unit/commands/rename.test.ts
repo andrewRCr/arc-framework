@@ -1,13 +1,13 @@
 /**
- * Checkout coordinates the rename command hands to the locus rekey.
+ * Checkout coordinates the rename command hands to the marker/topology transaction.
  *
- * The rekey is keyed by checkout path, so which paths this resolution reports decides whether an
- * interrupted rename can still find the record it left behind. Git is mocked at the exec seam.
+ * Which paths this resolution reports decides whether an interrupted rename can prove its landed
+ * or pending physical state. Git is mocked at the exec seam.
  */
 
 import { describe, expect, it } from "vitest";
 
-import { resolveRekeyCheckout } from "../../../src/commands/rename.js";
+import { resolveRenameCheckoutCoordinates } from "../../../src/commands/rename.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const HEAD = "a".repeat(40);
@@ -27,9 +27,9 @@ function roster(registered: string): GitExec {
   };
 }
 
-describe("resolveRekeyCheckout", () => {
-  it("rekeys a landed move from the path its record is still keyed under", async () => {
-    await expect(resolveRekeyCheckout(roster(MOVED), {
+describe("resolveRenameCheckoutCoordinates", () => {
+  it("retains both source and destination coordinates for a landed move", async () => {
+    await expect(resolveRenameCheckoutCoordinates(roster(MOVED), {
       status: "already-moved",
       worktreePath: MOVED,
       sourceWorktreePath: SOURCE,
@@ -37,7 +37,7 @@ describe("resolveRekeyCheckout", () => {
   });
 
   it("carries a pending move from its source to its destination", async () => {
-    await expect(resolveRekeyCheckout(roster(SOURCE), {
+    await expect(resolveRenameCheckoutCoordinates(roster(SOURCE), {
       status: "move",
       from: SOURCE,
       to: MOVED,
@@ -45,12 +45,12 @@ describe("resolveRekeyCheckout", () => {
   });
 
   it("resolves an in-place subject to the primary checkout", async () => {
-    await expect(resolveRekeyCheckout(roster(MOVED), { status: "in-place" }))
+    await expect(resolveRenameCheckoutCoordinates(roster(MOVED), { status: "in-place" }))
       .resolves.toEqual({ from: PRIMARY, to: PRIMARY, expectedHead: "b".repeat(40) });
   });
 
-  it("keeps one path for a deferred self-move so only the subject rekeys", async () => {
-    await expect(resolveRekeyCheckout(roster(SOURCE), {
+  it("keeps one path for a deferred self-move so only the marker changes", async () => {
+    await expect(resolveRenameCheckoutCoordinates(roster(SOURCE), {
       status: "deferred-self-move",
       from: SOURCE,
       to: MOVED,
@@ -58,14 +58,14 @@ describe("resolveRekeyCheckout", () => {
   });
 
   it("keeps one path when no registered checkout matches the renamed slug", async () => {
-    await expect(resolveRekeyCheckout(roster(MOVED), {
+    await expect(resolveRenameCheckoutCoordinates(roster(MOVED), {
       status: "unmatched",
       worktreePath: MOVED,
     })).resolves.toEqual({ from: MOVED, to: MOVED, expectedHead: HEAD });
   });
 
-  it("reports no checkout to rekey when the subject is unregistered", async () => {
-    await expect(resolveRekeyCheckout(roster(MOVED), {
+  it("reports no checkout coordinates when the subject is unregistered", async () => {
+    await expect(resolveRenameCheckoutCoordinates(roster(MOVED), {
       status: "unmatched",
       worktreePath: "/work/project.absent",
     })).resolves.toBeNull();

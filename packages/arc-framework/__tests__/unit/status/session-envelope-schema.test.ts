@@ -13,6 +13,23 @@ function fixture(name: string): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, `session-init-${name}.json`), "utf8");
   const producerCompatible = normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02");
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
+  const derivedRow = {
+    kind: "free-primary",
+    checkout: { path: "/redacted/primary", primary: true },
+    subject: null,
+    context: null,
+    diagnostics: [],
+  };
+  value.derivedLocusState = {
+    ok: true,
+    value: {
+      roster: [derivedRow],
+      entering: { kind: "selected", row: derivedRow },
+      primaryAvailability: { kind: "free", checkoutPath: "/redacted/primary" },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    },
+  };
   const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
   if (active.ok === true && active.value?.resolution === "single") {
     const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
@@ -83,6 +100,12 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("rejects retired session-frame fields", () => {
+    const value = fixture("orient");
+    setPath(value, ["derivedLocusState", "value", "current"], { kind: "none" });
+    expectContractFailure(value, "derivedLocusState.value");
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";
@@ -542,6 +565,7 @@ describe("session-init envelope schema", () => {
   it.each([
     "mode",
     "identity",
+    "derivedLocusState",
     "locusGuidance",
     "user",
     "worktree",
@@ -557,6 +581,16 @@ describe("session-init envelope schema", () => {
     "recommendedCombinedPrompt",
   ])("requires the unconditional %s slot", (key) => {
     expectInvalid(withoutKey(fixture("orient"), key));
+  });
+
+  it("rejects malformed derived entering-checkout routing fields", () => {
+    const badSelector = fixture("orient");
+    setPath(badSelector, ["derivedLocusState", "value", "entering", "kind"], "ambiguous");
+    expectContractFailure(badSelector, "derivedLocusState.value.entering.kind");
+
+    const badRow = fixture("orient");
+    setPath(badRow, ["derivedLocusState", "value", "roster", 0, "kind"], "legacy-record");
+    expectContractFailure(badRow, "derivedLocusState.value.roster.0.kind");
   });
 
   it("rejects undeclared top-level keys and malformed probe branches", () => {

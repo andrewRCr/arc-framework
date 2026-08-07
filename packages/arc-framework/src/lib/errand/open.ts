@@ -4,21 +4,18 @@ import {
   planLocusAllocation,
   type LocusAllocationPlanningRefusalReason,
 } from "../locus/allocator.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
-import { appendDirectedCommandAdvisory } from "../locus/entry-boundary.js";
 import type {
   ProvisioningEvidence,
   ProvisionTransientLocusOptions,
   ProvisionTransientLocusResult,
   ProvisioningRefusalReason,
 } from "../locus/provisioning.js";
-import type {
-  LocusAnchor,
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusStateV1,
-  LocusMutationErrorCode,
-} from "../locus/schema/index.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import { SlugSchema } from "../kernel/index.js";
+import {
+  createErrandOperationResult,
+  type ErrandOperationResult,
+} from "./operation-result.js";
 import {
   mintClaimId as mintIdentityClaimId,
   projectLocusIdentity,
@@ -31,6 +28,7 @@ import type {
 } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 
 type ClaimResult =
   | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
@@ -56,15 +54,14 @@ export type OpenRollbackDisposition = "not-required" | "complete" | "retained-or
 
 /** Internal execution result carrying recovery evidence separately from the public mutation result. */
 export interface OpenOrdinaryErrandExecution {
-  readonly result: LocusMutationResultV1;
+  readonly result: ErrandOperationResult;
   readonly rollbackDisposition: OpenRollbackDisposition;
 }
 
 /** Injected authority and local-provisioning boundaries for ordinary Errand open. */
 export interface OpenOrdinaryErrandDependencies {
   mintClaimId?: () => string;
-  acquireAnchor(): Promise<LocusAnchor>;
-  readState(): Promise<LocusStateV1>;
+  readFrame(): Promise<DerivedLocusFrame>;
   readIdentity(): Promise<IdentityReadResult>;
   recoverOpen?: (record: OrdinaryErrandRecord) => Promise<OpenRecoveryResult>;
   authorizeResume?(record: OrdinaryErrandRecord): Promise<ResumeAuthorizationResult>;
@@ -94,7 +91,6 @@ export interface OpenOrdinaryErrandOptions {
   identityName: string;
   locationTemplate: string;
   repo: string;
-  leaseId: string;
   /** Placement posture; callers may require a fresh isolated checkout. */
   isolation?: "prefer-primary" | "require-isolation";
   dependencies: OpenOrdinaryErrandDependencies;
@@ -103,31 +99,22 @@ export interface OpenOrdinaryErrandOptions {
 /** Claim, allocate, and provision one ordinary Errand without displacing a WU checkout. */
 export async function openOrdinaryErrand(
   options: OpenOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
-  const slug = options.slug.trim();
-  if (slug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+): Promise<ErrandOperationResult> {
+  const requestedSlug = options.slug.trim();
+  if (requestedSlug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+  const parsedSlug = SlugSchema.safeParse(requestedSlug);
+  if (!parsedSlug.success) return openRefusal("identity-conflict", "Errand slug must be valid.");
+  const slug = parsedSlug.data;
   const originEntry = options.inbox?.title.trim() || null;
   const originEntrySourceDigest = originEntry === null ? null : options.inbox?.sourceDigest ?? null;
 
-  let anchor: LocusAnchor;
+  let frame: DerivedLocusFrame;
   try {
-    anchor = await options.dependencies.acquireAnchor();
-  } catch (error) {
-    return openError("locus.errand-open.anchor", error instanceof Error ? error.message : String(error));
-  }
-  if (anchor.kind !== "process") {
-    return openRefusal(
-      "lease-unknown",
-      `Errand open cannot establish a verifiable session anchor: ${anchor.reason}`,
-    );
-  }
-  let state: LocusStateV1;
-  try {
-    state = await options.dependencies.readState();
+    frame = await options.dependencies.readFrame();
   } catch (error) {
     return openError("locus.errand-open.state", error instanceof Error ? error.message : String(error));
   }
-  const parent = warmWorkUnitParent(state);
+  const parent = warmWorkUnitParent(frame);
   if (parent.kind === "refused") return openRefusal(parent.reason, `Errand open refused: ${parent.reason}.`);
 
   const branch = options.protection === "full" ? `chore/${slug}` : null;
@@ -241,7 +228,7 @@ export async function openOrdinaryErrand(
 
   const subject = { kind: "errand" as const, key: slug, claimId: record?.claimId ?? null };
   const proposal = planLocusAllocation({
-    state,
+    frame,
     protection: options.protection,
     isolation: options.isolation ?? "prefer-primary",
     subject,
@@ -252,7 +239,7 @@ export async function openOrdinaryErrand(
       options, record, previousRecord, claimKind, proposal.reason, { kind: "identity-only" },
     );
   }
-  const sessionHomePath = parent.checkoutPath
+  const returnCheckoutPath = parent.checkoutPath
     ?? (proposal.allocation.kind === "primary" ? proposal.allocation.checkoutPath : proposal.allocation.primaryPath);
   let provisioned: ProvisionTransientLocusResult;
   try {
@@ -275,10 +262,7 @@ export async function openOrdinaryErrand(
       repo: options.repo,
       spawningIdentity: options.identityName,
       parentCheckoutPath: parent.checkoutPath,
-      sessionHomePath,
       establishedAt: options.createdAt,
-      anchor,
-      leaseId: options.leaseId,
     });
   } catch (error) {
     // A throw carries no evidence, so what provisioning owns is unknown rather than nothing.
@@ -298,24 +282,29 @@ export async function openOrdinaryErrand(
     );
   }
   const resultOriginEntry = record?.origin === "inbox" ? record.originEntry : originEntry;
-  return appendDirectedCommandAdvisory(createLocusMutationResult({
+  const resultOriginEntrySourceDigest = record?.origin === "inbox"
+    ? record.originEntrySourceDigest
+    : originEntrySourceDigest;
+  const directedAdvisory = provisioned.receipt.checkoutPath === returnCheckoutPath
+    ? ""
+    : " Confirm this session can direct commands to the active checkout before continuing; if it cannot, start a cold session there.";
+  return createErrandOperationResult({
     outcome: claimKind === "applied" || provisioned.receipt.disposition === "applied"
       ? "applied"
       : "idempotent",
     operation: "errand-open",
     allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
-    recordId: provisioned.receipt.record.recordId,
-    leaseId: provisioned.receipt.leaseToken,
-    activeLocusPath: provisioned.receipt.checkoutPath,
-    sessionHomePath,
+    subject,
+    ...(parent.checkoutPath === null ? {} : { parentCheckoutPath: parent.checkoutPath }),
     identity: record === null ? null : projectLocusIdentity(record),
     originEntry: resultOriginEntry,
-    restoredParent: null,
+    originEntrySourceDigest: resultOriginEntrySourceDigest,
     nextOffer: null,
     recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
-      + `${sessionHomePath}. Run subsequent commands in the active checkout.`
-      + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
-  }));
+      + `${returnCheckoutPath}. Run subsequent commands in the active checkout.`
+      + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`)
+      + directedAdvisory,
+  });
 }
 
 /**
@@ -340,18 +329,15 @@ export async function openOrdinaryErrandWithDisposition(
   return { result, rollbackDisposition };
 }
 
-function warmWorkUnitParent(state: LocusStateV1):
+function warmWorkUnitParent(frame: DerivedLocusFrame):
   | { kind: "ready"; checkoutPath: string | null }
   | { kind: "refused"; reason: "role-conflict" } {
-  if (state.current.kind === "none") return { kind: "ready", checkoutPath: null };
-  if (state.current.kind === "ambiguous") return { kind: "refused", reason: "role-conflict" };
-  const activeRecordId = state.current.activeRecordId;
-  const matches = state.roster.rows.filter((row) => row.recordId === activeRecordId);
-  const row = matches[0];
-  if (matches.length !== 1 || row?.role?.kind !== "work-unit" || row.checkoutPath === null) {
-    return { kind: "refused", reason: "role-conflict" };
-  }
-  return { kind: "ready", checkoutPath: row.checkoutPath };
+  if (frame.entering.kind !== "selected") return { kind: "refused", reason: "role-conflict" };
+  const row = frame.entering.row;
+  if (row.kind === "free-primary") return { kind: "ready", checkoutPath: null };
+  return row.kind === "work-unit" && row.subject.kind === "work-unit"
+    ? { kind: "ready", checkoutPath: row.checkout.path }
+    : { kind: "refused", reason: "role-conflict" };
 }
 
 function resumeHead(record: OrdinaryErrandRecord): string {
@@ -387,7 +373,7 @@ async function rollbackAfterRefusal(
   claimKind: "applied" | "idempotent" | null,
   reason: LocusAllocationPlanningRefusalReason,
   evidence: ProvisioningEvidence | null,
-): Promise<LocusMutationResultV1> {
+): Promise<ErrandOperationResult> {
   const rollback = await rollbackIdentity(options, record, previousRecord, claimKind, evidence);
   options.dependencies.observeRollbackDisposition?.(
     rollback.kind === "rolled-back" ? "complete" : "retained-or-unknown",
@@ -406,10 +392,10 @@ async function rollbackAfterFailure(
   record: OrdinaryErrandRecord | null,
   previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
-  code: LocusMutationErrorCode,
+  code: ErrandErrorCode,
   error: unknown,
   evidence: ProvisioningEvidence | null,
-): Promise<LocusMutationResultV1> {
+): Promise<ErrandOperationResult> {
   const rollback = await rollbackIdentity(options, record, previousRecord, claimKind, evidence);
   options.dependencies.observeRollbackDisposition?.(
     rollback.kind === "rolled-back" ? "complete" : "retained-or-unknown",
@@ -428,7 +414,7 @@ async function rollbackAfterFailure(
  * Retire the claim this invocation applied, but only when provisioning owns nothing durable.
  *
  * Rollback is authorized by the provisioning evidence, not by the fact that provisioning did not
- * succeed: a record, a marker, or an unestablished local state outlives the failure, and retiring
+ * succeed: a marker or an unestablished local state outlives the failure, and retiring
  * the identity under it would leave that residue naming a generation which no longer exists. Only
  * `identity-only` proves nothing durable was written; absent evidence is unknown, not absent.
  */
@@ -468,25 +454,23 @@ function durableResidue(evidence: ProvisioningEvidence | null): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
   if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
-  return `session locus state at ${evidence.checkoutPath}`;
+  return `a worktree marker at ${evidence.checkoutPath}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {
   if (reason === "path-collision" || reason === "marker-conflict") return "topology-unknown";
-  if (reason === "lock-live") return "lease-live";
-  if (reason === "lock-unknown") return "lease-unknown";
-  return reason as LocusAllocationPlanningRefusalReason;
+  return reason;
 }
 
 function openRefusal(
-  reason: LocusRefusalReason,
+  reason: ErrandRefusalReason,
   recommendedPromptText: string,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({ outcome: "refused", operation: "errand-open", reason, recommendedPromptText });
+): ErrandOperationResult {
+  return createErrandOperationResult({ outcome: "refused", operation: "errand-open", reason, recommendedPromptText });
 }
 
-function openError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function openError(code: ErrandErrorCode, message: string): ErrandOperationResult {
+  return createErrandOperationResult({
     outcome: "error",
     operation: "errand-open",
     error: { code, message: message || "Errand open failed" },

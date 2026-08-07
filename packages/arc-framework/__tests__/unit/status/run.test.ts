@@ -75,7 +75,9 @@ import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-in
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
-import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import type { TaskListCursorFileResult } from "../../../src/lib/task-list/file-cursor.js";
+import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { assertLoadSetPath, resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 
 // --- Fixtures ---
 
@@ -87,110 +89,6 @@ function materializableResult(
   candidates: Array<{ name: string; branch: string }>,
 ): MaterializableWorkUnitsResult {
   return MaterializableWorkUnitsResultSchema.parse({ candidates });
-}
-
-function locusState(): LocusStateV1 {
-  return {
-    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
-    current: { kind: "none" },
-    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
-    inFlightIdentities: [],
-    recovery: { kind: "none" },
-    reconciliation: { kind: "clean" },
-  };
-}
-
-function recoveryWorkUnitLocus(): LocusStateV1 {
-  const recordId = `sha256:${"a".repeat(64)}`;
-  const cursor = {
-    status: "found" as const,
-    cursor: {
-      section: { id: "1.1", title: "Do x", lineHint: 5 },
-      leaf: { id: "1.1.a", title: "Do x child", lineHint: 9 },
-    },
-  };
-  return {
-    roster: {
-      mode: "locus",
-      ok: true,
-      primaryPath: "/repo",
-      rows: [{
-        kind: "managed-role",
-        checkoutPath: "/repo",
-        primary: true,
-        recordId,
-        role: {
-          kind: "work-unit",
-          subject: { kind: "work-unit", key: "x", claimId: null },
-          parentCheckoutPath: null,
-          originEntry: null,
-        },
-        identity: null,
-        lease: {
-          leaseId: "b".repeat(32),
-          selfHeld: false,
-          state: "live",
-          sessionHomePath: "/repo",
-          attachedAt: "2026-07-21T00:00:00.000Z",
-          heartbeatAt: "2026-07-21T00:00:00.000Z",
-        },
-        frame: "active",
-        derived: {
-          workflow: "process-task-loop",
-          stage: null,
-          sessionType: "execution",
-          taskCursor: cursor,
-          loadSet: {
-            manifestVersion: 1,
-            entries: [
-              { path: ".arc/active/meta-x.md", readMode: { kind: "full" } },
-              { path: ".arc/active/tasks-x.md", readMode: { kind: "partial-strategic" } },
-              { path: ".arc/system/workflows/arc/process-task-loop.md", readMode: { kind: "full" } },
-              { path: ".arc/backlog/planned/x/cohort-x.md", readMode: { kind: "full" } },
-            ],
-          },
-        },
-        diagnostics: [],
-      }],
-      diagnostics: [],
-    },
-    current: { kind: "resolved", sessionHomeRecordId: recordId, activeRecordId: recordId, parentRecordId: null },
-    primaryAvailability: { kind: "occupied", checkoutPath: "/repo", recordId, leaseState: "live" },
-    inFlightIdentities: [],
-    recovery: { kind: "resume", activeRecordId: recordId, parentRecordId: null },
-    reconciliation: { kind: "clean" },
-  };
-}
-
-function twoCheckoutIdleLocus(): LocusStateV1 {
-  const state = recoveryWorkUnitLocus();
-  const primaryRow = state.roster.rows[0];
-  if (primaryRow === undefined || primaryRow.recordId === null) {
-    throw new Error("missing work-unit fixture row");
-  }
-  primaryRow.lease = null;
-  primaryRow.frame = "idle";
-  state.roster.rows.push({
-    ...primaryRow,
-    checkoutPath: "/repo/wt-b",
-    primary: false,
-    recordId: `sha256:${"d".repeat(64)}`,
-    role: {
-      kind: "work-unit",
-      subject: { kind: "work-unit", key: "linked-wu", claimId: null },
-      parentCheckoutPath: null,
-      originEntry: null,
-    },
-  });
-  state.current = { kind: "none" };
-  state.recovery = { kind: "none" };
-  state.primaryAvailability = {
-    kind: "occupied",
-    checkoutPath: "/repo",
-    recordId: primaryRow.recordId,
-    leaseState: "absent",
-  };
-  return state;
 }
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
@@ -414,6 +312,98 @@ function activeSessionInit(
   };
 }
 
+function derivedFrameFromActive(
+  active: ActiveSessionInitResult,
+  identity: string,
+  activeExtensions: readonly string[],
+  cohortDocPath: string | null,
+  taskCursor: TaskListCursorFileResult | null,
+): DerivedLocusFrame {
+  if (active.resolution !== "single" || active.path === null) {
+    const row = {
+      kind: "free-primary" as const,
+      checkout: {
+        path: "/repo",
+        head: "a".repeat(40),
+        branch: "main",
+        detached: false,
+        primary: true,
+      },
+      subject: null,
+      markerGeneration: null,
+      parentCheckoutPath: null,
+      origin: null,
+      identity: null,
+      context: null,
+      lifecycleLocation: null,
+      diagnostics: [],
+    };
+    return {
+      roster: [row],
+      entering: { kind: "selected", row },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    };
+  }
+  const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "x";
+  const subject = { kind: "work-unit" as const, key };
+  const context = {
+    kind: "resolved" as const,
+    metaPath: active.path,
+    owner: null,
+    branch: null,
+    sessionType: active.sessionType,
+    workflow: active.sessionType === "execution"
+      ? "process-task-loop"
+      : active.sessionType === "integration"
+        ? "integrate-work-unit"
+        : active.sessionType === "planning"
+          ? "planning"
+          : null,
+    stage: active.planningStage,
+    taskListPath: active.taskListPath ?? null,
+    taskCursor,
+    cohortDocPath,
+    loadSet: resolveLoadSetManifest({
+      identity,
+      workingMemoryPath: null,
+      activeWorkUnit: key,
+      metaPath: active.path,
+      sessionType: active.sessionType,
+      planningStage: active.planningStage,
+      taskListPath: active.taskListPath ?? null,
+      activeExtensions,
+      cohortDocPath,
+    }),
+  };
+  const row = {
+    kind: "work-unit" as const,
+    checkout: {
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: `feat/${key}`,
+      detached: false,
+      primary: true,
+    },
+    subject,
+    markerGeneration: "b".repeat(64),
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context,
+    lifecycleLocation: "active" as const,
+    diagnostics: [],
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "occupied", checkoutPath: "/repo", subject },
+    identityDiscovery: { kind: "absent" },
+    active: { checkoutPath: "/repo", subject, context },
+  };
+}
+
 function domainRulesSessionInit(
   overrides: Partial<DomainRulesSessionInitResult> = {},
 ): DomainRulesSessionInitResult {
@@ -521,9 +511,37 @@ const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceR
   recommendedPromptText: "",
 });
 
-function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
+type SessionInitProbeOverrides = Partial<SessionInitProbes> & {
+  active?: (
+    identity: string,
+    role: "maintainer" | "contributor",
+  ) => Promise<ActiveSessionInitResult>;
+  cohortDoc?: (activeMetaPath: string) => Promise<string | null>;
+  taskCursor?: (taskListPath: string) => Promise<TaskListCursorResult>;
+};
+
+function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionInitProbes {
+  const active = overrides.active ?? vi.fn(async () => activeSessionInit());
+  const cohortDoc = overrides.cohortDoc ?? vi.fn(async (): Promise<string | null> => null);
+  const taskCursor = overrides.taskCursor
+    ?? vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" }));
   return {
-    locusState: vi.fn(async () => locusState()),
+    derivedLocusState: vi.fn(async (identity, activeExtensions) => {
+      const activeResult = await active(identity, "maintainer");
+      const cohortDocPath = activeResult.resolution === "single" && activeResult.path !== null
+        ? await cohortDoc(activeResult.path)
+        : null;
+      let cursor: TaskListCursorFileResult | null = null;
+      if (activeResult.taskListPath !== undefined && activeResult.taskListPath !== null) {
+        try {
+          assertLoadSetPath(activeResult.taskListPath);
+          cursor = await taskCursor(activeResult.taskListPath);
+        } catch {
+          cursor = null;
+        }
+      }
+      return derivedFrameFromActive(activeResult, identity, activeExtensions, cohortDocPath, cursor);
+    }),
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
@@ -534,7 +552,6 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
-    active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
@@ -560,21 +577,40 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     partialPushMarker: vi.fn(
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
-    cohortDoc: vi.fn(async (): Promise<string | null> => null),
-    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
+    cohortDoc,
+    taskCursor,
     ...overrides,
   };
 }
 
 function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
+  const active = activeSessionInit({
+    resolution: "single",
+    path: ".arc/active/meta-x.md",
+    sessionType: "execution",
+    taskListPath: ".arc/active/tasks-x.md",
+  });
+  const cursor: TaskListCursorFileResult = {
+    status: "found",
+    cursor: {
+      section: { id: "2.5", title: "Recover", lineHint: 20 },
+      leaf: { id: "2.5.a", title: "Resume", lineHint: 24 },
+    },
+  };
   return {
-    locusState: vi.fn(async () => locusState()),
+    derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+      derivedFrameFromActive(
+        active,
+        identity,
+        activeExtensions,
+        ".arc/backlog/planned/x/cohort-x.md",
+        cursor,
+      )),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
-    active: vi.fn(async () => activeSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     ...overrides,
   };
@@ -623,13 +659,13 @@ function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
   return {
-    locusState: vi.fn(async () => locusState()),
-    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+      derivedFrameFromActive(activeSessionInit(), identity, activeExtensions, null, null)),
+    extensions: vi.fn(async () => extensionsSessionInit()),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
     syncInterlock: vi.fn(async () => handoffSyncInterlock()),
-    active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     restateCandidates: vi.fn(async () => restateCandidates()),
@@ -660,7 +696,6 @@ describe("runStatus — orchestration", () => {
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
   });
 
@@ -802,7 +837,8 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
     expect(probes.errandState).toHaveBeenCalledTimes(1);
@@ -953,6 +989,57 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
+  it("uses one extension-aware derived WU context without invoking the legacy active probe", async () => {
+    const active = vi.fn(async (): Promise<ActiveSessionInitResult> => {
+      throw new Error("legacy active probe must not run");
+    });
+    const cursor: TaskListCursorResult = {
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    };
+    const derivedLocusState = vi.fn(async (identity: string, activeExtensions: readonly string[]) =>
+      derivedFrameFromActive(activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-x.md",
+        sessionType: "execution",
+        planningStage: null,
+        taskListPath: ".arc/active/tasks-x.md",
+      }), identity, activeExtensions, ".arc/backlog/planned/x/cohort-x.md", cursor));
+    const probes = sessionInitProbes({
+      active,
+      derivedLocusState,
+      extensions: vi.fn(async () => extensionsSessionInit({ active: ["post-context-load"] })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(active).not.toHaveBeenCalled();
+    expect(derivedLocusState).toHaveBeenCalledOnce();
+    expect(derivedLocusState).toHaveBeenCalledWith("andrew", ["post-context-load"]);
+    expect(result.active).toMatchObject({
+      ok: true,
+      value: {
+        resolution: "single",
+        path: ".arc/active/meta-x.md",
+        sessionType: "execution",
+        currentWorkflow: "process-task-loop",
+        planningStage: null,
+        taskListPath: ".arc/active/tasks-x.md",
+      },
+    });
+    expect(result.loadSet).toMatchObject({
+      ok: true,
+      value: { entries: expect.arrayContaining([
+        { path: ".arc/active/tasks-x.md", readMode: { kind: "partial-strategic" } },
+        { path: ".arc/backlog/planned/x/cohort-x.md", readMode: { kind: "full" } },
+      ]) },
+    });
+    expect(result.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
+  });
+
   it("propagates session-init cohort-doc probe failures into loadSet", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
@@ -979,15 +1066,16 @@ describe("runSessionInitStatus — orchestration", () => {
       probes,
     });
 
-    expect(result.active.ok).toBe(true);
+    expect(result.active.ok).toBe(false);
+    expect(result.derivedLocusState.ok).toBe(false);
     expect(result.loadSet.ok).toBe(false);
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.kind).toBe("runtime");
       expect(result.loadSet.error.message).toBe("cohort boom");
     }
     expect(result).not.toHaveProperty("cohortDocPath");
-    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
-    expect(result.taskCursor?.ok).toBe(true);
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 
   it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
@@ -1051,12 +1139,17 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
-  it("short-circuits the user slot with identity-missing when identity is null", async () => {
+  it("short-circuits identity-scoped slots with identity-missing when identity is null", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({ identity: null, role: null, probes });
     expect(probes.user).not.toHaveBeenCalled();
+    expect(probes.derivedLocusState).not.toHaveBeenCalled();
     expect(result.user.ok).toBe(false);
     if (!result.user.ok) expect(result.user.error.kind).toBe("identity-missing");
+    expect(result.derivedLocusState.ok).toBe(false);
+    if (!result.derivedLocusState.ok) {
+      expect(result.derivedLocusState.error.kind).toBe("identity-missing");
+    }
   });
 
   it("wraps a rejecting session-init probe as ok=false runtime error", async () => {
@@ -1093,25 +1186,25 @@ describe("runRecoverStatus — lean recover envelope", () => {
 
     expect(result.mode).toBe("recover");
     expect(Object.keys(result).sort()).toEqual([
-      "active",
       "config",
+      "derivedLocusState",
       "dirty",
       "extensions",
       "identity",
       "loadSet",
       "locusGuidance",
-      "locusState",
       "mode",
       "recoveryFrame",
       "releaseRouting",
+      "taskCursor",
       "worktree",
     ]);
+    expect(probes.derivedLocusState).toHaveBeenCalledWith("andrew", []);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
   });
 
@@ -1147,31 +1240,8 @@ describe("runRecoverStatus — lean recover envelope", () => {
     }
   });
 
-  it("keeps locus-derived recovery context authoritative when active probing fails", async () => {
-    const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => recoveryWorkUnitLocus()),
-      active: async () => { throw new Error("boom"); },
-    });
-    const result = await runRecoverStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
-
-    expect(result.active.ok).toBe(false);
-    expect(result.recoveryFrame).toEqual({
-      ok: true,
-      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
-    });
-    expect(result.loadSet.ok).toBe(true);
-    expect(result.taskCursor?.ok).toBe(true);
-  });
-
   it("projects workflow, load set, and cursor from the selected locus row", async () => {
-    const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => recoveryWorkUnitLocus()),
-      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
-    });
+    const probes = sessionRecoverProbes();
     const result = await runRecoverStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1183,10 +1253,11 @@ describe("runRecoverStatus — lean recover envelope", () => {
       ok: true,
       value: {
         kind: "resolved",
+        subject: { kind: "work-unit", key: "x" },
+        checkoutPath: "/repo",
+        parentCheckoutPath: null,
         workflow: "process-task-loop",
         sessionType: "execution",
-        activeRecordId: `sha256:${"a".repeat(64)}`,
-        parentRecordId: null,
       },
     });
     expect(result.loadSet.ok).toBe(true);
@@ -1202,41 +1273,21 @@ describe("runRecoverStatus — lean recover envelope", () => {
     });
   });
 
-  it("resolves the linked checkout's own work unit", async () => {
-    const state = twoCheckoutIdleLocus();
-    const linkedRecordId = state.roster.rows[1]?.recordId;
+  it("keeps recovery selected when the informational worktree-identity slot fails", async () => {
     const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => state),
-      worktreeIdentity: vi.fn(async () => ({ kind: "linked" as const, path: "/repo/wt-b" })),
-    });
-    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
-
-    expect(result.recoveryFrame).toEqual({
-      ok: true,
-      value: expect.objectContaining({ kind: "resolved", activeRecordId: linkedRecordId }),
-    });
-  });
-
-  it("refuses a frame when physical worktree identity cannot be established", async () => {
-    const probes = sessionRecoverProbes({
-      locusState: vi.fn(async () => twoCheckoutIdleLocus()),
       worktreeIdentity: vi.fn(async () => { throw new Error("unable to read current working directory"); }),
     });
     const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(result.recoveryFrame.ok).toBe(false);
-    expect(result.loadSet.ok).toBe(false);
+    expect(result.recoveryFrame.ok).toBe(true);
+    expect(result.loadSet.ok).toBe(true);
     expect(result.worktree.ok).toBe(false);
   });
 
-  it("isolates an inconsistent locus projection across derived recovery slots", async () => {
-    const invalid = recoveryWorkUnitLocus();
-    invalid.recovery = {
-      kind: "resume",
-      activeRecordId: `sha256:${"c".repeat(64)}`,
-      parentRecordId: null,
-    };
-    const probes = sessionRecoverProbes({ locusState: vi.fn(async () => invalid) });
+  it("isolates an unavailable derived frame across recovery projections", async () => {
+    const probes = sessionRecoverProbes({
+      derivedLocusState: vi.fn(async () => { throw new Error("entering checkout unreadable"); }),
+    });
     const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
 
     expect(result.recoveryFrame.ok).toBe(false);
@@ -1246,19 +1297,16 @@ describe("runRecoverStatus — lean recover envelope", () => {
 });
 
 describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
-  const activeWu = sessionInitProbes({
-    active: vi.fn(async () =>
-      activeSessionInit({
-        resolution: "single",
-        path: ".arc/active/meta-my-wu.md",
-        sessionType: "execution",
-      }),
-    ),
-  });
+  const activeWu = vi.fn(async () =>
+    activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-my-wu.md",
+      sessionType: "execution",
+    }));
 
   it("upgrades loadNeeded for the safe sub-case (active WU SESSION-NOTES purely missing)", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1281,7 +1329,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces a mixed drift advisory without auto-loading", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1307,7 +1355,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces expected mixed for seed + identity-global sibling churn", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1333,7 +1381,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("surfaces general missing drift (beyond the active WU's SESSION-NOTES)", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -1359,7 +1407,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 
   it("leaves loadNeeded and the surface untouched when no drift signal is present", async () => {
     const probes = sessionInitProbes({
-      active: activeWu.active,
+      active: activeWu,
       user: vi.fn(async () => userSessionInit({ refState: "same" })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -1846,7 +1894,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
   });
 
-  it("keeps the envelope additive — every always-present slot remains present", async () => {
+  it("exposes only the derived session frame in the final public envelope", async () => {
     // Linked-worktree clean-resume state (active WU resolved, worktree clean) so
     // the conditional roster / recovery / sweep slots all stay absent — this
     // asserts the stable always-present set.
@@ -1867,6 +1915,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "baseDistance",
       "config",
       "currentWuReconcile",
+      "derivedLocusState",
       "dirty",
       "domainRules",
       "errandState",
@@ -1876,7 +1925,6 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "inboxState",
       "loadSet",
       "locusGuidance",
-      "locusState",
       "mode",
       "orphanBranchSweep",
       "partialPushMarker",
@@ -2777,7 +2825,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
     expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
@@ -2785,7 +2834,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.inboxState).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
-    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+    expect(probes.derivedLocusState).toHaveBeenCalledWith("andrew", []);
   });
 
   it("exposes the releaseRouting slot with ok=true on success", async () => {
@@ -2829,13 +2878,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(Object.keys(result).sort()).toEqual([
       "active",
       "branch",
+      "derivedLocusState",
       "dirty",
       "handoffLocus",
       "head",
       "identity",
       "inboxState",
       "locusGuidance",
-      "locusState",
       "mode",
       "pathSet",
       "pushability",
@@ -2859,12 +2908,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("emits resolved handoff pathSet from handler-supplied resolvers", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
+      derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+        derivedFrameFromActive(activeSessionInit({
           resolution: "single",
           path: ".arc/active/meta-example-wu.md",
           sessionType: "execution",
-        }),
+        }), identity, activeExtensions, null, null),
       ),
     });
     const sessionNotesPath = vi.fn(
@@ -2889,15 +2938,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it("nulls pathSet fields when identity is absent", async () => {
-    const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/meta-example-wu.md",
-          sessionType: "execution",
-        }),
-      ),
-    });
+    const probes = sessionHandoffProbes();
     const result = await runSessionHandoffStatus({
       identity: null,
       role: "maintainer",
@@ -2958,10 +2999,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("uses the active WU name for the handoff safe missing SESSION-NOTES sub-case", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () => activeSessionInit({
-        resolution: "single",
-        path: ".arc/active/meta-my-wu.md",
-      })),
+      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-my-wu.md" }),
+        identity,
+        activeExtensions,
+        null,
+        null,
+      )),
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
@@ -3326,14 +3370,15 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
-  it("returns the resolved active status file path from the active probe", async () => {
+  it("returns the resolved active status file path from the derived entering row", async () => {
     const probes = sessionHandoffProbes({
-      active: vi.fn(async () =>
-        activeSessionInit({
-          resolution: "single",
-          path: ".arc/active/technical/meta-foo.md",
-        }),
-      ),
+      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+        activeSessionInit({ resolution: "single", path: ".arc/active/technical/meta-foo.md" }),
+        identity,
+        activeExtensions,
+        null,
+        null,
+      )),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -3389,7 +3434,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.derivedLocusState).not.toHaveBeenCalled();
     expect(probes.head).toHaveBeenCalledTimes(1);
   });
 
@@ -3435,7 +3480,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
       syncInterlock: tracked(handoffSyncInterlock()),
-      active: tracked(activeSessionInit()),
+      extensions: tracked(extensionsSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({

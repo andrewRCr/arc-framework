@@ -32,7 +32,6 @@ function readyReport(): Record<string, unknown> {
         pathDrifts: [],
       },
     },
-    locusHint: null,
   };
   return value;
 }
@@ -111,11 +110,8 @@ describe("recovery-audit report schema", () => {
     const value = readyReport();
     const seed = value.seed as Record<string, unknown>;
     const hint = {
-      sessionHomePath: "/repo",
-      activeLocusPath: "/repo-child",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "b".repeat(32),
-      parentRecordId: `sha256:${"c".repeat(64)}`,
+      checkoutPath: "/repo-child",
+      parentCheckoutPath: "/repo",
     };
     seed.locus = hint;
     (value.verdict as Record<string, unknown>).locusHint = {
@@ -130,27 +126,22 @@ describe("recovery-audit report schema", () => {
     const value = readyReport();
     const seed = value.seed as Record<string, unknown>;
     seed.locus = {
-      sessionHomePath: "/repo",
-      activeLocusPath: "/repo-child",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "b".repeat(32),
-      parentRecordId: `sha256:${"c".repeat(64)}`,
+      checkoutPath: "/repo-child",
+      parentCheckoutPath: "/repo",
     };
+    (value.verdict as Record<string, unknown>).locusHint = null;
     expect(RecoverAuditReportSchema.safeParse(value).success).toBe(false);
   });
 
   it("rejects a ready locus comparison that does not match its seed hint", () => {
     const value = readyReport();
     const hint = {
-      sessionHomePath: "/repo",
-      activeLocusPath: "/repo-child",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "b".repeat(32),
-      parentRecordId: `sha256:${"c".repeat(64)}`,
+      checkoutPath: "/repo-child",
+      parentCheckoutPath: "/repo",
     };
     (value.seed as Record<string, unknown>).locus = hint;
     (value.verdict as Record<string, unknown>).locusHint = {
-      expected: { ...hint, activeLocusPath: "/other-child" },
+      expected: { ...hint, checkoutPath: "/other-child" },
       actual: hint,
       match: true,
     };

@@ -15,16 +15,13 @@ export interface NoInputMatrixCase {
  * Each case runs in a fresh piped-stdio repository with CI and `--no-input` set.
  * Repository inventory tests exact-match these command paths to live interaction sites.
  */
-export const NO_INPUT_MATRIX = Object.freeze([
+export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
-  { commandPath: "errand abandon", args: ["errand", "abandon", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"outcome":"idempotent","operation":"errand-abandon"' } },
-  { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"outcome":"idempotent","operation":"errand-close"' } },
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
   { commandPath: "join", args: ["join", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
-  { commandPath: "locus", args: ["locus", "--json"], fixture: "arc-project", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: "\"mode\":\"locus\"" } },
   { commandPath: "promote", args: ["promote", "matrix"], setup: "provisional-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --class" } },
   { commandPath: "release commit", args: ["release", "commit"], expected: { exitCode: 11, outputIncludes: "interlock-not-authorized" } },
   { commandPath: "release setup install", args: ["release", "setup", "install", "--json"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "missing required input" } },
@@ -41,4 +38,4 @@ export const NO_INPUT_MATRIX = Object.freeze([
   { commandPath: "user pull", args: ["user", "pull"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Remote unavailable" } },
   { commandPath: "user sync", args: ["user", "sync"], expected: { exitCode: 1, outputIncludes: "No remote configured" } },
   { commandPath: "view", args: ["view"], expected: { exitCode: 1, outputIncludes: "No active work unit" } },
-] satisfies readonly NoInputMatrixCase[]);
+]);

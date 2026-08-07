@@ -73,6 +73,7 @@ const metaRecord = {
   taskList: "tasks-cli-validation-surfaces.md",
   reviewRubric: null,
   decompositionReceipt: null,
+  promotionReceipt: null,
   currentWorkflow: null,
   lastCompleted: null,
   nextTask: "Task 6.2.a",

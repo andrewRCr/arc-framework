@@ -51,11 +51,94 @@ export interface DerivedLocusRoster {
   readonly identityDiscovery: DerivedIdentityDiscovery;
 }
 
+/** Current-checkout selection over one worktree-derived roster. */
+export type DerivedEnteringCheckout =
+  | { readonly kind: "selected"; readonly row: DerivedCheckoutRow }
+  | {
+      readonly kind: "unresolved";
+      readonly checkoutPath: string;
+      readonly diagnostics: readonly { readonly code: string; readonly message: string }[];
+    };
+
+/** Primary allocation facts derived only from the primary checkout row. */
+export type DerivedPrimaryAvailability =
+  | { readonly kind: "free"; readonly checkoutPath: string }
+  | {
+      readonly kind: "occupied";
+      readonly checkoutPath: string;
+      readonly subject: Exclude<DerivedCheckoutRow["subject"], null>;
+    }
+  | { readonly kind: "unsafe"; readonly checkoutPath: string | null; readonly reasons: readonly string[] };
+
+/** Build-order migration frame selected beside the retiring record-backed state. */
+export interface DerivedLocusFrame {
+  readonly roster: readonly DerivedCheckoutRow[];
+  readonly entering: DerivedEnteringCheckout;
+  readonly primaryAvailability: DerivedPrimaryAvailability;
+  readonly identityDiscovery: DerivedIdentityDiscovery;
+  readonly active: {
+    readonly checkoutPath: string;
+    readonly subject: Extract<DerivedCheckoutRow["subject"], { kind: "work-unit" }>;
+    readonly context: NonNullable<DerivedCheckoutRow["context"]>;
+  } | null;
+}
+
+/** Select the canonical entering checkout from one worktree-derived evidence snapshot. */
+export async function readDerivedLocusFrame(
+  options: Parameters<typeof readDerivedLocusRoster>[0] & { readonly enteringCheckoutPath: string },
+): Promise<DerivedLocusFrame> {
+  const { enteringCheckoutPath, ...rosterOptions } = options;
+  const canonical = new Map<string, Promise<string>>();
+  const canonicalizePath = (path: string): Promise<string> => {
+    const existing = canonical.get(path);
+    if (existing !== undefined) return existing;
+    const pending = options.canonicalizePath(path);
+    canonical.set(path, pending);
+    return pending;
+  };
+  const enteringPath = await canonicalizePath(enteringCheckoutPath);
+  const roster = await readDerivedLocusRoster({
+    ...rosterOptions,
+    canonicalizePath,
+    strictCheckoutPath: enteringPath,
+  });
+  const matches = roster.rows.filter((row) => row.checkout.path === enteringPath);
+  const selected = matches.length === 1 ? matches[0] : undefined;
+  const entering: DerivedEnteringCheckout = selected === undefined
+    ? {
+        kind: "unresolved",
+        checkoutPath: enteringPath,
+        diagnostics: [{
+          code: "entering-checkout-unavailable",
+          message: `Expected one registered entering checkout; found ${matches.length}`,
+        }],
+      }
+    : { kind: "selected", row: selected };
+  const active = selected?.kind === "work-unit"
+    && selected.subject.kind === "work-unit"
+    && selected.context !== null
+    ? {
+        checkoutPath: selected.checkout.path,
+        subject: selected.subject,
+        context: selected.context,
+      }
+    : null;
+  return {
+    roster: roster.rows,
+    entering,
+    primaryAvailability: projectPrimaryAvailability(roster.rows),
+    identityDiscovery: roster.identityDiscovery,
+    active,
+  };
+}
+
 /** Compose future derived rows from one injected topology and evidence snapshot. */
 export async function readDerivedLocusRoster(options: {
   identity: string;
   identityGlobalUserDir?: string | null;
   activeExtensions?: readonly string[];
+  /** Checkout whose context projection failures must remain operation-blocking. */
+  strictCheckoutPath?: string;
   topology: Extract<RegisteredWorktreeScanResult, { ok: true }>;
   checkouts: readonly DormantCheckoutReadEvidence[];
   completed: CompletedEvidenceRead;
@@ -132,16 +215,32 @@ export async function readDerivedLocusRoster(options: {
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
     if (row.kind === "work-unit" && activeMeta.kind === "present") {
-      const context = await projectCheckoutSubjectMeta({
-        cwd: item.original.path,
-        subjectKey: activeMeta.subject.key,
-        identity: options.identity,
-        identityGlobalUserDir: options.identityGlobalUserDir,
-        metaRoot: activeMeta.metaRoot,
-        candidates: activeMeta.candidates,
-        activeExtensions: options.activeExtensions ?? [],
-        io: options.subjectMetaIO,
-      });
+      let context: Awaited<ReturnType<typeof projectCheckoutSubjectMeta>>;
+      try {
+        context = await projectCheckoutSubjectMeta({
+          cwd: item.original.path,
+          subjectKey: activeMeta.subject.key,
+          identity: options.identity,
+          identityGlobalUserDir: options.identityGlobalUserDir,
+          metaRoot: activeMeta.metaRoot,
+          candidates: activeMeta.candidates,
+          activeExtensions: options.activeExtensions ?? [],
+          io: options.subjectMetaIO,
+        });
+      } catch (error) {
+        if (options.strictCheckoutPath === undefined
+          || item.checkout.path === options.strictCheckoutPath) throw error;
+        rows.push({
+          ...row,
+          kind: "unresolved-checkout",
+          context: null,
+          diagnostics: [...row.diagnostics, {
+            code: "subject-context-unavailable",
+            message: error instanceof Error ? error.message : String(error),
+          }],
+        });
+        continue;
+      }
       row = context.kind === "resolved"
         ? { ...row, context }
         : {
@@ -195,5 +294,30 @@ function unresolvedRow(
     context: null,
     lifecycleLocation: null,
     diagnostics: [{ code, message }],
+  };
+}
+
+function projectPrimaryAvailability(rows: readonly DerivedCheckoutRow[]): DerivedPrimaryAvailability {
+  const primaryRows = rows.filter((row) => row.checkout.primary);
+  const primary = primaryRows.length === 1 ? primaryRows[0] : undefined;
+  if (primary === undefined) {
+    return {
+      kind: "unsafe",
+      checkoutPath: primaryRows[0]?.checkout.path ?? null,
+      reasons: [`Expected one registered primary checkout; found ${primaryRows.length}`],
+    };
+  }
+  if (primary.kind === "free-primary") {
+    return { kind: "free", checkoutPath: primary.checkout.path };
+  }
+  if (primary.kind === "work-unit" || primary.kind === "transient" || primary.kind === "retired") {
+    return { kind: "occupied", checkoutPath: primary.checkout.path, subject: primary.subject };
+  }
+  return {
+    kind: "unsafe",
+    checkoutPath: primary.checkout.path,
+    reasons: primary.diagnostics.length === 0
+      ? [`Primary checkout resolved as ${primary.kind}`]
+      : primary.diagnostics.map((diagnostic) => diagnostic.code),
   };
 }

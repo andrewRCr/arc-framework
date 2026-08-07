@@ -7,7 +7,10 @@ import {
   resolveTaskListPath,
 } from "../../commands/active/status.js";
 import type { SessionType } from "../../commands/active/types.js";
-import { resolvePlanningStage } from "../active/current-workflow-consistency.js";
+import {
+  resolvePlanningStage,
+  type PlanningWorkflow,
+} from "../active/current-workflow-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
@@ -16,7 +19,7 @@ import {
   resolveTaskListCursorFromFile,
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
-import type { MetaEvidence } from "./evidence.js";
+import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
 
 export interface SubjectMetaIO {
   readFile(path: string): Promise<string>;
@@ -34,7 +37,7 @@ export type SubjectMetaProjection =
       branch: string | null;
       sessionType: SessionType | null;
       workflow: string | null;
-      stage: string | null;
+      stage: PlanningWorkflow | null;
       taskListPath: string | null;
       taskCursor: TaskListCursorFileResult | null;
       cohortDocPath: string | null;
@@ -48,7 +51,7 @@ export async function projectCheckoutSubjectMeta(options: {
   identity: string;
   identityGlobalUserDir?: string | null;
   metaRoot: { kind: "maintainer" } | { kind: "contributor"; identity: string };
-  candidates: readonly MetaEvidence[];
+  candidates: readonly DormantMetaEvidence[];
   activeExtensions?: readonly string[];
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {

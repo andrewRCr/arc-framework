@@ -28,6 +28,7 @@ import type { SubjectMetaProjection } from "./subject-meta.js";
 /** Stable dormant diagnostic attached only to the checkout whose facts failed. */
 export interface DerivedCheckoutDiagnostic {
   readonly code: string;
+  readonly source?: string;
   readonly message: string;
 }
 
@@ -109,7 +110,11 @@ export function projectDerivedCheckoutRow(options: {
         ? "parked"
         : null,
     diagnostics: "diagnostics" in composed
-      ? composed.diagnostics.map((diagnostic) => ({ code: diagnostic.code, message: diagnostic.message }))
+      ? composed.diagnostics.map((diagnostic) => ({
+          code: diagnostic.code,
+          ...("source" in diagnostic ? { source: diagnostic.source } : {}),
+          message: diagnostic.message,
+        }))
       : [],
   };
   if (composed.kind === "unoccupied-primary") {

@@ -287,6 +287,15 @@ export const META_FIELDS = [
     valueClass: "identifier",
     omitWhenAbsent: true,
   },
+  {
+    name: "Promotion Receipt",
+    key: "promotionReceipt",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
   { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -528,6 +537,7 @@ export function renderMetaFile(
     taskList: null,
     reviewRubric: null,
     decompositionReceipt: null,
+    promotionReceipt: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: null,
@@ -551,6 +561,7 @@ export function renderMetaFile(
     "Task List": renderNullable(record.taskList),
     "Review Rubric": renderNullable(record.reviewRubric),
     "Decomposition Receipt": renderNullable(record.decompositionReceipt),
+    "Promotion Receipt": renderNullable(record.promotionReceipt),
     "Current Workflow": renderNullable(record.currentWorkflow),
     "Last Completed": renderNullable(record.lastCompleted),
     "Next Task": renderNullable(record.nextTask),
@@ -922,6 +933,9 @@ export function setMetaBulletFields(
   content: string,
   updates: Partial<Record<MetaFieldName, string>>,
 ): string {
+  if (Object.prototype.hasOwnProperty.call(updates, "Promotion Receipt")) {
+    throw new Error("Cannot set meta field: `Promotion Receipt` is immutable after initial rendering.");
+  }
   let lines = content.split("\n");
   for (const [name, value] of Object.entries(updates)) {
     lines = replaceBulletField(lines, name, value);
@@ -1207,6 +1221,7 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     taskList: nullableProjectionValue(projection["Task List"]),
     reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
     decompositionReceipt: nullableProjectionValue(projection["Decomposition Receipt"]),
+    promotionReceipt: nullableProjectionValue(projection["Promotion Receipt"]),
     currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
     lastCompleted: nullableProjectionValue(projection["Last Completed"]),
     nextTask: nullableProjectionValue(projection["Next Task"]),

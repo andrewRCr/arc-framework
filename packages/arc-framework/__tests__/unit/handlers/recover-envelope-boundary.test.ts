@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
     runRecoverStatus: vi.fn(),
 }));
 
-vi.mock("node:fs/promises", () => ({ readFile: mocks.readFile }));
+vi.mock("node:fs/promises", async (importOriginal) => ({
+    ...await importOriginal<typeof import("node:fs/promises")>(),
+    readFile: mocks.readFile,
+}));
 vi.mock("../../../src/commands/status.js", () => ({
     runRecoverStatus: mocks.runRecoverStatus,
 }));

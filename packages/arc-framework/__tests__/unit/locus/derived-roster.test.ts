@@ -203,7 +203,21 @@ describe("dormant derived checkout rows", () => {
     });
   });
 
-  it("derives an origin-bound partial Errand independently of identity availability", () => {
+  it("derives direct and origin-bound partial Errands independently of identity availability", () => {
+    expect(project({
+      checkout: { ...checkout, path: "/repo", branch: "main", primary: true },
+      marker: marker({
+        spawnedByArc: false,
+        createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
+        provisioning: "ready",
+      }),
+      identities: { kind: "error", stage: "tree", message: "identity tree unavailable" },
+    })).toMatchObject({
+      kind: "transient",
+      subject: { kind: "partial-errand", key: "repair", claimId: null },
+      origin: null,
+    });
+
     expect(project({
       checkout: { ...checkout, path: "/repo", branch: "main", primary: true },
       marker: marker({

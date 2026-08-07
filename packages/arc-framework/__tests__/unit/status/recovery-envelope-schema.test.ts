@@ -21,48 +21,7 @@ const READY_PATH = join(
 
 function recovery(): Record<string, unknown> {
   const report = JSON.parse(readFileSync(READY_PATH, "utf8")) as { recover: Record<string, unknown> };
-  const value = structuredClone(report.recover);
-  value.locusState = {
-    ok: true,
-    value: {
-      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
-      current: { kind: "none" },
-      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
-      inFlightIdentities: [],
-      recovery: { kind: "none" },
-      reconciliation: { kind: "clean" },
-    },
-  };
-  value.recoveryFrame = {
-    ok: true,
-    value: {
-      kind: "resolved",
-      workflow: "process-task-loop",
-      sessionType: "execution",
-      activeRecordId: `sha256:${"a".repeat(64)}`,
-      parentRecordId: null,
-    },
-  };
-  value.loadSet = {
-    ok: true,
-    value: {
-      manifestVersion: 1,
-      entries: [
-        { path: ".arc/active/tasks-active-widget.md", readMode: { kind: "partial-strategic" } },
-      ],
-    },
-  };
-  value.taskCursor = {
-    ok: true,
-    value: {
-      status: "found",
-      cursor: {
-        section: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
-        leaf: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
-      },
-    },
-  };
-  return value;
+  return structuredClone(report.recover);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -72,9 +31,9 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 describe("lean recovery envelope schema", () => {
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
-    (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
+    (value.recoveryFrame as { value: { kind: string } }).value.kind = "unknown";
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(
-      /session-recover-envelope: active\.value\.resolution:/u,
+      /session-recover-envelope: recoveryFrame\.value\.kind:/u,
     );
   });
 
@@ -90,9 +49,8 @@ describe("lean recovery envelope schema", () => {
     "dirty",
     "extensions",
     "config",
-    "active",
     "releaseRouting",
-    "locusState",
+    "derivedLocusState",
     "locusGuidance",
     "recoveryFrame",
     "loadSet",
@@ -102,10 +60,6 @@ describe("lean recovery envelope schema", () => {
 
   it("rejects undeclared root keys and malformed mapped routing fields", () => {
     expect(SessionRecoverProbeResultSchema.safeParse({ ...recovery(), undeclared: true }).success).toBe(false);
-
-    const invalidActive = recovery();
-    (invalidActive.active as { value: { resolution: string } }).value.resolution = "ambiguous";
-    expect(SessionRecoverProbeResultSchema.safeParse(invalidActive).success).toBe(false);
 
     const invalidWorktree = recovery();
     (invalidWorktree.worktree as { value: { identity: { kind: string } } }).value.identity.kind = "other";

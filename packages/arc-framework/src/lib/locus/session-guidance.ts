@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 
-import { locusStopTier } from "./stop-tier.js";
-import type { LocusRowV1, LocusStateV1 } from "./schema/index.js";
+import type { DerivedCheckoutRow } from "./derived-roster.js";
+import type { DerivedLocusFrame } from "./derived-reader.js";
 
 const ready = z.strictObject({
   kind: z.literal("ready"),
@@ -11,6 +11,8 @@ const ready = z.strictObject({
   primaryAvailability: z.string().optional(),
   recovery: z.string().optional(),
   reconciliation: z.string().optional(),
+  entering: z.string().optional(),
+  identityDiscovery: z.string().optional(),
   identities: z.array(z.string()),
   cleanup: z.array(z.string()),
   diagnostics: z.array(z.string()),
@@ -23,110 +25,95 @@ export const LocusSessionGuidanceSchema = z.discriminatedUnion("kind", [
 
 export type LocusSessionGuidance = z.infer<typeof LocusSessionGuidanceSchema>;
 
-type LocusProbe =
-  | { ok: true; value: LocusStateV1 }
+type DerivedLocusProbe =
+  | { ok: true; value: DerivedLocusFrame }
   | { ok: false; error: { kind: string; message: string } };
 
-/**
- * Precompose stable session and cleanup narration without adding authority.
- *
- * @param probe - Shared locus-state probe result.
- * @returns Stable session, recovery, reconciliation, and cleanup narration.
- */
-export function deriveLocusSessionGuidance(
-  probe: LocusProbe,
+/** Precompose session-init narration from the entering checkout and row-local facts. */
+export function deriveDerivedLocusSessionGuidance(
+  probe: DerivedLocusProbe,
 ): LocusSessionGuidance {
   if (!probe.ok) {
-    return LocusSessionGuidanceSchema.parse({
+    return {
       kind: "unavailable",
-      message: `Session locus state is unavailable (${probe.error.kind}): ${probe.error.message}`,
-    });
+      message: `Derived session locus is unavailable (${probe.error.kind}): ${probe.error.message}`,
+    };
   }
-  const state = probe.value;
-  const currentFrame = renderCurrent(state);
-  const primaryAvailability = renderPrimary(state);
-  const recovery = renderRecovery(state);
-  const reconciliation = renderReconciliation(state);
+  const frame = probe.value;
+  if (frame.entering.kind === "unresolved") {
+    return {
+      kind: "unavailable",
+      message: renderEnteringFailure(frame.entering.checkoutPath, frame.entering.diagnostics),
+    };
+  }
+  const row = frame.entering.row;
+  if (row.kind === "unresolved-checkout") {
+    return {
+      kind: "unavailable",
+      message: renderEnteringFailure(row.checkout.path, row.diagnostics),
+    };
+  }
+  const primaryAvailability = frame.primaryAvailability.kind === "unsafe"
+    ? `Primary checkout ${frame.primaryAvailability.checkoutPath ?? "is unavailable"} is unsafe `
+      + `(${frame.primaryAvailability.reasons.join(", ")}); reconcile before allocation.`
+    : undefined;
+  const identityDiscovery = frame.identityDiscovery.kind === "error"
+    ? `Transient identity discovery is unavailable at ${frame.identityDiscovery.stage}: `
+      + frame.identityDiscovery.message
+    : undefined;
   return LocusSessionGuidanceSchema.parse({
     kind: "ready",
-    ...(currentFrame === null ? {} : { currentFrame }),
-    ...(primaryAvailability === null ? {} : { primaryAvailability }),
-    ...(recovery === null ? {} : { recovery }),
-    ...(reconciliation === null ? {} : { reconciliation }),
-    identities: state.inFlightIdentities.map(({ identity, actions }) =>
-      `${identity.kind} '${identity.key}' is ${identity.state}; available actions: ${actions.join(" → ")}.`),
-    cleanup: state.roster.rows.flatMap(renderCleanup),
-    diagnostics: state.roster.diagnostics.filter((item) => item.code !== "worktree-without-role").map((item) =>
-      `${item.code} at ${item.source.kind} '${item.source.key}': ${item.message}`),
+    entering: `${row.kind} at ${row.checkout.path}`,
+    ...(primaryAvailability === undefined ? {} : { primaryAvailability }),
+    ...(identityDiscovery === undefined ? {} : { identityDiscovery }),
+    identities: [],
+    cleanup: frame.roster.flatMap(renderDerivedCleanup),
+    diagnostics: frame.roster.flatMap((item) => item.diagnostics.map((diagnostic) =>
+      `${diagnostic.code} at checkout '${item.checkout.path}': ${diagnostic.message}`)),
   });
 }
-function renderCurrent(state: LocusStateV1): string | null {
-  const current = state.current;
-  if (current.kind === "none") return null;
-  if (current.kind === "ambiguous") {
-    return `Active session locus is ambiguous (${current.reasons.join(", ")}); reconcile before continuing.`;
-  }
-  return null;
-}
 
-function renderPrimary(state: LocusStateV1): string | null {
-  const primary = state.primaryAvailability;
-  if (primary.kind !== "unsafe") return null;
-  // Allocation still reads `primaryAvailability` and still refuses; this is narration only. A
-  // primary that is merely dirty or off base is an ordinary steady state — it is exactly what a
-  // checked-out branch or an in-flight errand leaves behind — so reporting it to every session that
-  // allocates nothing is the noise the tier model exists to remove. A reason that costs more than
-  // that still speaks.
-  if (primary.reasons.every((reason) => locusStopTier(reason) === "advisory")) return null;
-  return `Primary checkout ${primary.checkoutPath} is unsafe (${primary.reasons.join(", ")}); reconcile before allocation.`;
-}
-
-function renderRecovery(state: LocusStateV1): string | null {
-  const recovery = state.recovery;
-  if (recovery.kind === "none") return null;
-  if (recovery.kind === "resume") return `Resume session locus record ${recovery.activeRecordId}.`;
-  if (recovery.kind === "residue") {
-    const offer = `Session locus residue ${recovery.recordId} offers: ${recovery.actions.join(" → ")}.`;
-    const lease = state.roster.rows.find((row) => row.recordId === recovery.recordId)?.lease ?? null;
-    // A lease dies when its process exits, not when a conversation ends — stating it the other way
-    // is what led a handoff to predict a release that a conversation reset could never reach. When
-    // the holder is this very process, the cheapest resolution is to say so plainly.
-    if (lease?.state === "live" && lease.selfHeld) {
-      return `${offer} This lease is yours: it dies when the process exits, so exit this process to release it, or resolve it now with \`--confirm-no-live-session\`.`;
-    }
-    if (lease?.state === "unknown") {
-      return `${offer} Its liveness cannot be verified; resolve it with \`--confirm-no-live-session\` once you have confirmed no live session holds it.`;
-    }
-    return offer;
+/** Precompose recovery narration, including non-blocking stale-parent fallback. */
+export function deriveRecoveryLocusSessionGuidance(
+  probe: DerivedLocusProbe,
+): LocusSessionGuidance {
+  const guidance = deriveDerivedLocusSessionGuidance(probe);
+  if (!probe.ok || guidance.kind !== "ready" || probe.value.entering.kind !== "selected") {
+    return guidance;
   }
-  return `Session locus recovery is stopped (${recovery.reasons.join(", ")}).`;
-}
-
-function renderReconciliation(state: LocusStateV1): string | null {
-  const reconciliation = state.reconciliation;
-  if (reconciliation.kind === "clean") return null;
-  if (reconciliation.kind === "stop") {
-    return `Session locus reconciliation is stopped (${reconciliation.reasons.join(", ")}).`;
-  }
-  const actions = reconciliation.actions.map((action) => {
-    const target = action.checkoutPath ?? action.recordId ?? "unresolved target";
-    return `${action.kind} ${target}`;
+  const entering = probe.value.entering.row;
+  if (entering.kind !== "transient" || entering.parentCheckoutPath === null) return guidance;
+  const parentMatches = probe.value.roster.filter((row) =>
+    row.checkout.path === entering.parentCheckoutPath
+    && row.kind === "work-unit"
+    && row.subject.kind === "work-unit"
+    && row.context !== null
+    && row.context.workflow !== null
+    && row.diagnostics.length === 0);
+  if (parentMatches.length === 1) return guidance;
+  const basePath = probe.value.primaryAvailability.checkoutPath ?? "the configured base checkout";
+  return LocusSessionGuidanceSchema.parse({
+    ...guidance,
+    recovery: `Parent checkout ${entering.parentCheckoutPath} was not found; return to base ${basePath}.`,
   });
-  return `Session locus reconciliation offers: ${actions.join(" → ")}.`;
 }
 
-function renderCleanup(row: LocusRowV1): string[] {
-  const target = row.checkoutPath ?? row.recordId;
-  if (target === null) return [];
-  if (row.kind !== "managed-role") {
-    if (["stale-record", "malformed-record", "duplicate-locus"].includes(row.kind)) {
-      return [`Reconcile session locus ${target} manually before cleanup.`];
-    }
-    return [];
+function renderEnteringFailure(
+  checkoutPath: string,
+  diagnostics: readonly { readonly code: string; readonly message: string }[],
+): string {
+  const detail = diagnostics.length === 0
+    ? "required checkout facts are unavailable"
+    : diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join("; ");
+  return `Entering checkout ${checkoutPath} is unresolved (${detail}).`;
+}
+
+function renderDerivedCleanup(row: DerivedCheckoutRow): string[] {
+  if (row.kind === "retired") {
+    return [`Cleanup is available for retired checkout ${row.checkout.path}.`];
   }
-  if (row.lease?.state === "unknown") {
-    return [`Cleanup for ${target} is manual because lease liveness is unknown; `
-      + "resolve it with `--confirm-no-live-session` once no live session holds it."];
+  if (row.kind === "unresolved-checkout") {
+    return [`Inspect checkout ${row.checkout.path} before cleanup.`];
   }
   return [];
 }

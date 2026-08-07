@@ -177,10 +177,6 @@ export function projectMarkerAuthority(
   if (subject.kind !== "work-unit" && marker.provisioning !== "ready") {
     return { kind: "unreadable", reason: "Transient occupancy marker is not ready" };
   }
-  if (subject.kind === "partial-errand"
-    && marker.originEntry === undefined) {
-    return { kind: "unreadable", reason: "Partial Errand marker lacks complete origin binding" };
-  }
   return {
     kind: "present",
     subject: markerSubject(subject),

@@ -1,12 +1,12 @@
 /** Sibling continuation over the global visible execute-bound inbox queue. */
 
-import type { LocusMutationResultV1 } from "../locus/schema/index.js";
 import { listExecuteBoundInboxEntries } from "./inbox-writer.js";
 
-export type ExecutionNextOffer = Extract<
-  LocusMutationResultV1,
-  { outcome: "applied" | "idempotent" }
->["nextOffer"];
+export type ExecutionNextOffer = {
+  readonly kind: "errand";
+  readonly key: string;
+  readonly parentCheckoutPath: string | null;
+} | null;
 
 export type ExecutionOfferResolution =
   | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer }
@@ -44,4 +44,3 @@ export function resolveExecutionNextOffer(options: {
     },
   };
 }
-

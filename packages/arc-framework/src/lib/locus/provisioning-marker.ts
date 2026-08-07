@@ -4,10 +4,12 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   decodeWorktreeMarkerOwnership,
+  type PartialErrandWorktreeSubject,
   type TransientWorktreeSubject,
   type WorktreeMarker,
 } from "../git/worktree-marker.js";
 import { isSlugSafe } from "../kernel/index.js";
+import type { ProvisioningAuthority } from "./provisioning-authority.js";
 import type {
   ProvisioningEvidence,
   ProvisioningMarkerReadResult,
@@ -123,20 +125,7 @@ export async function establishReadyMarker(
       rollback: { markerBytes: observed.bytes, markerOwned: observed.owned, checkoutPath },
     };
   }
-  const ready: WorktreeMarker = {
-    spawnedByArc: observed.marker.spawnedByArc,
-    createdFor: decoded.subject,
-    provisioning: "ready",
-    spawningIdentity: observed.marker.spawningIdentity,
-    createdAt: observed.marker.createdAt,
-    ...(observed.marker.husk === undefined ? {} : { husk: observed.marker.husk }),
-    ...(observed.marker.renameMovePending === undefined
-      ? {}
-      : { renameMovePending: observed.marker.renameMovePending }),
-    ...(observed.marker.decompositionCandidate === undefined
-      ? {}
-      : { decompositionCandidate: observed.marker.decompositionCandidate }),
-  };
+  const ready = { ...observed.marker, provisioning: "ready" } as WorktreeMarker;
   let promoted;
   try {
     promoted = await options.dependencies.replaceMarker(checkoutPath, observed.bytes, ready);
@@ -152,10 +141,9 @@ export async function establishReadyMarker(
       kind: "refused",
       reason: "marker-conflict",
       evidence: {
-        kind: "marker-record-mismatch",
+        kind: "marker-residue",
         checkoutPath,
         markerBytes: observed.bytes,
-        recordBytes: null,
       },
     };
   }
@@ -168,6 +156,59 @@ export function transientMarkerSubject(proposal: ProvisioningProposal): Transien
     : { kind: proposal.subject.kind, slug: proposal.subject.key, claimId: proposal.subject.claimId };
 }
 
+/** Project a primary transient proposal and its authority into unified marker ownership. */
+export function readyPrimaryMarker(
+  options: ProvisionTransientLocusOptions,
+  authority: ProvisioningAuthority,
+): WorktreeMarker | null {
+  const subject = primaryMarkerSubject(options.proposal);
+  if (subject === null) return null;
+  const origin = subject.kind === "partial-errand"
+    ? partialOrigin(authority)
+    : {};
+  if (origin === null) return null;
+  const common = {
+    spawnedByArc: false as const,
+    provisioning: "ready" as const,
+    ...(options.parentCheckoutPath === null ? {} : { parentCheckoutPath: options.parentCheckoutPath }),
+    ...origin,
+    spawningIdentity: options.spawningIdentity,
+    createdAt: options.establishedAt,
+  };
+  return subject.kind === "partial-errand"
+    ? { ...common, createdFor: subject }
+    : { ...common, createdFor: subject };
+}
+
+function primaryMarkerSubject(
+  proposal: ProvisioningProposal,
+): TransientWorktreeSubject | PartialErrandWorktreeSubject | null {
+  if (!isSlugSafe(proposal.subject.key)) return null;
+  if (proposal.subject.claimId !== null) {
+    return {
+      kind: proposal.subject.kind,
+      slug: proposal.subject.key,
+      claimId: proposal.subject.claimId,
+    };
+  }
+  return proposal.subject.kind === "errand"
+    ? { kind: "partial-errand", slug: proposal.subject.key, claimId: null }
+    : null;
+}
+
+function partialOrigin(
+  authority: ProvisioningAuthority,
+): { originEntry?: string; originEntrySourceDigest?: string } | null {
+  if (authority.kind !== "partial-errand") return null;
+  if (authority.originEntry === null && authority.originEntrySourceDigest === null) return {};
+  return authority.originEntry !== null && authority.originEntrySourceDigest !== null
+    ? {
+        originEntry: authority.originEntry,
+        originEntrySourceDigest: authority.originEntrySourceDigest,
+      }
+    : null;
+}
+
 function pendingMarker(
   options: ProvisionTransientLocusOptions,
   subject: TransientWorktreeSubject,
@@ -176,6 +217,7 @@ function pendingMarker(
     spawnedByArc: true,
     createdFor: subject,
     provisioning: "pending",
+    ...(options.parentCheckoutPath === null ? {} : { parentCheckoutPath: options.parentCheckoutPath }),
     spawningIdentity: options.spawningIdentity,
     createdAt: options.establishedAt,
   };
@@ -199,10 +241,9 @@ function markerMismatchEvidence(
   result: ProvisioningMarkerReadResult,
 ): ProvisioningEvidence {
   return {
-    kind: "marker-record-mismatch",
+    kind: "marker-residue",
     checkoutPath,
     markerBytes: result.kind === "present" ? result.bytes : null,
-    recordBytes: null,
   };
 }
 

@@ -1,6 +1,6 @@
 /**
  * Unit tests for the `reconcile-work-unit-worktree` mutator — the worktree-axis leg of the
- * WU relocation bundle. Git is mocked at the exec seam and the locus-hop is an
+ * WU relocation bundle. Git is mocked at the exec seam and the checkout hop is an
  * injected `chdir` spy; the filesystem is real (temp dirs) so the spawn leg's
  * ownership marker is written and read back, matching the sibling worktree-lib
  * tests.
@@ -37,8 +37,6 @@ interface MockOptions {
   failOccupiedMove?: boolean;
   /** Primary-side directories that should appear present to the harness-dir copy seam. */
   existingDirs?: readonly string[];
-  /** Record role-composition calls in the event stream. */
-  trackLocus?: boolean;
 }
 
 /**
@@ -67,6 +65,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
   const ctx: ReconcileWorkUnitWorktreeContext = {
     exec,
     chdir: (dir) => events.push(["chdir", dir]),
+    serializeWorktreeOperation: async (_checkoutPath, operation) => operation(),
     fs: {
       pathExists: async () => false,
       directoryExists: async (path) => {
@@ -81,16 +80,6 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
       mkdir: async () => {},
       readDir: async () => [],
     },
-    ...(opts.trackLocus === true
-      ? {
-          locus: {
-            reconcile: async (options) => {
-              events.push(["locus", options.checkoutPath, options.wuName, String(options.attachSession)]);
-              return { recordId: "sha256:test", leaseId: null, roleCreated: true };
-            },
-          },
-        }
-      : {}),
   };
   return { ctx, events };
 }
@@ -159,7 +148,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("creates the branch + worktree at the templated path and writes the ownership marker", async () => {
-    const { ctx, events } = buildCtx({ trackLocus: true });
+    const { ctx, events } = buildCtx();
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,
@@ -183,7 +172,6 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
-      ["locus", expectedPath, "demo-wu", "false"],
     ]);
 
     const marker = await readWorktreeMarker(expectedPath);
@@ -291,7 +279,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("fails loud and writes no marker when the configured post-create script fails", async () => {
-    const { ctx, events } = buildCtx({ failPostCreate: true, trackLocus: true });
+    const { ctx, events } = buildCtx({ failPostCreate: true });
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,
@@ -465,30 +453,6 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(events).toEqual([]);
   });
 
-  it("compensates a fresh worktree and its newly created branch when locus composition fails", async () => {
-    const { ctx, events } = buildCtx({ trackLocus: true });
-    const template = join(root, "{repo}.{name}");
-    const expectedPath = resolveWorktreeLocation({
-      template,
-      repo: "demo",
-      name: "demo-wu",
-      branch: "plan/demo-wu",
-    });
-    if (ctx.locus === undefined) throw new Error("locus fixture missing");
-    ctx.locus.reconcile = async () => { throw new Error("locus failed"); };
-
-    await expect(reconcileWorkUnitWorktree(ctx, {
-      mutation: "spawn",
-      branch: "plan/demo-wu",
-      base: "main",
-      locationTemplate: template,
-      repo: "demo",
-      wuName: "demo-wu",
-      spawningIdentity: "andrew",
-    })).rejects.toThrow(/locus failed/iu);
-    expect(events).toContainEqual(["git", "worktree", "remove", "--force", expectedPath]);
-    expect(events).toContainEqual(["git", "branch", "-D", "plan/demo-wu"]);
-  });
 });
 
 describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
@@ -500,7 +464,6 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
       inPlace: true,
       branch: "plan/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: true,
     });
 
@@ -519,7 +482,6 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
       inPlace: true,
       branch: "feat/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: false,
     });
 
@@ -530,20 +492,17 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
     ]);
   });
 
-  it("returns the in-place locus receipt needed by later compensation", async () => {
-    const { ctx } = buildCtx({ toplevel: "/work/primary", trackLocus: true });
+  it("returns no retired locus receipt for in-place placement", async () => {
+    const { ctx } = buildCtx({ toplevel: "/work/primary" });
 
-    await expect(reconcileWorkUnitWorktree(ctx, {
+    const result = await reconcileWorkUnitWorktree(ctx, {
       mutation: "spawn",
       inPlace: true,
       branch: "plan/demo-wu",
       wuName: "demo-wu",
-      attachSession: true,
       createBranch: true,
-    })).resolves.toMatchObject({
-      mutation: "spawn",
-      locus: { recordId: "sha256:test", roleCreated: true },
     });
+    expect(result).not.toHaveProperty("locus");
   });
 });
 
@@ -766,15 +725,18 @@ describe("reconcileWorkUnitWorktree — rename move", () => {
 });
 
 describe("reconcileWorkUnitWorktree — teardown", () => {
-  const clearOccupancy = {
+  const clearSelection = (path: string) => ({
     kind: "clear" as const,
-    recordId: null,
-    leaseId: null,
-    leaseState: "absent" as const,
-    recordGeneration: null,
-    lockGeneration: null,
+    checkout: {
+      path,
+      head: "2".repeat(40),
+      branch: "feat/demo",
+      detached: false,
+      primary: false,
+    },
+    subject: { kind: "work-unit" as const, name: "demo" },
     markerGeneration: null,
-  };
+  });
 
   it("removes an oracle-approved husk from outside after reconciling final user surfaces", async () => {
     const worktreePath = "/work/wt/demo";
@@ -873,11 +835,10 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       if (args[0] === "status" && statusReads++ > 0) return { stdout: " M changed.ts" };
       return await baseExec(command, args, options);
     };
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -886,9 +847,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: "/work/primary",
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/dirty worktree/iu);
     expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -898,11 +857,10 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const worktreePath = "/work/wt/demo";
     const { ctx, events } = buildCtx({ worktreeList: porcelain("/work/primary", worktreePath) });
     ctx.readCurrentLocus = () => `${worktreePath}/nested`;
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -911,9 +869,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: "/work/primary",
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/current worktree/iu);
     expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -944,12 +900,11 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const worktreePath = "/work/wt/demo";
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         expect(events).toContainEqual(["chdir", primary]);
         await options.revalidateLocal();
         await options.retireProjection();
-        return { roleRemoved: false };
       },
     };
 
@@ -958,9 +913,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus: join(worktreePath, "packages/arc-framework"),
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).resolves.toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
     expect(events).toContainEqual(["git", "worktree", "remove", worktreePath]);
@@ -972,16 +925,14 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
     ctx.fs.pathExists = async (path) => path === worktreePath;
-    ctx.teardownLocus = { retire: async () => { throw new Error("lock refused"); } };
+    ctx.teardownWorktree = { retire: async () => { throw new Error("lock refused"); } };
 
     await expect(reconcileWorkUnitWorktree(ctx, {
       mutation: "teardown",
       worktreePath,
       currentLocus,
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(/lock refused/iu);
     expect(events).toContainEqual(["chdir", primary]);
@@ -993,7 +944,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     const currentLocus = join(worktreePath, "packages/arc-framework");
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
-    ctx.teardownLocus = {
+    ctx.teardownWorktree = {
       retire: async (options) => {
         await options.revalidateLocal();
         await options.retireProjection();
@@ -1006,9 +957,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       worktreePath,
       currentLocus,
       authorization: {
-        subject: { kind: "work-unit", name: "demo" },
-        expectedHead: "2".repeat(40),
-        expectedOccupancy: clearOccupancy,
+        expectedSelection: clearSelection(worktreePath),
       },
     })).rejects.toThrow(new RegExp(`role pop failed; process locus remains at ${primary}`, "u"));
     expect(events.filter(([event]) => event === "chdir")).toEqual([["chdir", primary]]);

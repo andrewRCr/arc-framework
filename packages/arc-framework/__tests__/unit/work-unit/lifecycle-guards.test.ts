@@ -99,7 +99,6 @@ describe("makeWorktreeOccupancyGuard", () => {
         inPlace: true,
         branch,
         wuName: "demo",
-        attachSession: true,
         createBranch: false,
       },
     };

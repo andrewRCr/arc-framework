@@ -18,7 +18,13 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
 import { isCanonicalDigest } from "../canonical/canonical-json.js";
-import { LocusTokenSchema } from "../locus/schema/limits.js";
+import { SlugSchema } from "../kernel/index.js";
+import {
+  LocusAbsolutePathSchema,
+  LocusDigestSchema,
+  LocusOpaqueTextSchema,
+  LocusTokenSchema,
+} from "../locus/schema/limits.js";
 import type {
   HuskAuthorization,
   PersistedRetirementEvidence,
@@ -42,8 +48,15 @@ export type TransientWorktreeSubject = {
   };
 }["errand" | "groom" | "housekeep"];
 
+/** Identity-free partial Errand occupancy carried only by its marker origin binding. */
+export type PartialErrandWorktreeSubject = {
+  kind: "partial-errand";
+  slug: string;
+  claimId: null;
+};
+
 /** Logical target carried by current and legacy worktree evidence. */
-export type WorktreeMarkerSubject = WorktreeSubject | TransientWorktreeSubject;
+export type WorktreeMarkerSubject = WorktreeSubject | TransientWorktreeSubject | PartialErrandWorktreeSubject;
 
 /** Terminal proof recorded after ARC detaches a worktree for safe later disposal. */
 export interface WorktreeHuskStamp {
@@ -118,6 +131,12 @@ interface WorktreeMarkerBase {
   spawningIdentity: string;
   /** ISO-8601 timestamp of marker creation. */
   createdAt: string;
+  /** Optional machine-local checkout to return to after transient completion. */
+  parentCheckoutPath?: string;
+  /** Exact partial-Errand inbox entry, present only with its source digest. */
+  originEntry?: string;
+  /** Digest binding {@link WorktreeMarkerBase.originEntry} to its capture source. */
+  originEntrySourceDigest?: string;
   /** Optional proof that ARC completed the terminal detach transition. */
   husk?: WorktreeHuskStamp;
   /** Exact deferred directory move for a renamed spawned worktree. */
@@ -140,6 +159,11 @@ export type WorktreeMarker = WorktreeMarkerBase &
       }
     | { wuName?: never; createdFor: WorktreeSubject; provisioning?: never }
     | { wuName?: never; createdFor: TransientWorktreeSubject; provisioning: string }
+    | {
+        wuName?: never;
+        createdFor: PartialErrandWorktreeSubject;
+        provisioning: "pending" | "ready";
+      }
   );
 
 /** Outcome of reading the marker: present, absent, or present-but-invalid. */
@@ -246,6 +270,25 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
       && Number.isInteger((candidate as Record<string, unknown>).generation)
       && ((candidate as Record<string, unknown>).generation as number) > 0
       && isCanonicalDigest((candidate as Record<string, unknown>).candidateWorktree));
+  const parentValid = marker.parentCheckoutPath === undefined
+    || LocusAbsolutePathSchema.safeParse(marker.parentCheckoutPath).success;
+  const partial = isPartialErrandWorktreeSubject(marker.createdFor);
+  const hasOriginEntry = marker.originEntry !== undefined;
+  const hasOriginDigest = marker.originEntrySourceDigest !== undefined;
+  const originValid = partial
+    ? hasOriginEntry === hasOriginDigest
+      && (!hasOriginEntry
+        || (LocusOpaqueTextSchema.safeParse(marker.originEntry).success
+          && LocusDigestSchema.safeParse(marker.originEntrySourceDigest).success))
+    : !hasOriginEntry && !hasOriginDigest;
+  const primaryOccupancyValid = marker.spawnedByArc !== false
+    || ((isTransientWorktreeSubject(marker.createdFor) || partial)
+      && marker.husk === undefined
+      && marker.renameMovePending === undefined
+      && marker.decompositionCandidate === undefined);
+  const transientOnlyFieldsValid = isTransientWorktreeSubject(marker.createdFor) || partial
+    ? true
+    : marker.parentCheckoutPath === undefined;
   return typeof marker.spawnedByArc === "boolean"
     && wuNameValid
     && createdForValid
@@ -255,6 +298,10 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
     && huskValid
     && renameMoveValid
     && decompositionCandidateValid
+    && parentValid
+    && originValid
+    && primaryOccupancyValid
+    && transientOnlyFieldsValid
     && !(marker.husk !== undefined && marker.renameMovePending !== undefined)
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
@@ -289,6 +336,9 @@ function ownershipIsConsistent(wuName: unknown, createdFor: unknown): boolean {
 
 function provisioningIsConsistent(createdFor: unknown, provisioning: unknown): boolean {
   if (!isWorktreeMarkerSubject(createdFor)) return provisioning === undefined;
+  if (isPartialErrandWorktreeSubject(createdFor)) {
+    return provisioning === "pending" || provisioning === "ready";
+  }
   return isTransientWorktreeSubject(createdFor)
     ? typeof provisioning === "string"
     : provisioning === undefined;
@@ -399,15 +449,25 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {
-  return isWorktreeSubject(value) || isTransientWorktreeSubject(value);
+  return isWorktreeSubject(value)
+    || isTransientWorktreeSubject(value)
+    || isPartialErrandWorktreeSubject(value);
 }
 
 function isTransientWorktreeSubject(value: unknown): value is TransientWorktreeSubject {
   if (typeof value !== "object" || value === null) return false;
   const subject = value as Record<string, unknown>;
   return (subject.kind === "errand" || subject.kind === "groom" || subject.kind === "housekeep")
-    && typeof subject.slug === "string"
+    && SlugSchema.safeParse(subject.slug).success
     && LocusTokenSchema.safeParse(subject.claimId).success;
+}
+
+function isPartialErrandWorktreeSubject(value: unknown): value is PartialErrandWorktreeSubject {
+  if (typeof value !== "object" || value === null) return false;
+  const subject = value as Record<string, unknown>;
+  return subject.kind === "partial-errand"
+    && SlugSchema.safeParse(subject.slug).success
+    && subject.claimId === null;
 }
 
 /** Decode marker ownership without granting authority to legacy or future transient shapes. */
@@ -420,7 +480,7 @@ export function decodeWorktreeMarkerOwnership(marker: WorktreeMarker): DecodedWo
     if (wuName === undefined) return { kind: "manual-only", reason: "malformed-ownership" };
     subject = { kind: "work-unit", name: wuName };
   }
-  if (isTransientWorktreeSubject(subject)) {
+  if (isTransientWorktreeSubject(subject) || isPartialErrandWorktreeSubject(subject)) {
     if (marker.provisioning !== "pending" && marker.provisioning !== "ready") {
       return { kind: "manual-only", reason: "unknown-provisioning" };
     }
@@ -527,53 +587,6 @@ export async function writeWorktreeOwnershipMarker(
   });
 }
 
-/** Result of rewriting a work-unit ownership marker for a rename. */
-export type RenameWorktreeOwnershipMarkerResult =
-  | { status: "renamed" }
-  | { status: "absent" }
-  | { status: "foreign" }
-  | { status: "malformed"; message: string; path: string };
-
-/**
- * Rewrite both work-unit identity projections in an existing ARC marker.
- * Missing markers represent in-place or externally managed worktrees and skip;
- * malformed or foreign ownership is never repaired or appropriated.
- *
- * @param cwd - Registered worktree root
- * @param names - Expected old identity and replacement identity
- * @returns Whether ownership changed or why it was left untouched
- */
-export async function renameWorktreeOwnershipMarker(
-  cwd: string,
-  names: { oldWuName: string; newWuName: string },
-  options: { renameMovePending?: WorktreeRenameMovePending | null } = {},
-): Promise<RenameWorktreeOwnershipMarkerResult> {
-  const current = await readWorktreeMarker(cwd);
-  if (current.kind === "absent") return { status: "absent" };
-  if (current.kind === "malformed") return { status: "malformed", message: current.message, path: current.path };
-
-  const createdForName = current.marker.createdFor?.kind === "work-unit"
-    ? current.marker.createdFor.name
-    : undefined;
-  const ownedName = current.marker.wuName ?? createdForName;
-  const ownedByRename = ownedName === names.oldWuName || ownedName === names.newWuName;
-  if (!ownedByRename || current.marker.provisioning !== undefined) return { status: "foreign" };
-
-  const pending = options.renameMovePending;
-  const markerBase = { ...current.marker };
-  if (pending !== undefined) delete markerBase.renameMovePending;
-  const renamed: WorktreeMarker = {
-    ...markerBase,
-    wuName: names.newWuName,
-    createdFor: { kind: "work-unit", name: names.newWuName },
-    ...(pending === null || pending === undefined || current.marker.husk !== undefined
-      ? {}
-      : { renameMovePending: pending }),
-  };
-  await writeWorktreeMarker(cwd, renamed);
-  return { status: "renamed" };
-}
-
 /**
  * Add terminal husk proof to an existing valid ownership marker.
  *
@@ -666,6 +679,30 @@ export async function replaceWorktreeMarkerGeneration(
   expectedBytes: Buffer,
   marker: WorktreeMarker,
 ): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, serializeWorktreeMarker(marker));
+}
+
+/** Restore one exact valid worktree-marker byte generation after an exact comparison. */
+export async function restoreWorktreeMarkerGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+  restoreBytes: Buffer,
+): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(restoreBytes.toString("utf8"));
+  } catch {
+    throw new Error("Cannot restore malformed worktree marker bytes");
+  }
+  if (!isWorktreeMarker(parsed)) throw new Error("Cannot restore invalid worktree marker bytes");
+  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, restoreBytes);
+}
+
+async function replaceWorktreeMarkerBytesGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+  replacementBytes: Buffer,
+): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
   const path = resolveWorktreeMarkerPath(cwd);
   let current: Buffer;
   try {
@@ -675,16 +712,15 @@ export async function replaceWorktreeMarkerGeneration(
     throw error;
   }
   if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
-  const bytes = serializeWorktreeMarker(marker);
   const temporaryPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
   let published = false;
   try {
-    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+    await writeFile(temporaryPath, replacementBytes, { flag: "wx", mode: 0o600 });
     const recheck = await readFile(path);
     if (!recheck.equals(expectedBytes)) return { kind: "generation-mismatch" };
     await rename(temporaryPath, path);
     published = true;
-    return { kind: "replaced", bytes };
+    return { kind: "replaced", bytes: replacementBytes };
   } finally {
     if (!published) await unlink(temporaryPath).catch(() => undefined);
   }
@@ -711,6 +747,38 @@ export async function removeWorktreeMarkerGeneration(
     throw error;
   }
   return { kind: "removed" };
+}
+
+/** Remove one exact ready primary-transient marker without granting spawned-cleanup authority. */
+export async function removePrimaryTransientOccupancy(
+  cwd: string,
+  expected: TransientWorktreeSubject | PartialErrandWorktreeSubject,
+): Promise<
+  | { kind: "removed" | "absent" }
+  | { kind: "refused"; reason: "malformed" | "subject-mismatch" | "generation-mismatch" }
+> {
+  const generation = await readWorktreeMarkerGeneration(cwd);
+  if (generation.kind === "absent") return { kind: "absent" };
+  if (generation.kind === "malformed") return { kind: "refused", reason: "malformed" };
+  const decoded = decodeWorktreeMarkerOwnership(generation.marker);
+  if (generation.marker.spawnedByArc
+    || decoded.kind !== "current"
+    || decoded.provisioning !== "ready"
+    || !transientMarkerSubjectsEqual(decoded.subject, expected)) {
+    return { kind: "refused", reason: "subject-mismatch" };
+  }
+  const removed = await removeWorktreeMarkerGeneration(cwd, generation.bytes);
+  return removed.kind === "removed"
+    ? removed
+    : { kind: "refused", reason: "generation-mismatch" };
+}
+
+function transientMarkerSubjectsEqual(
+  actual: Exclude<WorktreeMarkerSubject, { kind: "errand"; claimId?: never }>,
+  expected: TransientWorktreeSubject | PartialErrandWorktreeSubject,
+): boolean {
+  if (!("slug" in actual) || actual.kind !== expected.kind || actual.slug !== expected.slug) return false;
+  return "claimId" in actual && actual.claimId === expected.claimId;
 }
 
 function serializeWorktreeMarker(marker: WorktreeMarker): Buffer {
