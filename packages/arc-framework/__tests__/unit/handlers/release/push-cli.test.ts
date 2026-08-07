@@ -122,6 +122,7 @@ describe("handleReleasePush", () => {
       exec: mocks.boundExec,
       cwd: "/repo",
     });
+    expect(mocks.resolveCurrentBranchName).not.toHaveBeenCalled();
     expect(mocks.runWorktreeSyncStatus).not.toHaveBeenCalled();
     expect(mocks.pushWorktreeBranch).toHaveBeenCalledWith({
       exec: mocks.boundExec,
@@ -132,6 +133,24 @@ describe("handleReleasePush", () => {
       interaction: context.subprocess,
     });
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("uses the branch carried by materialized worktree evidence", async () => {
+    mocks.resolveCurrentBranchName.mockResolvedValue("stale-branch");
+    mocks.runMaterializingWorktreeInspection.mockResolvedValue({
+      state: "local-ahead",
+      ahead: 1,
+      behind: 0,
+      branch: "snapshot-branch",
+      remoteEvidence: "exact",
+    });
+
+    await expect(handleReleasePush({ args: [] }, context)).resolves.toBeUndefined();
+
+    expect(mocks.resolveCurrentBranchName).not.toHaveBeenCalled();
+    expect(mocks.runPushabilityStatus).toHaveBeenCalledWith(expect.objectContaining({
+      worktreeBranch: "snapshot-branch",
+    }));
   });
 
   it("stops before pushability or push when worktree materialization fails", async () => {
