@@ -8,6 +8,7 @@ import {
   projectMarkerAuthority,
   projectWorkUnitLifecycle,
   type ActiveMetaEvidence,
+  type ArchivedMetaEvidence,
   type DormantMarkerGenerationEvidence,
 } from "./derived-lifecycle-evidence.js";
 import { corroborateCheckoutRole } from "./role-corroboration.js";
@@ -39,7 +40,7 @@ interface DerivedCheckoutRowBase {
   readonly origin: { readonly entry: string; readonly sourceDigest: string } | null;
   readonly identity: LocusIdentityV1 | null;
   readonly context: Extract<SubjectMetaProjection, { kind: "resolved" }> | null;
-  readonly lifecycleLocation: "active" | "parked" | null;
+  readonly lifecycleLocation: "active" | "completed" | "parked" | null;
   readonly diagnostics: readonly DerivedCheckoutDiagnostic[];
 }
 
@@ -58,10 +59,12 @@ export function projectDerivedCheckoutRow(options: {
   checkout: RegisteredWorktree;
   marker: DormantMarkerGenerationEvidence;
   activeMeta: ActiveMetaEvidence;
+  archivedMeta?: ArchivedMetaEvidence;
   completed: CompletedEvidenceRead;
   identities: TransientIdentitySnapshot;
   primarySafety: PrimarySafetyProjection;
 }): DerivedCheckoutRow {
+  const archivedMeta = options.archivedMeta ?? { kind: "absent" };
   const markerAuthority = projectMarkerAuthority(options.marker, options.checkout);
   const markerSubject = markerAuthority.kind === "present" ? markerAuthority.subject : null;
   const markerWorkUnit = markerSubject?.kind === "work-unit" ? markerSubject : null;
@@ -71,6 +74,7 @@ export function projectDerivedCheckoutRow(options: {
     : null;
   const lifecycle = projectWorkUnitLifecycle({
     activeMeta: options.activeMeta,
+    archivedMeta,
     markerSubject: markerWorkUnit,
     completed: options.completed,
   });
@@ -106,9 +110,11 @@ export function projectDerivedCheckoutRow(options: {
     context: null,
     lifecycleLocation: options.activeMeta.kind === "present"
       ? options.activeMeta.location
-      : composed.kind === "work-unit" && markerWorkUnit !== null
-        ? "parked"
-        : null,
+      : archivedMeta.kind === "present"
+        ? archivedMeta.location
+        : composed.kind === "work-unit" && markerWorkUnit !== null
+          ? "parked"
+          : null,
     diagnostics: "diagnostics" in composed
       ? composed.diagnostics.map((diagnostic) => ({
           code: diagnostic.code,

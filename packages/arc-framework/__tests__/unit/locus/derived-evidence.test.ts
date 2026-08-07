@@ -24,6 +24,7 @@ describe("derived locus evidence", () => {
         }],
       }),
       listDirectory: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
+      readArchivedMeta: vi.fn().mockResolvedValue({ kind: "absent" }),
       readText: vi.fn(),
       readMarker: vi.fn().mockResolvedValue({ kind: "absent" }),
       readIdentities: vi.fn().mockResolvedValue({
@@ -41,6 +42,55 @@ describe("derived locus evidence", () => {
       checkouts: [{ checkoutPath: "/repo", marker: { kind: "absent" }, metas: [] }],
       identities: { kind: "error", stage: "tree", message: "identity root unavailable" },
       primarySafety: { kind: "complete", clean: true, onBase: true },
+    });
+  });
+
+  it("acquires only the marker-selected archived WU meta from its checkout", async () => {
+    const archivedText = "# Metadata: demo\n\n- **State:** `Shipped`\n- **Owner:** `andrew`\n";
+    const io: DerivedLocusEvidenceIO = {
+      scanWorktrees: vi.fn().mockResolvedValue({
+        ok: true,
+        worktrees: [{
+          path: "/repo/demo",
+          head: "a".repeat(40),
+          branch: "fix/demo",
+          detached: false,
+          primary: false,
+        }],
+      }),
+      listDirectory: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
+      readArchivedMeta: vi.fn().mockResolvedValue({
+        kind: "read",
+        path: ".arc/completed/2026-q3/49_demo/meta-demo.md",
+        text: archivedText,
+      }),
+      readText: vi.fn().mockResolvedValue(archivedText),
+      readMarker: vi.fn().mockResolvedValue({
+        kind: "present",
+        bytes: Buffer.from("marker"),
+        marker: {
+          spawnedByArc: true,
+          createdFor: { kind: "work-unit", name: "demo" },
+        },
+      }),
+      readIdentities: vi.fn().mockResolvedValue({ kind: "absent" }),
+      readCompleted: vi.fn().mockResolvedValue({ status: "available", records: new Map() }),
+      readPrimarySafety: vi.fn().mockResolvedValue({ kind: "complete", clean: true, onBase: true }),
+      canonicalizePath: vi.fn(async (path: string) => path),
+    };
+
+    await expect(acquireDerivedLocusEvidence({ identity: "andrew", io })).resolves.toMatchObject({
+      kind: "complete",
+      checkouts: [{
+        checkoutPath: "/repo/demo",
+        archivedMetaRoots: [{ kind: "listed", path: "/repo/demo/.arc/completed" }],
+        archivedMetas: [{
+          kind: "read",
+          name: "meta-demo.md",
+          path: "/repo/demo/.arc/completed/2026-q3/49_demo/meta-demo.md",
+          text: archivedText,
+        }],
+      }],
     });
   });
 

@@ -43,6 +43,15 @@ interface SelectedActiveMeta {
   readonly candidates: readonly DormantMetaEvidence[];
 }
 
+interface SelectedArchivedMeta {
+  readonly kind: "present";
+  readonly location: "completed";
+  readonly subject: DerivedWorkUnitSubject;
+  readonly expectedTopology: SubjectTopologyExpectation;
+  readonly metaRoot: { readonly kind: "completed"; readonly path: string };
+  readonly candidates: readonly DormantMetaEvidence[];
+}
+
 /** Exact active-meta evidence retained before it is narrowed into lifecycle authority. */
 export type ActiveMetaEvidence =
   | { readonly kind: "absent" }
@@ -50,6 +59,14 @@ export type ActiveMetaEvidence =
   | { readonly kind: "duplicate"; readonly subjectKey: string; readonly paths: readonly string[] }
   | { readonly kind: "conflicting"; readonly reason: string; readonly paths: readonly string[] }
   | SelectedActiveMeta;
+
+/** Exact archived-meta evidence for a marker-selected work unit. */
+export type ArchivedMetaEvidence =
+  | { readonly kind: "absent" }
+  | { readonly kind: "unreadable"; readonly reason: string; readonly path: string | null }
+  | { readonly kind: "duplicate"; readonly subjectKey: string; readonly paths: readonly string[] }
+  | { readonly kind: "conflicting"; readonly reason: string; readonly paths: readonly string[] }
+  | SelectedArchivedMeta;
 
 /** Injected listing evidence for one active-meta root directory. */
 export type MetaRootEvidence = { readonly kind: "listed"; readonly path: string }
@@ -159,6 +176,66 @@ export function projectActiveMetaEvidence(options: {
   };
 }
 
+/** Select one exact shipped meta from the marker-selected checkout archive. */
+export function projectArchivedMetaEvidence(options: {
+  cwd: string;
+  identity: string;
+  subjectKey: string;
+  candidates: readonly DormantMetaEvidence[];
+  metaRoots: readonly MetaRootEvidence[];
+}): ArchivedMetaEvidence {
+  const unreadableRoot = options.metaRoots.find((root) => root.kind === "error");
+  if (unreadableRoot?.kind === "error") {
+    return {
+      kind: "unreadable",
+      reason: unreadableRoot.message,
+      path: normalizedRelative(options.cwd, unreadableRoot.path),
+    };
+  }
+  const exact = options.candidates.filter((candidate) => metaKey(candidate.name) === options.subjectKey);
+  const unreadableCandidate = exact.find((candidate) => candidate.kind === "error");
+  if (unreadableCandidate?.kind === "error") {
+    return {
+      kind: "unreadable",
+      reason: unreadableCandidate.message,
+      path: normalizedRelative(options.cwd, unreadableCandidate.path),
+    };
+  }
+  if (exact.length === 0) return { kind: "absent" };
+  const paths = exact.map((candidate) => normalizedRelative(options.cwd, candidate.path)).sort();
+  if (exact.length > 1) return { kind: "duplicate", subjectKey: options.subjectKey, paths };
+  const selected = exact[0];
+  if (selected === undefined || selected.kind !== "read") return { kind: "absent" };
+  let record;
+  try {
+    record = parseMetaRecord(selected.text);
+  } catch (error) {
+    return {
+      kind: "unreadable",
+      reason: error instanceof Error ? error.message : String(error),
+      path: normalizedRelative(options.cwd, selected.path),
+    };
+  }
+  const owner = normalizePointer(record.owner);
+  if (owner !== options.identity || record.state !== "Shipped") {
+    return {
+      kind: "conflicting",
+      reason: owner !== options.identity
+        ? "The archived work unit is owned by another identity"
+        : "The archived work-unit meta is not Shipped",
+      paths,
+    };
+  }
+  return {
+    kind: "present",
+    location: "completed",
+    subject: { kind: "work-unit", key: options.subjectKey },
+    expectedTopology: {},
+    metaRoot: { kind: "completed", path: selected.path },
+    candidates: exact,
+  };
+}
+
 /** Narrow future marker evidence into ownership authority. */
 export function projectMarkerAuthority(
   evidence: DormantMarkerGenerationEvidence,
@@ -187,9 +264,11 @@ export function projectMarkerAuthority(
 /** Combine active-meta and completed-index facts for one already marker-selected WU. */
 export function projectWorkUnitLifecycle(options: {
   activeMeta: ActiveMetaEvidence;
+  archivedMeta?: ArchivedMetaEvidence;
   markerSubject: DerivedWorkUnitSubject | null;
   completed: CompletedEvidenceRead;
 }): WorkUnitLifecycleProjection {
+  const archivedMeta = options.archivedMeta ?? { kind: "absent" };
   if (options.activeMeta.kind === "present") {
     return {
       kind: "present",
@@ -202,6 +281,17 @@ export function projectWorkUnitLifecycle(options: {
     return { kind: "unreadable", reason: activeMetaFailure(options.activeMeta) };
   }
   if (options.markerSubject === null) return { kind: "absent" };
+  if (archivedMeta.kind === "present") {
+    return {
+      kind: "present",
+      state: "integration",
+      subject: archivedMeta.subject,
+      expectedTopology: archivedMeta.expectedTopology,
+    };
+  }
+  if (archivedMeta.kind !== "absent") {
+    return { kind: "unreadable", reason: archivedMetaFailure(archivedMeta) };
+  }
   if (options.completed.status !== "unavailable"
     && options.completed.records.has(options.markerSubject.key)) {
     return {
@@ -284,6 +374,12 @@ function identityExpectedTopology(identity: LocusIdentityV1): SubjectTopologyExp
 function activeMetaFailure(evidence: Exclude<ActiveMetaEvidence, { kind: "present" | "absent" }>): string {
   if (evidence.kind === "unreadable") return evidence.reason;
   if (evidence.kind === "duplicate") return `Duplicate active meta for ${evidence.subjectKey}`;
+  return evidence.reason;
+}
+
+function archivedMetaFailure(evidence: Exclude<ArchivedMetaEvidence, { kind: "present" | "absent" }>): string {
+  if (evidence.kind === "unreadable") return evidence.reason;
+  if (evidence.kind === "duplicate") return `Duplicate archived meta for ${evidence.subjectKey}`;
   return evidence.reason;
 }
 

@@ -19,6 +19,7 @@ import {
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import {
   LoadSetAuditVerdictSchema,
+  LoadSetPathDriftSchema,
   auditLoadSetManifest,
   type LoadSetAuditVerdict,
 } from "../load-set/audit.js";
@@ -107,6 +108,14 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     kind: z.literal("head-advanced"),
     message: z.string(),
     detail: z.strictObject({ expected: z.string(), actual: z.string() }),
+  }),
+  z.strictObject({
+    kind: z.literal("load-set-archival-relocation"),
+    message: z.string(),
+    detail: z.strictObject({
+      slug: z.string(),
+      pathDrifts: z.array(LoadSetPathDriftSchema),
+    }),
   }),
 ]);
 export type RecoveryAuditExplainedDrift = z.infer<typeof RecoveryAuditExplainedDriftSchema>;
@@ -213,7 +222,7 @@ export async function auditRecoveryState(
   auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
-  const loadSetAudit = auditLoadSet(options, stopReasons);
+  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons);
 
@@ -357,6 +366,7 @@ function auditLocus(
 function auditLoadSet(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
+  explainedDrift: RecoveryAuditExplainedDrift[],
 ): LoadSetAuditVerdict | null {
   if (!options.recover.loadSet.ok) {
     stopReasons.push({
@@ -371,14 +381,66 @@ function auditLoadSet(
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
-  if (verdict.diverged) {
+  const archivalRelocation = archivedIntegrationRelocation(options, verdict);
+  if (verdict.diverged && archivalRelocation === null) {
     stopReasons.push({
       kind: "load-set-drift",
       message: "fresh recovery load-set diverges from the compaction seed baseline",
       detail: verdict.diff,
     });
+  } else if (archivalRelocation !== null) {
+    explainedDrift.push({
+      kind: "load-set-archival-relocation",
+      message: "the integrating work unit's exact meta moved from active to its completed archive",
+      detail: archivalRelocation,
+    });
   }
   return verdict;
+}
+
+function archivedIntegrationRelocation(
+  options: AuditRecoveryStateOptions,
+  verdict: LoadSetAuditVerdict,
+): { slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null {
+  const slug = options.seed.activeWorkUnit;
+  if (slug === null || options.seed.sessionType !== "integration" || !verdict.diverged) return null;
+  if (!options.recover.recoveryFrame.ok) return null;
+  const recoveryFrame = options.recover.recoveryFrame.value;
+  if (recoveryFrame.kind !== "resolved"
+    || recoveryFrame.subject.kind !== "work-unit"
+    || recoveryFrame.subject.key !== slug
+    || recoveryFrame.sessionType !== "integration"
+    || recoveryFrame.workflow !== "integrate-work-unit") return null;
+  if (!options.recover.derivedLocusState.ok) return null;
+  const entering = options.recover.derivedLocusState.value.entering;
+  if (entering.kind !== "selected"
+    || entering.row.kind !== "work-unit"
+    || entering.row.subject.kind !== "work-unit"
+    || entering.row.subject.key !== slug
+    || entering.row.lifecycleLocation !== "completed"
+    || entering.row.context === null) return null;
+
+  const diff = verdict.diff;
+  if (diff.manifestVersion !== null
+    || diff.membership.added.length > 0
+    || diff.membership.removed.length > 0
+    || diff.readModeChanges.length > 0
+    || diff.pathDrifts.length !== 1) return null;
+  const drift = diff.pathDrifts[0];
+  if (drift === undefined) return null;
+  const expected = `.arc/active/meta-${slug}.md`;
+  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const actualPattern = new RegExp(
+    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
+    "u",
+  );
+  if (options.seed.metaPath !== expected
+    || drift.expected.path !== expected
+    || !actualPattern.test(drift.actual.path)
+    || entering.row.context.metaPath !== drift.actual.path
+    || drift.expected.readMode.kind !== "full"
+    || drift.actual.readMode.kind !== "full") return null;
+  return { slug, pathDrifts: diff.pathDrifts };
 }
 
 function auditDirtyFiles(
