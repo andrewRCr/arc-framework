@@ -709,7 +709,15 @@ describe("session-init E2E — current detached husk advisory", () => {
 
     const untrustedResult = await runArc(["status", "--session-init", "--json"], canonical);
     expect(untrustedResult.exitCode).toBe(0);
-    expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({ ok: true, value: null });
+    expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({
+      ok: true,
+      value: {
+        worktreePath: await realpath(canonical),
+        subject: { kind: "work-unit", name: "shipped-widget" },
+        branch: "feat/shipped-widget",
+        stamp: { kind: "manual-only", reason: "unknown-evidence" },
+      },
+    });
   });
 });
 

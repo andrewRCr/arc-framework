@@ -11,14 +11,10 @@ import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
-  deleteOperation,
-  writeOperation,
   type ArtifactSetEntry,
-  type PatchOperation,
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
-import { artifactGroupDigest, receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
-import { enumerateGitRetirementRecords } from "./git-retirement-record-enumeration.js";
+import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
@@ -26,23 +22,14 @@ import { validateParkRetirementProof } from "./park-retirement-proof.js";
 import type { ParkProofTarget } from "./park-retirement-proof.js";
 import type {
   RetirementAuthorizationContext,
-  RetirementReceiptCandidate,
 } from "./retirement-authorization.js";
 import type {
   HuskAuthorization,
   RetirementEvidenceRef,
-  RetirementReceipt,
   TeardownAuthorizationRefusal,
   TeardownAuthorizationRequest,
 } from "./retirement-authority.js";
-import {
-  validateReceiptMatrix,
-  worktreeSubjectsEqual,
-} from "./retirement-authority.js";
-import {
-  resolveRetirementRecordRelativePath,
-} from "./retirement-record-store.js";
-import { validateRetirementReceiptRelation } from "./retirement-relation.js";
+import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Exact committed-blob reader used for canonical content digests. */
@@ -221,6 +208,11 @@ function isAllowedAbandonSidecar(change: NameStatusEntry, name: string): boolean
   if (change.path === ".arc/backlog/ROADMAP.md") {
     return change.status === "A" || change.status === "M" || change.status === "D";
   }
+  if (
+    change.status === "A"
+    && change.path.startsWith(`${RETIREMENT_RECORD_NAMESPACE}/`)
+    && /^sha256-[0-9a-f]{64}\.json$/u.test(posix.basename(change.path))
+  ) return true;
   return change.path === resolveTransitionRecordRelativePath(name) && change.status === "A";
 }
 
@@ -231,8 +223,6 @@ export function createGitRetirementAuthorizationContext(
   readBlob: RetirementAuthorizationBlobReader,
 ): RetirementAuthorizationContext {
   const baseRef = typeof baseTarget === "string" ? baseTarget : baseTarget.head;
-  const relationContext = createRelationContext(exec, readBlob);
-
   return {
     readLocalProjection: async (request) => {
       const [oid, scan] = await Promise.all([
@@ -270,215 +260,29 @@ export function createGitRetirementAuthorizationContext(
         remoteDisposition: landed ? "delete" : "retain",
       };
     },
-    readReceiptCandidates: async (request) => await readReceiptCandidates(exec, baseRef, request),
-    validateReceiptRelation: async (receipt, projection) => await validateRetirementReceiptRelation(
-      relationContext,
-      receipt,
-      projection,
-    ),
-    validateReceiptResult: async (receipt, projection) => await validateReceiptResult(
-      exec,
-      receipt,
-      projection,
-      readBlob,
-    ),
-  };
-}
-
-/** Revalidate one detached husk's receipt against the same strict Git proof as live authorization. */
-export async function validateGitRetirementReceiptEvidence(
-  exec: GitExec,
-  baseRef: string,
-  input: {
-    subject: WorktreeSubject;
-    branch: string;
-    retiringHead: string;
-    authorization: HuskAuthorization;
-    evidence: Extract<RetirementEvidenceRef, { kind: "receipt" }>;
-  },
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<boolean> {
-  try {
-    // Generic retirement receipts deliberately carry no decomposition authority.
-    // A finalized v3 receipt is validated by its dedicated exact-base consumer.
-    if (input.evidence.transition === "decompose") return false;
-    const recordRef = input.retiringHead;
-    const receipt = await readEnumeratedReceipt(exec, recordRef, input.evidence.receiptId);
-    if (
-      receipt === null
-      || receipt.transition !== input.evidence.transition
-      || !worktreeSubjectsEqual(receipt.subject, input.subject)
-      || receipt.source.branch !== input.branch
-      || receipt.authorization !== input.authorization
-      || canonicalDigest(receipt.result) !== input.evidence.resultDigest
-      || validateReceiptMatrix(receipt, input.evidence.expectedLifecycle) !== null
-    ) return false;
-    const projection = {
-      retiringHead: input.retiringHead,
-      resultHead: input.evidence.transition === "abandon"
-        ? input.retiringHead
-        : baseRef,
-    };
-    const relation = await validateRetirementReceiptRelation(
-      createRelationContext(exec, readBlob),
-      receipt,
-      projection,
-    );
-    if (relation !== null) return false;
-    return await validateReceiptResult(exec, receipt, projection, readBlob) === null;
-  } catch {
-    return false;
-  }
-}
-
-function createRelationContext(
-  exec: GitExec,
-  readBlob: RetirementAuthorizationBlobReader,
-): Parameters<typeof validateRetirementReceiptRelation>[0] {
-  return {
-    readCommitParents: (commit: string) => readCommitParents(exec, commit),
-    readRecord: async (commit: string, id: CanonicalDigest) => (
-      await readHistoricalRecord(exec, commit, id)
-    )?.content ?? null,
-    readPatchOperations: (
-      parent: string,
-      commit: string,
-      excludedReceiptId: CanonicalDigest,
-    ) => readPatchOperations(exec, parent, commit, excludedReceiptId, readBlob),
-  };
-}
-
-async function readReceiptCandidates(
-  exec: GitExec,
-  baseRef: string,
-  request: TeardownAuthorizationRequest,
-): Promise<readonly RetirementReceiptCandidate[]> {
-  let directParent: string | null = null;
-  try {
-    directParent = (await readCommitParents(exec, request.head))[0] ?? null;
-  } catch {
-    // A root commit cannot carry a valid direct-transition receipt.
-  }
-  const baseLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [
-    { transition: "abandon", sourceHead: request.head, ref: baseRef },
-  ];
-  const directLookups: Array<{ transition: RetirementTransition; sourceHead: string; ref: string }> = [];
-  if (directParent !== null) {
-    directLookups.push(
-      { transition: "abandon", sourceHead: directParent, ref: request.head },
-      { transition: "park-planning", sourceHead: directParent, ref: request.head },
-    );
-  }
-
-  const enumerations = new Map<string, ReturnType<typeof enumerateGitRetirementRecords>>();
-  const collect = async (
-    lookups: readonly { transition: RetirementTransition; sourceHead: string; ref: string }[],
-  ): Promise<RetirementReceiptCandidate[]> => {
-    const candidates: RetirementReceiptCandidate[] = [];
-    for (const lookup of lookups) {
-      for (const schemaVersion of [1, 2] as const) {
-        const id = receiptId({
-          schemaVersion,
-          subject: request.subject,
-          transition: lookup.transition,
-          sourceBranch: request.branch,
-          sourceHead: lookup.sourceHead,
-        });
-        const enumeration = await (
-          enumerations.get(lookup.ref)
-          ?? (() => {
-            const pending = enumerateGitRetirementRecords(exec, lookup.ref);
-            enumerations.set(lookup.ref, pending);
-            return pending;
-          })()
-        );
-        if (enumeration.status !== "valid") {
-          throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
-        }
-        const record = enumeration.records.find((candidate) => candidate.id === id);
-        const receipt = record?.record.kind === "receipt" ? record.record.value : null;
-        if (receipt === null || receipt.transition !== lookup.transition) continue;
-        const unchangedAbandonResultHead = lookup.transition === "abandon"
-            && receipt.retiringProjection.kind === "unchanged"
-          ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
-          : null;
-        if (
-          lookup.transition === "abandon"
-          && receipt.retiringProjection.kind === "unchanged"
-          && unchangedAbandonResultHead === null
-        ) continue;
-        candidates.push({
-          receipt,
-          resultHead: lookup.transition === "abandon"
-            ? unchangedAbandonResultHead ?? request.head
-            : baseRef,
-        });
+    readGitTransitionProof: async (request) => {
+      const abandon = await locateAbandonTransition(exec, baseRef, request, readBlob);
+      if (abandon.status === "unique") {
+        return {
+          status: "proved" as const,
+          proof: {
+            transition: "abandon" as const,
+            retiringHead: request.head,
+            resultHead: abandon.proof.resultHead,
+            resultInventory: [],
+          },
+        };
       }
-    }
-    return candidates;
-  };
-
-  const landedCandidates = await collect(baseLookups);
-  return landedCandidates.length > 0 ? landedCandidates : await collect(directLookups);
-}
-
-async function readEnumeratedReceipt(
-  exec: GitExec,
-  ref: string,
-  id: CanonicalDigest,
-): Promise<RetirementReceipt | null> {
-  const enumeration = await enumerateGitRetirementRecords(exec, ref);
-  if (enumeration.status !== "valid") {
-    throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
-  }
-  const record = enumeration.records.find((candidate) => candidate.id === id);
-  return record?.record.kind === "receipt" ? record.record.value : null;
-}
-
-/** Resolve the sole commit reachable from `tip` that introduced this immutable record path. */
-async function resolveReachableReceiptIntroduction(
-  exec: GitExec,
-  tip: string,
-  id: CanonicalDigest,
-): Promise<string | null> {
-  let commits: string[];
-  try {
-    const { stdout } = await exec("git", [
-      "log",
-      "--format=%H",
-      "--diff-filter=A",
-      "--no-renames",
-      tip,
-      "--",
-      resolveRetirementRecordRelativePath(id),
-    ]);
-    commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
-  } catch {
-    return null;
-  }
-  if (commits.length === 0) return null;
-  const introducedAt = commits.at(-1);
-  if (introducedAt === undefined) return null;
-  try {
-    await exec("git", ["merge-base", "--is-ancestor", introducedAt, tip]);
-  } catch {
-    return null;
-  }
-  return introducedAt;
-}
-
-async function validateReceiptResult(
-  exec: GitExec,
-  receipt: RetirementReceipt,
-  projection: { retiringHead: string; resultHead: string },
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<TeardownAuthorizationRefusal | null> {
-  if (receipt.subject.kind !== "work-unit") return "unsupported-transition";
-  switch (receipt.transition) {
-    case "abandon":
-      return await validateAbandonResult(exec, receipt, projection, readBlob);
-    case "park-planning": {
-      const proof = await validateParkRetirementProof(
+      if (abandon.status !== "absent") {
+        return {
+          status: "refused" as const,
+          reason: abandonTransitionLocationRefusal(abandon) ?? "evidence-missing",
+        };
+      }
+      if (request.subject.kind !== "work-unit") {
+        return { status: "refused" as const, reason: "unsupported-transition" as const };
+      }
+      const park = await validateParkRetirementProof(
         {
           readProjection: async (head, subject) => {
             const index = await readLifecycleIndex(exec, head);
@@ -492,37 +296,42 @@ async function validateReceiptResult(
             };
           },
         },
-        { subject: receipt.subject.name, ...projection },
+        { subject: request.subject.name, retiringHead: request.head, resultHead: baseRef },
       );
-      return proof.status === "proved" ? null : proof.reason;
-    }
-    case "rename":
-      return "unsupported-transition";
-  }
+      if (park.status === "refused") return park;
+      return {
+        status: "proved" as const,
+        proof: {
+          transition: "park-planning" as const,
+          retiringHead: request.head,
+          resultHead: baseRef,
+          resultInventory: park.proof.resultInventory.flatMap((entry) => entry.state === "present"
+            ? [{ path: entry.path, contentDigest: entry.contentDigest }]
+            : []),
+        },
+      };
+    },
+  };
 }
 
-async function validateAbandonResult(
+/** Revalidate one detached husk's receipt against the same strict Git proof as live authorization. */
+export function validateGitRetirementReceiptEvidence(
   exec: GitExec,
-  receipt: RetirementReceipt,
-  projection: { retiringHead: string; resultHead: string },
+  baseRef: string,
+  input: {
+    subject: WorktreeSubject;
+    branch: string;
+    retiringHead: string;
+    authorization: HuskAuthorization;
+    evidence: Extract<RetirementEvidenceRef, { kind: "git-transition" }>;
+  },
   readBlob: RetirementAuthorizationBlobReader,
-): Promise<TeardownAuthorizationRefusal | null> {
-  if (receipt.result.kind !== "discard") {
-    return "evidence-mismatch";
-  }
-  const name = receipt.subject.kind === "work-unit" ? receipt.subject.name : "";
-  const resultHead = receipt.retiringProjection.kind === "unchanged"
-    ? projection.resultHead
-    : projection.retiringHead;
-  const [sourceArtifacts, resultArtifacts, resultIndex] = await Promise.all([
-    readAllSubjectArtifacts(exec, receipt.source.head, name, readBlob),
-    readAllSubjectArtifacts(exec, resultHead, name, readBlob),
-    readLifecycleIndex(exec, resultHead),
-  ]);
-  if (sourceArtifacts.length === 0 || artifactGroupDigest(toArtifactEntries(sourceArtifacts)) !== receipt.source.artifactDigest) {
-    return "evidence-mismatch";
-  }
-  return resultArtifacts.length === 0 && !resultIndex.has(name) ? null : "projection-mismatch";
+): Promise<boolean> {
+  void exec;
+  void baseRef;
+  void input;
+  void readBlob;
+  return Promise.resolve(false);
 }
 
 interface StoredArtifact {
@@ -604,38 +413,6 @@ export async function readCompletedProjectionDigest(
   return artifacts.length === 0 ? null : artifactGroupDigest(toArtifactEntries(artifacts));
 }
 
-async function readPatchOperations(
-  exec: GitExec,
-  parent: string,
-  commit: string,
-  excludedReceiptId: CanonicalDigest,
-  readBlob: RetirementAuthorizationBlobReader,
-): Promise<PatchOperation[]> {
-  const { stdout } = await exec("git", [
-    "diff-tree", "--no-commit-id", "--name-status", "-r", "-z", "--no-renames", parent, commit,
-  ]);
-  const fields = stdout.split("\0").filter(Boolean);
-  if (fields.length % 2 !== 0) throw new Error("malformed Git name-status output");
-  const excluded = resolveRetirementRecordRelativePath(excludedReceiptId);
-  const operations: PatchOperation[] = [];
-  for (let index = 0; index < fields.length; index += 2) {
-    const status = fields[index];
-    const rawPath = fields[index + 1];
-    if (status === undefined || rawPath === undefined) throw new Error("malformed Git name-status output");
-    if (excluded === rawPath) continue;
-    const path = validateManagedPath(rawPath);
-    if (status === "D") operations.push(deleteOperation(path));
-    else if (status === "A" || status === "M") {
-      const bytes = await readBytesAt(commit, path, readBlob);
-      if (bytes === null) throw new Error(`missing committed patch blob: ${commit}:${path}`);
-      operations.push(writeOperation(path, bytes));
-    } else {
-      throw new Error(`unsupported transition operation: ${status}`);
-    }
-  }
-  return operations;
-}
-
 async function listPaths(exec: GitExec, ref: string, roots: readonly string[]): Promise<ManagedPath[]> {
   const { stdout } = await exec("git", ["ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--", ...roots]);
   return stdout.split("\0").filter(Boolean).map(validateManagedPath).sort(compareBytes);
@@ -672,16 +449,6 @@ async function readTextAt(exec: GitExec, ref: string, path: string): Promise<str
   } catch {
     return null;
   }
-}
-
-async function readHistoricalRecord(
-  exec: GitExec,
-  ref: string,
-  id: CanonicalDigest,
-): Promise<{ content: string; path: string } | null> {
-  const path = resolveRetirementRecordRelativePath(id);
-  const content = await readTextAt(exec, ref, path);
-  return content === null ? null : { path, content };
 }
 
 async function requireTextAt(exec: GitExec, ref: string, path: ManagedPath): Promise<string> {

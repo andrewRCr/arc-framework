@@ -1431,7 +1431,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
   });
 
-  it("partial-protection park landing does not preserve receipt-backed teardown authority", async () => {
+  it("partial-protection park landing preserves receipt-free teardown authority", async () => {
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await git(repo, ["remote", "add", "origin", origin]);
@@ -1450,10 +1450,8 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
       const teardown = await runArc(["teardown", "solo", "--force"], worktree);
 
-      expect(teardown.exitCode).toBe(1);
-      expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence is missing/iu);
+      expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
       expect(await branchExists(repo, "plan/solo")).toBe(true);
-      expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/solo");
     } finally {
       await removeGitBackedDir(origin);
     }
@@ -1560,7 +1558,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("parked Active abandon preserves its branch until the base receipt lands, then tears down", async () => {
+  it("fails closed when parked history presents competing structural transitions", async () => {
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
 
@@ -1581,17 +1579,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(false);
     expect(abandon.stdout + abandon.stderr).toMatch(/`arc teardown mono`/);
 
-    const premature = await runArc(["teardown", "mono"], repo);
-    expect(premature.exitCode).toBe(1);
-    expect(await branchExists(repo, branch)).toBe(true);
-    expect(await pathExists(sessionNotes)).toBe(true);
-
     await commitFixtureBypassingHooks(repo, "abandon parked mono");
     const teardown = await runArc(["teardown", "mono"], repo);
 
-    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-    expect(await branchExists(repo, branch)).toBe(false);
-    expect(await pathExists(sessionNotes)).toBe(false);
+    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
+    expect(teardown.stdout + teardown.stderr).toMatch(/conflicting evidence/iu);
+    expect(await branchExists(repo, branch)).toBe(true);
+    expect(await pathExists(sessionNotes)).toBe(true);
   });
 
   it("arc abandon refuses a started work unit outside its recorded source branch", async () => {
@@ -1657,11 +1651,12 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(sessionNotes)).toBe(false);
 
     const replay = await runArc(["teardown", "mono", "--husk", worktree!], worktree!);
-    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(1);
+    expect(replay.stdout + replay.stderr).toMatch(/retirement evidence mismatch/iu);
     expect(await pathExists(worktree!)).toBe(true);
   });
 
-  it("refuses a committed abandon receipt whose transition patch digest was forged", async () => {
+  it("ignores a forged legacy receipt when Git still proves the abandon transition", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree!, {
@@ -1687,10 +1682,9 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
 
-    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
-    expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence does not match/iu);
-    expect(await branchExists(repo, "plan/mono")).toBe(true);
-    expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
+    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
+    expect(await branchExists(repo, "plan/mono")).toBe(false);
+    expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
   });
 
   it("arc abandon → commit → teardown --force preserves a retained primary projection", async () => {
@@ -1714,23 +1708,26 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc teardown --force — the four silently-broken behaviors
   // -------------------------------------------------------------------------
 
-  it("refuses primary-side linked cleanup without committed retirement evidence", async () => {
+  it("authorizes primary-side linked cleanup from the committed transition alone", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     // Retire the origin (remove its active/ meta) so it is un-shipped, then reap.
     await rm(join(repo, ".arc/active/meta-mono.md"));
     await rm(join(repo, ".arc/active/draft-mono.md"));
     await commitFixtureBypassingHooks(repo, "retire origin mono");
+    await writeWorktreeOwnershipMarker(worktree!, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "mono" },
+      spawningIdentity: "test-user",
+    });
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
-    expect(await branchExists(repo, "plan/mono")).toBe(true);
-    expect(worktree !== undefined && (await pathExists(worktree))).toBe(true);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(await branchExists(repo, "plan/mono")).toBe(false);
   });
 
-  it("refuses in-place primary cleanup without committed retirement evidence", async () => {
+  it("authorizes in-place primary cleanup from the committed transition alone", async () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
     // Primary is checked out on plan/mono; retire the origin there.
     await rm(join(repo, ".arc/active/meta-mono.md"));
@@ -1739,26 +1736,27 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(await pathExists(repo)).toBe(true);
-    expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
-    expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
-  it("refuses a linked self-teardown without committed retirement evidence", async () => {
+  it("authorizes linked self-teardown from the committed transition alone", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await rm(join(repo, ".arc/active/meta-mono.md"));
     await rm(join(repo, ".arc/active/draft-mono.md"));
     await commitFixtureBypassingHooks(repo, "retire origin mono");
+    await writeWorktreeOwnershipMarker(worktree!, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "mono" },
+      spawningIdentity: "test-user",
+    });
 
     // Invoke from *inside* the worktree being torn down — the locus-hop must let the
     // process complete despite its cwd disappearing.
     const result = await runArc(["teardown", "mono", "--force"], worktree!);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
   });

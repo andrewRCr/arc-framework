@@ -125,10 +125,8 @@ function authorizedDecision() {
     authorization: "discard-confirmed" as const,
     authorityVersion: DIGEST,
     evidence: {
-      kind: "receipt" as const,
-      receiptId: DIGEST,
+      kind: "git-transition" as const,
       transition: "abandon" as const,
-      expectedLifecycle: "nonexistent" as const,
       resultDigest: DIGEST,
     },
     refs: { localOid: HEAD, remote: null },
@@ -293,7 +291,7 @@ describe("runLandedRetirementSweep", () => {
     });
   });
 
-  it("blocks when authorization names a receipt absent from the enumerated base", async () => {
+  it("does not make the retired receipt id part of structural authorization", async () => {
     const historical: RetirementReceipt = {
       ...abandonReceipt(),
       receiptId: `sha256:${"2".repeat(64)}`,
@@ -311,12 +309,11 @@ describe("runLandedRetirementSweep", () => {
       isClean: async () => true,
     });
 
-    expect(result.retirements).toEqual([{
-      status: "blocked",
-      worktreePath: "/wt/retired",
-      subject: { slug: "retired", branch: "feat/retired" },
-      reason: "evidence-mismatch",
-    }]);
+    expect(result.retirements).toHaveLength(1);
+    expect(result.retirements[0]).toMatchObject({
+      status: "actionable",
+      lifecycle: { authority: { receiptId: historical.receiptId } },
+    });
   });
 
   it("grants no cleanup or successor action for branch-local evidence absent from the full-protection base", async () => {

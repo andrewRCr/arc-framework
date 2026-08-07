@@ -217,10 +217,8 @@ function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownCon
             baseProofOid: request.head,
           }
         : {
-            kind: "receipt",
-            receiptId: `sha256:${"1".repeat(64)}`,
+            kind: "git-transition",
             transition: "abandon",
-            expectedLifecycle: "nonexistent",
             resultDigest: `sha256:${"2".repeat(64)}`,
           },
       refs: { localOid: request.head, remote: null },
@@ -304,7 +302,8 @@ function installRemoteDeleteAuthority(ctx: TeardownContext, onAuthorize: () => v
   };
 }
 
-function enableSelfHusk(ctx: TeardownContext): void {
+function enableSelfHusk(ctx: TeardownContext): () => WorktreeMarker | null {
+  let stampedMarker: WorktreeMarker | null = null;
   ctx.cwd = CWD;
   ctx.worktreeFs = {
     pathExists: async () => false,
@@ -326,8 +325,10 @@ function enableSelfHusk(ctx: TeardownContext): void {
       createdAt: "2026-07-14T19:00:00.000Z",
       husk,
     };
+    stampedMarker = marker;
     return { kind: "stamped", marker };
   };
+  return () => stampedMarker;
 }
 
 function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
@@ -844,7 +845,7 @@ describe("runTeardown — linked self-husk", () => {
       branches: ["feat/demo"],
       worktreePorcelain: SELF_PORCELAIN,
     });
-    enableSelfHusk(ctx);
+    const readStampedMarker = enableSelfHusk(ctx);
     let request: unknown;
     ctx.readLocusOccupancy = async (input) => {
       request = input;
@@ -861,6 +862,19 @@ describe("runTeardown — linked self-husk", () => {
 
     await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
       .resolves.toMatchObject({ status: "torn-down", husk: { outcome: "created" } });
+    expect(readStampedMarker()?.husk).toEqual({
+      sha: "def",
+      at: "2026-07-14T20:00:00.000Z",
+      subject: { kind: "work-unit", name: "demo" },
+      branch: "feat/demo",
+      authorization: "discard-confirmed",
+      remoteRef: null,
+      evidence: {
+        kind: "git-transition",
+        transition: "abandon",
+        resultDigest: `sha256:${"2".repeat(64)}`,
+      },
+    });
     expect(request).toMatchObject({ checkoutPath: "/repo", allowOwnLease: true });
     expect(calls).toContainEqual(["git", "switch", "--detach", "def"]);
   });

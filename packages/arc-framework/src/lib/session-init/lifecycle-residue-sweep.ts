@@ -236,8 +236,10 @@ export async function runLandedRetirementSweep(
       continue;
     }
     const evidence = decision.evidence;
-    const receipt = evidence.kind === "receipt"
-      ? receipts.find((candidateReceipt) => candidateReceipt.receiptId === evidence.receiptId)
+    const receipt = evidence.kind === "git-transition"
+      ? receipts.find((candidateReceipt) => candidateReceipt.transition === evidence.transition
+          && candidateReceipt.source.branch === candidate.branch
+          && candidateReceipt.source.head === candidate.head)
       : undefined;
     if (receipt === undefined) {
       retirements.push({

@@ -6,7 +6,8 @@
  * typed authorization decisions and never inspects adapter storage directly.
  */
 
-import type { CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import type { ManagedPath } from "../canonical/managed-path.js";
 import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import type { V3DecomposeFinalizationResult } from "./decompose-finalization.js";
@@ -33,12 +34,44 @@ export type RetirementEvidenceRef =
       baseProofOid: string;
     }
   | {
-      kind: "receipt";
-      receiptId: CanonicalDigest;
-      transition: RetirementTransition;
-      expectedLifecycle: "planned" | "nonexistent";
+      kind: "git-transition";
+      transition: "abandon" | "park-planning";
       resultDigest: CanonicalDigest;
     };
+
+/** Lifecycle result derived from a receipt-free Git transition kind. */
+export function gitTransitionExpectedLifecycle(
+  transition: Extract<RetirementEvidenceRef, { kind: "git-transition" }>["transition"],
+): "planned" | "nonexistent" {
+  return transition === "park-planning" ? "planned" : "nonexistent";
+}
+
+/** Inputs bound into one replay-stable Git transition result digest. */
+export interface GitTransitionResultDigestInput {
+  transition: Extract<RetirementEvidenceRef, { kind: "git-transition" }>["transition"];
+  subject: WorktreeSubject;
+  branch: string;
+  retiringHead: string;
+  resultHead: string;
+  resultInventory: readonly { path: ManagedPath; contentDigest: CanonicalDigest }[];
+}
+
+/** Digest one pinned receipt-free transition result for authorization and replay. */
+export function gitTransitionResultDigest(input: GitTransitionResultDigestInput): CanonicalDigest {
+  return canonicalDigest({
+    domain: "arc.git-transition-result",
+    schemaVersion: 1,
+    transition: input.transition,
+    subject: input.subject,
+    branch: input.branch,
+    retiringHead: input.retiringHead,
+    resultHead: input.resultHead,
+    expectedLifecycle: gitTransitionExpectedLifecycle(input.transition),
+    resultInventory: [...input.resultInventory]
+      .sort((left, right) => Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")))
+      .map(({ path, contentDigest }) => ({ path, contentDigest })),
+  });
+}
 
 /** Persisted evidence preserves unknown future kinds without authorizing them. */
 export type PersistedRetirementEvidence =

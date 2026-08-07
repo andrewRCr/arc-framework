@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import {
   describeTeardownAuthorizationRefusal,
+  gitTransitionExpectedLifecycle,
+  gitTransitionResultDigest,
   retirementSubjectRefusal,
   validateReceiptMatrix,
   worktreeSubjectsEqual,
@@ -11,6 +15,77 @@ import {
 } from "../../../src/lib/work-unit/retirement-authority.js";
 
 const digest = (value: string) => contentDigest(new TextEncoder().encode(value));
+
+describe("Git transition result digest", () => {
+  const draftPath = validateManagedPath(".arc/backlog/planned/sample/draft-sample.md");
+  const metaPath = validateManagedPath(".arc/backlog/planned/sample/meta-sample.md");
+  const input = {
+    transition: "park-planning" as const,
+    subject: { kind: "work-unit", name: "sample" } as const,
+    branch: "plan/sample",
+    retiringHead: "a".repeat(40),
+    resultHead: "b".repeat(40),
+    resultInventory: [
+      { path: metaPath, contentDigest: digest("meta") },
+      { path: draftPath, contentDigest: digest("draft") },
+    ],
+  };
+
+  it("uses one versioned domain-separated vector with a path-sorted result inventory", () => {
+    expect(gitTransitionResultDigest(input)).toBe(canonicalDigest({
+      domain: "arc.git-transition-result",
+      schemaVersion: 1,
+      transition: "park-planning",
+      subject: input.subject,
+      branch: input.branch,
+      retiringHead: input.retiringHead,
+      resultHead: input.resultHead,
+      expectedLifecycle: "planned",
+      resultInventory: [
+        { path: draftPath, contentDigest: digest("draft") },
+        { path: metaPath, contentDigest: digest("meta") },
+      ],
+    }));
+    expect(gitTransitionResultDigest({
+      ...input,
+      resultInventory: [...input.resultInventory].reverse(),
+    })).toBe(gitTransitionResultDigest(input));
+  });
+
+  it("sorts non-ASCII paths by their canonical UTF-8 bytes", () => {
+    const asciiPath = validateManagedPath(".arc/z.json");
+    const nonAsciiPath = validateManagedPath(".arc/é.json");
+    const resultInventory = [
+      { path: nonAsciiPath, contentDigest: digest("non-ascii") },
+      { path: asciiPath, contentDigest: digest("ascii") },
+    ];
+
+    expect(gitTransitionResultDigest({ ...input, resultInventory })).toBe(canonicalDigest({
+      domain: "arc.git-transition-result",
+      schemaVersion: 1,
+      transition: "park-planning",
+      subject: input.subject,
+      branch: input.branch,
+      retiringHead: input.retiringHead,
+      resultHead: input.resultHead,
+      expectedLifecycle: "planned",
+      resultInventory: [
+        { path: asciiPath, contentDigest: digest("ascii") },
+        { path: nonAsciiPath, contentDigest: digest("non-ascii") },
+      ],
+    }));
+  });
+
+  it("changes when any replay-bound transition fact changes", () => {
+    const expected = gitTransitionResultDigest(input);
+    expect(gitTransitionResultDigest({ ...input, transition: "abandon" })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, branch: "plan/other" })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, retiringHead: "c".repeat(40) })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, resultHead: "d".repeat(40) })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, resultInventory: [] })).not.toBe(expected);
+    expect(gitTransitionExpectedLifecycle("abandon")).toBe("nonexistent");
+  });
+});
 
 const refusalDescriptions = {
   "unsupported-transition": "unsupported transition",

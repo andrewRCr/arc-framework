@@ -57,10 +57,8 @@ describe("deriveCurrentHuskAdvisory", () => {
             authorization: "discard-confirmed",
             remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
             evidence: {
-              kind: "receipt",
-              receiptId: digest,
+              kind: "git-transition",
               transition: "abandon",
-              expectedLifecycle: "nonexistent",
               resultDigest: digest,
             },
           },
@@ -73,10 +71,8 @@ describe("deriveCurrentHuskAdvisory", () => {
       authorization: "discard-confirmed",
       remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
+        kind: "git-transition",
         transition: "abandon",
-        expectedLifecycle: "nonexistent",
         resultDigest: digest,
       },
     });
@@ -93,10 +89,8 @@ describe("deriveCurrentHuskAdvisory", () => {
           authorization: "discard-confirmed",
           remoteRef: null,
           evidence: {
-            kind: "receipt",
-            receiptId: digest,
+            kind: "git-transition",
             transition: "abandon",
-            expectedLifecycle: "nonexistent",
             resultDigest: digest,
           },
         },

@@ -242,31 +242,23 @@ coverage before any receipt-consuming predecessor is removed.
 - _Outcome:_ Park authorization now depends only on identical committed planned-artifact bytes at two pinned heads;
   transition-record presence and the retired receipt payload cannot affect the proof or its canonical result.
 
-### `[ ]` **3.4 Replace receipt-backed husk stamp evidence**
+### `[x]` **3.4 Replace receipt-backed husk stamp evidence**
 
 - _Goal:_ A husk stamp carries only a receipt-free replay pointer and a digest of its pinned Git-derived result,
   while preserving shipped evidence, remote-ref intent, and fail-closed decoding.
 
-    - `[ ]` **3.4.a Define the receipt-free evidence and digest contracts**
-        - Keep the shipped arm of `RetirementEvidenceRef` unchanged and replace its non-shipped receipt arm with
-          `{kind: "git-transition", transition: "abandon" | "park-planning", resultDigest}`; derive expected
-          lifecycle from transition and reject rename or decompose evidence.
-        - Define one versioned, domain-separated canonical digest preimage over transition, subject, branch, pinned
-          retiring and result heads, derived lifecycle, and the path-sorted `{path, contentDigest}` result inventory.
-          Both authorization and replay use the same function; no record field participates.
-        - Preserve all-absent shipped legacy stamps and unknown-future evidence as manual-only, while old non-shipped
-          receipt-shaped stamps become manual-only without a compatibility reader.
-        - Build `test-first` (one behavior at a time):
-            - Round-trip valid abandon and park evidence with exact outer stamped SHA, branch, and subject.
-            - Reject partial shapes, cross-kind replay, transition/authorization disagreement, wrong digest vectors,
-              rename/decompose evidence, and old receipt evidence without weakening unknown-future handling.
+    - `[x]` **3.4.a Define the receipt-free evidence and digest contracts**
+        - Replaced non-shipped receipt references with the closed `git-transition` shape, derived lifecycle from its
+          transition, and added one versioned digest over exact heads and UTF-8-byte-sorted result inventory. Strict
+          decoding preserves shipped legacy and unknown-future handling while rejecting retired or malformed shapes.
 
-    - `[ ]` **3.4.b Stamp only the result established by Git authorization**
-        - Have each structural authorization decision compute the shared result digest from its pinned proof and pass
-          it through `stampWorktreeHusk()` without consulting record content or mutable worktree bytes.
-        - Build `test-first` (one behavior at a time):
-            - Bind abandon and park stamps to the exact proof heads and canonical result inventory.
-            - Preserve the current remote deletion/retention proof and authority-version revalidation matrix.
+    - `[x]` **3.4.b Stamp only the result established by Git authorization**
+        - Structural authorization now binds its actual retiring and result heads plus canonical inventory into the
+          shared digest, preserves remote/ref revalidation, and passes the resulting evidence unchanged into the
+          terminal marker for both abandon and park transitions.
+
+- _Outcome:_ Non-shipped husks now persist a minimal replay pointer whose digest is wholly determined by pinned Git
+  proof; transition-record content, receipt identity, mutable worktree bytes, and caller-supplied lifecycle are absent.
 
 ### `[ ]` **3.5 Revalidate husks from stamped Git state**
 

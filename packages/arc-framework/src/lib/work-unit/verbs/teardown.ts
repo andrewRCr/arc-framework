@@ -68,6 +68,7 @@ import { localPathsEqual } from "../../local-path-identity.js";
 import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
+  gitTransitionExpectedLifecycle,
   type RetirementAuthorityPort,
   type TeardownAuthorizationDecision,
   type TeardownAuthorizationRequest,
@@ -310,20 +311,14 @@ async function hasCompetingLifecycleProjection(
   try {
     const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
     const declaredBranch = parseMetaRecord(content).branch;
+    const expectedLifecycle = proof.evidence.kind === "shipped"
+      ? "completed"
+      : gitTransitionExpectedLifecycle(proof.evidence.transition);
     if (
-      (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
-      || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
+      (expectedLifecycle === "completed" && entry.location === "completed")
+      || (expectedLifecycle === "planned" && entry.location === "planned")
     ) {
       return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
-    }
-    if (
-      proof.evidence.kind === "receipt"
-      && proof.evidence.transition === "decompose"
-      && proof.evidence.expectedLifecycle === "nonexistent"
-      && declaredBranch === branch
-      && await isSelfTeardown(retiringPath, ctx.cwd)
-    ) {
-      return false;
     }
     return declaredBranch === branch;
   } catch {
