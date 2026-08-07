@@ -342,7 +342,7 @@ respective predecessors, then retire the old namespace only after every survivin
         - Retain claim projection only if a traced consumer needs provenance unavailable from Git refs or worktree
           markers; otherwise delete the dead store and transitions.
 
-### `[ ]` **4.2 Remove candidate exactness and discard machinery**
+### `[x]` **4.2 Remove candidate exactness and discard machinery**
 
 - _Goal:_ Every stranded decomposition candidate is destroyable through ordinary branch/worktree cleanup, without
   the four exactness-created refusal states or a dedicated discard path.
@@ -365,15 +365,11 @@ respective predecessors, then retire the old namespace only after every survivin
           untracked content; retries worktree/branch absence; and refuses marker, topology, head, and deletion races.
           Landed cleanup uses that boundary while its receipt-era authorization remains temporarily upstream.
 
-    - `[ ]` **4.2.b Delete candidate-only exactness and discard surfaces**
-        - Remove `decompose-candidate-discard.ts`, `git-decompose-v3-candidate-discard.ts`, `--discard`, its handler
-          schema/routing/rendering/help, and command-mode fixtures and tests.
-        - Remove discard commands, result members, and remedies from the still-transitional execute path; render the
-          ordinary owned-worktree cleanup route established in 4.2.a instead.
-        - Remove only the occupation, cleanup, operation-I/O, and base-advancement checks the Task 4.1 matrix marks
-          candidate-exactness-only; preserve every selected claim transition and generic Git lease unchanged.
-        - Delete the four refusal codes and update affected tests without weakening source-worktree, user-content,
-          or unrelated-worktree safety.
+    - `[x]` **4.2.b Delete candidate-only exactness and discard surfaces**
+        - Deleted the pure and Git discard modules, their dedicated tests and handler mock, the already-disconnected
+          command-mode fixture, and all four candidate-exactness refusal codes. Full-candidate failures now expose
+          only the ordinary cleanup facts from 4.2.a; source-worktree, marker, registration, user-content, and ref-race
+          protections remain in that shared boundary.
 
 ### `[ ]` **4.3 Remove the decomposition-specific planning-lane trio**
 

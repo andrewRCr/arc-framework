@@ -19,7 +19,6 @@ describe("DecomposeCommandInputSchema", () => {
 
   it.each([
     { origin, execute: "map.json" },
-    { origin, discard: "map.json" },
     {
       origin,
       finalize: `sha256:${"a".repeat(64)}`,
@@ -55,7 +54,6 @@ describe("DecomposeCommandInputSchema", () => {
       "preflight",
       "handoff",
       "execute",
-      "discard",
       "finalize",
       "advanceBase",
     ]);

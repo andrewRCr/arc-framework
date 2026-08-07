@@ -154,11 +154,6 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
 }));
-const mockDiscardGitV3DecomposeCandidate = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-candidate-discard.js", () => ({
-  discardGitV3DecomposeCandidate: (...args: unknown[]) =>
-    mockDiscardGitV3DecomposeCandidate(...args),
-}));
 const mockFinalizeGitV3DecomposeOperation = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-v3-finalization.js", () => ({
   finalizeGitV3DecomposeOperation: (...args: unknown[]) =>
@@ -395,12 +390,6 @@ beforeEach(() => {
     status: "staged",
     operation: { report: { destinations: ["member"] } },
   });
-  mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
-    status: "discarded",
-    claimId: `sha256:${"b".repeat(64)}`,
-    generation: 1,
-    candidateBranch: "chore/decompose-mono",
-  });
   mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
     status: "recorded",
     receipt: { receiptId: `sha256:${"a".repeat(64)}` },
@@ -500,7 +489,6 @@ describe("handleDecompose", () => {
 
     expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
@@ -521,7 +509,6 @@ describe("handleDecompose", () => {
     );
     expect(mockReadFile).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
@@ -573,7 +560,6 @@ describe("handleDecompose", () => {
     expect(stdoutWrite).toHaveBeenCalledWith(
       `{"operation":{"report":{"destinations":["member"]}},"status":"staged"}\n`,
     );
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
@@ -593,7 +579,6 @@ describe("handleDecompose", () => {
         cutMapPath: "cut-map.json",
       },
     );
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
   });
@@ -608,7 +593,7 @@ describe("handleDecompose", () => {
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const remedy = "ADAPTER-ONLY: retry or discard the exact candidate";
+    const remedy = "ADAPTER-ONLY: retry or clean the owned candidate";
     mockExecuteGitV3DecomposeCommand.mockResolvedValue({
       status: "refused",
       stage: "occupation",
@@ -624,7 +609,6 @@ describe("handleDecompose", () => {
       + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
     );
     expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
@@ -652,7 +636,6 @@ describe("handleDecompose", () => {
       `{"receipt":{"receiptId":"${receiptId}"},"status":"recorded"}\n`,
     );
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
@@ -690,7 +673,6 @@ describe("handleDecompose", () => {
     );
     expect(stderrWrite).toHaveBeenCalledWith(`continuation-invalid\n${remedy}\n`);
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -750,7 +732,6 @@ describe("handleDecompose", () => {
 
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockAdvanceGitV3DecomposeBase).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
