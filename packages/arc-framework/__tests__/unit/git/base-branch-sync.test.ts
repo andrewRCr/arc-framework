@@ -4,6 +4,7 @@ import {
   analyzeBaseBranchSnapshot,
   BaseBranchSyncStatusResultSchema,
   BaseCheckoutLocusSchema,
+  readLocalBaseOid,
   runBaseBranchSyncStatus,
 } from "../../../src/lib/git/base-branch-sync.js";
 import type {
@@ -12,6 +13,7 @@ import type {
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 type ResponseFn = (
   args: string[],
@@ -60,6 +62,35 @@ const REV_LIST_COUNT = "rev-list --left-right --count *";
 const WORKTREE_LIST = "worktree list --porcelain -z";
 const REV_PARSE_TOP = "rev-parse --show-toplevel";
 const BASE_OID = "b".repeat(40);
+
+describe("readLocalBaseOid", () => {
+  it("propagates a local base inspection failure", async () => {
+    const exec: GitExec = async () => {
+      throw new Error("object database unavailable");
+    };
+
+    await expect(readLocalBaseOid(exec, "main")).rejects.toThrow("object database unavailable");
+  });
+
+  it("rejects malformed local base output", async () => {
+    const exec: GitExec = async () => ({ stdout: "not-an-object-id\n", stderr: "" });
+
+    await expect(readLocalBaseOid(exec, "main")).rejects.toThrow("valid local base commit");
+  });
+
+  it("returns null only for a missing local base ref", async () => {
+    const exec: GitExec = async () => {
+      throw new GitProcessError({
+        kind: "nonzero-exit",
+        command: "git",
+        args: ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"],
+        exitCode: 1,
+      });
+    };
+
+    await expect(readLocalBaseOid(exec, "main")).resolves.toBeNull();
+  });
+});
 
 /** Default topology: current worktree on feat; base (main) not checked out. */
 const NOT_CHECKED_OUT = {

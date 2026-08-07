@@ -38,6 +38,7 @@ import type { HistoryCompletenessResult } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
+import { isGitProcessError } from "./process-error.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -146,6 +147,30 @@ export type BaseBranchSnapshotAnalysisResult = {
   | { remoteEvidence: "exact" | "pending-fetch" }
   | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
 );
+
+/**
+ * Read the local base commit while distinguishing an absent ref from inspection failure.
+ *
+ * @param exec - Local-only Git execution boundary.
+ * @param baseBranch - Configured local base branch.
+ * @returns The validated base commit, or null only when the local ref is absent.
+ */
+export async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
+  try {
+    const oid = (await exec(
+      "git",
+      ["rev-parse", "--verify", "--quiet", `refs/heads/${baseBranch}^{commit}`],
+      { objectAccess: "local-only" },
+    )).stdout.trim();
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid)) {
+      throw new Error("Git did not return a valid local base commit.");
+    }
+    return oid;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return null;
+    throw error;
+  }
+}
 
 /**
  * Analyze the local base against supplied advertised evidence without acquiring it.

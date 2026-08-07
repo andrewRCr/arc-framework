@@ -124,6 +124,12 @@ describe("local-only object availability", () => {
       await expect(readGitBlobBytes(clone, presentCommit, "later.txt", { objectAccess: "local-only" }))
         .rejects.toSatisfy(isGitProcessError);
       expect(await objectInventory(clone)).toEqual(before);
+
+      const materialized = await readGitBlobBytes(clone, presentCommit, "later.txt");
+      expect(materialized).not.toBeNull();
+      if (materialized === null) throw new Error("Expected the default reader to materialize later.txt.");
+      expect(Buffer.from(materialized)).toEqual(Buffer.from("later\n"));
+      expect(await objectInventory(clone)).not.toEqual(before);
     },
   );
 
