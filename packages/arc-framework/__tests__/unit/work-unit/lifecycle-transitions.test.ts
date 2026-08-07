@@ -262,7 +262,6 @@ function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
       inPlace: true,
       branch: toBranch,
       wuName: "demo",
-      attachSession: true,
       createBranch: true,
     };
   } else if (e.reconcileWorkUnitWorktree === "teardown") {

@@ -69,7 +69,6 @@ import type {
 import type {
   ValidatedGraduationTransaction,
 } from "../lib/work-unit/validated-graduation-transaction.js";
-import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -652,26 +651,6 @@ export async function runColdStart(
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
-  try {
-    const locus = ctx.workUnitLocus
-      ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity });
-    await locus.reconcile({
-      checkoutPath: params.worktreePath,
-      branch,
-      wuName,
-      attachSession: true,
-    });
-  } catch (err) {
-    await rollbackColdStart(ctx, {
-      worktreePath: params.worktreePath,
-      wuName,
-      branch,
-      cutFromBase,
-    });
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: `could not establish the work-unit session locus: ${message}` };
-  }
-
   return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
 }
 
@@ -788,7 +767,6 @@ export async function runCreateNew(
         exec: ctx.io.exec,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
-        locus: ctx.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
       },
       {
         mutation: "spawn",

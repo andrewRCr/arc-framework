@@ -21,8 +21,12 @@ import { promisify } from "node:util";
 
 import { runPark, runResume, type ParkResumeFs } from "../../src/lib/work-unit/verbs/park-resume.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
-import { attachCurrentWuSession } from "../../src/handlers/reconcile.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
+import {
+  ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
+  writeWorktreeOwnershipMarker,
+} from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import {
@@ -33,12 +37,6 @@ import {
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
-import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
-import { LocusRecordV1Schema } from "../../src/lib/locus/schema/index.js";
-import {
-  createNodeWorkUnitLocusDriver,
-  type WorkUnitLocusDriver,
-} from "../../src/lib/work-unit/work-unit-locus.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
@@ -97,7 +95,6 @@ interface Harness {
   locationTemplate: string;
   /** The WU worktree path (location_template resolved for the WU branch). */
   wuWorktree: string;
-  workUnitLocus: WorkUnitLocusDriver;
   spawned: string[];
 }
 
@@ -122,7 +119,6 @@ function executorFor(h: Harness): ReturnType<typeof buildExecutorContext> {
     identity: IDENTITY,
     teamMode: false,
     internalTemplateDir: getInternalTemplatePath(),
-    workUnitLocus: h.workUnitLocus,
   });
 }
 
@@ -180,6 +176,12 @@ async function setup(): Promise<Harness> {
   await writeFile(join(wuWorktree, ACTIVE_REL), activeMeta());
   await execFileAsync("git", ["add", "-A"], { cwd: wuWorktree });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "activate foo"], { cwd: wuWorktree });
+  await ensureWorktreeMarkerIgnored(wuWorktree, makeGitExec(wuWorktree), nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeOwnershipMarker(wuWorktree, {
+    createdByArc: true,
+    createdFor: { kind: "work-unit", name: SLUG },
+    spawningIdentity: IDENTITY,
+  });
 
   const io = { ...createUserIOContext(), exec: makeGitExec(repo) };
   return {
@@ -187,17 +189,6 @@ async function setup(): Promise<Harness> {
     io,
     locationTemplate,
     wuWorktree,
-    workUnitLocus: createNodeWorkUnitLocusDriver({
-      exec: io.exec,
-      identity: IDENTITY,
-      mutationAnchor: {
-        kind: "process",
-        pid: process.pid,
-        startToken: "park-resume-integration",
-        inspector: "integration-fixture",
-        selector: "integration-fixture",
-      },
-    }),
     spawned: [wuWorktree],
   };
 }
@@ -209,7 +200,7 @@ async function parkAndShip(h: Harness): Promise<void> {
     { executor: executorFor(h), fs: parkResumeFs(h.io) },
     { name: SLUG, reason: REASON, sourceRecord, worktreePath: h.wuWorktree, currentLocus: h.repo },
   );
-  expect(result.status).toBe("parked");
+  expect(result.status, JSON.stringify(result)).toBe("parked");
   await execFileAsync("git", ["add", "-A"], { cwd: h.repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "park foo"], { cwd: h.repo });
 }
@@ -250,7 +241,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
       { name: SLUG, reason: REASON, sourceRecord, worktreePath: h.wuWorktree, currentLocus: h.repo },
     );
 
-    expect(result.status).toBe("parked");
+    expect(result.status, JSON.stringify(result)).toBe("parked");
     // The pointer-record lands on the tracked branch, blessed `State: Active`, with the callout + reason.
     const pointer = await readFile(join(h.repo, POINTER_REL), "utf8");
     expect(pointer).toContain("Parked");
@@ -307,42 +298,16 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(result.inPlaceCheckoutPending).toBe(true);
     expect(await headBranch(h.repo)).toBe("main");
     expect(await pathExists(join(h.repo, POINTER_REL))).toBe(false);
-    const locusIdentity = deriveLocusRecordId(h.repo, process.platform === "win32" ? "windows" : "posix");
-    const locusPath = join(
-      h.repo,
-      ".arc",
-      "user",
-      IDENTITY,
-      ".internal",
-      "loci",
-      `locus-${locusIdentity.digest}.json`,
-    );
-    expect(await pathExists(locusPath)).toBe(false);
 
-    // The ceremony commits the removal on the tracked branch, then re-attaches in place.
+    // The ceremony commits the removal on the tracked branch, then checks out the preserved branch in place.
     await execFileAsync("git", ["add", "-A"], { cwd: h.repo });
     await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "resume foo"], { cwd: h.repo });
     await execFileAsync("git", ["checkout", BRANCH], { cwd: h.repo });
-    await attachCurrentWuSession(h.workUnitLocus, {
-      checkoutPath: h.repo,
-      branch: BRANCH,
-      wuName: SLUG,
-    });
 
     // Re-attached: authoritative artifacts present in the checkout, and no orphaned pointer survives on
     // the tracked branch (the removal was committed before the checkout).
     expect(await headBranch(h.repo)).toBe(BRANCH);
     expect(await pathExists(join(h.repo, ACTIVE_REL))).toBe(true);
     expect(await showAtBranch(h.repo, "main", POINTER_REL)).toBeNull();
-    const locus = LocusRecordV1Schema.parse(JSON.parse(await readFile(locusPath, "utf8")));
-    expect(locus).toMatchObject({
-      recordId: locusIdentity.recordId,
-      checkoutPath: h.repo,
-      role: { kind: "work-unit", subject: { kind: "work-unit", key: SLUG, claimId: null } },
-      lease: {
-        sessionHomePath: h.repo,
-        anchor: { kind: "process", startToken: "park-resume-integration" },
-      },
-    });
   });
 });

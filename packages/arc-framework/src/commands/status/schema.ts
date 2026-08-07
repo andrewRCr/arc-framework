@@ -22,7 +22,6 @@ import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/par
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
-import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
@@ -143,13 +142,12 @@ export const CurrentHuskAdvisoryViewSchema = z
   })
   .loose();
 
-const LOCUS_VETO_REASONS = ["locus-occupied", "locus-unverified"] as const;
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("removable") }).loose(),
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "user-surfaces", "unmerged", ...LOCUS_VETO_REASONS]),
+      reason: z.enum(["uncommitted", "user-surfaces", "unmerged"]),
     })
     .loose(),
   z.object({ action: z.literal("external") }).loose(),
@@ -159,7 +157,7 @@ const HuskCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch", ...LOCUS_VETO_REASONS]),
+      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch"]),
     })
     .loose(),
   z
@@ -440,6 +438,57 @@ export const StatusIdentitySchema = z.strictObject({
   role: NON_EMPTY_TEXT.nullable(),
 });
 
+const DerivedSubjectViewSchema = z.object({
+  kind: z.enum(["work-unit", "errand", "partial-errand", "groom", "housekeep"]),
+  key: NON_EMPTY_TEXT,
+}).loose();
+
+const DerivedCheckoutRowViewSchema = z.object({
+  kind: z.enum([
+    "free-primary",
+    "unmanaged-checkout",
+    "work-unit",
+    "retired",
+    "transient",
+    "unresolved-checkout",
+  ]),
+  checkout: z.object({ path: NON_EMPTY_TEXT, primary: z.boolean() }).loose(),
+  subject: DerivedSubjectViewSchema.nullable(),
+  context: z.object({
+    metaPath: LoadSetPathSchema,
+    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+    workflow: z.string().nullable(),
+    stage: z.string().nullable(),
+    taskListPath: LoadSetPathSchema.nullable(),
+    taskCursor: TaskListCursorFileResultSchema.nullable(),
+    cohortDocPath: LoadSetPathSchema.nullable(),
+    loadSet: LoadSetManifestSchema,
+  }).loose().nullable(),
+  diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
+}).loose();
+
+/** Routing view of the worktree-derived entering-checkout frame. */
+export const DerivedLocusFrameValueViewSchema = z.object({
+  roster: z.array(DerivedCheckoutRowViewSchema),
+  entering: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("selected"), row: DerivedCheckoutRowViewSchema }),
+    z.strictObject({
+      kind: z.literal("unresolved"),
+      checkoutPath: NON_EMPTY_TEXT,
+      diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
+    }),
+  ]),
+  primaryAvailability: z.object({
+    kind: z.enum(["free", "occupied", "unsafe"]),
+  }).loose(),
+  identityDiscovery: z.object({ kind: z.enum(["absent", "error", "complete"]) }).loose(),
+  active: z.object({
+    checkoutPath: NON_EMPTY_TEXT,
+    subject: DerivedSubjectViewSchema,
+    context: DerivedCheckoutRowViewSchema.shape.context.unwrap(),
+  }).strict().nullable(),
+}).strict();
+
 /** Complete invocation-only compaction-seed write result. */
 export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("written"), path: NON_EMPTY_TEXT }),
@@ -457,7 +506,7 @@ export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
 const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
-  locusState: probe(LocusStateV1Schema),
+  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueViewSchema),
@@ -621,7 +670,7 @@ export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema
 const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
-  locusState: probe(LocusStateV1Schema),
+  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),

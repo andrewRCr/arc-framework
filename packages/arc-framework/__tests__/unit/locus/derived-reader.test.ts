@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/index.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
 import {
+  readDerivedLocusFrame,
   readDerivedLocusRoster,
   type DormantCheckoutReadEvidence,
 } from "../../../src/lib/locus/derived-reader.js";
@@ -111,6 +112,62 @@ function baseOptions(overrides: Partial<ReaderOptions> = {}) {
 describe("dormant derived roster reader", () => {
   beforeEach(() => {
     projectorInputs.length = 0;
+  });
+
+  it("selects the canonical entering WU and derives active context from that row", async () => {
+    const canonicalized: string[] = [];
+    const result = await readDerivedLocusFrame({
+      ...baseOptions(),
+      enteringCheckoutPath: "/repo/demo",
+      canonicalizePath: async (path) => {
+        canonicalized.push(path);
+        return path;
+      },
+    });
+
+    expect(canonicalized).toEqual(["/repo/demo"]);
+    expect(result.entering).toMatchObject({
+      kind: "selected",
+      row: { kind: "work-unit", subject: { kind: "work-unit", key: "demo" } },
+    });
+    expect(result.active).toMatchObject({
+      checkoutPath: "/repo/demo",
+      subject: { kind: "work-unit", key: "demo" },
+      context: { sessionType: "execution" },
+    });
+  });
+
+  it("contains malformed siblings while preserving the exact entering-row result", async () => {
+    const badPath = "/repo/bad";
+    const options = baseOptions({
+      topology: {
+        ok: true,
+        worktrees: [
+          baseOptions().topology.worktrees[0]!,
+          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+        ],
+      },
+      checkouts: [
+        wuEvidence("/repo/demo"),
+        {
+          checkoutPath: badPath,
+          marker: { kind: "malformed", reason: "invalid marker" },
+          metaRoots: [],
+          metas: [],
+        },
+      ],
+    });
+
+    const healthy = await readDerivedLocusFrame({ ...options, enteringCheckoutPath: "/repo/demo" });
+    const unresolved = await readDerivedLocusFrame({ ...options, enteringCheckoutPath: badPath });
+
+    expect(healthy.entering).toMatchObject({ kind: "selected", row: { kind: "work-unit" } });
+    expect(healthy.active).toMatchObject({ subject: { key: "demo" } });
+    expect(unresolved.entering).toMatchObject({
+      kind: "selected",
+      row: { kind: "unresolved-checkout", diagnostics: [{ code: "authority-evidence-unreadable" }] },
+    });
+    expect(unresolved.active).toBeNull();
   });
 
   it("forwards active extensions once into a stable rich WU context", async () => {

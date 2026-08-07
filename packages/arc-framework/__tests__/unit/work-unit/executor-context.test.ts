@@ -135,7 +135,6 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
       inPlace: true,
       branch: "feat/foo",
       wuName: "foo",
-      attachSession: true,
       createBranch: false,
       deferCheckout: true,
     })).resolves.toMatchObject({ mutation: "spawn", branch: "feat/foo" });

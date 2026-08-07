@@ -32,7 +32,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | interlock-release-refinement       | P1       | andrew | —          | approval-flow-refinement      |
 | decompose-extraction               | P1       | andrew | —          | decompose-transform-integrity |
 | decompose-conservation-coverage    | P1       | andrew | —          | decompose-core-hardening      |
-| claimed-sweep-verbs                | P1       | andrew | —          | —                             |
 | delivery-intent-integrity          | P1       | andrew | —          | —                             |
 | recovery-hardening                 | P1       | andrew | —          | —                             |
 | recurring-errand-pr-resolution     | P1       | andrew | —          | —                             |

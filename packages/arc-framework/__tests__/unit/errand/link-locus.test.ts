@@ -79,9 +79,15 @@ describe("linkOrdinaryErrand", () => {
     expect(result).toMatchObject({
       outcome: "applied",
       operation: "errand-link",
+      allocation: null,
+      subject: { kind: "errand", key: previous.slug, claimId: previous.claimId },
       originEntry: "Fix output capture",
+      originEntrySourceDigest: inbox.sourceDigest,
       identity: { claimId: previous.claimId },
     });
+    expect(result).not.toHaveProperty("recordId");
+    expect(result).not.toHaveProperty("activeLocusPath");
+    expect(result).not.toHaveProperty("parentCheckoutPath");
     expect(transact).toHaveBeenCalledWith(expect.objectContaining({
       originEntry: inbox.title,
       originEntrySourceDigest: inbox.sourceDigest,

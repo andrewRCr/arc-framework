@@ -2,6 +2,8 @@
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import { ErrandOperationResultSchema } from "../../../src/lib/errand/operation-result.js";
+
 import {
   LocusEnvelopeV1Schema,
   LocusIdentityV1Schema,
@@ -196,11 +198,11 @@ describe("locus public value schemas", () => {
   });
 
   it("distinguishes applied, refused, and operational-error mutations", () => {
-    const common = { operation: "errand-open", recommendedPromptText: "Continue." };
+    const common = { operation: "locus-release", recommendedPromptText: "Continue." };
     const values = [
       {
-        ...common, outcome: "applied", allocation: { kind: "primary", checkoutPath: "/repo" },
-        recordId: digest, leaseId: claimId, activeLocusPath: "/repo", sessionHomePath: "/repo",
+        ...common, outcome: "applied", allocation: null,
+        recordId: digest, leaseId: claimId, activeLocusPath: null, sessionHomePath: null,
         identity: null, originEntry: null,
         restoredParent: null, nextOffer: null,
       },
@@ -233,7 +235,7 @@ describe("locus public value schemas", () => {
       "activeLocusPath",
       "sessionHomePath",
     ] as const;
-    for (const operation of ["errand-open", "plan-open", "housekeep-open"] as const) {
+    for (const operation of ["plan-open", "housekeep-open"] as const) {
       for (const outcome of ["applied", "idempotent"] as const) {
         const result = { ...openSuccess, operation, outcome };
         for (const coordinate of coordinates) {
@@ -243,6 +245,26 @@ describe("locus public value schemas", () => {
       }
     }
     expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, dispatchId: "legacy" }).success).toBe(false);
+  });
+
+  it("keeps Errand entry operations out of the retired locus mutation result", () => {
+    const entryResult = {
+      outcome: "applied",
+      operation: "errand-open",
+      allocation: { kind: "primary", checkoutPath: "/repo" },
+      subject: { kind: "errand", key: "docs", claimId },
+      identity: null,
+      originEntry: null,
+      originEntrySourceDigest: null,
+      nextOffer: null,
+      recommendedPromptText: "Continue.",
+    };
+
+    expect(ErrandOperationResultSchema.safeParse(entryResult).success).toBe(true);
+    expect(LocusMutationResultV1Schema.safeParse(entryResult).success).toBe(false);
+    for (const operation of ["errand-open", "errand-materialize", "errand-link"] as const) {
+      expect(LocusMutationResultV1Schema.safeParse({ ...entryResult, operation }).success).toBe(false);
+    }
   });
 });
 

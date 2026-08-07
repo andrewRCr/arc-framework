@@ -7,10 +7,13 @@ import {
   type OrdinaryErrandRecord,
   type OrdinaryErrandTransition,
 } from "./identity-transitions.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1,
-  LocusMutationErrorCode } from "../locus/schema/index.js";
+import type { LocusMutationErrorCode } from "../locus/schema/index.js";
+import {
+  createErrandOperationResult,
+  type ErrandOperationResult,
+} from "./operation-result.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import { SlugSchema } from "../kernel/index.js";
 
 type LinkTransition = Extract<OrdinaryErrandTransition, { kind: "link" }>;
 
@@ -31,9 +34,12 @@ export interface LinkOrdinaryErrandOptions {
 /** Link one exact open v3 ordinary Errand generation to one live inbox generation. */
 export async function linkOrdinaryErrand(
   options: LinkOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
-  const slug = options.slug.trim();
-  if (slug === "") return linkRefusal("identity-conflict", "Errand slug must be non-empty.");
+): Promise<ErrandOperationResult> {
+  const requestedSlug = options.slug.trim();
+  if (requestedSlug === "") return linkRefusal("identity-conflict", "Errand slug must be non-empty.");
+  const parsedSlug = SlugSchema.safeParse(requestedSlug);
+  if (!parsedSlug.success) return linkRefusal("identity-conflict", "Errand slug must be valid.");
+  const slug = parsedSlug.data;
   let basis: IdentityTransactionOutcome<TransientIdentityRecord | null>;
   try {
     basis = await options.dependencies.readIdentity(slug);
@@ -78,17 +84,16 @@ export async function linkOrdinaryErrand(
   }
   if (outcome.kind === "error") return linkError(`locus.errand-link.${outcome.stage}`, outcome.message);
   if (outcome.value === null) return linkError("locus.errand-link.identity", "Identity transaction returned no record");
-  return createLocusMutationResult({
+  return createErrandOperationResult({
     outcome: outcome.kind,
     operation: "errand-link",
     allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: null,
+    subject: { kind: "errand", key: slug, claimId: outcome.value.claimId },
     identity: projectLocusIdentity(outcome.value),
     originEntry: outcome.value.originEntry,
-    restoredParent: null,
+    originEntrySourceDigest: outcome.value.origin === "inbox"
+      ? outcome.value.originEntrySourceDigest
+      : null,
     nextOffer: null,
     recommendedPromptText: outcome.kind === "applied"
       ? `Linked Errand '${slug}' to inbox capture '${outcome.value.originEntry}'.`
@@ -99,8 +104,8 @@ export async function linkOrdinaryErrand(
 function linkRefusal(
   reason: "identity-conflict" | "inbox-link-conflict",
   message: string,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
+): ErrandOperationResult {
+  return createErrandOperationResult({
     outcome: "refused",
     operation: "errand-link",
     reason,
@@ -108,8 +113,8 @@ function linkRefusal(
   });
 }
 
-function linkError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function linkError(code: LocusMutationErrorCode, message: string): ErrandOperationResult {
+  return createErrandOperationResult({
     outcome: "error",
     operation: "errand-link",
     error: { code, message: message || "Errand link failed" },

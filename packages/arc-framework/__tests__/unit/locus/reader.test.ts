@@ -342,4 +342,61 @@ describe("readLocusState", () => {
     });
     expect(result.roster.ok).toBe(true);
   });
+
+  it("tolerates a retired primary record after marker-owned leave preserves the identity tail", async () => {
+    const digest = "1".repeat(64);
+    const claimId = "2".repeat(32);
+    const record: LocusRecordV1 = {
+      schemaVersion: 1,
+      recordId: `sha256:${digest}`,
+      checkoutPath: "/repo",
+      role: {
+        kind: "errand",
+        subject: { kind: "errand", key: "repair", claimId },
+        establishedAt: "2026-07-20T00:00:00.000Z",
+        parentCheckoutPath: null,
+        originEntry: null,
+      },
+      lease: null,
+    };
+    const identity = {
+      kind: "errand" as const,
+      key: "repair",
+      claimId,
+      protection: "full" as const,
+      branch: "chore/repair",
+      purpose: "errand" as const,
+      origin: "description" as const,
+      originEntry: null,
+      state: "paused" as const,
+      savedHead: "3".repeat(40),
+      changeRequest: null,
+    };
+    const result = await readLocusState({
+      identity: "andrew",
+      pathFlavor: "posix",
+      evidenceIO: evidenceIO({
+        listDirectory: async (path) => path.endsWith("/loci") ? [`locus-${digest}.json`, ".locks"] : [],
+        readRecord: async () => ({ kind: "valid", record, bytes: Buffer.from("record") }),
+        readIdentities: async () => ({
+          kind: "complete",
+          tip: "4".repeat(40),
+          objects: new Map([["repair", "5".repeat(40)]]),
+          records: new Map(),
+          projections: new Map([["repair", identity]]),
+          diagnostics: [],
+        }),
+      }),
+      subjectMetaIO,
+      identityGlobalUserDir: "/repo/.arc/user/andrew",
+      enteringAnchor: { kind: "unverifiable", reason: "fixture" },
+      tolerateMarkerRetiredTerminalRecord: true,
+      readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true, branch: "main" }),
+    });
+
+    expect(result).toMatchObject({
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      inFlightIdentities: [{ identity: { key: "repair", state: "paused" } }],
+    });
+  });
 });

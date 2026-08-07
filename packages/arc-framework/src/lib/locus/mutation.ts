@@ -15,7 +15,7 @@ import {
   type LocusIdentityV1,
   type LocusAnchor,
   type LocusMutationResultV1,
-  type LocusOperation,
+  type LocusMutationOperation,
   type LocusPromotionSource,
   type LocusRecordV1,
   type LocusRole,
@@ -333,7 +333,7 @@ export function createLocusMutationResult(
  * @returns A schema-validated applied, idempotent, refused, or error result.
  */
 export async function popLocusRole(options: {
-  operation: LocusOperation;
+  operation: LocusMutationOperation;
   recommendedPromptText: string;
   recordId: string;
   checkoutPath: string;
@@ -433,7 +433,7 @@ export function validateOwnedLocusRole(
  * @returns A schema-validated applied, idempotent, refused, or error result.
  */
 export async function popOwnedLocusRole(options: {
-  operation: LocusOperation;
+  operation: LocusMutationOperation;
   recommendedPromptText: string;
   recordId: string;
   checkoutPath: string;
@@ -468,7 +468,7 @@ export async function popOwnedLocusRole(options: {
 }
 
 interface LocusResultContext {
-  operation: LocusOperation;
+  operation: LocusMutationOperation;
   recommendedPromptText: string;
   recordId: string;
 }

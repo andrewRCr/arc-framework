@@ -1,5 +1,7 @@
 /** Recoverable composition of transient checkout, marker, role, and lease generations. */
 
+import { isDeepStrictEqual } from "node:util";
+
 import type { LinkedWorktreeCreationReceipt } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
 import {
@@ -8,7 +10,11 @@ import {
   type LocusRoleAuthority,
 } from "./mutation.js";
 import { resolveProvisioningAuthority } from "./provisioning-authority.js";
-import { establishReadyMarker, transientMarkerSubject } from "./provisioning-marker.js";
+import {
+  establishReadyMarker,
+  readyPrimaryMarker,
+  transientMarkerSubject,
+} from "./provisioning-marker.js";
 import {
   PrimaryCheckoutResidueError,
   type PrimaryCheckoutReceipt,
@@ -37,6 +43,12 @@ interface SpawnState {
   readonly rosterHead: string;
   readonly creation: LinkedWorktreeCreationReceipt | null;
   readonly marker: { marker: WorktreeMarker; bytes: Buffer; owned: boolean };
+}
+
+interface PrimaryState {
+  readonly checkout: PrimaryCheckoutReceipt;
+  readonly lock: ProvisioningRecordLock;
+  readonly marker: { marker: WorktreeMarker; bytes: Buffer; owned: boolean } | null;
 }
 
 /**
@@ -165,6 +177,7 @@ async function provisionPrimaryUnderLock(
   handle: ProvisioningRecordLock,
 ): Promise<ProvisionTransientLocusResult> {
   let checkout: PrimaryCheckoutReceipt | null = null;
+  let marker: PrimaryState["marker"] = null;
   try {
     const fresh = await options.dependencies.revalidateTarget({
       proposal: options.proposal,
@@ -172,21 +185,27 @@ async function provisionPrimaryUnderLock(
       handle,
     });
     if (fresh.kind === "refused") return refused(fresh.reason, { kind: "identity-only" });
+    const established = await establishPrimaryMarker(options, authority, checkoutPath);
+    if (established.kind === "returned") return established.result;
+    marker = established.marker;
     checkout = await options.dependencies.checkoutPrimary(
       checkoutPath,
       options.branch,
       options.expectedBranchHead,
     );
-    const result = await provisionRecord(options, authority, null, { checkout, lock: handle });
+    const result = await provisionRecord(options, authority, null, { checkout, lock: handle, marker });
     if (result.kind === "provisioned") return result;
     const expectedCheckout = checkout;
     const rolledBack = await safeCall(() =>
       options.dependencies.rollbackPrimary(checkoutPath, expectedCheckout));
-    if (rolledBack.kind === "value" && rolledBack.value.kind === "rolled-back") return result;
+    const markerRolledBack = await rollbackPrimaryMarker(options, marker);
+    if (rolledBack.kind === "value"
+      && rolledBack.value.kind === "rolled-back"
+      && markerRolledBack) return result;
     const evidence = {
       kind: "marker-record-mismatch" as const,
       checkoutPath,
-      markerBytes: null,
+      markerBytes: marker?.bytes ?? null,
       recordBytes: null,
     };
     if (result.kind === "error") return { ...result, evidence };
@@ -196,11 +215,12 @@ async function provisionPrimaryUnderLock(
       const expectedCheckout = checkout;
       const rolledBack = await safeCall(() =>
         options.dependencies.rollbackPrimary(checkoutPath, expectedCheckout));
-      if (rolledBack.kind === "error" || rolledBack.value.kind !== "rolled-back") {
+      const markerRolledBack = await rollbackPrimaryMarker(options, marker);
+      if (rolledBack.kind === "error" || rolledBack.value.kind !== "rolled-back" || !markerRolledBack) {
         return failure(error, {
           kind: "marker-record-mismatch",
           checkoutPath,
-          markerBytes: null,
+          markerBytes: marker?.bytes ?? null,
           recordBytes: null,
         });
       }
@@ -211,11 +231,19 @@ async function provisionPrimaryUnderLock(
       return failure(error, {
         kind: "marker-record-mismatch",
         checkoutPath: error.checkoutPath,
-        markerBytes: null,
+        markerBytes: marker?.bytes ?? null,
         recordBytes: null,
       });
     }
-    return failure(error, { kind: "identity-only" });
+    const markerRolledBack = await rollbackPrimaryMarker(options, marker);
+    return markerRolledBack
+      ? failure(error, { kind: "identity-only" })
+      : failure(error, {
+          kind: "marker-record-mismatch",
+          checkoutPath,
+          markerBytes: marker?.bytes ?? null,
+          recordBytes: null,
+        });
   }
 }
 
@@ -223,7 +251,7 @@ async function provisionRecord(
   options: ProvisionTransientLocusOptions,
   authority: LocusRoleAuthority,
   spawn: SpawnState | null,
-  primary: { checkout: PrimaryCheckoutReceipt; lock: ProvisioningRecordLock } | null,
+  primary: PrimaryState | null,
 ): Promise<ProvisionTransientLocusResult> {
   let checkoutPath: string;
   if (spawn !== null) {
@@ -245,13 +273,13 @@ async function provisionRecord(
     }));
     if (fresh.kind === "error") {
       const released = await safeCall(() => options.dependencies.releaseRecordLock(acquired.handle));
-      return failure(released.kind === "error" ? released.error : fresh.error, evidenceFor(spawn, null));
+      return failure(released.kind === "error" ? released.error : fresh.error, evidenceFor(spawn, primary, null));
     }
     if (fresh.value.kind === "refused") {
       const released = await safeCall(() => options.dependencies.releaseRecordLock(acquired.handle));
       return released.kind === "error"
-        ? failure(released.error, evidenceFor(spawn, null))
-        : refused(fresh.value.reason, evidenceFor(spawn, null));
+        ? failure(released.error, evidenceFor(spawn, primary, null))
+        : refused(fresh.value.reason, evidenceFor(spawn, primary, null));
     }
   }
 
@@ -262,21 +290,21 @@ async function provisionRecord(
   const recordBytes = result.kind === "provisioned"
     ? result.receipt.record.bytes
     : result.evidence.kind === "marker-record-mismatch" ? result.evidence.recordBytes : null;
-  return failure(released.error, evidenceFor(spawn, recordBytes, checkoutPath));
+  return failure(released.error, evidenceFor(spawn, primary, recordBytes, checkoutPath));
 }
 
 async function applyRecordGeneration(
   options: ProvisionTransientLocusOptions,
   authority: LocusRoleAuthority,
   spawn: SpawnState | null,
-  primary: { checkout: PrimaryCheckoutReceipt; lock: ProvisioningRecordLock } | null,
+  primary: PrimaryState | null,
   checkoutPath: string,
   lock: ProvisioningRecordLock,
 ): Promise<ProvisionTransientLocusResult> {
   let mintedBytes: Buffer | null = null;
   const checkoutHead = spawn?.rosterHead ?? primary?.checkout.head;
   if (checkoutHead === undefined) {
-    return failure(new Error("Provisioning target has no checkout-head proof"), evidenceFor(spawn, null));
+    return failure(new Error("Provisioning target has no checkout-head proof"), evidenceFor(spawn, primary, null));
   }
   const recordIO = {
     read: () => options.dependencies.readRecord(lock.recordPath, lock),
@@ -285,6 +313,16 @@ async function applyRecordGeneration(
       options.dependencies.replaceRecord(lock.recordPath, expectedBytes, record, lock),
   };
   try {
+    const retiredCompatibility = await retireMarkerOwnedCompatibilityRecord({
+      authority,
+      retiredIdentity: options.retiredCompatibilityIdentity,
+      checkoutPath,
+      lock,
+      dependencies: options.dependencies,
+    });
+    if (retiredCompatibility === "generation-mismatch") {
+      return refused("role-conflict", evidenceFor(spawn, primary, null, checkoutPath));
+    }
     const role = await mintDurableLocusRole({
       recordId: lock.recordId,
       checkoutPath,
@@ -297,7 +335,7 @@ async function applyRecordGeneration(
       const conflict = await recordIO.read();
       return refused(
         role.reason,
-        evidenceFor(spawn, conflict.kind === "valid" ? conflict.bytes : null, checkoutPath),
+        evidenceFor(spawn, primary, conflict.kind === "valid" ? conflict.bytes : null, checkoutPath),
       );
     }
     if (role.kind === "applied") mintedBytes = role.bytes;
@@ -316,11 +354,11 @@ async function applyRecordGeneration(
       if (mintedBytes !== null) {
         const removed = await options.dependencies.removeRecord(lock.recordPath, mintedBytes, lock);
         if (removed.kind !== "removed") {
-          return refused(lease.reason, evidenceFor(spawn, mintedBytes, checkoutPath));
+          return refused(lease.reason, evidenceFor(spawn, primary, mintedBytes, checkoutPath));
         }
         mintedBytes = null;
       }
-      return refused(lease.reason, evidenceFor(spawn, null, checkoutPath));
+      return refused(lease.reason, evidenceFor(spawn, primary, null, checkoutPath));
     }
     const disposition = (
       spawn !== null && (spawn.creation !== null || spawn.marker.owned)
@@ -344,7 +382,11 @@ async function applyRecordGeneration(
           created: spawn?.creation !== null && spawn !== null,
           head: checkoutHead,
         },
-        marker: spawn === null ? null : { state: "ready", bytes: spawn.marker.bytes },
+        marker: spawn?.marker !== undefined
+          ? { state: "ready", bytes: spawn.marker.bytes }
+          : primary?.marker === null || primary?.marker === undefined
+            ? null
+            : { state: "ready", bytes: primary.marker.bytes },
         record: { recordId: lock.recordId, bytes: lease.bytes },
         leaseToken: options.leaseId,
       },
@@ -355,11 +397,39 @@ async function applyRecordGeneration(
       const removed = await safeCall(() =>
         options.dependencies.removeRecord(lock.recordPath, ownedBytes, lock));
       if (removed.kind === "error" || removed.value.kind !== "removed") {
-        return failure(error, evidenceFor(spawn, mintedBytes, checkoutPath));
+        return failure(error, evidenceFor(spawn, primary, mintedBytes, checkoutPath));
       }
     }
-    return failure(error, evidenceFor(spawn, null, checkoutPath));
+    return failure(error, evidenceFor(spawn, primary, null, checkoutPath));
   }
+}
+
+async function retireMarkerOwnedCompatibilityRecord(options: {
+  readonly authority: LocusRoleAuthority;
+  readonly retiredIdentity?: ProvisionTransientLocusOptions["retiredCompatibilityIdentity"];
+  readonly checkoutPath: string;
+  readonly lock: ProvisioningRecordLock;
+  readonly dependencies: ProvisionTransientLocusOptions["dependencies"];
+}): Promise<"ready" | "generation-mismatch"> {
+  const retiredIdentity = options.retiredIdentity;
+  if (options.authority.kind !== "identity"
+    || options.authority.identity.kind !== "errand"
+    || options.authority.identity.purpose !== "errand"
+    || retiredIdentity?.kind !== "errand"
+    || retiredIdentity.purpose !== "errand"
+    || (retiredIdentity.state !== "paused" && retiredIdentity.state !== "awaiting-merge")
+    || retiredIdentity.key !== options.authority.identity.key
+    || retiredIdentity.claimId !== options.authority.identity.claimId) return "ready";
+  const existing = await options.dependencies.readRecord(options.lock.recordPath, options.lock);
+  if (existing.kind !== "valid") return "ready";
+  const role = existing.record.role;
+  if (existing.record.checkoutPath !== options.checkoutPath
+    || role.kind !== "errand"
+    || role.subject.kind !== "errand"
+    || role.subject.key !== options.authority.identity.key
+    || role.subject.claimId !== options.authority.identity.claimId) return "ready";
+  const removed = await options.dependencies.removeRecord(options.lock.recordPath, existing.bytes, options.lock);
+  return removed.kind === "removed" ? "ready" : "generation-mismatch";
 }
 
 async function acquire(
@@ -464,16 +534,17 @@ async function rollbackSpawn(
 
 function evidenceFor(
   spawn: SpawnState | null,
+  primary: PrimaryState | null,
   recordBytes: Buffer | null,
   checkoutPath = "",
 ): ProvisioningEvidence {
   if (spawn === null) {
-    return recordBytes === null
+    return recordBytes === null && primary?.marker === null
       ? { kind: "identity-only" }
       : {
           kind: "marker-record-mismatch",
           checkoutPath,
-          markerBytes: null,
+          markerBytes: primary?.marker?.bytes ?? null,
           recordBytes,
         };
   }
@@ -483,6 +554,78 @@ function evidenceFor(
     markerBytes: spawn.marker.bytes,
     recordBytes,
   };
+}
+
+async function establishPrimaryMarker(
+  options: ProvisionTransientLocusOptions,
+  authority: LocusRoleAuthority,
+  checkoutPath: string,
+): Promise<
+  { kind: "ready"; marker: PrimaryState["marker"] }
+  | { kind: "returned"; result: ProvisionTransientLocusResult }
+> {
+  const candidate = readyPrimaryMarker(options, authority);
+  if (candidate === null) return { kind: "ready", marker: null };
+  let current;
+  try {
+    current = await options.dependencies.readMarker(checkoutPath);
+  } catch (error) {
+    return { kind: "returned", result: failure(error, { kind: "identity-only" }) };
+  }
+  if (current.kind === "present") {
+    return isDeepStrictEqual(current.marker, candidate)
+      ? { kind: "ready", marker: { marker: candidate, bytes: current.bytes, owned: false } }
+      : {
+          kind: "returned",
+          result: refused("marker-conflict", {
+            kind: "marker-record-mismatch",
+            checkoutPath,
+            markerBytes: current.bytes,
+            recordBytes: null,
+          }),
+        };
+  }
+  if (current.kind === "malformed") {
+    return {
+      kind: "returned",
+      result: refused("marker-conflict", {
+        kind: "marker-record-mismatch", checkoutPath, markerBytes: null, recordBytes: null,
+      }),
+    };
+  }
+  try {
+    const created = await options.dependencies.createMarker(checkoutPath, candidate);
+    if (created.kind === "created") {
+      return { kind: "ready", marker: { marker: candidate, bytes: created.bytes, owned: true } };
+    }
+    const raced = await options.dependencies.readMarker(checkoutPath);
+    if (raced.kind === "present" && isDeepStrictEqual(raced.marker, candidate)) {
+      return { kind: "ready", marker: { marker: candidate, bytes: raced.bytes, owned: false } };
+    }
+    return {
+      kind: "returned",
+      result: refused("marker-conflict", {
+        kind: "marker-record-mismatch",
+        checkoutPath,
+        markerBytes: raced.kind === "present" ? raced.bytes : null,
+        recordBytes: null,
+      }),
+    };
+  } catch (error) {
+    return { kind: "returned", result: failure(error, { kind: "identity-only" }) };
+  }
+}
+
+async function rollbackPrimaryMarker(
+  options: ProvisionTransientLocusOptions,
+  marker: PrimaryState["marker"],
+): Promise<boolean> {
+  if (marker === null || !marker.owned || options.proposal.allocation.kind !== "primary") return true;
+  const removed = await safeCall(() => options.dependencies.removeMarker(
+    options.proposal.allocation.kind === "primary" ? options.proposal.allocation.checkoutPath : "",
+    marker.bytes,
+  ));
+  return removed.kind === "value" && removed.value.kind === "removed";
 }
 
 function canRollbackSpawnedRecordFailure(

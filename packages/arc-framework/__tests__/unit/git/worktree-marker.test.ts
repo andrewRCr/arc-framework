@@ -20,8 +20,8 @@ import {
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   readWorktreeMarkerGeneration,
+  removePrimaryTransientOccupancy,
   removeWorktreeMarkerGeneration,
-  renameWorktreeOwnershipMarker,
   replaceWorktreeMarkerGeneration,
   stampWorktreeHusk,
   writeWorktreeMarker,
@@ -148,6 +148,53 @@ describe("worktree-marker", () => {
       }
     },
   );
+
+  it("round-trips unified primary and partial transient occupancy", async () => {
+    const primary: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) },
+      provisioning: "ready",
+      parentCheckoutPath: "/repo/parent",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, primary);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: primary });
+
+    const partial: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: { kind: "partial-errand", slug: "refresh-fixtures", claimId: null },
+      provisioning: "ready",
+      parentCheckoutPath: "/repo/parent",
+      originEntry: "Refresh generated fixtures",
+      originEntrySourceDigest: `sha256:${"b".repeat(64)}`,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, partial);
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: partial });
+    expect(decodeWorktreeMarkerOwnership(partial)).toEqual({
+      kind: "current",
+      subject: partial.createdFor,
+      provisioning: "ready",
+    });
+  });
+
+  it("removes only the exact ready primary transient generation", async () => {
+    const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;
+    const marker: WorktreeMarker = {
+      spawnedByArc: false,
+      createdFor: subject,
+      provisioning: "ready",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    await writeWorktreeMarker(cwd, marker);
+    await expect(removePrimaryTransientOccupancy(cwd, { ...subject, claimId: "b".repeat(32) }))
+      .resolves.toEqual({ kind: "refused", reason: "subject-mismatch" });
+    await expect(removePrimaryTransientOccupancy(cwd, subject)).resolves.toEqual({ kind: "removed" });
+    await expect(removePrimaryTransientOccupancy(cwd, subject)).resolves.toEqual({ kind: "absent" });
+  });
 
   it("classifies transient provisioning and exact claim mismatches without granting authority", () => {
     const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;
@@ -606,103 +653,6 @@ describe("stampWorktreeHusk", () => {
         husk,
       },
     });
-  });
-});
-
-describe("renameWorktreeOwnershipMarker", () => {
-  let cwd: string;
-
-  beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), "arc-worktree-marker-rename-"));
-  });
-
-  afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
-  });
-
-  it("rewrites both work-unit ownership fields", async () => {
-    await writeWorktreeOwnershipMarker(cwd, {
-      createdByArc: true,
-      createdFor: { kind: "work-unit", name: "old-name" },
-      spawningIdentity: "andrew",
-      now: Date.parse("2026-07-22T12:00:00.000Z"),
-    });
-
-    await expect(renameWorktreeOwnershipMarker(cwd, {
-      oldWuName: "old-name",
-      newWuName: "new-name",
-    })).resolves.toEqual({ status: "renamed" });
-    expect(await readWorktreeMarker(cwd)).toMatchObject({
-      kind: "present",
-      marker: {
-        wuName: "new-name",
-        createdFor: { kind: "work-unit", name: "new-name" },
-        spawningIdentity: "andrew",
-      },
-    });
-  });
-
-  it("binds a deferred self-move to the renamed owned marker", async () => {
-    await writeWorktreeOwnershipMarker(cwd, {
-      createdByArc: true,
-      createdFor: { kind: "work-unit", name: "old-name" },
-      spawningIdentity: "andrew",
-    });
-    const renameMovePending: WorktreeRenameMovePending = {
-      oldSlug: "old-name",
-      newSlug: "new-name",
-      branch: "feat/new-name",
-      head: "0123456789abcdef0123456789abcdef01234567",
-      from: "/work/project.old-name",
-      to: "/work/project.new-name",
-    };
-
-    await expect(renameWorktreeOwnershipMarker(cwd, {
-      oldWuName: "old-name",
-      newWuName: "new-name",
-    }, { renameMovePending })).resolves.toEqual({ status: "renamed" });
-    expect(await readWorktreeMarker(cwd)).toMatchObject({
-      kind: "present",
-      marker: {
-        wuName: "new-name",
-        createdFor: { kind: "work-unit", name: "new-name" },
-        renameMovePending,
-      },
-    });
-  });
-
-  it("treats a missing marker as an in-place skip", async () => {
-    await expect(renameWorktreeOwnershipMarker(cwd, {
-      oldWuName: "old-name",
-      newWuName: "new-name",
-    })).resolves.toEqual({ status: "absent" });
-  });
-
-  it("leaves a marker owned by another work unit untouched", async () => {
-    await writeWorktreeOwnershipMarker(cwd, {
-      createdByArc: true,
-      createdFor: { kind: "work-unit", name: "other-name" },
-      spawningIdentity: "andrew",
-    });
-    const before = await readWorktreeMarker(cwd);
-
-    await expect(renameWorktreeOwnershipMarker(cwd, {
-      oldWuName: "old-name",
-      newWuName: "new-name",
-    })).resolves.toEqual({ status: "foreign" });
-    expect(await readWorktreeMarker(cwd)).toEqual(before);
-  });
-
-  it("does not repair a malformed marker", async () => {
-    const path = resolveWorktreeMarkerPath(cwd);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, "{ malformed", "utf8");
-
-    await expect(renameWorktreeOwnershipMarker(cwd, {
-      oldWuName: "old-name",
-      newWuName: "new-name",
-    })).resolves.toMatchObject({ status: "malformed" });
-    await expect(readFile(path, "utf8")).resolves.toBe("{ malformed");
   });
 });
 

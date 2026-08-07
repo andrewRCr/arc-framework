@@ -13,7 +13,7 @@ import {
 } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
-import type { LocusAnchor, LocusMutationResultV1 } from "../locus/schema/index.js";
+import type { LocusAnchor } from "../locus/schema/index.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
@@ -36,6 +36,7 @@ import {
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandOperationResult } from "./operation-result.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions {
   readonly slug: string;
@@ -69,7 +70,7 @@ export interface OpenOrdinaryErrandRuntimeOptions {
  */
 export async function openOrdinaryErrandAtRuntime(
   options: OpenOrdinaryErrandRuntimeOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<ErrandOperationResult> {
   return (await openOrdinaryErrandAtRuntimeWithDisposition(options)).result;
 }
 
@@ -121,6 +122,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           },
           identityGlobalUserDir: options.identityGlobalUserDir,
           enteringAnchor: selectedAnchor,
+          tolerateMarkerRetiredTerminalRecord: true,
           readPrimarySafety: (path) => readPrimarySafety({
             primaryPath: path,
             baseBranch: options.base,

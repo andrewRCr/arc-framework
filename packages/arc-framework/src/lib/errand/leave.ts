@@ -17,7 +17,7 @@ import type {
 type LeaveTransition = Extract<OrdinaryErrandTransition, { kind: "pause" | "await-merge" }>;
 
 export type LeaveAuthorization =
-  | { kind: "authorized"; occupancyEstablishedAt: string; transition: LeaveTransition }
+  | { kind: "authorized"; transition: LeaveTransition }
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
   | { kind: "error"; code: LocusMutationErrorCode; message: string };
 
@@ -27,6 +27,7 @@ export type LeaveCleanupResult =
       allocation: { kind: "primary" | "spawned"; checkoutPath: string } | null;
       recordId: string | null;
       restoredParent: { recordId: string; checkoutPath: string } | null;
+      parentCheckoutPath?: string | null;
     }
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
   | { kind: "error"; code: LocusMutationErrorCode; message: string };
@@ -81,9 +82,6 @@ export async function leaveOrdinaryErrand(
     }
     if (authorization.kind === "refused") return leaveRefusal(authorization.reason, authorization.message);
     if (authorization.kind === "error") return leaveError(authorization.code, authorization.message);
-    if (authorization.occupancyEstablishedAt !== basis.value.updatedAt) {
-      return leaveRefusal("role-conflict", "Leave authorization does not match the open occupancy generation.");
-    }
     if (authorization.transition.kind !== transitionKind(options.state)
       || serializeTransientIdentityRecord(authorization.transition.previous)
         !== serializeTransientIdentityRecord(basis.value)) {
@@ -118,7 +116,7 @@ export async function leaveOrdinaryErrand(
     recordId: cleanup.recordId,
     leaseId: null,
     activeLocusPath: null,
-    sessionHomePath: cleanup.restoredParent?.checkoutPath ?? null,
+    sessionHomePath: cleanup.parentCheckoutPath ?? cleanup.restoredParent?.checkoutPath ?? null,
     identity: projectLocusIdentity(target),
     originEntry: target.originEntry,
     restoredParent: cleanup.restoredParent,

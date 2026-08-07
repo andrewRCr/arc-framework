@@ -10,7 +10,9 @@ import { readTransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
 import {
+  classifyTransientWorktreeProvenance,
   decodeWorktreeMarkerOwnership,
+  removePrimaryTransientOccupancy,
   readWorktreeMarkerGeneration,
   type WorktreeMarkerGenerationReadResult,
 } from "../git/worktree-marker.js";
@@ -379,11 +381,114 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
     row, action: options.action, checkoutClean,
     confirmedNoLiveSession: options.confirmedNoLiveSession,
     dependencies: {
-      run: async (dispatch) => dispatch.action === "abandon"
-        ? options.abandon(dispatch)
-        : resumeAtRuntime(options, row, anchor, inspector, dispatch.confirmedNoLiveSession),
+      run: async (dispatch) => {
+        const result = dispatch.action === "abandon"
+          ? await options.abandon(dispatch)
+          : await resumeAtRuntime(options, row, anchor, inspector, dispatch.confirmedNoLiveSession);
+        return dispatch.action === "abandon"
+          ? retireResolvedCompatibilityRecord(
+            options,
+            row,
+            state.roster.primaryPath,
+            anchor,
+            inspector,
+            result,
+          )
+          : result;
+      },
     },
   });
+}
+
+async function retireResolvedCompatibilityRecord(
+  options: ResolveLocusRuntimeOptions,
+  row: LocusRowV1,
+  primaryPath: string,
+  anchor: Extract<Awaited<ReturnType<typeof acquireSessionAnchor>>, { kind: "process" }>,
+  inspector: ReturnType<typeof createPlatformProcessInspector>,
+  result: LocusMutationResultV1,
+): Promise<LocusMutationResultV1> {
+  if ((result.outcome !== "applied" && result.outcome !== "idempotent")
+    || row.checkoutPath === null || row.recordId === null || row.role === null || row.lease === null) return result;
+  const runtime = createNodeProvisioningDependencies({
+    exec: options.io.exec, identity: options.identity, anchor, inspector,
+    pathFlavor: process.platform === "win32" ? "windows" : "posix", base: options.base,
+    branch: row.identity?.branch ?? null, postCreateScript: options.postCreateScript,
+    registeredHarnessDirs: options.registeredHarnessDirs,
+  });
+  const acquired = await runtime.acquireRecordLock(row.checkoutPath);
+  if (acquired.kind !== "acquired") return lockRefusal("locus-resolve", acquired.reason);
+  try {
+    const existing = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
+    if (existing.kind === "absent") return result;
+    const existingSubject = existing.kind === "valid" ? existing.record.role.subject : null;
+    const selectedSubject = row.role.subject;
+    if (existing.kind !== "valid"
+      || existing.record.recordId !== row.recordId
+      || existing.record.checkoutPath !== row.checkoutPath
+      || existing.record.role.kind !== row.role.kind
+      || existingSubject?.kind !== selectedSubject.kind
+      || existingSubject.key !== selectedSubject.key
+      || existingSubject.claimId !== selectedSubject.claimId
+      || existing.record.lease?.leaseId !== row.lease.leaseId) {
+      return refusal(
+        "locus-resolve",
+        "lease-generation-mismatch",
+        "The selected residue generation changed before compatibility retirement.",
+      );
+    }
+    if (existingSubject.kind !== "errand" || existingSubject.claimId === null) {
+      return refusal("locus-resolve", "role-conflict", "The selected Errand residue subject is incomplete.");
+    }
+    if (row.primary === true) {
+      const removedMarker = await removePrimaryTransientOccupancy(row.checkoutPath, {
+        kind: "errand",
+        slug: existingSubject.key,
+        claimId: existingSubject.claimId,
+      });
+      if (removedMarker.kind !== "removed" && removedMarker.kind !== "absent") {
+        return refusal("locus-resolve", "role-conflict", "The selected Errand marker generation changed.");
+      }
+    } else {
+      const marker = await readWorktreeMarkerGeneration(row.checkoutPath);
+      const provenance = classifyTransientWorktreeProvenance(marker, {
+        kind: "errand",
+        slug: existingSubject.key,
+        claimId: existingSubject.claimId,
+      });
+      if (provenance?.kind !== "ready") {
+        return refusal("locus-resolve", "role-conflict", "The selected Errand checkout provenance changed.");
+      }
+      try {
+        await options.io.exec("git", ["worktree", "remove", row.checkoutPath], { cwd: primaryPath });
+      } catch (error) {
+        return failure("locus-resolve", error);
+      }
+    }
+    const removed = await runtime.removeRecord(
+      acquired.handle.recordPath,
+      existing.bytes,
+      acquired.handle,
+    );
+    if (removed.kind !== "removed") {
+      return refusal(
+        "locus-resolve",
+        "lease-generation-mismatch",
+        "The selected residue generation changed before compatibility retirement.",
+      );
+    }
+    return createLocusMutationResult({
+      ...result,
+      outcome: "applied",
+      recordId: null,
+      leaseId: null,
+      activeLocusPath: null,
+      sessionHomePath: null,
+      restoredParent: null,
+    });
+  } finally {
+    await runtime.releaseRecordLock(acquired.handle);
+  }
 }
 
 async function resumeAtRuntime(

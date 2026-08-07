@@ -65,7 +65,7 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
-import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
 import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
@@ -212,8 +212,8 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
+  /** Worktree-derived entering-checkout frame selected for session-init consumers. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
   /** CLI-precomposed narration derived from the same locus probe. */
   locusGuidance: LocusSessionGuidance;
   user: Probe<SessionInitUserValue>;
@@ -417,11 +417,11 @@ export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
 export interface SessionRecoverProbeResult {
   mode: "recover";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
-  /** CLI-precomposed narration derived from the same locus probe. */
+  /** Exact entering-checkout projection used for recovery selection. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
+  /** CLI-precomposed narration derived from the same entering frame. */
   locusGuidance: LocusSessionGuidance;
-  /** Reader-owned active frame and governing workflow selected from `locusState`. */
+  /** Reader-owned subject frame and governing workflow selected from the entering checkout. */
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
@@ -502,11 +502,11 @@ export interface HandoffPathSet {
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
-  /** Shared network-free interpretation of machine-local session occupancy. */
-  locusState: Probe<LocusStateV1>;
-  /** CLI-precomposed narration derived from the same locus probe. */
+  /** Entering-checkout projection that exclusively selects the handoff subject. */
+  derivedLocusState: Probe<DerivedLocusFrame>;
+  /** CLI-precomposed narration derived from the entering-checkout projection. */
   locusGuidance: LocusSessionGuidance;
-  /** Exact subject action derived from the same reader-owned locus snapshot. */
+  /** Exact subject action derived from the same entering-checkout frame. */
   handoffLocus: Probe<HandoffLocusPlan>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
@@ -568,35 +568,17 @@ export interface SessionHandoffResult {
   recommendedSummaryLine: string | null;
 }
 
-/**
- * Probe slots shared by both session-scoped entry points (`session-init` and
- * `session-handoff`). The two probe interfaces below extend this base so the
- * five slots stay declared once — the orchestrator starts them through one
- * `buildSessionSharedSlots` ResultAsync source rather than re-declaring each
- * per entry point. Full mode (`StatusProbes`) shares only the `user`
- * identity-missing primitive because its `user` / `active` signatures differ.
- */
-export interface SessionSharedProbes {
-  /** Resolve the shared, network-free machine-local locus interpretation. */
-  locusState: (identity: string) => Promise<LocusStateV1>;
+/** Probe functions in session-init mode — bound to cwd and any required I/O. */
+export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
-  /**
-   * Active probe receives `identity` and `role` so contributor flow can
-   * scan `.arc/user/{identity}/active/` instead of the maintainer root.
-   * Both pointers are forwarded verbatim from the composite — `null` means
-   * the corresponding `git config` key was absent.
-   */
-  active: (
-    identity: string | null,
-    role: string | null,
-  ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-}
-
-/** Probe functions in session-init mode — bound to cwd and any required I/O. */
-export interface SessionInitProbes extends SessionSharedProbes {
+  /** Resolve the entering-checkout frame with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
   /** Inspect one resolved active WU through the shared read-only reconcile planner. */
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
@@ -737,22 +719,15 @@ export interface SessionInitProbes extends SessionSharedProbes {
   partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
   /** User-notes compaction advisory resolver. Fired eagerly whenever identity resolved when provided. */
   compactionAdvisory?: (identity: string) => Promise<NotesCompactionSessionAdvisoryResult>;
-  /**
-   * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
-   * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value
-   * and resolves the coordinating `cohort-<leaf>.md` under `backlog/planned/`,
-   * returning its path or `null`. Called ONLY when the active slot resolved to a
-   * single work unit; degrades to `null` on any miss.
-   */
-  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  /** Resolve the deterministic task-list cursor for a resolved task-list path. */
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
-  /** Resolve the shared, network-free machine-local locus interpretation. */
-  locusState: (identity: string) => Promise<LocusStateV1>;
+  /** Resolve the entering checkout with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
@@ -766,8 +741,18 @@ export interface SessionRecoverProbes {
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
-export interface SessionHandoffProbes extends SessionSharedProbes {
-  worktreeIdentity: () => Promise<WorktreeIdentity>;
+export interface SessionHandoffProbes {
+  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  worktree: () => Promise<WorktreeSyncStatusResult>;
+  dirty: () => Promise<DirtyStateResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
+  /** Resolve the entering checkout with the exact active extension set. */
+  derivedLocusState: (
+    identity: string,
+    activeExtensions: readonly string[],
+  ) => Promise<DerivedLocusFrame>;
+  /** Resolve active extensions before composing the derived WU projection. */
+  extensions: () => Promise<ExtensionsSessionInitResult>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;

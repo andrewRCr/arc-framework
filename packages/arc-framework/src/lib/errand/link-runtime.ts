@@ -1,8 +1,8 @@
 /** Production complete-basis transaction composition for ordinary Errand late-link. */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import type { LocusMutationResultV1 } from "../locus/schema/index.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandOperationResult } from "./operation-result.js";
 import { ordinaryErrandTransform } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import { linkOrdinaryErrand } from "./link.js";
@@ -19,7 +19,7 @@ export interface LinkOrdinaryErrandRuntimeOptions {
 /** Run one production ordinary-Errand late-link transaction. */
 export async function linkOrdinaryErrandAtRuntime(
   options: LinkOrdinaryErrandRuntimeOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<ErrandOperationResult> {
   const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
   return linkOrdinaryErrand({
     slug: options.slug,

@@ -7,7 +7,10 @@ import {
   resolveTaskListPath,
 } from "../../commands/active/status.js";
 import type { SessionType } from "../../commands/active/types.js";
-import { resolvePlanningStage } from "../active/current-workflow-consistency.js";
+import {
+  resolvePlanningStage,
+  type PlanningWorkflow,
+} from "../active/current-workflow-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
@@ -34,7 +37,7 @@ export type SubjectMetaProjection =
       branch: string | null;
       sessionType: SessionType | null;
       workflow: string | null;
-      stage: string | null;
+      stage: PlanningWorkflow | null;
       taskListPath: string | null;
       taskCursor: TaskListCursorFileResult | null;
       cohortDocPath: string | null;

@@ -64,6 +64,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
       ".arc/active/tasks-compaction-recovery.md",
       "packages/arc-framework/src/lib/compaction-seed/schema.ts",
     ],
+    locus: { checkoutPath: "/repo", parentCheckoutPath: null },
     ...overrides,
   };
 }
@@ -86,49 +87,23 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
-  it("round-trips one complete optional locus hint without changing schema v1", () => {
+  it("round-trips the active checkout and optional marker parent without retired authority", () => {
     const locus = {
-      sessionHomePath: "/repo",
-      activeLocusPath: "/repo/worktrees/errand",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "b".repeat(32),
-      parentRecordId: `sha256:${"c".repeat(64)}`,
+      checkoutPath: "/repo/worktrees/errand",
+      parentCheckoutPath: "/repo",
     };
     const value = seed({ locus });
     expect(parseCompactionSeedJson(stringifyCompactionSeed(value))).toEqual({ ok: true, seed: value });
     expect(value.schemaVersion).toBe(1);
+    expect(JSON.stringify(value)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
   });
 
-  it("rejects persisted seeds carrying both locus disposition fields", () => {
-    const locus = {
-      sessionHomePath: "/repo",
-      activeLocusPath: "/repo/worktrees/errand",
-      recordId: `sha256:${"a".repeat(64)}`,
-      leaseId: "b".repeat(32),
-      parentRecordId: null,
-    };
-    const result = parseCompactionSeedJson(JSON.stringify({
-      ...seed(),
-      locus,
-      locusAbsence: "none",
-    }));
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("invalid-schema");
-      expect(result.error.message).toContain("locusAbsence");
-    }
-  });
-
-  it.each(["sessionHomePath", "activeLocusPath", "recordId", "leaseId", "parentRecordId"])(
+  it.each(["checkoutPath", "parentCheckoutPath"])(
     "rejects a partial locus hint missing %s",
     (key) => {
       const complete = {
-        sessionHomePath: "/repo",
-        activeLocusPath: "/repo/worktrees/errand",
-        recordId: `sha256:${"a".repeat(64)}`,
-        leaseId: "b".repeat(32),
-        parentRecordId: null,
+        checkoutPath: "/repo/worktrees/errand",
+        parentCheckoutPath: null,
       };
       const locus = Object.fromEntries(Object.entries(complete).filter(([candidate]) => candidate !== key));
       expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), locus })).ok).toBe(false);
@@ -289,6 +264,7 @@ describe("CompactionSeed schema", () => {
       "taskCursor",
       "loadSet",
       "uncommittedFiles",
+      "locus",
     ]);
   });
 

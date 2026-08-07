@@ -160,6 +160,8 @@ export interface ProvisionTransientLocusOptions {
   proposal: ProvisioningProposal;
   protection: "full" | "partial";
   identity: LocusIdentityV1 | null;
+  /** Exact terminal tail whose marker-owned retirement may leave a temporary record generation. */
+  retiredCompatibilityIdentity?: LocusIdentityV1;
   authority?: LocusRoleAuthority;
   branch: string | null;
   /** Null creates a fresh branch; a Git OID requires exact retained-branch reuse. */

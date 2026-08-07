@@ -10,6 +10,11 @@ export const LocusOperationSchema = z.enum([
   "errand-close", "errand-abandon", "errand-materialize", "errand-promote", "plan-open", "plan-close",
   "plan-abandon", "housekeep-open", "housekeep-close", "housekeep-abandon",
 ]);
+export const LocusMutationOperationSchema = z.enum([
+  "locus-attach", "locus-release", "locus-resolve", "errand-leave", "errand-close", "errand-abandon",
+  "errand-promote", "plan-open", "plan-close", "plan-abandon", "housekeep-open", "housekeep-close",
+  "housekeep-abandon",
+]);
 export const LocusRefusalReasonSchema = z.enum([
   "primary-occupied", "primary-dirty", "primary-off-base", "topology-unknown", "record-malformed",
   "duplicate-locus", "checkout-missing", "lease-live", "lease-unknown", "lease-generation-mismatch",
@@ -76,7 +81,7 @@ export const LocusMutationErrorCodeSchema = z.custom<LocusMutationErrorCode>(
   { error: "Error code must be a declared operational code or `locus.<operation>.<stage>`" },
 );
 
-const common = { operation: LocusOperationSchema, recommendedPromptText: LocusOpaqueTextSchema };
+const common = { operation: LocusMutationOperationSchema, recommendedPromptText: LocusOpaqueTextSchema };
 const success = {
   ...common,
   allocation: z.strictObject({ kind: z.enum(["primary", "spawned"]), checkoutPath: LocusAbsolutePathSchema }).nullable(),
@@ -95,7 +100,7 @@ const success = {
   }).nullable(),
 };
 
-const LOCUS_OPEN_OPERATIONS = new Set(["errand-open", "plan-open", "housekeep-open"]);
+const LOCUS_OPEN_OPERATIONS = new Set(["plan-open", "housekeep-open"]);
 
 export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
   z.strictObject({ outcome: z.enum(["applied", "idempotent"]), ...success }),
@@ -126,5 +131,6 @@ export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
 });
 
 export type LocusOperation = z.infer<typeof LocusOperationSchema>;
+export type LocusMutationOperation = z.infer<typeof LocusMutationOperationSchema>;
 export type LocusRefusalReason = z.infer<typeof LocusRefusalReasonSchema>;
 export type LocusMutationResultV1 = z.infer<typeof LocusMutationResultV1Schema>;

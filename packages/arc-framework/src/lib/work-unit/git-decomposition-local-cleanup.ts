@@ -36,12 +36,11 @@ import {
   type DecomposeTransientClaimStore,
 } from "./decompose-transient-claim-store.js";
 import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
-import type { WorkUnitLocusDriver } from "./work-unit-locus.js";
-import type { TeardownLocusDriver } from "./teardown-locus.js";
 import type {
-  TeardownOccupancyDecision,
-  TeardownOccupancyReader,
-} from "./teardown-occupancy.js";
+  TeardownSelection,
+  TeardownSelectionReader,
+} from "./teardown-selection.js";
+import type { TeardownWorktreeTransactionDriver } from "./teardown-worktree-transaction.js";
 
 /** Mutable boundaries used by the landed decomposition cleanup driver. */
 export interface GitDecompositionLocalCleanupDependencies {
@@ -53,9 +52,8 @@ export interface GitDecompositionLocalCleanupDependencies {
   scanWorktrees?: () => Promise<RegisteredWorktreeScanResult>;
   readMarker?: (path: string) => Promise<WorktreeMarkerReadResult>;
   removeWorktree?: (path: string) => Promise<void>;
-  workUnitLocus?: WorkUnitLocusDriver;
-  readLocusOccupancy?: TeardownOccupancyReader;
-  teardownLocus?: TeardownLocusDriver;
+  readTeardownSelection?: TeardownSelectionReader;
+  teardownWorktree?: TeardownWorktreeTransactionDriver;
   readCurrentLocus?: () => string;
   claims?: DecomposeTransientClaimStore;
 }
@@ -282,14 +280,14 @@ async function removeProjectionWorktree(
   if (deps.removeWorktree !== undefined) {
     await deps.removeWorktree(worktree.path);
   } else {
-    let expectedOccupancy: Extract<TeardownOccupancyDecision, { kind: "clear" }> | undefined;
-    if (retirement !== undefined && deps.readLocusOccupancy !== undefined) {
-      const decision = await deps.readLocusOccupancy({
+    let expectedSelection: TeardownSelection | undefined;
+    if (retirement !== undefined && deps.readTeardownSelection !== undefined) {
+      const decision = await deps.readTeardownSelection({
         checkoutPath: worktree.path,
         subject: { kind: "work-unit", name: retirement.wuName },
       });
       if (decision.kind !== "clear") throw new Error(decision.message);
-      expectedOccupancy = decision;
+      expectedSelection = decision;
     }
     await reconcileWorkUnitWorktree(
       {
@@ -299,22 +297,18 @@ async function removeProjectionWorktree(
           else deps.chdir(path);
         },
         fs: nodeReconcileWorkUnitWorktreeFs,
-        ...(deps.workUnitLocus === undefined ? {} : { locus: deps.workUnitLocus }),
-        ...(deps.teardownLocus === undefined ? {} : { teardownLocus: deps.teardownLocus }),
+        ...(deps.teardownWorktree === undefined ? {} : { teardownWorktree: deps.teardownWorktree }),
         ...(deps.readCurrentLocus === undefined ? {} : { readCurrentLocus: deps.readCurrentLocus }),
       },
       {
         mutation: "teardown",
         worktreePath: worktree.path,
         currentLocus: deps.cwd,
-        ...(retirement === undefined ? {} : { wuName: retirement.wuName }),
-        ...(retirement === undefined || expectedOccupancy === undefined
+        ...(retirement === undefined || expectedSelection === undefined
           ? {}
           : {
               authorization: {
-                subject: { kind: "work-unit" as const, name: retirement.wuName },
-                expectedHead: retirement.expectedHead,
-                expectedOccupancy,
+                expectedSelection,
                 revalidateLocal: () => retirement.revalidateMarker(),
               },
             }),

@@ -27,7 +27,7 @@ const execFileAsync = promisify(execFile);
 
 interface SessionInitEnvelope {
   mode: string;
-  locusState?: { ok: boolean };
+  derivedLocusState?: { ok: boolean };
   recoveryFrame?: {
     ok: boolean;
     value?: { kind: string; workflow: string | null; sessionType: string | null };
@@ -169,12 +169,16 @@ async function writeStatusFixture(
   stem: string,
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
+  await git(arcRoot, ["add", "-A"]);
+  await git(arcRoot, ["commit", "-m", "initialize fixture"]);
+  await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
   const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
     `# Metadata: ${stem}`,
     "",
     "- **State:** Active",
+    "- **Owner:** test-user",
     `- **Branch:** ${category}/${stem}`,
   ];
   if (fields.taskList !== undefined) {
@@ -272,7 +276,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     );
   });
 
-  it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {
+  it("does not invent a planning session from a branch-shaped unoccupied checkout", async () => {
     // Seed a commit and check out a planning branch so `git rev-parse --abbrev-ref HEAD`
     // can resolve. `--no-verify` skips the project pre-commit hooks (installed by
     // `arc init`) which validate the project's own files, not test fixtures.
@@ -295,7 +299,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.mode).toBe("session-init");
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("none");
-    expect(envelope.active.value?.sessionType).toBe("planning");
+    expect(envelope.active.value?.sessionType).toBeNull();
   });
 
   it("writes the compaction seed sidecar when requested with session-init", async () => {
@@ -311,6 +315,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",
@@ -372,6 +377,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",
@@ -396,15 +402,21 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.locusState?.ok).toBe(true);
+    expect(envelope.derivedLocusState?.ok).toBe(true);
+    expect(envelope).not.toHaveProperty("locusState");
     expect(envelope.recoveryFrame).toMatchObject({
       ok: true,
-      value: { kind: "none", workflow: null, sessionType: null },
+      value: {
+        kind: "resolved",
+        subject: { kind: "work-unit", key: "foo" },
+        workflow: "process-task-loop",
+        sessionType: "execution",
+      },
     });
     expect(envelope.loadSet?.ok).toBe(true);
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
-      .not.toContain(".arc/active/meta-foo.md");
-    expect(envelope.taskCursor).toBeUndefined();
+      .toContain(".arc/active/meta-foo.md");
+    expect(envelope.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
   });
 
   it("preserves terminal task evidence for an integrating work unit", async () => {
@@ -470,6 +482,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "# Metadata: Foo",
         "",
         "- **State:** Active",
+        "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
         "- **Current Workflow:** [none]",
@@ -497,15 +510,12 @@ describe("session-init E2E — sessionType across type variants", () => {
       join(".arc", "user", "test-user", ".internal", "compaction-seed.json"),
     );
     expect(report.verdict).toMatchObject({
-      status: "stop",
-      ready: false,
-      stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-drift" }),
-        expect.objectContaining({ kind: "task-cursor-unresolved" }),
-      ]),
+      status: "ready",
+      ready: true,
+      stopReasons: [],
       taskCursor: {
-        match: false,
-        actual: null,
+        match: true,
+        actual: expect.objectContaining({ status: "found" }),
       },
     });
   });

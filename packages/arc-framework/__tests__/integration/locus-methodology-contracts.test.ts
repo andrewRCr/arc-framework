@@ -32,7 +32,8 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain("arc errand abandon <slug> [--json]");
       expect(reference).toContain(
         "arc errand promote <slug> [--name <name>] [--type <type>] "
-          + "--floor <derivation|scale> [--json]",
+          + "--floor <derivation|scale> \\\n"
+          + "  [--confirm-foreign-generation <generation>] [--json]",
       );
       expect(reference).not.toMatch(/arc errand open <slug>[^\n]*--type/u);
       expect(reference).not.toContain("arc errand retire");
@@ -56,13 +57,12 @@ describe("locus methodology contracts", () => {
         "utf8",
       );
 
-      expect(init).toContain("locusState: Probe<LocusStateV1>");
-      expect(init).toContain("Dispatch only on `locusState.value.current`");
-      expect(init).toContain("exact role row registered at the entering checkout");
-      expect(init).toContain("`locusState.value.current.kind === \"none\"` → attach nothing");
-      expect(init).toContain("a null lease is the normal ordinary-session state");
+      expect(init).toContain("required `derivedLocusState` slot is the sole session-frame");
+      expect(init).toContain("Dispatch only on `derivedLocusState.value.entering`");
+      expect(init).toContain("require `derivedLocusState.value.active.context`");
+      expect(init).toContain("free-primary\" | \"unmanaged-checkout\" | \"retired");
       expect(init).toContain(
-        "select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES",
+        "Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES",
       );
       expect(init).toContain("If the composite call itself fails, surface the failure and stop.");
       expect(init).toContain(
@@ -77,11 +77,19 @@ describe("locus methodology contracts", () => {
       );
       expect(handoff).not.toContain("`handoffLocus.kind");
       expect(handoff).toContain("Never select the handoff subject from a branch prefix");
-      expect(handoff).toContain("`release-work-unit` with null `leaseId` — release nothing");
+      expect(handoff).toContain("`derivedLocusState`      | Required entering-checkout frame");
+      expect(handoff).toContain("`release-work-unit` — write no generic locus state");
+      expect(handoff).toContain("prior result's exact\n   `parentCheckoutPath`");
+      expect(handoff).not.toContain("arc locus release");
+      expect(handoff).not.toContain("`recordId`");
+      expect(handoff).not.toContain("`leaseId`");
       expect(handoff).toContain("If the composite call itself fails, surface the failure and stop.");
       expect(handoff).not.toContain("Probe failure fallback");
 
-      expect(recovery).toContain("required `recover.locusState` is the sole topology/frame read");
+      expect(recovery).toContain("required `recover.derivedLocusState` is the sole topology/frame read");
+      expect(recovery).toContain("checkout path and optional\nmarker-parent path");
+      expect(recovery).toContain("emits a return-to-base diagnostic");
+      expect(recovery).not.toMatch(/recordId|leaseId|sessionHomePath|activeLocusPath/u);
       expect(recovery).toContain("dispatching only on `report.recover.recoveryFrame.value`");
     }
   });
@@ -127,6 +135,28 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("binds Errand promotion to exact receipt settlement", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const runErrand = await readFile(
+        resolve(base, "system/workflows/arc/supplemental/run-errand.md"),
+        "utf8",
+      );
+      const initWorkUnit = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md"),
+        "utf8",
+      );
+
+      for (const workflow of [runErrand, initWorkUnit]) {
+        expect(workflow).toContain("`settlement.state: commit-required`");
+        expect(workflow).toContain("`settlement.state: settled`");
+      }
+      expect(initWorkUnit).toContain("same exact\n   `subject` and `generation`");
+      expect(initWorkUnit).toContain("immutable `Promotion Receipt`");
+      expect(initWorkUnit).not.toContain("retires the errand record");
+      expect(initWorkUnit).not.toContain("backed by a record");
+    }
+  });
+
   it("keeps only Errand entry on the durable transient path", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
@@ -157,9 +187,9 @@ describe("locus methodology contracts", () => {
       expect(init).toMatch(
         /returned `identity\.key`,\s+`identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
       );
-      expect(init).toMatch(/non-null\s+`activeLocusPath`/u);
+      expect(init).toMatch(/non-null\s+`allocation`/u);
       expect(init).toMatch(
-        /row's checkout path equals the returned `activeLocusPath` and its role subject carries the same claim ID/u,
+        /row's checkout path equals the returned `allocation\.checkoutPath` and its role subject carries the same claim ID/u,
       );
     }
   });

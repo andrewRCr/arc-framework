@@ -22,12 +22,16 @@ import {
   releaseLocusAtRuntime,
   resolveLocusAtRuntime,
 } from "../lib/locus/command-runtime.js";
-import { formatErrandOpenResult } from "./errand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
-import { locusErrorCode, type LocusMutationResultV1 } from "../lib/locus/schema/index.js";
+import {
+  locusErrorCode,
+  type LocusMutationOperation,
+  type LocusMutationResultV1,
+} from "../lib/locus/schema/index.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { unmarkCurrentInboxEntry } from "../commands/user/inbox-mutation.js";
 import type { LocusResolveAction } from "../lib/locus/resolve-driver.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface LocusCliOptions {
   json?: boolean;
@@ -106,9 +110,6 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
       }
       const execInput = io.execInput;
       const { settings } = await readConfigSettings(cwd);
-      const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-        cwd, identity: SlugSchema.parse(identity), exec: io.exec,
-      })).identityGlobalRoot;
       const common = {
         recordId, action, base: settings["branch.base"], identity, cwd,
         confirmedNoLiveSession: options.confirmNoLiveSession === true,
@@ -118,7 +119,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
       };
       return resolveLocusAtRuntime({
         ...common,
-        abandon: async ({ subject, key, selected, confirmedNoLiveSession }) => {
+        abandon: async ({ subject, key, generation, selected, confirmedNoLiveSession }) => {
           if (subject !== "errand") {
             return createLocusMutationResult({
               outcome: "refused",
@@ -128,9 +129,11 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
             });
           }
           return abandonOrdinaryErrandAtRuntime({
-            slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
-            postCreateScript: common.postCreateScript,
-            registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput, selected,
+            slug: key, protection: "full", base: common.base, identity, exec: io.exec, execInput, selected,
+            confirmForeignGeneration: generation ?? undefined,
+            readFrame: () => runDerivedLocusStateProbe({
+              cwd, identity, baseBranch: common.base, exec: io.exec,
+            }),
             confirmedNoLiveSession,
             clearExecuteBound: async (record) => {
               if (record.originEntry === null) return { kind: "idempotent" };
@@ -194,7 +197,7 @@ async function handleLocusMutation(
 }
 
 function createHandlerError(
-  operation: Parameters<typeof locusErrorCode>[0],
+  operation: LocusMutationOperation,
   stage: Parameters<typeof locusErrorCode>[1],
   message: string,
   recommendedPromptText: string,
@@ -208,7 +211,7 @@ function createHandlerError(
 }
 
 async function runLocusMutationBoundary(
-  operation: Parameters<typeof locusErrorCode>[0],
+  operation: LocusMutationOperation,
   json: boolean,
   failurePrompt: string,
   run: () => Promise<LocusMutationResultV1>,
@@ -228,7 +231,18 @@ async function runLocusMutationBoundary(
 }
 
 function emitMutation(result: LocusMutationResultV1, json: boolean): void {
-  const formatted = formatErrandOpenResult(result, json);
+  const success = result.outcome === "applied" || result.outcome === "idempotent";
+  const formatted = {
+    stream: json || success ? "stdout" as const : "stderr" as const,
+    text: json
+      ? `${JSON.stringify(result)}\n`
+      : result.outcome === "error"
+      ? `Error [${result.error.code}]: ${result.error.message}`
+      : result.outcome === "refused"
+      ? `Refused [${result.reason}]: ${result.recommendedPromptText}`
+      : result.recommendedPromptText,
+    exitCode: success ? 0 as const : 1 as const,
+  };
   const text = json ? formatted.text : `${formatted.text.replace(/\n+$/u, "")}\n`;
   (formatted.stream === "stdout" ? process.stdout : process.stderr).write(text);
   process.exitCode = formatted.exitCode;

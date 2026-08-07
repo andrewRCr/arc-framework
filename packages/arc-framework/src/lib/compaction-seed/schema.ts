@@ -22,10 +22,8 @@ import {
 } from "../task-list/cursor.js";
 import {
   LocusAbsolutePathSchema,
-  LocusDigestSchema,
-  LocusTokenSchema,
-  type LocusStateV1,
 } from "../locus/schema/index.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 
 /** Current compaction-seed envelope version. */
 export const COMPACTION_SEED_SCHEMA_VERSION = 1;
@@ -42,24 +40,11 @@ const ABSOLUTE_REPOSITORY_ROOT_SCHEMA = z.string().refine((value) =>
   ), { error: "Repository root must be absolute" });
 const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "integration"]);
 
-/** Atomic correlation hint captured from one resolved live locus generation. */
+/** Checkout-local recovery hint captured from the entering derived frame. */
 export const CompactionSeedLocusHintSchema = z.strictObject({
-  sessionHomePath: LocusAbsolutePathSchema,
-  activeLocusPath: LocusAbsolutePathSchema,
-  recordId: LocusDigestSchema,
-  leaseId: LocusTokenSchema,
-  parentRecordId: LocusDigestSchema.nullable(),
+  checkoutPath: LocusAbsolutePathSchema,
+  parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
 });
-
-/**
- * Why a seed carries no `locus` hint.
- *
- * `none` is a positive attestation that the reader established no current
- * generation; `unavailable` records that ambiguity or a probe error left it
- * unestablished. Absent on pre-model seeds, whose producer wrote no
- * disposition at all.
- */
-export const CompactionSeedLocusAbsenceSchema = z.enum(["none", "unavailable"]);
 
 const COMPACTION_SEED_FIELDS = {
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
@@ -75,33 +60,18 @@ const COMPACTION_SEED_FIELDS = {
   taskCursor: TaskListCursorSchema.nullable(),
   loadSet: LoadSetManifestSchema,
   uncommittedFiles: z.array(REPOSITORY_RELATIVE_PATH_SCHEMA),
-  locus: CompactionSeedLocusHintSchema.optional(),
-  locusAbsence: CompactionSeedLocusAbsenceSchema.optional(),
+  locus: CompactionSeedLocusHintSchema,
 };
 
-function enforceLocusDispositionExclusivity(
-  value: { locus?: unknown; locusAbsence?: unknown },
-  context: z.RefinementCtx,
-): void {
-  if (value.locus !== undefined && value.locusAbsence !== undefined) {
-    context.addIssue({
-      code: "custom",
-      path: ["locusAbsence"],
-      message: "locusAbsence records why locus was omitted; the two are mutually exclusive",
-    });
-  }
-}
-
 /** Strict producer authority for schema-v1 compaction seeds. */
-export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS)
-  .superRefine(enforceLocusDispositionExclusivity);
+export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS);
 
 /** Recursively unknown-stripping authority for persisted seed reads. */
 export const CompactionSeedReaderSchema = z.object({
   ...COMPACTION_SEED_FIELDS,
   taskCursor: TaskListCursorReaderSchema.nullable(),
   loadSet: LoadSetManifestReaderSchema,
-}).superRefine(enforceLocusDispositionExclusivity);
+});
 
 /** Version literal for schema-v1 compaction-seed envelopes. */
 export type CompactionSeedSchemaVersion = z.infer<typeof COMPACTION_SEED_FIELDS.schemaVersion>;
@@ -112,7 +82,7 @@ export type CompactionSeedSessionType = z.infer<typeof SESSION_TYPE_SCHEMA>;
 /** Schema-v1 compaction seed derived from its strict producer authority. */
 export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
 
-/** Optional complete locus correlation hint retained by schema-v1 seeds. */
+/** Exact entering-checkout and marker-parent facts retained by schema-v1 seeds. */
 export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
 
 /** Complete field set compared when auditing one locus-generation hint. */
@@ -120,48 +90,21 @@ export const COMPACTION_SEED_LOCUS_HINT_FIELDS = Object.freeze(
   Object.keys(CompactionSeedLocusHintSchema.shape) as (keyof CompactionSeedLocusHint)[],
 );
 
-/** Recorded reason a schema-v1 seed carries no locus hint. */
-export type CompactionSeedLocusAbsence = z.infer<typeof CompactionSeedLocusAbsenceSchema>;
-
-type LocusStateProbe =
-  | { ok: true; value: LocusStateV1 }
+type DerivedLocusProbe =
+  | { ok: true; value: DerivedLocusFrame }
   | { ok: false; error: unknown };
 
-/** Derive one complete live-locus hint from a shared locus-state probe. */
+/** Derive exact checkout-local recovery facts from the shared entering frame. */
 export function deriveCompactionSeedLocusHint(
-  probe: LocusStateProbe,
+  probe: DerivedLocusProbe,
 ): CompactionSeedLocusHint | null {
-  if (!probe.ok || probe.value.current.kind !== "resolved") return null;
-  const current = probe.value.current;
-  const matches = probe.value.roster.rows.filter((candidate) => candidate.recordId === current.activeRecordId);
-  const row = matches.length === 1 ? matches[0] : undefined;
-  if (row === undefined || row.checkoutPath === null
-    || row.lease === null || row.lease.state !== "live") return null;
+  if (!probe.ok || probe.value.entering.kind !== "selected") return null;
+  const row = probe.value.entering.row;
+  if (row.kind === "unresolved-checkout") return null;
   return {
-    sessionHomePath: row.lease.sessionHomePath,
-    activeLocusPath: row.checkoutPath,
-    recordId: current.activeRecordId,
-    leaseId: row.lease.leaseId,
-    parentRecordId: current.parentRecordId,
+    checkoutPath: row.checkout.path,
+    parentCheckoutPath: row.parentCheckoutPath,
   };
-}
-
-/**
- * Derive why no locus hint could be built, from the same shared probe read.
- *
- * Call only when {@link deriveCompactionSeedLocusHint} returned `null`, so that
- * an omitted hint always carries its reason. A reader-established `current:
- * none` is the one case a later audit can compare against; ambiguity, a probe
- * error, and a resolved generation whose row or lease did not resolve are all
- * equally unestablished.
- *
- * @param probe - The same locus-state probe the hint derivation consumed
- * @returns The disposition to persist alongside the omitted hint
- */
-export function deriveCompactionSeedLocusAbsence(
-  probe: LocusStateProbe,
-): CompactionSeedLocusAbsence {
-  return probe.ok && probe.value.current.kind === "none" ? "none" : "unavailable";
 }
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */

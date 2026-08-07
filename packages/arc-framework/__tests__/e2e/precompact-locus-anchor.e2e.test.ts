@@ -97,21 +97,25 @@ describe("PreCompact locus anchor", () => {
       expect(opened).toMatchObject({
         outcome: "applied",
         operation: "errand-open",
-        recordId: expect.stringMatching(/^sha256:/u),
-        leaseId: expect.any(String),
+        allocation: { checkoutPath: repository },
+        subject: { kind: "errand", key: "seed-probe", claimId: expect.any(String) },
       });
+      expect(opened).not.toHaveProperty("recordId");
+      expect(opened).not.toHaveProperty("leaseId");
+      expect(opened).not.toHaveProperty("activeLocusPath");
+      expect(opened).not.toHaveProperty("sessionHomePath");
       expect(sequence.results[1]).toMatchObject({
         mode: "recover-audit",
         verdict: {
           status: "ready",
           locusHint: {
             expected: {
-              recordId: opened.recordId,
-              leaseId: opened.leaseId,
+              checkoutPath: repository,
+              parentCheckoutPath: null,
             },
             actual: {
-              recordId: opened.recordId,
-              leaseId: opened.leaseId,
+              checkoutPath: repository,
+              parentCheckoutPath: null,
             },
             match: true,
           },
@@ -124,11 +128,12 @@ describe("PreCompact locus anchor", () => {
       )) as Record<string, unknown>;
       expect(seed).toMatchObject({
         locus: {
-          recordId: opened.recordId,
-          leaseId: opened.leaseId,
+          checkoutPath: repository,
+          parentCheckoutPath: null,
         },
       });
       expect(seed).not.toHaveProperty("locusAbsence");
+      expect(JSON.stringify(seed.locus)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);

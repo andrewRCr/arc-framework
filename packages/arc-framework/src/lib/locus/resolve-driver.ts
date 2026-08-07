@@ -13,6 +13,7 @@ export interface LocusResolveDispatch {
   readonly subject: LocusResolveSubject;
   readonly action: LocusResolveAction;
   readonly key: string;
+  readonly generation: string | null;
   readonly selected: SelectedLocusGeneration;
   /** Exact operator attestation already bounded by this driver's lease gate. */
   readonly confirmedNoLiveSession: boolean;
@@ -116,10 +117,18 @@ export async function resolveLocusGeneration(options: {
     subject,
     action: options.action,
     key: row.role.subject.key,
+    generation: terminalGeneration(row),
     selected: { recordId: row.recordId, leaseId: row.lease.leaseId },
     confirmedNoLiveSession: options.confirmedNoLiveSession,
   });
   return createLocusMutationResult({ ...result, operation: "locus-resolve" });
+}
+
+function terminalGeneration(row: LocusRowV1): string | null {
+  const subject = row.role?.subject;
+  return subject?.kind === "errand" && subject.claimId !== null
+    ? `errand-v1/${subject.key}/${subject.claimId}`
+    : null;
 }
 
 function deriveSubject(row: LocusRowV1): LocusResolveSubject | null {

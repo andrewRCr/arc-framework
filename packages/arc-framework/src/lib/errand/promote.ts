@@ -1,11 +1,13 @@
 /** Recoverable ordinary-v3 Errand-to-work-unit promotion composition. */
 
 import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1, LocusRefusalReason,
-  LocusMutationErrorCode } from "../locus/schema/index.js";
+import type { LocusRefusalReason, LocusMutationErrorCode } from "../locus/schema/index.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+import {
+  createErrandPromotionResult,
+  type ErrandPromotionResult,
+} from "./promotion-result.js";
 
 /** Which wrapper floor the Errand crossed. */
 export type PromoteFloor = "derivation" | "scale";
@@ -17,21 +19,31 @@ type IdentityRead =
 
 export interface PromotionFrameReceipt {
   kind: "applied" | "idempotent";
+  subject: { slug: string; claimId: string };
+  generation: string;
   branch: string;
   metaPath: string;
-  recordId: string;
-  leaseId: string;
   checkoutPath: string;
   allocation: "primary" | "spawned";
-  parentReleased: boolean;
+  parentCheckoutPath: string | null;
   originEntry: string | null;
   originEntrySourceDigest: CanonicalDigest | null;
   metaCommitted: boolean;
 }
 
 export type PromotionFrameResult = PromotionFrameReceipt
-  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | {
+      kind: "confirmation-required";
+      subject: { kind: "errand"; slug: string; claimId: string };
+      checkoutPath: string | null;
+      generation: string;
+      destructiveEffect: string;
+      recommendedPromptText: string;
+    }
+  | { kind: "refused"; reason: PromotionRefusalReason; message: string }
   | { kind: "error"; message: string };
+
+export type PromotionRefusalReason = LocusRefusalReason | "authority-unresolved" | "generation-mismatch";
 
 type RetirementResult =
   | { kind: "applied" | "idempotent" }
@@ -43,7 +55,8 @@ export interface PromoteOrdinaryErrandDependencies {
   recoverPromoted(): Promise<PromotionFrameResult | null>;
   replaceFrame(record: OrdinaryErrandRecord): Promise<PromotionFrameResult>;
   retire(record: OrdinaryErrandRecord): Promise<RetirementResult>;
-  settlePromoted(frame: PromotionFrameReceipt): Promise<PromotionFrameResult>;
+  settleInbox(frame: PromotionFrameReceipt): Promise<PromotionFrameResult>;
+  settleOccupancy(frame: PromotionFrameReceipt): Promise<PromotionFrameResult>;
 }
 
 export interface PromoteOrdinaryErrandOptions {
@@ -55,10 +68,15 @@ export interface PromoteOrdinaryErrandOptions {
   dependencies: PromoteOrdinaryErrandDependencies;
 }
 
-/** Promote one live exact ordinary-v3 generation and settle its retained capture after the meta commit. */
+/**
+ * Promote one live exact ordinary-v3 generation and settle its retained capture after the meta commit.
+ *
+ * @param options - Exact promotion target and identity/frame transaction boundaries
+ * @returns The producer-validated prepared, settled, confirmation, refusal, or error result
+ */
 export async function promoteOrdinaryErrand(
   options: PromoteOrdinaryErrandOptions,
-): Promise<LocusMutationResultV1> {
+): Promise<ErrandPromotionResult> {
   if (options.protection !== "full") {
     return refusal("full-protection-required", "Errand promotion requires full branch protection.");
   }
@@ -86,7 +104,13 @@ export async function promoteOrdinaryErrand(
       return refusal("promotion-source-invalid", `No exact Errand or promoted work-unit generation exists for '${slug}'.`);
     }
     if ("result" in recovered) return recovered.result;
-    const settled = await settleCommittedFrame(options.dependencies, recovered.frame);
+    const settled = await runFrame(
+      "locus.errand-promote.occupancy",
+      () => options.dependencies.settleOccupancy(recovered.frame),
+    );
+    if (settled === null) {
+      return failure("locus.errand-promote.occupancy", "Promotion occupancy settlement returned no result.");
+    }
     return "result" in settled ? settled.result : success(slug, settled.frame);
   }
   if (!isOrdinary(read.record) || read.record.slug !== slug || read.record.state !== "open") {
@@ -97,6 +121,10 @@ export async function promoteOrdinaryErrand(
   if (replaced === null) return failure("locus.errand-promote.frame", "Promotion frame returned no result.");
   if ("result" in replaced) return replaced.result;
 
+  const settled = await settleCommittedFrame(options.dependencies, replaced.frame);
+  if ("result" in settled) return settled.result;
+  if (!settled.frame.metaCommitted) return success(slug, settled.frame);
+
   let retired: RetirementResult;
   try {
     retired = await options.dependencies.retire(record);
@@ -106,21 +134,27 @@ export async function promoteOrdinaryErrand(
   if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
   if (retired.kind === "error") return failure("locus.errand-promote.identity", retired.message);
   const frame: PromotionFrameReceipt = {
-    ...replaced.frame,
-    kind: replaced.frame.kind === "applied" || retired.kind === "applied" ? "applied" : "idempotent",
+    ...settled.frame,
+    kind: settled.frame.kind === "applied" || retired.kind === "applied" ? "applied" : "idempotent",
   };
-  const settled = await settleCommittedFrame(options.dependencies, frame);
-  return "result" in settled ? settled.result : success(slug, settled.frame);
+  const occupied = await runFrame(
+    "locus.errand-promote.occupancy",
+    () => options.dependencies.settleOccupancy(frame),
+  );
+  if (occupied === null) {
+    return failure("locus.errand-promote.occupancy", "Promotion occupancy settlement returned no result.");
+  }
+  return "result" in occupied ? occupied.result : success(slug, occupied.frame);
 }
 
 async function settleCommittedFrame(
   dependencies: PromoteOrdinaryErrandDependencies,
   frame: PromotionFrameReceipt,
-): Promise<{ frame: PromotionFrameReceipt } | { result: LocusMutationResultV1 }> {
-  if (!frame.metaCommitted || frame.originEntry === null) return { frame };
+): Promise<{ frame: PromotionFrameReceipt } | { result: ErrandPromotionResult }> {
+  if (!frame.metaCommitted) return { frame };
   const settled = await runFrame(
     "locus.errand-promote.inbox",
-    () => dependencies.settlePromoted(frame),
+    () => dependencies.settleInbox(frame),
   );
   if (settled === null) {
     return { result: failure("locus.errand-promote.inbox", "Promotion capture settlement returned no result.") };
@@ -131,7 +165,7 @@ async function settleCommittedFrame(
 async function runFrame(
   code: LocusMutationErrorCode,
   operation: () => Promise<PromotionFrameResult | null>,
-): Promise<{ frame: PromotionFrameReceipt } | { result: LocusMutationResultV1 } | null> {
+): Promise<{ frame: PromotionFrameReceipt } | { result: ErrandPromotionResult } | null> {
   let frame: PromotionFrameResult | null;
   try {
     frame = await operation();
@@ -139,6 +173,19 @@ async function runFrame(
     return { result: failure(code, message(error)) };
   }
   if (frame === null) return null;
+  if (frame.kind === "confirmation-required") {
+    return {
+      result: createErrandPromotionResult({
+        outcome: "confirmation-required",
+        operation: "errand-promote",
+        subject: frame.subject,
+        checkoutPath: frame.checkoutPath,
+        generation: frame.generation,
+        destructiveEffect: frame.destructiveEffect,
+        recommendedPromptText: frame.recommendedPromptText,
+      }),
+    };
+  }
   if (frame.kind === "refused") return { result: refusal(frame.reason, frame.message) };
   if (frame.kind === "error") return { result: failure(code, frame.message) };
   return { frame };
@@ -147,21 +194,33 @@ async function runFrame(
 function success(
   slug: string,
   frame: PromotionFrameReceipt,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
+): ErrandPromotionResult {
+  return createErrandPromotionResult({
     outcome: frame.kind,
     operation: "errand-promote",
-    allocation: { kind: frame.allocation, checkoutPath: frame.checkoutPath },
-    recordId: frame.recordId,
-    leaseId: frame.leaseId,
-    activeLocusPath: frame.checkoutPath,
-    sessionHomePath: frame.checkoutPath,
-    identity: null,
-    originEntry: frame.originEntry,
-    originEntrySourceDigest: frame.originEntrySourceDigest,
-    restoredParent: null,
-    nextOffer: null,
-    recommendedPromptText: `Promoted Errand '${slug}' to '${frame.branch}' and made its checkout the work-unit session home.`,
+    subject: { kind: "errand", slug: frame.subject.slug, claimId: frame.subject.claimId },
+    generation: frame.generation,
+    branch: frame.branch,
+    metaPath: frame.metaPath,
+    checkoutPath: frame.checkoutPath,
+    allocation: frame.allocation,
+    parentCheckoutPath: frame.parentCheckoutPath,
+    settlement: frame.metaCommitted
+      ? {
+          state: "settled",
+          identity: "retired",
+          originEntry: null,
+          originEntrySourceDigest: null,
+        }
+      : {
+          state: "commit-required",
+          identity: "retained",
+          originEntry: frame.originEntry,
+          originEntrySourceDigest: frame.originEntrySourceDigest,
+        },
+    recommendedPromptText: frame.metaCommitted
+      ? `Promoted Errand '${slug}' to '${frame.branch}' and settled its exact originating generation.`
+      : `Commit '${frame.metaPath}', then rerun this exact promotion to settle the originating Errand generation.`,
   });
 }
 
@@ -169,14 +228,25 @@ function isOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRe
   return record.kind === "errand" && record.purpose === "errand";
 }
 
-function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({ outcome: "refused", operation: "errand-promote", reason, recommendedPromptText: text });
+function refusal(reason: PromotionRefusalReason, text: string): ErrandPromotionResult {
+  return createErrandPromotionResult({
+    outcome: "refused",
+    operation: "errand-promote",
+    subject: null,
+    checkoutPath: null,
+    generation: null,
+    reason,
+    recommendedPromptText: text,
+  });
 }
 
-function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
+function failure(code: LocusMutationErrorCode, text: string): ErrandPromotionResult {
+  return createErrandPromotionResult({
     outcome: "error",
     operation: "errand-promote",
+    subject: null,
+    checkoutPath: null,
+    generation: null,
     error: { code, message: text || "Errand promotion failed" },
     recommendedPromptText: "Inspect the retained Errand identity and local frame evidence before retrying.",
   });

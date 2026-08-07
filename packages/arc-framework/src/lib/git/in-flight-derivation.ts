@@ -28,7 +28,7 @@ import {
 } from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { readLiveDecomposeTransientClaimProjection } from "../work-unit/decompose-transient-claim-store.js";
-import type { LocusStateV1 } from "../locus/schema/index.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
 import type { GitExec } from "./exec.js";
@@ -260,8 +260,8 @@ export interface DeriveInFlightOptions {
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   /** Whether the record index was read completely; false degrades record-dependent classification. */
   errandRecordsComplete?: boolean;
-  /** Complete locus projection; null means cleanup classification is unavailable. */
-  locusState?: LocusStateV1 | null;
+  /** Complete derived checkout roster; null means cleanup classification is unavailable. */
+  derivedRoster?: readonly DerivedCheckoutRow[] | null;
   /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
@@ -318,7 +318,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         localBranchesComplete,
         errandSlugByBranch,
         errandRecordsComplete,
-        options.locusState,
+        options.derivedRoster,
       ),
     ),
   );
@@ -924,7 +924,7 @@ async function classifyInput(
   localBranchesComplete: boolean,
   errandSlugByBranch: ReadonlyMap<string, string>,
   errandRecordsComplete: boolean,
-  locusState: LocusStateV1 | null | undefined,
+  derivedRoster: readonly DerivedCheckoutRow[] | null | undefined,
 ): Promise<InputClassification> {
   const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths, localBranches, localBranchesComplete);
@@ -977,7 +977,8 @@ async function classifyInput(
     };
   }
   if (listed.paths.length === 0) {
-    const locusOwned = locusState !== undefined && locusState !== null && locusOwnsBranch(locusState, branch);
+    const locusOwned = derivedRoster !== undefined && derivedRoster !== null
+      && locusOwnsBranch(derivedRoster, branch);
     if (locusOwned) {
       // Locus ownership answers whether this branch is residue; it does not answer
       // whether this checkout is authoritative for its branch location. A worktree
@@ -998,7 +999,7 @@ async function classifyInput(
       residue: {
         residue: branchResidue(
           input,
-          errandRecordsComplete && locusState !== null ? "no-record-or-meta" : "classification-unavailable",
+          errandRecordsComplete && derivedRoster !== null ? "no-record-or-meta" : "classification-unavailable",
         ),
         index: input.index,
         source: input.source,

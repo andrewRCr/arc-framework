@@ -133,7 +133,7 @@ Enter the dependent's own checkout after the tracked-branch pointer removal has 
 Run the bounded current-WU reconcile from that checkout:
 
 ```bash
-arc wu reconcile {name} --attach-session --apply --json
+arc wu reconcile {name} --apply --json
 ```
 
 - `clean` — continue without a write, stage, or commit.
@@ -162,7 +162,7 @@ arc wu reconcile {name} --attach-session --apply --json
 
 The unit is active again, its artifacts back on the re-attached branch. Continue the
 [task loop][process-task-loop] from that WU-owned checkout. On `--here`, do not treat the physical primary as free
-until the unit's exact teardown restores record-free base.
+until the unit's exact teardown removes the WU marker and restores base.
 
 ## Related workflows
 

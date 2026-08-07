@@ -20,7 +20,7 @@ duration of this workflow.
 
 Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
 the session-init pattern. This is **probe-1**; refresh after every subject driver or tracked-state mutation so the
-next operation consumes the latest exact session locus generation.
+next operation consumes the latest exact entering-checkout facts.
 
 ```bash
 arc status --session-handoff --json
@@ -29,8 +29,8 @@ arc status --session-handoff --json
 | Field                    | Contents                                                                                                             |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                    |
-| `locusState`             | Required single reader-owned session locus projection; sole session-frame and subject authority                      |
-| `locusGuidance`          | CLI-precomposed current/recovery/reconciliation/cleanup narration from the same session locus read                   |
+| `derivedLocusState`      | Required entering-checkout frame; sole handoff subject and workflow/session authority                                |
+| `locusGuidance`          | CLI-precomposed current-checkout narration and sibling diagnostics from the same derived frame                       |
 | `handoffLocus`           | `Probe<HandoffLocusPlan>` for `between-work-units`, `release-work-unit`, `leave-errand`, or `refused`                |
 | `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header |
 | `dirty`                  | `{state: clean / dirty, fileCount}`. Refresh for the SESSION-NOTES "Uncommitted Work" section                        |
@@ -49,9 +49,9 @@ On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, an
 drift for Confirm Handoff — calm parallel-session steady state vs inspect-before-rely.
 
 **Slot freshness contract.** Probe-1 captures pre-path state. Subject leave, active-WU meta-file commit, and
-between-WUs context routing may mutate session locus, worktree, dirty, and head state; refresh `locusState`,
+between-WUs context routing may mutate checkout, worktree, dirty, and head state; refresh `derivedLocusState`,
 `locusGuidance`, `handoffLocus`, `worktree`, `dirty`, and `head` after each such operation. Use the latest refresh
-for exact release and confirmation. Other slots, including `pathSet`, remain stable from probe-1.
+for dispatch and confirmation. Other slots, including `pathSet`, remain stable from probe-1.
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -142,7 +142,7 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
 3. **Preserve and leave the exact Errand** — push the checkpoint through the normal Errand path, then invoke
    `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
    the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
-   `restoredParent`. Refusal or error stops; never hand-build the sequence.
+   `parentCheckoutPath`. Refusal or error stops; never hand-build the sequence.
 
     - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
       (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
@@ -162,9 +162,9 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     arc status --session-handoff --json
     ```
 
-   Require the new `handoffLocus.value` to be `release-work-unit` for the exact `parentRecordId`, or
-   `between-work-units` when the Errand was cold. Any other result stops. Continue through the matching
-   WU or between-WUs path; do not end handoff at the transient.
+   Require the new `handoffLocus.value` to be `release-work-unit` at the prior result's exact
+   `parentCheckoutPath`, or `between-work-units` when the Errand was cold. Any other result stops. Continue through
+   the matching WU or between-WUs path; do not end handoff at the transient.
 
 ## Between-WUs Handoff Path
 
@@ -194,7 +194,7 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
 ## Active-WU Handoff Format
 
 Use this path when `handoffLocus.value.kind === "release-work-unit"`. Resolve the active meta only through the
-selected WU row's derived load set; if the `active` artifact slot disagrees, stop instead of disambiguating.
+selected WU row's derived context; if the `active` artifact slot disagrees, stop instead of disambiguating.
 
 Update session state files before ending session:
 
@@ -577,17 +577,12 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
 After state capture and sync, require `handoffLocus.ok === true` and consume the latest `handoffLocus.value`:
 
-- `release-work-unit` with non-null `leaseId` — invoke
-  `arc locus release <recordId> --lease <leaseId> --json` exactly once and render its
-  `recommendedPromptText`. A generation mismatch or refusal stops and leaves the newer lease untouched.
-- `release-work-unit` with null `leaseId` — release nothing; ordinary WU work retained its durable role without
-  attaching a lease.
-- `between-work-units` — release nothing; a cold transient's subject driver already popped its role and the
-  primary remains record-free.
+- `release-work-unit` — write no generic locus state; the WU remains derived from its checkout and tracked lifecycle.
+- `between-work-units` — write no generic locus state; a cold transient's subject driver already settled its own
+  occupancy.
 - Any transient or `refused` result — stop. Its subject driver has not restored a handoff-safe frame.
 
-The subject leave/close driver owns transient role cleanup. Never release a guessed WU, a parent token copied from
-stale probe-1, or a fabricated lease for a record-free primary.
+The subject leave/close driver owns transient settlement. Never invent a WU or parent from stale probe-1 facts.
 
 ## Confirm Handoff
 
@@ -618,8 +613,7 @@ For active-WU and between-WUs handoff, render **Sync:** as one of these results 
 For Errand handoff, render **Errand:** with the checkpoint commit hash or `no new commit`, plus the selected
 branch's push result.
 
-**Checkout:** [exact WU lease released | work-unit checkout retained; no lease attached | Errand checkout retained
-| record-free between work units]
+**Checkout:** [work-unit checkout retained | Errand checkout retained | between work units]
 
 **Next session:** [Task list pointer (on-task-list), exact retained Errand checkout, freeform (off-task-list), or
 `session-init discovery / user direction` between WUs]

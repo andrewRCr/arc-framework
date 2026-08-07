@@ -8,9 +8,9 @@ import {
 } from "../../../src/lib/locus/entry-boundary.js";
 import type { LocusMutationResultV1 } from "../../../src/lib/locus/schema/index.js";
 
-const SUCCESS: LocusMutationResultV1 = {
+const SUCCESS: Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }> = {
   outcome: "applied",
-  operation: "errand-open",
+  operation: "locus-attach",
   allocation: { kind: "spawned", checkoutPath: "/work/transient" },
   recordId: `sha256:${"a".repeat(64)}`,
   leaseId: "b".repeat(32),
@@ -26,7 +26,7 @@ const SUCCESS: LocusMutationResultV1 = {
 describe("appendDirectedCommandAdvisory", () => {
   it("keeps a separate active checkout admitted and adds operator-confirmed direction guidance", () => {
     const result = appendDirectedCommandAdvisory(SUCCESS);
-    expect(result).toMatchObject({ outcome: "applied", operation: "errand-open" });
+    expect(result).toMatchObject({ outcome: "applied", operation: "locus-attach" });
     expect(result.recommendedPromptText).toContain("Continue in /work/transient.");
     expect(result.recommendedPromptText).toMatch(/confirm.*direct commands.*active (?:checkout|locus)/iu);
     expect(result.recommendedPromptText).toMatch(/cold session/iu);

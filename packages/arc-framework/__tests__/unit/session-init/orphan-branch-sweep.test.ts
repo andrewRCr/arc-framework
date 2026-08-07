@@ -61,6 +61,7 @@ function runSweep(
     worktreeIdentity: { kind: "primary" },
     baseBranch: "main",
     errandBranches: new Set(options.errandBranches ?? []),
+    derivedRoster: [],
     exec: buildExec(branches, options.shipped ?? []),
   });
 }
@@ -150,6 +151,7 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
       errandBranches: null,
+      derivedRoster: [],
       exec,
     });
 
@@ -164,6 +166,7 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "linked", path: "/wt/feature" },
       baseBranch: "main",
       errandBranches: new Set(),
+      derivedRoster: [],
       exec,
     });
 
@@ -178,6 +181,7 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
       errandBranches: new Set(),
+      derivedRoster: [],
       exec: exec as GitExec,
     });
 

@@ -78,6 +78,23 @@ describe("session envelope normalization contract", () => {
       expect(path.startsWith(primary), path).toBe(true);
     }
   });
+
+  it("keeps randomized SHA-256 generations stable and parseable", () => {
+    const normalized = normalizeSessionEnvelope(
+      {
+        first: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        repeated: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        second: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+      { roots: [] },
+    );
+
+    expect(normalized).toEqual({
+      first: `sha256:${"1".padStart(64, "0")}`,
+      repeated: `sha256:${"1".padStart(64, "0")}`,
+      second: `sha256:${"2".padStart(64, "0")}`,
+    });
+  });
 });
 
 describe("session envelope wire compatibility", () => {
@@ -164,17 +181,14 @@ describe("recovery-audit wire compatibility", () => {
     expect(result.exitCode, result.stderr).toBe(0);
   }
 
-  it("locks the complete record-less-checkout report", async () => {
+  it("locks the complete checkout-derived recovery report", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     await writeSeed(fixture);
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
     expect(normalized.verdict).toMatchObject({
-      status: "stop",
-      ready: false,
-      stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-drift" }),
-        expect.objectContaining({ kind: "task-cursor-unresolved" }),
-      ]),
+      status: "ready",
+      ready: true,
+      stopReasons: [],
     });
     await expectGolden("recovery-audit-ready.json", normalized);
   });
@@ -188,9 +202,7 @@ describe("recovery-audit wire compatibility", () => {
       status: "stop",
       ready: false,
       stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-drift" }),
         expect.objectContaining({ kind: "dirty-path-drift" }),
-        expect.objectContaining({ kind: "task-cursor-unresolved" }),
       ]),
     });
     await expectGolden("recovery-audit-dirty-path-drift.json", normalized);

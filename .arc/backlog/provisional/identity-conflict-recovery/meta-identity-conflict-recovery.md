@@ -1,14 +1,14 @@
-# Metadata: session-locus-operability-hardening
+# Metadata: identity-conflict-recovery
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-session-locus-operability-hardening.md`
+- **Design:** `draft-identity-conflict-recovery.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Groom the incident-derived fault-containment and durable session-ownership contract. Preserve
-  exact-generation and foreign-live safety while ensuring one unrelated degraded locus cannot halt healthy work.
+- **Next Action:** Keep provisional. Reconsider promotion only after the draft's evidence trigger is met.
 
 - **PR URL:** [none]
 - **Completed:** [none]

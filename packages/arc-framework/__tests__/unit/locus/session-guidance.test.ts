@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveLocusSessionGuidance } from "../../../src/lib/locus/session-guidance.js";
+import {
+  deriveDerivedLocusSessionGuidance,
+  deriveLocusSessionGuidance,
+} from "../../../src/lib/locus/session-guidance.js";
+import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 import type { LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
 
@@ -134,6 +138,60 @@ describe("deriveLocusSessionGuidance", () => {
     })).toEqual({
       kind: "unavailable",
       message: "Session locus state is unavailable (runtime): identity tree unavailable",
+    });
+  });
+});
+
+describe("deriveDerivedLocusSessionGuidance", () => {
+  function frame(kind: "free-primary" | "unresolved-checkout"): DerivedLocusFrame {
+    const unresolved = kind === "unresolved-checkout";
+    const row = {
+      kind,
+      checkout: {
+        path: "/repo",
+        head: "a".repeat(40),
+        branch: "main",
+        detached: false,
+        primary: true,
+      },
+      subject: null,
+      markerGeneration: null,
+      parentCheckoutPath: null,
+      origin: null,
+      identity: null,
+      context: null,
+      lifecycleLocation: null,
+      diagnostics: unresolved
+        ? [{ code: "subject-unresolved", message: "current meta is unreadable" }]
+        : [],
+    } as const;
+    return {
+      roster: [row],
+      entering: { kind: "selected", row },
+      primaryAvailability: unresolved
+        ? { kind: "unsafe", checkoutPath: "/repo", reasons: ["subject-unresolved"] }
+        : { kind: "free", checkoutPath: "/repo" },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    };
+  }
+
+  it("precomposes an entering-checkout stop from only that row's diagnostics", () => {
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value: frame("unresolved-checkout") })).toEqual({
+      kind: "unavailable",
+      message: "Entering checkout /repo is unresolved (subject-unresolved: current meta is unreadable).",
+    });
+  });
+
+  it("keeps a healthy current row ready when identity discovery alone is unavailable", () => {
+    const value: DerivedLocusFrame = {
+      ...frame("free-primary"),
+      identityDiscovery: { kind: "error", stage: "tree", message: "identity root unavailable" },
+    };
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
+      kind: "ready",
+      entering: "free-primary at /repo",
+      identityDiscovery: "Transient identity discovery is unavailable at tree: identity root unavailable",
     });
   });
 });

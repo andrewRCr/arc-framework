@@ -120,7 +120,6 @@ describe("runMaterialize", () => {
       inPlace: true,
       branch: "feat/foo",
       wuName: "foo",
-      attachSession: true,
       createBranch: false,
     });
   });

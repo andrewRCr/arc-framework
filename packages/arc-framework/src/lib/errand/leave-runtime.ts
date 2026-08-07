@@ -1,38 +1,23 @@
-/** Production preservation, identity, and occupancy composition for ordinary Errand leave. */
-
-import { access, lstat, readFile, realpath } from "node:fs/promises";
+/** Production identity, preservation, and derived-occupancy composition for Errand leave. */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import {
-  classifyTransientWorktreeProvenance,
-  readWorktreeMarkerGeneration,
-} from "../git/worktree-marker.js";
-import { createLocusEvidenceIO } from "../locus/evidence.js";
-import { popOwnedLocusRole, validateOwnedLocusRole } from "../locus/mutation.js";
-import {
-  createPlatformProcessAncestryInspector,
-  createPlatformProcessInspector,
-} from "../locus/platform-inspectors.js";
-import { acquireSessionAnchor } from "../locus/process-inspector.js";
-import { readPrimarySafety } from "../locus/primary-safety.js";
-import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
-import { readLocusState } from "../locus/reader.js";
-import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusMutationResultV1,
-  LocusProcessAnchor,
-  LocusRowV1,
-  LocusStateV1,
-} from "../locus/schema/index.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { observeExactChangeRequest } from "./change-request-lifecycle.js";
+import {
+  authorizeErrandTerminal,
+  type ErrandTerminalAuthority,
+  type ErrandTerminalSubject,
+} from "./terminal-authority.js";
+import {
+  createTerminalOccupancyIO,
+  settleTerminalOccupancy,
+} from "./terminal-occupancy.js";
 import {
   leaveOrdinaryErrand,
   type LeaveAuthorization,
   type LeaveCleanupResult,
 } from "./leave.js";
-import { closeLeaveOccupancy } from "./leave-cleanup.js";
-import type { LockedLocusGenerationAcquisition } from "./locked-generation.js";
-import { provePauseHead, ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
+import { ordinaryErrandTransform, provePauseHead, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 
 export interface LeaveOrdinaryErrandRuntimeOptions {
@@ -42,57 +27,64 @@ export interface LeaveOrdinaryErrandRuntimeOptions {
   readonly base: string;
   readonly updatedAt: string;
   readonly identity: string;
-  readonly identityGlobalUserDir: string;
-  readonly postCreateScript: string;
-  readonly registeredHarnessDirs: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
+  readonly readFrame: () => Promise<DerivedLocusFrame>;
+  readonly confirmForeignGeneration?: string;
 }
 
-/** Run one production ordinary-Errand leave. */
+/** Run one ordinary Errand leave from identity and derived checkout authority. */
 export async function leaveOrdinaryErrandAtRuntime(
   options: LeaveOrdinaryErrandRuntimeOptions,
-): Promise<LocusMutationResultV1> {
+): ReturnType<typeof leaveOrdinaryErrand> {
   if (options.protection !== "full") {
-    return leaveOrdinaryErrand({
-      ...options,
-      dependencies: inertDependencies(),
-    });
+    return leaveOrdinaryErrand({ ...options, dependencies: inertDependencies() });
   }
-  const inspector = createPlatformProcessInspector();
-  const ancestry = createPlatformProcessAncestryInspector();
-  const anchor = await acquireSessionAnchor(process.pid, ancestry);
-  if (anchor.kind !== "process") {
-    return createLocusMutationResult({
-      outcome: "refused",
-      operation: "errand-leave",
-      reason: "lease-unknown",
-      recommendedPromptText: `Errand leave cannot establish a durable session anchor: ${anchor.reason}`,
-    });
-  }
-  const pathFlavor = process.platform === "win32" ? "windows" : "posix";
-  const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  const readState = () => readRuntimeState(options, anchor, inspector, pathFlavor);
+  const identityIO = { exec: options.exec, execInput: options.execInput, identity: options.identity };
+  const occupancyIO = createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base });
+
   return leaveOrdinaryErrand({
     slug: options.slug,
     state: options.state,
     protection: options.protection,
     updatedAt: options.updatedAt,
     dependencies: {
-      readIdentity: () => transactTransientIdentities(io, {
+      readIdentity: () => transactTransientIdentities(identityIO, {
         remote: "origin",
         message: `arc: reconcile errand identity ${options.slug}`,
         transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
       }),
-      authorize: async (record) => options.state === "paused"
-        ? authorizePause(options, record, await readState())
-        : authorizeAwaitingMerge(options, record, await readState()),
-      persist: (transition) => transactTransientIdentities(io, {
+      authorize: (record) => authorizePreservation(options, record, occupancyIO),
+      persist: (transition) => transactTransientIdentities(identityIO, {
         remote: "origin",
         message: `arc: leave errand ${options.slug} ${options.state}`,
         transform: ordinaryErrandTransform(transition),
       }),
-      cleanup: (record) => cleanupOccupancy(options, record, anchor, inspector, pathFlavor, readState),
+      cleanup: async (record) => {
+        const authority = await readAuthority(options, record);
+        if (authority.kind !== "authorized") return authorityFailure(authority);
+        const primaryCheckoutPath = primaryPath(await options.readFrame());
+        if (primaryCheckoutPath === null) {
+          return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
+        }
+        const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath, io: occupancyIO });
+        if (settled.kind === "refused") {
+          return { kind: "refused", reason: "preservation-unproven", message: settled.message };
+        }
+        if (settled.kind === "error") {
+          return { kind: "error", code: "locus.errand-leave.cleanup", message: settled.message };
+        }
+        return {
+          kind: settled.kind,
+          allocation: settled.checkoutPath === null ? null : {
+            kind: authority.row?.checkout.primary === true ? "primary" : "spawned",
+            checkoutPath: settled.checkoutPath,
+          },
+          recordId: null,
+          restoredParent: null,
+          parentCheckoutPath: settled.parentCheckoutPath,
+        };
+      },
     },
   });
 }
@@ -102,60 +94,28 @@ function inertDependencies(): Parameters<typeof leaveOrdinaryErrand>[0]["depende
   return { readIdentity: unavailable, authorize: unavailable, persist: unavailable, cleanup: unavailable };
 }
 
-async function authorizePause(
+async function authorizePreservation(
   options: LeaveOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
-  state: LocusStateV1,
+  occupancyIO: ReturnType<typeof createTerminalOccupancyIO>,
 ): Promise<LeaveAuthorization> {
-  const target = exactOccupancy(state, record);
-  if (target.kind !== "found") return target.result;
-  const occupancyEstablishedAt = target.row.lease?.attachedAt;
-  if (occupancyEstablishedAt === undefined) {
-    return { kind: "refused", reason: "record-malformed", message: "Errand occupancy lease is incomplete." };
+  const authority = await readAuthority(options, record);
+  if (authority.kind !== "authorized") return authorityFailure(authority);
+  if (authority.row === null || authority.checkoutPath === null) {
+    return { kind: "refused", reason: "checkout-missing", message: "Open Errand checkout is absent." };
   }
-  const clean = await cleanExactHead(options.exec, target.row.checkoutPath, record.branch);
-  if (clean.kind !== "ready") return clean.result;
+  const inspected = await occupancyIO.inspect(authority.checkoutPath);
+  if (inspected.dirty || inspected.branch !== record.branch || inspected.head !== authority.row.checkout.head) {
+    return {
+      kind: "refused",
+      reason: "preservation-unproven",
+      message: "Errand checkout is dirty, moved, or off its exact branch head.",
+    };
+  }
   const proof = await provePauseHead(options.exec, {
     remote: "origin",
     branch: record.branch,
-    savedHead: clean.head,
-  });
-  if (proof.kind === "refused") {
-    return { kind: "refused", reason: "preservation-unproven", message: proof.reason };
-  }
-  if (proof.kind === "error") {
-    return { kind: "error", code: `locus.errand-leave.pause-${proof.stage}`, message: proof.message };
-  }
-  return {
-    kind: "authorized",
-    occupancyEstablishedAt,
-    transition: {
-      kind: "pause",
-      previous: record,
-      savedHead: clean.head,
-      evidence: proof.evidence,
-      updatedAt: options.updatedAt,
-    },
-  };
-}
-
-async function authorizeAwaitingMerge(
-  options: LeaveOrdinaryErrandRuntimeOptions,
-  record: OrdinaryErrandRecord,
-  state: LocusStateV1,
-): Promise<LeaveAuthorization> {
-  const target = exactOccupancy(state, record);
-  if (target.kind !== "found") return target.result;
-  const occupancyEstablishedAt = target.row.lease?.attachedAt;
-  if (occupancyEstablishedAt === undefined) {
-    return { kind: "refused", reason: "record-malformed", message: "Errand occupancy lease is incomplete." };
-  }
-  const clean = await cleanExactHead(options.exec, target.row.checkoutPath, record.branch);
-  if (clean.kind !== "ready") return clean.result;
-  const proof = await provePauseHead(options.exec, {
-    remote: "origin",
-    branch: record.branch,
-    savedHead: clean.head,
+    savedHead: inspected.head,
   });
   if (proof.kind === "refused") {
     return { kind: "refused", reason: "preservation-unproven", message: proof.reason };
@@ -163,17 +123,24 @@ async function authorizeAwaitingMerge(
   if (proof.kind === "error") {
     return { kind: "error", code: `locus.errand-leave.${proof.stage}`, message: proof.message };
   }
-  const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, clean.head);
-  if (observed.kind !== "observed") {
+  if (options.state === "paused") {
     return {
-      kind: "refused",
-      reason: "change-request-unverifiable",
-      message: observed.message,
+      kind: "authorized",
+      transition: {
+        kind: "pause",
+        previous: record,
+        savedHead: inspected.head,
+        evidence: proof.evidence,
+        updatedAt: options.updatedAt,
+      },
     };
+  }
+  const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, inspected.head);
+  if (observed.kind !== "observed") {
+    return { kind: "refused", reason: "change-request-unverifiable", message: observed.message };
   }
   return {
     kind: "authorized",
-    occupancyEstablishedAt,
     transition: {
       kind: "await-merge",
       previous: record,
@@ -185,264 +152,30 @@ async function authorizeAwaitingMerge(
   };
 }
 
-async function cleanupOccupancy(
+async function readAuthority(
   options: LeaveOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
-  anchor: LocusProcessAnchor,
-  inspector: ReturnType<typeof createPlatformProcessInspector>,
-  pathFlavor: "windows" | "posix",
-  readState: () => Promise<LocusStateV1>,
-): Promise<LeaveCleanupResult> {
-  const state = await readState();
-  const target = exactOccupancy(state, record);
-  if (target.kind !== "found") {
-    if (target.result.reason === "checkout-missing") {
-      return { kind: "idempotent", allocation: null, recordId: null, restoredParent: restoredCurrentWu(state) };
-    }
-    return target.result;
-  }
-  const { row } = target;
-  const checkoutPath = row.checkoutPath;
-  const recordId = row.recordId;
-  const leaseId = row.lease?.leaseId;
-  if (checkoutPath === null || recordId === null || leaseId === undefined) {
-    return { kind: "refused", reason: "record-malformed", message: "Errand occupancy is incomplete." };
-  }
-  const runtime = createNodeProvisioningDependencies({
-    exec: options.exec,
-    identity: options.identity,
-    anchor,
-    inspector,
-    pathFlavor,
-    base: options.base,
-    branch: record.branch,
-    postCreateScript: options.postCreateScript,
-    registeredHarnessDirs: options.registeredHarnessDirs,
+): Promise<ErrandTerminalAuthority> {
+  const subject: ErrandTerminalSubject = { kind: "errand", slug: record.slug, claimId: record.claimId };
+  return authorizeErrandTerminal({
+    frame: await options.readFrame(),
+    operation: "leave",
+    subject,
+    confirmForeignGeneration: options.confirmForeignGeneration,
+    retryArguments: ["--state", options.state],
   });
-  const expectations = {
-    recordId,
-    checkoutPath,
-    expectedSubject: { kind: "errand" as const, key: record.slug, claimId: record.claimId },
-    expectedLeaseId: leaseId,
-    enteringAnchor: anchor,
+}
+
+function authorityFailure(
+  authority: Exclude<ErrandTerminalAuthority, { kind: "authorized" }>,
+): Extract<LeaveAuthorization | LeaveCleanupResult, { kind: "refused" }> {
+  return {
+    kind: "refused",
+    reason: authority.kind === "confirmation-required" ? "role-conflict" : "identity-conflict",
+    message: authority.kind === "confirmation-required" ? authority.recommendedPromptText : authority.message,
   };
-
-  return closeLeaveOccupancy({
-    target: {
-      checkoutPath,
-      recordId,
-      leaseId,
-      allocation: row.primary === true ? "primary" : "spawned",
-    },
-    restoredParent: restoredParent(state, row),
-    dependencies: {
-      acquireLock: async (): Promise<LockedLocusGenerationAcquisition> => {
-        const acquired = await runtime.acquireRecordLock(checkoutPath);
-        if (acquired.kind !== "acquired") return acquired;
-        const read = () => runtime.readRecord(acquired.handle.recordPath, acquired.handle);
-        return {
-          kind: "acquired",
-          generation: {
-            validate: async () => validateOwnedLocusRole(await read(), expectations),
-            pop: () => popOwnedLocusRole({
-              ...expectations,
-              operation: "errand-leave",
-              recommendedPromptText: "Errand occupancy removed.",
-              io: {
-                read,
-                remove: (bytes) => runtime.removeRecord(acquired.handle.recordPath, bytes, acquired.handle),
-              },
-            }),
-          },
-          release: () => runtime.releaseRecordLock(acquired.handle),
-        };
-      },
-      preserveCheckout: () => preserveExactCheckout(options, record, row, state.roster.primaryPath),
-    },
-  });
 }
 
-/** Take the checkout off the Errand — restore the primary, remove the worktree, or prove the branch ref. */
-async function preserveExactCheckout(
-  options: LeaveOrdinaryErrandRuntimeOptions,
-  record: OrdinaryErrandRecord,
-  row: LocusRowV1,
-  primaryPath: string,
-): Promise<Extract<LeaveCleanupResult, { kind: "refused" }> | null> {
-  const checkoutPath = row.checkoutPath;
-  if (checkoutPath === null) {
-    return { kind: "refused", reason: "checkout-missing", message: "Errand checkout is absent." };
-  }
-  const checkoutExists = await access(checkoutPath).then(() => true, () => false);
-  if (!checkoutExists) {
-    return exactBranchRef(options.exec, record.branch, terminalHead(record));
-  }
-  if (row.primary === true) {
-    return restorePrimaryCheckout(options.exec, checkoutPath, options.base, record);
-  }
-  const ready = await cleanExactHead(options.exec, checkoutPath, record.branch, terminalHead(record));
-  if (ready.kind !== "ready") return ready.result;
-  const marker = await readWorktreeMarkerGeneration(checkoutPath);
-  const provenance = classifyTransientWorktreeProvenance(marker, {
-    kind: "errand",
-    slug: record.slug,
-    claimId: record.claimId,
-  });
-  if (provenance?.kind !== "ready") {
-    return { kind: "refused", reason: "role-conflict", message: "Spawned Errand ownership is not exact." };
-  }
-  await options.exec("git", ["worktree", "remove", checkoutPath], { cwd: primaryPath });
-  return null;
-}
-
-async function restorePrimaryCheckout(
-  exec: GitExec,
-  checkoutPath: string,
-  base: string,
-  record: OrdinaryErrandRecord,
-): Promise<Extract<LeaveCleanupResult, { kind: "refused" }> | null> {
-  try {
-    const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-    if (dirty !== "") {
-      return { kind: "refused", reason: "preservation-unproven", message: "Primary Errand checkout is dirty." };
-    }
-    if (branch === record.branch) {
-      const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-      if (head !== terminalHead(record)) {
-        return { kind: "refused", reason: "preservation-unproven", message: "Primary Errand head moved." };
-      }
-      await exec("git", ["checkout", base], { cwd: checkoutPath });
-      return null;
-    }
-    if (branch !== base) {
-      return { kind: "refused", reason: "role-conflict", message: "Primary checkout restored to an unexpected branch." };
-    }
-    return await exactBranchRef(exec, record.branch, terminalHead(record));
-  } catch (error) {
-    return { kind: "refused", reason: "checkout-missing", message: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-async function exactBranchRef(
-  exec: GitExec,
-  branch: string,
-  expectedHead: string,
-): Promise<Extract<LeaveCleanupResult, { kind: "refused" }> | null> {
-  try {
-    const head = (await exec("git", ["rev-parse", "--verify", `refs/heads/${branch}^{commit}`])).stdout.trim();
-    return head === expectedHead
-      ? null
-      : { kind: "refused", reason: "preservation-unproven", message: "Errand branch head moved after preservation." };
-  } catch (error) {
-    return { kind: "refused", reason: "preservation-unproven", message: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-function exactOccupancy(
-  state: LocusStateV1,
-  record: OrdinaryErrandRecord,
-): { kind: "found"; row: LocusRowV1 } | { kind: "missing"; result: Extract<LeaveCleanupResult, { kind: "refused" }> } {
-  const matches = state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
-    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
-  if (matches.length === 0) {
-    return {
-      kind: "missing",
-      result: { kind: "refused", reason: "checkout-missing", message: "Exact Errand occupancy is absent." },
-    };
-  }
-  const row = matches[0];
-  if (matches.length !== 1 || row === undefined || row.checkoutPath === null) {
-    return {
-      kind: "missing",
-      result: { kind: "refused", reason: "duplicate-locus", message: "Exact Errand occupancy is ambiguous." },
-    };
-  }
-  return { kind: "found", row };
-}
-
-function restoredParent(
-  state: LocusStateV1,
-  row: LocusRowV1,
-): { recordId: string; checkoutPath: string } | null {
-  const parentPath = row.role?.parentCheckoutPath;
-  if (parentPath === null || parentPath === undefined) return null;
-  const parent = state.roster.rows.find((candidate) => candidate.checkoutPath === parentPath
-    && candidate.role?.kind === "work-unit" && candidate.recordId !== null);
-  return parent?.recordId !== null && parent?.recordId !== undefined && parent.checkoutPath !== null
-    ? { recordId: parent.recordId, checkoutPath: parent.checkoutPath }
-    : null;
-}
-
-function restoredCurrentWu(state: LocusStateV1): { recordId: string; checkoutPath: string } | null {
-  if (state.current.kind !== "resolved") return null;
-  const activeRecordId = state.current.activeRecordId;
-  const row = state.roster.rows.find((candidate) => candidate.recordId === activeRecordId
-    && candidate.role?.kind === "work-unit" && candidate.checkoutPath !== null);
-  return row?.recordId !== null && row?.recordId !== undefined && row.checkoutPath !== null
-    ? { recordId: row.recordId, checkoutPath: row.checkoutPath }
-    : null;
-}
-
-function terminalHead(record: OrdinaryErrandRecord): string {
-  if (record.state === "paused") return record.savedHead;
-  if (record.state === "awaiting-merge") return record.changeRequest.headSha;
-  throw new Error("Leave cleanup requires a persisted identity tail");
-}
-
-async function cleanExactHead(
-  exec: GitExec,
-  checkoutPath: string | null,
-  branch: string,
-  expectedHead?: string,
-): Promise<
-  | { kind: "ready"; head: string }
-  | { kind: "refused"; result: Extract<LeaveCleanupResult, { kind: "refused" }> }
-> {
-  if (checkoutPath === null) {
-    return { kind: "refused", result: { kind: "refused", reason: "checkout-missing", message: "Errand checkout is absent." } };
-  }
-  try {
-    const currentBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-    if (currentBranch !== branch || dirty !== "" || (expectedHead !== undefined && head !== expectedHead)) {
-      return {
-        kind: "refused",
-        result: { kind: "refused", reason: "preservation-unproven", message: "Errand checkout is dirty, moved, or off its exact branch head." },
-      };
-    }
-    return { kind: "ready", head };
-  } catch (error) {
-    return {
-      kind: "refused",
-      result: { kind: "refused", reason: "checkout-missing", message: error instanceof Error ? error.message : String(error) },
-    };
-  }
-}
-
-async function readRuntimeState(
-  options: LeaveOrdinaryErrandRuntimeOptions,
-  anchor: LocusProcessAnchor,
-  inspector: ReturnType<typeof createPlatformProcessInspector>,
-  pathFlavor: "windows" | "posix",
-): Promise<LocusStateV1> {
-  return readLocusState({
-    identity: options.identity,
-    pathFlavor,
-    evidenceIO: createLocusEvidenceIO({ exec: options.exec, identity: options.identity, inspector }),
-    subjectMetaIO: {
-      readFile: (path) => readFile(path, "utf8"),
-      pathExists: async (path) => access(path).then(() => true, () => false),
-      realpath,
-      lstat,
-    },
-    identityGlobalUserDir: options.identityGlobalUserDir,
-    enteringAnchor: anchor,
-    readPrimarySafety: (path) => readPrimarySafety({
-      primaryPath: path,
-      baseBranch: options.base,
-      exec: options.exec,
-    }),
-  });
+function primaryPath(frame: DerivedLocusFrame): string | null {
+  return frame.roster.find((row) => row.checkout.primary)?.checkout.path ?? null;
 }

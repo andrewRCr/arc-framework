@@ -28,17 +28,11 @@ import {
   type CurrentWuReconcileResult,
 } from "../lib/work-unit/side-effects/discharge-dep-edges.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
-import {
-  createNodeWorkUnitLocusDriver,
-  type WorkUnitLocusDriver,
-  type WorkUnitLocusReceipt,
-} from "../lib/work-unit/work-unit-locus.js";
-import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 /** CLI options for `arc wu reconcile`. */
 export interface WuReconcileOptions {
   apply?: boolean;
-  attachSession?: boolean;
   json?: boolean;
 }
 
@@ -46,7 +40,6 @@ export interface WuReconcileOptions {
 export const WuReconcileCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   apply: z.boolean().optional(),
-  attachSession: z.boolean().optional(),
   json: z.boolean().optional(),
 }).strict();
 
@@ -57,7 +50,6 @@ export const wuReconcileCommandInputRegistration = {
   schemaFields: {
     "operand.slug": "slug",
     "option.apply": "apply",
-    "option.attachSession": "attachSession",
     "option.json": "json",
   },
 } satisfies CommandInputRegistration;
@@ -67,15 +59,6 @@ export const wuReconcileCommandInputPolicyDeclarations = [{
   commandPath: "wu reconcile",
   aliases: [],
   sites: [
-    declareCliOptionSite("attach-session", {
-      acquisition: "optional",
-      schemaOwnership: "owned",
-      schemaField: "attachSession",
-      cancellation: "not-applicable",
-      automation: { noInput: "preserve-absent", flags: ["--attach-session"], acceptedSyntax: [] },
-      mutationBoundary: "current work-unit session entry",
-      subprocess: "none",
-    }),
     declareCliOptionSite("json", {
       acquisition: "machine-mode",
       schemaOwnership: "owned",
@@ -133,26 +116,6 @@ export async function handleWuReconcile(
     emitConflict(input, target.slug, target.reason);
     return;
   }
-  let locusReceipt: WorkUnitLocusReceipt | null = null;
-  if (input.apply === true || input.attachSession === true) {
-    const identity = await resolveIdentityWithPrompt(false);
-    if (identity === null) {
-      emitConflict(input, target.slug, "cannot reconcile the work-unit locus: identity resolution failed");
-      return;
-    }
-    try {
-      locusReceipt = await createNodeWorkUnitLocusDriver({ exec, identity }).reconcile({
-        checkoutPath: cwd,
-        branch: currentBranch,
-        wuName: target.slug,
-        attachSession: input.attachSession === true,
-      });
-    } catch (error) {
-      emitConflict(input, target.slug, error instanceof Error ? error.message : String(error));
-      return;
-    }
-  }
-
   const result = await runCurrentWuReconcile({
     index,
     queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
@@ -170,21 +133,13 @@ export async function handleWuReconcile(
     metaPath: target.metaPath,
     apply: input.apply === true,
   });
-  const envelope = toEnvelope(result, locusReceipt?.roleCreated === true);
+  const envelope = toEnvelope(result);
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(envelope)}\n`);
   } else {
     emitHuman(envelope);
   }
   if (result.status === "conflict") process.exitCode = 1;
-}
-
-/** Attach the invoking session after a work-unit entry's physical checkout has landed. */
-export function attachCurrentWuSession(
-  driver: WorkUnitLocusDriver,
-  options: { checkoutPath: string; branch: string; wuName: string },
-): Promise<WorkUnitLocusReceipt> {
-  return driver.reconcile({ ...options, attachSession: true });
 }
 
 async function resolveOwnedTarget(
@@ -231,10 +186,10 @@ async function resolveOwnedTarget(
       };
 }
 
-function toEnvelope(result: CurrentWuReconcileResult, roleCreated: boolean): ReconcileEnvelope {
+function toEnvelope(result: CurrentWuReconcileResult): ReconcileEnvelope {
   return {
     schemaVersion: 1,
-    status: roleCreated && result.status === "clean" ? "applied" : result.status,
+    status: result.status,
     slug: result.prepared.slug,
     dependency: result.prepared.plan.dependency,
     trackedReferences: result.prepared.plan.trackedReferences,

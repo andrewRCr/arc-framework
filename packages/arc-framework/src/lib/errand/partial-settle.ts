@@ -48,6 +48,12 @@ export interface SettlePartialErrandDependencies {
     readonly originEntry: string | null;
     readonly parentCheckoutPath: string | null;
   }): Promise<PartialErrandInboxSettlement>;
+  /** Remove the exact primary marker after its capture is settled and before its record is popped. */
+  removeMarker(binding: {
+    readonly checkoutPath: string;
+    readonly originEntry: string | null;
+    readonly originEntrySourceDigest: string | null;
+  }): Promise<string | null>;
 }
 
 export interface SettlePartialErrandOptions {
@@ -136,6 +142,13 @@ export async function settlePartialErrand(
     }
     if (inbox.kind === "refused") return refusal(operation, "identity-conflict", inbox.reason);
     if (inbox.kind === "error") return failure(operation, "inbox", inbox.message);
+
+    const markerFailure = await options.dependencies.removeMarker({
+      checkoutPath: target.checkoutPath,
+      originEntry: role.originEntry,
+      originEntrySourceDigest: role.originEntrySourceDigest ?? null,
+    });
+    if (markerFailure !== null) return refusal(operation, "role-conflict", markerFailure);
 
     const popped = await acquired.generation.pop();
     if (popped.outcome === "refused" || popped.outcome === "error") return popped;

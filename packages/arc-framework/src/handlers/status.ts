@@ -35,10 +35,7 @@ import type {
   SessionInitProbes,
   StatusProbes,
 } from "../commands/status.js";
-import {
-  runActiveSessionInitStatus,
-  runActiveStatus,
-} from "../commands/active.js";
+import { runActiveStatus } from "../commands/active.js";
 import {
   runConfigSessionInitStatus,
   runConfigStatus,
@@ -84,12 +81,10 @@ import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
 import {
-  classifyCurrentWuLocusRole,
   runCurrentWuReconcileSessionProbe,
-  type CurrentWuLocusRoleState,
 } from "../lib/session-init/current-wu-reconcile.js";
 import { runLocusStateProbe } from "./locus-state-probe.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
 import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
@@ -136,7 +131,6 @@ import {
   renderRoadmapFromIndexViewResult,
   resolveStagedRetirementTransitionOverlay,
 } from "../lib/status/roadmap-regeneration-assert.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import {
   assertSessionInitProbeResult,
   assertSessionRecoverProbeResult,
@@ -440,15 +434,17 @@ export async function handleStatus(
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
-      locusState: async (id) => {
+      derivedLocusState: async (id, activeExtensions) => {
         const resolved = await resolvedSettingsP;
-        return runLocusStateProbe({
+        return runDerivedLocusStateProbe({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
+          activeExtensions,
           exec,
         });
       },
+      extensions: () => runExtensionsSessionInitStatus({ cwd }),
       dirty: () => runDirtyStateStatus({ exec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
@@ -469,7 +465,6 @@ export async function handleStatus(
         const source = resolved.source === "yaml" ? "default" : resolved.source;
         return { value: resolved.value, source };
       },
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       head: () => runHeadHashStatus({ exec }),
       pushability: () => runPushabilityStatus({
         exec,
@@ -488,7 +483,6 @@ export async function handleStatus(
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
-      worktreeIdentity: () => resolveWorktreeIdentity(exec),
     };
     // Do not await userSurfacesFor here: a rejection would abort the composite
     // before safeProbe handling. Resolution runs inside runSessionHandoffStatus
@@ -560,6 +554,36 @@ export async function handleStatus(
         return null;
       }
     };
+    const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
+    const getDerivedLocusState = (
+      id: string,
+      activeExtensions: readonly string[] = [],
+    ): ReturnType<typeof runDerivedLocusStateProbe> => {
+      const key = `${id}:${JSON.stringify(activeExtensions)}`;
+      let pending = derivedLocusStatePromises.get(key);
+      if (pending === undefined) {
+        pending = (async () => {
+          const resolved = await resolvedSettingsP;
+          return runDerivedLocusStateProbe({
+            cwd,
+            identity: id,
+            baseBranch: resolved.settings["branch.base"],
+            activeExtensions,
+            exec,
+          });
+        })();
+        derivedLocusStatePromises.set(key, pending);
+      }
+      return pending;
+    };
+    const getOptionalDerivedRoster = async () => {
+      if (identity === null) return null;
+      try {
+        return (await getDerivedLocusState(identity)).roster;
+      } catch {
+        return null;
+      }
+    };
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -602,10 +626,10 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [transientRead, parkedSlugs, locusState] = await Promise.all([
+        const [transientRead, parkedSlugs, derivedRoster] = await Promise.all([
           getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         const transient = projectTransientInFlightRead(transientRead);
         const transientIndexes = transient.indexes;
@@ -620,7 +644,7 @@ export async function handleStatus(
           expectedTransientByBranch: transientIndexes.expectedByBranch,
           errandRecordsComplete: transient.complete,
           parkedSlugs,
-          locusState,
+          derivedRoster,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
@@ -647,7 +671,9 @@ export async function handleStatus(
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
-      locusState: getLocusState,
+      derivedLocusState: async (id, activeExtensions) => {
+        return getDerivedLocusState(id, activeExtensions);
+      },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -708,20 +734,10 @@ export async function handleStatus(
       }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      currentWuReconcile: async ({ slug, metaPath }) => {
-        let locusRoleState: CurrentWuLocusRoleState = "unknown";
-        if (identity !== null) {
-          try {
-            const locusState = await getLocusState(identity);
-            locusRoleState = await classifyCurrentWuLocusRole(locusState, cwd, slug);
-          } catch {
-            // Reconcile planning remains available when the shared locus read degrades.
-          }
-        }
-        return runCurrentWuReconcileSessionProbe(
+      currentWuReconcile: async ({ slug, metaPath }) =>
+        runCurrentWuReconcileSessionProbe(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
             queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
@@ -730,9 +746,8 @@ export async function handleStatus(
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
           },
-          { slug, metaPath, locusRoleState },
-        );
-      },
+          { slug, metaPath },
+        ),
       userReferenceReconcile: async ({ slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;
@@ -812,9 +827,9 @@ export async function handleStatus(
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const [resolved, locusState] = await Promise.all([
+        const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         return runStaleWorktreeSweep({
           roster,
@@ -826,13 +841,13 @@ export async function handleStatus(
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-          locusState,
+          derivedRoster,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
-        const [resolved, locusState] = await Promise.all([
+        const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
-          getOptionalLocusState(),
+          getOptionalDerivedRoster(),
         ]);
         // Identity-carrying transient branches are excluded because their own
         // lifecycle surfaces own cleanup. An incomplete identity basis declines
@@ -848,7 +863,7 @@ export async function handleStatus(
               ? null
               : new Set(transient.indexes.slugByBranch.keys()),
           exec,
-          locusState,
+          derivedRoster,
         });
       },
       retiredSubdirs: async (id) => {
@@ -950,16 +965,6 @@ export async function handleStatus(
           userSurfacesFor,
         ),
       }),
-      cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-        cwd,
-        activeMetaPath,
-        fs: {
-          readFile: (path) => readFile(path, "utf8"),
-          pathExists: (path) => access(path).then(() => true, () => false),
-        },
-      }),
-      taskCursor: async (taskListPath) =>
-        resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
     const workingMemoryPath = identity === null
       ? null

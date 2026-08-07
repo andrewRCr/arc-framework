@@ -69,6 +69,7 @@ function dependencies(
       release: vi.fn(async () => undefined),
     })),
     settleInbox: vi.fn(async () => ({ kind: "applied" as const, nextOffer: null })),
+    removeMarker: vi.fn(async () => null),
     ...overrides,
   };
 }
@@ -106,6 +107,11 @@ describe("settlePartialErrand", () => {
 
     expect(result).toMatchObject({ outcome: "applied", operation: "errand-close", recordId: RECORD_ID });
     expect(deps.settleInbox).toHaveBeenCalledWith({ originEntry: "Fix output", parentCheckoutPath: null });
+    expect(deps.removeMarker).toHaveBeenCalledWith({
+      checkoutPath: CHECKOUT,
+      originEntry: "Fix output",
+      originEntrySourceDigest: null,
+    });
   });
 
   it("reports the abandon operation and retained-capture result", async () => {
