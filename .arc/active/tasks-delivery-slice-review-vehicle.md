@@ -249,63 +249,34 @@ worktree-cleanliness guard is scoped to the inputs that actually read the worktr
   changes no production line; its behaviors were reconstructed against a registration narrowed back to the
   single kind, and 3.1.a's identity pin against a preimage that rewrites the ordinary kind.
 
-### `[ ]` **3.2 Parameterize local target derivation by optional member coordinates**
+### `[x]` **3.2 Parameterize local target derivation by optional member coordinates**
 
 - _Goal:_ Derivation accepts the exact commits it should diff, defaulting without them to the configured base and
   the current head, so a caller can derive against coordinates that are not the current checkout.
 
-- _Shape:_ The base ref and the diff-base revision are separate inputs and must stay so. The base ref is a ref
-  name written into the target as an identity-bearing field; the diff base is a commit. They are coupled on the
-  default path, where the diff base is the merge base of the base ref and the head — and deliberately decoupled
-  on the member path, where the base ref remains the configured base while the diff base is a predecessor's
-  head. Adding revision parameters must not displace the base ref.
+    - `[x]` **3.2.a Accept optional member coordinates alongside the retained base ref**
 
-- _Shape:_ The two revisions arrive as one optional **member-coordinate** input — both shas together, or nothing.
-  Independent optionals would leave a third state, exactly one supplied, that neither the derivation nor the
-  cleanliness guard below has a defined answer for. Naming the input for what it carries also settles the kind:
-  its presence is what makes the derived target a member target, which the derivation must set itself because the
-  kind is part of the target's identity preimage and cannot be assigned afterwards without invalidating the id.
-  A generic revision pair plus a separate kind flag would be more parameters and unused generality — the member
-  path is the only caller that supplies either.
+        - `deriveLocalReviewTarget` splits into two coordinate resolvers behind one entry point that keeps the
+          base-ref format check, the kind assignment, and the single `createReviewTarget` call. The optional
+          `memberCoordinates` carries both shas together, so "exactly one supplied" is unrepresentable rather
+          than a state the resolvers would each need an answer for.
+        - the supplied path resolves the base ref's format but never its object, and computes no merge base — a
+          member derives correctly against a base ref that is absent locally, which is what keeps the
+          unresolved-base refusal naming one thing.
+        - failure reasons are reused rather than widened: an unresolvable or non-commit recorded head reports
+          `non-commit-head`, and the recorded base reports `unresolved-base`.
+        - frontline materialization passes no coordinates and is untouched; coverage pins that its re-derivation
+          still yields the ordinary kind rather than assuming the defaulted parameter holds.
 
-- _Shape:_ On the supplied path the configured base ref is validated for format, because it is written into the
-  target, but its object is **not** resolved. The default path resolves it only to compute a merge base, which
-  the supplied path does not compute. Resolving it anyway would refuse a member derivation whenever the base ref
-  is absent locally — an unrelated reason — and would make the unresolved-base failure name two different things
-  on the same path, blunting the refusal Task 3.3.b relies on.
+    - `[x]` **3.2.b Scope the worktree-cleanliness guard to the checkout-reading path**
 
-- _Note:_ The cleanliness guard exists because the default path derives from the checkout and its working tree.
-  Scoping it is not a weakening: the control locus is where authoring and review-driven fixes land, so an
-  uncommitted edit is the normal state there, and a member already pushed would otherwise be unreviewable while
-  its successor is being written. The evaluator's materialization still checks cleanliness of the detached
-  worktree it creates at the pinned head, which is the cleanliness review actually depends on.
+        - the guard moved into the checkout resolver, so it still refuses a dirty tree on the default path and
+          never runs on the supplied one, where neither HEAD nor the working tree is read.
 
-- _Note:_ Derivation has a second caller — frontline materialization re-derives inside a detached worktree at the
-  target head. Defaulted parameters leave it untouched, and it must never receive a member target: re-deriving
-  one would produce an ordinary target with a merge-base diff base, a different identity for the same review.
-  Frontline is the no-selector path over the work unit's own change set, which is what keeps members away from
-  it; the task below pins that its derivation is untouched rather than assuming it.
-
-    - `[ ]` **3.2.a Accept optional member coordinates alongside the retained base ref**
-
-        Build `test-first` (one behavior at a time):
-
-        - omitting the coordinates reproduces today's derivation exactly, including the merge-base diff base and
-          the ordinary target kind
-        - supplying them derives against those two shas verbatim, computing no merge base
-        - supplying them yields the member kind, and omitting them yields the ordinary kind
-        - the base ref is written into the target unchanged on both paths
-        - the base ref's format is validated on both paths; its object is resolved only on the default path
-        - a base ref absent from the local repository refuses on the default path and does not on the supplied one
-        - object-existence and commit-type checks refuse on both paths
-        - frontline materialization's derivation is unchanged
-
-    - `[ ]` **3.2.b Scope the worktree-cleanliness guard to the checkout-reading path**
-
-        Build `test-first` (one behavior at a time):
-
-        - a dirty worktree still refuses when no member coordinates are supplied
-        - a dirty worktree does not refuse when they are supplied
+- _Outcome:_ Derivation is now the single place a member target can be built, and the decoupling the design
+  called for is structural rather than conditional: the supplied path reads only the two recorded commits and
+  their trees. `baseRef` is written into the target unchanged on both paths, so the identity-bearing field keeps
+  one meaning while `diffBaseSha` carries the kind-conditional one.
 
 ### `[ ]` **3.3 Compose a member target from recorded coordinates**
 

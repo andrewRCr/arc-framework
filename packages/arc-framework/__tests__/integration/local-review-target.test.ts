@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { GitExec } from "../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   confirmLocalReviewTarget,
@@ -105,5 +106,160 @@ describe("canonical local review target derivation", () => {
       attemptedTarget,
       currentTarget: { headSha: await git(root, "rev-parse", "HEAD") },
     });
+  });
+});
+
+describe("member-coordinate target derivation", () => {
+  function recordingExec(): { exec: GitExec; invocations: string[][] } {
+    const invocations: string[][] = [];
+    return {
+      invocations,
+      exec: async (file, args, options) => {
+        invocations.push([...args]);
+        return exec(file, args, options);
+      },
+    };
+  }
+
+  /** A control branch two commits ahead of `main`, standing in for a two-member stack. */
+  async function createStack(): Promise<{
+    root: string;
+    predecessorSha: string;
+    memberSha: string;
+  }> {
+    const root = await createRepository();
+    await git(root, "switch", "-c", "feature");
+    await writeFile(join(root, "tracked.txt"), "predecessor\n", "utf8");
+    await git(root, "commit", "-am", "predecessor");
+    const predecessorSha = await git(root, "rev-parse", "HEAD");
+    await writeFile(join(root, "tracked.txt"), "member\n", "utf8");
+    await git(root, "commit", "-am", "member");
+    return { root, predecessorSha, memberSha: await git(root, "rev-parse", "HEAD") };
+  }
+
+  it("derives from the checkout and its merge base when no coordinates are supplied", async () => {
+    const { root } = await createStack();
+    const recording = recordingExec();
+
+    const target = await deriveLocalReviewTarget({
+      exec: recording.exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+    });
+
+    expect(target).toMatchObject({
+      kind: "change-set",
+      baseRef: "main",
+      diffBaseSha: await git(root, "merge-base", "main", "HEAD"),
+      headSha: await git(root, "rev-parse", "HEAD"),
+    });
+    expect(recording.invocations).toContainEqual(
+      expect.arrayContaining(["rev-parse", "--verify", "refs/heads/main"]),
+    );
+  });
+
+  it("derives against supplied coordinates verbatim, computing no merge base", async () => {
+    const { root, predecessorSha, memberSha } = await createStack();
+    const recording = recordingExec();
+
+    const target = await deriveLocalReviewTarget({
+      exec: recording.exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: predecessorSha },
+    });
+
+    expect(target).toMatchObject({
+      kind: "delivery-member",
+      baseRef: "main",
+      diffBaseSha: predecessorSha,
+      diffBaseTree: await git(root, "rev-parse", `${predecessorSha}^{tree}`),
+      headSha: memberSha,
+      headTree: await git(root, "rev-parse", `${memberSha}^{tree}`),
+    });
+    expect(target.diffBaseSha).not.toBe(await git(root, "merge-base", "main", "HEAD"));
+    expect(recording.invocations.map(([verb]) => verb)).not.toContain("merge-base");
+  });
+
+  it("validates the base ref's format on both paths and resolves its object only by default", async () => {
+    const { root, predecessorSha, memberSha } = await createStack();
+    const recording = recordingExec();
+
+    const target = await deriveLocalReviewTarget({
+      exec: recording.exec,
+      cwd: root,
+      baseRef: "missing",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: predecessorSha },
+    });
+
+    expect(target.baseRef).toBe("missing");
+    expect(recording.invocations).toContainEqual(
+      expect.arrayContaining(["check-ref-format", "refs/heads/missing"]),
+    );
+    expect(recording.invocations).not.toContainEqual(
+      expect.arrayContaining(["rev-parse", "--verify", "refs/heads/missing"]),
+    );
+    await expect(deriveLocalReviewTarget({ exec, cwd: root, baseRef: "missing", repositoryId }))
+      .rejects.toMatchObject({ reason: "unresolved-base" });
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "in..valid",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: predecessorSha },
+    })).rejects.toMatchObject({ reason: "invalid-base" });
+  });
+
+  it("refuses recorded coordinates that are absent or are not commits", async () => {
+    const { root, predecessorSha, memberSha } = await createStack();
+    const absent = "0".repeat(40);
+    const tree = await git(root, "rev-parse", "HEAD^{tree}");
+
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: absent, diffBaseSha: predecessorSha },
+    })).rejects.toMatchObject({ code: "invalid-input", reason: "non-commit-head" });
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: absent },
+    })).rejects.toMatchObject({ code: "invalid-input", reason: "unresolved-base" });
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: tree, diffBaseSha: predecessorSha },
+    })).rejects.toMatchObject({ code: "invalid-input", reason: "non-commit-head" });
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: tree },
+    })).rejects.toMatchObject({ code: "invalid-input", reason: "unresolved-base" });
+  });
+
+  it("scopes the worktree-cleanliness guard to the checkout-reading path", async () => {
+    const { root, predecessorSha, memberSha } = await createStack();
+    await writeFile(join(root, "tracked.txt"), "uncommitted\n", "utf8");
+
+    await expect(deriveLocalReviewTarget({ exec, cwd: root, baseRef: "main", repositoryId }))
+      .rejects.toMatchObject({ reason: "dirty-worktree" });
+    await expect(deriveLocalReviewTarget({
+      exec,
+      cwd: root,
+      baseRef: "main",
+      repositoryId,
+      memberCoordinates: { headSha: memberSha, diffBaseSha: predecessorSha },
+    })).resolves.toMatchObject({ kind: "delivery-member", headSha: memberSha });
   });
 });

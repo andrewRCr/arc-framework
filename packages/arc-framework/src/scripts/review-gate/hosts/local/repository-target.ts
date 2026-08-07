@@ -25,11 +25,26 @@ export class LocalTargetDerivationError extends Error {
   }
 }
 
+/** The two commits delivery recorded for one member: its own head and its predecessor's. */
+export interface DeliveryMemberCoordinates {
+  headSha: string;
+  diffBaseSha: string;
+}
+
 export interface LocalTargetDerivationInput {
   exec: GitExec;
   cwd: string;
   baseRef: string;
   repositoryId: string;
+  /** Supplied together or not at all; their presence selects the `delivery-member` kind. */
+  memberCoordinates?: DeliveryMemberCoordinates;
+}
+
+interface DerivedCoordinates {
+  diffBaseSha: string;
+  diffBaseTree: string;
+  headSha: string;
+  headTree: string;
 }
 
 export type LocalTargetConfirmation =
@@ -62,19 +77,11 @@ async function resolveObject(
   return { oid, type };
 }
 
-/**
- * Derives an exact review target from clean repository state.
- *
- * @param input - Repository-local Git boundary and trusted repository/base facts.
- * @returns The canonical target and its domain-separated identity.
- */
-export async function deriveLocalReviewTarget(
+/** Derive the change set from the checkout: its HEAD, its working tree, and the base's merge base. */
+async function deriveFromCheckout(
   input: LocalTargetDerivationInput,
-): Promise<ReviewTarget> {
-  const baseRef = input.baseRef.trim();
-  if (baseRef === "") throw new LocalTargetDerivationError("invalid-base");
-  await readGit(input, ["check-ref-format", `refs/heads/${baseRef}`], "invalid-base");
-
+  baseRef: string,
+): Promise<DerivedCoordinates> {
   const head = await resolveObject(input, "HEAD", "unborn-repository");
   if (head.type !== "commit") throw new LocalTargetDerivationError("non-commit-head");
 
@@ -93,17 +100,59 @@ export async function deriveLocalReviewTarget(
     readGit(input, ["rev-parse", `${diffBaseSha}^{tree}`], "no-merge-base"),
     readGit(input, ["rev-parse", `${head.oid}^{tree}`], "non-commit-head"),
   ]);
+  return { diffBaseSha, diffBaseTree, headSha: head.oid, headTree };
+}
+
+/** Resolve the two supplied commits and their trees, reading neither HEAD nor the working tree. */
+async function resolveMemberCoordinates(
+  input: LocalTargetDerivationInput,
+  coordinates: DeliveryMemberCoordinates,
+): Promise<DerivedCoordinates> {
+  const head = await resolveObject(input, coordinates.headSha, "non-commit-head");
+  if (head.type !== "commit") throw new LocalTargetDerivationError("non-commit-head");
+
+  const base = await resolveObject(input, coordinates.diffBaseSha, "unresolved-base");
+  if (base.type !== "commit") throw new LocalTargetDerivationError("unresolved-base");
+
+  const [diffBaseTree, headTree] = await Promise.all([
+    readGit(input, ["rev-parse", `${base.oid}^{tree}`], "unresolved-base"),
+    readGit(input, ["rev-parse", `${head.oid}^{tree}`], "non-commit-head"),
+  ]);
+  return { diffBaseSha: base.oid, diffBaseTree, headSha: head.oid, headTree };
+}
+
+/**
+ * Derives an exact review target from clean repository state, or from supplied member coordinates.
+ *
+ * Without `memberCoordinates` the target is the checkout's own change set against the base ref's
+ * merge base, and a dirty working tree refuses. With them the two recorded commits are the target
+ * verbatim: no merge base is computed, the base ref's object is never resolved, and neither HEAD
+ * nor the working tree is read — a member is reviewed while its successor is authored on the same
+ * checkout. The base ref is written into the target unchanged either way.
+ *
+ * @param input - Repository-local Git boundary, trusted repository/base facts, and optional
+ *   recorded member coordinates.
+ * @returns The canonical target and its domain-separated identity.
+ */
+export async function deriveLocalReviewTarget(
+  input: LocalTargetDerivationInput,
+): Promise<ReviewTarget> {
+  const baseRef = input.baseRef.trim();
+  if (baseRef === "") throw new LocalTargetDerivationError("invalid-base");
+  await readGit(input, ["check-ref-format", `refs/heads/${baseRef}`], "invalid-base");
+
+  const coordinates = input.memberCoordinates;
+  const derived = coordinates === undefined
+    ? await deriveFromCheckout(input, baseRef)
+    : await resolveMemberCoordinates(input, coordinates);
 
   return createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "change-set",
+    kind: coordinates === undefined ? "change-set" : "delivery-member",
     repositoryId: input.repositoryId,
     baseRef,
-    diffBaseSha,
-    diffBaseTree,
-    headSha: head.oid,
-    headTree,
+    ...derived,
   });
 }
 
