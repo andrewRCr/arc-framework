@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
     readFile: vi.fn(),
     resolveUserSurfaceResolver: vi.fn(),
     runRecoverStatus: vi.fn(),
+    gitExec: vi.fn(),
+    gitExecInput: vi.fn(),
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => ({
@@ -22,7 +24,13 @@ vi.mock("../../../src/lib/git/index.js", () => ({
     gitConfigGet: mocks.gitConfigGet,
     readConfiguredIdentity: mocks.readConfiguredIdentity,
 }));
-vi.mock("../../../src/lib/io-context.js", () => ({ createGitExec: () => vi.fn() }));
+vi.mock("../../../src/lib/io-context.js", () => ({
+    createUserIOContext: () => ({
+        exec: mocks.gitExec,
+        execInput: mocks.gitExecInput,
+        readFile: mocks.readFile,
+    }),
+}));
 vi.mock("../../../src/lib/user-surfaces.js", () => ({
     resolveUserSurfaceResolver: mocks.resolveUserSurfaceResolver,
 }));

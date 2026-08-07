@@ -403,6 +403,16 @@ describe("session-init envelope schema", () => {
     "rejects the mapped deep routing field: %s",
     (_label, fixtureName, path, replacement, expectedPath) => {
       const value = fixture(fixtureName);
+      if (path[0] === "workUnitState") {
+        value.workUnitState = structuredClone(fixture("branch-gone").workUnitState);
+        setPath(value, ["workUnitState", "value", "inFlight", "workUnits"], [{
+          name: "heavy-widget",
+          branch: "feat/heavy-widget",
+          behindBase: { status: "not-applicable", remoteEvidence: "not-applicable" },
+          ageDays: 0,
+          state: "awaiting-review",
+        }]);
+      }
       setPath(value, path, replacement);
       expectContractFailure(value, expectedPath);
     },

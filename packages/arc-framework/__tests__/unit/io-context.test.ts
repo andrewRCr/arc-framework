@@ -66,6 +66,15 @@ describe("readGitObjectBytes", () => {
 });
 
 describe("readGitBlobBytes", () => {
+  function mockLookupOutput(command: "ls-files" | "ls-tree", stdout: Uint8Array): void {
+    mocks.execa.mockImplementation(async (_command: string, args: string[]) => {
+      if (args[0] === command) {
+        return { stdout: Buffer.from(stdout), stderr: Buffer.alloc(0) };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+  }
+
   it("reads an exact tree blob without allowing lazy object acquisition", async () => {
     const oid = "a".repeat(40);
     const bytes = Buffer.from([0, 1, 10, 128, 255]);
@@ -133,5 +142,46 @@ describe("readGitBlobBytes", () => {
 
     await expect(readGitBlobBytes("/repo", null, "invalid-byte"))
       .resolves.toEqual(bytes);
+  });
+
+  it.each([
+    ["tree", "HEAD"],
+    ["index", null],
+  ] as const)("returns null for empty %s output", async (_source, ref) => {
+    mockLookupOutput(ref === null ? "ls-files" : "ls-tree", Buffer.alloc(0));
+
+    await expect(readGitBlobBytes("/repo", ref, "missing.dat")).resolves.toBeNull();
+  });
+
+  it("rejects invalid UTF-8 tree output", async () => {
+    mockLookupOutput("ls-tree", Buffer.from([0x80, 0]));
+
+    await expect(readGitBlobBytes("/repo", "HEAD", "invalid-byte"))
+      .rejects.toBeInstanceOf(TypeError);
+  });
+
+  it.each([
+    ["malformed", Buffer.from("not-a-tree-record\0")],
+    ["multiple", Buffer.from(`blob ${"d".repeat(40)}\0blob ${"e".repeat(40)}\0`)],
+    ["invalid object id", Buffer.from("blob abcdef\0")],
+  ])("rejects %s tree output", async (_case, stdout) => {
+    mockLookupOutput("ls-tree", stdout);
+
+    await expect(readGitBlobBytes("/repo", "HEAD", "invalid.dat"))
+      .rejects.toThrow("Cannot resolve an exact tree blob");
+  });
+
+  it.each([
+    ["malformed", Buffer.from("not-an-index-record\0")],
+    [
+      "multiple",
+      Buffer.from(`100644 ${"d".repeat(40)} 0\tone\0` + `100644 ${"e".repeat(40)} 0\ttwo\0`),
+    ],
+    ["invalid object id", Buffer.from("100644 abcdef 0\tinvalid.dat\0")],
+  ])("rejects %s index output", async (_case, stdout) => {
+    mockLookupOutput("ls-files", stdout);
+
+    await expect(readGitBlobBytes("/repo", null, "invalid.dat"))
+      .rejects.toThrow("Cannot resolve an exact index blob");
   });
 });

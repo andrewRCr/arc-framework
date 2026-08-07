@@ -107,7 +107,7 @@ import {
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   projectTransientInFlightRead,
@@ -157,6 +157,13 @@ import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+
+function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
+  if (execInput === undefined) {
+    throw new Error("Status recovery requires stdin-capable Git I/O.");
+  }
+  return execInput;
+}
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -530,6 +537,9 @@ export async function handleStatus(
       probes: createRecoverStatusProbes({
         cwd,
         dirty: () => runDirtyStateStatus({ exec }),
+        exec,
+        execInput: requireGitExecInput(io.execInput),
+        readFile: io.readFile,
       }),
       workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
     });
