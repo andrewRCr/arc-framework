@@ -248,10 +248,13 @@ export async function runStaleWorktreeSweep(
       }
     }
   }
+  // Incomplete advertised-base evidence leaves `shipped` empty, so no entry
+  // qualifies and the sweep reports nothing. Enumerating the whole roster here
+  // would render active, never-shipped worktrees as cleanup residue; the
+  // slot-level `remoteEvidence` already carries the degradation, and the
+  // envelope schema refuses a `removable` decision on anything but `exact`.
   const selected = worktreeIdentity.kind === "primary"
-    ? baseEvidence !== undefined && exactBaseOid === null
-      ? { candidates: [...roster.entries], warnings: roster.warnings }
-      : findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
+    ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
     : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);

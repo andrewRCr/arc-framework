@@ -17,10 +17,10 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec } from "../lib/io-context.js";
+import { createUserIOContext } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import {
@@ -51,7 +51,8 @@ export const recoverCommandInputPolicyDeclarations = [{
 
 /** Handle `arc recover audit`. */
 export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext): Promise<void> {
-  const gitExec = createGitExec(interaction?.subprocess);
+  const io = createUserIOContext(interaction?.subprocess);
+  const gitExec = io.exec;
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -104,6 +105,9 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     dirty: async () => dirtyStateFromUncommittedFiles(
       parseUncommittedFiles(await getGitStatusOutput()),
     ),
+    exec: gitExec,
+    execInput: requireGitExecInput(io.execInput),
+    readFile: io.readFile,
   });
   const recover = await runRecoverStatus({
     identity,
@@ -149,6 +153,13 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     recover,
     verdict,
   }, Boolean(opts.json));
+}
+
+function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
+  if (execInput === undefined) {
+    throw new Error("Recovery audit requires stdin-capable Git I/O.");
+  }
+  return execInput;
 }
 
 async function readGitValue(gitExec: GitExec, args: string[]): Promise<string | null> {

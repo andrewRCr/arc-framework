@@ -25,7 +25,7 @@ import {
 import type { GitExec } from "../../lib/git/exec.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
-import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
+import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "../shared.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -90,8 +90,8 @@ export async function handleReleasePush(
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
-  const worktreeSync = await runMaterializingWorktreeInspection({ exec });
+  const worktreeSync = await runMaterializingWorktreeInspection({ exec, cwd });
+  const currentBranch = worktreeSync.branch ?? "";
 
   const result = await runReleasePush({
     cwd,

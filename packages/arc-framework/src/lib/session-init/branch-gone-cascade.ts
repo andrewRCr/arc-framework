@@ -27,6 +27,8 @@ import { z } from "zod";
 
 import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import { RemoteFailureReasonSchema, type RemoteFailureReason } from "../kernel/index.js";
+import type { CleanupRemoteEvidence } from "./cleanup-remote-evidence.js";
 
 /** Proposed disposition for a recovery candidate's worktree. */
 export const CandidateActionSchema = z.enum(["switch", "removable", "external"]);
@@ -67,7 +69,15 @@ export const RecoveryRefreshRemedySchema = z.strictObject({
 /** Explicit refresh for an incomplete advertised recovery tier. */
 export type RecoveryRefreshRemedy = z.infer<typeof RecoveryRefreshRemedySchema>;
 
-/** Runtime authority for the three branch-gone recovery outcomes. */
+/**
+ * Runtime authority for the branch-gone recovery outcomes.
+ *
+ * `resolved`, `surface`, and `main-fallback` are exact-evidence outcomes: each
+ * states a proven candidate disposition, so none may be published from an
+ * incomplete projection. Incomplete evidence routes to `pending` (an advertised
+ * head whose object is missing, refreshable) or `unproven` (candidates exist but
+ * their merged status could not be established, so the operator chooses).
+ */
 const ResolvedCascadeResolutionSchema = z.strictObject({
   kind: z.literal("resolved"),
   remoteEvidence: z.literal("exact"),
@@ -81,6 +91,7 @@ const SurfaceCascadeResolutionSchema = z.strictObject({
 const MainFallbackCascadeResolutionSchema = z.strictObject({
   kind: z.literal("main-fallback"),
   remoteEvidence: z.literal("exact"),
+  baseBranch: NON_EMPTY_TEXT,
 });
 const PendingCascadeResolutionSchema = z.strictObject({
   kind: z.literal("pending"),
@@ -89,12 +100,22 @@ const PendingCascadeResolutionSchema = z.strictObject({
   pendingBranchCount: z.number().int().positive(),
   refreshRemedy: RecoveryRefreshRemedySchema,
 });
+const UnprovenCascadeResolutionSchema = z.strictObject({
+  kind: z.literal("unproven"),
+  remoteEvidence: z.enum(["pending-fetch", "unreachable", "not-applicable"]),
+  failureReason: RemoteFailureReasonSchema.optional(),
+  // May be empty: an incomplete projection cannot distinguish "no candidates"
+  // from "candidates the failed read never revealed", so an empty tier is
+  // reported as unproven rather than as a proven absence.
+  candidates: z.array(CascadeCandidateSchema),
+});
 
 export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
   ResolvedCascadeResolutionSchema,
   SurfaceCascadeResolutionSchema,
   MainFallbackCascadeResolutionSchema,
   PendingCascadeResolutionSchema,
+  UnprovenCascadeResolutionSchema,
 ]);
 
 /** Outcome of the recovery cascade. */
@@ -111,16 +132,29 @@ export const SessionInitRecoveryValueSchema = z.discriminatedUnion("kind", [
   SurfaceCascadeResolutionSchema.extend(RecoveryRecommendationFields),
   MainFallbackCascadeResolutionSchema.extend(RecoveryRecommendationFields),
   PendingCascadeResolutionSchema.extend(RecoveryRecommendationFields),
+  UnprovenCascadeResolutionSchema.extend(RecoveryRecommendationFields),
 ]).superRefine((value, context) => {
   const action = value.recommendedAction;
   const textIsEmpty = value.recommendedPromptText.trim().length === 0;
-  const expectedAction = value.kind === "resolved"
-    ? value.candidate.proposedAction === "external"
-      ? "surface"
-      : value.candidate.proposedAction === "removable"
-        ? "prompt"
-        : null
-    : "prompt";
+
+  if (value.kind === "unproven") {
+    if (value.remoteEvidence === "unreachable" && value.failureReason === undefined) {
+      context.addIssue({ code: "custom", path: ["failureReason"], message: "unreachable evidence requires a reason" });
+    }
+    if (value.remoteEvidence !== "unreachable" && value.failureReason !== undefined) {
+      context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
+    }
+  }
+  // Unproven candidates are never auto-actioned: the operator picks.
+  const expectedAction = value.kind === "unproven"
+    ? "surface"
+    : value.kind === "resolved"
+      ? value.candidate.proposedAction === "external"
+        ? "surface"
+        : value.candidate.proposedAction === "removable"
+          ? "prompt"
+          : null
+      : "prompt";
 
   if (expectedAction !== null && action !== expectedAction) {
     context.addIssue({
@@ -171,6 +205,14 @@ export interface ResolveCascadeInput {
   recentBranchCandidates: CascadeCandidate[];
   /** Eligible advertised heads whose objects are not locally available. */
   pendingBranchCount?: number;
+  /** Integration base branch short-name — the fallback destination, carried on that outcome. */
+  baseBranch: string;
+  /**
+   * Advertised-base evidence the worktree tier's merged / removable facts were
+   * derived from. Anything short of `exact` means those dispositions were not
+   * established, so that tier surfaces for manual choice instead of resolving.
+   */
+  evidence: CleanupRemoteEvidence;
 }
 
 /**
@@ -183,6 +225,13 @@ export interface ResolveCascadeInput {
  * @returns The resolved outcome
  */
 export function resolveCascade(input: ResolveCascadeInput): CascadeResolution {
+  // The worktree tier's dispositions rest on proven merge status. Without exact
+  // evidence they were not established, so the tier surfaces its candidates for
+  // manual choice rather than publishing an unearned exact singleton.
+  const unproven = projectUnprovenEvidence(input.evidence);
+  if (input.worktreeCandidates.length > 0 && unproven !== null) {
+    return { kind: "unproven", ...unproven, candidates: input.worktreeCandidates };
+  }
   const worktreeResolution = resolveTier(input.worktreeCandidates);
   if (worktreeResolution !== null) return worktreeResolution;
   if ((input.pendingBranchCount ?? 0) > 0) {
@@ -194,7 +243,29 @@ export function resolveCascade(input: ResolveCascadeInput): CascadeResolution {
       refreshRemedy: composeRecoveryRefreshRemedy(),
     };
   }
-  return resolveTier(input.recentBranchCandidates) ?? { kind: "main-fallback", remoteEvidence: "exact" };
+  const recentResolution = resolveTier(input.recentBranchCandidates);
+  if (recentResolution !== null) return recentResolution;
+  // Both tiers are empty. Under incomplete evidence that emptiness is not a
+  // proven absence — a failed read reveals no candidates either — so the
+  // fallback is withheld rather than published as an exact conclusion.
+  if (unproven !== null) return { kind: "unproven", ...unproven, candidates: [] };
+  return { kind: "main-fallback", remoteEvidence: "exact", baseBranch: input.baseBranch };
+}
+
+/**
+ * Narrow cleanup evidence to the unproven outcome's fields, or `null` when the
+ * evidence is exact and the ordinary tier resolution applies.
+ */
+type UnprovenEvidence =
+  | { remoteEvidence: "pending-fetch" | "not-applicable" }
+  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason };
+
+function projectUnprovenEvidence(evidence: CleanupRemoteEvidence): UnprovenEvidence | null {
+  if (evidence.remoteEvidence === "unreachable") {
+    return { remoteEvidence: "unreachable", failureReason: evidence.failureReason };
+  }
+  if (evidence.remoteEvidence === "exact") return null;
+  return { remoteEvidence: evidence.remoteEvidence };
 }
 
 /** Compose the exact live expansion action used by pending recovery. */

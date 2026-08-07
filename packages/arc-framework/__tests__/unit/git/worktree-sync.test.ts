@@ -26,10 +26,10 @@ type ResponseFn = (
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
+): { exec: GitExec; calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> } {
+  const calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> = [];
   const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
+    calls.push({ cmd, args, ...(options === undefined ? {} : { options }) });
     const key = matchKey(args, responses);
     if (key === null) {
       throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
@@ -574,11 +574,18 @@ describe("runPassiveWorktreeInspection", () => {
         return `${advertisedOid} missing\n`;
       };
 
+      const expectedMessage = {
+        branch: "branch failed",
+        "remote configuration": "remote configuration failed",
+        upstream: "upstream failed",
+        "object inspection": "Cannot inspect advertised worktree object availability.",
+      }[failureStage];
+
       await expect(runPassiveWorktreeInspection({
         exec,
         execInput,
         remoteSyncEnabled: true,
-      })).rejects.toThrow(/failed|Cannot inspect/u);
+      })).rejects.toThrow(expectedMessage);
     },
   );
 });
@@ -591,6 +598,7 @@ describe("runMaterializingWorktreeInspection", () => {
       "for-each-ref *": { stdout: "origin/published-name", stderr: "" },
       "fetch origin published-name": { stdout: "", stderr: "" },
       "rev-parse origin/published-name": { stdout: oid, stderr: "" },
+      "rev-parse --verify *": { stdout: oid, stderr: "" },
       "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
       "rev-parse HEAD": { stdout: oid, stderr: "" },
     });
@@ -601,13 +609,27 @@ describe("runMaterializingWorktreeInspection", () => {
     });
   });
 
-  it("fails visibly when the configured upstream is not on origin", async () => {
-    const { exec } = buildExec({
+  it("treats a configured non-origin upstream as locally inapplicable", async () => {
+    const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       "for-each-ref *": { stdout: "upstream/main", stderr: "" },
+      "remote get-url origin": { stdout: "git@example.test:repo.git", stderr: "" },
     });
 
-    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toThrow(/configured upstream.*origin/u);
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toMatchObject({
+      state: "no-upstream",
+      remoteEvidence: "not-applicable",
+    });
+    expect(calls.some((call) => call.args[0] === "fetch")).toBe(false);
+  });
+
+  it("rejects an empty origin upstream branch name", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/", stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toThrow(/origin branch name/u);
   });
 
   it("returns an exact clean relation after materializing the tracked branch", async () => {
@@ -617,6 +639,7 @@ describe("runMaterializingWorktreeInspection", () => {
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
       "rev-parse origin/main": { stdout: oid, stderr: "" },
+      "rev-parse --verify *": { stdout: oid, stderr: "" },
       "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
       "rev-parse HEAD": { stdout: oid, stderr: "" },
     });
@@ -630,6 +653,24 @@ describe("runMaterializingWorktreeInspection", () => {
     });
   });
 
+  it("pins every materializing Git command to the supplied repository root", async () => {
+    const oid = "a".repeat(40);
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      "rev-parse origin/main": { stdout: oid, stderr: "" },
+      "rev-parse --verify *": { stdout: oid, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: oid, stderr: "" },
+    });
+
+    await runMaterializingWorktreeInspection({ exec, cwd: "/repo" });
+
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((call) => call.options?.cwd === "/repo")).toBe(true);
+  });
+
   it("analyzes distance against the materialized remote OID", async () => {
     const remoteOid = "a".repeat(40);
     const localOid = "b".repeat(40);
@@ -638,6 +679,7 @@ describe("runMaterializingWorktreeInspection", () => {
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
       "rev-parse origin/main": { stdout: remoteOid, stderr: "" },
+      "rev-parse --verify *": { stdout: remoteOid, stderr: "" },
       "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
       "rev-parse HEAD": { stdout: localOid, stderr: "" },
       [`rev-list --left-right --count ${localOid}...${remoteOid}`]: { stdout: "0\t3", stderr: "" },
@@ -677,10 +719,32 @@ describe("runMaterializingWorktreeInspection", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: () => { throw new Error(message); },
+      [FETCH_BRANCH]: () => {
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args: ["fetch", "origin", "main"],
+          exitCode: 128,
+          stderr: message,
+        });
+      },
     });
 
-    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toThrow();
+    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toMatchObject({ stderr: message });
+  });
+
+  it("fails visibly when the materialized tracking ref does not resolve to a local commit", async () => {
+    const oid = "a".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      "rev-parse origin/main": { stdout: oid, stderr: "" },
+      "rev-parse --verify *": () => { throw new Error("missing commit object"); },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec }))
+      .rejects.toThrow(/materialized worktree commit is not available locally/u);
   });
 
   it("returns exact branch-gone evidence for an absent remote ref", async () => {
@@ -688,9 +752,13 @@ describe("runMaterializingWorktreeInspection", () => {
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       "for-each-ref *": { stdout: "origin/feat/x", stderr: "" },
       [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args: ["fetch", "origin", "feat/x"],
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
+          expectedOutcome: "absent-remote-ref",
         });
       },
     });

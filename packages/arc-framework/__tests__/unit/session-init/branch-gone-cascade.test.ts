@@ -17,11 +17,21 @@ function candidate(
   return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides });
 }
 
+type ResolveInput = Parameters<typeof resolveCascade>[0];
+
+/** Resolve against `main` with exact evidence, so tier tests assert tier behavior alone. */
+function cascade(
+  input: Omit<ResolveInput, "baseBranch" | "evidence">
+    & Partial<Pick<ResolveInput, "baseBranch" | "evidence">>,
+) {
+  return resolveCascade({ baseBranch: "main", evidence: { remoteEvidence: "exact" }, ...input });
+}
+
 describe("resolveCascade", () => {
   it("resolves to the single candidate when the worktree tier has exactly one", () => {
     const only = candidate({ branch: "feat/a", worktreePath: "/wt/a" });
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [only],
       recentBranchCandidates: [],
     });
@@ -33,7 +43,7 @@ describe("resolveCascade", () => {
     const a = candidate({ branch: "feat/a", worktreePath: "/wt/a" });
     const b = candidate({ branch: "feat/b", worktreePath: "/wt/b" });
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [a, b],
       recentBranchCandidates: [],
     });
@@ -46,7 +56,7 @@ describe("resolveCascade", () => {
     // so it resolves through the same single-candidate arm — no special-casing.
     const lone = candidate({ branch: "feat/solo", worktreePath: "/wt/solo" });
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [lone],
       recentBranchCandidates: [],
     });
@@ -55,16 +65,16 @@ describe("resolveCascade", () => {
   });
 
   it("falls back to main when no tier has a candidate", () => {
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [],
       recentBranchCandidates: [],
     });
 
-    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact" });
+    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" });
   });
 
   it("returns pending instead of falling back when eligible advertised objects are missing", () => {
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [],
       recentBranchCandidates: [],
       pendingBranchCount: 2,
@@ -85,7 +95,7 @@ describe("resolveCascade", () => {
   it("falls through to recent branches when the worktree tier is empty (single → resolved)", () => {
     const recent = candidate({ branch: "feat/recent" }); // no worktreePath — remote-only
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [],
       recentBranchCandidates: [recent],
     });
@@ -97,7 +107,7 @@ describe("resolveCascade", () => {
     const r1 = candidate({ branch: "feat/r1" });
     const r2 = candidate({ branch: "feat/r2" });
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [],
       recentBranchCandidates: [r1, r2],
     });
@@ -110,12 +120,50 @@ describe("resolveCascade", () => {
     const recent1 = candidate({ branch: "feat/r1" });
     const recent2 = candidate({ branch: "feat/r2" });
 
-    const result = resolveCascade({
+    const result = cascade({
       worktreeCandidates: [wt],
       recentBranchCandidates: [recent1, recent2],
     });
 
     expect(result).toEqual({ kind: "resolved", remoteEvidence: "exact", candidate: wt });
+  });
+
+  it("carries the supplied base branch on the fallback outcome", () => {
+    const result = cascade({
+      worktreeCandidates: [],
+      recentBranchCandidates: [],
+      baseBranch: "trunk",
+    });
+
+    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact", baseBranch: "trunk" });
+  });
+
+  it.each([
+    ["not-applicable", { remoteEvidence: "not-applicable" } as const],
+    ["pending-fetch", { remoteEvidence: "pending-fetch" } as const],
+    ["unreachable", { remoteEvidence: "unreachable", failureReason: "network" } as const],
+  ])("surfaces the worktree tier as unproven under %s evidence", (_label, evidence) => {
+    const only = candidate({ branch: "feat/a", worktreePath: "/wt/a" });
+
+    // A candidate's disposition rests on proven merge status, so incomplete
+    // evidence must never reach the exact singleton the resolved arm asserts.
+    expect(cascade({ worktreeCandidates: [only], recentBranchCandidates: [], evidence }))
+      .toEqual({ kind: "unproven", ...evidence, candidates: [only] });
+  });
+
+  it.each([
+    ["not-applicable", { remoteEvidence: "not-applicable" } as const],
+    ["unreachable", { remoteEvidence: "unreachable", failureReason: "network" } as const],
+  ])("withholds the base fallback under %s evidence with no candidates", (_label, evidence) => {
+    // An empty tier under a failed read is not a proven absence: the read
+    // reveals no candidates either way, so the fallback is not concluded.
+    expect(cascade({ worktreeCandidates: [], recentBranchCandidates: [], evidence }))
+      .toEqual({ kind: "unproven", ...evidence, candidates: [] });
+  });
+
+  it("falls back to the base only under exact evidence", () => {
+    expect(cascade({ worktreeCandidates: [], recentBranchCandidates: [] }))
+      .toEqual({ kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" });
   });
 });
 
@@ -230,10 +278,15 @@ describe("CascadeResolutionSchema", () => {
   it.each([
     { kind: "resolved", remoteEvidence: "exact", candidate: switchCandidate },
     { kind: "surface", remoteEvidence: "exact", candidates: [switchCandidate, removableCandidate] },
-    { kind: "main-fallback", remoteEvidence: "exact" },
+    { kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" },
     pendingResolution,
   ])("accepts each resolution kind", (resolution) => {
     expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(true);
+  });
+
+  it("requires a base branch on the fallback outcome", () => {
+    expect(CascadeResolutionSchema.safeParse({ kind: "main-fallback", remoteEvidence: "exact" }).success)
+      .toBe(false);
   });
 
   it("allows switch candidates with or without a worktree path", () => {

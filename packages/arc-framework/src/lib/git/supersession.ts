@@ -64,6 +64,7 @@ export interface DetectSupersessionOptions {
 /** Supplied prerequisites for patch-equivalence analysis against an advertised branch tip. */
 export interface AnalyzeSupersessionSnapshotOptions {
   exec: GitExec;
+  /** Upstream remote branch name used as the key in `snapshot.tips`. */
   branch: string;
   snapshot: RemoteHeadSnapshotResult;
   objectAvailability: ObjectAvailabilityResult;

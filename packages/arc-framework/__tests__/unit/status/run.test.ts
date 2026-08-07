@@ -586,6 +586,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({
       kind: "main-fallback",
       remoteEvidence: "exact",
+      baseBranch: "main",
     })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({
       remoteEvidence: "not-applicable",
@@ -903,7 +904,7 @@ describe("runSessionInitStatus — orchestration", () => {
       },
       recovery: async (value) => {
         received.push(value);
-        return { kind: "main-fallback", remoteEvidence: "exact" };
+        return { kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" };
       },
       sweep: async (value) => {
         received.push(value);

@@ -193,10 +193,13 @@ describe("runBranchGoneRecovery", () => {
       },
     });
 
+    // The advertised base commit is not local, so containment could not be
+    // established — the candidate surfaces for manual choice instead of
+    // resolving as a proven singleton.
     expect(result).toEqual({
-      kind: "resolved",
-      remoteEvidence: "exact",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "switch" },
+      kind: "unproven",
+      remoteEvidence: "pending-fetch",
+      candidates: [{ branch: "feat/a", worktreePath: "/wt/a", proposedAction: "switch" }],
     });
   });
 
@@ -209,6 +212,8 @@ describe("runBranchGoneRecovery", () => {
         objectAvailability: { kind: "unavailable", reason: "execution" },
         history: { kind: "unavailable", reason: "execution" },
       },
+      // Remote inspection is off, so merge status was never established.
+      publishedEvidence: { remoteEvidence: "not-applicable" },
     },
     {
       name: "unreachable remote",
@@ -218,6 +223,8 @@ describe("runBranchGoneRecovery", () => {
         objectAvailability: { kind: "unavailable", reason: "execution" },
         history: { kind: "unavailable", reason: "execution" },
       },
+      // The candidate's merged fact is unknown, so the published token says so.
+      publishedEvidence: { remoteEvidence: "unreachable", failureReason: "network" },
     },
     {
       name: "absent advertised base",
@@ -227,10 +234,13 @@ describe("runBranchGoneRecovery", () => {
         objectAvailability: { kind: "complete", commits: {} },
         history: { kind: "complete" },
       },
+      // The remote advertises no base tip, so nothing further remains to
+      // establish and the ordinary exact cascade still applies.
+      publishedEvidence: { remoteEvidence: "exact" },
     },
-  ] satisfies Array<{ name: string; evidence: CleanupBaseEvidence }>)(
+  ] satisfies Array<{ name: string; evidence: CleanupBaseEvidence; publishedEvidence: object }>)(
     "retains a non-removable worktree with $name",
-    async ({ evidence }) => {
+    async ({ evidence, publishedEvidence }) => {
       const result = await runBranchGoneRecovery({
         roster: roster([
           { worktreePath: "/wt/a", branch: "feat/a", metaFilePath: "/wt/a/.arc/active/meta-a.md" },
@@ -244,11 +254,15 @@ describe("runBranchGoneRecovery", () => {
         baseEvidence: evidence,
       });
 
-      expect(result).toEqual({
-        kind: "resolved",
-        remoteEvidence: "exact",
-        candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "switch" },
-      });
+      const candidate = { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "switch" };
+
+      // Exact evidence still resolves the tier; anything less surfaces the
+      // candidate for manual choice rather than claiming a proven singleton.
+      expect(result).toEqual(
+        "remoteEvidence" in publishedEvidence && publishedEvidence.remoteEvidence === "exact"
+          ? { kind: "resolved", ...publishedEvidence, candidate }
+          : { kind: "unproven", ...publishedEvidence, candidates: [candidate] },
+      );
     },
   );
 
@@ -394,7 +408,7 @@ describe("runBranchGoneRecovery", () => {
       userSurfaceFs: emptyUserSurfaceFs,
     });
 
-    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact" });
+    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" });
   });
 
   it("falls through to recent branches when no worktree candidates remain", async () => {

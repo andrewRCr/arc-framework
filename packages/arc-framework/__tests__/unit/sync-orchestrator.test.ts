@@ -15,7 +15,10 @@ import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vite
 
 import { UserFacingError } from "../../src/lib/errors.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
-import type { WorktreeSyncState } from "../../src/lib/git/worktree-sync.js";
+import type {
+  WorktreeMaterializingInspectionResult,
+  WorktreeSyncState,
+} from "../../src/lib/git/worktree-sync.js";
 import type { AuditEntry } from "../../src/lib/release/types.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
@@ -215,10 +218,15 @@ function setConfig(
 }
 
 function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0, branch: string | null = "main") {
-  const remoteEvidence = ["no-upstream", "detached-head", "no-remote"].includes(state)
+  if (state === "skipped" || state === "remote-unavailable") {
+    throw new Error(`Materializing inspection cannot return state '${state}'.`);
+  }
+  const remoteEvidence: WorktreeMaterializingInspectionResult["remoteEvidence"]
+    = ["no-upstream", "detached-head", "no-remote"].includes(state)
     ? "not-applicable"
     : "exact";
-  mockRunMaterializingWorktreeInspection.mockResolvedValue({ state, ahead, behind, branch, remoteEvidence });
+  const result: WorktreeMaterializingInspectionResult = { state, ahead, behind, branch, remoteEvidence };
+  mockRunMaterializingWorktreeInspection.mockResolvedValue(result);
   mockRunWorktreeSyncStatus.mockResolvedValue({ state, ahead, behind, branch });
 }
 
@@ -323,7 +331,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     await handleSync({ dryRun: true });
 
-    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec });
+    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
   });
 
@@ -726,7 +734,6 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it.each([
-    ["remote-unavailable", 0, 0, "main"],
     ["branch-gone", 0, 0, "main"],
     ["detached-head", 0, 0, null],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
@@ -1487,7 +1494,6 @@ describe("audit-log integration", () => {
     ["diverged", 1, 2, "main"],
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
-    ["remote-unavailable", 0, 0, "main"],
     ["branch-gone", 0, 0, "main"],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
     "blocked-%s cell writes refused entry with refusalCode 14",
