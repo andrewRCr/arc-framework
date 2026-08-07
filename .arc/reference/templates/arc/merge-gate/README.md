@@ -125,7 +125,7 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
-The decomposition-receipt namespace stays owned; do not add it to the shipped skeleton's unowned block.
+The transition-record namespace rides the unowned block; the rest of `.arc/system/.internal/` stays owned.
 
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The
