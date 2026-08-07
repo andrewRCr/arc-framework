@@ -48,7 +48,7 @@ describe("decompose workflow contract", () => {
       "arc decompose <origin> --execute <completed-map>",
       "arc decompose <origin> --advance-base <completed-map>",
       "arc status",
-      "arc teardown <origin>",
+      "arc teardown --branch <reported-candidate-branch>\narc teardown <origin>",
     ]);
     expect(workflow).toContain("profile and topology packets");
     expect(workflow).toContain("reject");

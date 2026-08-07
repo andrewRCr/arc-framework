@@ -56,7 +56,7 @@ describe("foreign-write advisory backstop wiring", () => {
   it("treats the backstop as advisory — increments warnings, never errors", () => {
     // The foreign-write block runs between the ROADMAP assert and the Summary.
     const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 21"),
+      preCommitSource.indexOf("CHECK 20"),
       preCommitSource.indexOf("# Summary"),
     );
     expect(block).toContain("warnings=$((warnings + 1))");
