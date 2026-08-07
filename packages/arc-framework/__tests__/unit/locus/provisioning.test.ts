@@ -220,6 +220,36 @@ describe("provisionTransientLocus", () => {
     expect(test.events).toContain("rollback-worktree");
   });
 
+  it("reports spawned residue truth when target revalidation throws", async () => {
+    const test = harness({
+      revalidateTarget: async () => {
+        test.events.push("revalidate");
+        throw new Error("revalidation failed");
+      },
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies));
+
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
+    expect(test.events).toContain("rollback-worktree");
+  });
+
+  it("reports a created checkout residue when revalidation rollback fails", async () => {
+    const test = harness({
+      revalidateTarget: async () => {
+        throw new Error("revalidation failed");
+      },
+      rollbackSpawned: async () => ({ kind: "generation-mismatch" }),
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies));
+
+    expect(result).toMatchObject({
+      kind: "error",
+      evidence: { kind: "marker-residue", checkoutPath: WORKTREE_PATH, markerBytes: null },
+    });
+  });
+
   it("publishes a primary checkout through a ready marker under the operation lock", async () => {
     const test = harness({
       scanWorktrees: async () => ({

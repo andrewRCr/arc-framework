@@ -103,10 +103,14 @@ async function provisionSpawned(
   if (options.expectedBranchHead !== null && roster.head !== options.expectedBranchHead) {
     return rollbackSpawnRefusal(options, created, roster.head, "identity-conflict");
   }
-  const fresh = await options.dependencies.revalidateTarget({
+  const revalidated = await safeCall(() => options.dependencies.revalidateTarget({
     proposal: options.proposal,
     checkoutPath,
-  });
+  }));
+  if (revalidated.kind === "error") {
+    return rollbackSpawnFailure(options, created, roster.head, revalidated.error);
+  }
+  const fresh = revalidated.value;
   if (fresh.kind === "refused") return rollbackSpawnRefusal(options, created, roster.head, fresh.reason);
 
   const marker = await establishReadyMarker(options, checkoutPath, subject);
