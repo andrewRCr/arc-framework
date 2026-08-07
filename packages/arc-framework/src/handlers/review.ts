@@ -13,10 +13,11 @@ import {
   createGitExec,
   createRawGitExec,
   gitExec,
-  readGitObjectBytes,
 } from "../lib/io-context.js";
-import type { DecompositionPlanningLaneResult } from "../lib/work-unit/decomposition-planning-lane.js";
-import { classifyGitDecompositionPlanningLane } from "../lib/work-unit/git-decomposition-planning-lane.js";
+import {
+  classifyPlanningLane,
+  resolveChangeSet,
+} from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
@@ -260,7 +261,7 @@ export interface ReviewPlanningLaneOptions {
 }
 
 export interface ReviewPlanningLaneHandlerDependencies {
-  classify(base: string, head: string, repository: string): Promise<DecompositionPlanningLaneResult>;
+  classify(base: string, head: string, repository: string): Promise<"planning" | "reviewed">;
   write(text: string): void;
   writeError(text: string): void;
   setExitCode(code: number): void;
@@ -268,15 +269,8 @@ export interface ReviewPlanningLaneHandlerDependencies {
 
 function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDependencies {
   return {
-    classify: async (base, head, repository) => await classifyGitDecompositionPlanningLane(
-      base,
-      head,
-      {
-        cwd: repository,
-        exec: createGitExec(),
-        rawExec: createRawGitExec(repository),
-        readBlob: async (oid) => await readGitObjectBytes(repository, oid),
-      },
+    classify: async (base, head, repository) => classifyPlanningLane(
+      await resolveChangeSet(createRawGitExec(repository), base, head),
     ),
     write: (text) => process.stdout.write(text),
     writeError: (text) => process.stderr.write(text),
@@ -311,7 +305,7 @@ export async function handleReviewPlanningLane(
     dependencies.setExitCode(64);
     return;
   }
-  let result: DecompositionPlanningLaneResult;
+  let result: "planning" | "reviewed";
   try {
     result = await dependencies.classify(
       input.data.base,
@@ -323,13 +317,7 @@ export async function handleReviewPlanningLane(
     dependencies.setExitCode(1);
     return;
   }
-  if (result.outcome === "invalid-retirement") {
-    dependencies.write("reviewed\n");
-    dependencies.writeError(`invalid retirement evidence: ${result.locus}\n`);
-    dependencies.setExitCode(1);
-    return;
-  }
-  dependencies.write(`${result.outcome}\n`);
+  dependencies.write(`${result}\n`);
 }
 
 interface ReviewHandlerBoundary {

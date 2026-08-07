@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
-import { createRawGitExec, type RawGitExec } from "../../src/lib/change-facts.js";
+import { createRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
@@ -25,8 +25,6 @@ import {
   prepareGitV3DecomposeBaseAdvancement,
 } from "../../src/lib/work-unit/git-decompose-v3-base-advancement.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
-import { v3DecomposeReceiptPath } from "../../src/lib/work-unit/decompose-v3-preparation.js";
-import { classifyGitDecompositionPlanningLane } from "../../src/lib/work-unit/git-decomposition-planning-lane.js";
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
@@ -422,71 +420,8 @@ describe("Git v3 repository plan", () => {
     expect(new TextDecoder().decode(result.stdout).trim()).toBe(expectedObjectId);
   });
 
-  it("classifies one finalized exact-ref receipt through the shipped command", async () => {
-    const {
-      repo,
-      candidate,
-      baseHead,
-      candidateHead,
-      receiptId,
-      dependencies,
-    } = await finalizedCandidateRepository();
-    await write(repo, ".arc/reference/untracked-classification-noise.txt", "ignored\n");
-    const observedRawExecCwds: Array<string | undefined> = [];
-    const repositoryRawExec = createRawGitExec(repo);
-    const rawExec: RawGitExec = async (args, options) => {
-      observedRawExecCwds.push(options?.cwd);
-      return await repositoryRawExec(args, options);
-    };
-
-    await expect(classifyGitDecompositionPlanningLane(baseHead, candidateHead, {
-      cwd: repo,
-      exec: dependencies.exec,
-      rawExec,
-      readBlob: dependencies.readObject,
-    })).resolves.toEqual({ outcome: "planning" });
-    expect(observedRawExecCwds.length).toBeGreaterThan(0);
-    expect(observedRawExecCwds.every((cwd) => cwd === repo)).toBe(true);
-
-    await expect(runCli([
-      "review",
-      "planning-lane",
-      baseHead,
-      candidateHead,
-      "--repository",
-      repo,
-    ], { cwd: repo, timeout: 30_000 })).resolves.toMatchObject({
-      exitCode: 0,
-      stdout: "planning\n",
-      stderr: "",
-    });
-
-    await write(candidate, v3DecomposeReceiptPath(receiptId), "{not-json\n");
-    await git(candidate, ["add", v3DecomposeReceiptPath(receiptId)]);
-    await git(candidate, ["commit", "-m", "corrupt receipt"]);
-    const invalidHead = (await git(candidate, ["rev-parse", "HEAD"])).trim();
-    const invalid = await runCli([
-      "review",
-      "planning-lane",
-      baseHead,
-      invalidHead,
-      "--repository",
-      repo,
-    ], { cwd: repo, timeout: 30_000 });
-
-    expect(invalid).toMatchObject({ exitCode: 1, stdout: "reviewed\n" });
-    expect(invalid.stderr).toContain("invalid retirement evidence:");
-  }, 30_000);
-
   it("keeps local and hosted exact-ref verdicts aligned for generic transition records", async () => {
     const { repo, baseHead, planningHead } = await genericPlanningLaneRepository();
-    const dependencies = await repositoryDependencies(repo);
-    const classify = async (head: string) => await classifyGitDecompositionPlanningLane(baseHead, head, {
-      cwd: repo,
-      exec: dependencies.exec,
-      rawExec: createRawGitExec(repo),
-      readBlob: dependencies.readObject,
-    });
     const runHosted = async (head: string) => await runCli([
       "review",
       "planning-lane",
@@ -505,7 +440,6 @@ describe("Git v3 repository plan", () => {
       timeout: 30_000,
     });
 
-    await expect(classify(planningHead)).resolves.toEqual({ outcome: "planning" });
     await expect(runHosted(planningHead)).resolves.toMatchObject({
       exitCode: 0,
       stdout: "planning\n",
@@ -522,7 +456,6 @@ describe("Git v3 repository plan", () => {
     await git(repo, ["commit", "-m", "add executable rider"]);
     const reviewedHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
-    await expect(classify(reviewedHead)).resolves.toEqual({ outcome: "reviewed" });
     await expect(runHosted(reviewedHead)).resolves.toMatchObject({
       exitCode: 0,
       stdout: "reviewed\n",

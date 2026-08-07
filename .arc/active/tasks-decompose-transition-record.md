@@ -368,10 +368,14 @@ respective predecessors, then retire the old namespace only after every survivin
         - Replace the review handler's exception-specific dependency/result type with the exact-ref adapter
           `resolveChangeSet()` → `classifyPlanningLane()`; retain the existing closed stdout and failure behavior.
 
-    - `[ ]` **4.3.b Close local and hosted exception coverage**
+    - `[x]` **4.3.b Close local and hosted exception coverage**
         - Delete exception-specific tests and fixtures while retaining the exact transitions-namespace and
           never-widen coverage established in Task 1.6.
         - Prove local and host verdicts remain identical for both admitted records and adjacent reviewed content.
+
+        - _Outcome:_ The public review adapter now reduces exact Git changes through the generic planning grammar;
+          receipt-exception tests are gone, while local and hosted classification remain aligned for the lean
+          transition namespace and adjacent reviewed content.
 
 ### `[ ]` **4.4 Establish receipt-free terminal execution and base mobility**
 

@@ -15,8 +15,17 @@ import {
   type V3ManagedPathResult,
 } from "./decompose-v3-receipt.js";
 import { deriveV3DestinationOutputs } from "./decompose-retirement-driver.js";
-import type { PlanningLaneFactAssembly } from "./decomposition-planning-lane.js";
 import { readTreeEntry } from "./git-decomposition-object-readers.js";
+import type {
+  FinalizedV3DecompositionFacts,
+  V3DecompositionMismatch,
+} from "./validate-v3-decomposition.js";
+
+/** Transitional exact-tree assembly result consumed only by merge-conflict recovery. */
+export type GitFinalizedDecompositionFactAssembly =
+  | { status: "assembled"; facts: FinalizedV3DecompositionFacts }
+  | { status: "mismatch"; mismatch: V3DecompositionMismatch }
+  | { status: "unreadable"; locus?: string };
 
 /** Exact committed-tree readers needed by the fact assembler. */
 export interface GitDecompositionFactAssemblerDependencies {
@@ -89,7 +98,7 @@ export async function assembleGitFinalizedV3DecompositionFacts(
   receipt: V3DecomposeReceipt,
   candidateHead: string,
   dependencies: GitDecompositionFactAssemblerDependencies,
-): Promise<PlanningLaneFactAssembly> {
+): Promise<GitFinalizedDecompositionFactAssembly> {
   const preparation = preparationFromReceipt(receipt);
   const machine = preparation.facts.completedMap.machine;
   let sourceSnapshot: V3DecomposeTreeSnapshot;
