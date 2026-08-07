@@ -488,26 +488,18 @@ drift is consequently caught at admission and at merge-lock release, never by st
   performed at all. Proven by mutation — approving as the evaluator, and supplying the persisted head the way
   attest now does, each break exactly these tests.
 
-### `[ ]` **5.3 Confirm member targets at resume and reduce without re-resolving authority**
+### `[x]` **5.3 Confirm member targets at resume and reduce without re-resolving authority**
 
 - _Goal:_ Resume and reduce operate on the head the operation was admitted for, confirming its pinned
   coordinates rather than re-deriving against the control branch.
 
-- _Note:_ Neither verb re-resolves authority, so neither detects binding drift. That is deliberate and consistent
-  with the exact-head evidence rule: an operation reviews the head it was admitted for, and a rebased or rebound
-  member is a new head that must be admitted again. The work-unit path gets an incidental drift signal here
-  because its confirmation re-derives; the member path deliberately does not. Both verbs carry a confirm
-  dependency and no authority resolution at all, so this holds structurally rather than by convention.
-
-- _Note:_ Reduce confirms in two arms, and only the local-review arm is reachable here — the other belongs to
-  frontline runs, which members never enter. There is no member frontline fixture to build.
-
-    Build `test-first` (one behavior at a time):
-
-    - resuming a member operation confirms current while the control locus is dirty and on the control branch
-    - reducing a member operation confirms current under the same conditions
-    - a member operation whose pinned objects are gone refuses at both verbs
-    - resume and reduce over ordinary operations are unchanged
+- _Outcome:_ Confirmed without a production change, through `local-member-reentry.test.ts` — a real repository
+  driving both verbs over a real member stack, rather than a fake confirmation that could only restate itself.
+  A member operation resumes and reduces while its control branch carries a successor commit and an uncommitted
+  edit, and refuses at both verbs where the pinned commits are absent. The ordinary path is unchanged and still
+  reports `stale-target` once the control branch moves, which is the incidental drift signal the member path
+  deliberately does not manufacture. Proven by mutation: re-deriving a member target instead of verifying it
+  breaks both member cases and leaves the ordinary one green.
 
 ---
 
