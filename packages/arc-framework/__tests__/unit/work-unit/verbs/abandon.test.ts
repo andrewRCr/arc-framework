@@ -7,7 +7,7 @@
  * cascade is phase-polymorphic: a backlog stub is just an artifact removal; a
  * started WU (`planning` / `active`) removes its artifacts in-verb but defers its
  * branch, worktree, and user-workspace cleanup until the retirement evidence has
- * landed; a `parked` WU follows the same receipt-backed branch cleanup path.
+ * landed; a `parked` WU follows the same structurally authorized branch cleanup path.
  * `integrating` and merged / `shipped` are illegal — post-merge backout is a new
  * origin-linked WU. The mutators, the remove runner, and the side-effects reach
  * the contract as spies, so each behavior is asserted over an in-memory index.
@@ -16,7 +16,7 @@
 import { describe, it, expect } from "vitest";
 
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
+import type { PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
@@ -29,11 +29,6 @@ import {
   type LifecycleIndexFs,
 } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
-import {
-  validateReceiptMatrix,
-  type RetirementReceipt,
-} from "../../../../src/lib/work-unit/retirement-authority.js";
-import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
@@ -113,7 +108,6 @@ interface Harness {
   calls: string[];
   removed: string[];
   rmdirs: string[];
-  recordedReceipts: RetirementReceipt[];
   recordedTransitions: TransitionRecord[];
 }
 
@@ -121,9 +115,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
-  const recordedReceipts: RetirementReceipt[] = [];
   const recordedTransitions: TransitionRecord[] = [];
-  const sourceArtifactDigest = canonicalDigest({ artifact: "foo-source" });
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -194,7 +186,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
             head: "a".repeat(40),
           },
         },
-        artifactDigest: sourceArtifactDigest,
         sourceArtifactPaths: TRANSITION_OPERATIONS.map((operation) => operation.path),
         resultArtifactPaths: [],
       };
@@ -206,14 +197,8 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
           authorityVersion: canonicalDigest({ authority: "before-abandon" }),
           sourceRefOid: "a".repeat(40),
           resultRefOid: "a".repeat(40),
-          recordState: "absent",
         },
       }),
-      record: async (receipt) => {
-        calls.push("retirement:record");
-        recordedReceipts.push(receipt);
-        return { status: "recorded", authorityVersion: canonicalDigest({ authority: "after-abandon" }) };
-      },
     },
     stageTransition: async () => {
       calls.push("retirement:stage-transition");
@@ -224,6 +209,10 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     rollbackRefusedCommit: async () => {
       calls.push("retirement:rollback-refused");
       return { status: "rolled-back" };
+    },
+    completeTransition: async () => {
+      calls.push("retirement:complete");
+      return { status: "completed-no-record", authorityVersion: canonicalDigest({ authority: "after-abandon" }) };
     },
     readTransitionPatch: async () => TRANSITION_OPERATIONS,
   };
@@ -250,7 +239,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     calls,
     removed,
     rmdirs,
-    recordedReceipts,
     recordedTransitions,
   };
 }
@@ -306,33 +294,24 @@ describe("runAbandon — composed write authority", () => {
 });
 
 describe("runAbandon — started WU (active)", () => {
-  it("captures the source branch, HEAD, and artifact digest before removing the artifact set", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+  it("captures the source branch and HEAD before removing the artifact set", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
     expect(calls).toContain("retirement:capture:foo:0:feat/foo");
-    expect(recordedReceipts).toHaveLength(1);
-    expect(recordedReceipts[0]?.source).toEqual({
-      branch: "feat/foo",
-      head: "a".repeat(40),
-      artifactDigest: canonicalDigest({ artifact: "foo-source" }),
-    });
-    expect(recordedReceipts[0]?.transitionPatchDigest).toBe(patchDigest(TRANSITION_OPERATIONS));
-    expect(recordedReceipts[0]).toMatchObject({ schemaVersion: 2, inventoryRead: "tree-only" });
+    expect(calls).toContain("retirement:complete");
   });
 
-  it("stages the transition before recording the receipt for the same commit", async () => {
-    const { ctx, calls, recordedReceipts, recordedTransitions } = buildCtx([ACTIVE]);
+  it("stages lean history before completing the same direct transition", async () => {
+    const { ctx, calls, recordedTransitions } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
-    expect(calls).toContain("retirement:record");
-    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
-    expect(calls.indexOf("retirement:record")).toBeLessThan(calls.indexOf("transition:record"));
-    expect(recordedReceipts).toHaveLength(1);
+    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("transition:record"));
+    expect(calls.indexOf("transition:record")).toBeLessThan(calls.indexOf("retirement:complete"));
     expect(recordedTransitions).toEqual([{
       schemaVersion: 1,
       origin: "foo",
@@ -342,7 +321,7 @@ describe("runAbandon — started WU (active)", () => {
     }]);
   });
 
-  it("maps an occupied transition origin to a stable refusal and rolls back the receipt-backed transition", async () => {
+  it("maps an occupied transition origin to a stable refusal and rolls back the direct transition", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
     ctx.transitionWriter.record = async () => ({ status: "origin-occupied" });
 
@@ -354,54 +333,39 @@ describe("runAbandon — started WU (active)", () => {
     expect(calls).toContain("retirement:rollback-refused");
   });
 
-  it("rolls back the transition and leaves destructive cleanup deferred when recording refuses", async () => {
+  it("rolls back transition and lean history when completion refuses", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
-    ctx.retirement.authority.record = async () => ({
+    ctx.retirement.completeTransition = async () => ({
       status: "refused",
       reason: "authority-conflict",
-      diagnostic: "Receipt cleanup was incomplete: record removal failed.",
+      diagnostic: "staged paths changed",
     });
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: record removal failed\./iu),
+      reason: expect.stringMatching(/rolled back.*staged paths changed/iu),
     });
-    expect(calls).toContain("retirement:rollback-transition");
+    expect(calls).toContain("retirement:rollback-refused");
+    expect(calls).toContain("transition:rollback");
     expect(calls).not.toContain("side:user-workspace");
     expect(calls.some((call) => call.startsWith("branch:"))).toBe(false);
   });
 
-  it("records the explicit absent result for a nonexistent lifecycle outcome", async () => {
-    const { ctx, recordedReceipts } = buildCtx([ACTIVE]);
+  it("records lean abandon history without receipt-shaped result evidence", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
-    expect(recordedReceipts[0]).toMatchObject({
-      transition: "abandon",
-      authorization: "discard-confirmed",
-      result: { kind: "discard", artifactDigest: "absent" },
-    });
-    const [recorded] = recordedReceipts;
-    if (recorded === undefined) throw new Error("expected an abandon receipt");
-    expect(validateReceiptMatrix(recorded, "nonexistent")).toBeNull();
-    expect(validateReceiptMatrix(recorded, "planned")).toBe("evidence-mismatch");
-    expect(queryRetirementDisposition({
-      status: "valid",
-      records: [{
-        id: recorded.receiptId,
-        content: "",
-        record: { kind: "receipt", value: recorded },
-      }],
-    }, {
-      retiredSubject: "foo",
-      dependentSlug: "consumer",
-    })).toMatchObject({
-      status: "unique",
-      disposition: { kind: "abandoned" },
-    });
+    expect(recordedTransitions).toEqual([{
+      schemaVersion: 1,
+      origin: "foo",
+      kind: "abandon",
+      successors: [],
+      edges: [],
+    }]);
   });
 
   it("records pending cleanup without deleting refs or closing the live user workspace", async () => {
@@ -419,7 +383,7 @@ describe("runAbandon — started WU (active)", () => {
     expect(removed).toContain("/repo/.arc/active/meta-foo.md");
     expect(removed).toContain("/repo/.arc/active/spec-foo.md");
     expect(removed.some((p) => p.includes("cohort-other"))).toBe(false);
-    // Every destructive cleanup leg stays deferred until the receipt and result
+    // Every destructive cleanup leg stays deferred until the result
     // are authoritative on the protection-aware base.
     expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
     expect(calls).not.toContain("side:user-workspace");
@@ -427,11 +391,6 @@ describe("runAbandon — started WU (active)", () => {
     expect(result.lifecycle).toEqual({
       subject: { slug: "foo", branch: "feat/foo" },
       transition: "abandon",
-      authority: {
-        kind: "receipt-backed",
-        receiptId: result.receipt.receiptId,
-        authorityVersion: result.authorityVersion,
-      },
       cleanup: {
         branch: { status: "pending" },
         worktree: { status: "pending" },
@@ -454,7 +413,7 @@ describe("runAbandon — started WU on a dirty worktree", () => {
 
     // The started-WU abandon edges dropped the `worktree-clean` guard along with the
     // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
-    // artifact removal; landed receipt-backed `arc teardown` owns the worktree.
+    // artifact removal; structurally authorized `arc teardown` owns the worktree.
     expect(result.status).toBe("abandoned");
     if (result.status !== "abandoned") return;
     expect(removed).toContain("/repo/.arc/active/meta-foo.md");
@@ -484,7 +443,7 @@ describe("runAbandon — backlog stub (provisional)", () => {
 });
 
 describe("runAbandon — parked WU", () => {
-  it("records the preserved branch as an unchanged projection and defers its cleanup", async () => {
+  it("preserves the parked branch and defers its cleanup", async () => {
     const { ctx, calls } = buildCtx([PARKED]);
 
     const result = await runAbandon(ctx, { name: "foo", confirmed: true });
@@ -495,14 +454,13 @@ describe("runAbandon — parked WU", () => {
     expect(calls).toContain("retirement:unchanged:feat/foo:.arc/active");
     expect(calls).not.toContain("branch:delete:feat/foo");
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
-    expect(result.receipt.retiringProjection).toEqual({ kind: "unchanged" });
     expect(result.lifecycle.cleanup.branch).toEqual({ status: "pending" });
     expect(result.lifecycle.cleanup.worktree).toEqual({ status: "not-applicable" });
   });
 });
 
 describe("planAbandon — the impact plan per from-state", () => {
-  it("a started WU plans artifacts plus landed receipt-backed teardown", () => {
+  it("a started WU plans artifacts plus landed structural teardown", () => {
     const plan = planAbandon("active", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
     expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
@@ -519,7 +477,7 @@ describe("planAbandon — the impact plan per from-state", () => {
     expect(plan.lines.some((l) => /Branch:|Worktree:|Teardown:/.test(l))).toBe(false);
   });
 
-  it("a parked WU plans landed receipt-backed cleanup of its preserved branch", () => {
+  it("a parked WU plans landed structural cleanup of its preserved branch", () => {
     const plan = planAbandon("parked", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
     expect(plan.lines.some((l) => /Teardown:.*arc teardown foo.*feat\/foo/.test(l))).toBe(true);

@@ -7,8 +7,6 @@ import {
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
-import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
-import type { RetirementRecordEnumerationResult } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
@@ -69,56 +67,10 @@ function ownedMarker(name = "retired"): WorktreeMarkerReadResult {
 
 const DIGEST = `sha256:${"1".repeat(64)}` as const;
 
-function abandonReceipt(): RetirementReceipt {
-  return {
-    schemaVersion: 2,
-    receiptId: DIGEST,
-    subject: { kind: "work-unit", name: "retired" },
-    transition: "abandon",
-    source: {
-      branch: "feat/retired",
-      head: HEAD,
-      artifactDigest: DIGEST,
-    },
-    transitionPatchDigest: DIGEST,
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "discard-confirmed",
-    result: { kind: "discard", artifactDigest: "absent" },
-    inventoryRead: "reachable",
-  };
-}
-
-function enumerated(receipt: RetirementReceipt): RetirementRecordEnumerationResult {
-  return {
-    status: "valid",
-    records: [{
-      id: receipt.receiptId,
-      content: "{}",
-      record: { kind: "receipt", value: receipt },
-    }],
-  };
-}
-
-function enumeratedMany(receipts: readonly RetirementReceipt[]): RetirementRecordEnumerationResult {
-  return {
-    status: "valid",
-    records: receipts.map((receipt) => ({
-      id: receipt.receiptId,
-      content: "{}",
-      record: { kind: "receipt" as const, value: receipt },
-    })),
-  };
-}
-
-function noRecords(): RetirementRecordEnumerationResult {
-  return { status: "valid", records: [] };
-}
-
 const exec: GitExec = async (_command, args) => ({
   stdout: args[0] === "rev-parse" ? `${HEAD}\n` : "",
   stderr: "",
 });
-
 function authorizedDecision() {
   return {
     status: "authorized" as const,
@@ -185,56 +137,21 @@ describe("projectRenameMoveRemedy", () => {
 });
 
 describe("runLandedRetirementSweep", () => {
-  it("lets landed retirement authority supersede stale branch-local active metadata", async () => {
-    const enumerateRecords = async (ref: string) => ref === HEAD
-      ? enumerated(abandonReceipt())
-      : noRecords();
-
-    const result = await runLandedRetirementSweep({
-      roster: {
-        entries: [{
-          worktreePath: "/wt/retired",
-          branch: "feat/retired",
-          metaFilePath: "/wt/retired/.arc/active/meta-retired.md",
-        }],
-        warnings: [],
-      },
+  function options() {
+    return {
       topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
       markers: new Map([["/wt/retired", ownedMarker()]]),
       baseBranch: "main",
-      protection: "full",
+      protection: "partial" as const,
       exec,
       readBlob: async () => null,
-      fetchBase: async () => true,
-      enumerateRecords,
       authorize: async () => authorizedDecision(),
       isClean: async () => true,
-    });
+    };
+  }
 
-    expect(result.retirements).toHaveLength(1);
-    expect(result.retirements[0]).toMatchObject({
-      status: "actionable",
-      lifecycle: { subject: { slug: "retired", branch: "feat/retired" } },
-    });
-  });
-
-  it("offers ordinary teardown only from unique base-reachable receipt authority", async () => {
-    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
-    const authorize = vi.fn(async () => authorizedDecision());
-
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "full",
-      exec,
-      readBlob: async () => null,
-      fetchBase: async () => true,
-      enumerateRecords,
-      authorize,
-      isClean: async () => true,
-    });
+  it("offers ordinary teardown directly from structural abandon authority", async () => {
+    const result = await runLandedRetirementSweep(options());
 
     expect(result.retirements).toEqual([{
       status: "actionable",
@@ -242,7 +159,6 @@ describe("runLandedRetirementSweep", () => {
       lifecycle: {
         subject: { slug: "retired", branch: "feat/retired" },
         transition: "abandon",
-        authority: { kind: "receipt-backed", receiptId: DIGEST, authorityVersion: DIGEST },
         cleanup: {
           branch: { status: "pending" },
           worktree: { status: "pending" },
@@ -255,128 +171,45 @@ describe("runLandedRetirementSweep", () => {
         text: "arc teardown retired",
       },
     }]);
-  });
-
-  it("selects the exact authorized receipt among same-slug history", async () => {
-    const exact = abandonReceipt();
-    const historical: RetirementReceipt = {
-      ...exact,
-      receiptId: `sha256:${"2".repeat(64)}`,
-      source: {
-        ...exact.source,
-        branch: "feat/retired-old",
-        head: "2".repeat(40),
-      },
-    };
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumeratedMany([historical, exact]),
-      authorize: async () => authorizedDecision(),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements).toHaveLength(1);
-    expect(result.retirements[0]).toMatchObject({
-      status: "actionable",
-      lifecycle: {
-        transition: "abandon",
-        authority: { receiptId: DIGEST },
-      },
-    });
-  });
-
-  it("does not make the retired receipt id part of structural authorization", async () => {
-    const historical: RetirementReceipt = {
-      ...abandonReceipt(),
-      receiptId: `sha256:${"2".repeat(64)}`,
-    };
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(historical),
-      authorize: async () => authorizedDecision(),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements).toHaveLength(1);
-    expect(result.retirements[0]).toMatchObject({
-      status: "actionable",
-      lifecycle: { authority: { receiptId: historical.receiptId } },
-    });
-  });
-
-  it("grants no cleanup or successor action for branch-local evidence absent from the full-protection base", async () => {
-    const authorize = vi.fn(async () => authorizedDecision());
-
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "full",
-      exec,
-      readBlob: async () => null,
-      fetchBase: async () => true,
-      enumerateRecords: async () => noRecords(),
-      authorize,
-      isClean: async () => true,
-    });
-
-    expect(result).toEqual({ retirements: [], warnings: [] });
-    expect(authorize).not.toHaveBeenCalled();
+    expect(result.retirements[0]).not.toHaveProperty("lifecycle.authority");
   });
 
   it("reads the local integrating base under partial protection without fetching", async () => {
-    const enumerateRecords = async (ref: string) => ref === HEAD
-      ? enumerated(abandonReceipt())
-      : noRecords();
+    const fetchBase = vi.fn(async () => true);
+    const result = await runLandedRetirementSweep({ ...options(), fetchBase });
 
+    expect(result.retirements).toHaveLength(1);
+    expect(fetchBase).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the remote base under full protection before authorization", async () => {
+    const fetchBase = vi.fn(async () => true);
+    const authorize = vi.fn(async () => authorizedDecision());
     const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      fetchBase: async () => { throw new Error("must not fetch partial authority"); },
-      enumerateRecords,
-      authorize: async () => authorizedDecision(),
-      isClean: async () => true,
+      ...options(),
+      protection: "full",
+      fetchBase,
+      authorize,
     });
 
     expect(result.retirements).toHaveLength(1);
+    expect(fetchBase).toHaveBeenCalledOnce();
+    expect(authorize).toHaveBeenCalledOnce();
   });
 
   it.each(["full", "partial"] as const)(
     "keeps %s-protection cleanup manual when the selected base head is unreadable",
     async (protection) => {
+      const authorize = vi.fn(async () => authorizedDecision());
       const result = await runLandedRetirementSweep({
-        roster: { entries: [], warnings: [] },
-        topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-        markers: new Map([["/wt/retired", ownedMarker()]]),
-        baseBranch: "main",
+        ...options(),
         protection,
         exec: async (_command, args) => {
           if (args[0] === "rev-parse") throw new Error("unreadable base");
           return { stdout: "", stderr: "" };
         },
-        readBlob: async () => null,
         fetchBase: async () => true,
-        enumerateRecords: async () => { throw new Error("must not enumerate an unpinned base"); },
-        authorize: async () => authorizedDecision(),
-        isClean: async () => true,
+        authorize,
       });
 
       expect(result).toEqual({
@@ -386,23 +219,12 @@ describe("runLandedRetirementSweep", () => {
             + "retirement cleanup remains manual.",
         ],
       });
+      expect(authorize).not.toHaveBeenCalled();
     },
   );
 
-  it("keeps dirty receipt-backed residue blocked and grants no teardown", async () => {
-    const authorize = vi.fn(async () => authorizedDecision());
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(abandonReceipt()),
-      authorize,
-      isClean: async () => false,
-    });
+  it("keeps dirty structurally authorized residue blocked", async () => {
+    const result = await runLandedRetirementSweep({ ...options(), isClean: async () => false });
 
     expect(result.retirements).toEqual([{
       status: "blocked",
@@ -410,87 +232,48 @@ describe("runLandedRetirementSweep", () => {
       subject: { slug: "retired", branch: "feat/retired" },
       reason: "uncommitted",
     }]);
-    expect(authorize).toHaveBeenCalledOnce();
   });
 
-  it("ignores same-slug history when the active worktree has no exact retirement authority", async () => {
-    const historical: RetirementReceipt = {
-      ...abandonReceipt(),
-      receiptId: `sha256:${"2".repeat(64)}`,
-      source: {
-        ...abandonReceipt().source,
-        branch: "feat/retired-old",
-        head: "2".repeat(40),
-      },
-    };
+  it("ignores candidates with no structural retirement evidence", async () => {
     const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(historical),
-      authorize: async () => ({ status: "refused", reason: "evidence-mismatch" }),
-      isClean: async () => true,
+      ...options(),
+      authorize: async () => ({ status: "refused", reason: "evidence-missing" }),
     });
 
-    expect(result.retirements).toEqual([]);
+    expect(result).toEqual({ retirements: [], warnings: [] });
   });
 
-  it("ignores same-branch abandon history whose source HEAD cannot be the current direct-transition parent", async () => {
+  it.each(["projection-mismatch", "authority-unavailable", "authority-ambiguous"] as const)(
+    "blocks a candidate when structural retirement authorization refuses with %s",
+    async (reason) => {
+      const result = await runLandedRetirementSweep({
+        ...options(),
+        authorize: async () => ({ status: "refused", reason }),
+      });
+
+      expect(result.retirements).toEqual([{
+        status: "blocked",
+        worktreePath: "/wt/retired",
+        subject: { slug: "retired", branch: "feat/retired" },
+        reason,
+      }]);
+    },
+  );
+
+  it("does not turn a structural park proof into an abandon cleanup remedy", async () => {
     const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec,
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(abandonReceipt()),
-      authorize: async () => ({ status: "refused", reason: "evidence-mismatch" }),
-      isClean: async () => true,
+      ...options(),
+      authorize: async () => ({
+        ...authorizedDecision(),
+        authorization: "planning-relocated",
+        evidence: {
+          kind: "git-transition",
+          transition: "park-planning",
+          resultDigest: DIGEST,
+        },
+      }),
     });
 
-    expect(result.retirements).toEqual([]);
+    expect(result).toEqual({ retirements: [], warnings: [] });
   });
-
-  it.each([
-    "projection-mismatch",
-    "authority-unavailable",
-  ] as const)("blocks a plausible current receipt when authorization refuses with %s", async (reason) => {
-    const parent = "2".repeat(40);
-    const receipt: RetirementReceipt = {
-      ...abandonReceipt(),
-      source: {
-        ...abandonReceipt().source,
-        head: parent,
-      },
-    };
-    const result = await runLandedRetirementSweep({
-      roster: { entries: [], warnings: [] },
-      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
-      markers: new Map([["/wt/retired", ownedMarker()]]),
-      baseBranch: "main",
-      protection: "partial",
-      exec: async (_command, args) => {
-        if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-        if (args[0] === "rev-list") return { stdout: `${HEAD} ${parent}\n`, stderr: "" };
-        return { stdout: "", stderr: "" };
-      },
-      readBlob: async () => null,
-      enumerateRecords: async () => enumerated(receipt),
-      authorize: async () => ({ status: "refused", reason }),
-      isClean: async () => true,
-    });
-
-    expect(result.retirements).toEqual([{
-      status: "blocked",
-      worktreePath: "/wt/retired",
-      subject: { slug: "retired", branch: "feat/retired" },
-      reason,
-    }]);
-  });
-
 });

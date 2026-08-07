@@ -2,8 +2,8 @@
  * In-repository implementation of the retirement-authority port.
  *
  * The adapter composes the Git/filesystem snapshot, committed-evidence
- * authorization, and version-checked record boundaries while keeping their I/O
- * seams injectable.
+ * authorization and decomposition finalization while keeping their I/O seams
+ * injectable.
  */
 
 import {
@@ -15,7 +15,6 @@ import {
   readRetirementAuthoritySnapshot,
   type RetirementSnapshotContext,
 } from "./retirement-authority-snapshot.js";
-import { recordRetirementReceipt, type RetirementRecordContext } from "./retirement-record.js";
 import {
   finalizeV3DecomposeRetirement,
   type V3DecomposeFinalizationContext,
@@ -24,7 +23,6 @@ import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type {
   RetirementAuthorityPort,
   RetirementAuthorityScope,
-  RetirementReceipt,
   TeardownAuthorizationDecision,
   TeardownAuthorizationRequest,
 } from "./retirement-authority.js";
@@ -32,7 +30,6 @@ import type {
 /** Injected in-repo boundaries used by the authority port. */
 export interface InRepoRetirementAuthorityContext {
   snapshot: RetirementSnapshotContext;
-  record: RetirementRecordContext;
   authorization: RetirementAuthorizationContext;
   v3DecomposeFinalization: V3DecomposeFinalizationContext;
 }
@@ -47,10 +44,6 @@ export class InRepoRetirementAuthority implements RetirementAuthorityPort {
 
   async readSnapshot(scope: RetirementAuthorityScope) {
     return await readRetirementAuthoritySnapshot(this.#ctx.snapshot, scope);
-  }
-
-  async record(receipt: RetirementReceipt, expectedAuthorityVersion: string) {
-    return await recordRetirementReceipt(this.#ctx.record, receipt, expectedAuthorityVersion);
   }
 
   async finalizeV3Decompose(

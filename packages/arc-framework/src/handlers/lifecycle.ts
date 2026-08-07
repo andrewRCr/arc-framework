@@ -116,10 +116,6 @@ import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
 } from "../lib/work-unit/park-planning-landing.js";
-import {
-  resolveRetirementRecordPath,
-  writeRetirementRecord,
-} from "../lib/work-unit/retirement-record-store.js";
 import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import {
   resolveTransitionRecordPath,
@@ -289,9 +285,6 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
     cwd: base.cwd,
     exec: base.io.exec,
     readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    readFile: base.io.readFile,
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
   };
 }
 

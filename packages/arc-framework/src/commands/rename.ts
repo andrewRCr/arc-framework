@@ -175,7 +175,6 @@ export async function runRenameCommand(
         additionalPaths,
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
-        inventoryRead: composed.readQuality,
         coordinationAdvisories: coordination.map((advisory) => advisory.text),
       };
     },

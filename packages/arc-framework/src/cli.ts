@@ -461,7 +461,7 @@ program
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
+    "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
     {},

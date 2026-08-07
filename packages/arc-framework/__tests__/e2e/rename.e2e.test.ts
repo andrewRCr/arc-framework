@@ -255,7 +255,7 @@ describe("arc rename", () => {
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("rename commit refused");
     expect(await exists(gate.ranMarker)).toBe(true);
-    expect(await exists(gate.refusalMarker)).toBe(true);
+    expect(await exists(gate.refusalMarker), refused.stdout + refused.stderr).toBe(true);
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
     expect(await exists(join(fixture.repo, oldArtifactDir, "meta-old-name.md"))).toBe(true);
     expect(await exists(join(fixture.repo, newArtifactDir, "meta-new-name.md"))).toBe(false);
@@ -269,13 +269,13 @@ describe("arc rename", () => {
       "ls-tree", "-r", "--name-only", "chore/rename-old-name-to-new-name", "--",
       ".arc/system/.internal/retirement-receipts",
     ])).split("\n").filter(Boolean);
-    expect(receiptPaths).toHaveLength(1);
-    const receipt = JSON.parse(await git(fixture.repo, [
-      "show", `chore/rename-old-name-to-new-name:${receiptPaths[0]}`,
-    ])) as { transition: string; result: { kind: string; targetSlug: string } };
-    expect(receipt).toMatchObject({
-      transition: "rename",
-      result: { kind: "rename", targetSlug: "new-name" },
+    expect(receiptPaths).toEqual([]);
+    const transition = JSON.parse(await git(fixture.repo, [
+      "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",
+    ])) as { kind: string; successors: string[] };
+    expect(transition).toMatchObject({
+      kind: "rename",
+      successors: ["new-name"],
     });
     await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");

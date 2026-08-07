@@ -37,17 +37,12 @@ export interface SuccessorReadinessProjection {
   remedy: SuccessorStartRemedy | null;
 }
 
-/** Complete cross-transform account of retirement evidence and deferred cleanup. */
-export interface RetirementLifecycleResult {
+interface RetirementLifecycleResultBase {
   /** Retiring work-unit identity as recorded by the transform. */
   subject: {
     slug: string;
     branch: string | null;
   };
-  /** Transform that produced the result. */
-  transition: "decompose" | "abandon";
-  /** Receipt identity for the completed retirement. */
-  authority: RetirementLifecycleAuthority;
   /** Independently replayable cleanup legs. */
   cleanup: {
     branch: RetirementCleanupProjection;
@@ -58,14 +53,30 @@ export interface RetirementLifecycleResult {
   successorReadiness: SuccessorReadinessProjection;
 }
 
+/** Complete cross-transform account of retirement evidence and deferred cleanup. */
+export type RetirementLifecycleResult =
+  | (RetirementLifecycleResultBase & {
+      transition: "decompose";
+      authority: RetirementLifecycleAuthority;
+    })
+  | (RetirementLifecycleResultBase & {
+      transition: "abandon";
+    });
+
 /** Inputs for one newly recorded receipt-backed retirement result. */
 export interface PendingRetirementLifecycleParams {
   slug: string;
   branch: string | null;
-  transition: "decompose" | "abandon";
+  transition: "decompose";
   receiptId: string;
   authorityVersion: string;
   successorCandidates?: readonly string[];
+}
+
+/** Inputs for receipt-free pending abandon cleanup. */
+export interface PendingAbandonLifecycleParams {
+  slug: string;
+  branch: string | null;
 }
 
 /**
@@ -95,6 +106,26 @@ export function projectPendingRetirementLifecycle(
       userWorkspace: cleanup,
     },
     successorReadiness: projectSuccessorReadiness(params.successorCandidates ?? [], false),
+  };
+}
+
+/** Build a receipt-free pending abandon cleanup projection. */
+export function projectPendingAbandonLifecycle(
+  params: PendingAbandonLifecycleParams,
+): RetirementLifecycleResult {
+  const branch = params.branch === null || params.branch === "[none]" ? null : params.branch;
+  const cleanup: RetirementCleanupProjection = branch === null
+    ? { status: "not-applicable" }
+    : { status: "pending" };
+  return {
+    subject: { slug: params.slug, branch },
+    transition: "abandon",
+    cleanup: {
+      branch: cleanup,
+      worktree: cleanup,
+      userWorkspace: cleanup,
+    },
+    successorReadiness: projectSuccessorReadiness([], false),
   };
 }
 

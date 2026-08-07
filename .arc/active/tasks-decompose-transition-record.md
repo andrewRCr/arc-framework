@@ -276,40 +276,26 @@ coverage before any receipt-consuming predecessor is removed.
 - _Outcome:_ A structurally valid non-shipped stamp is now only a replay request; cleanup authority emerges again
   from immutable Git topology and bytes, and every detached-husk consumer shares the same fail-closed verdict.
 
-### `[ ]` **3.6 Prove receipt-free authorization parity across lifecycle seams**
+### `[x]` **3.6 Prove receipt-free authorization parity across lifecycle seams**
 
 - _Goal:_ All four retirement-adjacent arms retain their material grants and refusals end to end with no receipt
   lookup, and lifecycle callers consume the re-derived authority consistently.
 
-    - `[ ]` **3.6.a Establish the authorization parity matrix**
-        - Cover valid topology plus each material tamper or topology mismatch for abandon teardown, park landing,
-          park teardown, and detached-husk replay.
-        - Build `test-first` (one behavior at a time):
-            - Preserve each prior safe grant and semantic refusal class.
-            - Assert authorization fixtures and boundaries perform no retirement-receipt read.
+    - `[x]` **3.6.a Establish the authorization parity matrix**
+        - Preserved the structural grants and fail-closed refusal classes across abandon teardown, park landing and
+          teardown, and detached-husk replay, with integration boundaries that reject any legacy receipt read.
 
-    - `[ ]` **3.6.b Exercise command and lifecycle integration seams**
-        - Drive authorize → stamp → decode/revalidate → teardown/advisory through lifecycle-generated inputs, plus
-          partial-protection park landing and landed abandon cases.
-        - Replace `lifecycle-residue-sweep.ts` receipt enumeration and matching with per-candidate structural abandon
-          authorization from the already selected base; preserve clean-worktree gating and actionable/blocked
-          projections without emitting receipt-backed authority.
-        - Build `test-first` (one behavior at a time):
-            - Keep status and lifecycle resolution as the only ready/blocked authority.
-            - Complete valid cleanup and refuse invalid cleanup without record-backed evidence.
+    - `[x]` **3.6.b Exercise command and lifecycle integration seams**
+        - Replaced landed-residue receipt enumeration with per-candidate abandon proof from the selected base, keeping
+          clean-worktree gating and actionable/blocked lifecycle projections while exercising the full command seams.
 
-    - `[ ]` **3.6.c Retire direct-transition receipt co-staging**
-        - Replace `RetirementAuthorityPort.record()`, direct-driver receipt validation, and
-          `InRepoDirectRetirementDeps` record creation/removal with a record-neutral snapshot-and-completion contract:
-          rename and abandon complete through the Phase 1 lean writer, while park has an explicit no-record success
-          arm.
-        - Preserve source/result/index compare-and-set validation and specify rollback for transition staging,
-          occupied or unavailable lean writes, later commit failure, and successful park completion with no record.
-        - Split `RetirementLifecycleResult` by transition: abandon carries cleanup projections without a receipt
-          authority member, while the decompose receipt-backed arm remains explicitly isolated until Phase 4.
-        - Remove the old receipt write and coexistence wiring from rename, abandon, and park, then assert no direct
-          lifecycle result, rollback path, husk stamp, landing/teardown proof, advisory, or fixture retains
-          `receiptId` or the old namespace; still-live decompose consumers remain covered and compiling.
+    - `[x]` **3.6.c Retire direct-transition receipt co-staging**
+        - Replaced direct receipt writes with record-neutral snapshot/completion CAS: rename and abandon co-stage lean
+          history, park completes with no record, rollback restores transition state, and abandon lifecycle has no
+          receipt authority while the decompose arm remains isolated.
+
+- _Outcome:_ Direct retirement authorization now crosses every lifecycle seam through pinned Git proof and lean
+  terminal history only; no rename, abandon, park, cleanup, or replay contract retains the sealed receipt namespace.
 
 ## **Phase 4:** Retire the sealed receipt apparatus
 

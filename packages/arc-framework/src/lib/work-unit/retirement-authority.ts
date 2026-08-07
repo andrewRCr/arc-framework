@@ -2,8 +2,8 @@
  * Retirement-authority contract for terminal worktree cleanup.
  *
  * The public vocabulary describes preservation evidence rather than lifecycle
- * state. Drivers record evidence through this port; teardown consumes only its
- * typed authorization decisions and never inspects adapter storage directly.
+ * state. Teardown consumes only typed authorization decisions and never
+ * inspects adapter storage directly.
  */
 
 import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
@@ -132,7 +132,6 @@ export interface RetirementAuthoritySnapshot {
   authorityVersion: string;
   sourceRefOid: string;
   resultRefOid: string;
-  recordState: "absent";
 }
 
 /** Exact live teardown request. */
@@ -178,11 +177,6 @@ export interface RetirementAuthorityPort {
   readSnapshot(scope: RetirementAuthorityScope): Promise<
     | { status: "resolved"; snapshot: RetirementAuthoritySnapshot }
     | { status: "refused"; reason: TeardownAuthorizationRefusal }
-  >;
-
-  record(receipt: RetirementReceipt, expectedAuthorityVersion: string): Promise<
-    | { status: "recorded"; authorityVersion: string }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
   >;
 
   finalizeV3Decompose(

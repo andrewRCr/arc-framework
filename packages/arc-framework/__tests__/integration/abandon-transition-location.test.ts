@@ -120,6 +120,9 @@ async function locate(
 
 function readRepoBlob(repo: Awaited<ReturnType<typeof createRepository>>) {
   return async (ref: string, path: ManagedPath): Promise<Uint8Array | null> => {
+    if (path.startsWith(".arc/system/.internal/retirement-receipts/")) {
+      throw new Error("legacy retirement receipt storage must not be read");
+    }
     try {
       const { stdout } = await repo.exec("git", ["show", `${ref}:${path}`]);
       return new TextEncoder().encode(stdout);

@@ -784,7 +784,7 @@ async function teardownBranchProjection(
   }
 
   // Branch delete — mode-keyed. `shipped` without a stamped authorization keeps
-  // the merged-safe containment path. Stamped/receipt-backed cleanup resolves the
+  // the merged-safe containment path. Stamped cleanup resolves the
   // persisted remote disposition first, then compare-deletes the exact local OID;
   // unresolved obligations retain the path-addressable husk for replay.
   let branchDeleted = false;
@@ -1128,7 +1128,7 @@ export async function runBranchTeardown(
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
  * order — projection preparation, remote disposition, exact local ref mutation,
  * deferred physical removal, and prune. Shipped cleanup keeps its merged-safe,
- * push-state-gated compatibility path; abandoned cleanup requires receipt-backed
+ * push-state-gated compatibility path; abandoned cleanup requires Git-proven
  * retirement authority. Rejects on a
  * gate mismatch (a not-yet-shipped WU in `shipped`, a `completed/` WU in
  * `abandoned`), an ambiguous branch match, or a dirty linked worktree.
@@ -1208,7 +1208,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   if (!shipped && branch === null && params.huskPath === undefined) {
     return {
       status: "rejected",
-      reason: `No branch or detached husk remains for receipt-backed teardown of \`${name}\`.`,
+      reason: `No branch or detached husk remains for evidence-backed teardown of \`${name}\`.`,
     };
   }
 

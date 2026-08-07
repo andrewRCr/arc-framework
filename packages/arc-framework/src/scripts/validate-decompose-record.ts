@@ -34,7 +34,11 @@ import { v3SourceArtifactDigest } from "../lib/work-unit/decompose-v3-schema.js"
 import type { V3SourceArtifactEntry } from "../lib/work-unit/decompose-v3-schema.js";
 import { validateFinalizedV3Decomposition } from "../lib/work-unit/validate-v3-decomposition.js";
 import { readGitV3DecomposeTreeSnapshot } from "../lib/work-unit/git-decompose-v3-preflight.js";
-import { serializeTransitionRecord, type TransitionRecord } from "../lib/work-unit/transition-record.js";
+import {
+  parseTransitionRecord,
+  serializeTransitionRecord,
+  type TransitionRecord,
+} from "../lib/work-unit/transition-record.js";
 import {
   resolveTransitionRecordRelativePath,
   TRANSITION_RECORD_NAMESPACE,
@@ -134,6 +138,64 @@ interface ReceiptCoverage {
   covered: Set<string>;
   failedSubjects: Set<string>;
   errors: string[];
+}
+
+function transitionCoveredRetirements(
+  changes: readonly StagedPathChange[],
+  readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
+  readHeadBytes: DecomposeCommitGateInput["readHeadBytes"],
+): ReceiptCoverage {
+  const covered = new Set<string>();
+  const failedSubjects = new Set<string>();
+  const errors: string[] = [];
+  for (const origin of apparentlyRetiredSlugs(changes)) {
+    const expectedPath = resolveTransitionRecordRelativePath(origin);
+    const change = changes.find((candidate) => candidate.path === expectedPath);
+    if (change === undefined) continue;
+    const fail = (message: string): void => {
+      failedSubjects.add(origin);
+      errors.push(message);
+    };
+    if (change.status !== "A" || readHeadBytes(expectedPath) !== null) {
+      fail(`terminal transition record already exists or was amended for: ${origin}`);
+      continue;
+    }
+    const bytes = readIndexBytes(expectedPath);
+    if (bytes === null) {
+      fail(`terminal transition record is unreadable for: ${origin}`);
+      continue;
+    }
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      fail(`terminal transition record content mismatch for: ${origin}`);
+      continue;
+    }
+    const record = parseTransitionRecord(content);
+    if (record === null
+      || record.origin !== origin
+      || (record.kind !== "rename" && record.kind !== "abandon")
+      || content !== serializeTransitionRecord(record)) {
+      fail(`terminal transition record content mismatch for: ${origin}`);
+      continue;
+    }
+    if (record.kind === "rename") {
+      const target = record.successors[0] ?? "";
+      const targetAdded = changes.some((candidate) =>
+        candidate.status === "A" && lifecycleMetaSlug(candidate.path) === target);
+      if (!targetAdded) {
+        fail(`rename target lifecycle metadata is not staged as an addition: ${target}`);
+        continue;
+      }
+      if (!renameArtifactCorrespondenceMatches(changes, origin, target)) {
+        fail(`rename artifact correspondence mismatch: ${origin} -> ${target}`);
+        continue;
+      }
+    }
+    covered.add(origin);
+  }
+  return { covered, failedSubjects, errors };
 }
 
 function transitionRecordValidation(
@@ -556,14 +618,22 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   }
   const v3Errors = validateV3CommitAddition(input, changes, recordChanges);
   if (v3Errors !== null) return v3Errors;
-  const coverage = receiptCoveredRetirements(
+  const receiptCoverage = receiptCoveredRetirements(
     changes,
     (path) => input.readIndexBytes(path),
     (path) => input.readHeadBytes(path),
   );
-  errors.push(...coverage.errors);
+  const transitionCoverage = transitionCoveredRetirements(
+    changes,
+    (path) => input.readIndexBytes(path),
+    (path) => input.readHeadBytes(path),
+  );
+  errors.push(...receiptCoverage.errors, ...transitionCoverage.errors);
   const uncovered = apparentlyRetiredSlugs(changes).filter((slug) =>
-    !coverage.covered.has(slug) && !coverage.failedSubjects.has(slug));
+    !receiptCoverage.covered.has(slug)
+    && !transitionCoverage.covered.has(slug)
+    && !receiptCoverage.failedSubjects.has(slug)
+    && !transitionCoverage.failedSubjects.has(slug));
   if (uncovered.length > 0) {
     errors.push(`lifecycle retirement is missing a finalized retirement record for: ${uncovered.join(", ")}`);
   }

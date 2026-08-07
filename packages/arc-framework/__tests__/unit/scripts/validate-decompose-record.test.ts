@@ -8,6 +8,8 @@ import {
   RETIREMENT_RECORD_NAMESPACE,
   resolveRetirementRecordRelativePath,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
+import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { resolveTransitionRecordRelativePath } from "../../../src/lib/work-unit/transition-record-store.js";
 import {
   collectV3CommitGateEvidence,
   parseStagedPathChanges,
@@ -533,6 +535,32 @@ describe("validateDecomposeCommitGate", () => {
       ],
       readIndexBytes: (path) => path === abandonPath ? bytes(canonicalize(abandon)) : null,
       readHeadBytes: () => null,
+    })).toEqual([]);
+  });
+
+  it("accepts a direct rename retirement covered only by its lean transition record", () => {
+    const source = "origin";
+    const target = "renamed-origin";
+    const transitionPath = resolveTransitionRecordRelativePath(source);
+    const transitionBytes = bytes(serializeTransitionRecord({
+      schemaVersion: 1,
+      origin: source,
+      kind: "rename",
+      successors: [target],
+      edges: [],
+    }));
+    const sourceMeta = `.arc/active/meta-${source}.md`;
+    const targetMeta = `.arc/active/meta-${target}.md`;
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "D", path: sourceMeta },
+        { status: "A", path: targetMeta },
+        { status: "A", path: transitionPath },
+      ],
+      readIndexBytes: (path) => path === transitionPath
+        ? transitionBytes
+        : path === targetMeta ? bytes("renamed metadata") : null,
+      readHeadBytes: (path) => path === sourceMeta ? bytes("origin metadata") : null,
     })).toEqual([]);
   });
 
