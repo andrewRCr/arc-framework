@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
+import type {
+  DeliveryMemberLookup,
+  DeliveryMemberLookupResult,
+} from "../../../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
   evaluateReviewReadiness,
   type ReviewReadinessFs,
@@ -120,6 +124,40 @@ function memberVehicle(
     deliverableId: DELIVERABLE_ID,
     workUnitSlug: "demo",
     ...overrides,
+  };
+}
+
+function resolvedMember(
+  overrides: Partial<{
+    planId: string;
+    deliverableId: string;
+    workUnitId: string;
+    isFinalMember: boolean;
+  }> = {},
+): DeliveryMemberLookupResult {
+  return {
+    status: "resolved",
+    member: {
+      planId: PLAN_ID,
+      deliverableId: DELIVERABLE_ID,
+      workUnitId: "demo",
+      base: "d".repeat(40),
+      head: SHA,
+      isFinalMember: false,
+      ...overrides,
+    },
+  };
+}
+
+function memberLookup(
+  result: DeliveryMemberLookupResult,
+  heads: string[] = [],
+): DeliveryMemberLookup {
+  return {
+    resolveMemberByHead: async (headObjectId) => {
+      heads.push(headObjectId);
+      return result;
+    },
   };
 }
 
@@ -732,7 +770,7 @@ describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
   it("echoes the member vehicle unchanged in both the ready and the invalid payload", async () => {
     const readyResult = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}) },
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
     );
     const invalidResult = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03", state: "closed" }),
@@ -750,7 +788,7 @@ describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
   ])("never produces the branch-mismatch fact for a member on %s", async (_case, headBranch) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch }),
-      { fs: buildFs({}) },
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
     );
 
     expect(result.state).toBe("ready");
@@ -812,7 +850,7 @@ describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
   it("reaches its own arm rather than either work-unit cadence arm", async () => {
     const memberResult = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}) },
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
     );
     const manualResult = await evaluateReviewReadiness(
       readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
@@ -832,5 +870,135 @@ describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
       state: "invalid",
       payload: { facts: [{ path: ".arc/completed" }] },
     });
+  });
+});
+
+describe("delivery-member authentication against delivery state", () => {
+  it("refuses a member as unavailable when no lookup port is bound", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}) },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-state-unavailable" }] },
+    });
+  });
+
+  it("leaves work-unit and Errand evaluation unchanged when no lookup port is bound", async () => {
+    const workUnitResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() }) },
+    );
+    const errandResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs: buildFs({}) },
+    );
+
+    expect(workUnitResult.state).toBe("ready");
+    expect(errandResult.state).toBe("ready");
+  });
+
+  it.each([
+    ["unavailable", { status: "unavailable" } as const, "delivery-state-unavailable"],
+    ["unbound", { status: "unbound" } as const, "delivery-member-unbound"],
+  ])("refuses an %s lookup answer with its own fact", async (_case, answer, code) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code, path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it.each([
+    ["plan", { planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e" }, "vehicle.planId"],
+    ["deliverable", { deliverableId: `sha256:${"c".repeat(64)}` }, "vehicle.deliverableId"],
+    ["work unit", { workUnitId: "other-unit" }, "vehicle.workUnitSlug"],
+  ])("refuses a disagreeing %s with one mismatch fact naming its path", async (_field, drift, path) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(drift)) },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-mismatch", path }] },
+    });
+  });
+
+  it("emits one mismatch fact per disagreeing field", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({
+          planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+          deliverableId: `sha256:${"c".repeat(64)}`,
+          workUnitId: "other-unit",
+        })),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: {
+        facts: [
+          { code: "delivery-member-mismatch", path: "vehicle.planId" },
+          { code: "delivery-member-mismatch", path: "vehicle.deliverableId" },
+          { code: "delivery-member-mismatch", path: "vehicle.workUnitSlug" },
+        ],
+      },
+    });
+  });
+
+  it("admits a fully agreeing resolution, authenticating the live pull-request head", async () => {
+    const heads: string[] = [];
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(), heads) },
+    );
+
+    expect(result.state).toBe("ready");
+    expect(heads).toEqual([SHA]);
+  });
+
+  it("admits an assertion whose plan id differs from the resolution's only in case", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(
+        memberVehicle({ planId: PLAN_ID.toUpperCase() }),
+        { headBranch: "delivery/plan/03" },
+      ),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("refuses the plan's final member and admits a non-final one", async () => {
+    const finalResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ isFinalMember: true })),
+      },
+    );
+    const nonFinalResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ isFinalMember: false })),
+      },
+    );
+
+    expect(finalResult).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-terminal", path: "vehicle.deliverableId" }] },
+    });
+    expect(nonFinalResult.state).toBe("ready");
   });
 });

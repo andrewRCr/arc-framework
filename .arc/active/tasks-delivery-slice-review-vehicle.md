@@ -94,65 +94,45 @@ stdin, composed by the consuming callsite.
   bare `ready(request)` at this point: authentication (2.2) and the lifecycle-skip contract (2.3) land on top of
   it, so a member currently admits on identity alone.
 
-### `[ ]` **2.2 Authenticate the member against delivery state**
+### `[x]` **2.2 Authenticate the member against delivery state**
 
 - _Goal:_ Readiness admits a member only when the pull request's exact live head resolves to the plan, member,
   and work unit the vehicle asserts, and every refusal names what disagreed.
 
-- _Approach:_ Authenticate inside the member arm, after tree-root resolution — identity-fact evaluation is
-  synchronous and pure, and folding an asynchronous read into it would change that function's character.
-  Authenticate the **live pull-request head**, not the requested target head: the two are proven equal by the
-  time the arm runs, since a stale head returns early, and the authenticated value should be the observed one.
-  Then compare the resolution against the assertion field by field. The three asserted fields are the caller's
-  claim; readiness authenticates the claim.
+    - `[x]` **2.2.a Add the lookup port to the readiness dependency boundary**
 
-    - `[ ]` **2.2.a Add the lookup port to the readiness dependency boundary**
+        - `ReviewReadinessDependencies` gains an optional `deliveryMemberLookup` beside `fs`, substituted in
+          tests the same way. It is documented as optional-because-undefaultable rather than
+          optional-because-convenient, so a later reader does not supply a module-internal default for it.
+        - an absent port and an `unavailable` answer both produce `delivery-state-unavailable` — the port's
+          absence is a delivery read that could not be established, which is the same refusal.
 
-        - sits alongside the filesystem boundary and is substituted in tests the same way
-        - the port is supplied rather than defaulted: no repository root reaches the evaluation through its
-          request, and the two sources that would supply one — the request's tree root and the process working
-          directory — are both excluded by design. It is therefore optional at the boundary, and an unbound port
-          fails the member arm closed as unavailable.
+    - `[x]` **2.2.b Refuse an unresolvable or unbound head**
 
-        Build `test-first` (one behavior at a time):
+        - both refusals carry `pullRequest.headSha`: the head is the subject being resolved, and the assertion
+          has not yet been reached when either fires.
 
-        - with no port bound, a member vehicle refuses as unavailable rather than throwing or admitting
-        - with no port bound, work-unit and Errand evaluation is unchanged
-
-    - `[ ]` **2.2.b Refuse an unresolvable or unbound head**
-
-        Build `test-first` (one behavior at a time):
-
-        - a lookup reporting unavailable refuses with the unavailable fact — fail closed
-        - a head bound to no delivery member refuses with the unbound fact
-
-    - `[ ]` **2.2.c Refuse a resolution that disagrees with the assertion**
+    - `[x]` **2.2.c Refuse a resolution that disagrees with the assertion**
 
         - the vehicle asserts the owning work unit as a slug while the resolution names the same value as an id;
           both are slugs in one domain, so they compare directly — the differing field names are the hazard, not
           the values
-        - delivery lower-cases a plan id as it parses it, so a resolution's plan id is always lower case. An
-          assertion carrying a canonical-case UUID would otherwise mismatch a correctly named member — a wrong
-          refusal rather than a parse failure, which is the harder one to diagnose. Compare plan ids on the
-          normalized form.
+        - plan ids compare on the lower-cased form. Delivery lower-cases as it parses, and the readiness schema
+          deliberately does not (Task 2.1.a), so an assertion carrying a canonical-case UUID names a correct
+          member and must not be refused.
 
-        Build `test-first` (one behavior at a time):
-
-        - a disagreeing plan, deliverable, or work unit each emits one mismatch fact carrying that field's path
-        - several disagreeing fields emit several facts, one per field
-        - a fully agreeing resolution emits no mismatch fact
-        - an assertion whose plan id differs from the resolution's only in case emits no mismatch fact
-
-    - `[ ]` **2.2.d Refuse the plan's final member**
+    - `[x]` **2.2.d Refuse the plan's final member**
 
         - the boundary is enforced rather than trusted from the asserted kind: a terminal member's head is also
           bound in delivery state, so an unenforced boundary would let a work unit present its terminal pull
           request as a member and skip lifecycle readiness entirely
+        - the terminal fact carries `vehicle.deliverableId` — the field naming the member the boundary rejects.
 
-        Build `test-first` (one behavior at a time):
-
-        - a resolution reporting the plan's final member refuses with the terminal fact
-        - a non-final member does not
+- _Outcome:_ `evaluateDeliveryMember` in `readiness.ts` is the member arm, reached after tree-root resolution and
+  authenticating `pullRequest.headSha` rather than `target.headSha` (a stale head returns early, so the two are
+  proven equal and the observed value is the one authenticated). Mismatch and terminal facts accumulate rather
+  than short-circuit, so a refusal names every field that disagreed in one pass; the unavailable and unbound
+  answers return alone, having reached no assertion to compare.
 
 ### `[ ]` **2.3 Skip work-unit lifecycle evaluation for members**
 

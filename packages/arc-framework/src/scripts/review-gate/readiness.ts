@@ -21,6 +21,7 @@ import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
+import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
@@ -131,6 +132,16 @@ export interface ReviewReadinessFs {
 /** Injectable boundaries for the readiness checker. */
 export interface ReviewReadinessDependencies {
   fs: ReviewReadinessFs;
+  /**
+   * Delivery read backing `delivery-member` authentication.
+   *
+   * No repository root reaches this module through its request, so the port has
+   * no sound default and is supplied by each composition root from its own
+   * resolved root. It is consequently optional here, and the member arm fails
+   * closed as `delivery-state-unavailable` when it is absent. The `work-unit`
+   * and `errand` arms never consult it.
+   */
+  deliveryMemberLookup?: DeliveryMemberLookup;
 }
 
 const DEFAULT_FS: ReviewReadinessFs = {
@@ -471,6 +482,66 @@ function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[]
     return [fact("malformed-release-notes", path, "Release Notes Entry requires at least one change category.")];
   }
   return [];
+}
+
+async function evaluateDeliveryMember(
+  request: ReviewReadinessRequest & {
+    vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+  },
+  lookup: DeliveryMemberLookup | undefined,
+): Promise<ReviewReadinessFact[]> {
+  if (lookup === undefined) {
+    return [fact(
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
+    )];
+  }
+  const resolution = await lookup.resolveMemberByHead(request.pullRequest.headSha);
+  if (resolution.status === "unavailable") {
+    return [fact(
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
+    )];
+  }
+  if (resolution.status === "unbound") {
+    return [fact(
+      "delivery-member-unbound",
+      "pullRequest.headSha",
+      "The pull request's exact live head is bound to no delivery member.",
+    )];
+  }
+  const facts: ReviewReadinessFact[] = [];
+  if (resolution.member.planId.toLowerCase() !== request.vehicle.planId.toLowerCase()) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.planId",
+      "The head's owning plan does not match the asserted plan.",
+    ));
+  }
+  if (resolution.member.deliverableId !== request.vehicle.deliverableId) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.deliverableId",
+      "The head's delivery member does not match the asserted deliverable.",
+    ));
+  }
+  if (resolution.member.workUnitId !== request.vehicle.workUnitSlug) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.workUnitSlug",
+      "The head's owning work unit does not match the asserted work unit.",
+    ));
+  }
+  if (resolution.member.isFinalMember) {
+    facts.push(fact(
+      "delivery-member-terminal",
+      "vehicle.deliverableId",
+      "The plan's final member reviews under its work unit's own vehicle.",
+    ));
+  }
+  return facts;
 }
 
 async function evaluateManualWorkUnit(
@@ -874,7 +945,13 @@ export async function evaluateReviewReadiness(
     return ready(request);
   }
   if (request.vehicle.kind === "delivery-member") {
-    return ready(request);
+    const memberFacts = await evaluateDeliveryMember(
+      request as ReviewReadinessRequest & {
+        vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+      },
+      overrides.deliveryMemberLookup,
+    );
+    return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
   }
   if (request.vehicle.archiveCadence === "with-integration") {
     const productFacts = await evaluateArchivedWorkUnit(
