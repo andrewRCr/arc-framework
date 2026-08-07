@@ -134,7 +134,7 @@ stdin, composed by the consuming callsite.
   than short-circuit, so a refusal names every field that disagreed in one pass; the unavailable and unbound
   answers return alone, having reached no assertion to compare.
 
-### `[ ]` **2.3 Skip work-unit lifecycle evaluation for members**
+### `[x]` **2.3 Skip work-unit lifecycle evaluation for members**
 
 - _Goal:_ A member pull request evaluates ready with no work-unit lifecycle artifact present anywhere in the
   supplied tree, while an unusable supplied tree still refuses consistently across every vehicle kind.
@@ -142,18 +142,13 @@ stdin, composed by the consuming callsite.
 - _Context:_ A member pull request excludes lifecycle artifacts by design. This absence is what the distinct kind
   buys — the vehicle adds identity checks, not lifecycle ones.
 
-    - Tree-root resolution still runs, matching the Errand arm's shape. Its result is then unused on this
-      path — nothing beneath the root is read for a member. The resolution is itself the check, so it is load
-      bearing despite producing a value the arm never consumes.
-    - Meta-presence, completion-notes, release-notes, archive-candidate, and cohort-closeout evaluation do not
-      run for this kind, and the variant carries no archive cadence to select an arm with.
-
-    Build `test-first` (one behavior at a time):
-
-    - a member vehicle over a tree carrying no lifecycle artifacts evaluates ready
-    - a member vehicle over a symlinked, missing, or non-directory root refuses with the same root fact the
-      other kinds produce
-    - both work-unit cadence arms and the Errand arm are unchanged
+- _Outcome:_ The arm placement Task 2.1.b established already had this shape, so the deliverable is the coverage
+  that pins it plus one comment recording why the arm must stay below tree-root resolution: the resolution is
+  itself the unusable-root check, and its result being unused on this path reads like dead code otherwise.
+  Coverage asserts the absence directly — a filesystem boundary that records every call shows the member path
+  touching nothing but the root itself — rather than asserting `ready` over an empty tree, which would also pass
+  if lifecycle reads ran and found nothing. Root faults are asserted against the Errand arm's own result in the
+  same case, so "the same root fact" is a comparison rather than a restated constant.
 
 ### `[ ]` **2.4 Bind the port at every readiness composition root and state the widened contract**
 

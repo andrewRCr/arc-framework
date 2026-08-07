@@ -944,6 +944,10 @@ export async function evaluateReviewReadiness(
   if (request.vehicle.kind === "errand") {
     return ready(request);
   }
+  // A member pull request carries no lifecycle artifacts, so nothing beneath the
+  // root is read on this path. The resolution above is still load bearing: it is
+  // itself the check that an unusable supplied root refuses consistently across
+  // every vehicle kind, so this arm must stay below it.
   if (request.vehicle.kind === "delivery-member") {
     const memberFacts = await evaluateDeliveryMember(
       request as ReviewReadinessRequest & {

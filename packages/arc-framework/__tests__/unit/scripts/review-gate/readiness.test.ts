@@ -1002,3 +1002,90 @@ describe("delivery-member authentication against delivery state", () => {
     expect(nonFinalResult.state).toBe("ready");
   });
 });
+
+describe("delivery-member evaluation without work-unit lifecycle readiness", () => {
+  it("admits a member over a tree carrying no lifecycle artifacts", async () => {
+    const reads: string[] = [];
+    const bare = buildFs({});
+    const watched: ReviewReadinessFs = {
+      lstat: async (path) => {
+        reads.push(path);
+        return bare.lstat(path);
+      },
+      realpath: bare.realpath,
+      readFile: async (path) => {
+        reads.push(path);
+        return bare.readFile(path);
+      },
+      readdir: async (path) => {
+        reads.push(path);
+        return bare.readdir(path);
+      },
+    };
+
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: watched, deliveryMemberLookup: memberLookup(resolvedMember()) },
+    );
+
+    expect(result.state).toBe("ready");
+    expect(reads.filter((path) => path !== ROOT)).toEqual([]);
+  });
+
+  it.each([
+    ["missing", { missingRoot: true }, "missing-root"],
+    ["symlinked", { kinds: { [ROOT]: "symlink" as const } }, "symlinked-root"],
+    ["non-directory", { kinds: { [ROOT]: "file" as const } }, "non-directory-root"],
+  ])("refuses a %s supplied root with the same fact the other kinds produce", async (_case, options, code) => {
+    const fs = buildFs({}, options);
+    const memberResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs, deliveryMemberLookup: memberLookup(resolvedMember()) },
+    );
+    const errandResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs },
+    );
+
+    expect(memberResult).toMatchObject({ state: "invalid", diagnostics: [{ code, path: ROOT }] });
+    expect(errandResult).toMatchObject({ state: "invalid", diagnostics: [{ code, path: ROOT }] });
+  });
+
+  it("reports an unusable root ahead of the delivery fault", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}, { missingRoot: true }),
+        deliveryMemberLookup: memberLookup({ status: "unbound" }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{ code: "missing-root" }],
+    });
+  });
+
+  it("leaves both work-unit cadence arms and the Errand arm unchanged", async () => {
+    const lookup = memberLookup({ status: "unavailable" });
+    const manualResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() }), deliveryMemberLookup: lookup },
+    );
+    const archivedResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({ [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta() }),
+        deliveryMemberLookup: lookup,
+      },
+    );
+    const errandResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs: buildFs({}), deliveryMemberLookup: lookup },
+    );
+
+    expect(manualResult.state).toBe("ready");
+    expect(archivedResult.state).toBe("ready");
+    expect(errandResult.state).toBe("ready");
+  });
+});
