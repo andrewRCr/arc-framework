@@ -29,7 +29,7 @@ export async function readHistoryCompleteness(
     ({ stdout } = await options.exec(
       "git",
       ["rev-parse", "--is-shallow-repository"],
-      options.cwd === undefined ? undefined : { cwd: options.cwd },
+      { ...(options.cwd === undefined ? {} : { cwd: options.cwd }), objectAccess: "local-only" },
     ));
   } catch {
     return { kind: "unavailable", reason: "execution" };

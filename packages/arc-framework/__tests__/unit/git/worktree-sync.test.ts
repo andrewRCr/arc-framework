@@ -146,7 +146,7 @@ describe("analyzeWorktreeSnapshot", () => {
   it("classifies an exact relation against a locally available advertised commit", async () => {
     const localOid = "a".repeat(40);
     const advertisedOid = "b".repeat(40);
-    const { exec } = buildExec({
+    const { exec, calls } = buildExec({
       "rev-parse HEAD": { stdout: localOid, stderr: "" },
       [REV_LIST_COUNT]: { stdout: "0\t3", stderr: "" },
     });
@@ -166,6 +166,12 @@ describe("analyzeWorktreeSnapshot", () => {
       branch: "main",
       remoteEvidence: "exact",
     });
+    expect(calls.at(-1)?.args).toEqual([
+      "rev-list",
+      "--left-right",
+      "--count",
+      `${localOid}...${advertisedOid}`,
+    ]);
   });
 
   it("classifies a tracked branch omitted from a complete snapshot as branch-gone", async () => {
@@ -207,6 +213,25 @@ describe("analyzeWorktreeSnapshot", () => {
       branch: "main",
       remoteEvidence: "pending-fetch",
     });
+  });
+
+  it.each([
+    ["execution", /inspection failed/u],
+    ["malformed", /malformed output/u],
+  ] as const)("propagates %s object-availability prerequisite failure", async (reason, message) => {
+    const advertisedOid = "c".repeat(40);
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "unavailable", reason },
+      history: { kind: "complete" },
+    })).rejects.toThrow(message);
+    expect(calls).toEqual([]);
   });
 
   it("does not reuse a stale tracking-ref relation when the advertised commit is not local", async () => {

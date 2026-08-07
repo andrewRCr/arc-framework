@@ -13,6 +13,18 @@ describe("readHistoryCompleteness", () => {
     await expect(readHistoryCompleteness({ exec })).resolves.toEqual({ kind: "complete" });
   });
 
+  it("forwards the exact local-only history query and repository cwd", async () => {
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => ({ stdout: "false", stderr: "" }));
+
+    await readHistoryCompleteness({ exec, cwd: "/repo" });
+
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["rev-parse", "--is-shallow-repository"],
+      { cwd: "/repo", objectAccess: "local-only" },
+    );
+  });
+
   it("classifies strict true output as shallow history", async () => {
     const exec: GitExec = vi.fn(async (): Promise<ExecResult> => ({ stdout: "true", stderr: "" }));
 

@@ -22,6 +22,7 @@ import type { RemoteFailureReason } from "../kernel/index.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { isGitProcessError } from "./process-error.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
+import { isGitObjectId } from "./object-id.js";
 
 /**
  * Worktree sync state.
@@ -164,7 +165,9 @@ export async function analyzeWorktreeSnapshot(
     };
   }
   if (options.objectAvailability.kind !== "complete") {
-    throw new Error("The advertised worktree commit is unavailable locally.");
+    throw new Error(options.objectAvailability.reason === "execution"
+      ? "Local worktree object-availability inspection failed."
+      : "Local worktree object-availability inspection returned malformed output.");
   }
   const advertisedCommitIsLocal = options.objectAvailability.commits[advertisedOid];
   if (advertisedCommitIsLocal === false) {
@@ -184,7 +187,7 @@ export async function analyzeWorktreeSnapshot(
     objectAccess: "local-only",
   });
   const localOid = (await localOnlyExec("git", ["rev-parse", "HEAD"])).stdout.trim();
-  if (!GIT_OBJECT_ID_PATTERN.test(localOid)) {
+  if (!isGitObjectId(localOid)) {
     throw new Error("Cannot resolve the local worktree commit.");
   }
   if (localOid === advertisedOid) {
@@ -197,16 +200,18 @@ export async function analyzeWorktreeSnapshot(
     };
   }
   if (options.history.kind !== "complete") {
-    throw new Error("Complete local history is required for worktree distance analysis.");
+    throw new Error(options.history.kind === "shallow"
+      ? "Complete local history is required for worktree distance analysis."
+      : options.history.reason === "execution"
+        ? "Local worktree history inspection failed."
+        : "Local worktree history inspection returned malformed output.");
   }
-  const relation = await countAheadBehindRef(localOnlyExec, "HEAD", advertisedOid);
+  const relation = await countAheadBehindRef(localOnlyExec, localOid, advertisedOid);
   return { ...relation, branch: options.branch, remoteEvidence: "exact" };
 }
 
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
-const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-
 /**
  * Probe the worktree sync state relative to `origin/<current-branch>`.
  *
