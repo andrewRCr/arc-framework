@@ -70,6 +70,7 @@ describe("kernel work-unit vocabulary", () => {
     expect(schema.safeParse({ state: "blocked", remoteEvidence: "unreachable" }).success).toBe(false);
     for (const remoteEvidence of ["exact", "pending-fetch", "not-applicable"] as const) {
       expect(schema.safeParse({ state: "blocked", remoteEvidence, failureReason: "timeout" }).success).toBe(false);
+      expect(schema.safeParse({ state: "blocked", remoteEvidence, failureReason: undefined }).success).toBe(false);
     }
     expect(schema.safeParse({ state: "ready", remoteEvidence: "exact", extra: true }).success).toBe(false);
     expect(schema.safeParse({ remoteEvidence: "exact" }).success).toBe(false);

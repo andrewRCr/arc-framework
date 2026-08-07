@@ -10,7 +10,6 @@
 import { randomBytes } from "node:crypto";
 
 import {
-  boundedFetch,
   boundedGitInvocation,
   checkOriginExists,
   getCurrentBranch,
@@ -24,6 +23,8 @@ import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
 import { analyzeBaseOverlap } from "./base-overlap.js";
+import { isGitObjectId } from "./object-id.js";
+import { isGitProcessError } from "./process-error.js";
 import type {
   BaseDriftMode,
   BaseDriftResult,
@@ -117,7 +118,9 @@ export async function analyzeBaseDistanceSnapshot(
     };
   }
   if (options.objectAvailability.kind !== "complete") {
-    throw new Error("The advertised base commit is unavailable locally.");
+    throw new Error(options.objectAvailability.reason === "execution"
+      ? "Local base object-availability inspection failed."
+      : "Local base object-availability inspection returned malformed output.");
   }
   const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
   if (baseCommitIsLocal === false) {
@@ -142,7 +145,11 @@ export async function analyzeBaseDistanceSnapshot(
     throw new Error("The advertised base commit has no local availability fact.");
   }
   if (options.history.kind !== "complete") {
-    throw new Error("Complete local history is required for base-distance analysis.");
+    throw new Error(options.history.kind === "shallow"
+      ? "Complete local history is required for base-distance analysis."
+      : options.history.reason === "execution"
+        ? "Local base history inspection failed."
+        : "Local base history inspection returned malformed output.");
   }
   const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
     ...execOptions,
@@ -199,8 +206,28 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
   if (!(await checkOriginExists(exec))) {
     return unavailable("authoritative", "no-remote", "no-remote", baseBranch);
   }
-  const fetch = await boundedFetch(exec, baseBranch, fetchTimeoutMs);
+  const fetchRefspec = `+${sourceRef}:refs/remotes/origin/${baseBranch}`;
+  const fetch = await boundedGitInvocation(
+    exec,
+    ["fetch", "origin", fetchRefspec],
+    fetchTimeoutMs,
+  );
   if (fetch.outcome !== "ok") {
+    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+      return {
+        mode: "authoritative",
+        verdict: "unavailable",
+        state: "remote-unavailable",
+        ahead: 0,
+        behind: 0,
+        base: baseBranch,
+        baseOid: null,
+        unavailableReason: "remote-base-absent",
+        integrationEvidence: null,
+        overlap: null,
+        register: composeUnavailableRegister(baseBranch, "remote-base-absent"),
+      };
+    }
     return unavailable(
       "authoritative",
       fetch.outcome === "timeout" ? "fetch-timeout" : "fetch-failed",
@@ -216,7 +243,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       "git",
       ["rev-parse", "--verify", `refs/remotes/origin/${baseBranch}^{commit}`],
     )).stdout.trim();
-    if (!/^[0-9a-f]{40,64}$/u.test(baseOid)) throw new Error("Invalid fetched base OID.");
+    if (!isGitObjectId(baseOid)) throw new Error("Invalid fetched base OID.");
   } catch {
     return unavailable("authoritative", "fetched-base-unresolved", "remote-unavailable", baseBranch);
   }
@@ -389,7 +416,7 @@ async function analyzeFetchedBase(options: AnalyzeFetchedBaseOptions): Promise<B
   let baseOid: string;
   try {
     baseOid = (await exec("git", ["rev-parse", "--verify", `${invocationRef}^{commit}`])).stdout.trim();
-    if (!/^[0-9a-f]{40,64}$/u.test(baseOid)) throw new Error("Invalid fetched base OID.");
+    if (!isGitObjectId(baseOid)) throw new Error("Invalid fetched base OID.");
   } catch {
     return unavailable(mode, "fetched-base-unresolved", "remote-unavailable", baseBranch);
   }
