@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec finalized — `spec-decompose-transition-record.md` (draft retired, Class persisted)
-- **Next Task:** Begin Task 1.1 — Establish the origin-keyed transition record substrate
+- **Last Completed:** Phase 4 complete — replacement consumers cut over and sealed receipt apparatus retired
+- **Next Task:** Task 5.1 — Complete verification
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Establish the origin-keyed transition record substrate
+- **Next Action:** Begin Task 5.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
