@@ -20,6 +20,7 @@ import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 import type { RetiredSubdirDetectionResult } from "./retired-subdir-detection.js";
+import type { BehindBaseRelation } from "./in-flight-work-unit-sweep.js";
 
 /**
  * Action verb the session-init workflow performs on a sync-pull channel.
@@ -80,6 +81,28 @@ export interface RecommendationOutput {
 const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accepting.";
 
 const DIRTY_LOAD_WARNING = "Stash or commit local edits before loading.";
+
+/**
+ * Compose workflow-ready guidance for approved work whose base relation is unavailable.
+ *
+ * @param relation - Evidence-qualified completion-tail base relation.
+ * @returns Guidance that names the required next evidence without claiming mergeability.
+ */
+export function composeMergeabilityGuidance(relation: BehindBaseRelation): string {
+  if (relation.status === "not-applicable") {
+    return "Enable remote comparison before deciding whether this work unit is mergeable.";
+  }
+  if (relation.status === "known") {
+    throw new Error("Known base evidence does not require mergeability guidance.");
+  }
+  if (relation.remoteEvidence === "pending-fetch") {
+    return "Fetch remote evidence before deciding whether this work unit is mergeable.";
+  }
+  if (relation.remoteEvidence === "unreachable") {
+    return `Retry remote inspection before deciding mergeability (${relation.failureReason}).`;
+  }
+  return "Restore the configured remote base before deciding whether this work unit is mergeable.";
+}
 
 /**
  * Compose the worktree channel recommendation.

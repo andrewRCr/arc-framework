@@ -66,6 +66,26 @@ describe("lean recovery envelope schema", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
   });
 
+  it("requires typed failure evidence exactly for an unreachable worktree read", () => {
+    const unreachableWithoutReason = recovery();
+    const unreachableWorktree = unreachableWithoutReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    unreachableWorktree.value.remoteEvidence = "unreachable";
+    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(false);
+
+    unreachableWorktree.value.failureReason = "network";
+    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(true);
+
+    const exactWithReason = recovery();
+    const exactWorktree = exactWithReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    exactWorktree.value.remoteEvidence = "exact";
+    exactWorktree.value.failureReason = "auth";
+    expect(SessionRecoverProbeResultSchema.safeParse(exactWithReason).success).toBe(false);
+  });
+
   it("requires strategic cursors and permits cursor evidence for resolved integration", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
 

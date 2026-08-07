@@ -14,6 +14,9 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import type { HistoryCompletenessResult } from "../git/history-completeness.js";
+import type { ObjectAvailabilityResult } from "../git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
 import { countAheadBehindRef } from "../git/worktree-sync.js";
 import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
 
@@ -23,6 +26,7 @@ import {
   projectWorkUnitPresenceFacts,
   type InFlightWorkUnitFacts,
   type InFlightWorkUnitSweepResult,
+  type BehindBaseRelation,
 } from "./in-flight-work-unit-sweep.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 
@@ -79,6 +83,83 @@ export interface RunWorkUnitStateOptions {
   now?: string;
 }
 
+/** Supplied prerequisites for behind-base analysis against one advertised base commit. */
+export interface AnalyzeBehindBaseSnapshotOptions {
+  exec: GitExec;
+  branches: readonly string[];
+  baseBranch: string;
+  remoteSyncEnabled: boolean;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  history: HistoryCompletenessResult;
+}
+
+/**
+ * Analyze each local branch against immutable advertised base evidence.
+ *
+ * @param options - Branches, advertised evidence, local prerequisites, and Git executor.
+ * @returns One evidence-qualified behind-base relation per requested branch.
+ */
+export async function analyzeBehindBaseSnapshot(
+  options: AnalyzeBehindBaseSnapshotOptions,
+): Promise<Map<string, BehindBaseRelation>> {
+  if (!options.remoteSyncEnabled) {
+    return relationsFor(options.branches, {
+      status: "not-applicable",
+      remoteEvidence: "not-applicable",
+    });
+  }
+  if (options.snapshot.kind === "unreachable") {
+    return relationsFor(options.branches, {
+      status: "unavailable",
+      remoteEvidence: "unreachable",
+      failureReason: options.snapshot.failureReason,
+    });
+  }
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) {
+    return relationsFor(options.branches, {
+      status: "unavailable",
+      remoteEvidence: "exact",
+      reason: "remote-base-absent",
+    });
+  }
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) {
+    return relationsFor(options.branches, {
+      status: "unavailable",
+      remoteEvidence: "pending-fetch",
+      reason: "base-object-pending-fetch",
+    });
+  }
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (options.history.kind !== "complete") {
+    throw new Error("Complete local history is required for behind-base analysis.");
+  }
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const relations = new Map<string, BehindBaseRelation>();
+  await Promise.all(options.branches.map(async (branch) => {
+    const { behind } = await countAheadBehindRef(localOnlyExec, branch, baseOid);
+    relations.set(branch, { status: "known", value: behind > 0, remoteEvidence: "exact" });
+  }));
+  return relations;
+}
+
+function relationsFor(
+  branches: readonly string[],
+  relation: BehindBaseRelation,
+): Map<string, BehindBaseRelation> {
+  return new Map(branches.map((branch) => [branch, relation]));
+}
+
 /**
  * Compose the session-init work-unit completion-sweep state — presence tier.
  *
@@ -109,7 +190,7 @@ export async function runWorkUnitState(
   const warnings = [...committerDates.warnings];
 
   const sharpened = await sharpenFromPrState(facts, options.prSource, warnings);
-  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch, warnings);
+  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch);
   const inFlight = classifyInFlightWorkUnits({
     workUnits: withBase,
     staleThresholdDays: options.staleThresholdDays,
@@ -123,33 +204,24 @@ export async function runWorkUnitState(
  * branch lacks, so a merge needs the base folded in first. Reuses the shared
  * ahead/behind distance primitive against the *local* `origin/<base>` tracking
  * ref (no fetch), keeping this an always-on, network-free read. A missing base
- * ref or a per-branch read failure resolves to `behindBase: false` (advisory
- * fail-safe) rather than blocking the sweep; the first failure adds one soft
- * warning.
+ * ref. Unexpected local graph failures propagate to the runtime probe boundary
+ * instead of publishing an ordinary known-false relation.
  */
 async function overlayBehindBase(
   facts: readonly InFlightWorkUnitFacts[],
   exec: GitExec,
   baseBranch: string,
-  warnings: string[],
 ): Promise<InFlightWorkUnitFacts[]> {
   if (facts.length === 0) return [...facts];
 
   const baseRef = `origin/${baseBranch}`;
-  let warned = false;
   return Promise.all(
     facts.map(async (f) => {
-      try {
-        const { behind } = await countAheadBehindRef(exec, f.branch, baseRef);
-        return { ...f, behindBase: behind > 0 };
-      } catch (err) {
-        if (!warned) {
-          warned = true;
-          const message = err instanceof Error ? err.message : String(err);
-          warnings.push(`Behind-base read degraded (base ref unresolved): ${message}`);
-        }
-        return { ...f, behindBase: false };
-      }
+      const { behind } = await countAheadBehindRef(exec, f.branch, baseRef);
+      return {
+        ...f,
+        behindBase: { status: "known", value: behind > 0, remoteEvidence: "exact" } as const,
+      };
     }),
   );
 }

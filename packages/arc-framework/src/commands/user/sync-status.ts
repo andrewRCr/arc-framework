@@ -8,7 +8,8 @@ import {
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
-  runWorktreeSyncStatus,
+  runPassiveWorktreeInspection,
+  type WorktreeSnapshotAnalysisResult,
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
@@ -144,7 +145,14 @@ export async function runUserStatus(
     readLocalSyncState(cwd, io, identity),
     inspectNotesCompactionAdvisory(io.exec, `refs/notes/${notesRef(identity)}`),
     shouldProbeWorktree
-      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+      ? io.execInput === undefined
+        ? Promise.reject(new Error("Passive worktree inspection requires stdin-capable Git I/O."))
+        : runPassiveWorktreeInspection({
+            exec: io.exec,
+            execInput: io.execInput,
+            remoteSyncEnabled: true,
+            cwd,
+          })
       : Promise.resolve(null),
   ]);
   const spine = computeUserSyncSpine({
@@ -746,7 +754,7 @@ interface BuildUserStatusInput {
    * Worktree-sync probe result. Pass `undefined` when no probe was attempted
    * (e.g. `--offline`, or `session.remote_sync: disabled`).
    */
-  worktree?: WorktreeSyncStatusResult;
+  worktree?: WorktreeSnapshotAnalysisResult;
   /**
    * Whether `session.remote_sync` is enabled. Distinguishes the offline-with-
    * remote-sync case (emit a skip note) from the disabled case (emit nothing).
@@ -944,7 +952,7 @@ export function buildUserStatusResult(
  * skipped, or `remote_sync: disabled`).
  */
 export function formatWorktreeQualifierLine(input: {
-  worktree: WorktreeSyncStatusResult | undefined;
+  worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult | undefined;
   offline: boolean;
   remoteSyncEnabled: boolean;
 }): string | null {
@@ -966,7 +974,7 @@ export function formatWorktreeQualifierLine(input: {
     case "diverged":
       return `Local worktree HEAD and its origin upstream have diverged (${worktree.ahead} local ahead, ${worktree.behind} remote ahead).`;
     case "remote-unavailable":
-      return formatRemoteUnavailableWorktreeLine(worktree.failureReason);
+      return formatRemoteUnavailableWorktreeLine(worktree);
     case "branch-gone":
       return "Local worktree's upstream branch no longer exists on origin (deleted upstream).";
     default:
@@ -975,10 +983,20 @@ export function formatWorktreeQualifierLine(input: {
 }
 
 function formatRemoteUnavailableWorktreeLine(
-  failureReason: WorktreeSyncStatusResult["failureReason"],
+  worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult,
 ): string {
+  if ("remoteEvidence" in worktree && worktree.remoteEvidence === "pending-fetch") {
+    return "The advertised worktree commit is not available locally; run an explicit sync before relying on its relation.";
+  }
+  const failureReason = "failureReason" in worktree ? worktree.failureReason : undefined;
   if (failureReason === "timeout") {
     return "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.";
+  }
+  if (failureReason === "auth") {
+    return "Worktree remote authentication failed; restore access before trusting remote worktree state.";
+  }
+  if (failureReason === "network") {
+    return "Worktree remote network access failed; retry or use `--offline` to report local worktree refs only.";
   }
   if (failureReason === "error") {
     return "Worktree local-to-origin comparison failed; investigate auth/network access before trusting remote worktree state.";

@@ -89,7 +89,10 @@ import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-ra
 import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import {
+  runPassiveWorktreeInspection,
+  runWorktreeSyncStatus,
+} from "../lib/git/worktree-sync.js";
 import { runBaseDrift } from "../lib/git/base-distance.js";
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
@@ -447,7 +450,15 @@ export async function handleStatus(
       worktree: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
+        if (io.execInput === undefined) {
+          throw new Error("Handoff worktree inspection requires stdin-capable Git I/O.");
+        }
+        return runPassiveWorktreeInspection({
+          exec,
+          execInput: io.execInput,
+          remoteSyncEnabled,
+          cwd,
+        });
       },
       user: async (id) => {
         const resolved = await resolvedSettingsP;

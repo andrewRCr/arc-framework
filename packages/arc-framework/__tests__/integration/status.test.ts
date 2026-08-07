@@ -485,7 +485,9 @@ function makeResolvedReleaseModeSessionHandoffProbes(
     ),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
-    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktree: async () => ({
+      state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
+    }),
     user: async (identity) => stubUserSessionInit(identity),
     syncInterlock: async () => {
       const resolved = (await resolvedSettings()).resolved.syncInterlock;

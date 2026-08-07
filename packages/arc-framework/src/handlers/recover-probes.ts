@@ -10,7 +10,7 @@ import type { SessionRecoverProbes } from "../commands/status.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import type { GitExec } from "../lib/git/index.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { runPassiveWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
@@ -49,7 +49,15 @@ export function createRecoverStatusProbes(
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-      return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
+      if (io.execInput === undefined) {
+        throw new Error("Recovery worktree inspection requires stdin-capable Git I/O.");
+      }
+      return runPassiveWorktreeInspection({
+        exec,
+        execInput: io.execInput,
+        remoteSyncEnabled,
+        cwd,
+      });
     },
     worktreeIdentity: () => resolveWorktreeIdentity(exec),
     dirty,

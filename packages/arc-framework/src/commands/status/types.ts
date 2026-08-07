@@ -40,7 +40,10 @@ import type {
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
 import type { BaseBranchSyncStatusResult } from "../../lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../lib/git/supersession.js";
@@ -408,10 +411,10 @@ export interface SessionInitProbeResult {
 }
 
 /** Worktree slot in the recover envelope. No sync recommendations are attached. */
-export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
+export type SessionRecoverWorktreeValue = WorktreeSnapshotAnalysisResult & {
   /** Which physical worktree the recovered session occupies. */
   identity: WorktreeIdentity;
-}
+};
 
 /** Lean recover-mode composite result — `--recover` consumer shape. */
 export interface SessionRecoverProbeResult {
@@ -513,7 +516,7 @@ export interface SessionHandoffResult {
    */
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
-  worktree: Probe<WorktreeSyncStatusResult>;
+  worktree: Probe<WorktreeSnapshotAnalysisResult>;
   user: Probe<SessionUserValue>;
   syncInterlock: Probe<HandoffSyncInterlock>;
   active: Probe<ActiveSessionInitResult>;
@@ -727,7 +730,7 @@ export interface SessionRecoverProbes {
     identity: string,
     activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
-  worktree: () => Promise<WorktreeSyncStatusResult>;
+  worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
@@ -738,7 +741,7 @@ export interface SessionRecoverProbes {
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
-  worktree: () => Promise<WorktreeSyncStatusResult>;
+  worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
   /** Resolve the entering checkout with the exact active extension set. */

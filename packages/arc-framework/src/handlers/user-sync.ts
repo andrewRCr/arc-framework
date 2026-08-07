@@ -27,10 +27,9 @@ import {
   UserSaveError,
   type UserSyncState,
 } from "../commands/user.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
 import { isRefusalCondition } from "../lib/git/index.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { runMaterializingWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
@@ -134,20 +133,16 @@ export async function handleUserSync(
   const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const { settings } = await readConfigSettings(cwd);
-  const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
   const [state, worktree, branch] = await Promise.all([
     inspectUserSyncState({ cwd, io, identity }),
-    remoteSyncEnabled
-      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
-      : Promise.resolve(undefined),
+    runMaterializingWorktreeInspection({ exec: io.exec }),
     resolveCurrentBranchName(io.exec),
   ]);
   const worktreeBranch = branch ?? undefined;
   const worktreeQualifier = formatWorktreeQualifierLine({
     worktree,
     offline: false,
-    remoteSyncEnabled,
+    remoteSyncEnabled: true,
   });
   if (worktreeQualifier) {
     p.log.info(worktreeQualifier);
@@ -172,7 +167,7 @@ export async function handleUserSync(
         identity,
         yes,
         interaction: context,
-        recordPartialPushOnFailure: worktree?.state === "clean",
+        recordPartialPushOnFailure: worktree.state === "clean",
         worktreeBranch,
       });
       return;
@@ -193,7 +188,7 @@ export async function handleUserSync(
         yes,
         interaction: context,
         restoreAfterPush: true,
-        recordPartialPushOnFailure: worktree?.state === "clean",
+        recordPartialPushOnFailure: worktree.state === "clean",
         worktreeBranch,
       });
       return;

@@ -3,13 +3,17 @@ import { describe, it, expect } from "vitest";
 import {
   analyzeWorktreeSnapshot,
   countAheadBehindRef,
+  runMaterializingWorktreeInspection,
+  runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
 } from "../../../src/lib/git/worktree-sync.js";
 import type {
   ExecResult,
   GitExec,
+  GitExecInput,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 type ResponseFn = (
   args: string[],
@@ -148,7 +152,7 @@ describe("analyzeWorktreeSnapshot", () => {
     const advertisedOid = "b".repeat(40);
     const { exec } = buildExec({
       "rev-parse HEAD": { stdout: localOid, stderr: "" },
-      [REV_LIST_COUNT]: { stdout: "0\t3", stderr: "" },
+      [`rev-list --left-right --count HEAD...${advertisedOid}`]: { stdout: "0\t3", stderr: "" },
     });
 
     await expect(analyzeWorktreeSnapshot({
@@ -342,6 +346,366 @@ describe("analyzeWorktreeSnapshot", () => {
       objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
       history: { kind: "complete" },
     })).rejects.toThrow(expected);
+  });
+});
+
+describe("runPassiveWorktreeInspection", () => {
+  it("compares against a renamed branch configured on origin", async () => {
+    const oid = "5".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "local-name\n", stderr: "" },
+      "remote": { stdout: "origin\n", stderr: "" },
+      "for-each-ref *": { stdout: "origin/published-name\n", stderr: "" },
+      "ls-remote --heads origin refs/heads/published-name": {
+        stdout: `${oid}\trefs/heads/published-name\n`,
+        stderr: "",
+      },
+      "rev-parse HEAD": { stdout: `${oid}\n`, stderr: "" },
+    });
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput: async () => `${oid} commit 123\n`,
+      remoteSyncEnabled: true,
+    })).resolves.toMatchObject({ state: "clean", remoteEvidence: "exact" });
+  });
+
+  it("returns an exact relation from one advertised tip without materializing it", async () => {
+    const localOid = "6".repeat(40);
+    const advertisedOid = "7".repeat(40);
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main\n", stderr: "" },
+      "remote": { stdout: "origin\n", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main\n", stderr: "" },
+      "ls-remote *": { stdout: `${advertisedOid}\trefs/heads/main\n`, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: `${localOid}\n`, stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "0\t2\n", stderr: "" },
+    });
+    let objectReadCount = 0;
+    const execInput: GitExecInput = async (args, input, options) => {
+      objectReadCount += 1;
+      if (
+        args.join(" ") !== "cat-file --batch-check"
+        || input !== `${advertisedOid}\n`
+        || options?.objectAccess !== "local-only"
+      ) {
+        throw new Error("unexpected object availability read");
+      }
+      return `${advertisedOid} commit 123\n`;
+    };
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput,
+      remoteSyncEnabled: true,
+    })).resolves.toEqual({
+      state: "remote-ahead",
+      ahead: 0,
+      behind: 2,
+      branch: "main",
+      remoteEvidence: "exact",
+    });
+    expect(calls.filter(({ args }) => args[0] === "ls-remote")).toHaveLength(1);
+    expect(objectReadCount).toBe(1);
+    expect(calls.every(({ args }) => !["fetch", "update-ref"].includes(args[0] ?? ""))).toBe(true);
+  });
+
+  it("returns pending evidence when the advertised tip is absent locally", async () => {
+    const advertisedOid = "8".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main\n", stderr: "" },
+      "remote": { stdout: "origin\n", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main\n", stderr: "" },
+      "ls-remote *": { stdout: `${advertisedOid}\trefs/heads/main\n`, stderr: "" },
+    });
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput: async () => `${advertisedOid} missing\n`,
+      remoteSyncEnabled: true,
+    })).resolves.toEqual({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "pending-fetch",
+    });
+  });
+
+  it("returns typed unreachable evidence from the bounded exact reader", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main\n", stderr: "" },
+      "remote": { stdout: "origin\n", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main\n", stderr: "" },
+      "ls-remote *": () => {
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args: ["ls-remote"],
+          exitCode: 128,
+          stderr: "fatal: Could not resolve host remote.example",
+        });
+      },
+    });
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput: async () => { throw new Error("object read must not run"); },
+      remoteSyncEnabled: true,
+    })).resolves.toEqual({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    });
+  });
+
+  it("returns exact branch absence without inspecting local objects", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feature/gone\n", stderr: "" },
+      "remote": { stdout: "origin\n", stderr: "" },
+      "for-each-ref *": { stdout: "origin/feature/gone\n", stderr: "" },
+      "ls-remote *": { stdout: "", stderr: "" },
+    });
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput: async () => { throw new Error("object read must not run"); },
+      remoteSyncEnabled: true,
+    })).resolves.toEqual({
+      state: "branch-gone",
+      ahead: 0,
+      behind: 0,
+      branch: "feature/gone",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it.each([
+    ["disabled inspection", false, "main\n", "origin\n", "origin/main\n", "skipped", "main"],
+    ["detached head", true, "HEAD\n", "origin\n", "origin/main\n", "detached-head", null],
+    ["no origin", true, "main\n", "upstream\n", "origin/main\n", "no-remote", "main"],
+    ["no upstream", true, "main\n", "origin\n", "\n", "no-upstream", "main"],
+  ] as const)("returns not-applicable for %s without a remote or object read", async (
+    _label,
+    remoteSyncEnabled,
+    branchOutput,
+    remoteOutput,
+    upstreamOutput,
+    state,
+    branch,
+  ) => {
+    const commands: string[] = [];
+    const exec: GitExec = async (_command, args) => {
+      commands.push(args[0] ?? "");
+      if (args[0] === "rev-parse") return { stdout: branchOutput };
+      if (args[0] === "remote") return { stdout: remoteOutput };
+      if (args[0] === "for-each-ref") return { stdout: upstreamOutput };
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+    let objectRead = false;
+
+    await expect(runPassiveWorktreeInspection({
+      exec,
+      execInput: async () => {
+        objectRead = true;
+        throw new Error("object read must not run");
+      },
+      remoteSyncEnabled,
+    })).resolves.toEqual({
+      state,
+      ahead: 0,
+      behind: 0,
+      branch,
+      remoteEvidence: "not-applicable",
+    });
+    expect(commands).not.toContain("ls-remote");
+    expect(objectRead).toBe(false);
+  });
+
+  it.each(["branch", "remote configuration", "upstream", "object inspection"] as const)(
+    "propagates a local %s failure",
+    async (failureStage) => {
+      const advertisedOid = "9".repeat(40);
+      const exec: GitExec = async (_command, args) => {
+        if (failureStage === "branch" && args[0] === "rev-parse") throw new Error("branch failed");
+        if (args[0] === "rev-parse") return { stdout: "main\n" };
+        if (failureStage === "remote configuration" && args[0] === "remote") {
+          throw new Error("remote configuration failed");
+        }
+        if (args[0] === "remote") return { stdout: "origin\n" };
+        if (failureStage === "upstream" && args[0] === "for-each-ref") throw new Error("upstream failed");
+        if (args[0] === "for-each-ref") return { stdout: "origin/main\n" };
+        if (args[0] === "ls-remote") {
+          return { stdout: `${advertisedOid}\trefs/heads/main\n` };
+        }
+        throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+      };
+      const execInput: GitExecInput = async () => {
+        if (failureStage === "object inspection") throw new Error("object inspection failed");
+        return `${advertisedOid} missing\n`;
+      };
+
+      await expect(runPassiveWorktreeInspection({
+        exec,
+        execInput,
+        remoteSyncEnabled: true,
+      })).rejects.toThrow(/failed|Cannot inspect/u);
+    },
+  );
+});
+
+describe("runMaterializingWorktreeInspection", () => {
+  it("materializes the renamed branch configured on origin", async () => {
+    const oid = "9".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "local-name", stderr: "" },
+      "for-each-ref *": { stdout: "origin/published-name", stderr: "" },
+      "fetch origin published-name": { stdout: "", stderr: "" },
+      "rev-parse origin/published-name": { stdout: oid, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: oid, stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toMatchObject({
+      state: "clean",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("fails visibly when the configured upstream is not on origin", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "upstream/main", stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toThrow(/configured upstream.*origin/u);
+  });
+
+  it("returns an exact clean relation after materializing the tracked branch", async () => {
+    const oid = "a".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      "rev-parse origin/main": { stdout: oid, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: oid, stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toEqual({
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("analyzes distance against the materialized remote OID", async () => {
+    const remoteOid = "a".repeat(40);
+    const localOid = "b".repeat(40);
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      "rev-parse origin/main": { stdout: remoteOid, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: localOid, stderr: "" },
+      [`rev-list --left-right --count HEAD...${remoteOid}`]: { stdout: "0\t3", stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toEqual({
+      state: "remote-ahead",
+      ahead: 0,
+      behind: 3,
+      branch: "main",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("fails visibly when materialization times out", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: (_args, options) => new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+        });
+      }),
+    });
+
+    await expect(runMaterializingWorktreeInspection({
+      exec,
+      fetchTimeoutMs: 25,
+    })).rejects.toThrow(/timed out/u);
+  });
+
+  it.each([
+    ["authentication", "fatal: Authentication failed for 'https://example.test/repo.git'"],
+    ["network", "fatal: unable to access remote: Could not resolve host: example.test"],
+    ["metadata write", "error: cannot lock ref 'refs/remotes/origin/main': Permission denied"],
+  ])("fails visibly on %s materialization errors", async (_name, message) => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: () => { throw new Error(message); },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toThrow();
+  });
+
+  it("returns exact branch-gone evidence for an absent remote ref", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      "for-each-ref *": { stdout: "origin/feat/x", stderr: "" },
+      [FETCH_BRANCH]: () => {
+        throw Object.assign(new Error("fetch failed"), {
+          code: 128,
+          stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
+        });
+      },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toEqual({
+      state: "branch-gone",
+      ahead: 0,
+      behind: 0,
+      branch: "feat/x",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("preserves detached-head without attempting materialization", async () => {
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "HEAD", stderr: "" },
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toMatchObject({
+      state: "detached-head",
+      remoteEvidence: "not-applicable",
+    });
+    expect(calls.some((call) => call.args[0] === "fetch")).toBe(false);
+  });
+
+  it.each([
+    ["no-upstream", { stdout: "git@example.test:repo.git", stderr: "" }],
+    ["no-remote", () => { throw new Error("origin is not configured"); }],
+  ] as const)("preserves %s without attempting materialization", async (state, originResponse) => {
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "\n", stderr: "" },
+      "remote get-url origin": originResponse,
+    });
+
+    await expect(runMaterializingWorktreeInspection({ exec })).resolves.toMatchObject({
+      state,
+      remoteEvidence: "not-applicable",
+    });
+    expect(calls.some((call) => call.args[0] === "fetch")).toBe(false);
   });
 });
 

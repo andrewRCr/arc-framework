@@ -5,8 +5,9 @@
  * Pure git plumbing. Branch-scoped, not identity-scoped — distinct from
  * `commands/user/sync-status.ts` which probes user-notes refs.
  *
- * Consumed by the session-init composite envelope and by the `arc user
- * status` qualifier path.
+ * Named passive and materializing adapters select acquisition policy around
+ * the shared snapshot analyzer; the legacy fetch-owning entry point remains
+ * for session-init until its shared snapshot composition takes over.
  *
  * @module
  */
@@ -16,12 +17,18 @@ import {
   checkOriginExists,
   getCurrentBranch,
   type GitExec,
+  type GitExecInput,
 } from "./exec.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
+import { readHistoryCompleteness } from "./history-completeness.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
+import { readObjectAvailability } from "./object-availability.js";
 import { isGitProcessError } from "./process-error.js";
-import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
+import {
+  readRemoteHeadSnapshot,
+  type RemoteHeadSnapshotResult,
+} from "./remote-ref-reader.js";
 
 /**
  * Worktree sync state.
@@ -81,6 +88,25 @@ export interface RunWorktreeSyncStatusOptions {
   fetchTimeoutMs?: number;
 }
 
+/** Inputs for one passive exact-ref worktree inspection. */
+export interface RunPassiveWorktreeInspectionOptions {
+  exec: GitExec;
+  execInput: GitExecInput;
+  /** Whether automatic remote inspection is enabled for this caller. */
+  remoteSyncEnabled: boolean;
+  /** Bounded exact-ref timeout in milliseconds. */
+  timeoutMs?: number;
+  /** Repository root, when ambient process state must not select the repository. */
+  cwd?: string;
+}
+
+/** Inputs for one explicit materializing worktree inspection. */
+export interface RunMaterializingWorktreeInspectionOptions {
+  exec: GitExec;
+  /** Bounded fetch timeout in milliseconds. */
+  fetchTimeoutMs?: number;
+}
+
 /** Supplied remote and local prerequisites for one tracked worktree relation. */
 export interface AnalyzeWorktreeSnapshotOptions {
   exec: GitExec;
@@ -102,6 +128,15 @@ export type WorktreeSnapshotAnalysisResult = Omit<WorktreeSyncStatusResult, "fai
   | { remoteEvidence: "exact" | "pending-fetch" | "not-applicable" }
   | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
 );
+
+/** Exact or locally inapplicable result from an explicit materializing inspection. */
+export type WorktreeMaterializingInspectionResult = Omit<
+  WorktreeSyncStatusResult,
+  "failureReason" | "state"
+> & {
+  state: Exclude<WorktreeSyncState, "skipped" | "remote-unavailable">;
+  remoteEvidence: "exact" | "not-applicable";
+};
 
 /** Analyze a tracked worktree against supplied remote evidence without acquiring it. */
 export async function analyzeWorktreeSnapshot(
@@ -206,6 +241,243 @@ export async function analyzeWorktreeSnapshot(
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+/**
+ * Inspect one tracked worktree through a bounded exact-ref read without materializing objects.
+ *
+ * @param options - Local Git boundaries, automatic-inspection policy, and timeout.
+ * @returns The evidence-qualified worktree relation.
+ */
+export async function runPassiveWorktreeInspection(
+  options: RunPassiveWorktreeInspectionOptions,
+): Promise<WorktreeSnapshotAnalysisResult> {
+  const exec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+  });
+  const branch = await readCurrentBranch(exec);
+  const unavailableSnapshot = { kind: "unreachable", failureReason: "error" } as const;
+  const unavailableObjects = { kind: "unavailable", reason: "execution" } as const;
+  const unavailableHistory = { kind: "unavailable", reason: "execution" } as const;
+  if (!options.remoteSyncEnabled || branch === null) {
+    return analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: options.remoteSyncEnabled,
+      originConfigured: false,
+      branch,
+      upstreamBranch: null,
+      snapshot: unavailableSnapshot,
+      objectAvailability: unavailableObjects,
+      history: unavailableHistory,
+    });
+  }
+
+  const originConfigured = await readOriginConfiguration(exec);
+  if (!originConfigured) {
+    return analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: true,
+      originConfigured: false,
+      branch,
+      upstreamBranch: null,
+      snapshot: unavailableSnapshot,
+      objectAvailability: unavailableObjects,
+      history: unavailableHistory,
+    });
+  }
+
+  const upstreamBranch = await readConfiguredUpstreamBranch(exec, branch);
+  if (upstreamBranch === null) {
+    return analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: true,
+      originConfigured: true,
+      branch,
+      upstreamBranch: null,
+      snapshot: unavailableSnapshot,
+      objectAvailability: unavailableObjects,
+      history: unavailableHistory,
+    });
+  }
+
+  const snapshot = await readRemoteHeadSnapshot({
+    exec,
+    scope: { kind: "exact", branch: upstreamBranch },
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+  });
+  let objectAvailability: ObjectAvailabilityResult = unavailableObjects;
+  let history: HistoryCompletenessResult = unavailableHistory;
+  if (snapshot.kind === "available") {
+    const advertisedOid = snapshot.tips[upstreamBranch];
+    if (advertisedOid !== undefined) {
+      objectAvailability = await readObjectAvailability({
+        execInput: options.execInput,
+        oids: [advertisedOid],
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+      });
+      if (objectAvailability.kind !== "complete") {
+        throw new Error("Cannot inspect advertised worktree object availability.");
+      }
+      if (objectAvailability.commits[advertisedOid] === true) {
+        history = await readHistoryCompleteness({
+          exec,
+          ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        });
+      }
+    }
+  }
+  return analyzeWorktreeSnapshot({
+    exec,
+    remoteSyncEnabled: true,
+    originConfigured: true,
+    branch,
+    upstreamBranch,
+    snapshot,
+    objectAvailability,
+    history,
+  });
+}
+
+/**
+ * Inspect one tracked worktree after explicitly materializing its remote tip.
+ *
+ * @param options - Git boundary and bounded fetch timeout.
+ * @returns An exact relation or a locally inapplicable result.
+ */
+export async function runMaterializingWorktreeInspection(
+  options: RunMaterializingWorktreeInspectionOptions,
+): Promise<WorktreeMaterializingInspectionResult> {
+  const branch = await readCurrentBranch(options.exec);
+  if (branch === null) {
+    return {
+      state: "detached-head",
+      ahead: 0,
+      behind: 0,
+      branch: null,
+      remoteEvidence: "not-applicable",
+    };
+  }
+
+  const upstreamBranch = await readConfiguredUpstreamBranch(options.exec, branch);
+  if (upstreamBranch === null) {
+    const hasOrigin = await checkOriginExists(options.exec);
+    return {
+      state: hasOrigin ? "no-upstream" : "no-remote",
+      ahead: 0,
+      behind: 0,
+      branch,
+      remoteEvidence: "not-applicable",
+    };
+  }
+
+  const fetch = await boundedFetch(
+    options.exec,
+    upstreamBranch,
+    options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+  );
+  if (fetch.outcome === "error"
+    && isGitProcessError(fetch.error)
+    && fetch.error.expectedOutcome === "absent-remote-ref") {
+    return analyzeExactMaterializedWorktree({
+      exec: options.exec,
+      branch,
+      upstreamBranch,
+      snapshot: { kind: "available", scope: "exact", tips: {} },
+      objectAvailability: { kind: "complete", commits: {} },
+      history: { kind: "complete" },
+    });
+  }
+  if (fetch.outcome === "timeout") {
+    throw new Error("Materializing the worktree remote tip timed out.");
+  }
+  if (fetch.outcome === "error") {
+    if (fetch.error instanceof Error) throw fetch.error;
+    throw new Error("Materializing the worktree remote tip failed.", { cause: fetch.error });
+  }
+
+  const advertisedOid = (await options.exec(
+    "git",
+    ["rev-parse", `origin/${upstreamBranch}`],
+    { objectAccess: "local-only" },
+  )).stdout.trim();
+  if (!GIT_OBJECT_ID_PATTERN.test(advertisedOid)) {
+    throw new Error("Cannot resolve the materialized worktree commit.");
+  }
+  const history = await readHistoryCompleteness({ exec: options.exec });
+  return analyzeExactMaterializedWorktree({
+    exec: options.exec,
+    branch,
+    upstreamBranch,
+    snapshot: { kind: "available", scope: "exact", tips: { [upstreamBranch]: advertisedOid } },
+    objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+    history,
+  });
+}
+
+async function analyzeExactMaterializedWorktree(options: {
+  exec: GitExec;
+  branch: string;
+  upstreamBranch: string;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  history: HistoryCompletenessResult;
+}): Promise<WorktreeMaterializingInspectionResult> {
+  const result = await analyzeWorktreeSnapshot({
+    ...options,
+    remoteSyncEnabled: true,
+    originConfigured: true,
+    upstreamBranch: options.upstreamBranch,
+  });
+  if (
+    result.remoteEvidence === "pending-fetch"
+    || result.remoteEvidence === "unreachable"
+    || result.state === "skipped"
+    || result.state === "remote-unavailable"
+  ) {
+    throw new Error("Materialized worktree inspection did not establish exact evidence.");
+  }
+  return {
+    state: result.state,
+    ahead: result.ahead,
+    behind: result.behind,
+    branch: result.branch,
+    remoteEvidence: result.remoteEvidence,
+  };
+}
+
+async function readCurrentBranch(exec: GitExec): Promise<string | null> {
+  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
+  return branch === "" || branch === "HEAD" ? null : branch;
+}
+
+async function readOriginConfiguration(exec: GitExec): Promise<boolean> {
+  const remotes = (await exec("git", ["remote"])).stdout
+    .split(/\r?\n/u)
+    .filter((remote) => remote !== "");
+  return remotes.includes("origin");
+}
+
+/**
+ * Resolve the configured branch name on `origin`, preserving renamed tracking branches.
+ *
+ * @param exec - Git execution boundary.
+ * @param branch - Local branch whose upstream is inspected.
+ * @returns The upstream branch name without the `origin/` prefix, or null when untracked.
+ */
+export async function readConfiguredUpstreamBranch(exec: GitExec, branch: string): Promise<string | null> {
+  const stdout = (await exec(
+    "git",
+    ["for-each-ref", "--format=%(upstream:short)", `refs/heads/${branch}`],
+  )).stdout;
+  const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
+  if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
+  if (records.length === 0) return null;
+  const upstream = records[0] ?? "";
+  if (!upstream.startsWith("origin/") || upstream.length === "origin/".length) {
+    throw new Error("The configured upstream must be a branch on origin.");
+  }
+  return upstream.slice("origin/".length);
+}
 
 /**
  * Probe the worktree sync state relative to `origin/<current-branch>`.

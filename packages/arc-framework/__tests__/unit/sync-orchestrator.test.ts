@@ -79,7 +79,9 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
 }));
 
 const mockRunWorktreeSyncStatus = vi.fn();
+const mockRunMaterializingWorktreeInspection = vi.fn();
 vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+  runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
   DEFAULT_FETCH_TIMEOUT_MS: 3000,
 }));
@@ -213,6 +215,10 @@ function setConfig(
 }
 
 function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0, branch: string | null = "main") {
+  const remoteEvidence = ["no-upstream", "detached-head", "no-remote"].includes(state)
+    ? "not-applicable"
+    : "exact";
+  mockRunMaterializingWorktreeInspection.mockResolvedValue({ state, ahead, behind, branch, remoteEvidence });
   mockRunWorktreeSyncStatus.mockResolvedValue({ state, ahead, behind, branch });
 }
 
@@ -247,6 +253,7 @@ function resetMockDefaults() {
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockClearErrandPartialPushMarker.mockResolvedValue(undefined);
   mockRecordErrandPartialPushMarker.mockResolvedValue(true);
+  setWorktree("clean");
   mockReconcileErrandPush.mockResolvedValue({ kind: "noop" });
   includeExecInput = false;
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
@@ -309,6 +316,27 @@ describe("handleSync orchestrator matrix dispatch", () => {
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
+  });
+
+  it("uses the explicit materializing reader without an automatic-sync policy", async () => {
+    setWorktree("clean");
+
+    await handleSync({ dryRun: true });
+
+    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec });
+    expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it("stops before sync mutation when worktree materialization fails", async () => {
+    mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
+
+    await expect(handleSync()).rejects.toThrow("cannot lock tracking ref");
+
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockExecuteInboundPull).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
   });
 
   it("both interlocks on-sync + clean worktree → runPairedPush invoked; both legs reported", async () => {
