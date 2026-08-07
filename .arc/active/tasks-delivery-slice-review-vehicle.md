@@ -341,24 +341,24 @@ work unit's meta, so assurance composes through the existing work-unit function 
 routes `delivery-member` to the work-unit arm; left unrouted it would compose an Errand assurance with no work
 class.
 
-### `[ ]` **4.1 Admit the `delivery-member` variant into the local authority and operation-state vehicle unions**
+### `[x]` **4.1 Admit the `delivery-member` variant into the local authority and operation-state vehicle unions**
 
 - _Goal:_ The local lane can both represent and persist a review whose subject is a delivery member.
 
-- _Note:_ The persisted union follows its existing kind-and-identity shape, carrying the member's deliverable id
-  as the identity; the canonical digest form satisfies that union's identifier pattern unchanged. The
-  hand-written authority union is the one that is easy to miss and is load-bearing — without it the lane cannot
-  produce a member operation at all.
+    - `[x]` **4.1.a Add the variant to the local review authority vehicle**
 
-    - `[ ]` **4.1.a Add the variant to the local review authority vehicle**
+        - added to `LocalReviewAuthority["vehicle"]` in `local-review-authority.ts`, keeping the union's
+          kind-and-identity shape
 
-    - `[ ]` **4.1.b Add the variant to the persisted operation-state vehicle**
+    - `[x]` **4.1.b Add the variant to the persisted operation-state vehicle**
 
-        Build `test-first` (one behavior at a time):
+        - added to `ReviewVehicleSchema` in `operation-state-schema.ts`, so both the local-review and suspension
+          states accept a member. A canonical deliverable-id digest satisfies the shared identifier pattern
+          unchanged — no separate identity schema
 
-        - a member vehicle round-trips through the operation-state schema
-        - a deliverable-id digest satisfies the union's identifier pattern
-        - persisted work-unit and Errand vehicles are unaffected
+- _Outcome:_ No consumer broke on the widened unions, which is the intended state rather than an oversight:
+  assurance dispatch treats every non-work-unit vehicle as an Errand today, so a member composes the wrong
+  assurance until Task 4.3 routes it. The variant is inert until a member authority can be produced (Task 4.2).
 
 ### `[ ]` **4.2 Resolve a named member through the delivery port at the control locus**
 

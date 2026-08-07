@@ -150,6 +150,38 @@ describe("review operation state schemas", () => {
     expect(() => ReviewOperationStateSchema.parse({ ...frontline, kind: "controller-verdict" })).toThrow();
   });
 
+  it("round-trips a delivery-member vehicle keyed by its deliverable id", () => {
+    const memberReview = {
+      ...localReview,
+      vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
+    };
+    expect(LocalReviewStateSchema.parse(memberReview)).toEqual(memberReview);
+    expect(ReviewOperationStateSchema.parse(memberReview)).toEqual(memberReview);
+  });
+
+  it("accepts a canonical deliverable-id digest as a vehicle identity", () => {
+    const deliverableId = digest("deliverable");
+    expect(deliverableId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(LocalReviewStateSchema.parse({
+      ...localReview,
+      vehicle: { kind: "delivery-member", identity: deliverableId },
+    }).vehicle.identity).toBe(deliverableId);
+  });
+
+  it("leaves the work-unit and errand vehicles unaffected", () => {
+    for (const vehicle of [
+      { kind: "work-unit" as const, identity: "review-surface-binding" },
+      { kind: "errand" as const, identity: "archived-integration-recovery" },
+    ]) {
+      expect(LocalReviewStateSchema.parse({ ...localReview, vehicle }).vehicle).toEqual(vehicle);
+      expect(ReviewSuspensionStateSchema.parse({ ...suspension, vehicle }).vehicle).toEqual(vehicle);
+    }
+    expect(() => LocalReviewStateSchema.parse({
+      ...localReview,
+      vehicle: { kind: "delivery-plan", identity: digest("plan") },
+    })).toThrow();
+  });
+
   it("rejects evidence, approval, authorization, and unknown fields", () => {
     for (const forbidden of [
       { approval: { approvedBy: "maintainer" } },
