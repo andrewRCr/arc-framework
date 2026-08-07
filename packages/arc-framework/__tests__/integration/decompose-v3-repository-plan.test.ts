@@ -40,6 +40,7 @@ import { runRoadmapConflictAutoRemedy } from "../../src/scripts/remedy-roadmap-c
 import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
+const tsxLoader = import.meta.resolve("tsx");
 const roots: string[] = [];
 
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -1049,10 +1050,9 @@ describe("Git v3 repository plan", () => {
     })).toEqual({ exitCode: 0, stdout: "", stderr: "" });
 
     const packageRoot = resolve(import.meta.dirname, "../..");
-    const tsx = resolve(packageRoot, "../..", "node_modules", ".bin", "tsx");
     await expect(execFileAsync(
-      tsx,
-      [join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
+      process.execPath,
+      ["--import", tsxLoader, join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
       { cwd: candidate, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
     )).resolves.toMatchObject({ stderr: "" });
 
@@ -1081,8 +1081,8 @@ describe("Git v3 repository plan", () => {
       baseBranch: "main",
     })).toEqual({ exitCode: 0, stdout: "", stderr: "" });
     await expect(execFileAsync(
-      tsx,
-      [join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
+      process.execPath,
+      ["--import", tsxLoader, join(packageRoot, "src", "scripts", "validate-decompose-record.ts")],
       { cwd: candidate, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
     )).resolves.toMatchObject({ stderr: "" });
     await git(candidate, ["commit", "-m", "advance candidate base again"]);
