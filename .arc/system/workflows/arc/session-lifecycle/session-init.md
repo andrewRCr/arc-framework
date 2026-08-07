@@ -937,17 +937,21 @@ tracked source documents the work.
 
 - `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
-  auto-merge, or auto-archive. The actionable events (`mergeable`, `merged-needs-archival`) surface every
-  session-init; the time-gated `stale` overlay batches once per calendar day — suppress `stale` entries unless
-  `workUnitState.value.nudge.shouldNudge`. A `behindBase` WU needs its base merged in before it can merge;
-  surface that qualifier alongside `mergeable`. After surfacing any `stale` entry, write
+  auto-merge, or auto-archive. The actionable events (`mergeable`, `mergeability-unavailable`,
+  `merged-needs-archival`) surface every session-init; the time-gated `stale` overlay batches once per calendar day
+  — suppress `stale` entries unless
+  `workUnitState.value.nudge.shouldNudge`. For `mergeability-unavailable`, render `mergeabilityGuidance` verbatim
+  and offer no merge or base-reconciliation action. A `mergeable` WU whose `behindBase` relation is known true
+  needs its base merged in first. After surfacing any `stale` entry, write
   `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if
   needed) so the stale nudge batches to once per calendar day.
 
   ```text
   **Work units in flight:** {N} owned WU(s) in the completion tail:
-  - `{branch}` — {awaiting-review | mergeable | blocked | merged-needs-archival | stale} ({ageDays}d)
-  - mergeable but `behindBase` → merge the base in first; merged-needs-archival → archive it
+  - `{branch}` — {awaiting-review | mergeable | mergeability-unavailable | blocked | merged-needs-archival |
+    stale} ({ageDays}d)
+  - mergeability-unavailable → {mergeabilityGuidance}; mergeable with known true `behindBase` → merge the base in
+    first; merged-needs-archival → archive it
   ```
 
 - `materializableWorkUnits.value.candidates` non-empty (Orient arm — no active WU): remote-only owned work units

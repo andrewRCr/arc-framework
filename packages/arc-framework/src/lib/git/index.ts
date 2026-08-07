@@ -33,9 +33,17 @@ export {
 } from "./process-error.js";
 
 export {
+  analyzeWorktreeSnapshot,
   countAheadBehindRef,
+  runMaterializingWorktreeInspection,
+  runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
+  type AnalyzeWorktreeSnapshotOptions,
+  type RunMaterializingWorktreeInspectionOptions,
+  type RunPassiveWorktreeInspectionOptions,
+  type WorktreeMaterializingInspectionResult,
   type WorktreeSyncState,
+  type WorktreeSnapshotAnalysisResult,
   type WorktreeSyncStatusResult,
   type RunWorktreeSyncStatusOptions,
 } from "./worktree-sync.js";
@@ -90,7 +98,10 @@ export {
 } from "./ancestry.js";
 
 export {
+  analyzeSupersessionSnapshot,
   detectSupersession,
+  type AnalyzeSupersessionSnapshotOptions,
+  type SupersessionSnapshotAnalysisResult,
   type SupersessionResult,
   type DetectSupersessionOptions,
 } from "./supersession.js";

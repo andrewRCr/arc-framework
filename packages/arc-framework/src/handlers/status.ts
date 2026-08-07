@@ -89,7 +89,10 @@ import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-ra
 import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import {
+  runPassiveWorktreeInspection,
+  runWorktreeSyncStatus,
+} from "../lib/git/worktree-sync.js";
 import { runBaseDrift } from "../lib/git/base-distance.js";
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
@@ -104,7 +107,7 @@ import {
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   projectTransientInFlightRead,
@@ -154,6 +157,13 @@ import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+
+function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
+  if (execInput === undefined) {
+    throw new Error("Status recovery requires stdin-capable Git I/O.");
+  }
+  return execInput;
+}
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -447,7 +457,15 @@ export async function handleStatus(
       worktree: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
+        if (io.execInput === undefined) {
+          throw new Error("Handoff worktree inspection requires stdin-capable Git I/O.");
+        }
+        return runPassiveWorktreeInspection({
+          exec,
+          execInput: io.execInput,
+          remoteSyncEnabled,
+          cwd,
+        });
       },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -519,6 +537,9 @@ export async function handleStatus(
       probes: createRecoverStatusProbes({
         cwd,
         dirty: () => runDirtyStateStatus({ exec }),
+        exec,
+        execInput: requireGitExecInput(io.execInput),
+        readFile: io.readFile,
       }),
       workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
     });

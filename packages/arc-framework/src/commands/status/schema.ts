@@ -257,12 +257,39 @@ export const StaleWorktreeSweepValueViewSchema = z
   })
   .loose();
 
-const WorkUnitReportViewSchema = z
-  .object({
+const BehindBaseRelationViewSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("known"), value: z.boolean(), remoteEvidence: z.literal("exact") }),
+  z.discriminatedUnion("remoteEvidence", [
+    z.strictObject({
+      status: z.literal("unavailable"),
+      remoteEvidence: z.literal("pending-fetch"),
+      reason: z.literal("base-object-pending-fetch"),
+    }),
+    z.strictObject({
+      status: z.literal("unavailable"),
+      remoteEvidence: z.literal("unreachable"),
+      failureReason: z.enum(["timeout", "network", "auth", "error"]),
+    }),
+    z.strictObject({
+      status: z.literal("unavailable"),
+      remoteEvidence: z.literal("exact"),
+      reason: z.literal("remote-base-absent"),
+    }),
+  ]),
+  z.strictObject({ status: z.literal("not-applicable"), remoteEvidence: z.literal("not-applicable") }),
+]);
+
+const WorkUnitReportViewSchema = z.discriminatedUnion("state", [
+  z.object({
     state: z.enum(["awaiting-review", "stale", "blocked", "mergeable", "merged-needs-archival"]),
-    behindBase: z.boolean(),
-  })
-  .loose();
+    behindBase: BehindBaseRelationViewSchema,
+  }).loose(),
+  z.object({
+    state: z.literal("mergeability-unavailable"),
+    behindBase: BehindBaseRelationViewSchema,
+    mergeabilityGuidance: z.string().min(1),
+  }).loose(),
+]);
 
 /** Thin routing view of the work-unit state advisory. */
 export const WorkUnitStateValueViewSchema = z
@@ -664,8 +691,19 @@ export const SessionInitProbeResultSchema = SessionInitProbeResultRuntimeSchema 
 
 /** Thin worktree view used by the lean recovery envelope. */
 export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
+  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable", "not-applicable"]),
+  failureReason: z.enum(["timeout", "network", "auth", "error"]).optional(),
   identity: WorktreeIdentityViewSchema,
-}).loose();
+}).loose().superRefine((value, context) => {
+  const unreachable = value.remoteEvidence === "unreachable";
+  if (unreachable !== (value.failureReason !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["failureReason"],
+      message: "must be present exactly when remoteEvidence is unreachable",
+    });
+  }
+});
 
 const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),

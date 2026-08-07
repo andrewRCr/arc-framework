@@ -8,7 +8,9 @@ import type {
   SkipWarning,
   WorktreeSyncState,
 } from "../../lib/git/index.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+} from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
 import type { CanonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import type {
@@ -669,7 +671,7 @@ export interface UserStatusResult {
    * Worktree sync probe result, when `session.remote_sync` is enabled and the
    * caller did not pass `--offline`. Omitted when no probe was run.
    */
-  worktree?: WorktreeSyncStatusResult;
+  worktree?: WorktreeSnapshotAnalysisResult;
   /**
    * Inferred cause of user-notes-ref divergence — populated only when the
    * helper was invoked (i.e., when a divergent ref state was detected). JSON

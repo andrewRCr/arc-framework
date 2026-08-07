@@ -47,7 +47,10 @@ import { runUserSessionInitStatus } from "../../../src/commands/user.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
-import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import {
   BaseBranchSyncStatusResultSchema,
@@ -204,6 +207,12 @@ function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
   return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
+}
+
+function worktreeSnapshot(
+  overrides: Partial<Omit<WorktreeSnapshotAnalysisResult, "remoteEvidence" | "failureReason">> = {},
+): WorktreeSnapshotAnalysisResult {
+  return { ...worktreeSync(), remoteEvidence: "exact", ...overrides };
 }
 
 function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
@@ -606,7 +615,7 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
         ".arc/backlog/planned/x/cohort-x.md",
         cursor,
       )),
-    worktree: vi.fn(async () => worktreeSync()),
+    worktree: vi.fn(async () => worktreeSnapshot()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
@@ -663,7 +672,7 @@ function sessionHandoffProbes(
       derivedFrameFromActive(activeSessionInit(), identity, activeExtensions, null, null)),
     extensions: vi.fn(async () => extensionsSessionInit()),
     dirty: vi.fn(async () => dirtyState()),
-    worktree: vi.fn(async () => worktreeSync()),
+    worktree: vi.fn(async () => worktreeSnapshot()),
     user: vi.fn(async () => userSessionInit()),
     syncInterlock: vi.fn(async () => handoffSyncInterlock()),
     head: vi.fn(async () => headHash()),
@@ -3292,7 +3301,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("returns worktree sync state from the worktree probe", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ state: "local-ahead", ahead: 2, behind: 0 })),
+      worktree: vi.fn(async () => worktreeSnapshot({ state: "local-ahead", ahead: 2, behind: 0 })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -3477,7 +3486,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
     const probes = sessionHandoffProbes({
       dirty: tracked(dirtyState()),
-      worktree: tracked(worktreeSync()),
+      worktree: tracked(worktreeSnapshot()),
       user: tracked(userSessionInit()),
       syncInterlock: tracked(handoffSyncInterlock()),
       extensions: tracked(extensionsSessionInit()),
@@ -3495,7 +3504,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("composes recommendedSummaryLine: Reconcile required for diverged worktree", async () => {
     const probes = sessionHandoffProbes({
       worktree: vi.fn(async () =>
-        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feature/foo" }),
+        worktreeSnapshot({ state: "diverged", ahead: 2, behind: 3, branch: "feature/foo" }),
       ),
     });
     const result = await runSessionHandoffStatus({
@@ -3513,7 +3522,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("composes recommendedSummaryLine: Worktree N unpushed for local-ahead", async () => {
     const probes = sessionHandoffProbes({
       worktree: vi.fn(async () =>
-        worktreeSync({ state: "local-ahead", ahead: 4, behind: 0, branch: "feature/baz" }),
+        worktreeSnapshot({ state: "local-ahead", ahead: 4, behind: 0, branch: "feature/baz" }),
       ),
     });
     const result = await runSessionHandoffStatus({
@@ -3551,7 +3560,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("still surfaces Reconcile when identity is absent but worktree is diverged", async () => {
     const probes = sessionHandoffProbes({
       worktree: vi.fn(async () =>
-        worktreeSync({ state: "diverged", ahead: 1, behind: 2, branch: "feature/qux" }),
+        worktreeSnapshot({ state: "diverged", ahead: 1, behind: 2, branch: "feature/qux" }),
       ),
     });
     const result = await runSessionHandoffStatus({
@@ -3581,7 +3590,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("returns recommendedSummaryLine null when branch is null (detached HEAD)", async () => {
     const probes = sessionHandoffProbes({
       worktree: vi.fn(async () =>
-        worktreeSync({ state: "diverged", ahead: 1, behind: 1, branch: null }),
+        worktreeSnapshot({ state: "diverged", ahead: 1, behind: 1, branch: null }),
       ),
     });
     const result = await runSessionHandoffStatus({
@@ -3595,7 +3604,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("threads branch from worktree slot through to the envelope verbatim", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ branch: "technical/probe-two" })),
+      worktree: vi.fn(async () => worktreeSnapshot({ branch: "technical/probe-two" })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",

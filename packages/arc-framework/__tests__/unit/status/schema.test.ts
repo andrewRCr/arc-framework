@@ -360,7 +360,11 @@ describe("deep advisory routing views", () => {
   it("pins work-unit classification, behind-base, and nudge fields", () => {
     const value = {
       inFlight: {
-        workUnits: [{ state: "mergeable", behindBase: true, name: "alpha" }],
+        workUnits: [{
+          state: "mergeable",
+          behindBase: { status: "known", value: true, remoteEvidence: "exact" },
+          name: "alpha",
+        }],
         retained: true,
       },
       nudge: { shouldNudge: false, markerPath: "kept" },
@@ -375,6 +379,27 @@ describe("deep advisory routing views", () => {
         nudge: { shouldNudge: false },
       }).success,
     ).toBe(false);
+  });
+
+  it("requires precomputed guidance for unavailable mergeability", () => {
+    const value = {
+      inFlight: {
+        workUnits: [{
+          state: "mergeability-unavailable",
+          behindBase: {
+            status: "unavailable",
+            remoteEvidence: "pending-fetch",
+            reason: "base-object-pending-fetch",
+          },
+          mergeabilityGuidance: "Fetch remote evidence before deciding whether this work unit is mergeable.",
+        }],
+      },
+      nudge: { shouldNudge: false },
+    };
+    expect(WorkUnitStateValueViewSchema.safeParse(value).success).toBe(true);
+    const missingGuidance = structuredClone(value);
+    delete (missingGuidance.inFlight.workUnits[0] as { mergeabilityGuidance?: string }).mergeabilityGuidance;
+    expect(WorkUnitStateValueViewSchema.safeParse(missingGuidance).success).toBe(false);
   });
 
   it("pins errand resume, classification, materialization, and nudge fields", () => {
@@ -470,7 +495,7 @@ describe("deep advisory routing views", () => {
           workUnits: [
             {
               state: "mergeable",
-              behindBase: false,
+              behindBase: { status: "known", value: false, remoteEvidence: "exact" },
               evidence: { retained: true },
             },
           ],
@@ -600,6 +625,7 @@ describe("deep advisory routing views", () => {
       {
         state: "clean",
         branch: "feat/test",
+        remoteEvidence: "exact",
         identity: {
           kind: "linked",
           path: "/worktree",

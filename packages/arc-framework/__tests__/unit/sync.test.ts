@@ -66,7 +66,9 @@ vi.mock("../../src/lib/config/status-reader.js", () => ({
 }));
 
 const mockRunWorktreeSyncStatus = vi.fn();
+const mockRunMaterializingWorktreeInspection = vi.fn();
 vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+  runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
 }));
 
@@ -164,6 +166,9 @@ function resetMockDefaults() {
   mockRecordPartialPushMarker.mockResolvedValue(true);
   // Default: remote_sync enabled, worktree clean — qualifier silent.
   mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "enabled" } });
+  mockRunMaterializingWorktreeInspection.mockResolvedValue({
+    state: "clean", ahead: 0, behind: 0, branch: "main", remoteEvidence: "exact",
+  });
   mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 }
 
@@ -657,6 +662,13 @@ describe("handleUserSync push policy", () => {
   it("threads worktreeBranch into pushNotesWithReconcile; surfaces matrix-blocked notes push", async () => {
     setSyncState("local-ahead", "same");
     setPolicy("on-sync");
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "local-ahead",
+      ahead: 2,
+      behind: 0,
+      branch: "feature/x",
+      remoteEvidence: "exact",
+    });
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     // Worktree-not-aligned-with-origin would surface from the matrix; the
     // user-sync handler renders the blocked-condition guidance and preserves
@@ -750,7 +762,9 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("emits a worktree drift qualifier when origin is ahead", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3, branch: "main" });
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "remote-ahead", ahead: 0, behind: 3, branch: "main", remoteEvidence: "exact",
+    });
 
     await handleUserSync();
 
@@ -761,7 +775,9 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("emits a divergence qualifier when worktree has diverged", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2, branch: "main" });
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "diverged", ahead: 1, behind: 2, branch: "main", remoteEvidence: "exact",
+    });
 
     await handleUserSync();
 
@@ -770,26 +786,22 @@ describe("handleUserSync worktree qualifier", () => {
     );
   });
 
-  it("emits a timeout-specific qualifier when the worktree probe times out", async () => {
-    setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({
-      state: "remote-unavailable",
-      ahead: 0,
-      behind: 0,
-      branch: "main",
-      failureReason: "timeout",
-    });
+  it("stops before notes mutation when worktree materialization fails", async () => {
+    setSyncState("local-ahead", "different");
+    mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("worktree fetch denied"));
 
-    await handleUserSync();
+    await expect(handleUserSync()).rejects.toThrow("worktree fetch denied");
 
-    expect(mockLog.info).toHaveBeenCalledWith(
-      "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.",
-    );
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
   });
 
   it("emits a branch-gone qualifier when the upstream branch is deleted on origin", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "branch-gone", ahead: 0, behind: 0, branch: "feat/x" });
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "branch-gone", ahead: 0, behind: 0, branch: "feat/x", remoteEvidence: "exact",
+    });
 
     await handleUserSync();
 
@@ -800,7 +812,9 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("stays silent when worktree is clean", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "clean", ahead: 0, behind: 0, branch: "main", remoteEvidence: "exact",
+    });
 
     await handleUserSync();
 
@@ -810,12 +824,17 @@ describe("handleUserSync worktree qualifier", () => {
     expect(qualifierCalls).toEqual([]);
   });
 
-  it("skips the worktree probe when remote_sync is disabled", async () => {
+  it("materializes worktree evidence without consulting automatic remote sync policy", async () => {
     setSyncState("same", "same");
     mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "disabled" } });
 
     await handleUserSync();
 
+    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({
+      exec: expect.any(Function),
+      cwd: process.cwd(),
+    });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
     const qualifierCalls = mockLog.info.mock.calls
       .map((call) => String(call[0] ?? ""))
