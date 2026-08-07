@@ -32,6 +32,8 @@ describe("kernel schema artifact generation", () => {
   it("projects the built-in schema map without touching disk", () => {
     expect(Object.keys(projectKernelSchemas().schemas)).toEqual([
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
@@ -84,6 +86,8 @@ describe("kernel schema artifact generation", () => {
       "priority",
       "project-routing-promotion",
       "proposed-disposition-set",
+      "remote-evidence",
+      "remote-failure-reason",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",

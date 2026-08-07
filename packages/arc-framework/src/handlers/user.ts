@@ -50,12 +50,13 @@ import {
   enumerateGitRetirementRecords,
 } from "../lib/work-unit/git-retirement-record-enumeration.js";
 import {
+  materializeUserReferenceAuthority,
   planUserReferenceReconcile,
-  resolveUserReferenceAuthority,
   runUserReferenceReconcile,
   type PlanUserReferenceReconcileInput,
-  type UserReferenceAuthorityResult,
+  type UserReferenceEvidenceAuthorityResult,
 } from "../lib/user-reference-reconcile.js";
+import type { GitExec } from "../lib/git/exec.js";
 import {
   acquireAdvisoryLock,
   getNotesLockPath,
@@ -88,34 +89,21 @@ export async function handleUserReconcileReferences(
   if (!cwd) return;
   const identity = SlugSchema.parse(await resolveUserIdentity());
   const io = createUserIOContext(context?.subprocess);
-  const exec = (cmd: string, args: string[]) => io.exec(cmd, args, { cwd });
+  const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
   const [{ settings }, surfaces, currentWuName] = await Promise.all([
     readConfigSettings(cwd),
     resolveUserSurfaceResolver({ cwd, identity, exec }),
     resolveCurrentWuName(cwd, io.exec),
   ]);
-  const authority = await resolveUserReferenceAuthority({
+  const authority = await materializeUserReferenceAuthority({
+    exec,
     protection: settings["branch.protection"] === "full" ? "full" : "partial",
     baseBranch: settings["branch.base"],
-    refreshRemoteBase: async () => {
-      try {
-        await exec("git", ["fetch", "origin", settings["branch.base"]]);
-        await exec("git", [
-          "rev-parse",
-          "--verify",
-          "--quiet",
-          `origin/${settings["branch.base"]}`,
-        ]);
-        return true;
-      } catch {
-        return false;
-      }
-    },
     enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
   });
   if (authority.status !== "ready") {
     emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });
-    if (authority.status === "conflict") process.exitCode = 1;
+    process.exitCode = 1;
     return;
   }
   const readSurfaces = async (): Promise<Omit<PlanUserReferenceReconcileInput, "transitions">> => ({
@@ -166,7 +154,7 @@ function emitUserReferenceResult(
   opts: UserReconcileReferencesOptions,
   result: {
     status: string;
-    authority: UserReferenceAuthorityResult;
+    authority: UserReferenceEvidenceAuthorityResult;
     plan: ReturnType<typeof planUserReferenceReconcile> | null;
   },
 ): void {

@@ -30,7 +30,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/git/push-worktree.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       terminalSubprocessPolicy,
     ),
-    ...([1, 2, 3, 4] as const).map((occurrence) => declareInteractionSite(
+    ...([1, 2] as const).map((occurrence) => declareInteractionSite(
       { file: "lib/io-context.ts", kind: "subprocess", callee: "execa", occurrence },
       terminalSubprocessPolicy,
     )),

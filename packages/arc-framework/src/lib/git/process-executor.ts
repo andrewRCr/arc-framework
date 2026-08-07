@@ -55,18 +55,27 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
+    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
+      ? { ...(indexedEnvironment ?? process.env), LC_ALL: "C", LANG: "C" }
+      : indexedEnvironment;
+    const objectEnvironment = options?.objectAccess === "local-only"
+      ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : diagnosticEnvironment;
     const forbidden = options?.interaction?.terminalPrompts === "forbidden";
     const env = forbidden
       ? {
-          ...(indexedEnvironment ?? process.env),
+          ...(objectEnvironment ?? process.env),
           GIT_TERMINAL_PROMPT: "0",
           GIT_EDITOR: "true",
           GIT_PAGER: "cat",
           PAGER: "cat",
         }
-      : indexedEnvironment;
+      : objectEnvironment;
+    const effectiveArgs = options?.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa(command, args, {
+      const result = await execa(command, effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
@@ -77,7 +86,7 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       });
       return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
     } catch (error) {
-      throw normalizeGitRejection(error, { command, args });
+      throw normalizeGitRejection(error, { command, args: effectiveArgs });
     }
   };
 }
@@ -91,18 +100,24 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
 export function createExecaGitExecInput(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExecInput {
   return async (args, input, options) => {
     const environment = environmentForGitCwd(options?.cwd);
+    const env = options?.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const effectiveArgs = options?.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa("git", args, {
+      const result = await execa("git", effectiveArgs, {
         cwd: options?.cwd,
-        env: environment,
-        extendEnv: environment === undefined,
+        env,
+        extendEnv: env === undefined,
         input,
         maxBuffer,
         stripFinalNewline: false,
       });
       return result.stdout;
     } catch (error) {
-      throw normalizeGitRejection(error, { command: "git", args });
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }

@@ -51,6 +51,8 @@ describe("session-envelope schema registry", () => {
       "priority",
       "recovery-audit-report",
       "recovery-audit-verdict",
+      "remote-evidence",
+      "remote-failure-reason",
       "retired-subdir-detection",
       "session-init-envelope",
       "session-recover-envelope",

@@ -135,6 +135,19 @@ describe("production GitExec", () => {
     expect(ordinary.stdout).toBe(process.env.GIT_TERMINAL_PROMPT ?? "unset");
   });
 
+  it("pins diagnostics to the stable C locale only when requested", async () => {
+    const script = "process.stdout.write(JSON.stringify({ LC_ALL: process.env.LC_ALL, LANG: process.env.LANG }))";
+
+    const stable = await gitExec(execPath, ["-e", script], { diagnosticLocale: "stable" });
+    expect(JSON.parse(stable.stdout)).toEqual({ LC_ALL: "C", LANG: "C" });
+
+    const ordinary = await gitExec(execPath, ["-e", script]);
+    expect(JSON.parse(ordinary.stdout)).toEqual({
+      LC_ALL: process.env.LC_ALL,
+      LANG: process.env.LANG,
+    });
+  });
+
   it("normalizes non-zero, canceled, output-limit, and spawn failures", async () => {
     await expect(gitExec("git", ["not-a-command"])).rejects.toMatchObject({
       kind: "nonzero-exit",

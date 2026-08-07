@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  analyzeWorktreeSnapshot,
   countAheadBehindRef,
   runWorktreeSyncStatus,
 } from "../../../src/lib/git/worktree-sync.js";
@@ -55,6 +56,319 @@ const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
 const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
 const FETCH_BRANCH = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
+const TRACKED_WORKTREE = { remoteSyncEnabled: true, originConfigured: true } as const;
+
+describe("analyzeWorktreeSnapshot", () => {
+  it("returns not-applicable before remote evidence when automatic inspection is disabled", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: false,
+      originConfigured: true,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "unreachable", failureReason: "network" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "not-applicable",
+    });
+  });
+
+  it("returns detached-head before inspecting remote evidence", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: true,
+      originConfigured: true,
+      branch: null,
+      upstreamBranch: null,
+      snapshot: { kind: "unreachable", failureReason: "auth" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "detached-head",
+      ahead: 0,
+      behind: 0,
+      branch: null,
+      remoteEvidence: "not-applicable",
+    });
+  });
+
+  it("returns no-remote before inspecting branch membership", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: true,
+      originConfigured: false,
+      branch: "main",
+      upstreamBranch: null,
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "no-remote",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "not-applicable",
+    });
+  });
+
+  it("preserves no-upstream precedence when the snapshot omits the same branch", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: true,
+      originConfigured: true,
+      branch: "feature/local",
+      upstreamBranch: null,
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "no-upstream",
+      ahead: 0,
+      behind: 0,
+      branch: "feature/local",
+      remoteEvidence: "not-applicable",
+    });
+  });
+
+  it("classifies an exact relation against a locally available advertised commit", async () => {
+    const localOid = "a".repeat(40);
+    const advertisedOid = "b".repeat(40);
+    const { exec, calls } = buildExec({
+      "rev-parse HEAD": { stdout: localOid, stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "0\t3", stderr: "" },
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+    })).resolves.toEqual({
+      state: "remote-ahead",
+      ahead: 0,
+      behind: 3,
+      branch: "main",
+      remoteEvidence: "exact",
+    });
+    expect(calls.at(-1)?.args).toEqual([
+      "rev-list",
+      "--left-right",
+      "--count",
+      `${localOid}...${advertisedOid}`,
+    ]);
+  });
+
+  it("classifies a tracked branch omitted from a complete snapshot as branch-gone", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "feature/gone",
+      upstreamBranch: "feature/gone",
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "branch-gone",
+      ahead: 0,
+      behind: 0,
+      branch: "feature/gone",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("returns pending evidence with neutral counts when the advertised commit is not local", async () => {
+    const advertisedOid = "c".repeat(40);
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: false } },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "pending-fetch",
+    });
+  });
+
+  it.each([
+    ["execution", /inspection failed/u],
+    ["malformed", /malformed output/u],
+  ] as const)("propagates %s object-availability prerequisite failure", async (reason, message) => {
+    const advertisedOid = "c".repeat(40);
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "unavailable", reason },
+      history: { kind: "complete" },
+    })).rejects.toThrow(message);
+    expect(calls).toEqual([]);
+  });
+
+  it("does not reuse a stale tracking-ref relation when the advertised commit is not local", async () => {
+    const advertisedOid = "5".repeat(40);
+    const { exec } = buildExec({
+      [REV_LIST_COUNT]: { stdout: "0\t0", stderr: "" },
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: false } },
+      history: { kind: "complete" },
+    })).resolves.toEqual({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "pending-fetch",
+    });
+  });
+
+  it("returns typed unreachable evidence when snapshot acquisition failed", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "unreachable", failureReason: "network" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    });
+  });
+
+  it("preserves exact equality without traversing shallow history", async () => {
+    const advertisedOid = "d".repeat(40);
+    const { exec } = buildExec({
+      "rev-parse HEAD": { stdout: advertisedOid, stderr: "" },
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "shallow" },
+    })).resolves.toEqual({
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("rejects distance analysis when local history is shallow", async () => {
+    const localOid = "e".repeat(40);
+    const advertisedOid = "f".repeat(40);
+    const { exec } = buildExec({
+      "rev-parse HEAD": { stdout: localOid, stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "0\t1", stderr: "" },
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "shallow" },
+    })).rejects.toThrow(/Complete local history/u);
+  });
+
+  it("uses local-only object access for identity and distance reads", async () => {
+    const localOid = "1".repeat(40);
+    const advertisedOid = "2".repeat(40);
+    const requireLocalOnly: ResponseFn = (args, options) => {
+      if (options?.objectAccess !== "local-only") {
+        throw new Error(`lazy object access allowed for ${args[0] ?? "git"}`);
+      }
+      return args[0] === "rev-parse"
+        ? { stdout: localOid, stderr: "" }
+        : { stdout: "1\t0", stderr: "" };
+    };
+    const { exec } = buildExec({
+      "rev-parse HEAD": requireLocalOnly,
+      [REV_LIST_COUNT]: requireLocalOnly,
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({ state: "local-ahead", remoteEvidence: "exact" });
+  });
+
+  it.each([
+    ["execution failure", () => { throw new Error("graph failed"); }, /graph failed/u],
+    ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
+  ] as const)("propagates local graph %s", async (_label, graphResponse, expected) => {
+    const localOid = "3".repeat(40);
+    const advertisedOid = "4".repeat(40);
+    const { exec } = buildExec({
+      "rev-parse HEAD": { stdout: localOid, stderr: "" },
+      [REV_LIST_COUNT]: graphResponse,
+    });
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      ...TRACKED_WORKTREE,
+      branch: "main",
+      upstreamBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+    })).rejects.toThrow(expected);
+  });
+});
 
 describe("runWorktreeSyncStatus", () => {
   it("short-circuits past upstream/fetch checks but still resolves branch when remoteSyncEnabled is false", async () => {

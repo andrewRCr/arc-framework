@@ -8,6 +8,8 @@ import { ArcError } from "../errors.js";
 import { SlugSchema } from "./slug.js";
 import {
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   WorkClassSchema,
   WorkUnitStateSchema,
 } from "./vocabulary.js";
@@ -162,6 +164,16 @@ export function createKernelRegistry(): KernelRegistry {
   });
   registry.register(PrioritySchema, {
     id: "priority",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(RemoteEvidenceSchema, {
+    id: "remote-evidence",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(RemoteFailureReasonSchema, {
+    id: "remote-failure-reason",
     version: 1,
     migrationPosture: "strict-current",
   });

@@ -37,13 +37,18 @@ export {
 } from "./canonical/managed-path.js";
 export {
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   WORK_UNIT_STATE_ORDER,
   WorkClassSchema,
   WorkUnitStateSchema,
   validateClass,
   validatePriority,
   validateState,
+  withRemoteEvidence,
   type Priority,
+  type RemoteEvidence,
+  type RemoteFailureReason,
   type WorkClass,
   type WorkUnitState,
 } from "./schema/vocabulary.js";

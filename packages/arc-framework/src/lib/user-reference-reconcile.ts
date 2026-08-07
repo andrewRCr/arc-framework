@@ -15,6 +15,16 @@ import {
   type ReferenceTransitionResolution,
 } from "./work-unit/reference-reconcile.js";
 import type { RetirementRecordEnumerationResult } from "./work-unit/retirement-record-enumeration.js";
+import type { ObjectAvailabilityResult } from "./git/object-availability.js";
+import {
+  classifyRemoteFailure,
+  type RemoteHeadSnapshotResult,
+} from "./git/remote-ref-reader.js";
+import type { RemoteFailureReason } from "./kernel/index.js";
+import { boundedGitInvocation, type GitExec } from "./git/exec.js";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "./git/worktree-sync.js";
+import { isGitObjectId } from "./git/object-id.js";
+import { isGitProcessError } from "./git/process-error.js";
 
 /** One exact user-surface snapshot. */
 export interface UserReferenceSurface {
@@ -82,6 +92,57 @@ export interface UserReferenceAuthorityContext {
   refreshRemoteBase: () => Promise<boolean>;
   enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
 }
+
+/** Supplied base evidence for protection-aware user-reference authority analysis. */
+export interface AnalyzeUserReferenceAuthorityOptions {
+  protection: "full" | "partial";
+  baseBranch: string;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+}
+
+/** Explicit acquisition inputs for user-reference authority. */
+export interface MaterializeUserReferenceAuthorityOptions {
+  exec: GitExec;
+  protection: "full" | "partial";
+  baseBranch: string;
+  fetchTimeoutMs?: number;
+  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+}
+
+/** User-reference authority qualified by the evidence that established it. */
+export type UserReferenceEvidenceAuthorityResult =
+  | {
+      status: "ready";
+      ref: string;
+      transitions: readonly ReachableReferenceTransition[];
+      remoteEvidence: "exact" | "not-applicable";
+    }
+  | {
+      status: "pending";
+      ref: string;
+      reason: "base-object-pending-fetch";
+      remoteEvidence: "pending-fetch";
+    }
+  | {
+      status: "unavailable";
+      ref: string;
+      reason: "remote-base-absent";
+      remoteEvidence: "exact";
+    }
+  | {
+      status: "unavailable";
+      ref: string;
+      remoteEvidence: "unreachable";
+      failureReason: RemoteFailureReason;
+    }
+  | {
+      status: "conflict";
+      ref: string;
+      reason: "version-conflict" | "namespace-corrupt";
+      remoteEvidence: "exact" | "not-applicable";
+    };
 
 /** Protection-aware transition authority result. */
 export type UserReferenceAuthorityResult =
@@ -181,6 +242,130 @@ export async function runUserReferenceReconcile(
   } finally {
     await ctx.releaseLock(handle);
   }
+}
+
+/**
+ * Resolve user-reference authority from supplied advertised-base evidence.
+ *
+ * @param options - Protection mode, supplied base evidence, and retirement-record reader.
+ * @returns Exact, pending, unavailable, or conflicting authority without acquiring remote state.
+ */
+export async function analyzeUserReferenceAuthority(
+  options: AnalyzeUserReferenceAuthorityOptions,
+): Promise<UserReferenceEvidenceAuthorityResult> {
+  if (options.protection === "partial") {
+    const ref = options.baseBranch;
+    const projected = enumerateReferenceTransitions(await options.enumerateAt(ref));
+    return projected.status === "valid"
+      ? { status: "ready", ref, transitions: projected.transitions, remoteEvidence: "not-applicable" }
+      : { status: "conflict", ref, reason: projected.reason, remoteEvidence: "not-applicable" };
+  }
+  if (options.snapshot.kind === "unreachable") {
+    return {
+      status: "unavailable",
+      ref: `origin/${options.baseBranch}`,
+      remoteEvidence: "unreachable",
+      failureReason: options.snapshot.failureReason,
+    };
+  }
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) {
+    return {
+      status: "unavailable",
+      ref: `origin/${options.baseBranch}`,
+      reason: "remote-base-absent",
+      remoteEvidence: "exact",
+    };
+  }
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("The advertised base commit is unavailable locally.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) {
+    return {
+      status: "pending",
+      ref: baseOid,
+      reason: "base-object-pending-fetch",
+      remoteEvidence: "pending-fetch",
+    };
+  }
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  const projected = enumerateReferenceTransitions(await options.enumerateAt(baseOid));
+  return projected.status === "valid"
+    ? { status: "ready", ref: baseOid, transitions: projected.transitions, remoteEvidence: "exact" }
+    : { status: "conflict", ref: baseOid, reason: projected.reason, remoteEvidence: "exact" };
+}
+
+/**
+ * Materialize full-protection base evidence before invoking the pure authority analyzer.
+ *
+ * @param _options - Protection mode, Git boundary, timeout, and retirement-record reader.
+ * @returns Exact authority or a typed visible acquisition failure.
+ */
+export async function materializeUserReferenceAuthority(
+  options: MaterializeUserReferenceAuthorityOptions,
+): Promise<UserReferenceEvidenceAuthorityResult> {
+  if (options.protection === "partial") {
+    return analyzeUserReferenceAuthority({
+      protection: "partial",
+      baseBranch: options.baseBranch,
+      snapshot: { kind: "unreachable", failureReason: "error" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      enumerateAt: options.enumerateAt,
+    });
+  }
+  const sourceRef = `refs/heads/${options.baseBranch}`;
+  if (options.baseBranch === "" || options.baseBranch.startsWith("-") || sourceRef.includes(":")) {
+    throw new Error("Unsafe base ref.");
+  }
+  await options.exec("git", ["check-ref-format", sourceRef]);
+  const fetch = await boundedGitInvocation(
+    options.exec,
+    ["fetch", "origin", `+${sourceRef}:refs/remotes/origin/${options.baseBranch}`],
+    options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+  );
+  if (fetch.outcome !== "ok") {
+    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+      return {
+        status: "unavailable",
+        ref: `origin/${options.baseBranch}`,
+        reason: "remote-base-absent",
+        remoteEvidence: "exact",
+      };
+    }
+    return {
+      status: "unavailable",
+      ref: `origin/${options.baseBranch}`,
+      remoteEvidence: "unreachable",
+      failureReason: fetch.outcome === "timeout"
+        ? "timeout"
+        : classifyRemoteFailure(fetch.error),
+    };
+  }
+  let baseOid: string;
+  try {
+    baseOid = (await options.exec(
+      "git",
+      ["rev-parse", "--verify", `refs/remotes/origin/${options.baseBranch}^{commit}`],
+    )).stdout.trim();
+    if (!isGitObjectId(baseOid)) throw new Error("Invalid materialized base OID.");
+  } catch (error) {
+    return {
+      status: "unavailable",
+      ref: `origin/${options.baseBranch}`,
+      remoteEvidence: "unreachable",
+      failureReason: classifyRemoteFailure(error),
+    };
+  }
+  return analyzeUserReferenceAuthority({
+    protection: "full",
+    baseBranch: options.baseBranch,
+    snapshot: { kind: "available", scope: "exact", tips: { [options.baseBranch]: baseOid } },
+    objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+    enumerateAt: options.enumerateAt,
+  });
 }
 
 /**

@@ -17,10 +17,17 @@
  */
 
 import type { GitExec } from "./exec.js";
+import type { RemoteFailureReason } from "../kernel/index.js";
+import { gitFailureText } from "./process-error.js";
+import { isGitObjectId } from "./object-id.js";
 
 /** Default remote whose tracking refs back the no-checkout in-flight reads. */
 const DEFAULT_REMOTE = "origin";
-const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const PASSIVE_REMOTE_INTERACTION = {
+  terminalPrompts: "forbidden",
+  presenters: "forbidden",
+  ambientStdin: "closed",
+} as const;
 
 /** Ref → commit object id snapshot, serialized as a plain object for JSON callers. */
 export type RefTipMap = Record<string, string>;
@@ -68,7 +75,11 @@ async function runBounded(
     controller.abort();
   }, timeoutMs);
   try {
-    const { stdout } = await exec("git", args, { signal: controller.signal });
+    const { stdout } = await exec("git", args, {
+      signal: controller.signal,
+      interaction: PASSIVE_REMOTE_INTERACTION,
+      diagnosticLocale: "stable",
+    });
     return { ok: true, stdout };
   } catch {
     return { ok: false, stdout: "" };
@@ -100,7 +111,7 @@ function parseLiveMembership(stdout: string): Pick<LiveRemoteHeadsResult, "compl
     const sha = line.slice(0, tab).trim();
     const ref = line.slice(tab + 1).trim();
     const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : "";
-    if (!GIT_OBJECT_ID_PATTERN.test(sha) || branch === "" || tips[branch] !== undefined) {
+    if (!isGitObjectId(sha) || branch === "" || tips[branch] !== undefined) {
       complete = false;
       continue;
     }
@@ -117,6 +128,87 @@ export interface ReadLiveRemoteHeadsOptions {
   remote?: string;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+}
+
+/** Remote branch scope requested from the bounded snapshot reader. */
+export type RemoteHeadSnapshotScope =
+  | { kind: "exact"; branch: string }
+  | { kind: "all-heads" };
+
+/** Complete remote-head evidence or a bounded public failure classification. */
+export type RemoteHeadSnapshotResult =
+  | { kind: "available"; scope: RemoteHeadSnapshotScope["kind"]; tips: RefTipMap }
+  | { kind: "unreachable"; failureReason: RemoteFailureReason };
+
+/** Inputs for {@link readRemoteHeadSnapshot}. */
+export interface ReadRemoteHeadSnapshotOptions extends ReadLiveRemoteHeadsOptions {
+  /** Exact branch or complete branch-head membership to acquire. */
+  scope: RemoteHeadSnapshotScope;
+}
+
+/**
+ * Classify one failed remote Git operation into the stable public reason set.
+ *
+ * @param error - Rejection or normalized Git process failure to classify.
+ * @returns The stable network, authentication, or generic failure reason.
+ */
+export function classifyRemoteFailure(error: unknown): RemoteFailureReason {
+  const diagnostic = gitFailureText(error);
+  if (
+    /(?:could not resolve (?:host|hostname)|name or service not known|temporary failure in name resolution|failed to connect|connection (?:timed out|refused|reset)|network is unreachable|no route to host|operation timed out)/iu
+      .test(diagnostic)
+  ) {
+    return "network";
+  }
+  if (
+    /(?:authentication failed|authorization failed|access denied|could not read (?:username|password)|terminal prompts disabled|permission denied \(publickey|repository not found|invalid username or password)/iu
+      .test(diagnostic)
+  ) {
+    return "auth";
+  }
+  return "error";
+}
+
+/** Read one strict, bounded remote-head snapshot without mutating Git metadata. */
+export async function readRemoteHeadSnapshot(
+  options: ReadRemoteHeadSnapshotOptions,
+): Promise<RemoteHeadSnapshotResult> {
+  const {
+    exec,
+    remote = DEFAULT_REMOTE,
+    scope,
+    timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+  } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  const args = scope.kind === "exact"
+    ? ["ls-remote", "--heads", remote, `refs/heads/${scope.branch}`]
+    : ["ls-remote", "--heads", remote];
+  try {
+    const { stdout } = await exec("git", args, {
+      signal: controller.signal,
+      interaction: PASSIVE_REMOTE_INTERACTION,
+      diagnosticLocale: "stable",
+    });
+    const parsed = parseLiveMembership(stdout);
+    if (!parsed.complete) return { kind: "unreachable", failureReason: "error" };
+    if (scope.kind === "exact") {
+      const branches = Object.keys(parsed.tips);
+      if (branches.length > 1 || (branches.length === 1 && branches[0] !== scope.branch)) {
+        return { kind: "unreachable", failureReason: "error" };
+      }
+    }
+    return { kind: "available", scope: scope.kind, tips: parsed.tips };
+  } catch (error) {
+    return {
+      kind: "unreachable",
+      failureReason: controller.signal.aborted ? "timeout" : classifyRemoteFailure(error),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Outcome of reading one exact live remote branch tip. */
@@ -155,7 +247,7 @@ export async function readLiveRemoteBranchTip(
   const returnedRef = record?.slice(tab + 1).trim() ?? "";
   return {
     reachable: true,
-    tip: GIT_OBJECT_ID_PATTERN.test(oid) && returnedRef === ref ? oid : null,
+    tip: isGitObjectId(oid) && returnedRef === ref ? oid : null,
   };
 }
 
