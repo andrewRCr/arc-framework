@@ -348,6 +348,116 @@ describe("releaseMergeLock", () => {
   });
 });
 
+const MEMBER_VEHICLE = {
+  kind: "delivery-member" as const,
+  planId: "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  deliverableId: `sha256:${"b".repeat(64)}`,
+  workUnitSlug: "demo",
+};
+
+function memberTransitionRequest() {
+  return { ...transitionRequest(), vehicle: MEMBER_VEHICLE };
+}
+
+function readyMemberEnvelope() {
+  return { ...readyEnvelope(), payload: { target: TARGET, vehicle: MEMBER_VEHICLE } };
+}
+
+function unboundMemberEnvelope() {
+  const fact = {
+    code: "delivery-member-unbound",
+    path: "pullRequest.headSha",
+    message: "The pull request's exact live head is bound to no delivery member.",
+  };
+  return {
+    ...invalidEnvelope(),
+    diagnostics: [fact],
+    payload: { target: TARGET, vehicle: MEMBER_VEHICLE, facts: [fact] },
+  };
+}
+
+describe("merge-lock transitions over a delivery-member vehicle", () => {
+  it("accepts the member vehicle on the transition request and forwards it unchanged", async () => {
+    const port = lockPort({ checkReadiness: async (request) => {
+      port.readinessRequests.push(request);
+      return readyMemberEnvelope();
+    } });
+
+    await releaseMergeLock(MergeLockTransitionRequestSchema.parse(memberTransitionRequest()), port);
+
+    expect(port.readinessRequests[0]?.vehicle).toEqual(MEMBER_VEHICLE);
+  });
+
+  it("releases a lock for a ready member", async () => {
+    const port = lockPort({ checkReadiness: async () => readyMemberEnvelope() });
+
+    const result = await releaseMergeLock(memberTransitionRequest(), port);
+
+    expect(result).toMatchObject({
+      mode: "merge-lock-release",
+      state: "released",
+      nextAction: "proceed",
+      payload: TARGET,
+    });
+    expect(port.transitions).toEqual([{
+      repository: "owner/repo",
+      pullRequest: 42,
+      transition: "release",
+    }]);
+  });
+
+  it("blocks a member whose readiness refuses and carries its diagnostics", async () => {
+    const port = lockPort({ checkReadiness: async () => unboundMemberEnvelope() });
+
+    const result = await releaseMergeLock(memberTransitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      payload: { ...TARGET, reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([{
+        code: "delivery-member-unbound",
+        message: "pullRequest.headSha: The pull request's exact live head is bound to no delivery member.",
+      }]),
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it("blocks a member whose readiness result binds a different exact target", async () => {
+    const port = lockPort({
+      checkReadiness: async () => ({
+        ...readyMemberEnvelope(),
+        payload: { vehicle: MEMBER_VEHICLE, target: { ...TARGET, headSha: "b".repeat(40) } },
+      }),
+    });
+
+    const result = await releaseMergeLock(memberTransitionRequest(), port);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "readiness-target-mismatch" }),
+      ]),
+    });
+    expect(port.transitions).toEqual([]);
+  });
+
+  it("locks a member without consulting readiness at all", async () => {
+    const port = lockPort({ checkReadiness: async () => unboundMemberEnvelope() }, false);
+
+    const result = await holdMergeLock(memberTransitionRequest(), port);
+
+    expect(result).toMatchObject({ mode: "merge-lock-hold", state: "held", nextAction: "proceed" });
+    expect(port.readinessRequests).toEqual([]);
+    expect(port.transitions).toEqual([{
+      repository: "owner/repo",
+      pullRequest: 42,
+      transition: "hold",
+    }]);
+  });
+});
+
 describe("holdMergeLock", () => {
   it("holds an unlocked pull request", async () => {
     const port = lockPort({}, false);

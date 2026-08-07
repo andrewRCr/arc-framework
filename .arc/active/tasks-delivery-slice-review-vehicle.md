@@ -191,7 +191,7 @@ stdin, composed by the consuming callsite.
   repository, with the supplied tree root deliberately crossed against the resolved root in each direction — so
   binding to the wrong one is a failing assertion rather than an indistinguishable pass.
 
-### `[ ]` **2.5 Gate merge-lock release on a member's readiness result**
+### `[x]` **2.5 Gate merge-lock release on a member's readiness result**
 
 - _Goal:_ A member pull request's lock release passes or fails on the same readiness verdict as any other
   vehicle, with the merge-lock module itself untouched.
@@ -202,15 +202,13 @@ stdin, composed by the consuming callsite.
   readiness function today, so its delivery read is wired at the handler in 2.4.a rather than in the merge-lock
   module. The verbs, their request shapes, and their gating logic are unchanged.
 
-- _Note:_ These behaviors inject the readiness function directly, so they need no repository fixtures. Only
-  2.4.a's binding check exercises a real port.
-
-    Build `test-first` (one behavior at a time):
-
-    - releasing a lock for a ready member unlocks
-    - releasing for a member readiness refuses reports the readiness failure and carries its diagnostics
-    - releasing for a member whose readiness result binds a different target refuses on target mismatch
-    - locking a member is unaffected, since locking never gates on readiness
+- _Outcome:_ Zero production lines. `merge-lock.ts` is byte-unchanged, which is the claim under test rather than
+  a happy accident, so the deliverable is the coverage proving a member reaches the same gate: released when
+  ready, blocked carrying the delivery diagnostics when not, blocked on a readiness result bound to another
+  target, and locked without consulting readiness at all. The vehicle is asserted to arrive at the readiness
+  request unchanged, which is what "the transition request reuses the shared vehicle schema" amounts to in
+  practice. Each behavior was reconstructed against a mutated gate rather than accepted on a first-run pass,
+  since none of them would have failed before this work unit began for want of the schema alone.
 
 ---
 
