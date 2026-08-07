@@ -445,13 +445,10 @@ verbs each need nothing for their own reason: respond consumes only actor identi
 selector-invariant, while resume and reduce re-confirm the target without re-resolving authority at all. Binding
 drift is consequently caught at admission and at merge-lock release, never by staleness.
 
-### `[ ]` **5.1 Re-resolve the member vehicle at attest and re-entrant admission**
+### `[x]` **5.1 Re-resolve the member vehicle at attest and re-entrant admission**
 
 - _Goal:_ Attesting a member operation derives the same vehicle the operation was published with, so neither the
   vehicle comparison nor the operation-key comparison refuses on the supported path.
-
-- _Context:_ Authority re-resolution is the lane's integrity mechanism, so member selection has to satisfy it
-  rather than bypass it.
 
     - `[x]` **5.1.a Carry member selection to attest's authority resolution**
 
@@ -463,21 +460,21 @@ drift is consequently caught at admission and at merge-lock release, never by st
           The condition is what keeps an ordinary operation unaffected, since its control head is itself
           delivery-bound once the terminal member's pull request is open.
 
-    - `[ ]` **5.1.b Keep re-entrant admission consistent**
+    - `[x]` **5.1.b Keep re-entrant admission consistent**
 
-        - re-preparing without the selector neither collides nor corrupts: a work-unit vehicle derives an
-          ordinary target, so a different target identity and a different operation identity — it addresses a
-          separate operation and admits fresh. The operator-visible cost lands only on a clean control locus,
-          where a forgotten selector silently prepares a review of the control branch instead of the member. On
-          the dirty locus that is normal there, the retained cleanliness guard refuses instead, so the silent
-          case is the narrower one.
+        - confirmed without a production change: the operation key is derived from the target and its
+          requirement, both of which a member and a work unit resolve differently, so the two vehicles address
+          separate records and a re-prepared member converges on its own. Proven by mutation — collapsing both
+          key inputs to a constant makes the two vehicles collide, and comparing the persisted vehicle against a
+          fixed `work-unit` makes a member re-preparation refuse. Re-preparing without the selector admits a
+          separate ordinary operation, silently reviewing the control branch only on a clean locus; the dirty
+          locus normal to member work refuses at derivation first. `local-prepare.test.ts` gained a keyed
+          operation and source store, since one shared slot cannot express two concurrent operations.
 
-        Build `test-first` (one behavior at a time):
-
-        - re-preparing an existing member operation resolves the existing record rather than refusing on an
-          operation-key mismatch
-        - a member operation and a work-unit operation in the same repository hold distinct operation identities
-        - re-preparing the same repository without a selector admits a separate ordinary operation
+- _Outcome:_ The Goal's two comparisons are satisfied by different mechanisms, which is worth separating: the
+  vehicle comparison needed the selector carried to attest, while the operation-key comparison already held
+  structurally, because the key is derived from a target the two vehicles resolve differently. Only the first
+  was a defect; the second was a property to confirm.
 
 ### `[ ]` **5.2 Confirm respond serves member operations unchanged**
 

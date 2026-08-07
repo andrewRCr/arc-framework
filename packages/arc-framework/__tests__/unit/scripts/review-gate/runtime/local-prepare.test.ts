@@ -138,9 +138,11 @@ describe("local review preparation request", () => {
         head: memberTarget.headSha,
       };
 
-      let persistedVersion = 0;
-      let persistedState: ReviewOperationState | null = null;
-      let persistedSource: LocalReviewSource | null = null;
+      // Keyed by operation and source ref, so two vehicles over one repository
+      // address separate records rather than overwriting a single slot.
+      const operations = new Map<string, { version: number; state: ReviewOperationState }>();
+      const sources = new Map<string, LocalReviewSource>();
+      let lastPublished: ReviewOperationState | null = null;
       let clockTick = 0;
 
       const authorityOf = (vehicle: { kind: string; identity: string }) => ({
@@ -200,21 +202,26 @@ describe("local review preparation request", () => {
         }),
         validatePolicySelection: () => undefined,
         operationStore: {
-          readOperation: async () => ({ version: persistedVersion, state: persistedState }),
+          readOperation: async (operationId: string) => (
+            operations.get(operationId) ?? { version: 0, state: null }
+          ),
           publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
-            if (persistedVersion !== expectedVersion) {
+            const current = operations.get(state.operationId)?.version ?? 0;
+            if (current !== expectedVersion) {
               throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
             }
-            persistedVersion += 1;
-            persistedState = state;
-            return { version: persistedVersion };
+            const version = current + 1;
+            operations.set(state.operationId, { version, state });
+            lastPublished = state;
+            return { version };
           },
         },
         sourceStore: {
-          readSource: async () => persistedSource,
+          readSource: async (sourceRef: string) => sources.get(sourceRef) ?? null,
           appendSource: async (source: LocalReviewSource) => {
-            persistedSource = source;
-            return { sourceRef: "sources/local.json" };
+            const sourceRef = `sources/${source.targetId}.json`;
+            sources.set(sourceRef, source);
+            return { sourceRef };
           },
         },
         readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
@@ -232,7 +239,8 @@ describe("local review preparation request", () => {
         describeSource,
         materialize,
         resolveAuthority,
-        published: () => persistedState,
+        operations,
+        published: () => lastPublished,
       };
     }
 
@@ -366,6 +374,64 @@ describe("local review preparation request", () => {
         target: { kind: "change-set" },
       });
       expect(context.deriveTarget).toHaveBeenCalledWith("repo-1", undefined);
+    });
+
+    describe("re-entrant admission", () => {
+      it("resolves the existing record when the same member is prepared again", async () => {
+        const context = fixture();
+        const memberRequest = {
+          ...request,
+          memberHeadObjectId: context.memberTarget.headSha,
+        };
+
+        const first = await prepareLocalReview(memberRequest, context.dependencies);
+        const second = await prepareLocalReview(memberRequest, context.dependencies);
+        if (first.state !== "ready" || second.state !== "ready") {
+          throw new Error("member re-preparation was not ready");
+        }
+
+        expect(second.payload.operationId).toBe(first.payload.operationId);
+        expect(context.operations.size).toBe(1);
+      });
+
+      it("holds distinct operation identities for a member and a work unit in one repository", async () => {
+        const context = fixture();
+
+        const member = await prepareLocalReview(
+          { ...request, memberHeadObjectId: context.memberTarget.headSha },
+          context.dependencies,
+        );
+        const workUnit = await prepareLocalReview(request, context.dependencies);
+        if (member.state !== "ready" || workUnit.state !== "ready") {
+          throw new Error("member and work-unit preparation were not both ready");
+        }
+
+        // The operation key is derived from the target, so the two vehicles never
+        // collide on one key — the second admits fresh rather than mismatching.
+        expect(workUnit.payload.operationId).not.toBe(member.payload.operationId);
+        expect(context.operations.size).toBe(2);
+        expect(context.published()).toMatchObject({
+          vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+          targetId: context.changeSetTarget.targetId,
+        });
+      });
+
+      it("admits a separate ordinary operation when the selector is forgotten", async () => {
+        const context = fixture();
+
+        await prepareLocalReview(
+          { ...request, memberHeadObjectId: context.memberTarget.headSha },
+          context.dependencies,
+        );
+        // A forgotten selector silently reviews the control branch rather than the
+        // member; on the dirty locus that is normal there, derivation refuses first.
+        await expect(prepareLocalReview(request, context.dependencies))
+          .resolves.toMatchObject({ state: "ready" });
+
+        const admitted = [...context.operations.values()].map(({ state }) => state.kind === "local-review"
+          && state.vehicle.kind);
+        expect(admitted).toEqual(["delivery-member", "work-unit"]);
+      });
     });
   });
 
