@@ -504,47 +504,69 @@ respective predecessors, then retire the old namespace only after every survivin
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, the three ARC contract checks, TypeScript and shell lint, both type checks,
+  build, and the full suite (8902 tests) — all pass. Re-run whole after the base merge and again after each
+  finding-driven fix. Three stale test expectations that lagged the apparatus retirement were corrected: the
+  decompose workflow's teardown command block, the pre-commit foreign-write check number, and the retired
+  finalization heading in the init end-to-end assertions.
+- _Success criteria:_ 13 criteria, all met; two carry annotations. The base merge raised the converted-record
+  count from eight to ten, and an adversarial conformance pass found the `CODEOWNERS` unowned block — a
+  second, hand-maintained statement of the planning-lane paths — left behind by the predicate change.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A planned-artifact + `ROADMAP` + exact transition-record change classifies `planning` through the generic
+- `[x]` A planned-artifact + `ROADMAP` + exact transition-record change classifies `planning` through the generic
   predicate in both local and hosted checks; adjacent `.arc/system/.internal/**` content remains reviewed.
+    - **Note:** the predicate has a second server-side consumer that re-states its paths rather than calling it —
+      the `CODEOWNERS` unowned block, in this repository and in both copies of the shipped merge-gate skeleton.
+      Left unextended it would have classified a decomposition `planning` and then blocked the same PR on
+      code-owner review, so the transitions entry and the surrounding ownership guidance were carried there too.
+      Verified as the only such re-statement in the tree.
 
-- `[ ]` Exactly eight live terminal decisions exist as schema-v1 origin-keyed transition records, the park record
+- `[x]` Exactly eight live terminal decisions exist as schema-v1 origin-keyed transition records, the park record
   is not converted, and query/reference answers match the characterized predecessor answers for every live read.
+    - **Deviation:** ten records, not eight. The eight the criterion names converted as written, and the
+      `decompose-extraction` park record was correctly left unconverted. The base merge then introduced two further
+      terminal decisions abandoned on the base under the retiring apparatus — `claimed-sweep-verbs` and
+      `locus-generation-binding` — which were converted to the same schema-v1 abandon shape the live abandon writer
+      emits, and the now-empty digest-keyed namespace was removed. Characterized-answer equivalence is verified over
+      all ten: the eight through the frozen predecessor oracle, and the two later arrivals against the predecessor
+      readers themselves, which branch on `result.kind` (`discard`) rather than `schemaVersion` and so yield the
+      same `abandoned` / `removed` answers the lean records now produce.
 
-- `[ ]` Disposition and reference consumers expose only the lean closed result vocabulary, preserve namespace-level
+- `[x]` Disposition and reference consumers expose only the lean closed result vocabulary, preserve namespace-level
   fail-closed behavior, and treat content origin—not filename—as authoritative.
 
-- `[ ]` Abandon teardown, husk revalidation, park landing, and park teardown grant and refuse through committed-Git
+- `[x]` Abandon teardown, husk revalidation, park landing, and park teardown grant and refuse through committed-Git
   proofs with parity coverage and no transition-record or receipt content used as authorization evidence.
 
-- `[ ]` `decompose --execute <cut-map>` is the sole terminal mutation path, stages one lean record with the
+- `[x]` `decompose --execute <cut-map>` is the sole terminal mutation path, stages one lean record with the
   transform under both protection modes, and exposes no preparation/finalization follow-up.
 
-- `[ ]` Full-protection `--advance-base <cut-map>` preserves append-only descendant-base mobility through pinned
+- `[x]` Full-protection `--advance-base <cut-map>` preserves append-only descendant-base mobility through pinned
   Git/map proof, with no receipt or transition-record content used as mutation authority.
 
-- `[ ]` The planning-lane exception trio, launch/readiness adapter, initial continuation, landed publication/handoff,
+- `[x]` The planning-lane exception trio, launch/readiness adapter, initial continuation, landed publication/handoff,
   decomposition receipt marker/start special case, candidate discard/exactness, preparation, sealing, and
   receipt-shaped recovery clusters are absent.
 
-- `[ ]` The four stranded candidate states formerly reported as `candidate-cleanup-failed`, `candidate-not-exact`,
+- `[x]` The four stranded candidate states formerly reported as `candidate-cleanup-failed`, `candidate-not-exact`,
   `candidate-index-changed`, and `candidate-path-set-changed` are destroyable through surviving cleanup behavior.
 
-- `[ ]` No production or shipped configuration path reads or writes decomposition `receiptId`, `preparationId`,
+- `[x]` No production or shipped configuration path reads or writes decomposition `receiptId`, `preparationId`,
   sealed receipt fields, the digest-keyed retirement-receipts namespace, or its validator; no transitional
   co-staging, coexistence branch, alias, fallback, or retired decomposition command mode remains.
 
-- `[ ]` The landed diff adds no integrity machinery, invented lifecycle state, parallel readiness vocabulary,
+- `[x]` The landed diff adds no integrity machinery, invented lifecycle state, parallel readiness vocabulary,
   widened `.internal` predicate, retention policy, storage lift, compatibility reader, or redesigned refusal scheme.
 
-- `[ ]` Unrelated receipt systems and independently necessary Git, lifecycle, topology, conservation, merge, and
+- `[x]` Unrelated receipt systems and independently necessary Git, lifecycle, topology, conservation, merge, and
   cleanup safeguards remain covered and operational.
 
-- `[ ]` All quality gates pass (tests, linting, type checking).
+- `[x]` All quality gates pass (tests, linting, type checking).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
