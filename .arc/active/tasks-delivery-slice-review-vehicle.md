@@ -13,24 +13,18 @@ _Design decisions:_ The default implementation wraps the delivery state store al
 because state binds one exact plan revision by digest while the plan store returns the current plan. Finality
 reads the last element of the state's plan-ordered member list.
 
-### `[ ]` **1.1 Delivery member lookup port contract**
+### `[x]` **1.1 Delivery member lookup port contract**
 
 - _Goal:_ Review has one storage-agnostic way to ask what delivery member a given head is, so the readiness lane
   and the local lane authenticate through a single injectable seam instead of re-modelling delivery twice.
 
-- _Shape:_ The contract is host-neutral and belongs beside the lane's other host-neutral contracts; its adapter
-  belongs with the local-host adapters, alongside the Git-common-state boundary it is built from. That split
-  mirrors how the lane already separates review authority from its adapter.
-
-    - One method takes the exact member head object id and answers in three states: **resolved**, carrying the
-      owning plan, deliverable, and work unit, the member's recorded base and head commits, and whether the
-      member is the plan's final one; **unbound**, meaning no delivery member holds that head; or
-      **unavailable**, meaning the answer could not be established.
-    - Unbound and unavailable stay distinct all the way through the contract — the two consumers refuse
-      differently on each, and collapsing them would make a missing binding indistinguishable from a broken read.
-    - Answer with that third state rather than throwing, so each caller maps it to its own refusal vocabulary.
-    - Do not expose the optional ownership hint the underlying lookup accepts. Callers compare resolutions
-      themselves, which keeps refusal vocabulary with the caller rather than surfacing as a store failure.
+- _Outcome:_ `core/delivery-member-lookup.ts` declares `DeliveryMemberLookup.resolveMemberByHead`, returning a
+  three-state `DeliveryMemberLookupResult` — `resolved` with the owning plan, deliverable, work unit, recorded
+  base and head, and a final-member flag; `unbound`; or `unavailable`. The port is total: no throw reaches a
+  caller, and `unbound` never collapses into `unavailable`. Identifiers are plain strings rather than delivery's
+  branded digests, so the review core stays free of delivery-module types; the ownership hint the underlying
+  store accepts is deliberately absent from the contract. The core/adapter split mirrors the lane's existing
+  `local-review-authority` pair, so the adapter lands beside the Git-common-state boundary it is built from.
 
 ### `[ ]` **1.2 Repository-backed default lookup implementation**
 
