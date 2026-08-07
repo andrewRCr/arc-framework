@@ -25,6 +25,8 @@ import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
 const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
+const PlanIdSchema = z.uuid();
+const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
@@ -51,6 +53,12 @@ export const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("errand"),
     slug: SlugSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-member"),
+    planId: PlanIdSchema,
+    deliverableId: DeliverableIdSchema,
+    workUnitSlug: SlugSchema,
   }),
 ]);
 
@@ -310,7 +318,10 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   if (request.target.headSha !== request.pullRequest.headSha) {
     facts.push(fact("stale-head", "target.headSha", "The requested SHA is not the pull request's exact live head."));
   }
-  if (branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug) {
+  if (
+    request.vehicle.kind !== "delivery-member"
+    && branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug
+  ) {
     facts.push(fact(
       "vehicle-branch-mismatch",
       "pullRequest.headBranch",
@@ -860,6 +871,9 @@ export async function evaluateReviewReadiness(
   }
 
   if (request.vehicle.kind === "errand") {
+    return ready(request);
+  }
+  if (request.vehicle.kind === "delivery-member") {
     return ready(request);
   }
   if (request.vehicle.archiveCadence === "with-integration") {

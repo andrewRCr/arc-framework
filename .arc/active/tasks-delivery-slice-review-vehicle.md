@@ -68,42 +68,31 @@ and no base is asserted. The terminal boundary is enforced rather than trusted, 
 is also bound in delivery state. This work unit adds no host surface — the vehicle reaches the CLI as JSON on
 stdin, composed by the consuming callsite.
 
-### `[ ]` **2.1 Admit the `delivery-member` variant and scope the branch-slug check to slug-bearing kinds**
+### `[x]` **2.1 Admit the `delivery-member` variant and scope the branch-slug check to slug-bearing kinds**
 
 - _Goal:_ A readiness request can name a delivery member by plan, deliverable, and owning work unit, and the
   branch-encodes-slug check stops applying to a vehicle that carries no slug by design.
 
-- _Rationale:_ These land together because the union is dereferenced unconditionally in two places, and admitting
-  a variant that carries neither field type-checks in neither. Splitting them would leave an intermediate state
-  that does not compile, so a one-behavior-at-a-time list could not run across the boundary.
+    - `[x]` **2.1.a Add the variant to the readiness vehicle union**
 
-    - `[ ]` **2.1.a Add the variant to the readiness vehicle union**
+        - `ReviewVehicleSchema` gains a third `strictObject` carrying `kind`, `planId`, `deliverableId`, and
+          `workUnitSlug`; strictness is what rejects a base or an archive-cadence field.
+        - two module-local formats were added rather than imported: `PlanIdSchema` is `z.uuid()` — matching
+          delivery's own acceptance set but **without** its lower-casing `overwrite`, so a canonical-case
+          assertion parses and normalization stays a comparison concern (Task 2.2.c) — and
+          `DeliverableIdSchema` constrains the `sha256:` canonical digest. `workUnitSlug` reuses `SlugSchema`.
 
-        - carries the kind, plan id, deliverable id, and owning work-unit slug — no base, no archive cadence
-        - every field in this module is regex-constrained, and the variant needs two formats the module does not
-          yet have: the plan id is a UUID and the deliverable id is a `sha256:` canonical digest. The work-unit
-          slug reuses the module's existing slug format.
+    - `[x]` **2.1.b Scope both unconditional dereferences to the kinds that carry their fields**
 
-        Build `test-first` (one behavior at a time):
+        - the branch-encodes-slug check is guarded on `kind !== "delivery-member"`, which leaves the
+          Errand-branch, pull-request identity, closed-state, and stale-head facts vehicle-agnostic as they were.
+        - the arm dispatch gains a member arm ahead of the archive-cadence read, admitting unconditionally for
+          now; what it actually declines to do is Task 2.3's.
 
-        - a well-formed member vehicle parses
-        - a malformed plan id or deliverable id is rejected
-        - one carrying a base or an archive-cadence field is rejected
-        - the envelope echoes the member vehicle unchanged in both the ready and the invalid payload
-
-    - `[ ]` **2.1.b Scope both unconditional dereferences to the kinds that carry their fields**
-
-        - two sites read fields the member variant does not have: the branch check reads the vehicle's slug, and
-          the arm dispatch reads its archive cadence after narrowing past the Errand return. Scoping the second
-          means introducing the member arm, which lands here as a dispatch that admits; the work it does — or
-          rather declines to do — is defined in Task 2.3.
-
-        Build `test-first` (one behavior at a time):
-
-        - a member vehicle never produces the branch-mismatch fact, whatever the head branch is named
-        - work-unit and Errand vehicles keep today's branch-mismatch and Errand-branch behavior
-        - the pull-request identity, closed-state, and stale-head facts apply to all three kinds
-        - a member vehicle reaches its own arm rather than either work-unit cadence arm
+- _Outcome:_ Readiness admits a `delivery-member` vehicle end to end — the envelope echoes it unchanged in both
+  the ready and the invalid payload — and no work-unit or Errand behavior moved. The member arm is deliberately a
+  bare `ready(request)` at this point: authentication (2.2) and the lifecycle-skip contract (2.3) land on top of
+  it, so a member currently admits on identity alone.
 
 ### `[ ]` **2.2 Authenticate the member against delivery state**
 

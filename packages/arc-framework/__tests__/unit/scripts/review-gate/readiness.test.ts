@@ -5,10 +5,13 @@ import { composeProjectReadinessView } from "../../../../src/lib/status/project-
 import {
   evaluateReviewReadiness,
   type ReviewReadinessFs,
+  ReviewVehicleSchema,
 } from "../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
 const ROOT = "/tree";
+const PLAN_ID = "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+const DELIVERABLE_ID = `sha256:${"b".repeat(64)}`;
 
 function fileInfo(kind: "file" | "directory" | "symlink") {
   return {
@@ -108,10 +111,23 @@ The exact candidate shipped with its archive products.
 `;
 }
 
+function memberVehicle(
+  overrides: Partial<{ planId: string; deliverableId: string; workUnitSlug: string }> = {},
+) {
+  return {
+    kind: "delivery-member" as const,
+    planId: PLAN_ID,
+    deliverableId: DELIVERABLE_ID,
+    workUnitSlug: "demo",
+    ...overrides,
+  };
+}
+
 function readinessRequest(
   vehicle:
     | { kind: "work-unit"; slug: string; archiveCadence: "with-integration" | "manual" }
-    | { kind: "errand"; slug: string },
+    | { kind: "errand"; slug: string }
+    | { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string },
   pullRequest: Partial<{
     repository: string;
     number: number;
@@ -688,6 +704,133 @@ Projects enabling the context must install the pinned workflow.
     expect(archiveResult).toMatchObject({
       state: "invalid",
       payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "pr-url-mismatch" })]) },
+    });
+  });
+});
+
+describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
+  it("parses a well-formed member vehicle", () => {
+    expect(ReviewVehicleSchema.parse(memberVehicle())).toEqual(memberVehicle());
+  });
+
+  it.each([
+    ["plan id", memberVehicle({ planId: "not-a-uuid" })],
+    ["deliverable id", memberVehicle({ deliverableId: `sha256:${"b".repeat(63)}` })],
+    ["deliverable digest algorithm", memberVehicle({ deliverableId: `sha1:${"b".repeat(64)}` })],
+    ["work-unit slug", memberVehicle({ workUnitSlug: "Demo_Unit" })],
+  ])("rejects a malformed %s", (_field, vehicle) => {
+    expect(ReviewVehicleSchema.safeParse(vehicle).success).toBe(false);
+  });
+
+  it.each([
+    ["base", { ...memberVehicle(), base: "main" }],
+    ["archive cadence", { ...memberVehicle(), archiveCadence: "manual" }],
+  ])("rejects a member vehicle carrying a %s", (_field, vehicle) => {
+    expect(ReviewVehicleSchema.safeParse(vehicle).success).toBe(false);
+  });
+
+  it("echoes the member vehicle unchanged in both the ready and the invalid payload", async () => {
+    const readyResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}) },
+    );
+    const invalidResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03", state: "closed" }),
+      { fs: buildFs({}) },
+    );
+
+    expect(readyResult).toMatchObject({ state: "ready", payload: { vehicle: memberVehicle() } });
+    expect(invalidResult).toMatchObject({ state: "invalid", payload: { vehicle: memberVehicle() } });
+  });
+
+  it.each([
+    ["a delivery projection", "delivery/plan/03"],
+    ["a bare ref with no type prefix", "member-03"],
+    ["a feature branch naming another slug", "feat/unrelated"],
+  ])("never produces the branch-mismatch fact for a member on %s", async (_case, headBranch) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch }),
+      { fs: buildFs({}) },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("keeps the branch-mismatch and Errand-branch facts for the slug-bearing kinds", async () => {
+    const workUnitResult = await evaluateReviewReadiness(
+      readinessRequest(
+        { kind: "work-unit", slug: "demo", archiveCadence: "manual" },
+        { headBranch: "delivery/plan/03" },
+      ),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() }) },
+    );
+    const errandResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}) },
+    );
+
+    expect(workUnitResult).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "vehicle-branch-mismatch", path: "pullRequest.headBranch" }] },
+    });
+    expect(errandResult).toMatchObject({
+      state: "invalid",
+      payload: {
+        facts: [
+          { code: "vehicle-branch-mismatch" },
+          { code: "errand-branch-mismatch" },
+        ],
+      },
+    });
+  });
+
+  it.each([
+    [
+      "pull-request-mismatch",
+      { number: 41 } as const,
+    ],
+    [
+      "pull-request-closed",
+      { state: "closed" } as const,
+    ],
+    [
+      "stale-head",
+      { headSha: "c".repeat(40) } as const,
+    ],
+  ])("applies the %s fact to a member as to the other kinds", async (code, pullRequest) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03", ...pullRequest }),
+      { fs: buildFs({}) },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [expect.objectContaining({ code })] },
+    });
+  });
+
+  it("reaches its own arm rather than either work-unit cadence arm", async () => {
+    const memberResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}) },
+    );
+    const manualResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({}) },
+    );
+    const archivedResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      { fs: buildFs({}) },
+    );
+
+    expect(memberResult.state).toBe("ready");
+    expect(manualResult).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ path: ".arc/active/meta-demo.md" }] },
+    });
+    expect(archivedResult).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ path: ".arc/completed" }] },
     });
   });
 });
