@@ -411,6 +411,19 @@ export async function runMaterializingWorktreeInspection(
   if (!isGitObjectId(advertisedOid)) {
     throw new Error("Cannot resolve the materialized worktree commit.");
   }
+  let verifiedCommitOid: string;
+  try {
+    verifiedCommitOid = (await exec(
+      "git",
+      ["rev-parse", "--verify", `${advertisedOid}^{commit}`],
+      { objectAccess: "local-only" },
+    )).stdout.trim();
+  } catch (error) {
+    throw new Error("The materialized worktree commit is not available locally.", { cause: error });
+  }
+  if (verifiedCommitOid !== advertisedOid) {
+    throw new Error("The materialized worktree commit is not available locally.");
+  }
   const history = await readHistoryCompleteness({ exec });
   return analyzeExactMaterializedWorktree({
     exec,
@@ -486,9 +499,8 @@ export async function readConfiguredUpstreamBranch(exec: GitExec, branch: string
   if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
   if (records.length === 0) return null;
   const upstream = records[0] ?? "";
-  if (!upstream.startsWith("origin/") || upstream.length === "origin/".length) {
-    throw new Error("The configured upstream must be a branch on origin.");
-  }
+  if (!upstream.startsWith("origin/")) return null;
+  if (upstream.length === "origin/".length) throw new Error("Cannot resolve the origin branch name.");
   return upstream.slice("origin/".length);
 }
 
